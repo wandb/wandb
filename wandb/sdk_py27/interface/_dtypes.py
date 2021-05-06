@@ -40,6 +40,8 @@ class TypeRegistry:
     def add(wb_type):
         assert issubclass(wb_type, Type)
         TypeRegistry.types_by_name().update({wb_type.name: wb_type})
+        for name in wb_type.legacy_names:
+            TypeRegistry.types_by_name().update({name: wb_type})
         TypeRegistry.types_by_class().update(
             {_type: wb_type for _type in wb_type.types}
         )
@@ -60,7 +62,7 @@ class TypeRegistry:
         if class_handler:
             _type = class_handler.from_obj(py_obj)
         else:
-            _type = ObjectType.from_obj(py_obj)
+            _type = PythonObjectType.from_obj(py_obj)
         return _type
 
     @staticmethod
@@ -95,7 +97,7 @@ class TypeRegistry:
 
             # else, fallback to object type
             else:
-                wbtype = ObjectType.from_obj(dtype)
+                wbtype = PythonObjectType.from_obj(dtype)
 
         # The dtype is a list, then we resolve the list notation
         elif isinstance(dtype, list):
@@ -110,7 +112,7 @@ class TypeRegistry:
 
         # The dtype is a dict, then we resolve the dict notation
         elif isinstance(dtype, dict):
-            wbtype = DictType(
+            wbtype = TypedDictType(
                 {key: TypeRegistry.type_from_dtype(dtype[key]) for key in dtype}
             )
 
@@ -165,6 +167,9 @@ class Type(object):
     # Subclasses must override with a unique name. This is used to identify the
     # class during serializations and deserializations
     name = ""
+
+    # List of names by which this class can deserialize
+    legacy_names = []
 
     # Subclasses may override with a list of `types` which this Type is capable
     # of being initialized. This is used by the Type Registry when calling `TypeRegistry.type_of`.
@@ -389,10 +394,11 @@ if np:
     BooleanType.types.append(np.bool_)
 
 
-class ObjectType(Type):
+class PythonObjectType(Type):
     """Serves as a backup type by keeping track of the python object name"""
 
-    name = "object"
+    name = "pythonObject"
+    legacy_names = ["object"]
     types = []
 
     def __init__(self, class_name):
@@ -573,13 +579,17 @@ class ListType(Type):
     name = "list"
     types = [list, tuple, set, frozenset]
 
-    def __init__(self, element_type = None):
+    def __init__(
+        self,
+        element_type = None,
+        length = None,
+    ):
         if element_type is None:
             wb_type = UnknownType()
         else:
             wb_type = TypeRegistry.type_from_dtype(element_type)
 
-        self.params.update({"element_type": wb_type})
+        self.params.update({"element_type": wb_type, "length": length})
 
     @classmethod
     def from_obj(cls, py_obj = None):
@@ -606,7 +616,7 @@ class ListType(Type):
 
                 elm_type = _elm_type
 
-            return cls(elm_type)
+            return cls(elm_type, len(py_list))
 
     def assign_type(self, wb_type):
         if isinstance(wb_type, ListType):
@@ -614,7 +624,12 @@ class ListType(Type):
                 wb_type.params["element_type"]
             )
             if not isinstance(assigned_type, InvalidType):
-                return ListType(assigned_type)
+                return ListType(
+                    assigned_type,
+                    None
+                    if self.params["length"] != wb_type.params["length"]
+                    else self.params["length"],
+                )
 
         return InvalidType()
 
@@ -625,11 +640,12 @@ class ListType(Type):
             new_element_type = self.params["element_type"]
             # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
             # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
-            for obj in list(py_obj):  # type: ignore
+            py_list = list(py_obj)  # type: ignore
+            for obj in py_list:
                 new_element_type = new_element_type.assign(obj)
                 if isinstance(new_element_type, InvalidType):
                     return InvalidType()
-            return ListType(new_element_type)
+            return ListType(new_element_type, len(py_list))
 
         return InvalidType()
 
@@ -747,11 +763,12 @@ if np:
 #     UNRESTRICTED = "U"  # all known keys are optional and unknown keys are Unknown
 
 
-class DictType(Type):
+class TypedDictType(Type):
     """Represents a dictionary object where each key can have a type
     """
 
-    name = "dictionary"
+    name = "typedDict"
+    legacy_names = ["dictionary"]
     types = [dict]
 
     def __init__(
@@ -770,14 +787,14 @@ class DictType(Type):
     @classmethod
     def from_obj(cls, py_obj = None):
         if not isinstance(py_obj, dict):
-            TypeError("DictType.from_obj expects a dictionary")
+            TypeError("TypedDictType.from_obj expects a dictionary")
 
         assert isinstance(py_obj, dict)  # helps mypy type checker
         return cls({key: TypeRegistry.type_of(py_obj[key]) for key in py_obj})
 
     def assign_type(self, wb_type):
         if (
-            isinstance(wb_type, DictType)
+            isinstance(wb_type, TypedDictType)
             and len(
                 set(wb_type.params["type_map"].keys())
                 - set(self.params["type_map"].keys())
@@ -791,7 +808,7 @@ class DictType(Type):
                 )
                 if isinstance(type_map[key], InvalidType):
                     return InvalidType()
-            return DictType(type_map)
+            return TypedDictType(type_map)
 
         return InvalidType()
 
@@ -809,12 +826,12 @@ class DictType(Type):
                 )
                 if isinstance(type_map[key], InvalidType):
                     return InvalidType()
-            return DictType(type_map)
+            return TypedDictType(type_map)
 
         return InvalidType()
 
     def explain(self, other, depth=0):
-        exp = super(DictType, self).explain(other, depth)
+        exp = super(TypedDictType, self).explain(other, depth)
         gap = "".join(["\t"] * depth)
         if isinstance(other, dict):
             extra_keys = set(other.keys()) - set(self.params["type_map"].keys())
@@ -848,11 +865,11 @@ TypeRegistry.add(StringType)
 TypeRegistry.add(NumberType)
 TypeRegistry.add(BooleanType)
 TypeRegistry.add(ListType)
-TypeRegistry.add(DictType)
+TypeRegistry.add(TypedDictType)
 
 # Types without default type mappings
 TypeRegistry.add(UnionType)
-TypeRegistry.add(ObjectType)
+TypeRegistry.add(PythonObjectType)
 TypeRegistry.add(ConstType)
 
 # Common Industry Types
@@ -868,9 +885,9 @@ __all__ = [
     "NumberType",
     "BooleanType",
     "ListType",
-    "DictType",
+    "TypedDictType",
     "UnionType",
-    "ObjectType",
+    "PythonObjectType",
     "ConstType",
     "OptionalType",
     "Type",

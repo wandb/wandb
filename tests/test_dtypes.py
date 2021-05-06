@@ -117,8 +117,8 @@ def test_object_type():
 
 
 def test_list_type():
-    assert ListType(int).assign([]) == ListType(int)
-    assert ListType(int).assign([1, 2, 3]) == ListType(int)
+    assert ListType(int).assign([]) == ListType(int, 0)
+    assert ListType(int).assign([1, 2, 3]) == ListType(int, 3)
     assert ListType(int).assign([1, "a", 3]) == InvalidType()
 
 
@@ -138,28 +138,28 @@ def test_dict_type():
         "optional_unknown": OptionalType(UnknownType()),
     }
 
-    wb_type = DictType(spec)
+    wb_type = TypedDictType(spec)
     assert wb_type.assign({}) == wb_type
     assert wb_type.assign({"optional_number": 1}) == wb_type
     assert wb_type.assign({"optional_number": "1"}) == InvalidType()
-    assert wb_type.assign({"optional_unknown": "hi"}) == DictType(
+    assert wb_type.assign({"optional_unknown": "hi"}) == TypedDictType(
         {"optional_number": OptionalType(float), "optional_unknown": OptionalType(str),}
     )
-    assert wb_type.assign({"optional_unknown": None}) == DictType(
+    assert wb_type.assign({"optional_unknown": None}) == TypedDictType(
         {
             "optional_number": OptionalType(float),
             "optional_unknown": OptionalType(UnknownType()),
         }
     )
 
-    wb_type = DictType({"unknown": UnknownType()})
+    wb_type = TypedDictType({"unknown": UnknownType()})
     assert wb_type.assign({}) == InvalidType()
     assert wb_type.assign({"unknown": None}) == InvalidType()
-    assert wb_type.assign({"unknown": 1}) == DictType({"unknown": float},)
+    assert wb_type.assign({"unknown": 1}) == TypedDictType({"unknown": float},)
 
 
 def test_nested_dict():
-    notation_type = DictType(
+    notation_type = TypedDictType(
         {
             "a": float,
             "b": bool,
@@ -182,23 +182,23 @@ def test_nested_dict():
             ],
         }
     )
-    expanded_type = DictType(
+    expanded_type = TypedDictType(
         {
             "a": NumberType(),
             "b": BooleanType(),
             "c": StringType(),
             "d": UnknownType(),
-            "e": DictType({}),
+            "e": TypedDictType({}),
             "f": ListType(),
             "g": ListType(
                 ListType(
-                    DictType(
+                    TypedDictType(
                         {
                             "a": NumberType(),
                             "b": BooleanType(),
                             "c": StringType(),
                             "d": UnknownType(),
-                            "e": DictType({}),
+                            "e": TypedDictType({}),
                             "f": ListType(),
                             "g": ListType(ListType()),
                         }
@@ -229,16 +229,16 @@ def test_nested_dict():
             ]
         ],
     }
-    real_type = DictType.from_obj(example)
+    real_type = TypedDictType.from_obj(example)
 
     assert notation_type == expanded_type
     assert notation_type.assign(example) == real_type
 
 
 def test_image_type():
-    wb_type = data_types._ImageType()
+    wb_type = data_types._ImageFileType()
     image_simple = data_types.Image(np.random.rand(10, 10))
-    wb_type_simple = data_types._ImageType.from_obj(image_simple)
+    wb_type_simple = data_types._ImageFileType.from_obj(image_simple)
     image_annotated = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -283,7 +283,7 @@ def test_image_type():
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },
     )
-    wb_type_annotated = data_types._ImageType.from_obj(image_annotated)
+    wb_type_annotated = data_types._ImageFileType.from_obj(image_annotated)
 
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),

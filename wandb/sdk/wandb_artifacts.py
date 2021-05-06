@@ -19,6 +19,7 @@ import wandb.data_types as data_types
 from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
+from . import lib as wandb_lib
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -66,6 +67,8 @@ _REQUEST_POOL_CONNECTIONS = 64
 
 _REQUEST_POOL_MAXSIZE = 64
 
+ARTIFACT_TMP = compat_tempfile.TemporaryDirectory("wandb-artifacts")
+
 
 class _AddedObj(object):
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
@@ -75,10 +78,11 @@ class _AddedObj(object):
 
 class Artifact(ArtifactInterface):
     """
+    Flexible and lightweight building block for dataset and model versioning.
+
     Constructs an empty artifact whose contents can be populated using its
     `add` family of functions. Once the artifact has all the desired files,
     you can call `wandb.log_artifact()` to log it.
-
 
     Arguments:
         name: (str) A human-readable name for this artifact, which is how you
@@ -117,6 +121,7 @@ class Artifact(ArtifactInterface):
     _distributed_id: Optional[str]
     _metadata: dict
     _logged_artifact: Optional[ArtifactInterface]
+    _incremental: bool
 
     def __init__(
         self,
@@ -124,6 +129,7 @@ class Artifact(ArtifactInterface):
         type: str,
         description: Optional[str] = None,
         metadata: Optional[dict] = None,
+        incremental: Optional[bool] = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -160,6 +166,11 @@ class Artifact(ArtifactInterface):
         self._metadata = metadata or {}
         self._distributed_id = None
         self._logged_artifact = None
+        self._incremental = False
+
+        if incremental:
+            self._incremental = incremental
+            wandb.termwarn("Using experimental arg `incremental`")
 
     @property
     def id(self) -> Optional[str]:
@@ -311,6 +322,10 @@ class Artifact(ArtifactInterface):
     def distributed_id(self, distributed_id: Optional[str]) -> None:
         self._distributed_id = distributed_id
 
+    @property
+    def incremental(self) -> bool:
+        return self._incremental
+
     def used_by(self) -> List["wandb.apis.public.Run"]:
         if self._logged_artifact:
             return self._logged_artifact.used_by()
@@ -433,6 +448,11 @@ class Artifact(ArtifactInterface):
     def add(self, obj: data_types.WBValue, name: str) -> ArtifactEntry:
         self._ensure_can_add()
 
+        # This is a "hack" to automatically rename tables added to
+        # the wandb /media/tables directory to their sha-based name.
+        # TODO: figure out a more appropriate convention.
+        is_tmp_name = name.startswith("media/tables")
+
         # Validate that the object is one of the correct wandb.Media types
         # TODO: move this to checking subclass of wandb.Media once all are
         # generally supported
@@ -472,19 +492,36 @@ class Artifact(ArtifactInterface):
         entry = self._manifest.get_entry_by_path(name)
         if entry is not None:
             return entry
-        with self.new_file(name) as f:
+
+        def do_write(f: IO) -> None:
             import json
 
             # TODO: Do we need to open with utf-8 codec?
             f.write(json.dumps(val, sort_keys=True))
 
+        if is_tmp_name:
+            file_path = os.path.join(ARTIFACT_TMP.name, str(id(self)), name)
+            folder_path, _ = os.path.split(file_path)
+            if not os.path.exists(folder_path):
+                os.makedirs(folder_path)
+            with open(file_path, "w") as tmp_f:
+                do_write(tmp_f)
+        else:
+            with self.new_file(name) as f:
+                file_path = f.name
+                do_write(f)
+
         # Note, we add the file from our temp directory.
         # It will be added again later on finalize, but succeed since
         # the checksum should match
-        entry = self.add_file(os.path.join(self._artifact_dir.name, name), name)
+        entry = self.add_file(file_path, name, is_tmp_name)
         self._added_objs[obj_id] = _AddedObj(entry, obj)
         if obj._artifact_target is None:
             obj._set_artifact_target(self, entry.path)
+
+        if is_tmp_name:
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
         return entry
 
@@ -546,6 +583,11 @@ class Artifact(ArtifactInterface):
         Returns:
             None
         """
+
+        if self._incremental:
+            with wandb_lib.telemetry.context() as tel:
+                tel.feature.artifact_incremental = True
+
         if self._logged_artifact:
             return self._logged_artifact.save()
         else:
@@ -555,6 +597,11 @@ class Artifact(ArtifactInterface):
                 with wandb.init(
                     project=project, job_type="auto", settings=settings
                 ) as run:
+                    # redoing this here because in this branch we know we didn't
+                    # have the run at the beginning of the method
+                    if self._incremental:
+                        with wandb_lib.telemetry.context(run=run) as tel:
+                            tel.feature.artifact_incremental = True
                     run.log_artifact(self)
                     project_url = run._get_project_url()
                     # Calling "wait" here is OK, since we have to wait
