@@ -951,7 +951,6 @@ def launch(
     """
     param_dict = _user_args_to_dict(param_list)
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
-
     if backend_config is not None and os.path.splitext(backend_config)[-1] != ".json":
         try:
             backend_config = json.loads(backend_config)
@@ -964,6 +963,8 @@ def launch(
         if backend_config is None:
             wandb.termerror("Specify 'backend_config' when using ngc mode.")
             sys.exit(1)
+
+    api = _get_cling_api()
 
     try:
         wandb_launch.run(
@@ -980,6 +981,7 @@ def launch(
             storage_dir=storage_dir,
             synchronous=backend in ("local", "ngc") or backend is None,
             run_id=run_id,
+            api=api
         )
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)

@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import sys
-
+from gql import Client, gql
 import wandb
 from wandb.errors import ExecutionException
 
@@ -42,6 +42,7 @@ def _run(
     use_conda,
     storage_dir,
     synchronous,
+    api=None,
 ):
     """
     Helper that delegates to the project-running method corresponding to the passed-in backend.
@@ -51,7 +52,7 @@ def _run(
     backend_config[PROJECT_SYNCHRONOUS] = synchronous
     backend_config[PROJECT_DOCKER_ARGS] = docker_args
     backend_config[PROJECT_STORAGE_DIR] = storage_dir
-    backend = loader.load_backend(backend_name)
+    backend = loader.load_backend(backend_name, api)
     if backend:
         submitted_run = backend.run(
             uri, entry_point, parameters, version, backend_config, experiment_id,
@@ -79,6 +80,7 @@ def run(
     storage_dir=None,
     synchronous=True,
     run_id=None,
+    api=None
 ):
     """
     Run a W&B project. The project can be local or stored at a Git URI.
@@ -171,6 +173,7 @@ def run(
         use_conda=use_conda,
         storage_dir=storage_dir,
         synchronous=synchronous,
+        api=api
     )
     if synchronous:
         _wait_for(submitted_run_obj)

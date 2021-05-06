@@ -119,16 +119,16 @@ class AbstractRunner(ABC):
     in-house cluster or job scheduler).
     """
 
-    def __init__(self, api_key=None):  # TODO: maybe don't want to pass api_key here...
+    def __init__(self, api):  # TODO: maybe don't want to pass api_key here...
         # self._config = config  #TODO:
         self._settings = Settings()
-        self._api_key = api_key
+        self._api = api
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
 
     def fetch_and_validate_project(self, project_uri, version, entry_point, params):
         return load_project(
-            fetch_and_validate_project(project_uri, version, entry_point, params)
+            fetch_and_validate_project(project_uri, self._api, version, entry_point, params)
         )
 
     def find_executable(self, cmd):
@@ -137,6 +137,7 @@ class AbstractRunner(ABC):
 
     @property
     def api_key(self):
+        print(self._api_key)
         return self._api_key
 
     def verify(self):

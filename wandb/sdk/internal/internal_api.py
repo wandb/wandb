@@ -1,4 +1,5 @@
 #
+from wandb.vendor.pygments.lexers.robotframework import normalize
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -902,6 +903,40 @@ class Api(object):
                 self.set_setting("entity", entity["name"])
 
         return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+
+    @normalize_exceptions
+    def get_run_info(self, entity, project, name):
+        query = gql("""
+        query Run($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    runInfo {
+                        program
+                        args
+                        os
+                        python
+                        colab
+                        executable
+                        codeSaved
+                        cpuCount
+                        gpuCount
+                        gpu
+                        git {
+                            remote
+                            commit
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "name": name
+        }
+        return self.gql(query, variable_values)["project"]["run"]["runInfo"]
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):

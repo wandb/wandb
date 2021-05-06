@@ -7,7 +7,9 @@ import os
 import re
 import tempfile
 import urllib.parse
-
+from gql import Client, gql
+from gql.client import RetryError  # type: ignore
+from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
 
@@ -108,9 +110,9 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
-def fetch_and_validate_project(uri, version, entry_point, parameters):
+def fetch_and_validate_project(uri, api, version, entry_point, parameters):
     parameters = parameters or {}
-    work_dir = _fetch_project(uri=uri, version=version)
+    work_dir = _fetch_project(uri=uri, api=api, version=version)
     project = _project_spec.load_project(work_dir)
     project.get_entry_point(entry_point)._validate_parameters(parameters)
     return work_dir
@@ -120,7 +122,15 @@ def load_project(work_dir):
     return _project_spec.load_project(work_dir)
 
 
-def _fetch_project(uri, version=None):
+def fetch_wandb_project_run_info(uri, api=None):
+    print("URI", uri)
+    stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
+    entity, project, name = stripped_uri.split("/")[1:]
+    result = api.get_run_info(entity, project, name)
+    return result
+
+
+def _fetch_project(uri, api, version=None):
     """
     Fetch a project into a local directory, returning the path to the local project directory.
     """
@@ -148,7 +158,10 @@ def _fetch_project(uri, version=None):
             dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
     elif _is_wandb_uri(uri):
         # TODO: so much hotness
-        pass
+        run_info = fetch_wandb_project_run_info(uri, api)
+        if not run_info["git"]:
+            raise ExecutionException("Run must have git repo associated")
+        
     else:
         assert _GIT_URI_REGEX.match(parsed_uri), (
             "Non-local URI %s should be a Git URI" % parsed_uri

@@ -10,9 +10,9 @@ __logger__ = logging.getLogger(__name__)
 WANDB_RUNNERS = {"local": LocalRunner, "ngc": NGCRunner}
 
 
-def load_backend(backend_name, api_key=None):
+def load_backend(backend_name, api=None):
     # Static backends
     if backend_name in WANDB_RUNNERS:
-        return WANDB_RUNNERS[backend_name](api_key)
+        return WANDB_RUNNERS[backend_name](api)
 
     return None
