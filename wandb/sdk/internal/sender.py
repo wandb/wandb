@@ -115,12 +115,8 @@ class SendManager(object):
         # queue filled by retry_callback
         self._retry_q: "Queue[HttpResponse]" = queue.Queue()
 
-        # list of debounced records (cleared on debounce())
-        self._debounced_records: List[wandb_internal_pb2.Record] = []
-
-        # keep the previous config to determine if an upsert_run should be
-        # sent on debounce
-        self._config_at_last_upsert: Dict[str, Any] = {}
+        # do we need to debounce?
+        self._needs_debounce: bool = False
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -235,18 +231,9 @@ class SendManager(object):
         self._result_q.put(result)
 
     def debounce(self) -> None:
-        config_value_dict = self._config_format(self._consolidated_config)
-        if config_value_dict != self._config_at_last_upsert:
+        if self._needs_debounce:
             # TODO(jhr): check result of upsert_run?
-            if self._run:
-                self._api.upsert_run(
-                    name=self._run.run_id,
-                    config=config_value_dict,
-                    **self._api_settings
-                )
-
-        self._debounced_records = []
-        self._config_at_last_upsert = config_value_dict
+            self._update_config(force_send=True)
 
     def send_request_network_status(self, record):
         assert record.control.req_resp
@@ -314,6 +301,9 @@ class SendManager(object):
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
+        elif state == defer.FLUSH_DEBOUNCER:
+            if self._needs_debounce:
+                self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -326,9 +316,6 @@ class SendManager(object):
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
-        elif state == defer.FLUSH_DEBOUNCER:
-            if len(self._debounced_records) > 0:
-                self.debounce()
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
             self._interface.publish_footer()
@@ -771,22 +758,21 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
-    def _update_config(self, data: wandb_internal_pb2.Record, debounce=False):
+    def _update_config(self, force_send=False):
         config_value_dict = self._config_format(self._consolidated_config)
-        if debounce:
-            self._debounced_records.append(data)
-        else:
+        if force_send:
             self._api.upsert_run(
                 name=self._run.run_id, config=config_value_dict, **self._api_settings
             )
-            self._config_at_last_upsert = config_value_dict
-
+            self._needs_debounce = False
+        else:
+            self._needs_debounce = True
         self._config_save(config_value_dict)
 
     def send_config(self, data):
         cfg = data.config
         config_util.update_from_proto(self._consolidated_config, cfg)
-        self._update_config(data)
+        self._update_config()
 
     def send_metric(self, data: wandb_internal_pb2.Record) -> None:
         metric = data.metric
@@ -825,12 +811,12 @@ class SendManager(object):
             next_idx = len(self._config_metric_pbdict_list)
             self._config_metric_pbdict_list.append(md)
             self._config_metric_index_dict[metric.name] = next_idx
-        self._update_config(data, debounce=True)
+        self._update_config()
 
     def send_telemetry(self, data):
         telem = data.telemetry
         self._telemetry_obj.MergeFrom(telem)
-        self._update_config(data)
+        self._update_config()
 
     def _save_file(self, fname, policy="end"):
         logger.info("saving file %s with policy %s", fname, policy)
