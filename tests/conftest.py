@@ -811,3 +811,11 @@ def tbwatcher_util(
         return ctx_util
 
     yield fn
+
+
+@pytest.fixture
+def inject_requests(mock_server):
+    """Fixture for injecting responses and errors to mock_server."""
+
+    # TODO(jhr): make this compatible with live_mock_server
+    return utils.InjectRequests(ctx=mock_server.ctx)
