@@ -97,6 +97,7 @@ class RecordLoopThread(ExceptionThread):
         while not self._stopped.is_set():
             if time.time() - start >= self._debounce_interval_ms / 1000.0:
                 self._debounce()
+                start = time.time()
             try:
                 record = self._input_record_q.get(timeout=1)
             except queue.Empty:
