@@ -34,6 +34,7 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
+        "inject": {"file_stream": {"responses": []}},
     }
 
 
@@ -806,7 +807,7 @@ def create_app(user_ctx=None):
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
-                            "media/tables/e14239fe.table.json": {
+                            "media/tables/5aac4cea.table.json": {
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
@@ -829,7 +830,10 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
-            elif _id == "bb8043da7d78ff168a695cff097897d2":
+            elif (
+                _id == "bb8043da7d78ff168a695cff097897d2"
+                or _id == "ad4d74ac0e4167c6cf4aaad9d59b9b44"
+            ):
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -841,7 +845,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "f006aa8f99aa79d7b68e079c0a200d21":
+            elif _id == "b89758a7e7503bdb021e0534fe444d9a":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -1035,7 +1039,11 @@ index 30d74d2..9a2c773 100644
         ctx = get_ctx()
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
-        return json.dumps({"exitcode": None, "limits": {}})
+        response = json.dumps({"exitcode": None, "limits": {}})
+        inject_responses = ctx["inject"]["file_stream"]["responses"]
+        if inject_responses:
+            response = inject_responses.pop(0)
+        return response
 
     @app.route("/api/v1/namespaces/default/pods/test")
     def k8s_pod():

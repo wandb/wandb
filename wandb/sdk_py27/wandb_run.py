@@ -113,6 +113,12 @@ class ExitHooks(object):
     def hook(self):
         self._orig_exit = sys.exit
         sys.exit = self.exit
+        self._orig_excepthook = (
+            sys.excepthook
+            if sys.excepthook
+            != sys.__excepthook__  # respect hooks by other libraries like pdb
+            else None
+        )
         sys.excepthook = self.exc_handler
 
     def exit(self, code = 0):
@@ -139,6 +145,8 @@ class ExitHooks(object):
             self.exit_code = 255
 
         traceback.print_exception(exc_type, exc, tb)
+        if self._orig_excepthook:
+            self._orig_excepthook(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -151,7 +159,7 @@ class RunStatusChecker(object):
         self,
         interface,
         stop_polling_interval = 15,
-        retry_polling_interval = 1,
+        retry_polling_interval = 5,
     ):
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
@@ -780,6 +788,9 @@ class Run(object):
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
+
+    def _set_config_wandb(self, key, val):
+        self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record):
         if self._backend:

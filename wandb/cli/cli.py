@@ -45,10 +45,6 @@ if PY3:
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
-# whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
-# DANGER this changes the sys.path so we should never do this in a user script
-whaaaaat = util.vendor_import("whaaaaat")
-
 
 # TODO: turn this on in a cleaner way
 # right now we will litter the filesystem with wandb dirs
@@ -130,16 +126,11 @@ def prompt_for_project(ctx, entity):
             # description = editor()
             project = api.upsert_project(project, entity=entity)["name"]
         else:
-            project_names = [project["name"] for project in result]
-            question = {
-                "type": "list",
-                "name": "project_name",
-                "message": "Which project should we use?",
-                "choices": project_names + ["Create New"],
-            }
-            result = whaaaaat.prompt([question])
+            project_names = [project["name"] for project in result] + ["Create New"]
+            wandb.termlog("Which project should we use?")
+            result = util.prompt_choices(project_names)
             if result:
-                project = result["project_name"]
+                project = result
             else:
                 project = "Create New"
             # TODO: check with the server if the project exists
@@ -150,7 +141,7 @@ def prompt_for_project(ctx, entity):
                 # description = editor()
                 project = api.upsert_project(project, entity=entity)["name"]
 
-    except wandb.errors.error.CommError as e:
+    except wandb.errors.CommError as e:
         raise ClickException(str(e))
 
     return project
@@ -362,19 +353,14 @@ def init(ctx, project, entity, reset, mode):
 
     # At this point we should be logged in successfully.
     if len(viewer["teams"]["edges"]) > 1:
-        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
-        question = {
-            "type": "list",
-            "name": "team_name",
-            "message": "Which team should we use?",
-            "choices": team_names
-            # TODO(jhr): disabling manual entry for cling
-            # 'choices': team_names + ["Manual Entry"]
-        }
-        result = whaaaaat.prompt([question])
+        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
+            "Manual entry"
+        ]
+        wandb.termlog("Which team should we use?",)
+        result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
-            entity = result["team_name"]
+            entity = result
         else:
             entity = "Manual Entry"
         if entity == "Manual Entry":

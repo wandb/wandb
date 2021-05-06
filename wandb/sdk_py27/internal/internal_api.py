@@ -24,11 +24,11 @@ import wandb
 from wandb import __version__
 from wandb import env
 from wandb.old.settings import Settings
-from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
