@@ -16,7 +16,7 @@ sys.path[0:0] = save_path
 import logging
 from six.moves import urllib
 import threading
-from tests.utils.mock_requests import RequestsMock
+from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
 
 
 def default_ctx():
@@ -34,7 +34,6 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
-        "inject": {"file_stream": {"responses": []}},
     }
 
 
@@ -1040,9 +1039,11 @@ index 30d74d2..9a2c773 100644
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
         response = json.dumps({"exitcode": None, "limits": {}})
-        inject_responses = ctx["inject"]["file_stream"]["responses"]
-        if inject_responses:
-            response = inject_responses.pop(0)
+
+        inject = InjectRequestsParse(ctx).find(request=request)
+        if inject and inject.response:
+            # print("INJECT", inject.response)
+            response = inject.response
         return response
 
     @app.route("/api/v1/namespaces/default/pods/test")
