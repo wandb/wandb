@@ -114,7 +114,7 @@ def test_mark_preempting(fake_run, record_q, records_util):
     assert len(r.records) == 3
     assert type(r.records[-1]) == RunPreemptingRecord
 
-    
+
 def test_except_hook(test_settings):
     # Test to make sure we respect excepthooks by 3rd parties like pdb
     errs = []

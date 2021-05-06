@@ -375,9 +375,11 @@ def test_end_to_end_preempting(live_mock_server, test_settings, disable_console)
     assert ok
 
 
-def test_end_to_end_preempting_via_module_func(live_mock_server, test_settings, disable_console):
+def test_end_to_end_preempting_via_module_func(
+    live_mock_server, test_settings, disable_console
+):
     wandb.init(settings=test_settings)
-    wandb.log({'a': 1})
+    wandb.log({"a": 1})
     wandb.mark_preempting()
 
     # poll for message arrival
