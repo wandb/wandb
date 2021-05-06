@@ -43,6 +43,7 @@ def test_fstream_resp_limits_valid(publish_util, mock_server):
     resp_limits = json.dumps({"exitcode": None, "limits": dynamic_settings})
     mock_server.ctx["inject"]["file_stream"]["responses"].append(resp_limits)
     assert_history(publish_util)
+    # note: we are not testing that the limits changed, only that they were accepted
 
 
 def test_fstream_resp_limits_malformed(publish_util, mock_server):
