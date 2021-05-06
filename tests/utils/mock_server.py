@@ -34,6 +34,7 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
+        "inject": {"file_stream": {"responses": []}},
     }
 
 
@@ -844,10 +845,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif (
-                _id == "f006aa8f99aa79d7b68e079c0a200d21"
-                or _id == "1e7cd18d9e99bed4244322db45b281ee"
-            ):
+            elif _id == "b89758a7e7503bdb021e0534fe444d9a":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -1041,7 +1039,11 @@ index 30d74d2..9a2c773 100644
         ctx = get_ctx()
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
-        return json.dumps({"exitcode": None, "limits": {}})
+        response = json.dumps({"exitcode": None, "limits": {}})
+        inject_responses = ctx["inject"]["file_stream"]["responses"]
+        if inject_responses:
+            response = inject_responses.pop(0)
+        return response
 
     @app.route("/api/v1/namespaces/default/pods/test")
     def k8s_pod():
