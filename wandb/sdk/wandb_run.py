@@ -2442,13 +2442,6 @@ def finish(exit_code: int = None) -> None:
         wandb.run.finish(exit_code=exit_code)
 
 
-def mark_preempting() -> None:
-    """Marks a run as preempting and tells the internal process
-    to immediately report this to the server."""
-    if wandb.run:
-        wandb.run.mark_preempting()
-
-
 # propagate our doc string to the runs restore method
 try:
     Run.restore.__doc__ = restore.__doc__

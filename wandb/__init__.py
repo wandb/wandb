@@ -148,12 +148,13 @@ log_artifact = _preinit.PreInitCallable(
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
+
+mark_preempting = _preinit.PreInitCallable("wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting)
+
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
 alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)
-
-mark_preempting = _preinit.PreInitCallable("wandb.mark_preempting", wandb_sdk.wandb_run.mark_preempting)
 
 # record of patched libraries
 patched = {"tensorboard": [], "keras": [], "gym": []}

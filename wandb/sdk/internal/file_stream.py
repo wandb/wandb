@@ -248,7 +248,7 @@ class FileStreamApi(object):
                 if isinstance(item, self.Finish):
                     finished = item
                 elif isinstance(item, self.Preempting):
-                    util.request_with_retry(
+                    request_with_retry(
                         self._client.post,
                         self._endpoint,
                         json={"complete": False, "preempting": True},
