@@ -34,6 +34,7 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
+        "inject": {"file_stream": {"responses": []}},
     }
 
 
@@ -1041,7 +1042,11 @@ index 30d74d2..9a2c773 100644
         ctx = get_ctx()
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
-        return json.dumps({"exitcode": None, "limits": {}})
+        response = json.dumps({"exitcode": None, "limits": {}})
+        inject_responses = ctx["inject"]["file_stream"]["responses"]
+        if inject_responses:
+            response = inject_responses.pop(0)
+        return response
 
     @app.route("/api/v1/namespaces/default/pods/test")
     def k8s_pod():

@@ -301,7 +301,7 @@ class FileStreamApi(object):
                 pass
             if isinstance(parsed, dict):
                 limits = parsed.get("limits")
-                if limits:
+                if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
     def _send(self, chunks):
