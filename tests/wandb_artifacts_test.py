@@ -541,7 +541,7 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
@@ -552,8 +552,8 @@ def test_add_obj_wbimage(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
+                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
+                "size": 293,
             },
         }
 
@@ -567,7 +567,7 @@ def test_add_obj_using_brackets(runner):
         artifact["my-image"] = wb_image
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
@@ -578,8 +578,8 @@ def test_add_obj_using_brackets(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
+                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
+                "size": 293,
             },
         }
 
@@ -684,8 +684,8 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
+                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
+                "size": 293,
             },
         }
 
@@ -711,8 +711,8 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "ksQ+BJCt+KZSsyC03K2+Uw==",
-                "size": 216,
+                "digest": "3lTCGIlHAbNJlwIp2ALaTQ==",
+                "size": 294,
             },
         }
 
@@ -734,8 +734,8 @@ def test_add_obj_wbimage_image_already_added(runner):
                 "size": 64,
             },
             "my-image.image-file.json": {
-                "digest": "ZeHjOyjSSVRwrmibiprSQw==",
-                "size": 193,
+                "digest": "8ZJmhiCv9lrjXBCz5oVl8g==",
+                "size": 271,
             },
         }
 
@@ -762,7 +762,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "doenHELpx+ycc8mX5YZ7QA==", "size": 855},
+            "my-table.table.json": {"digest": "dQsR9hmEpOiRckgfFbiO1g==", "size": 1011},
         }
 
 
@@ -794,7 +794,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "BC0yq8RzGcujlewXFRtKag==", "size": 641},
+            "my-table.table.json": {"digest": "Ts96ecO6RcC9J0aOABjflw==", "size": 797},
         }
 
 
