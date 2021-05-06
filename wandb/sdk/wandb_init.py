@@ -101,8 +101,7 @@ class _WandbInit(object):
                     sm_env["WANDB_API_KEY"] = sm_api_key
                 settings._apply_environ(sm_env)
                 wandb.setup(settings=settings)
-            for k, v in six.iteritems(sm_run):
-                kwargs.setdefault(k, v)
+            settings._apply_setup(sm_run)
             self._use_sagemaker = True
 
         # Remove parameters that are not part of settings
