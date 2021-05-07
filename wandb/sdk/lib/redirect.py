@@ -11,7 +11,6 @@ import itertools
 import logging
 import os
 import re
-import select
 import signal
 import struct
 import sys
@@ -45,6 +44,7 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
+_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n\n"
 
 SEP_RE = re.compile(
     "\r|\n|"
@@ -690,12 +690,12 @@ class Redirect(RedirectBase):
         self._installed = True
         self._stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
-        self._pipe_relay_thread.daemon = sys.platform != "darwin"
+        self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        self._emulator_write_thread.daemon = sys.platform != "darwin"
+        self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
@@ -752,11 +752,12 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                if (
-                    self._pipe_read_fd
-                    in select.select([self._pipe_read_fd], [], [], 0)[0]
-                ):
-                    data = os.read(self._pipe_read_fd, 4096)
+                os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
+                data = b""
+                while _LAST_WRITE_TOKEN not in data:
+                    data += os.read(self._pipe_read_fd, 4096)
+                data = data.replace(_LAST_WRITE_TOKEN, b"", 1)
+                if data:
                     i = self._orig_src.write(data)
                     if (
                         i is not None
