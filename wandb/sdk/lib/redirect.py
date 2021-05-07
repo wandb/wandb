@@ -737,7 +737,10 @@ class Redirect(RedirectBase):
                 return
         if data:
             for cb in self.cbs:
-                cb(data)
+                try:
+                    cb(data)
+                except Exception:
+                    pass  # TODO(frz)
 
     def _callback(self):
         while not self._stopped.is_set():
@@ -781,5 +784,7 @@ class Redirect(RedirectBase):
                 self.flush()
                 [self.flush(line) for line in data]
                 return
-            self._emulator.write(b"".join(data).decode("utf-8"))
-
+            try:
+                self._emulator.write(b"".join(data).decode("utf-8"))
+            except Exception:
+                pass
