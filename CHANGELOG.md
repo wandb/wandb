@@ -13,6 +13,10 @@
 - Fix disabled mode to not create wandb dir and log files
 - Renamed types to prep for Tables launch
 
+#### :nail_care: Enhancement
+
+- Allow renaming groups with public api
+
 ## 0.10.29 (May 3, 2021)
 
 #### :bug: Bug Fix
