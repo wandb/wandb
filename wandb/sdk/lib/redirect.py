@@ -706,7 +706,7 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
-
+        time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
