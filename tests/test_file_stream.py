@@ -65,3 +65,10 @@ def test_fstream_resp_malformed(publish_util, mock_server, inject_requests):
     match = inject_requests.Match(path_suffix="/file_stream")
     inject_requests.add(match=match, response=resp_invalid)
     assert_history(publish_util)
+
+
+def test_fstream_500(publish_util, mock_server, inject_requests):
+
+    match = inject_requests.Match(path_suffix="/file_stream", count=2)
+    inject_requests.add(match=match, http_status=500)
+    assert_history(publish_util)

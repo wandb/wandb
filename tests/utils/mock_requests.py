@@ -152,19 +152,23 @@ class RequestsMock(object):
 
 
 class InjectRequestsMatch(object):
-    def __init__(self, path_suffix=None):
+    def __init__(self, path_suffix=None, count=None):
         self._path_suffix = path_suffix
+        self._count = count
 
     def _as_dict(self):
         r = {}
         if self._path_suffix:
             r["path_suffix"] = self._path_suffix
+        if self._count:
+            r["count"] = self._count
         return r
 
 
 class InjectRequestsAction(object):
-    def __init__(self, response=None):
+    def __init__(self, response=None, http_status=None):
         self.response = response
+        self.http_status = http_status
 
     def __str__(self):
         return "Action({})".format(vars(self))
@@ -186,13 +190,21 @@ class InjectRequestsParse(object):
             if not match:
                 continue
             # TODO: make matching better when we have more to do
+            count = match.get("count")
             path_suffix = match.get("path_suffix")
             if path_suffix and request:
                 if request.path.endswith(path_suffix):
+                    if count is not None:
+                        if count == 0:
+                            continue
+                        match["count"] = count - 1
                     action = InjectRequestsAction()
                     response = r.get("response")
                     if response:
                         action.response = response
+                    http_status = r.get("http_status")
+                    if http_status:
+                        action.http_status = http_status
                     # print("INJECT_REQUEST: action =", action)
                     return action
 
@@ -206,12 +218,13 @@ class InjectRequests(object):
         self._ctx = ctx
         self.Match = InjectRequestsMatch
 
-    def add(self, match, response=None):
+    def add(self, match, response=None, http_status=None):
+        ctx_inject = self._ctx.setdefault("inject", {})
+        ctx_rules = ctx_inject.setdefault("rules", [])
+        rule = {}
+        rule["match"] = match._as_dict()
         if response:
-            ctx_inject = self._ctx.setdefault("inject", {})
-            ctx_rules = ctx_inject.setdefault("rules", [])
-            rule = {}
-            rule["match"] = match._as_dict()
-            if response:
-                rule["response"] = response
-            ctx_rules.append(rule)
+            rule["response"] = response
+        if http_status:
+            rule["http_status"] = http_status
+        ctx_rules.append(rule)
