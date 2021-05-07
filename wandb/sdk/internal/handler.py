@@ -128,6 +128,9 @@ class HandleManager(object):
         if not record.control.local:
             self._writer_q.put(record)
 
+    def debounce(self) -> None:
+        pass
+
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
         state = defer.state

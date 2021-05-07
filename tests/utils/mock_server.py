@@ -1,6 +1,6 @@
 """Mock Server for simple calls the cli and public api make"""
 
-from flask import Flask, request, g
+from flask import Flask, request, g, jsonify
 import os
 import sys
 from datetime import datetime, timedelta
@@ -34,6 +34,7 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
+        "upsert_bucket_count": 0,
     }
 
 
@@ -244,6 +245,22 @@ def _bucket_config():
     }
 
 
+class HttpException(Exception):
+    status_code = 500
+
+    def __init__(self, message, status_code=None, payload=None):
+        Exception.__init__(self)
+        self.message = message
+        if status_code is not None:
+            self.status_code = status_code
+        self.payload = payload
+
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv["error"] = self.message
+        return rv
+
+
 def create_app(user_ctx=None):
     app = Flask(__name__)
     # When starting in live mode, user_ctx is a fancy object
@@ -255,6 +272,12 @@ def create_app(user_ctx=None):
     def persist_ctx(exc):
         if "ctx" in g:
             CTX.persist(g.ctx)
+
+    @app.errorhandler(HttpException)
+    def handle_http_exception(error):
+        response = jsonify(error.to_dict())
+        response.status_code = error.status_code
+        return response
 
     @app.route("/ctx", methods=["GET", "PUT", "DELETE"])
     def update_ctx():
@@ -301,6 +324,8 @@ def create_app(user_ctx=None):
             param_summary = body["variables"].get("summaryMetrics")
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
+            ctx["upsert_bucket_count"] += 1
+
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
@@ -1041,9 +1066,12 @@ index 30d74d2..9a2c773 100644
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
-        if inject and inject.response:
-            # print("INJECT", inject.response)
-            response = inject.response
+        if inject:
+            if inject.response:
+                response = inject.response
+            if inject.http_status:
+                # print("INJECT", inject, inject.http_status)
+                raise HttpException("some error", status_code=inject.http_status)
         return response
 
     @app.route("/api/v1/namespaces/default/pods/test")
