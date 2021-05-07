@@ -1,3 +1,18 @@
+## 0.10.30 (May 7, 2021)
+
+#### :bug: Bug Fix
+
+- Found and fixed the remaining issues causing runs to be marked crashed during outages
+- Improved performance for users of `define_metric`, pytorch-lightning, and aggressive config saving
+- Fix issue when trying to log a cuda tensor to config or summary
+- Remove dependancy on torch `backward_hooks` to compute graph
+- Fix an issue preventing the ability to resume runs on sagemaker
+- Fix issues preventing pdb from working reliably with wandb
+- Fix deprecation warning in vendored library (user submission)
+- Fix logging behavior where the library was accidently outputting logs to the console
+- Fix disabled mode to not create wandb dir and log files
+- Renamed types to prep for Tables launch
+
 ## 0.10.29 (May 3, 2021)
 
 #### :bug: Bug Fix
