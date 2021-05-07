@@ -44,7 +44,7 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
-_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n\n"
+_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n"
 
 SEP_RE = re.compile(
     "\r|\n|"
@@ -712,9 +712,9 @@ class Redirect(RedirectBase):
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
-        os.close(self._pipe_write_fd)
         self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
+        os.close(self._pipe_write_fd)
 
         t = threading.Thread(
             target=self.src_wrapped_stream.flush
@@ -757,6 +757,8 @@ class Redirect(RedirectBase):
                 data = os.read(self._pipe_read_fd, 4096)
                 if self._stopped.is_set():
                     if _LAST_WRITE_TOKEN not in data:
+                        wandb.termlog("_LAST_WRITE_TOKEN not found!")
+                        wandb.termlog(data.decode())
                         # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
                         n = len(_LAST_WRITE_TOKEN)
                         while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
