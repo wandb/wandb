@@ -345,6 +345,6 @@ def test_metric_debouncing(live_mock_server, test_settings):
     ctx = live_mock_server.get_ctx()
 
     # without debouncing, the number of config updates should be ~200, one for each defined metric.
-    # with debouncing, the number should be << 60 (the minimum number of debounce loops to exceed the
-    # 60s test timeout at a 1s debounce interval)
-    assert ctx["upsert_bucket_count"] < 60
+    # with debouncing, the number should be << 12 (the minimum number of debounce loops to exceed the
+    # 60s test timeout at a 5s debounce interval)
+    assert ctx["upsert_bucket_count"] <= 12

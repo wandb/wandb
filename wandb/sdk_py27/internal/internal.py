@@ -266,7 +266,7 @@ class SenderThread(internal_util.RecordLoopThread):
         result_q,
         stopped,
         interface,
-        debounce_interval_ms = 1000,
+        debounce_interval_ms = 5000,
     ):
         super(SenderThread, self).__init__(
             input_record_q=record_q,

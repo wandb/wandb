@@ -266,7 +266,7 @@ class SenderThread(internal_util.RecordLoopThread):
         result_q: "Queue[Result]",
         stopped: "Event",
         interface: "BackendSender",
-        debounce_interval_ms: "float" = 1000,
+        debounce_interval_ms: "float" = 5000,
     ) -> None:
         super(SenderThread, self).__init__(
             input_record_q=record_q,
