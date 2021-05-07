@@ -11,7 +11,6 @@ import itertools
 import logging
 import os
 import re
-import select
 import signal
 import struct
 import sys
@@ -45,6 +44,7 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
+_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n"
 
 SEP_RE = re.compile(
     "\r|\n|"
@@ -690,12 +690,12 @@ class Redirect(RedirectBase):
         self._installed = True
         self._stopped = threading.Event()
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
-        self._pipe_relay_thread.daemon = sys.platform != "darwin"
+        self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        self._emulator_write_thread.daemon = sys.platform != "darwin"
+        self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
@@ -711,9 +711,10 @@ class Redirect(RedirectBase):
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
-        os.close(self._pipe_write_fd)
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
         self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
+        os.close(self._pipe_write_fd)
 
         t = threading.Thread(
             target=self.src_wrapped_stream.flush
@@ -752,22 +753,30 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
+                brk = False
+                data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set():
+                    if _LAST_WRITE_TOKEN not in data:
+                        wandb.termlog("_LAST_WRITE_TOKEN not found!")
+                        wandb.termlog(data.decode())
+                        # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
+                        n = len(_LAST_WRITE_TOKEN)
+                        while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
+                            n -= 1
+                        if n:
+                            data += os.read(self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n)
+                    if _LAST_WRITE_TOKEN in data:
+                        data = data.replace(_LAST_WRITE_TOKEN, b"")
+                        brk = True
+                i = self._orig_src.write(data)
                 if (
-                    self._pipe_read_fd
-                    in select.select([self._pipe_read_fd], [], [], 0)[0]
-                ):
-                    data = os.read(self._pipe_read_fd, 4096)
-                    i = self._orig_src.write(data)
-                    if (
-                        i is not None
-                    ):  # python 3 w/ unbuffered i/o: we need to keep writing
-                        while i < len(data):
-                            i += self._orig_src.write(data[i:])
-                    self._queue.put(data)
-                elif self._stopped.is_set():
+                    i is not None
+                ):  # python 3 w/ unbuffered i/o: we need to keep writing
+                    while i < len(data):
+                        i += self._orig_src.write(data[i:])
+                self._queue.put(data)
+                if brk:
                     return
-                else:
-                    time.sleep(0.1)
             except OSError:
                 return
 
