@@ -232,11 +232,11 @@ class SendManager(object):
 
     def debounce(self) -> None:
         if self._config_needs_debounce:
-            # TODO(jhr): check result of upsert_run?
             self._debounce_config()
 
     def _debounce_config(self):
         config_value_dict = self._config_format(self._consolidated_config)
+        # TODO(jhr): check result of upsert_run?
         self._api.upsert_run(
             name=self._run.run_id, config=config_value_dict, **self._api_settings
         )
@@ -310,8 +310,7 @@ class SendManager(object):
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
         elif state == defer.FLUSH_DEBOUNCER:
-            if self._config_needs_debounce:
-                self.debounce()
+            self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
