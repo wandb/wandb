@@ -120,6 +120,8 @@ class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
     def __init__(self, conda_env_path, entry_points, docker_env, name, directory):
+        print(conda_env_path, entry_points, docker_env, name, directory)
+
         self.conda_env_path = conda_env_path
         self._entry_points = entry_points
         self.docker_env = docker_env
