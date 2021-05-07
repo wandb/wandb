@@ -712,9 +712,9 @@ class Redirect(RedirectBase):
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
-        os.close(self._pipe_write_fd)
         self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
+        os.close(self._pipe_write_fd)
 
         t = threading.Thread(
             target=self.src_wrapped_stream.flush
