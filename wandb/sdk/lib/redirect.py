@@ -788,4 +788,3 @@ class Redirect(RedirectBase):
                 self._emulator.write(b"".join(data).decode("utf-8"))
             except Exception:
                 pass
-
