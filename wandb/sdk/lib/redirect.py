@@ -711,8 +711,9 @@ class Redirect(RedirectBase):
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
-        self._pipe_relay_thread.join()
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
         os.close(self._pipe_write_fd)
+        self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
 
         t = threading.Thread(
@@ -752,23 +753,28 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
-                os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
-                data = b""
-                while _LAST_WRITE_TOKEN not in data:
-                    data += os.read(self._pipe_read_fd, 4096)
-                data = data.replace(_LAST_WRITE_TOKEN, b"", 1)
-                if data:
-                    i = self._orig_src.write(data)
-                    if (
-                        i is not None
-                    ):  # python 3 w/ unbuffered i/o: we need to keep writing
-                        while i < len(data):
-                            i += self._orig_src.write(data[i:])
-                    self._queue.put(data)
-                elif self._stopped.is_set():
+                brk = False
+                data = os.read(self._pipe_read_fd, 4096)
+                if self._stopped.is_set():
+                    if _LAST_WRITE_TOKEN not in data:
+                        # _LAST_WRITE_TOKEN could have gotten split up up at the 4096 border
+                        n = len(_LAST_WRITE_TOKEN)
+                        while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
+                            n -= 1
+                        if n:
+                            data += os.read(self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n)
+                    if _LAST_WRITE_TOKEN in data:
+                        data = data.replace(_LAST_WRITE_TOKEN, b"", 1)
+                        brk = True
+                i = self._orig_src.write(data)
+                if (
+                    i is not None
+                ):  # python 3 w/ unbuffered i/o: we need to keep writing
+                    while i < len(data):
+                        i += self._orig_src.write(data[i:])
+                self._queue.put(data)
+                if brk:
                     return
-                else:
-                    time.sleep(0.1)
             except OSError:
                 return
 
