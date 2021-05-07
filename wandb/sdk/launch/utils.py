@@ -115,7 +115,7 @@ def fetch_and_validate_project(uri, api, version, entry_point, parameters):
     work_dir = _fetch_project(uri=uri, api=api, version=version)
     project = _project_spec.load_project(work_dir)
     project.get_entry_point(entry_point)._validate_parameters(parameters)
-    return work_dir
+    return project
 
 
 def load_project(work_dir):

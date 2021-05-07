@@ -127,9 +127,7 @@ class AbstractRunner(ABC):
         self._namespace = wandb.util.generate_id()
 
     def fetch_and_validate_project(self, project_uri, version, entry_point, params):
-        return load_project(
-            fetch_and_validate_project(project_uri, self._api, version, entry_point, params)
-        )
+        return fetch_and_validate_project(project_uri, self._api, version, entry_point, params)
 
     def find_executable(self, cmd):
         """Cross platform utility for checking if a program is available"""
