@@ -99,3 +99,12 @@ def test_fstream_status_max_retries(publish_util, mock_server, inject_requests, 
     inject_requests.add(match=match, http_status=500)
     with pytest.raises(Exception, match=r"The wandb backend process has shutdown"):
         assert_history(publish_util)
+
+
+def test_fstream_requests_error(publish_util, mock_server, inject_requests, mocker):
+    # inject a requests error, not a http error
+
+    match = inject_requests.Match(path_suffix="/file_stream")
+    inject_requests.add(match=match, requests_error=True)
+    with pytest.raises(Exception, match=r"The wandb backend process has shutdown"):
+        assert_history(publish_util)
