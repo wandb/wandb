@@ -379,54 +379,51 @@ class TerminalEmulator(object):
         except Exception:
             pass
 
-    def _get_line(self, n, formatting=True):
+    def _get_line(self, n):
         line = self.buffer[n]
         line_len = self._get_line_len(n)
-        if not formatting:
-            return "".join([line[j].data for j in range(line_len)])
-        else:
-            # We have to loop through each character in the line and check if foreground, background and
-            # other attributes (italics, bold, underline, etc) of the ith character are different from those of the
-            # (i-1)th character. If different, the appropriate ascii character for switching the color/attribute
-            # should be appended to the output string before appending the actual character. This loop and subsequent
-            # checks can be expensive, especially because 99% of terminal output use default colors and formatting. Even
-            # in outputs that do contain colors and styles, its unlikely that they will change on a per character basis.
+        # We have to loop through each character in the line and check if foreground, background and
+        # other attributes (italics, bold, underline, etc) of the ith character are different from those of the
+        # (i-1)th character. If different, the appropriate ascii character for switching the color/attribute
+        # should be appended to the output string before appending the actual character. This loop and subsequent
+        # checks can be expensive, especially because 99% of terminal output use default colors and formatting. Even
+        # in outputs that do contain colors and styles, its unlikely that they will change on a per character basis.
 
-            # So instead we create a character list without any ascii codes (`out`), and a list of all the foregrounds
-            # in the line (`fgs`) on which we call np.diff() and np.where() to find the indices where the foreground change,
-            # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if
-            # there are more than 1 foreground color in the line in the first place (`if len(set(fgs)) > 1 else None`).
-            # Same logic is repeated for background colors and other attributes.
+        # So instead we create a character list without any ascii codes (`out`), and a list of all the foregrounds
+        # in the line (`fgs`) on which we call np.diff() and np.where() to find the indices where the foreground change,
+        # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if
+        # there are more than 1 foreground color in the line in the first place (`if len(set(fgs)) > 1 else None`).
+        # Same logic is repeated for background colors and other attributes.
 
-            out = [line[i].data for i in range(line_len)]
+        out = [line[i].data for i in range(line_len)]
 
-            # for dynamic insert using original indices
-            idxs = np.arange(line_len)
-            insert = lambda i, c: (out.insert(idxs[i], c), idxs[i:].__iadd__(1))  # noqa
+        # for dynamic insert using original indices
+        idxs = np.arange(line_len)
+        insert = lambda i, c: (out.insert(idxs[i], c), idxs[i:].__iadd__(1))  # noqa
 
-            fgs = [int(_defchar.fg)] + [int(line[i].fg) for i in range(line_len)]
+        fgs = [int(_defchar.fg)] + [int(line[i].fg) for i in range(line_len)]
+        [
+            insert(i, _get_char(line[int(i)].fg)) for i in np.where(np.diff(fgs))[0]
+        ] if len(set(fgs)) > 1 else None
+        bgs = [int(_defchar.bg)] + [int(line[i].bg) for i in range(line_len)]
+        [
+            insert(i, _get_char(line[int(i)].bg)) for i in np.where(np.diff(bgs))[0]
+        ] if len(set(bgs)) > 1 else None
+        attrs = {
+            k: [False] + [line[i][k] for i in range(line_len)]
+            for k in Char.__slots__[3:]
+        }
+        [
             [
-                insert(i, _get_char(line[int(i)].fg)) for i in np.where(np.diff(fgs))[0]
-            ] if len(set(fgs)) > 1 else None
-            bgs = [int(_defchar.bg)] + [int(line[i].bg) for i in range(line_len)]
-            [
-                insert(i, _get_char(line[int(i)].bg)) for i in np.where(np.diff(bgs))[0]
-            ] if len(set(bgs)) > 1 else None
-            attrs = {
-                k: [False] + [line[i][k] for i in range(line_len)]
-                for k in Char.__slots__[3:]
-            }
-            [
-                [
-                    insert(
-                        i, _get_char(ANSI_STYLES_REV[k if line[int(i)][k] else "/" + k])
-                    )
-                    for i in np.where(np.diff(v))[0]
-                ]
-                for k, v in attrs.items()
-                if any(v)
+                insert(
+                    i, _get_char(ANSI_STYLES_REV[k if line[int(i)][k] else "/" + k])
+                )
+                for i in np.where(np.diff(v))[0]
             ]
-            return "".join(out)
+            for k, v in attrs.items()
+            if any(v)
+        ]
+        return "".join(out)
 
     def read(self):
         num_lines = self.num_lines
@@ -757,8 +754,6 @@ class Redirect(RedirectBase):
                 data = os.read(self._pipe_read_fd, 4096)
                 if self._stopped.is_set():
                     if _LAST_WRITE_TOKEN not in data:
-                        wandb.termlog("_LAST_WRITE_TOKEN not found!")
-                        wandb.termlog(data.decode())
                         # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
                         n = len(_LAST_WRITE_TOKEN)
                         while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
