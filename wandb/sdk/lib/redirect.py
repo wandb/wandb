@@ -711,8 +711,8 @@ class Redirect(RedirectBase):
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
-        os.close(self._pipe_write_fd)
         self._pipe_relay_thread.join()
+        os.close(self._pipe_write_fd)
         os.close(self._pipe_read_fd)
 
         t = threading.Thread(
