@@ -54,6 +54,7 @@ class CRDedupedFile(WriteSerializingFile):
         self._buff = b""
 
     def write(self, data):  # type: ignore
+        return
         lines = re.split(b"\r\n|\n", data)
         ret = []  # type: ignore
         for line in lines:
