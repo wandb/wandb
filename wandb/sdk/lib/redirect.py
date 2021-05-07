@@ -757,6 +757,7 @@ class Redirect(RedirectBase):
                 data = os.read(self._pipe_read_fd, 4096)
                 if self._stopped.is_set():
                     if _LAST_WRITE_TOKEN not in data:
+                        wandb.termlog("_LAST_WRITE_TOKEN not found!")
                         # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
                         n = len(_LAST_WRITE_TOKEN)
                         while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
