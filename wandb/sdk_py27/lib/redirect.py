@@ -530,16 +530,16 @@ class StreamWrapper(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            with self._queue.mutex:
-                data = list(self._queue.queue)
-                self._queue.queue.clear()
-            if self._stopped.is_set() and sum(map(len, data)) > 100000:
+            if self._stopped.is_set() and sum(map(len, self._queue.queue)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
                 [self.flush(line.encode("utf-8")) for line in data]
+                self._queue.queue.clear()
                 return
             try:
-                self._emulator.write("".join(data))
+                with self._queue.mutex:
+                    self._emulator.write("".join(data))
+                    self._queue.queue.clear()
             except Exception:
                 pass
 
@@ -776,15 +776,15 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            with self._queue.mutex:
-                data = list(self._queue.queue)
-                self._queue.queue.clear()
-            if self._stopped.is_set() and sum(map(len, data)) > 100000:
+            if self._stopped.is_set() and sum(map(len, self._queue.queue)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
-                [self.flush(line) for line in data]
+                [self.flush(line) for line in self._queue.queue]
+                self._queue.queue.clear()
                 return
             try:
-                self._emulator.write(b"".join(data).decode("utf-8"))
+                with self._queue.mutex:
+                    self._emulator.write(b"".join(self._queue.queue).decode("utf-8"))
+                    self._queue.queue.clear()
             except Exception:
                 pass
