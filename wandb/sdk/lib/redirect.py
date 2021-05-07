@@ -570,7 +570,7 @@ class StreamWrapper(RedirectBase):
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        # self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
 
         if not wandb.run or wandb.run._settings.mode == "online":
@@ -695,7 +695,7 @@ class Redirect(RedirectBase):
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        # self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
