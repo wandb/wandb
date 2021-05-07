@@ -782,9 +782,11 @@ class Redirect(RedirectBase):
                 [self.flush(line) for line in self._queue.queue]
                 self._queue.queue.clear()
                 return
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.get())
             try:
-                with self._queue.mutex:
-                    self._emulator.write(b"".join(self._queue.queue).decode("utf-8"))
-                    self._queue.queue.clear()
+                self._emulator.write(b"".join(data).decode("utf-8"))
             except Exception:
                 pass
+
