@@ -5,6 +5,7 @@ file_stream tests.
 from __future__ import print_function
 
 import json
+import pytest
 
 
 def generate_history():
@@ -67,8 +68,24 @@ def test_fstream_resp_malformed(publish_util, mock_server, inject_requests):
     assert_history(publish_util)
 
 
-def test_fstream_500(publish_util, mock_server, inject_requests):
+def test_fstream_status_500(publish_util, mock_server, inject_requests):
 
     match = inject_requests.Match(path_suffix="/file_stream", count=2)
     inject_requests.add(match=match, http_status=500)
     assert_history(publish_util)
+
+
+def test_fstream_status_429(publish_util, mock_server, inject_requests):
+    """Rate limiting test."""
+
+    match = inject_requests.Match(path_suffix="/file_stream", count=2)
+    inject_requests.add(match=match, http_status=429)
+    assert_history(publish_util)
+
+
+def test_fstream_status_404(publish_util, mock_server, inject_requests):
+
+    match = inject_requests.Match(path_suffix="/file_stream", count=2)
+    inject_requests.add(match=match, http_status=404)
+    with pytest.raises(Exception, match=r"The wandb backend process has shutdown"):
+        assert_history(publish_util)

@@ -1070,6 +1070,7 @@ index 30d74d2..9a2c773 100644
             if inject.response:
                 response = inject.response
             if inject.http_status:
+                # print("INJECT", inject, inject.http_status)
                 raise HttpException("some error", status_code=inject.http_status)
         return response
 
