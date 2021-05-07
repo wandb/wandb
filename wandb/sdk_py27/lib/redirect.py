@@ -706,6 +706,8 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
+        # If the user printed a very long string (millions of chars) right before wandb.finish(),
+        # it will take a while for it to reach pipe relay. 1 second is enough time for ~5 million chars.
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
