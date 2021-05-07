@@ -34,6 +34,7 @@ def default_ctx():
         "file_bytes": {},
         "manifests_created": [],
         "artifacts_by_id": {},
+        "upsert_bucket_count": 0,
     }
 
 
@@ -301,6 +302,8 @@ def create_app(user_ctx=None):
             param_summary = body["variables"].get("summaryMetrics")
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
+            ctx["upsert_bucket_count"] += 1
+
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
