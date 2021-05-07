@@ -776,15 +776,14 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            if self._stopped.is_set() and sum(map(len, self._queue.queue)) > 100000:
-                wandb.termlog("Terminal output too large. Logging without processing.")
-                self.flush()
-                [self.flush(line) for line in self._queue.queue]
-                self._queue.queue.clear()
-                return
             data = []
             while not self._queue.empty():
                 data.append(self._queue.get())
+            if self._stopped.is_set() and sum(map(len, data)) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                [self.flush(line) for line in data]
+                return
             try:
                 self._emulator.write(b"".join(data).decode("utf-8"))
             except Exception:
