@@ -570,12 +570,12 @@ class StreamWrapper(RedirectBase):
         self._queue = queue.Queue()
         self._stopped = threading.Event()
         self._emulator_write_thread = threading.Thread(target=self._emulator_write)
-        self._emulator_write_thread.daemon = False
+        # self._emulator_write_thread.daemon = True
         self._emulator_write_thread.start()
 
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
-            self._callback_thread.daemon = False
+            self._callback_thread.daemon = True
             self._callback_thread.start()
 
         self._installed = True
@@ -699,7 +699,7 @@ class Redirect(RedirectBase):
         self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
-            self._callback_thread.daemon = False
+            self._callback_thread.daemon = True
             self._callback_thread.start()
 
     def uninstall(self):
