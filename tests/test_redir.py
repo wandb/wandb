@@ -297,16 +297,3 @@ def test_very_long_output(console_settings, capfd, runner):
         ).stdout
         assert binary_log.count("LOG") == 1000000
         assert "===finish===" in binary_log
-
-
-@pytest.mark.skipif(
-    os.name == "nt", reason="Low level fd redirect not available on Windows."
-)
-def test_split_last_write_token(capfd):
-    with capfd.disabled():
-        out = CapList()
-        redir = wandb.wandb_sdk.lib.redirect.Redirect("stdout", cbs=[out.append])
-        redir.install()
-        print("X" * 4090)
-        redir.uninstall()
-        assert out == [b"X" * 4090]
