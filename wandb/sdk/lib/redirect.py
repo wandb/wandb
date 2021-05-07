@@ -707,6 +707,12 @@ class Redirect(RedirectBase):
             return
         self._installed = False
 
+        t = threading.Thread(
+            target=self.src_wrapped_stream.flush
+        )  # Calling flush() from the current thread does not flush the buffer instantly.
+        t.start()
+        t.join(timeout=10)
+
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
         os.close(self._pipe_write_fd)
