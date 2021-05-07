@@ -293,9 +293,16 @@ class FileStreamApi(object):
             wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
             logging.error("dropped chunk %s" % response)
             raise response
-        elif response.json().get("limits"):
-            parsed = response.json()
-            self._api.dynamic_settings.update(parsed["limits"])
+        else:
+            parsed: dict = None
+            try:
+                parsed = response.json()
+            except Exception:
+                pass
+            if isinstance(parsed, dict):
+                limits = parsed.get("limits")
+                if isinstance(limits, dict):
+                    self._api.dynamic_settings.update(limits)
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -386,14 +393,12 @@ def request_with_retry(func, *args, **kwargs):
                 # returns them when there are infrastructure issues. If retrying
                 # some request winds up being problematic, we'll change the
                 # back end to indicate that it shouldn't be retried.
-                if (
-                    e.response is not None
-                    and e.response.status_code in {400, 403, 404, 409}
-                ) or (
-                    e.response is not None
-                    and e.response.status_code == 500
-                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
-                ):
+                if e.response is not None and e.response.status_code in {
+                    400,
+                    403,
+                    404,
+                    409,
+                }:
                     return e
 
             if retry_count == max_retries:
