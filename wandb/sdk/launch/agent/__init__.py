@@ -24,7 +24,7 @@ class LaunchAgent(object):
         self._max = max
         self._api = internal_runqueue.Api()
         self._backend_name = backend
-        self._backend = load_backend(backend, self._api.api_key)
+        self._backend = load_backend(backend, self._api)
         self._settings = Settings()
         self._jobs: Dict[str, AbstractRun] = {}
         self._ticks = 0

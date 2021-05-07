@@ -137,8 +137,7 @@ class AbstractRunner(ABC):
 
     @property
     def api_key(self):
-        print(self._api_key)
-        return self._api_key
+        return self._api.api_key
 
     def verify(self):
         """This is called on first boot to verify the needed commands,
@@ -146,7 +145,7 @@ class AbstractRunner(ABC):
 
         For now just call `wandb.termerror` and `sys.exit(1)`
         """
-        if self._api_key is None:
+        if self._api.api_key is None:
             wandb.termerror(
                 "Couldn't find W&B api key, run wandb login or set WANDB_API_KEY"
             )
