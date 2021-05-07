@@ -764,14 +764,14 @@ class Redirect(RedirectBase):
                         while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
                             n -= 1
                         if n:
-                            data += os.read(self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n)
+                            data += os.read(
+                                self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n
+                            )
                     if _LAST_WRITE_TOKEN in data:
                         data = data.replace(_LAST_WRITE_TOKEN, b"")
                         brk = True
                 i = self._orig_src.write(data)
-                if (
-                    i is not None
-                ):  # python 3 w/ unbuffered i/o: we need to keep writing
+                if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
                 self._queue.put(data)
