@@ -14,10 +14,12 @@ from ..utils import (
     get_entry_point_command,
     get_or_create_conda_env,
     get_run_env_vars,
+    generate_docker_image,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     PROJECT_USE_CONDA,
+    PROJECT_BUILD_DOCKER,
     WANDB_DOCKER_WORKDIR_PATH,
 )
 
@@ -76,6 +78,7 @@ class LocalRunner(AbstractRunner):
         self, project_uri, entry_point, params, version, backend_config, experiment_id
     ):
         run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
+        build_docker = backend_config[PROJECT_BUILD_DOCKER]
         project = self.fetch_and_validate_project(
             project_uri, version, entry_point, params
         )
@@ -83,6 +86,13 @@ class LocalRunner(AbstractRunner):
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
         storage_dir = backend_config[PROJECT_STORAGE_DIR]
+
+        # TODO this should be somewhere else, not at the LocalRunner level
+        if build_docker:
+            project.name = 'test'
+            entry_cmd = project.get_entry_point(entry_point).command
+            image_id = generate_docker_image(project_uri, version, entry_cmd)
+            project.docker_env = {'image': image_id}
 
         command_args = []
         command_separator = " "
@@ -110,6 +120,7 @@ class LocalRunner(AbstractRunner):
                 volumes=project.docker_env.get("volumes"),
                 user_env_vars=project.docker_env.get("environment"),
             )
+
         # Synchronously create a conda environment (even though this may take some time)
         # to avoid failures due to multiple concurrent attempts to create the same conda env.
         elif use_conda:
@@ -123,6 +134,9 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 project, entry_point, params, storage_dir
             )
+
+            print('@@@@@@@', command_args)
+
             command_str = command_separator.join(command_args)
             return _run_entry_point(
                 command_str, project.dir, experiment_id, run_id=run_id

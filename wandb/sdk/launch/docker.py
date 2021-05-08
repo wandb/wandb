@@ -47,6 +47,7 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
+    print('@@@@@@@@@', work_dir, repository_uri, base_image, run_id)
     image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=work_dir)
     dockerfile = (
         "FROM {imagename}\n"

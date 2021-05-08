@@ -913,6 +913,11 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "conda environment.",
 )
 @click.option(
+    "--build-docker",
+    is_flag=True,
+    help="build docker",
+)
+@click.option(
     "--storage-dir",
     envvar="WANDB_TMP_DIR",
     help="Only valid when ``backend`` is local. "
@@ -936,7 +941,8 @@ def launch(
     experiment_id,
     backend,
     backend_config,
-    no_conda,
+    no_conda,       # @@@ todo this probably shouldn't be autofalse => conda autotrue
+    build_docker,
     storage_dir,
     run_id,
 ):
@@ -978,6 +984,7 @@ def launch(
             backend=backend,
             backend_config=backend_config,
             use_conda=(not no_conda),
+            build_docker=build_docker,
             storage_dir=storage_dir,
             synchronous=backend in ("local", "ngc") or backend is None,
             run_id=run_id,

@@ -13,6 +13,7 @@ from .utils import (
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     PROJECT_USE_CONDA,
+    PROJECT_BUILD_DOCKER,
 )
 
 _logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ def _run(
     backend_name,
     backend_config,
     use_conda,
+    build_docker,
     storage_dir,
     synchronous,
     api=None,
@@ -49,6 +51,7 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
     backend_config[PROJECT_USE_CONDA] = use_conda
+    backend_config[PROJECT_BUILD_DOCKER] = build_docker
     backend_config[PROJECT_SYNCHRONOUS] = synchronous
     backend_config[PROJECT_DOCKER_ARGS] = docker_args
     backend_config[PROJECT_STORAGE_DIR] = storage_dir
@@ -76,7 +79,8 @@ def run(
     experiment_id=None,
     backend="local",
     backend_config=None,
-    use_conda=True,
+    use_conda=False,
+    build_docker=False,
     storage_dir=None,
     synchronous=True,
     run_id=None,
@@ -171,6 +175,7 @@ def run(
         backend_name=backend,
         backend_config=backend_config_dict,
         use_conda=use_conda,
+        build_docker=build_docker,
         storage_dir=storage_dir,
         synchronous=synchronous,
         api=api

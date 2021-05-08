@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import subprocess
 import re
 import tempfile
 import urllib.parse
@@ -25,6 +26,7 @@ _WANDB_URI_REGEX = re.compile(r"^https://wandb")
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
 PROJECT_USE_CONDA = "USE_CONDA"
+PROJECT_BUILD_DOCKER = "BUILD_DOCKER"
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 PROJECT_STORAGE_DIR = "STORAGE_DIR"
@@ -110,9 +112,22 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
+def generate_docker_image(uri, version, entry_cmd):
+    cmd = ['jupyter-repo2docker', uri, '"{}"'.format(entry_cmd), '--no-run', '--no-build']
+    if version:
+        cmd.extend(['--ref', version])
+    stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')
+    image_id = re.findall(r'Successfully tagged (.+):latest', stderr)
+    if not image_id:
+        image_id = re.findall(r'Reusing existing image \((.+)\)', stderr)
+    if not image_id:
+        raise Exception('error running repo2docker')
+    return image_id[0]
+
+
 def fetch_and_validate_project(uri, api, version, entry_point, parameters):
     parameters = parameters or {}
-    work_dir = _fetch_project(uri=uri, api=api, version=version)
+    work_dir = _fetch_project_local(uri=uri, api=api, version=version)
     project = _project_spec.load_project(work_dir)
     project.get_entry_point(entry_point)._validate_parameters(parameters)
     return project
@@ -130,7 +145,7 @@ def fetch_wandb_project_run_info(uri, api=None):
     return result
 
 
-def _fetch_project(uri, api, version=None):
+def _fetch_project_local(uri, api, version=None):
     """
     Fetch a project into a local directory, returning the path to the local project directory.
     """
