@@ -43,20 +43,22 @@ def validate_docker_env(project):
         )
 
 
-def build_docker_image(work_dir, repository_uri, base_image, run_id):
+def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
-    print('@@@@@@@@@', work_dir, repository_uri, base_image, run_id)
     image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=work_dir)
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
+        "ENV WANDB_API_KEY={api_key}\n"      # todo this is also currently passed in via r2d
+        "USER root\n"       # todo bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         workdir=WANDB_DOCKER_WORKDIR_PATH,
+        api_key=api.api_key,
     )
     build_ctx_path = _create_docker_build_ctx(work_dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:

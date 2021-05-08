@@ -89,9 +89,9 @@ class LocalRunner(AbstractRunner):
 
         # TODO this should be somewhere else, not at the LocalRunner level
         if build_docker:
-            project.name = 'test'
+            project.name = 'test'        # todo this is just hardcoded rn
             entry_cmd = project.get_entry_point(entry_point).command
-            image_id = generate_docker_image(project_uri, version, entry_cmd)
+            image_id = generate_docker_image(project_uri, version, entry_cmd, self._api)
             project.docker_env = {'image': image_id}
 
         command_args = []
@@ -109,9 +109,10 @@ class LocalRunner(AbstractRunner):
             validate_docker_installation()
             image = build_docker_image(
                 work_dir=project.dir,
-                repository_uri=project.name,
+                repository_uri=project.name, # todo ??? not sure why this is passed here we should figure out this interface lol
                 base_image=project.docker_env.get("image"),
                 run_id=run_id,
+                api=self._api,
             )
             command_args += _get_docker_command(
                 image=image,
@@ -134,8 +135,6 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 project, entry_point, params, storage_dir
             )
-
-            print('@@@@@@@', command_args)
 
             command_str = command_separator.join(command_args)
             return _run_entry_point(
@@ -256,6 +255,7 @@ def _get_docker_command(
 ):
     docker_path = "docker"
     cmd = [docker_path, "run", "--rm"]
+    # cmd = [docker_path, "run"]      # todo debug -- we should probably add the option to not rm for the user to debug
 
     if docker_args:
         for name, value in docker_args.items():

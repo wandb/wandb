@@ -941,7 +941,7 @@ def launch(
     experiment_id,
     backend,
     backend_config,
-    no_conda,       # @@@ todo this probably shouldn't be autofalse => conda autotrue
+    no_conda,       # todo this probably shouldn't be autofalse => conda autotrue
     build_docker,
     storage_dir,
     run_id,

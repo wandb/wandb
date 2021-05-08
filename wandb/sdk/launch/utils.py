@@ -112,10 +112,19 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
-def generate_docker_image(uri, version, entry_cmd):
-    cmd = ['jupyter-repo2docker', uri, '"{}"'.format(entry_cmd), '--no-run', '--no-build']
+def generate_docker_image(uri, version, entry_cmd, api):
+    cmd = ['jupyter-repo2docker',
+            uri,
+            '"{}"'.format(entry_cmd),
+            '--no-run',
+            '--no-build',
+            '--env', 'WANDB_API_KEY={}'.format(api.api_key),
+            '--user-name', 'root', # todo bad idea lol
+            ]
+
     if version:
         cmd.extend(['--ref', version])
+    _logger.info('Generating docker image from git repo or finding image if it already exists..........')
     stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')
     image_id = re.findall(r'Successfully tagged (.+):latest', stderr)
     if not image_id:
