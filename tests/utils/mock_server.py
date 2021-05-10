@@ -13,6 +13,7 @@ save_path = sys.path[:2]
 import wandb
 
 sys.path[0:0] = save_path
+from collections import defaultdict
 import logging
 from six.moves import urllib
 import threading
@@ -245,6 +246,9 @@ def _bucket_config():
     }
 
 
+_sweep_states = defaultdict(lambda: "RUNNING")
+
+
 def create_app(user_ctx=None):
     app = Flask(__name__)
     # When starting in live mode, user_ctx is a fancy object
@@ -443,7 +447,7 @@ def create_app(user_ctx=None):
                             "sweep": {
                                 "id": "1234",
                                 "name": "fun-sweep-10",
-                                "state": "running",
+                                "state": _sweep_states["test"],
                                 "bestLoss": 0.33,
                                 "config": yaml.dump(
                                     {"metric": {"name": "loss", "value": "minimize"}}
@@ -461,6 +465,9 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation UpsertSweep(" in body["query"]:
+            for state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED"):
+                if state in body["query"]:
+                    _sweep_states["test"] = state
             return json.dumps(
                 {
                     "data": {

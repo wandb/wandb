@@ -844,7 +844,9 @@ def test_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
-def test_sweep_pause(runner, mock_server, test_settings):
+@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
+def test_sweep_pause(runner, mock_server, test_settings, stop_method):
+    utils.mock_server._sweep_states.clear()
     sweep_config = {
         "name": "My Sweep",
         "method": "grid",
@@ -852,10 +854,16 @@ def test_sweep_pause(runner, mock_server, test_settings):
     }
     sweep_id = wandb.sweep(sweep_config)
     assert sweep_id == "test"
+    api = InternalApi()
+    assert api.get_sweep_state("test") == "RUNNING"
     assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+    assert api.get_sweep_state("test") == "PAUSED"
     assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+    assert api.get_sweep_state("test") == "RUNNING"
     assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+    assert api.get_sweep_state("test") == "FINISHED"
     assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
+    assert api.get_sweep_state("test") == "CANCELLED"
 
 
 @pytest.mark.skipif(
