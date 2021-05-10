@@ -36,6 +36,10 @@ class _Numpy:  # fallback in case numpy is not available
                     return self
                 return super(Arr, self).__getitem__(s)
 
+            def __getslice__(self, i, j):
+                self._start = i
+                return self
+
             def __iadd__(self, i):  # type: ignore
                 for j in range(self._start, len(self)):
                     self[j] += i
@@ -744,8 +748,8 @@ class Redirect(RedirectBase):
         if data is None:
             try:
                 data = self._emulator.read().encode("utf-8")
-            except Exception as e:
-                raise e
+            except Exception:
+                pass
         if data:
             for cb in self.cbs:
                 try:
