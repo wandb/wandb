@@ -846,7 +846,7 @@ def test_gc(runner):
 
 @pytest.mark.parametrize("stop_method", ["stop", "cancel"])
 def test_sweep_pause(runner, mock_server, test_settings, stop_method):
-    utils.mock_server._sweep_states.clear()
+    utils._sweep_states.clear()
     sweep_config = {
         "name": "My Sweep",
         "method": "grid",
