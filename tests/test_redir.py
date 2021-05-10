@@ -312,4 +312,4 @@ def test_no_numpy(console_settings, capfd, runner):
         binary_log = runner.invoke(
             cli.sync, ["--view", "--verbose", binary_log_file]
         ).stdout
-        assert "\x1b[31m\x1b[40m\x1b[1mHello" in binary_log
+        assert "\033[31m\033[40m\033[1mHello" in binary_log
