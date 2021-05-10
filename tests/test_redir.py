@@ -297,3 +297,19 @@ def test_very_long_output(console_settings, capfd, runner):
         ).stdout
         assert binary_log.count("LOG") == 1000000
         assert "===finish===" in binary_log
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+def test_no_numpy(console_settings, capfd):
+    with capfd.disabled():
+        wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
+        run = wandb.init(settings=console_settings)
+        print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
+        run.finish()
+        binary_log_file = (
+            os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+        )
+        binary_log = runner.invoke(
+            cli.sync, ["--view", "--verbose", binary_log_file]
+        ).stdout
+        assert "\x1b[31m\x1b[40m\x1b[1mHello" in binary_log

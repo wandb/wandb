@@ -17,24 +17,37 @@ import sys
 import threading
 import time
 
+from six.moves import queue
+import wandb
+
+
+class _Numpy:  # fallback in case numpy is not available
+    def where(self, x):
+        return ([i for i in range(len(x)) if x[i]],)
+
+    def diff(self, x):
+        return [x[i + 1] - x[i] for i in range(len(x) - 1)]
+
+    def arange(self, x):
+        class Arr(list):
+            def __getitem__(self, s):
+                if isinstance(s, slice):
+                    self._start = s.start
+                    return self
+                return super(Arr, self).__getitem__(s)
+
+            def __iadd__(self, i):  # type: ignore
+                for j in range(self._start, len(self)):
+                    self[j] += i
+
+        return Arr(range(x))
+
+
 try:
     import numpy as np  # type: ignore
 except ImportError:
-
-    class _Numpy:
-        def where(self, x):
-            return ([i for i in range(len(x)) if x[i]],)
-
-        def diff(self, x):
-            return [x[i + 1] - x[i] for i in range(len(x) - 1)]
-
-        def arange(self, x):
-            return list(range(x))
-
     np = _Numpy()
 
-from six.moves import queue
-import wandb
 
 logger = logging.getLogger("wandb")
 
@@ -731,8 +744,8 @@ class Redirect(RedirectBase):
         if data is None:
             try:
                 data = self._emulator.read().encode("utf-8")
-            except Exception:
-                return
+            except Exception as e:
+                print(e)
         if data:
             for cb in self.cbs:
                 try:
