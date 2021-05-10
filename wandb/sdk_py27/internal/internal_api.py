@@ -1934,7 +1934,7 @@ class Api(object):
 
         return response["notifyScriptableRunAlert"]["success"]
 
-    def get_sweep_state(sweep, entity=None, project=None):
+    def get_sweep_state(self, sweep, entity=None, project=None):
         return self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")[
             "state"
         ]
