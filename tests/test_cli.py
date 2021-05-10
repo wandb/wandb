@@ -860,10 +860,12 @@ def test_sweep_pause(runner, mock_server, test_settings, stop_method):
     assert api.get_sweep_state("test") == "PAUSED"
     assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
     assert api.get_sweep_state("test") == "RUNNING"
-    assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
-    assert api.get_sweep_state("test") == "FINISHED"
-    assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
-    assert api.get_sweep_state("test") == "CANCELLED"
+    if stop_method == "stop":
+        assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+        assert api.get_sweep_state("test") == "FINISHED"
+    else:
+        assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
+        assert api.get_sweep_state("test") == "CANCELLED"
 
 
 @pytest.mark.skipif(
