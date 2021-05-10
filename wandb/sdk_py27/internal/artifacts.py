@@ -4,9 +4,18 @@ import os
 import tempfile
 import threading
 
+import wandb
 import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
+
+if wandb.TYPE_CHECKING:
+    from typing import List, Optional, Dict, TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from wandb.sdk.internal.internal_api import Api as InternalApi
+        from .file_pusher import FilePusher
+        from wandb.proto import wandb_internal_pb2
 
 
 def _manifest_json_from_proto(manifest):
@@ -43,7 +52,16 @@ def _manifest_json_from_proto(manifest):
 
 
 class ArtifactSaver(object):
-    def __init__(self, api, digest, manifest_json, file_pusher, is_user_created=False):
+    # _server_artifact: Optional[Dict]  # TODO better define this dict
+
+    def __init__(
+        self,
+        api,
+        digest,
+        manifest_json,
+        file_pusher,
+        is_user_created = False,
+    ):
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
@@ -55,13 +73,14 @@ class ArtifactSaver(object):
         self,
         type,
         name,
-        distributed_id=None,
-        finalize=True,
-        metadata=None,
-        description=None,
-        aliases=None,
-        labels=None,
-        use_after_commit=False,
+        distributed_id = None,
+        finalize = True,
+        metadata = None,
+        description = None,
+        aliases = None,
+        labels = None,
+        use_after_commit = False,
+        incremental = False,
     ):
         aliases = aliases or []
         alias_specs = []
@@ -97,6 +116,7 @@ class ArtifactSaver(object):
         #   if it's committed, all is good. If it's committing, just moving ahead isn't necessarily
         #   correct. It may be better to poll until it's committed or failed, and then decided what to
         #   do
+        assert self._server_artifact is not None  # mypy optionality unwrapper
         artifact_id = self._server_artifact["id"]
         latest_artifact_id = latest["id"] if latest else None
         if (
@@ -115,15 +135,21 @@ class ArtifactSaver(object):
                 'Unknown artifact state "{}"'.format(self._server_artifact["state"])
             )
 
+        manifest_type = "FULL"
+        manifest_filename = "wandb_manifest.json"
+        if incremental:
+            manifest_type = "INCREMENTAL"
+            manifest_filename = "wandb_manifest.incremental.json"
+        elif distributed_id:
+            manifest_type = "PATCH"
+            manifest_filename = "wandb_manifest.patch.json"
         artifact_manifest_id, _ = self._api.create_artifact_manifest(
-            "wandb_manifest.json"
-            if not distributed_id
-            else "wandb_manifest.patch.json",
+            manifest_filename,
             "",
             artifact_id,
             base_artifact_id=latest_artifact_id,
             include_upload=False,
-            type="FULL" if not distributed_id else "PATCH",
+            type=manifest_type,
         )
 
         step_prepare = wandb.filesync.step_prepare.StepPrepare(
@@ -151,7 +177,7 @@ class ArtifactSaver(object):
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
-            if distributed_id:
+            if distributed_id or incremental:
                 # If we're in the distributed flow, we want to update the
                 # patch manifest we created with our finalized digest.
                 _, resp = self._api.update_artifact_manifest(
@@ -164,7 +190,7 @@ class ArtifactSaver(object):
                 # NOTE: We do this for backwards compatibility with older backends
                 # that don't support the 'updateArtifactManifest' API.
                 _, resp = self._api.create_artifact_manifest(
-                    "wandb_manifest.json",
+                    manifest_filename,
                     digest,
                     artifact_id,
                     base_artifact_id=latest_artifact_id,
@@ -177,7 +203,7 @@ class ArtifactSaver(object):
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
                 extra_headers[key] = val
-            with open(path, "rb") as fp:
+            with open(path, "rb") as fp:  # type: ignore
                 self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
 
         def on_commit():

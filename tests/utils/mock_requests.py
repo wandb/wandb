@@ -14,8 +14,15 @@ class ResponseMock(object):
         pass
 
     def raise_for_status(self):
-        if self.response.status_code >= 400:
-            raise requests.exceptions.HTTPError("Bad Request", response=self.response)
+        # convert flask Response to requests Response
+        response = requests.Response()
+        response.status_code = self.response.status_code
+        if self.response.status_code == 429:
+            response._content = b'{"error": "rate limit exceeded"}'
+            raise requests.exceptions.HTTPError(response=response)
+        elif self.response.status_code >= 400:
+            response._content = b"Bad Request"
+            raise requests.exceptions.HTTPError(response=response)
 
     @property
     def status_code(self):
@@ -142,3 +149,69 @@ class RequestsMock(object):
 
     def __repr__(self):
         return "<W&B Mocked Request class>"
+
+
+class InjectRequestsMatch(object):
+    def __init__(self, path_suffix=None):
+        self._path_suffix = path_suffix
+
+    def _as_dict(self):
+        r = {}
+        if self._path_suffix:
+            r["path_suffix"] = self._path_suffix
+        return r
+
+
+class InjectRequestsAction(object):
+    def __init__(self, response=None):
+        self.response = response
+
+    def __str__(self):
+        return "Action({})".format(vars(self))
+
+
+class InjectRequestsParse(object):
+    def __init__(self, ctx):
+        self._ctx = ctx
+
+    def find(self, request=None):
+        inject = self._ctx.get("inject")
+        if not inject:
+            return
+
+        rules = inject.get("rules", [])
+        for r in rules:
+            # print("INJECT_REQUEST: check rule =", r)
+            match = r.get("match")
+            if not match:
+                continue
+            # TODO: make matching better when we have more to do
+            path_suffix = match.get("path_suffix")
+            if path_suffix and request:
+                if request.path.endswith(path_suffix):
+                    action = InjectRequestsAction()
+                    response = r.get("response")
+                    if response:
+                        action.response = response
+                    # print("INJECT_REQUEST: action =", action)
+                    return action
+
+        return None
+
+
+class InjectRequests(object):
+    """Add a structure to the ctx object that can be parsed by InjectRequestsParse()."""
+
+    def __init__(self, ctx):
+        self._ctx = ctx
+        self.Match = InjectRequestsMatch
+
+    def add(self, match, response=None):
+        if response:
+            ctx_inject = self._ctx.setdefault("inject", {})
+            ctx_rules = ctx_inject.setdefault("rules", [])
+            rule = {}
+            rule["match"] = match._as_dict()
+            if response:
+                rule["response"] = response
+            ctx_rules.append(rule)

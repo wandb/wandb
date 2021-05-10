@@ -4,6 +4,7 @@ import codecs
 import contextlib
 import hashlib
 import os
+import random
 
 import wandb
 from wandb import env
@@ -11,7 +12,20 @@ from wandb import util
 from wandb.data_types import WBValue
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import List, Optional, Union, Dict, Tuple, Callable
+
+    from typing import (
+        List,
+        Optional,
+        Union,
+        Dict,
+        Callable,
+        TYPE_CHECKING,
+        Sequence,
+        Tuple,
+    )
+
+    if TYPE_CHECKING:
+        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
 def md5_string(string):
@@ -46,6 +60,8 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest(object):
+    # entries: Dict[str, "ArtifactEntry"]
+
     @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json):
@@ -93,6 +109,14 @@ class ArtifactManifest(object):
 
 
 class ArtifactEntry(object):
+    # path: str
+    # ref: Optional[str]
+    # digest: str
+    # birth_artifact_id: Optional[str]
+    # size: Optional[int]
+    # extra: Dict
+    # local_path: Optional[str]
+
     def parent_artifact(self):
         """
         Get the artifact to which this artifact entry belongs.
@@ -116,13 +140,11 @@ class ArtifactEntry(object):
         """
         raise NotImplementedError
 
-    def ref(self):
+    def ref_target(self):
         """
-        Gets the reference URL of this artifact entry.
-
+        Gets the reference URL that this artifact entry targets.
         Returns:
             (str): The reference URL of this artifact entry.
-
         Raises:
             ValueError: If this artifact entry was not a reference.
         """
@@ -466,16 +488,16 @@ class Artifact(object):
         raise NotImplementedError
 
     def add(self, obj, name):
-        """
-        Adds `obj` to the artifact, where the object is a W&B histogram or
-        media type.
+        """Adds wandb.WBValue `obj` to the artifact.
 
         ```
         obj = artifact.get(name)
         ```
 
         Arguments:
-            obj: (wandb.WBValue) The object to add.
+            obj: (wandb.WBValue) The object to add. Currently support one of
+                Bokeh, JoinedTable, PartitionedTable, Table, Classes, ImageMask,
+                BoundingBoxes2D, Audio, Image, Video, Html, Object3D
             name: (str) The path within the artifact to add the object.
 
         Returns:
@@ -730,11 +752,18 @@ class StoragePolicy(object):
     def config(self):
         pass
 
-    def load_file(self, artifact, name, manifest_entry):
+    def load_file(
+        self, artifact, name, manifest_entry
+    ):
         raise NotImplementedError
 
     def store_file(
-        self, artifact_id, artifact_manifest_id, entry, preparer, progress_callback=None
+        self,
+        artifact_id,
+        artifact_manifest_id,
+        entry,
+        preparer,
+        progress_callback = None,
     ):
         raise NotImplementedError
 
@@ -743,11 +772,18 @@ class StoragePolicy(object):
     ):
         raise NotImplementedError
 
-    def load_reference(self, artifact, name, manifest_entry, local=False):
+    def load_reference(
+        self,
+        artifact,
+        name,
+        manifest_entry,
+        local = False,
+    ):
         raise NotImplementedError
 
 
 class StorageHandler(object):
+    @property
     def scheme(self):
         """
         :return: The scheme to which this handler applies.
@@ -755,7 +791,9 @@ class StorageHandler(object):
         """
         pass
 
-    def load_path(self, artifact, manifest_entry, local=False):
+    def load_path(
+        self, artifact, manifest_entry, local = False,
+    ):
         """
         Loads the file or directory within the specified artifact given its
         corresponding index entry.
@@ -763,11 +801,13 @@ class StorageHandler(object):
         :param manifest_entry: The index entry to load
         :type manifest_entry: ArtifactManifestEntry
         :return: A path to the file represented by `index_entry`
-        :rtype: os.PathLike
+        :rtype: str
         """
         pass
 
-    def store_path(self, artifact, path, name=None, checksum=True, max_objects=None):
+    def store_path(
+        self, artifact, path, name=None, checksum=True, max_objects=None
+    ):
         """
         Stores the file or directory at the given path within the specified artifact.
 
@@ -791,11 +831,13 @@ class ArtifactsCache(object):
         self._md5_obj_dir = os.path.join(self._cache_dir, "obj", "md5")
         self._etag_obj_dir = os.path.join(self._cache_dir, "obj", "etag")
         self._artifacts_by_id = {}
+        self._random = random.Random()
+        self._random.seed()
 
     def check_md5_obj_path(self, b64_md5, size):
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
         path = os.path.join(self._cache_dir, "obj", "md5", hex_md5[:2], hex_md5[2:])
-        opener = ArtifactsCache._cache_opener(path)
+        opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
         util.mkdir_exists_ok(os.path.dirname(path))
@@ -803,7 +845,7 @@ class ArtifactsCache(object):
 
     def check_etag_obj_path(self, etag, size):
         path = os.path.join(self._cache_dir, "obj", "etag", etag[:2], etag[2:])
-        opener = ArtifactsCache._cache_opener(path)
+        opener = self._cache_opener(path)
         if os.path.isfile(path) and os.path.getsize(path) == size:
             return path, True, opener
         util.mkdir_exists_ok(os.path.dirname(path))
@@ -849,15 +891,17 @@ class ArtifactsCache(object):
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
 
-    @staticmethod
-    def _cache_opener(path):
+    def _cache_opener(self, path):
         @contextlib.contextmanager
         def helper(mode="w"):
             dirname = os.path.dirname(path)
             tmp_file = os.path.join(
                 dirname,
                 "%s_%s"
-                % (ArtifactsCache._TMP_PREFIX, util.rand_alphanumeric(length=8)),
+                % (
+                    ArtifactsCache._TMP_PREFIX,
+                    util.rand_alphanumeric(length=8, rand=self._random),
+                ),
             )
             with util.fsync_open(tmp_file, mode=mode) as f:
                 yield f

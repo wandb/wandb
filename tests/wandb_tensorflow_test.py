@@ -255,10 +255,10 @@ def test_add_pr_curve(live_mock_server, test_settings):
 
     assert (
         "test_pr/pr_curves"
-        in server_ctx["config"][2]["_wandb"]["value"]["visualize"].keys()
+        in server_ctx["config"][-1]["_wandb"]["value"]["visualize"].keys()
     )
     assert (
-        server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
+        server_ctx["config"][-1]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
         == PR_CURVE_PANEL_CONFIG
     )
     wandb.tensorboard.unpatch()
@@ -290,10 +290,10 @@ def test_add_pr_curve_plugin(live_mock_server, test_settings):
 
     assert (
         "test_pr/pr_curves"
-        in server_ctx["config"][2]["_wandb"]["value"]["visualize"].keys()
+        in server_ctx["config"][-1]["_wandb"]["value"]["visualize"].keys()
     )
     assert (
-        server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
+        server_ctx["config"][-1]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
         == PR_CURVE_PANEL_CONFIG
     )
     wandb.tensorboard.unpatch()
