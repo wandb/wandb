@@ -300,7 +300,7 @@ def test_very_long_output(console_settings, capfd, runner):
 
 
 @pytest.mark.parametrize("console_settings", console_modes, indirect=True)
-def test_no_numpy(console_settings, capfd):
+def test_no_numpy(console_settings, capfd, runner):
     with capfd.disabled():
         wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
         run = wandb.init(settings=console_settings)
