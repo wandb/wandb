@@ -281,19 +281,45 @@ def test_offline_compression(console_settings, capfd, runner):
 
 
 @pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+@pytest.mark.parametrize("numpy", [True, False])
 @pytest.mark.timeout(120)
-def test_very_long_output(console_settings, capfd, runner):
+def test_very_long_output(console_settings, capfd, runner, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
     with capfd.disabled():
-        run = wandb.init(settings=console_settings)
-        print("LOG" * 1000000)
-        print("===finish===")
-        run.finish()
-        binary_log_file = (
-            os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
-        )
-        binary_log = runner.invoke(
-            cli.sync, ["--view", "--verbose", binary_log_file]
-        ).stdout
-        assert binary_log.count("LOG") == 1000000
-        assert "===finish===" in binary_log
+        if not numpy:
+            wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
+        try:
+            run = wandb.init(settings=console_settings)
+            print("LOG" * 1000000)
+            print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m" * 100)
+            print("===finish===")
+            run.finish()
+            binary_log_file = (
+                os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+            )
+            binary_log = runner.invoke(
+                cli.sync, ["--view", "--verbose", binary_log_file]
+            ).stdout
+            assert binary_log.count("\\033[31m\\033[40m\\033[1mHello") == 100
+            assert binary_log.count("LOG") == 1000000
+            assert "===finish===" in binary_log
+        finally:
+            wandb.wandb_sdk.lib.redirect.np = np
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+def test_no_numpy(console_settings, capfd, runner):
+    with capfd.disabled():
+        wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
+        try:
+            run = wandb.init(settings=console_settings)
+            print("\x1b[31m\x1b[40m\x1b[1mHello\x01\x1b[22m\x1b[39m")
+            run.finish()
+            binary_log_file = (
+                os.path.join(os.path.dirname(run.dir), "run-" + run.id) + ".wandb"
+            )
+            binary_log = runner.invoke(
+                cli.sync, ["--view", "--verbose", binary_log_file]
+            ).stdout
+        finally:
+            wandb.wandb_sdk.lib.redirect.np = np
