@@ -300,7 +300,7 @@ def test_very_long_output(console_settings, capfd, runner, numpy):
             binary_log = runner.invoke(
                 cli.sync, ["--view", "--verbose", binary_log_file]
             ).stdout
-            assert binary_log.count("\\033[31m\\033[40m\\033[1mHello") == 100
+            assert "\\033[31m\\033[40m\\033[1mHello" in binary_log
             assert binary_log.count("LOG") == 1000000
             assert "===finish===" in binary_log
         finally:
