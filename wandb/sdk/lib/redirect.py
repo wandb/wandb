@@ -745,7 +745,7 @@ class Redirect(RedirectBase):
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception as e:
-                print(e)
+                raise e
         if data:
             for cb in self.cbs:
                 try:
