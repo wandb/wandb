@@ -845,7 +845,6 @@ def test_gc(runner):
 
 
 def test_sweep_pause(runner, mock_server, test_settings):
-    live_mock_server.set_ctx({"resume": True})
     sweep_config = {
         "name": "My Sweep",
         "method": "grid",
