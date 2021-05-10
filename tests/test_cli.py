@@ -844,7 +844,7 @@ def test_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
-def test_sweep_pause(runner, live_mock_server, test_settings):
+def test_sweep_pause(runner, mock_server, test_settings):
     live_mock_server.set_ctx({"resume": True})
     sweep_config = {
         "name": "My Sweep",
