@@ -790,8 +790,10 @@ def sweep(sweep, entity=None, project=None):
     try:
         sweep = dict(sweep)
     except TypeError:
-        raise TypeError('Could not coerce passed config {} to dict. Please check '
-                        'config format and try again.'.format(sweep))
+        raise TypeError(
+            "Could not coerce passed config {} to dict. Please check "
+            "config format and try again.".format(sweep)
+        )
 
     """Sweep create for controller api and jupyter (eventually for cli)."""
     if entity:
