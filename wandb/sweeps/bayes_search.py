@@ -9,7 +9,6 @@ as well as the case where X is very large.
 
 """
 
-import numpy as np
 #from sklearn.gaussian_process import GaussianProcessRegressor
 #from sklearn.gaussian_process.kernels import Matern
 #import scipy.stats as stats
@@ -20,6 +19,7 @@ from wandb.sweeps.params import HyperParameter, HyperParameterSet
 
 sklearn_gaussian = get_module('sklearn.gaussian_process')
 scipy_stats = get_module('scipy.stats')
+np = get_module("numpy")
 
 
 def fit_normalized_gaussian_process(X, y, nu=1.5):
