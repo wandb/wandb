@@ -3,8 +3,8 @@ Hyperparameter search parameters
 """
 
 import random
+import numpy as np
 from wandb.util import get_module
-np = get_module("numpy")
 #import scipy.stats as stats
 
 

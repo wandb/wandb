@@ -3,9 +3,8 @@ Hyperband Early Terminate
 """
 
 import random
-from wandb.util import get_module
+import numpy as np
 from wandb.sweeps.base import EarlyTerminate
-np = get_module("numpy")
 
 
 class HyperbandEarlyTerminate(EarlyTerminate):

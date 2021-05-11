@@ -6,9 +6,8 @@ Here we use a strategy where we take the top k runs or top k percent of runs
 and then we build up an envelope where we stop jobs where the metric doesn't get better
 """
 
+import numpy as np
 from wandb.sweeps.base import EarlyTerminate
-from wandb.util import get_module
-np = get_module("numpy")
 
 
 def top_k_indicies(arr, k):
