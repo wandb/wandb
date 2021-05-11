@@ -113,6 +113,12 @@ class ExitHooks(object):
     def hook(self):
         self._orig_exit = sys.exit
         sys.exit = self.exit
+        self._orig_excepthook = (
+            sys.excepthook
+            if sys.excepthook
+            != sys.__excepthook__  # respect hooks by other libraries like pdb
+            else None
+        )
         sys.excepthook = self.exc_handler
 
     def exit(self, code = 0):
@@ -139,6 +145,8 @@ class ExitHooks(object):
             self.exit_code = 255
 
         traceback.print_exception(exc_type, exc, tb)
+        if self._orig_excepthook:
+            self._orig_excepthook(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -147,42 +155,72 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface, polling_interval = 15):
+    def __init__(
+        self,
+        interface,
+        stop_polling_interval = 15,
+        retry_polling_interval = 5,
+    ):
         self._interface = interface
-        self._polling_interval = polling_interval
+        self._stop_polling_interval = stop_polling_interval
+        self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self.check_status)
-        self._thread.daemon = True
-        self._thread.start()
+        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.daemon = True
+        self._stop_thread.start()
+
+        self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.daemon = True
+        self._retry_thread.start()
+
+    def check_network_status(self):
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_network_status()
+            if status_response and status_response.network_responses:
+                for hr in status_response.network_responses:
+                    if (
+                        hr.http_status_code == 200 or hr.http_status_code == 0
+                    ):  # we use 0 for non-http errors (eg wandb errors)
+                        wandb.termlog("{}".format(hr.http_response_text))
+                    else:
+                        wandb.termlog(
+                            "{} encountered ({}), retrying request".format(
+                                hr.http_status_code, hr.http_response_text.rstrip()
+                            )
+                        )
+            join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self):
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(check_stop_req=True)
+            status_response = self._interface.communicate_stop_status()
             if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._polling_interval)
+            join_requested = self._join_event.wait(self._stop_polling_interval)
 
     def stop(self):
         self._join_event.set()
 
     def join(self):
         self.stop()
-        self._thread.join()
+        self._stop_thread.join()
+        self._retry_thread.join()
 
 
 class Run(object):
     """
-    The run object corresponds to a single execution of your script,
-    typically this is an ML experiment. Create a run with `wandb.init()`.
+    A unit of computation logged by wandb. Typically this is an ML experiment.
 
-    In distributed training, use `wandb.init()` to create a run for each process,
-    and set the group argument to organize runs into a larger experiment.
+    Create a run with `wandb.init()`.
+
+    In distributed training, use `wandb.init()` to create a run for
+    each process, and set the group argument to organize runs into a larger experiment.
 
     Currently there is a parallel Run object in the wandb.Api. Eventually these
     two objects will be merged.
@@ -751,6 +789,9 @@ class Run(object):
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
+    def _set_config_wandb(self, key, val):
+        self._config_callback(key=("_wandb", key), val=val)
+
     def _summary_update_callback(self, summary_record):
         if self._backend:
             self._backend.interface.publish_summary(summary_record)
@@ -1062,7 +1103,7 @@ class Run(object):
         base_path = None,
         policy = "live",
     ):
-        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular
