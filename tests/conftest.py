@@ -604,10 +604,10 @@ def internal_process():
 
 class MockProcess:
     def __init__(self):
-        pass
+        self._alive = True
 
     def is_alive(self):
-        return True
+        return self._alive
 
 
 @pytest.fixture()
@@ -638,6 +638,12 @@ def internal_sm(
 
 
 @pytest.fixture()
+def stopped_event():
+    stopped = threading.Event()
+    yield stopped
+
+
+@pytest.fixture()
 def internal_hm(
     runner,
     record_q,
@@ -647,15 +653,15 @@ def internal_hm(
     internal_sender_q,
     internal_writer_q,
     internal_sender,
+    stopped_event,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
-        stopped = threading.Event()
         hm = HandleManager(
             settings=test_settings,
             record_q=record_q,
             result_q=internal_result_q,
-            stopped=stopped,
+            stopped=stopped_event,
             sender_q=internal_sender_q,
             writer_q=internal_writer_q,
             interface=internal_sender,
@@ -676,45 +682,53 @@ def internal_get_record():
 
 
 @pytest.fixture()
-def start_send_thread(internal_sender_q, internal_get_record):
-    stop_event = threading.Event()
-
+def start_send_thread(
+    internal_sender_q, internal_get_record, stopped_event, internal_process
+):
     def start_send(send_manager):
         def target():
-            while True:
-                payload = internal_get_record(input_q=internal_sender_q, timeout=0.1)
-                if payload:
-                    send_manager.send(payload)
-                elif stop_event.is_set():
-                    break
+            try:
+                while True:
+                    payload = internal_get_record(
+                        input_q=internal_sender_q, timeout=0.1
+                    )
+                    if payload:
+                        send_manager.send(payload)
+                    elif stopped_event.is_set():
+                        break
+            except Exception as e:
+                stopped_event.set()
+                internal_process._alive = False
 
         t = threading.Thread(target=target)
+        t.name = "testing-sender"
         t.daemon = True
         t.start()
+        return t
 
     yield start_send
-    stop_event.set()
+    stopped_event.set()
 
 
 @pytest.fixture()
-def start_handle_thread(record_q, internal_get_record):
-    stop_event = threading.Event()
-
+def start_handle_thread(record_q, internal_get_record, stopped_event):
     def start_handle(handle_manager):
         def target():
             while True:
                 payload = internal_get_record(input_q=record_q, timeout=0.1)
                 if payload:
                     handle_manager.handle(payload)
-                elif stop_event.is_set():
+                elif stopped_event.is_set():
                     break
 
         t = threading.Thread(target=target)
+        t.name = "testing-handler"
         t.daemon = True
         t.start()
+        return t
 
     yield start_handle
-    stop_event.set()
+    stopped_event.set()
 
 
 @pytest.fixture()
@@ -728,10 +742,11 @@ def start_backend(
     log_debug,
 ):
     def start_backend_func(initial_run=True):
-        start_handle_thread(internal_hm)
-        start_send_thread(internal_sm)
+        ht = start_handle_thread(internal_hm)
+        st = start_send_thread(internal_sm)
         if initial_run:
             _ = internal_sender.communicate_run(mocked_run)
+        return (ht, st)
 
     yield start_backend_func
 
@@ -745,7 +760,8 @@ def stop_backend(
     start_handle_thread,
     start_send_thread,
 ):
-    def stop_backend_func():
+    def stop_backend_func(threads=None):
+        threads = threads or ()
         done = False
         internal_sender.publish_exit(0)
         for _ in range(30):
@@ -755,6 +771,9 @@ def stop_backend(
                 if done:
                     break
             time.sleep(1)
+        internal_sender.join()
+        for t in threads:
+            t.join()
         assert done, "backend didnt shutdown"
 
     yield stop_backend_func
@@ -768,12 +787,12 @@ def publish_util(
         metrics = metrics or []
         history = history or []
 
-        start_backend()
+        threads = start_backend()
         for m in metrics:
             internal_sender._publish_metric(m)
         for h in history:
             internal_sender.publish_history(**h)
-        stop_backend()
+        stop_backend(threads=threads)
 
         ctx_util = parse_ctx(mock_server.ctx)
         return ctx_util
