@@ -155,10 +155,7 @@ class DirWatcher(object):
     def __init__(self, settings, api, file_pusher, file_dir=None):
         self._api = api
         self._file_count = 0
-        if file_dir:
-            self._dir = file_dir
-        else:
-            self._dir = settings.files_dir
+        self._dir = file_dir or settings.files_dir
         self._settings = settings
         self._user_file_policies = {"end": set(), "live": set(), "now": set()}
         self._file_pusher = file_pusher
