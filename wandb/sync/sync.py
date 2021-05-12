@@ -6,7 +6,6 @@ from __future__ import print_function
 
 import datetime
 import fnmatch
-import json
 import os
 import sys
 import threading
