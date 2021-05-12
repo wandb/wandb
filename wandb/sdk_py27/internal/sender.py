@@ -115,6 +115,9 @@ class SendManager(object):
         # queue filled by retry_callback
         self._retry_q = queue.Queue()
 
+        # do we need to debounce?
+        self._config_needs_debounce = False
+
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
@@ -227,6 +230,19 @@ class SendManager(object):
                 logger.warning("Failed to check stop requested status: %s", e)
         self._result_q.put(result)
 
+    def debounce(self):
+        if self._config_needs_debounce:
+            self._debounce_config()
+
+    def _debounce_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        # TODO(jhr): check result of upsert_run?
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        self._config_needs_debounce = False
+
     def send_request_network_status(self, record):
         assert record.control.req_resp
 
@@ -293,6 +309,8 @@ class SendManager(object):
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
+        elif state == defer.FLUSH_DEBOUNCER:
+            self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -666,15 +684,15 @@ class SendManager(object):
             "output.log",
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
-        self._fs.start()
-        self._pusher = FilePusher(self._api, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,
             project=self._run.project,
             email=self._settings.email,
         )
+        self._fs.start()
+        self._pusher = FilePusher(self._api, silent=self._settings.silent)
+        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -748,12 +766,7 @@ class SendManager(object):
             self._partial_output[stream] = ""
 
     def _update_config(self):
-        config_value_dict = self._config_format(self._consolidated_config)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
-        self._config_save(config_value_dict)
-        # TODO(jhr): check result of upsert_run?
+        self._config_needs_debounce = True
 
     def send_config(self, data):
         cfg = data.config
