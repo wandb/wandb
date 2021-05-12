@@ -113,6 +113,12 @@ class ExitHooks(object):
     def hook(self) -> None:
         self._orig_exit = sys.exit
         sys.exit = self.exit
+        self._orig_excepthook = (
+            sys.excepthook
+            if sys.excepthook
+            != sys.__excepthook__  # respect hooks by other libraries like pdb
+            else None
+        )
         sys.excepthook = self.exc_handler
 
     def exit(self, code: object = 0) -> "NoReturn":
@@ -139,6 +145,8 @@ class ExitHooks(object):
             self.exit_code = 255
 
         traceback.print_exception(exc_type, exc, tb)
+        if self._orig_excepthook:
+            self._orig_excepthook(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -781,6 +789,9 @@ class Run(object):
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
+    def _set_config_wandb(self, key: str, val: Any) -> None:
+        self._config_callback(key=("_wandb", key), val=val)
+
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
         if self._backend:
             self._backend.interface.publish_summary(summary_record)
@@ -1092,7 +1103,7 @@ class Run(object):
         base_path: Optional[str] = None,
         policy: str = "live",
     ) -> Union[bool, List[str]]:
-        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular

@@ -124,15 +124,25 @@ class RequestsMock(object):
             self.ctx[key] = self.ctx.get(key, [])
             self.ctx[key].append(body)
 
+    def _inject(self, method, url, kwargs):
+        pre_request = dict(method=method, url=url, kwargs=kwargs)
+        inject = InjectRequestsParse(self.ctx).find(pre_request=pre_request)
+        if inject:
+            if inject.requests_error:
+                raise requests.exceptions.RetryError()
+
     def post(self, url, **kwargs):
+        self._inject("post", url, kwargs)
         self._store_request(url, kwargs.get("json"))
         return ResponseMock(self.client.post(url, **self._clean_kwargs(kwargs)))
 
     def put(self, url, **kwargs):
+        self._inject("put", url, kwargs)
         self._store_request(url, kwargs.get("json"))
         return ResponseMock(self.client.put(url, **self._clean_kwargs(kwargs)))
 
     def get(self, url, **kwargs):
+        self._inject("get", url, kwargs)
         self._store_request(url, kwargs.get("json"))
         return ResponseMock(self.client.get(url, **self._clean_kwargs(kwargs)))
 
@@ -149,3 +159,99 @@ class RequestsMock(object):
 
     def __repr__(self):
         return "<W&B Mocked Request class>"
+
+
+class InjectRequestsMatch(object):
+    def __init__(self, path_suffix=None, count=None):
+        self._path_suffix = path_suffix
+        self._count = count
+
+    def _as_dict(self):
+        r = {}
+        if self._path_suffix:
+            r["path_suffix"] = self._path_suffix
+        if self._count:
+            r["count"] = self._count
+        return r
+
+
+class InjectRequestsAction(object):
+    def __init__(self, response=None, http_status=None, requests_error=None):
+        self.response = response
+        self.http_status = http_status
+        self.requests_error = requests_error
+
+    def __str__(self):
+        return "Action({})".format(vars(self))
+
+
+class InjectRequestsParse(object):
+    def __init__(self, ctx):
+        self._ctx = ctx
+
+    def find(self, request=None, pre_request=None):
+        inject = self._ctx.get("inject")
+        if not inject:
+            return
+
+        request_path = ""
+        if request:
+            request_path = request.path
+        if pre_request:
+            # TODO: fix this to be just the path
+            request_path = pre_request["url"]
+
+        rules = inject.get("rules", [])
+        for r in rules:
+            # print("INJECT_REQUEST: check rule =", r, request_path)
+            match = r.get("match")
+            if not match:
+                continue
+            # TODO: make matching better when we have more to do
+            count = match.get("count")
+            path_suffix = match.get("path_suffix")
+            if path_suffix:
+                if request_path.endswith(path_suffix):
+                    requests_error = r.get("requests_error")
+                    response = r.get("response")
+                    http_status = r.get("http_status")
+                    # print("INJECT_REQUEST: match =", r, requests_error, response, http_status)
+                    #  requests_error is for pre_request checks only
+                    if requests_error and not pre_request:
+                        continue
+                    if count is not None:
+                        if count == 0:
+                            continue
+                        match["count"] = count - 1
+                    action = InjectRequestsAction()
+                    if response:
+                        action.response = response
+                    if http_status:
+                        action.http_status = http_status
+                    if requests_error:
+                        action.requests_error = True
+                    # print("INJECT_REQUEST: action =", action)
+                    return action
+
+        return None
+
+
+class InjectRequests(object):
+    """Add a structure to the ctx object that can be parsed by InjectRequestsParse()."""
+
+    def __init__(self, ctx):
+        self._ctx = ctx
+        self.Match = InjectRequestsMatch
+
+    def add(self, match, response=None, http_status=None, requests_error=None):
+        ctx_inject = self._ctx.setdefault("inject", {})
+        ctx_rules = ctx_inject.setdefault("rules", [])
+        rule = {}
+        rule["match"] = match._as_dict()
+        if response:
+            rule["response"] = response
+        if http_status:
+            rule["http_status"] = http_status
+        if requests_error:
+            rule["requests_error"] = requests_error
+        ctx_rules.append(rule)
