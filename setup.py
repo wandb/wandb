@@ -78,7 +78,7 @@ setup(
         'gcp': gcp_requirements,
         'aws': aws_requirements,
         'grpc': grpc_requirements,
-        'media': media_requirements
+        'media': media_requirements,
         'sweeps': sweeps_requirements
     }
 )

@@ -782,19 +782,13 @@ def sweep(sweep, entity=None, project=None):
         ```
     """
 
+    from wandb.sweeps.config import SweepConfig
     import types
 
     if isinstance(sweep, types.FunctionType):
         sweep = sweep()
-
-    try:
+    if isinstance(sweep, SweepConfig):
         sweep = dict(sweep)
-    except TypeError:
-        raise TypeError(
-            "Could not coerce passed config {} to dict. Please check "
-            "config format and try again.".format(sweep)
-        )
-
     """Sweep create for controller api and jupyter (eventually for cli)."""
     if entity:
         env.set_entity(entity)

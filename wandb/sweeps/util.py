@@ -3,6 +3,8 @@
 """
 
 import math
+import inspect
+from wandb.util import get_module
 
 
 def sweepwarn(s):
@@ -33,3 +35,9 @@ def is_nan_or_nan_string(val):
     elif isinstance(val, float):
         return math.isnan(val)
     return False
+
+
+def get_numpy():
+    calling_function_name = inspect.stack()[1].function
+    message = f"{calling_function_name} requires numpy. Please install it with `pip install wandb[sweeps]`."
+    return get_module("numpy", required=message)
