@@ -185,7 +185,8 @@ def _fetch_project_local(uri, api, version=None):
         run_info = fetch_wandb_project_run_info(uri, api)
         if not run_info["git"]:
             raise ExecutionException("Run must have git repo associated")
-        
+        _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)
+        print(os.listdir(dst_dir))
     else:
         assert _GIT_URI_REGEX.match(parsed_uri), (
             "Non-local URI %s should be a Git URI" % parsed_uri

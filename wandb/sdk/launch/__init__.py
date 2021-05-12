@@ -71,7 +71,7 @@ def _run(
 
 def run(
     uri,
-    entry_point="main",
+    entry_point="main.py",
     version=None,
     parameters=None,
     docker_args=None,

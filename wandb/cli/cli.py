@@ -846,7 +846,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "--entry-point",
     "-e",
     metavar="NAME",
-    default="main",
+    default="main.py",
     help="Entry point within project. [default: main]. If the entry point is not found, "
     "attempts to run the project file with the specified name as a script, "
     "using 'python' to run .py files and the default shell (specified by "
