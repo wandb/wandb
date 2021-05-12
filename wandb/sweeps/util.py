@@ -3,7 +3,6 @@
 """
 
 import math
-import inspect
 from wandb.util import get_module
 
 
@@ -38,6 +37,5 @@ def is_nan_or_nan_string(val):
 
 
 def get_numpy():
-    calling_function_name = inspect.stack()[1].function
-    message = f"{calling_function_name} requires numpy. Please install it with `pip install wandb[sweeps]`."
+    message = f"You are attempting to use the wandb.sweeps module, which has dependencies that are unsatisfied. Please run `pip install wandb[sweeps]`."
     return get_module("numpy", required=message)
