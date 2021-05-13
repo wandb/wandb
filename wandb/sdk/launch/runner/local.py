@@ -82,6 +82,7 @@ class LocalRunner(AbstractRunner):
         project = self.fetch_and_validate_project(
             project_uri, version, entry_point, params
         )
+        #print("PROJECT", project.version)
         use_conda = backend_config[PROJECT_USE_CONDA]
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
@@ -91,7 +92,7 @@ class LocalRunner(AbstractRunner):
         if build_docker:
             project.name = 'test'        # todo this is just hardcoded rn
             entry_cmd = project.get_entry_point(entry_point).command
-            image_id = generate_docker_image(project_uri, version, entry_cmd, self._api)
+            image_id = generate_docker_image(project, version, entry_cmd, self._api)
             project.docker_env = {'image': image_id}
 
         command_args = []
@@ -114,6 +115,7 @@ class LocalRunner(AbstractRunner):
                 run_id=run_id,
                 api=self._api,
             )
+            print("BUILT DOCKER IMAGE")
             command_args += _get_docker_command(
                 image=image,
                 run_id=run_id,
@@ -135,7 +137,6 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 project, entry_point, params, storage_dir
             )
-
             command_str = command_separator.join(command_args)
             return _run_entry_point(
                 command_str, project.dir, experiment_id, run_id=run_id

@@ -8,12 +8,13 @@ import subprocess
 import re
 import tempfile
 import urllib.parse
+import yaml
 from gql import Client, gql
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
-
+import time
 from . import _project_spec
 
 
@@ -112,20 +113,28 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
-def generate_docker_image(uri, version, entry_cmd, api):
+def generate_docker_image(project_spec, version, entry_cmd, api):
+    print(project_spec.dir)
+    path = project_spec.dir
+    print(entry_cmd)
     cmd = ['jupyter-repo2docker',
-            uri,
-            '"{}"'.format(entry_cmd),
             '--no-run',
-            '--no-build',
-            '--env', 'WANDB_API_KEY={}'.format(api.api_key),
-            '--user-name', 'root', # todo bad idea lol
+            #'--no-build',
+            # '--env', 'WANDB_API_KEY={}'.format(api.api_key),
+            # '--user-name', 'root', # todo bad idea lol
+            # '--debug',
+            path,
+            '"{}"'.format(entry_cmd),
             ]
 
-    if version:
-        cmd.extend(['--ref', version])
+    #if version:
+    #    cmd.extend(['--ref', version])
     _logger.info('Generating docker image from git repo or finding image if it already exists..........')
+    print("RUN CMD", cmd)
     stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')
+    #time.sleep(5)
+    print("R@D domne")
+    print(stderr)
     image_id = re.findall(r'Successfully tagged (.+):latest', stderr)
     if not image_id:
         image_id = re.findall(r'Reusing existing image \((.+)\)', stderr)
@@ -183,10 +192,11 @@ def _fetch_project_local(uri, api, version=None):
     elif _is_wandb_uri(uri):
         # TODO: so much hotness
         run_info = fetch_wandb_project_run_info(uri, api)
+        print(run_info)
         if not run_info["git"]:
             raise ExecutionException("Run must have git repo associated")
         _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)
-        print(os.listdir(dst_dir))
+        _create_ml_project_file_from_run_info(dst_dir, run_info)
     else:
         assert _GIT_URI_REGEX.match(parsed_uri), (
             "Non-local URI %s should be a Git URI" % parsed_uri
@@ -198,6 +208,19 @@ def _fetch_project_local(uri, api, version=None):
             "Could not find subdirectory %s of %s" % (subdirectory, dst_dir)
         )
     return res
+
+
+def _create_ml_project_file_from_run_info(dst_dir, run_info):
+    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
+    spec_keys_map = {
+        "args": run_info["args"],
+        "entrypoint": run_info["program"],
+        "git": {"remote": run_info["git"]["remote"], "commit": run_info["git"]["commit"]},
+        "python": run_info["python"],
+        "os": run_info["os"]
+    }
+    with open(path, "w") as fp:
+        yaml.dump(spec_keys_map, fp)
 
 
 def _unzip_repo(zip_file, dst_dir):
