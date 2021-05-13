@@ -1103,7 +1103,7 @@ class Run(object):
         base_path: Optional[str] = None,
         policy: str = "live",
     ) -> Union[bool, List[str]]:
-        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular
