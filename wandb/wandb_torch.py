@@ -352,7 +352,7 @@ class TorchGraph(wandb.data_types.Graph):
             if not graph.criterion_passed:
                 if hasattr(output[0], "grad_fn"):
                     graph.criterion = output[0].grad_fn
-                elif isinstance(output[0], list) and hasattr(output[0][0], "grad_fn"):
+                elif isinstance(output[0], list) and output[0] and hasattr(output[0][0], "grad_fn"):
                     graph.criterion = output[0][0].grad_fn
 
             # log graph and remove hook
