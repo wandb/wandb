@@ -115,6 +115,9 @@ class SendManager(object):
         # queue filled by retry_callback
         self._retry_q = queue.Queue()
 
+        # do we need to debounce?
+        self._config_needs_debounce = False
+
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
@@ -174,6 +177,10 @@ class SendManager(object):
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
 
+    def send_preempting(self, record):
+        if self._fs:
+            self._fs.enqueue_preempting()
+
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
@@ -227,6 +234,19 @@ class SendManager(object):
                 logger.warning("Failed to check stop requested status: %s", e)
         self._result_q.put(result)
 
+    def debounce(self):
+        if self._config_needs_debounce:
+            self._debounce_config()
+
+    def _debounce_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        # TODO(jhr): check result of upsert_run?
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        self._config_needs_debounce = False
+
     def send_request_network_status(self, record):
         assert record.control.req_resp
 
@@ -261,7 +281,6 @@ class SendManager(object):
     def send_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
-
         logger.info("handling exit code: %s", exit.exit_code)
 
         # Pass the responsibility to respond to handle_request_defer()
@@ -293,6 +312,8 @@ class SendManager(object):
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
+        elif state == defer.FLUSH_DEBOUNCER:
+            self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -748,12 +769,7 @@ class SendManager(object):
             self._partial_output[stream] = ""
 
     def _update_config(self):
-        config_value_dict = self._config_format(self._consolidated_config)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
-        self._config_save(config_value_dict)
-        # TODO(jhr): check result of upsert_run?
+        self._config_needs_debounce = True
 
     def send_config(self, data):
         cfg = data.config
