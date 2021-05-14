@@ -12,9 +12,16 @@ import subprocess
 import os
 import sys
 import shutil
-from .utils import fixture_open
+from .utils import fixture_open, first_filestream
 import sys
 import six
+import time
+
+try:
+    from unittest import mock
+except ImportError:  # TODO: this is only for python2
+    import mock
+
 
 # Conditional imports of the reload function based on version
 if sys.version_info.major == 2:
@@ -46,7 +53,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
     wandb.join()
     server_ctx = live_mock_server.get_ctx()
     print("CTX", server_ctx)
-    first_stream_hist = server_ctx["file_stream"][0]["files"]["wandb-history.jsonl"]
+    first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
     print(first_stream_hist)
     assert first_stream_hist["offset"] == 15
     assert json.loads(first_stream_hist["content"][0])["_step"] == 16
@@ -348,3 +355,92 @@ def test_version_retired(
     run.finish()
     captured = capsys.readouterr()
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+
+
+def test_end_to_end_preempting(live_mock_server, test_settings, disable_console):
+    run = wandb.init(settings=test_settings)
+    run.mark_preempting()
+
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        if "file_stream" in ctx:
+            ok = any(
+                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
+            )
+            if ok:
+                break
+        time.sleep(1)
+    assert ok
+
+
+def test_end_to_end_preempting_via_module_func(
+    live_mock_server, test_settings, disable_console
+):
+    wandb.init(settings=test_settings)
+    wandb.log({"a": 1})
+    wandb.mark_preempting()
+
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        if "file_stream" in ctx:
+            ok = any(
+                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
+            )
+            if ok:
+                break
+        time.sleep(1)
+    assert ok
+
+
+@pytest.mark.flaky
+@pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
+def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
+    test_settings.update({"start_method": "thread"})
+
+    def mock_min_size(self, size):
+        return 2
+
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
+
+    wandb.init(settings=test_settings)
+    fpath = "/tmp/saveFile"
+    sent = 0
+    # file created, should be uploaded
+    with open(fpath, "w") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    wandb.save(fpath, policy="live")
+    # on save file is sent
+    sent += os.path.getsize(fpath)
+    time.sleep(2.1)
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    # 2.1 seconds is longer than set rate limit
+    sent += os.path.getsize(fpath)
+    # give watchdog time to register the change
+    time.sleep(1.0)
+    # file updated within modified time, should not be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    time.sleep(2.0)
+    # file updated outside of rate limit should be uploaded
+    with open(fpath, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    sent += os.path.getsize(fpath)
+    time.sleep(2)
+
+    server_ctx = live_mock_server.get_ctx()
+    print(server_ctx["file_bytes"], sent)
+    assert "saveFile" in server_ctx["file_bytes"].keys()
+    # TODO: bug sometimes it seems that on windows the first file is sent twice
+    assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000

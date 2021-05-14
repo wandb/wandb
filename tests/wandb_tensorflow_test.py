@@ -197,7 +197,7 @@ def test_compat_tensorboard(live_mock_server, test_settings):
     platform.system() == "Windows" or sys.version_info < (3, 5),
     reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
 )
-def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
+def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_ctx):
     wandb.init(sync_tensorboard=True, settings=test_settings)
 
     with tf.compat.v1.Session() as sess:
@@ -221,17 +221,15 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings):
     wandb.finish()
     server_ctx = live_mock_server.get_ctx()
     print("CONTEXT!", server_ctx)
-    first_stream_hist = server_ctx["file_stream"][-2]["files"]["wandb-history.jsonl"]
-    second_stream_hist = server_ctx["file_stream"][-4]["files"]["wandb-history.jsonl"]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    history = ctx_util.history
     assert (
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
         " using syncing with tensorboard. Please log your step values as a metric such as 'global_step'"
     ) in term.PRINTED_MESSAGES
-    assert json.loads(first_stream_hist["content"][-1])["_step"] == 20
-    assert (
-        json.loads(second_stream_hist["content"][-1])["wandb_logged_val_with_step"] == 9
-    )
-    assert json.loads(second_stream_hist["content"][-2])["wandb_logged_val"] == 81
+    assert history[9]["wandb_logged_val"] == 81
+    assert history[10]["wandb_logged_val_with_step"] == 9
+    assert history[-1]["_step"] == 20
     wandb.tensorboard.unpatch()
 
 
@@ -257,10 +255,10 @@ def test_add_pr_curve(live_mock_server, test_settings):
 
     assert (
         "test_pr/pr_curves"
-        in server_ctx["config"][2]["_wandb"]["value"]["visualize"].keys()
+        in server_ctx["config"][-1]["_wandb"]["value"]["visualize"].keys()
     )
     assert (
-        server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
+        server_ctx["config"][-1]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
         == PR_CURVE_PANEL_CONFIG
     )
     wandb.tensorboard.unpatch()
@@ -292,10 +290,10 @@ def test_add_pr_curve_plugin(live_mock_server, test_settings):
 
     assert (
         "test_pr/pr_curves"
-        in server_ctx["config"][2]["_wandb"]["value"]["visualize"].keys()
+        in server_ctx["config"][-1]["_wandb"]["value"]["visualize"].keys()
     )
     assert (
-        server_ctx["config"][2]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
+        server_ctx["config"][-1]["_wandb"]["value"]["visualize"]["test_pr/pr_curves"]
         == PR_CURVE_PANEL_CONFIG
     )
     wandb.tensorboard.unpatch()
