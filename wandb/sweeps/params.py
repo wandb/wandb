@@ -3,8 +3,8 @@ Hyperparameter search parameters
 """
 
 import random
-import numpy as np
 from wandb.util import get_module
+from .util import get_numpy
 #import scipy.stats as stats
 
 
@@ -134,6 +134,7 @@ class HyperParameter():
         Inputs: sample from selected distribution at the xth percentile.
         Ouputs: float in the range [0, 1]
         """
+        np = get_numpy()
         if self.type == HyperParameter.CONSTANT:
             return 0.0
         elif self.type == HyperParameter.CATEGORICAL:
@@ -162,6 +163,7 @@ class HyperParameter():
         Inputs: x: float in range [0, 1]
         Ouputs: sample from selected distribution at the xth percentile.
         """
+        np = get_numpy()
         if x < 0.0 or x > 1.0:
             raise ValueError("Can't call ppf on value outside of [0,1]")
         if self.type == HyperParameter.CONSTANT:
@@ -335,6 +337,7 @@ class HyperParameterSet(list):
         Should be able to remove.
 
         """
+        np = get_numpy()
 
         run_params = run.config or {}
         X = np.zeros([len(self.searchable_params)])
@@ -355,6 +358,7 @@ class HyperParameterSet(list):
 
     def denormalize_vector(self, X):
         """Converts a list of vectors [0,1] to values in the original space"""
+        np = get_numpy()
         v = np.zeros(X.shape).tolist()
 
         for ii, param in enumerate(self.searchable_params):
@@ -364,6 +368,7 @@ class HyperParameterSet(list):
 
     def convert_run_to_normalized_vector(self, run):
         """Converts run parameters to vectors with all values compressed to [0, 1]"""
+        np = get_numpy()
         run_params = run.config or {}
         X = np.zeros([len(self.searchable_params)])
 
@@ -379,6 +384,7 @@ class HyperParameterSet(list):
         return X
 
     def convert_runs_to_normalized_vector(self, runs):
+        np = get_numpy()
         runs_params = [run.config or {} for run in runs]
         X = np.zeros([len(self.searchable_params), len(runs)])
 
