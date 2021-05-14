@@ -8,6 +8,7 @@ import pytest
 import yaml
 import wandb
 from wandb import wandb_sdk
+from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
 def test_run_basic():
@@ -62,6 +63,7 @@ def test_run_pub_history(fake_run, record_q, records_util):
 def test_log_code_settings(live_mock_server, test_settings):
     with open("test.py", "w") as f:
         f.write('print("test")')
+    test_settings.save_code = True
     test_settings.code_dir = "."
     run = wandb.init(settings=test_settings)
     run.finish()
@@ -100,3 +102,41 @@ def test_log_code_custom_root(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
     art = run.log_code(root="../")
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
+
+
+def test_mark_preempting(fake_run, record_q, records_util):
+    run = fake_run()
+    run.log(dict(this=1))
+    run.log(dict(that=2))
+    run.mark_preempting()
+
+    r = records_util(record_q)
+    assert len(r.records) == 3
+    assert type(r.records[-1]) == RunPreemptingRecord
+
+
+def test_except_hook(test_settings):
+    # Test to make sure we respect excepthooks by 3rd parties like pdb
+    errs = []
+    hook = lambda etype, val, tb: errs.append(str(val))
+    sys.excepthook = hook
+
+    # We cant use raise statement in pytest context
+    raise_ = lambda exc: sys.excepthook(type(exc), exc, None)
+
+    raise_(Exception("Before wandb.init()"))
+
+    run = wandb.init(mode="offline", settings=test_settings)
+
+    old_stderr_write = sys.stderr.write
+    stderr = []
+    sys.stderr.write = stderr.append
+
+    raise_(Exception("After wandb.init()"))
+
+    assert errs == ["Before wandb.init()", "After wandb.init()"]
+
+    # make sure wandb prints the traceback
+    assert "".join(stderr) == "Exception: After wandb.init()\n"
+
+    sys.stderr.write = old_stderr_write

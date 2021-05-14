@@ -24,10 +24,11 @@ import wandb
 from wandb import __version__
 from wandb import env
 from wandb.old.settings import Settings
-from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
+from wandb.integration.sagemaker import parse_sm_secrets
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -59,6 +60,7 @@ class Api(object):
         load_settings=True,
         retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
+        retry_callback=None,
     ):
         self._environ = environ
         self.default_settings = {
@@ -95,11 +97,13 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
+        self.retry_callback = retry_callback
         self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
             retryable_exceptions=(RetryError, requests.RequestException),
+            retry_callback=retry_callback,
         )
         self._current_run_id = None
         self._file_stream_api = None
@@ -165,10 +169,12 @@ class Api(object):
         key = None
         if auth:
             key = auth[-1]
+
         # Environment should take precedence
         env_key = self._environ.get(env.API_KEY)
+        sagemaker_key = parse_sm_secrets().get(env.API_KEY)
         default_key = self.default_settings.get("api_key")
-        return env_key or key or default_key
+        return env_key or key or sagemaker_key or default_key
 
     @property
     def api_url(self):

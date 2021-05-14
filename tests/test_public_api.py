@@ -127,6 +127,25 @@ def test_run_history_keys(mock_server, api):
     ]
 
 
+def test_run_history_keys_bad_arg(mock_server, api, capsys):
+    run = api.run("test/test/test")
+    run.history(keys="acc", pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.history(keys=[["acc"]], pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+    run.scan_history(keys="acc")
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.scan_history(keys=[["acc"]])
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+
 def test_run_config(mock_server, api):
     run = api.run("test/test/test")
     assert run.config == {"epochs": 10}
@@ -381,6 +400,15 @@ def test_artifact_manual_use(runner, mock_server, api):
     art = api.artifact("entity/project/mnist:v0", type="dataset")
     run.use_artifact(art)
     assert True
+
+
+def test_artifact_bracket_accessor(runner, live_mock_server, api):
+    art = api.artifact("entity/project/dummy:v0", type="dataset")
+    assert art["t"].__class__ == wandb.Table
+    assert art["s"] is None
+    # TODO: Remove this once we support incremental adds
+    with pytest.raises(ValueError):
+        art["s"] = wandb.Table(data=[], columns=[])
 
 
 def test_artifact_manual_log(runner, mock_server, api):

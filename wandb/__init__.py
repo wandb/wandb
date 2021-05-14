@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.24.dev1"
+__version__ = "0.10.31.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -145,9 +145,14 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
-_define_metric = _preinit.PreInitCallable(
-    "wandb._define_metric", wandb_sdk.wandb_run.Run._define_metric
+define_metric = _preinit.PreInitCallable(
+    "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
+
+mark_preempting = _preinit.PreInitCallable(
+    "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting
+)
+
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
