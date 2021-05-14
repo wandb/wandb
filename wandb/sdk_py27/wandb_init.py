@@ -538,6 +538,7 @@ class _WandbInit(object):
             define_metric=run.define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
+            mark_preempting=run.mark_preempting,
         )
         self._reporter.set_context(run=run)
         run._on_start()
