@@ -114,9 +114,7 @@ def _is_valid_branch_name(work_dir, version):
 
 
 def generate_docker_image(project_spec, version, entry_cmd, api):
-    print(project_spec.dir)
     path = project_spec.dir
-    print(entry_cmd)
     cmd = ['jupyter-repo2docker',
             '--no-run',
             #'--no-build',
@@ -130,11 +128,7 @@ def generate_docker_image(project_spec, version, entry_cmd, api):
     #if version:
     #    cmd.extend(['--ref', version])
     _logger.info('Generating docker image from git repo or finding image if it already exists..........')
-    print("RUN CMD", cmd)
     stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')
-    #time.sleep(5)
-    print("R@D domne")
-    print(stderr)
     image_id = re.findall(r'Successfully tagged (.+):latest', stderr)
     if not image_id:
         image_id = re.findall(r'Reusing existing image \((.+)\)', stderr)
@@ -156,7 +150,6 @@ def load_project(work_dir):
 
 
 def fetch_wandb_project_run_info(uri, api=None):
-    print("URI", uri)
     stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
     entity, project, _, name = stripped_uri.split("/")[1:]
     result = api.get_run_info(entity, project, name)
@@ -192,7 +185,6 @@ def _fetch_project_local(uri, api, version=None):
     elif _is_wandb_uri(uri):
         # TODO: so much hotness
         run_info = fetch_wandb_project_run_info(uri, api)
-        print(run_info)
         if not run_info["git"]:
             raise ExecutionException("Run must have git repo associated")
         _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)

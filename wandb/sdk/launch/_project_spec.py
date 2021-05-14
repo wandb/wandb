@@ -82,6 +82,8 @@ def load_project(directory):
         command = entry_point_yaml.get("command")
         entry_points[name] = EntryPoint(name, parameters, command)
 
+    args = yaml_obj.get("args", [])
+
     if conda_path:
         conda_env_path = os.path.join(directory, conda_path)
         if not os.path.exists(conda_env_path):
@@ -95,6 +97,7 @@ def load_project(directory):
             docker_env=docker_env,
             name=project_name,
             directory=directory,
+            args=args
         )
 
     default_conda_path = os.path.join(directory, DEFAULT_CONDA_FILE_NAME)
@@ -105,6 +108,7 @@ def load_project(directory):
             docker_env=docker_env,
             name=project_name,
             directory=directory,
+            args=args
         )
 
     return Project(
@@ -113,20 +117,21 @@ def load_project(directory):
         docker_env=docker_env,
         name=project_name,
         directory=directory,
+        args=args
     )
 
 
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
-    def __init__(self, conda_env_path, entry_points, docker_env, name, directory):
-        print("hmm", conda_env_path, entry_points, docker_env, name, directory)
+    def __init__(self, conda_env_path, entry_points, docker_env, name, directory, args):
 
         self.conda_env_path = conda_env_path
         self._entry_points = entry_points
         self.docker_env = docker_env
         self.name = name
         self.dir = directory
+        self.args = args
 
     def get_entry_point(self, entry_point):
         if entry_point in self._entry_points:
