@@ -177,6 +177,10 @@ class SendManager(object):
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
 
+    def send_preempting(self, record):
+        if self._fs:
+            self._fs.enqueue_preempting()
+
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
@@ -277,7 +281,6 @@ class SendManager(object):
     def send_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
-
         logger.info("handling exit code: %s", exit.exit_code)
 
         # Pass the responsibility to respond to handle_request_defer()
