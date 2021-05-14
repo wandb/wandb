@@ -1093,7 +1093,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
             random_state=42,
         )
 
-        # ComplementNB (introduced in 0.20.0) requires strictly positive features
+        # ComplementNB (introduced in 0.20.0) requires non-negative positive features
         if int(sklearn.__version__.split(".")[1]) >= 20 and isinstance(
             clf, naive_bayes.ComplementNB
         ):
