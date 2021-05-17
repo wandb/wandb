@@ -41,6 +41,7 @@ message Record {
     FinalRecord     final = 20;
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
+    RunPreemptingRecord preempting = 23;    
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -135,6 +136,9 @@ message ErrorInfo {
  */
 message RunExitRecord {
   int32 exit_code = 1;
+}
+
+message RunPreemptingRecord {
 }
 
 message RunExitResult {

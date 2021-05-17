@@ -1103,7 +1103,7 @@ class Run(object):
         base_path: Optional[str] = None,
         policy: str = "live",
     ) -> Union[bool, List[str]]:
-        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular
@@ -2331,6 +2331,12 @@ class Run(object):
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
+
+    def mark_preempting(self) -> None:
+        """Mark this run as preempting and tell the internal process
+        to immediately report this to the server."""
+        if self._backend:
+            self._backend.interface.publish_preempting()
 
 
 # We define this outside of the run context to support restoring before init
