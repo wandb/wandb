@@ -41,6 +41,7 @@ message Record {
     FinalRecord     final = 20;
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
+    RunPreemptingRecord preempting = 23;    
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -137,6 +138,9 @@ message RunExitRecord {
   int32 exit_code = 1;
 }
 
+message RunPreemptingRecord {
+}
+
 message RunExitResult {
 }
 
@@ -197,9 +201,6 @@ message MetricRecord {
   string          name = 1;
   string          glob_name = 2;
 
-  // nested metrics not supported yet
-  // repeated string nested_name = 3;
-
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string          step_metric = 4;
@@ -220,6 +221,7 @@ message MetricRecord {
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
+  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
 }
 
 message MetricControl {
@@ -231,6 +233,9 @@ message MetricSummary {
   bool max = 2;
   bool mean = 3;
   bool best = 4;
+  bool last = 5;
+  bool none = 6;
+  bool copy = 7;
 }
 
 /*
@@ -320,6 +325,7 @@ message ArtifactRecord {
   ArtifactManifest              manifest = 12;
   string                        distributed_id=13;
   bool                          finalize=14;
+  bool                          incremental_beta1=100;
 }
 
 message ArtifactManifest {
@@ -378,7 +384,8 @@ message AlertRecord {
  */
 message Request {
   oneof request_type {
-    StatusRequest         status = 1;
+    StopStatusRequest     stop_status = 1;
+    NetworkStatusRequest  network_status = 2;
     DeferRequest          defer = 3;
     GetSummaryRequest     get_summary = 4;
     LoginRequest          login = 5;
@@ -399,7 +406,8 @@ message Request {
  */
 message Response {
   oneof response_type {
-    StatusResponse         status_response = 19;
+    StopStatusResponse     stop_status_response = 19;
+    NetworkStatusResponse  network_status_response = 20;
     LoginResponse          login_response = 24;
     GetSummaryResponse     get_summary_response = 25;
     PollExitResponse       poll_exit_response = 26;
@@ -421,11 +429,12 @@ message DeferRequest {
     FLUSH_STATS = 1;
     FLUSH_TB = 2;
     FLUSH_SUM = 3;
-    FLUSH_DIR = 4;
-    FLUSH_FP = 5;
-    FLUSH_FS = 6;
-    FLUSH_FINAL = 7;
-    END = 8;
+    FLUSH_DEBOUNCER = 4;
+    FLUSH_DIR = 5;
+    FLUSH_FP = 6;
+    FLUSH_FS = 7;
+    FLUSH_FINAL = 8;
+    END = 9;
   }
   DeferState state = 1;
 }
@@ -466,12 +475,23 @@ message GetSummaryResponse {
 /*
  * StatusRequest:
  */
-message StatusRequest {
-  bool check_stop_req = 1;
+message StopStatusRequest {
 }
 
-message StatusResponse {
+message StopStatusResponse {
   bool run_should_stop = 1;
+}
+
+message NetworkStatusRequest {
+}
+
+message NetworkStatusResponse {
+  repeated HttpResponse network_responses = 1;
+}
+
+message HttpResponse {
+  int32 http_status_code = 1;
+  string http_response_text = 2;
 }
 
 /*

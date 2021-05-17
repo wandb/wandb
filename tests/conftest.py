@@ -57,21 +57,36 @@ except ImportError:  # TODO: this is only for python2
     from mock import MagicMock
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
-server = None
+
+
+class ServerMap(object):
+    def __init__(self):
+        self._map = {}
+
+    def items(self):
+        return self._map.items()
+
+    def __getitem__(self, worker_id):
+        if self._map.get(worker_id) is None:
+            self._map[worker_id] = start_mock_server(worker_id)
+        return self._map[worker_id]
+
+
+servers = ServerMap()
 
 
 def test_cleanup(*args, **kwargs):
-    global server
-    print("Shutting down mock server")
-    server.terminate()
+    print("Shutting down mock servers")
+    for wid, server in servers.items():
+        print("Shutting down {}".format(wid))
+        server.terminate()
     print("Open files during tests: ")
     proc = psutil.Process()
     print(proc.open_files())
 
 
-def start_mock_server():
-    """We start a server on boot for use by tests"""
-    global server
+def start_mock_server(worker_id):
+    """We start a flask server process for each pytest-xdist worker_id"""
     port = utils.free_port()
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     path = os.path.join(root, "tests", "utils", "mock_server.py")
@@ -79,7 +94,10 @@ def start_mock_server():
     env = os.environ
     env["PORT"] = str(port)
     env["PYTHONPATH"] = root
-    logfile = open("tests/logs/live_mock_server.log", "w")
+    logfname = os.path.join(
+        root, "tests", "logs", "live_mock_server-{}.log".format(worker_id)
+    )
+    logfile = open(logfname, "w")
     server = subprocess.Popen(
         command,
         stdout=logfile,
@@ -121,18 +139,15 @@ def start_mock_server():
             else:
                 raise ValueError("Server failed to start.")
     if started:
-        print(
-            "Mock server listing on %s see tests/logs/live_mock_server.log"
-            % server._port
-        )
+        print("Mock server listing on {} see {}".format(server._port, logfname))
     else:
         server.terminate()
-        print("Server failed to launch, see tests/logs/live_mock_server.log")
+        print("Server failed to launch, see {}".format(logfname))
         try:
             print("=" * 40)
-            with open("tests/logs/live_mock_server.log") as f:
-                for l in f.readlines():
-                    print(l.strip())
+            with open(logfname) as f:
+                for logline in f.readlines():
+                    print(logline.strip())
             print("=" * 40)
         except Exception as e:
             print("EXCEPTION:", e)
@@ -140,7 +155,6 @@ def start_mock_server():
     return server
 
 
-start_mock_server()
 atexit.register(test_cleanup)
 
 
@@ -160,7 +174,7 @@ def test_dir(test_name):
         shutil.rmtree(test_dir)
     mkdir_exists_ok(test_dir)
     os.chdir(test_dir)
-    yield runner
+    yield test_dir
     os.chdir(orig_dir)
 
 
@@ -206,14 +220,14 @@ def test_settings(test_dir, mocker, live_mock_server):
     wandb._IS_INTERNAL_PROCESS = False
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
-    wandb_dir = os.path.join(os.getcwd(), "wandb")
+    wandb_dir = os.path.join(test_dir, "wandb")
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
         _start_time=time.time(),
         base_url=live_mock_server.base_url,
-        root_dir=os.getcwd(),
-        save_code=True,
+        root_dir=test_dir,
+        save_code=False,
         project="test",
         console="off",
         host="test",
@@ -225,7 +239,7 @@ def test_settings(test_dir, mocker, live_mock_server):
     yield settings
     # Just incase someone forgets to join in tests
     if wandb.run is not None:
-        wandb.run.join()
+        wandb.run.finish()
 
 
 @pytest.fixture
@@ -238,20 +252,11 @@ def mocked_run(runner, test_settings):
 
 @pytest.fixture
 def runner(monkeypatch, mocker):
-    whaaaaat = wandb.util.vendor_import("whaaaaat")
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
+    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
     monkeypatch.setattr(click, "launch", lambda x: 1)
-    monkeypatch.setattr(
-        whaaaaat,
-        "prompt",
-        lambda x: {
-            "project_name": "test_model",
-            "files": ["weights.h5"],
-            "attach": False,
-            "team_name": "Manual Entry",
-        },
-    )
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
     mocker.patch("wandb.wandb_lib.apikey.input", lambda x: 1)
@@ -274,7 +279,14 @@ def local_netrc(monkeypatch):
         open(".netrc", "wb").close()
 
         def expand(path):
-            return os.path.realpath("netrc") if "netrc" in path else origexpand(path)
+            if "netrc" in path:
+                try:
+                    ret = os.path.realpath("netrc")
+                except OSError:
+                    ret = origexpand(path)
+            else:
+                ret = origexpand(path)
+            return ret
 
         monkeypatch.setattr(os.path, "expanduser", expand)
         yield
@@ -295,9 +307,11 @@ def mock_server(mocker):
     return utils.mock_server(mocker)
 
 
+# We create one live_mock_server per pytest-xdist worker
 @pytest.fixture
-def live_mock_server(request):
-    global server
+def live_mock_server(request, worker_id):
+    global servers
+    server = servers[worker_id]
     name = urllib.parse.quote(request.node.name)
     # We set the username so the mock backend can namespace state
     os.environ["WANDB_USERNAME"] = name
@@ -444,6 +458,29 @@ def wandb_init_run(request, runner, mocker, mock_server):
             del os.environ[k]
 
 
+@pytest.fixture
+def wandb_init(request, runner, mocker, mock_server):
+    def init(*args, **kwargs):
+        try:
+            mocks_from_args(mocker, default_wandb_args(), mock_server)
+            #  TODO: likely not the right thing to do, we shouldn't be setting this
+            wandb._IS_INTERNAL_PROCESS = False
+            #  We want to run setup every time in tests
+            wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
+            mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
+            return wandb.init(
+                settings=wandb.Settings(
+                    console="off", mode="offline", _except_exit=False
+                ),
+                *args,
+                **kwargs
+            )
+        finally:
+            unset_globals()
+
+    return init
+
+
 @pytest.fixture()
 def restore_version():
     save_current_version = wandb.__version__
@@ -567,10 +604,10 @@ def internal_process():
 
 class MockProcess:
     def __init__(self):
-        pass
+        self._alive = True
 
     def is_alive(self):
-        return True
+        return self._alive
 
 
 @pytest.fixture()
@@ -601,6 +638,12 @@ def internal_sm(
 
 
 @pytest.fixture()
+def stopped_event():
+    stopped = threading.Event()
+    yield stopped
+
+
+@pytest.fixture()
 def internal_hm(
     runner,
     record_q,
@@ -610,15 +653,15 @@ def internal_hm(
     internal_sender_q,
     internal_writer_q,
     internal_sender,
+    stopped_event,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
-        stopped = threading.Event()
         hm = HandleManager(
             settings=test_settings,
             record_q=record_q,
             result_q=internal_result_q,
-            stopped=stopped,
+            stopped=stopped_event,
             sender_q=internal_sender_q,
             writer_q=internal_writer_q,
             interface=internal_sender,
@@ -639,45 +682,53 @@ def internal_get_record():
 
 
 @pytest.fixture()
-def start_send_thread(internal_sender_q, internal_get_record):
-    stop_event = threading.Event()
-
+def start_send_thread(
+    internal_sender_q, internal_get_record, stopped_event, internal_process
+):
     def start_send(send_manager):
         def target():
-            while True:
-                payload = internal_get_record(input_q=internal_sender_q, timeout=0.1)
-                if payload:
-                    send_manager.send(payload)
-                elif stop_event.is_set():
-                    break
+            try:
+                while True:
+                    payload = internal_get_record(
+                        input_q=internal_sender_q, timeout=0.1
+                    )
+                    if payload:
+                        send_manager.send(payload)
+                    elif stopped_event.is_set():
+                        break
+            except Exception as e:
+                stopped_event.set()
+                internal_process._alive = False
 
         t = threading.Thread(target=target)
+        t.name = "testing-sender"
         t.daemon = True
         t.start()
+        return t
 
     yield start_send
-    stop_event.set()
+    stopped_event.set()
 
 
 @pytest.fixture()
-def start_handle_thread(record_q, internal_get_record):
-    stop_event = threading.Event()
-
+def start_handle_thread(record_q, internal_get_record, stopped_event):
     def start_handle(handle_manager):
         def target():
             while True:
                 payload = internal_get_record(input_q=record_q, timeout=0.1)
                 if payload:
                     handle_manager.handle(payload)
-                elif stop_event.is_set():
+                elif stopped_event.is_set():
                     break
 
         t = threading.Thread(target=target)
+        t.name = "testing-handler"
         t.daemon = True
         t.start()
+        return t
 
     yield start_handle
-    stop_event.set()
+    stopped_event.set()
 
 
 @pytest.fixture()
@@ -691,10 +742,11 @@ def start_backend(
     log_debug,
 ):
     def start_backend_func(initial_run=True):
-        start_handle_thread(internal_hm)
-        start_send_thread(internal_sm)
+        ht = start_handle_thread(internal_hm)
+        st = start_send_thread(internal_sm)
         if initial_run:
             _ = internal_sender.communicate_run(mocked_run)
+        return (ht, st)
 
     yield start_backend_func
 
@@ -708,15 +760,20 @@ def stop_backend(
     start_handle_thread,
     start_send_thread,
 ):
-    def stop_backend_func():
+    def stop_backend_func(threads=None):
+        threads = threads or ()
+        done = False
         internal_sender.publish_exit(0)
-        for _ in range(10):
+        for _ in range(30):
             poll_exit_resp = internal_sender.communicate_poll_exit()
-            assert poll_exit_resp, "poll exit timedout"
-            done = poll_exit_resp.done
-            if done:
-                break
+            if poll_exit_resp:
+                done = poll_exit_resp.done
+                if done:
+                    break
             time.sleep(1)
+        internal_sender.join()
+        for t in threads:
+            t.join()
         assert done, "backend didnt shutdown"
 
     yield stop_backend_func
@@ -730,12 +787,12 @@ def publish_util(
         metrics = metrics or []
         history = history or []
 
-        start_backend()
+        threads = start_backend()
         for m in metrics:
             internal_sender._publish_metric(m)
         for h in history:
             internal_sender.publish_history(**h)
-        stop_backend()
+        stop_backend(threads=threads)
 
         ctx_util = parse_ctx(mock_server.ctx)
         return ctx_util
@@ -806,3 +863,8 @@ def tb_watcher_util_with_file(mocked_run, mock_server, internal_hm, start_backen
 
     yield fn
 
+def inject_requests(mock_server):
+    """Fixture for injecting responses and errors to mock_server."""
+
+    # TODO(jhr): make this compatible with live_mock_server
+    return utils.InjectRequests(ctx=mock_server.ctx)

@@ -268,23 +268,26 @@ class TBDirWatcher(object):
         print("RETURNING EVENTFILELOADER")
         return EventFileLoader
 
+    def _process_events(self, shutdown_call: bool = False) -> None:
+        try:
+            for event in self._generator.Load():
+                self.process_event(event)
+        except (
+            self.directory_watcher.DirectoryDeletedError,
+            StopIteration,
+            RuntimeError,
+            OSError,
+        ) as e:
+            # When listing s3 the directory may not yet exist, or could be empty
+            logger.debug("Encountered tensorboard directory watcher error: %s", e)
+            if not self._shutdown.is_set() and not shutdown_call:
+                time.sleep(ERROR_DELAY)
+
     def _thread_body(self) -> None:
         """Check for new events every second"""
         shutdown_time: "Optional[float]" = None
         while True:
-            try:
-                for event in self._generator.Load():
-                    self.process_event(event)
-            except (
-                self.directory_watcher.DirectoryDeletedError,
-                StopIteration,
-                RuntimeError,
-                OSError,
-            ) as e:
-                # When listing s3 the directory may not yet exist, or could be empty
-                logger.debug("Encountered tensorboard directory watcher error: %s", e)
-                if not self._shutdown.is_set():
-                    time.sleep(ERROR_DELAY)
+            self._process_events()
             if self._shutdown.is_set():
                 now = time.time()
                 if not shutdown_time:
@@ -305,6 +308,7 @@ class TBDirWatcher(object):
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self) -> None:
+        self._process_events(shutdown_call=True)
         self._shutdown.set()
 
     def finish(self) -> None:
@@ -345,6 +349,7 @@ class TBEventConsumer(object):
         self._queue = queue
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
+        self.tb_history = TBHistory()
         self._delay = delay
 
         # This is a bit of a hack to get file saving to work as it does in the user
@@ -363,10 +368,18 @@ class TBEventConsumer(object):
     def finish(self) -> None:
         self._delay = 0
         self._shutdown.set()
+        try:
+            event = self._queue.get(True, 1)
+        except queue.Empty:
+            event = None
+        if event:
+            self._handle_event(event, history=self.tb_history)
+            items = self.tb_history._get_and_reset()
+            for item in items:
+                self._save_row(item,)
         self._thread.join()
 
     def _thread_body(self) -> None:
-        tb_history = TBHistory()
         while True:
             try:
                 event = self._queue.get(True, 1)
@@ -383,13 +396,13 @@ class TBEventConsumer(object):
                 if self._shutdown.is_set():
                     break
             if event:
-                self._handle_event(event, history=tb_history)
-                items = tb_history._get_and_reset()
+                self._handle_event(event, history=self.tb_history)
+                items = self.tb_history._get_and_reset()
                 for item in items:
                     self._save_row(item,)
         # flush uncommitted data
-        tb_history._flush()
-        items = tb_history._get_and_reset()
+        self.tb_history._flush()
+        items = self.tb_history._get_and_reset()
         for item in items:
             self._save_row(item)
 

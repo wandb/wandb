@@ -9,6 +9,7 @@ import tempfile
 import glob
 import os
 import platform
+import sys
 
 
 def test_log_step(wandb_init_run):
@@ -115,14 +116,16 @@ def test_k8s_failure(wandb_init_run):
 
 
 @pytest.mark.wandb_args(sagemaker=True)
-@pytest.mark.skip(
-    reason="Sagemaker support not currently implemented, see wandb.util.parse_sm_config"
+@pytest.mark.skipif(
+    sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins"
 )
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
-    assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
-    assert wandb.run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it
+    #  so its not added. Similarly add test for group
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
+    # assert wandb.run.group == "sage"
 
 
 @pytest.mark.wandb_args(
@@ -195,6 +198,13 @@ def test_login_key(capsys):
     assert "Appending key" in err
     #  WTF is happening?
     assert wandb.api.api_key == "A" * 40
+
+
+def test_sagemaker_key(runner):
+    with runner.isolated_filesystem():
+        with open("secrets.env", "w") as f:
+            f.write("WANDB_API_KEY={}".format("S" * 40))
+        assert wandb.api.api_key == "S" * 40
 
 
 @pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")

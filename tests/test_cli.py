@@ -210,6 +210,13 @@ def test_login_host_trailing_slash_fix_invalid(runner, empty_netrc, local_netrc)
         )
 
 
+def test_login_bad_host(runner, empty_netrc, local_netrc):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.login, ["--host", "https://app.wandb.ai"])
+        assert "did you mean https://api.wandb.ai" in result.output
+        assert result.exit_code != 0
+
+
 def test_login_onprem_key_arg(runner, empty_netrc, local_netrc):
     onprem_key = "test-" + DUMMY_API_KEY
     with runner.isolated_filesystem():
@@ -852,7 +859,8 @@ def test_sync_tensorboard(runner, live_mock_server):
         ctx = live_mock_server.get_ctx()
         print(ctx)
         assert (
-            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 17
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"])
+            == 17
         )
 
         # Check the no sync tensorboard flag
@@ -861,6 +869,8 @@ def test_sync_tensorboard(runner, live_mock_server):
         assert os.listdir(".") == ["events.out.tfevents.1585769947.cvp"]
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test seems flaky, reenable with WB-5015")
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
@@ -876,7 +886,8 @@ def test_sync_tensorboard_big(runner, live_mock_server):
         ctx = live_mock_server.get_ctx()
         print(ctx)
         assert (
-            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 27
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"])
+            == 27
         )
 
 
@@ -890,7 +901,10 @@ def test_sync_wandb_run(runner, live_mock_server):
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
-        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
+            == 1
+        )
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, ["--sync-all"])
@@ -916,7 +930,11 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
-        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
+            == 1
+        )
+        assert ctx["file_bytes"]["code/standalone_tests/code-toad.py"] > 0
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, [run_dir])

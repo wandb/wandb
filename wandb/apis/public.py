@@ -8,8 +8,8 @@ import re
 import shutil
 import sys
 import tempfile
-import time
 
+from dateutil.relativedelta import relativedelta
 from gql import Client, gql
 from gql.client import RetryError
 from gql.transport.requests import RequestsHTTPTransport
@@ -22,9 +22,15 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors.term import termlog
-from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
 import yaml
+
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib import retry
+else:
+    from wandb.sdk_py27.lib import retry
 
 
 # TODO: consolidate dynamic imports
@@ -137,6 +143,7 @@ fragment ArtifactFragment on Artifact {
         id
         name
     }
+    commitHash
 }
 """
 
@@ -172,7 +179,7 @@ class RetryingClient(object):
     def app_url(self):
         return util.app_url(self._client.transport.url).replace("/graphql", "/")
 
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
@@ -418,29 +425,34 @@ class Api(object):
             )
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=50):
+    def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
         You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
-            Find runs in my_project config.experiment_name has been set to "foo"
+            Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", {"config.experiment_name": "foo"})
+            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
             ```
 
-            Find runs in my_project config.experiment_name has been set to "foo" or "bar"
+            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
             api.runs(path="my_entity/my_project",
-                {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            ```
+
+            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
+            ```
+            api.runs(path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}})
             ```
 
             Find runs in my_project sorted by ascending loss
             ```
-            api.runs(path="my_entity/my_project", {"order": "+summary_metrics.loss"})
+            api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
             ```
-
 
         Arguments:
             path: (str) path to project, should be in the form: "entity/project"
@@ -459,6 +471,7 @@ class Api(object):
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
         entity, project = self._parse_project_path(path)
+        filters = filters or {}
         key = path + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
@@ -708,7 +721,7 @@ class Projects(Paginator):
 
 
 class Project(Attrs):
-    """A project is a namespace for runs"""
+    """A project is a namespace for runs."""
 
     def __init__(self, client, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
@@ -1028,8 +1041,8 @@ class Run(Attrs):
         """
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
-            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
                 bucket {
                     ...RunFragment
                 }
@@ -1047,6 +1060,7 @@ class Run(Attrs):
             notes=self.notes,
             display_name=self.display_name,
             config=self.json_config,
+            groupName=self.group,
         )
         self.summary.update()
 
@@ -1199,6 +1213,13 @@ class Run(Attrs):
             If pandas=True returns a `pandas.DataFrame` of history metrics.
             If pandas=False returns a list of dicts of history metrics.
         """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
         if keys and stream != "default":
             wandb.termerror("stream must be default when specifying keys")
             return []
@@ -1236,6 +1257,13 @@ class Run(Attrs):
         Returns:
             An iterable collection over history records (dict).
         """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
         last_step = self.lastHistoryStep
         # set defaults for min/max step
         if min_step is None:
@@ -1380,15 +1408,20 @@ class Run(Attrs):
 
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep
-    Instantiate with:
-      api.sweep(sweep_path)
+    """A set of runs associated with a sweep.
+
+    Examples:
+        Instantiate with:
+        ```
+        api = wandb.Api()
+        sweep = api.sweep(path/to/sweep)
+        ```
 
     Attributes:
-        runs (`Runs`): list of runs
-        id (str): sweep id
-        project (str): name of project
-        config (str): dictionary of sweep configuration
+        runs: (`Runs`) list of runs
+        id: (str) sweep id
+        project: (str) name of project
+        config: (str) dictionary of sweep configuration
     """
 
     QUERY = gql(
@@ -1561,7 +1594,7 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
-    """Files is an iterable collection of `File` objects."""
+    """An iterable collection of `File` objects."""
 
     QUERY = gql(
         """
@@ -1687,7 +1720,7 @@ class File(object):
         return 0
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
@@ -2004,7 +2037,7 @@ class HistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
@@ -2071,7 +2104,7 @@ class SampledHistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
@@ -2472,8 +2505,84 @@ class ArtifactCollection(object):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
+class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
+    def __init__(self, name, entry, parent_artifact):
+        self.name = name
+        self.entry = entry
+        self._parent_artifact = parent_artifact
+
+        # Have to copy over a bunch of variables to get this ArtifactEntry interface
+        # to work properly
+        self.path = entry.path
+        self.ref = entry.ref
+        self.digest = entry.digest
+        self.birth_artifact_id = entry.birth_artifact_id
+        self.size = entry.size
+        self.extra = entry.extra
+        self.local_path = entry.local_path
+
+    def parent_artifact(self):
+        return self._parent_artifact
+
+    def copy(self, cache_path, target_path):
+        # can't have colons in Windows
+        if platform.system() == "Windows":
+            head, tail = os.path.splitdrive(target_path)
+            target_path = head + tail.replace(":", "-")
+
+        need_copy = (
+            not os.path.isfile(target_path)
+            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
+        )
+        if need_copy:
+            util.mkdir_exists_ok(os.path.dirname(target_path))
+            # We use copy2, which preserves file metadata including modified
+            # time (which we use above to check whether we should do the copy).
+            shutil.copy2(cache_path, target_path)
+        return target_path
+
+    def download(self, root=None):
+        root = root or self._parent_artifact._default_root()
+        self._parent_artifact._add_download_root(root)
+        manifest = self._parent_artifact._load_manifest()
+        if self.entry.ref is not None:
+            cache_path = manifest.storage_policy.load_reference(
+                self._parent_artifact,
+                self.name,
+                manifest.entries[self.name],
+                local=True,
+            )
+        else:
+            cache_path = manifest.storage_policy.load_file(
+                self._parent_artifact, self.name, manifest.entries[self.name]
+            )
+
+        return self.copy(cache_path, os.path.join(root, self.name))
+
+    def ref_target(self):
+        manifest = self._parent_artifact._load_manifest()
+        if self.entry.ref is not None:
+            return manifest.storage_policy.load_reference(
+                self._parent_artifact,
+                self.name,
+                manifest.entries[self.name],
+                local=False,
+            )
+        raise ValueError("Only reference entries support ref_target().")
+
+    def ref_url(self):
+        return (
+            "wandb-artifact://"
+            + util.b64_to_hex_id(self._parent_artifact.id)
+            + "/"
+            + self.name
+        )
+
+
 class Artifact(artifacts.Artifact):
     """
+    A wandb Artifact.
+
     An artifact that has been logged, including all its attributes, links to the runs
     that use it, and a link to the run that logged it.
 
@@ -2618,6 +2727,7 @@ class Artifact(artifacts.Artifact):
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
+        self._download_roots = set()
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
@@ -2687,6 +2797,10 @@ class Artifact(artifacts.Artifact):
     @property
     def type(self):
         return self._attrs["artifactType"]["name"]
+
+    @property
+    def commit_hash(self):
+        return self._attrs.get("commitHash", "")
 
     @property
     def name(self):
@@ -2788,6 +2902,25 @@ class Artifact(artifacts.Artifact):
     def add(self, obj, name):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
+    def _add_download_root(self, dir_path):
+        """Adds `dir_path` as one of the known directories which this
+        artifact treated as a root"""
+        self._download_roots.add(os.path.abspath(dir_path))
+
+    def _is_download_root(self, dir_path):
+        """Determines if `dir_path` is a directory which this artifact as
+        treated as a root for downloading"""
+        return dir_path in self._download_roots
+
+    def _local_path_to_name(self, file_path):
+        """Converts a local file path to a path entry in the artifact"""
+        abs_file_path = os.path.abspath(file_path)
+        abs_file_parts = abs_file_path.split(os.sep)
+        for i in range(len(abs_file_parts) + 1):
+            if self._is_download_root(os.path.join(os.sep, *abs_file_parts[:i])):
+                return os.path.join(*abs_file_parts[i:])
+        return None
+
     def _get_obj_entry(self, name):
         """
         When objects are added with `.add(obj, name)`, the name is typically
@@ -2810,11 +2943,7 @@ class Artifact(artifacts.Artifact):
         return None, None
 
     def get_path(self, name):
-        parent_self = self
-        manifest = parent_self._load_manifest()
-        storage_policy = manifest.storage_policy
-        default_root = parent_self._default_root()
-
+        manifest = self._load_manifest()
         entry = manifest.entries.get(name)
         if entry is None:
             entry = self._get_obj_entry(name)[0]
@@ -2823,62 +2952,7 @@ class Artifact(artifacts.Artifact):
             else:
                 name = entry.path
 
-        class ArtifactEntry(artifacts.ArtifactEntry):
-            def __init__(self):
-                self.name = name
-                self.entry = entry
-                self._parent_artifact = parent_self
-
-            def parent_artifact(self):
-                return self._parent_artifact
-
-            @staticmethod
-            def copy(cache_path, target_path):
-                # can't have colons in Windows
-                if platform.system() == "Windows":
-                    head, tail = os.path.splitdrive(target_path)
-                    target_path = head + tail.replace(":", "-")
-
-                need_copy = (
-                    not os.path.isfile(target_path)
-                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
-                )
-                if need_copy:
-                    util.mkdir_exists_ok(os.path.dirname(target_path))
-                    # We use copy2, which preserves file metadata including modified
-                    # time (which we use above to check whether we should do the copy).
-                    shutil.copy2(cache_path, target_path)
-                return target_path
-
-            def download(self, root=None):
-                root = root or default_root
-                if entry.ref is not None:
-                    cache_path = storage_policy.load_reference(
-                        parent_self, name, manifest.entries[name], local=True
-                    )
-                else:
-                    cache_path = storage_policy.load_file(
-                        parent_self, name, manifest.entries[name]
-                    )
-
-                return ArtifactEntry().copy(cache_path, os.path.join(root, name))
-
-            def ref(self):
-                if entry.ref is not None:
-                    return storage_policy.load_reference(
-                        parent_self, name, manifest.entries[name], local=False
-                    )
-                raise ValueError("Only reference entries support ref().")
-
-            def ref_url(self):
-                return (
-                    "wandb-artifact://"
-                    + util.b64_to_hex_id(parent_self.id)
-                    + "/"
-                    + name
-                )
-
-        return ArtifactEntry()
+        return _DownloadedArtifactEntry(name, entry, self)
 
     def get(self, name):
         entry, wb_class = self._get_obj_entry(name)
@@ -2905,22 +2979,24 @@ class Artifact(artifacts.Artifact):
             with open(item_path, "r") as file:
                 json_obj = json.load(file)
             result = wb_class.from_json(json_obj, self)
-            result.set_artifact_source(self, name)
+            result._set_artifact_source(self, name)
             return result
 
     def download(self, root=None, recursive=False):
         dirpath = root or self._default_root()
+        self._add_download_root(dirpath)
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         size = sum(e.size for e in manifest.entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
+            log = True
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
                 % (self._artifact_name, size / (1024 * 1024), nfiles),
                 newline=False,
             )
-        start_time = time.time()
+            start_time = datetime.datetime.now()
 
         # Force all the files to download into the same directory.
         # Download in parallel
@@ -2936,8 +3012,11 @@ class Artifact(artifacts.Artifact):
         self._is_downloaded = True
 
         if log:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-
+            delta = relativedelta(datetime.datetime.now() - start_time)
+            termlog(
+                "Done. %s:%s:%s" % (delta.hours, delta.minutes, delta.seconds),
+                prefix=False,
+            )
         return dirpath
 
     def checkout(self, root=None):
@@ -3275,6 +3354,12 @@ class Artifact(artifacts.Artifact):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
+
+    def __setitem__(self, name, item):
+        return self.add(item, name)
+
+    def __getitem__(self, name):
+        return self.get(name)
 
 
 class ArtifactVersions(Paginator):

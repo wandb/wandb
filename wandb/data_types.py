@@ -68,6 +68,7 @@ else:
     )
 
 __all__ = [
+    "Audio",
     "Histogram",
     "Object3D",
     "Molecule",
@@ -106,6 +107,43 @@ warnings.filterwarnings(
 MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 
 
+class _TableLinkMixin(object):
+    def set_table(self, table):
+        self._table = table
+
+
+class _TableKey(str, _TableLinkMixin):
+    def set_table(self, table, col_name):
+        assert col_name in table.columns
+        self._table = table
+        self._col_name = col_name
+
+
+class _TableIndex(int, _TableLinkMixin):
+    def get_row(self):
+        row = {}
+        if self._table:
+            row = {
+                c: self._table.data[self][i] for i, c in enumerate(self._table.columns)
+            }
+
+        return row
+
+
+def _json_helper(val, artifact):
+    if isinstance(val, WBValue):
+        return val.to_json(artifact)
+    elif val.__class__ == dict:
+        res = {}
+        for key in val:
+            res[key] = _json_helper(val[key], artifact)
+        return res
+    elif hasattr(val, "tolist"):
+        return util.json_friendly(val.tolist())[0]
+    else:
+        return util.json_friendly(val)[0]
+
+
 class Table(Media):
     """This is a table designed to display sets of records.
 
@@ -123,7 +161,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
-    artifact_type = "table"
+    _log_type = "table"
 
     def __init__(
         self,
@@ -137,6 +175,8 @@ class Table(Media):
     ):
         """rows is kept for legacy reasons, we use data to mimic the Pandas api"""
         super(Table, self).__init__()
+        self._pk_col = None
+        self._fk_cols = set()
         if allow_mixed_types:
             dtype = _dtypes.AnyType
 
@@ -192,7 +232,7 @@ class Table(Media):
         self._assert_valid_columns(columns)
         self.columns = columns
         self._make_column_types(dtype, optional)
-        for row in ndarray.tolist():
+        for row in ndarray:
             self.add_data(*row)
 
     def _init_from_dataframe(self, dataframe, columns, optional=True, dtype=None):
@@ -215,14 +255,27 @@ class Table(Media):
         if dtype.__class__ != list:
             dtype = [dtype for _ in range(len(self.columns))]
 
-        self._column_types = _dtypes.DictType({})
+        self._column_types = _dtypes.TypedDictType({})
         for col_name, opt, dt in zip(self.columns, optional, dtype):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
+        """Casts a column to a specific type
+
+        Arguments:
+            col_name: (str) - name of the column to cast
+            dtype: (class, wandb.wandb_sdk.interface._dtypes.Type, any) - the target dtype. Can be one of
+                normal python class, internal WB type, or an example object (eg. an instance of wandb.Image or wandb.Classes)
+            optional: (bool) - if the column should allow Nones
+        """
+        assert col_name in self.columns
+
         wbtype = _dtypes.TypeRegistry.type_from_dtype(dtype)
+
         if optional:
             wbtype = _dtypes.OptionalType(wbtype)
+
+        # Cast each value in the row, raising an error if there are invalid entries.
         col_ndx = self.columns.index(col_name)
         for row in self.data:
             result_type = wbtype.assign(row[col_ndx])
@@ -235,27 +288,77 @@ class Table(Media):
                     )
                 )
             wbtype = result_type
+
+        # Assert valid options
+        is_pk = isinstance(wbtype, _PrimaryKeyType)
+        is_fk = isinstance(wbtype, _ForeignKeyType)
+        is_fi = isinstance(wbtype, _ForeignIndexType)
+        if is_pk or is_fk or is_fi:
+            assert (
+                not optional
+            ), "Primary keys, foreign keys, and foreign indexes cannot be optional"
+
+        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+            raise AssertionError("Cannot set a foreign table reference to same table")
+
+        if is_pk:
+            assert (
+                self._pk_col is None
+            ), "Cannot have multiple primary keys - {} is already set as the primary key.".format(
+                self._pk_col
+            )
+
+        # Update the column type
         self._column_types.params["type_map"][col_name] = wbtype
+
+        # Wrap the data if needed
+        self._update_keys()
         return wbtype
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, Table)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, Table
+        )
+        eq = eq and len(self.data) == len(other.data)
+        assert not should_assert or eq, "Found {} rows, expected {}".format(
+            len(other.data), len(self.data)
+        )
+        eq = eq and self.columns == other.columns
+        assert not should_assert or eq, "Found columns {}, expected {}".format(
+            other.columns, self.columns
+        )
+        eq = eq and self._column_types == other._column_types
+        assert (
+            not should_assert or eq
+        ), "Found column type {}, expected column type {}".format(
+            other._column_types, self._column_types
+        )
+        if eq:
+            for row_ndx in range(len(self.data)):
+                for col_ndx in range(len(self.data[row_ndx])):
+                    _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
+                    # equal if all are equal
+                    if util.is_numpy_array(_eq):
+                        _eq = ((_eq * -1) + 1).sum() == 0
+                    eq = eq and _eq
+                    assert (
+                        not should_assert or eq
+                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
+                        row_ndx,
+                        col_ndx,
+                        other.data[row_ndx][col_ndx],
+                        self.data[row_ndx][col_ndx],
+                    )
+                    if not eq:
+                        return eq
+        return eq
+
     def __eq__(self, other):
-        if (
-            not isinstance(other, Table)
-            or len(self.data) != len(other.data)
-            or self.columns != other.columns
-            or self._column_types != other._column_types
-        ):
-            return False
-
-        for row_ndx in range(len(self.data)):
-            for col_ndx in range(len(self.data[row_ndx])):
-                if self.data[row_ndx][col_ndx] != other.data[row_ndx][col_ndx]:
-                    return False
-
-        return True
+        return self._eq_debug(other)
 
     def add_row(self, *row):
         logging.warning("add_row is deprecated, use add_data")
@@ -265,29 +368,52 @@ class Table(Media):
         """Add a row of data to the table. Argument length should match column length"""
         if len(data) != len(self.columns):
             raise ValueError(
-                "This table expects {} columns: {}".format(
-                    len(self.columns), self.columns
+                "This table expects {} columns: {}, found {}".format(
+                    len(self.columns), self.columns, len(data)
                 )
             )
-        self._validate_data(data)
-        self.data.append(list(data))
 
-    def _validate_data(self, data):
-        incoming_data_dict = {
-            col_key: data[ndx] for ndx, col_key in enumerate(self.columns)
+        # Special case to pre-emptively cast a column as a key.
+        # Needed as String.assign(Key) is invalid
+        for ndx, item in enumerate(data):
+            if isinstance(item, _TableLinkMixin):
+                self.cast(
+                    self.columns[ndx],
+                    _dtypes.TypeRegistry.type_of(item),
+                    optional=False,
+                )
+
+        # Update the table's column types
+        result_type = self._get_updated_result_type(data)
+        self._column_types = result_type
+
+        # rows need to be mutable
+        if isinstance(data, tuple):
+            data = list(data)
+        # Add the new data
+        self.data.append(data)
+
+        # Update the wrapper values if needed
+        self._update_keys(force_last=True)
+
+    def _get_updated_result_type(self, row):
+        """Returns an updated result type based on incoming row. Raises error if
+        the assignment is invalid"""
+        incoming_row_dict = {
+            col_key: row[ndx] for ndx, col_key in enumerate(self.columns)
         }
         current_type = self._column_types
-        result_type = current_type.assign(incoming_data_dict)
+        result_type = current_type.assign(incoming_row_dict)
         if isinstance(result_type, _dtypes.InvalidType):
             raise TypeError(
                 "Data row contained incompatible types:\n{}".format(
-                    current_type.explain(incoming_data_dict)
+                    current_type.explain(incoming_row_dict)
                 )
             )
-        self._column_types = result_type
+        return result_type
 
     def _to_table_json(self, max_rows=None):
-        # seperate method for testing
+        # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
         if len(self.data) > max_rows:
@@ -309,11 +435,45 @@ class Table(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
-        for row in json_obj["data"]:
+        column_types = None
+        np_deserialized_columns = {}
+        if json_obj.get("column_types") is not None:
+            column_types = _dtypes.TypeRegistry.type_from_dict(
+                json_obj["column_types"], source_artifact
+            )
+            for col_name in column_types.params["type_map"]:
+                col_type = column_types.params["type_map"][col_name]
+                ndarray_type = None
+                if isinstance(col_type, _dtypes.NDArrayType):
+                    ndarray_type = col_type
+                elif isinstance(col_type, _dtypes.UnionType):
+                    for t in col_type.params["allowed_types"]:
+                        if isinstance(t, _dtypes.NDArrayType):
+                            ndarray_type = t
+                if (
+                    ndarray_type is not None
+                    and ndarray_type._get_serialization_path() is not None
+                ):
+                    serialization_path = ndarray_type._get_serialization_path()
+                    np = util.get_module(
+                        "numpy",
+                        required="Deserializing numpy columns requires numpy to be installed",
+                    )
+                    deserialized = np.load(
+                        source_artifact.get_path(serialization_path["path"]).download()
+                    )
+                    np_deserialized_columns[
+                        json_obj["columns"].index(col_name)
+                    ] = deserialized[serialization_path["key"]]
+                    ndarray_type._clear_serialization_path()
+
+        for r_ndx, row in enumerate(json_obj["data"]):
             row_data = []
-            for item in row:
+            for c_ndx, item in enumerate(row):
                 cell = item
-                if isinstance(item, dict) and "_type" in item:
+                if c_ndx in np_deserialized_columns:
+                    cell = np_deserialized_columns[c_ndx][r_ndx]
+                elif isinstance(item, dict) and "_type" in item:
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
@@ -322,11 +482,10 @@ class Table(Media):
 
         new_obj = cls(columns=json_obj["columns"], data=data)
 
-        if json_obj.get("column_types") is not None:
-            new_obj._column_types = _dtypes.TypeRegistry.type_from_dict(
-                json_obj["column_types"], source_artifact
-            )
+        if column_types is not None:
+            new_obj._column_types = column_types
 
+        new_obj._update_keys()
         return new_obj
 
     def to_json(self, run_or_artifact):
@@ -343,36 +502,51 @@ class Table(Media):
             )
 
         elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
-            for column in self.columns:
-                if isinstance(column, six.string_types) and "." in column:
-                    raise ValueError(
-                        "invalid column name: {} - tables added to artifacts must not contain periods.".format(
-                            column
-                        )
-                    )
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
 
-            def json_helper(val):
-                if isinstance(val, WBValue):
-                    return val.to_json(artifact)
-                elif val.__class__ == dict:
-                    res = {}
-                    for key in val:
-                        res[key] = json_helper(val[key])
-                    return res
-                else:
-                    return util.json_friendly(val)[0]
+            ndarray_col_ndxs = set()
+            for col_ndx, col_name in enumerate(self.columns):
+                col_type = self._column_types.params["type_map"][col_name]
+                ndarray_type = None
+                if isinstance(col_type, _dtypes.NDArrayType):
+                    ndarray_type = col_type
+                elif isinstance(col_type, _dtypes.UnionType):
+                    for t in col_type.params["allowed_types"]:
+                        if isinstance(t, _dtypes.NDArrayType):
+                            ndarray_type = t
+                if ndarray_type is not None:
+                    np = util.get_module(
+                        "numpy",
+                        required="Serializing numpy requires numpy to be installed",
+                    )
+                    file_name = "{}_{}.npz".format(
+                        str(col_name), str(util.generate_id())
+                    )
+                    npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
+                    np.savez_compressed(
+                        npz_file_name,
+                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                    )
+                    entry = artifact.add_file(
+                        npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
+                    )
+                    ndarray_type._set_serialization_path(entry.path, str(col_name))
+                    ndarray_col_ndxs.add(col_ndx)
 
             for row in data:
                 mapped_row = []
-                for v in row:
-                    mapped_row.append(json_helper(v))
+                for ndx, v in enumerate(row):
+                    if ndx in ndarray_col_ndxs:
+                        mapped_row.append(None)
+                    else:
+                        mapped_row.append(_json_helper(v, artifact))
                 mapped_data.append(mapped_row)
+
             json_dict.update(
                 {
-                    "_type": Table.artifact_type,
+                    "_type": Table._log_type,
                     "columns": self.columns,
                     "data": mapped_data,
                     "ncols": len(self.columns),
@@ -390,12 +564,225 @@ class Table(Media):
         Yields
         ------
         index : int
-            The index of the row.
+            The index of the row. Using this value in other WandB tables
+            will automatically build a relationship between the tables
         row : List[any]
             The data of the row
         """
         for ndx in range(len(self.data)):
-            yield ndx, self.data[ndx]
+            index = _TableIndex(ndx)
+            index.set_table(self)
+            yield index, self.data[ndx]
+
+    def set_pk(self, col_name):
+        # TODO: Docs
+        assert col_name in self.columns
+        self.cast(col_name, _PrimaryKeyType())
+
+    def set_fk(self, col_name, table, table_col):
+        # TODO: Docs
+        assert col_name in self.columns
+        assert col_name != self._pk_col
+        self.cast(col_name, _ForeignKeyType(table, table_col))
+
+    def _update_keys(self, force_last=False):
+        """Updates the known key-like columns based on the current
+        column types. If the state has been updated since
+        the last update, we wrap the data appropriately in the Key classes
+
+        Arguments:
+        force_last: (bool) Determines wrapping the last column of data even if
+        there are no key updates.
+        """
+        _pk_col = None
+        _fk_cols = set()
+
+        # Buildup the known keys from column types
+        c_types = self._column_types.params["type_map"]
+        for t in c_types:
+            if isinstance(c_types[t], _PrimaryKeyType):
+                _pk_col = t
+            elif isinstance(c_types[t], _ForeignKeyType) or isinstance(
+                c_types[t], _ForeignIndexType
+            ):
+                _fk_cols.add(t)
+
+        # If there are updates to perform, safely update them
+        has_update = _pk_col != self._pk_col or _fk_cols != self._fk_cols
+        if has_update:
+            # If we removed the PK
+            if _pk_col is None and self._pk_col is not None:
+                raise AssertionError(
+                    "Cannot unset primary key (column {})".format(self._pk_col)
+                )
+            # If there is a removed FK
+            if len(self._fk_cols - _fk_cols) > 0:
+                raise AssertionError(
+                    "Cannot unset foreign key. Attempted to unset ({})".format(
+                        self._fk_cols - _fk_cols
+                    )
+                )
+
+            self._pk_col = _pk_col
+            self._fk_cols = _fk_cols
+
+        # Apply updates to data only if there are update or the caller
+        # requested the final row to be updated
+        if has_update or force_last:
+            self._apply_key_updates(not has_update)
+
+    def _apply_key_updates(self, only_last=False):
+        """Appropriately wraps the underlying data in special key classes.
+
+        Arguments:
+            only_last: only apply the updates to the last row (used for performance when
+            the caller knows that the only new data is the last row and no updates were
+            applied to the column types)
+        """
+        c_types = self._column_types.params["type_map"]
+
+        # Define a helper function which will wrap the data of a single row
+        # in the appropriate class wrapper.
+        def update_row(row_ndx):
+            for fk_col in self._fk_cols:
+                col_ndx = self.columns.index(fk_col)
+
+                # Wrap the Foreign Keys
+                if isinstance(c_types[fk_col], _ForeignKeyType) and not isinstance(
+                    self.data[row_ndx][col_ndx], _TableKey
+                ):
+                    self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
+                    self.data[row_ndx][col_ndx].set_table(
+                        c_types[fk_col].params["table"],
+                        c_types[fk_col].params["col_name"],
+                    )
+
+                # Wrap the Foreign Indexes
+                elif isinstance(c_types[fk_col], _ForeignIndexType) and not isinstance(
+                    self.data[row_ndx][col_ndx], _TableIndex
+                ):
+                    self.data[row_ndx][col_ndx] = _TableIndex(
+                        self.data[row_ndx][col_ndx]
+                    )
+                    self.data[row_ndx][col_ndx].set_table(
+                        c_types[fk_col].params["table"]
+                    )
+
+            # Wrap the Primary Key
+            if self._pk_col is not None:
+                col_ndx = self.columns.index(self._pk_col)
+                self.data[row_ndx][col_ndx] = _TableKey(self.data[row_ndx][col_ndx])
+                self.data[row_ndx][col_ndx].set_table(self, self._pk_col)
+
+        if only_last:
+            update_row(len(self.data) - 1)
+        else:
+            for row_ndx in range(len(self.data)):
+                update_row(row_ndx)
+
+    def add_column(self, name, data, optional=False):
+        """Add a column of data to the table.
+
+        Arguments
+            name: (str) - the unique name of the column
+            data: (list | np.array) - a column of homogenous data
+            optional: (bool) - if null-like values are permitted
+        """
+        assert isinstance(name, str) and name not in self.columns
+        is_np = util.is_numpy_array(data)
+        assert isinstance(data, list) or is_np
+        assert isinstance(optional, bool)
+        is_first_col = len(self.columns) == 0
+        assert is_first_col or len(data) == len(
+            self.data
+        ), "Expected length {}, found {}".format(len(self.data), len(data))
+
+        # Add the new data
+        for ndx in range(max(len(data), len(self.data))):
+            if is_first_col:
+                self.data.append([])
+            if is_np:
+                self.data[ndx].append(data[ndx])
+            else:
+                self.data[ndx].append(data[ndx])
+        # add the column
+        self.columns.append(name)
+
+        try:
+            self.cast(name, _dtypes.UnknownType(), optional=optional)
+        except TypeError as err:
+            # Undo the changes
+            if is_first_col:
+                self.data = []
+                self.columns = []
+            else:
+                for ndx in range(len(self.data)):
+                    self.data[ndx] = self.data[ndx][:-1]
+                self.columns = self.columns[:-1]
+            raise err
+
+    def get_column(self, name, convert_to=None):
+        """Retrieves a column of data from the table
+
+        Arguments
+            name: (str) - the name of the column
+            convert_to: (str, optional)
+                - "numpy": will convert the underlying data to numpy object
+        """
+        assert name in self.columns
+        assert convert_to is None or convert_to == "numpy"
+        if convert_to == "numpy":
+            np = util.get_module(
+                "numpy", required="Converting to numpy requires installing numpy"
+            )
+        col = []
+        col_ndx = self.columns.index(name)
+        for row in self.data:
+            item = row[col_ndx]
+            if convert_to is not None and isinstance(item, WBValue):
+                item = item.to_data_array()
+            col.append(item)
+        if convert_to == "numpy":
+            col = np.array(col)
+        return col
+
+    def get_index(self):
+        """Returns an array of row indexes which can be used in other tables to create links"""
+        ndxs = []
+        for ndx in range(len(self.data)):
+            index = _TableIndex(ndx)
+            index.set_table(self)
+            ndxs.append(index)
+        return ndxs
+
+    def index_ref(self, index):
+        """Get a reference to a particular row index in the table"""
+        assert index < len(self.data)
+        _index = _TableIndex(index)
+        _index.set_table(self)
+        return _index
+
+    def add_computed_columns(self, fn):
+        """Adds one or more computed columns based on existing data
+
+        Args:
+            fn (function): A function which accepts one or two paramters: ndx (int) and row (dict)
+                which is expected to return a dict representing new columns for that row, keyed
+                by the new column names.
+                    - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+                        is set to true
+                    - `row` is a dictionary keyed by existing columns
+        """
+        new_columns = {}
+        for ndx, row in self.iterrows():
+            row_dict = {self.columns[i]: row[i] for i in range(len(self.columns))}
+            new_row_dict = fn(ndx, row_dict)
+            assert isinstance(new_row_dict, dict)
+            for key in new_row_dict:
+                new_columns[key] = new_columns.get(key, [])
+                new_columns[key].append(new_row_dict[key])
+        for new_col_name in new_columns:
+            self.add_column(new_col_name, new_columns[new_col_name])
 
 
 class _PartitionTablePartEntry:
@@ -422,7 +809,7 @@ class PartitionedTable(Media):
     is designed to point to a directory within an artifact.
     """
 
-    artifact_type = "partitioned-table"
+    _log_type = "partitioned-table"
 
     def __init__(self, parts_path):
         """
@@ -499,7 +886,7 @@ class Audio(BatchableMedia):
         caption: (string) Caption to display with audio.
     """
 
-    artifact_type = "audio-file"
+    _log_type = "audio-file"
 
     def __init__(self, data_or_path, sample_rate=None, caption=None):
         """Accepts a path to an audio file or a numpy array of audio data."""
@@ -558,7 +945,7 @@ class Audio(BatchableMedia):
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self.artifact_type, "caption": self._caption,}
+            {"_type": self._log_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -609,9 +996,15 @@ class Audio(BatchableMedia):
         if Audio.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
+        source_artifact = self._artifact_source.artifact
 
-        source_artifact = self.artifact_source["artifact"]
-        return source_artifact.manifest.get_entry_by_path(self._path).ref
+        resolved_name = source_artifact._local_path_to_name(self._path)
+        if resolved_name is not None:
+            target_entry = source_artifact.manifest.get_entry_by_path(resolved_name)
+            if target_entry is not None:
+                return target_entry.ref
+
+        return None
 
     def __eq__(self, other):
         if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
@@ -647,7 +1040,7 @@ class JoinedTable(Media):
             key or keys to perform the join
     """
 
-    artifact_type = "joined-table"
+    _log_type = "joined-table"
 
     def __init__(self, table1, table2, join_key):
         super(JoinedTable, self).__init__()
@@ -700,10 +1093,10 @@ class JoinedTable(Media):
         if isinstance(table, Table) or isinstance(table, PartitionedTable):
             table_name = "t{}_{}".format(table_ndx, str(id(self)))
             if (
-                table.artifact_source is not None
-                and table.artifact_source.name is not None
+                table._artifact_source is not None
+                and table._artifact_source.name is not None
             ):
-                table_name = os.path.basename(table.artifact_source.name)
+                table_name = os.path.basename(table._artifact_source.name)
             entry = artifact.add(table, table_name)
             table = entry.path
         # Check if this is an ArtifactEntry
@@ -731,7 +1124,7 @@ class JoinedTable(Media):
 
         json_obj.update(
             {
-                "_type": JoinedTable.artifact_type,
+                "_type": JoinedTable._log_type,
                 "table1": table1,
                 "table2": table2,
                 "join_key": self._join_key,
@@ -742,12 +1135,21 @@ class JoinedTable(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __eq__(self, other):
-        return (
-            self._table1 == other._table1
-            and self._table2 == other._table2
-            and self._join_key == other._join_key
+    def _eq_debug(self, other, should_assert=False):
+        eq = isinstance(other, JoinedTable)
+        assert not should_assert or eq, "Found type {}, expected {}".format(
+            other.__class__, JoinedTable
         )
+        eq = eq and self._join_key == other._join_key
+        assert not should_assert or eq, "Found {} join key, expected {}".format(
+            other._join_key, self._join_key
+        )
+        eq = eq and self._table1._eq_debug(other._table1, should_assert)
+        eq = eq and self._table2._eq_debug(other._table2, should_assert)
+        return eq
+
+    def __eq__(self, other):
+        return self._eq_debug(other, False)
 
 
 class Bokeh(Media):
@@ -758,7 +1160,7 @@ class Bokeh(Media):
         val: Bokeh plot
     """
 
-    artifact_type = "bokeh-file"
+    _log_type = "bokeh-file"
 
     def __init__(self, data_or_path):
         super(Bokeh, self).__init__()
@@ -794,7 +1196,7 @@ class Bokeh(Media):
         # pull this into Media#to_json and remove this type override for all the media types.
         # There are only a few cases where the type is different between artifacts and runs.
         json_dict = super(Bokeh, self).to_json(run)
-        json_dict["_type"] = self.artifact_type
+        json_dict["_type"] = self._log_type
         return json_dict
 
     @classmethod
@@ -834,6 +1236,8 @@ class Graph(Media):
         root (wandb.Node): root node of the graph
     """
 
+    _log_type = "graph-file"
+
     def __init__(self, format="keras"):
         super(Graph, self).__init__()
         # LB: TODO: I think we should factor criterion and criterion_passed out
@@ -870,7 +1274,7 @@ class Graph(Media):
 
     def to_json(self, run):
         json_dict = super(Graph, self).to_json(run)
-        json_dict["_type"] = "graph-file"
+        json_dict["_type"] = self._log_type
         return json_dict
 
     def __getitem__(self, nid):
@@ -1203,8 +1607,9 @@ class Edge(WBValue):
 # Custom dtypes for typing system
 
 
-class _ImageType(_dtypes.Type):
-    name = "wandb.Image"
+class _ImageFileType(_dtypes.Type):
+    name = "image-file"
+    legacy_names = ["wandb.Image"]
     types = [Image]
 
     def __init__(self, box_keys=None, mask_keys=None):
@@ -1231,7 +1636,7 @@ class _ImageType(_dtypes.Type):
         )
 
     def assign_type(self, wb_type=None):
-        if isinstance(wb_type, _ImageType):
+        if isinstance(wb_type, _ImageFileType):
             box_keys = self.params["box_keys"].assign_type(wb_type.params["box_keys"])
             mask_keys = self.params["mask_keys"].assign_type(
                 wb_type.params["mask_keys"]
@@ -1240,7 +1645,7 @@ class _ImageType(_dtypes.Type):
                 isinstance(box_keys, _dtypes.InvalidType)
                 or isinstance(mask_keys, _dtypes.InvalidType)
             ):
-                return _ImageType(box_keys, mask_keys)
+                return _ImageFileType(box_keys, mask_keys)
 
         return _dtypes.InvalidType()
 
@@ -1263,19 +1668,20 @@ class _ImageType(_dtypes.Type):
 
 
 class _TableType(_dtypes.Type):
-    name = "wandb.Table"
+    name = "table"
+    legacy_names = ["wandb.Table"]
     types = [Table]
 
     def __init__(self, column_types=None):
         if column_types is None:
             column_types = _dtypes.UnknownType()
         if isinstance(column_types, dict):
-            column_types = _dtypes.DictType(column_types)
+            column_types = _dtypes.TypedDictType(column_types)
         elif not (
-            isinstance(column_types, _dtypes.DictType)
+            isinstance(column_types, _dtypes.TypedDictType)
             or isinstance(column_types, _dtypes.UnknownType)
         ):
-            raise TypeError("column_types must be a dict or DictType")
+            raise TypeError("column_types must be a dict or TypedDictType")
 
         self.params.update({"column_types": column_types})
 
@@ -1297,5 +1703,169 @@ class _TableType(_dtypes.Type):
             return cls(py_obj._column_types)
 
 
-_dtypes.TypeRegistry.add(_ImageType)
+class _ForeignKeyType(_dtypes.Type):
+    name = "foreignKey"
+    legacy_names = ["wandb.TableForeignKey"]
+    types = [_TableKey]
+
+    def __init__(self, table, col_name):
+        assert isinstance(table, Table)
+        assert isinstance(col_name, str)
+        assert col_name in table.columns
+        self.params.update({"table": table, "col_name": col_name})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.StringType):
+            return self
+        elif (
+            isinstance(wb_type, _ForeignKeyType)
+            and id(self.params["table"]) == id(wb_type.params["table"])
+            and self.params["col_name"] == wb_type.params["col_name"]
+        ):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableKey):
+            raise TypeError("py_obj must be a _TableKey")
+        else:
+            return cls(py_obj._table, py_obj._col_name)
+
+    def to_json(self, artifact=None):
+        res = super(_ForeignKeyType, self).to_json(artifact)
+        if artifact is not None:
+            table_name = "media/tables/t_{}".format(util.generate_id())
+            entry = artifact.add(self.params["table"], table_name)
+            res["params"]["table"] = entry.path
+        else:
+            raise AssertionError(
+                "_ForeignKeyType does not support serialization without an artifact"
+            )
+        return res
+
+    @classmethod
+    def from_json(
+        cls, json_dict, artifact,
+    ):
+        table = None
+        col_name = None
+        if artifact is None:
+            raise AssertionError(
+                "_ForeignKeyType does not support deserialization without an artifact"
+            )
+        else:
+            table = artifact.get(json_dict["params"]["table"])
+            col_name = json_dict["params"]["col_name"]
+
+        if table is None:
+            raise AssertionError("Unable to deserialize referenced table")
+
+        return cls(table, col_name)
+
+
+class _ForeignIndexType(_dtypes.Type):
+    name = "foreignIndex"
+    legacy_names = ["wandb.TableForeignIndex"]
+    types = [_TableIndex]
+
+    def __init__(self, table):
+        assert isinstance(table, Table)
+        self.params.update({"table": table})
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.NumberType):
+            return self
+        elif isinstance(wb_type, _ForeignIndexType) and id(self.params["table"]) == id(
+            wb_type.params["table"]
+        ):
+            return self
+
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableIndex):
+            raise TypeError("py_obj must be a _TableIndex")
+        else:
+            return cls(py_obj._table)
+
+    def to_json(self, artifact=None):
+        res = super(_ForeignIndexType, self).to_json(artifact)
+        if artifact is not None:
+            table_name = "media/tables/t_{}".format(util.generate_id())
+            entry = artifact.add(self.params["table"], table_name)
+            res["params"]["table"] = entry.path
+        else:
+            raise AssertionError(
+                "_ForeignIndexType does not support serialization without an artifact"
+            )
+        return res
+
+    @classmethod
+    def from_json(
+        cls, json_dict, artifact,
+    ):
+        table = None
+        if artifact is None:
+            raise AssertionError(
+                "_ForeignIndexType does not support deserialization without an artifact"
+            )
+        else:
+            table = artifact.get(json_dict["params"]["table"])
+
+        if table is None:
+            raise AssertionError("Unable to deserialize referenced table")
+
+        return cls(table)
+
+
+class _PrimaryKeyType(_dtypes.Type):
+    name = "primaryKey"
+    legacy_names = ["wandb.TablePrimaryKey"]
+
+    def assign_type(self, wb_type=None):
+        if isinstance(wb_type, _dtypes.StringType) or isinstance(
+            wb_type, _PrimaryKeyType
+        ):
+            return self
+        return _dtypes.InvalidType()
+
+    @classmethod
+    def from_obj(cls, py_obj):
+        if not isinstance(py_obj, _TableKey):
+            raise TypeError("py_obj must be a wandb.Table")
+        else:
+            return cls()
+
+
+class _AudioFileType(_dtypes.Type):
+    name = "audio-file"
+    types = [Audio]
+
+
+class _BokehFileType(_dtypes.Type):
+    name = "bokeh-file"
+    types = [Bokeh]
+
+
+class _JoinedTableType(_dtypes.Type):
+    name = "joined-table"
+    types = [JoinedTable]
+
+
+class _PartitionedTableType(_dtypes.Type):
+    name = "partitioned-table"
+    types = [PartitionedTable]
+
+
+_dtypes.TypeRegistry.add(_AudioFileType)
+_dtypes.TypeRegistry.add(_BokehFileType)
+_dtypes.TypeRegistry.add(_ImageFileType)
 _dtypes.TypeRegistry.add(_TableType)
+_dtypes.TypeRegistry.add(_JoinedTableType)
+_dtypes.TypeRegistry.add(_PartitionedTableType)
+_dtypes.TypeRegistry.add(_ForeignKeyType)
+_dtypes.TypeRegistry.add(_PrimaryKeyType)
+_dtypes.TypeRegistry.add(_ForeignIndexType)

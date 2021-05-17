@@ -11,15 +11,15 @@ import pickle
 import os
 
 
-def test_disabled_noop():
+def test_disabled_noop(test_settings):
     """Make sure that all objects are dummy objects in noop case."""
-    run = wandb.init(mode="disabled")
+    run = wandb.init(mode="disabled", settings=test_settings)
     run.log(dict(this=2))
     run.finish()
 
 
-def test_disabled_ops():
-    run = wandb.init(mode="disabled")
+def test_disabled_ops(test_settings):
+    run = wandb.init(mode="disabled", settings=test_settings)
     print(len(run))
     print(abs(run))
     print(~run)
@@ -71,8 +71,8 @@ def test_disabled_ops():
     print(bool(run))
 
 
-def test_disabled_summary():
-    run = wandb.init(mode="disabled")
+def test_disabled_summary(test_settings):
+    run = wandb.init(mode="disabled", settings=test_settings)
     run.summary["cat"] = 2
     run.summary["nested"] = dict(level=3)
     print(run.summary["cat"])
@@ -92,9 +92,11 @@ def test_disabled_can_pickle():
     os.remove("test.pkl")
 
 
-def test_disabled_globals():
+def test_disabled_globals(test_settings):
     # Test wandb.* attributes
-    run = wandb.init(config={"foo": {"bar": {"x": "y"}}}, mode="disabled")
+    run = wandb.init(
+        config={"foo": {"bar": {"x": "y"}}}, mode="disabled", settings=test_settings
+    )
     wandb.log({"x": {"y": "z"}})
     wandb.log({"foo": {"bar": {"x": "y"}}})
     assert wandb.run == run
@@ -120,3 +122,13 @@ def test_login(test_settings):
     test_settings._apply_settings(s)
     wandb.setup(test_settings)
     wandb.login("")
+
+
+def test_no_dirs(test_settings, runner):
+    with runner.isolated_filesystem():
+        s = wandb.Settings(mode="disabled")
+        test_settings._apply_settings(s)
+        run = wandb.init(settings=test_settings)
+        run.log({"acc": 0.9})
+        run.finish()
+        assert not os.path.isdir("wandb")

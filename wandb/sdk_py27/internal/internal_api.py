@@ -24,10 +24,11 @@ import wandb
 from wandb import __version__
 from wandb import env
 from wandb.old.settings import Settings
-from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
-from wandb.errors.error import CommError, UsageError
+from wandb.errors import CommError, UsageError
+from wandb.integration.sagemaker import parse_sm_secrets
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -59,6 +60,7 @@ class Api(object):
         load_settings=True,
         retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
+        retry_callback=None,
     ):
         self._environ = environ
         self.default_settings = {
@@ -95,11 +97,13 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
+        self.retry_callback = retry_callback
         self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
             retryable_exceptions=(RetryError, requests.RequestException),
+            retry_callback=retry_callback,
         )
         self._current_run_id = None
         self._file_stream_api = None
@@ -148,92 +152,6 @@ class Api(object):
     def disabled(self):
         return self._settings.get(Settings.DEFAULT_SECTION, "disabled", fallback=False)
 
-    def sync_spell(self, run, env=None):
-        """Syncs this run with spell"""
-        try:
-            env = env or os.environ
-            run.config["_wandb"]["spell_url"] = env.get("SPELL_RUN_URL")
-            run.config.persist()
-            try:
-                url = run.get_url()
-            except CommError as e:
-                wandb.termerror("Unable to register run with spell.run: %s" % e.message)
-                return False
-            return requests.put(
-                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
-                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
-                timeout=2,
-            )
-        except requests.RequestException:
-            return False
-
-    def save_patches(self, out_dir):
-        """Save the current state of this repository to one or more patches.
-
-        Makes one patch against HEAD and another one against the most recent
-        commit that occurs in an upstream branch. This way we can be robust
-        to history editing as long as the user never does "push -f" to break
-        history on an upstream branch.
-
-        Writes the first patch to <out_dir>/<DIFF_FNAME> and the second to
-        <out_dir>/upstream_diff_<commit_id>.patch.
-
-        Arguments:
-            out_dir (str): Directory to write the patch files.
-        """
-        if not self.git.enabled:
-            return False
-
-        try:
-            root = self.git.root
-            if self.git.dirty:
-                patch_path = os.path.join(out_dir, DIFF_FNAME)
-                if self.git.has_submodule_diff:
-                    with open(patch_path, "wb") as patch:
-                        # we diff against HEAD to ensure we get changes in the index
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", "HEAD"],
-                            stdout=patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(patch_path, "wb") as patch:
-                        subprocess.check_call(
-                            ["git", "diff", "HEAD"], stdout=patch, cwd=root, timeout=5
-                        )
-
-            upstream_commit = self.git.get_upstream_fork_point()
-            if upstream_commit and upstream_commit != self.git.repo.head.commit:
-                sha = upstream_commit.hexsha
-                upstream_patch_path = os.path.join(
-                    out_dir, "upstream_diff_{}.patch".format(sha)
-                )
-                if self.git.has_submodule_diff:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", "--submodule=diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-                else:
-                    with open(upstream_patch_path, "wb") as upstream_patch:
-                        subprocess.check_call(
-                            ["git", "diff", sha],
-                            stdout=upstream_patch,
-                            cwd=root,
-                            timeout=5,
-                        )
-        # TODO: A customer saw `ValueError: Reference at 'refs/remotes/origin/foo' does not exist`
-        # so we now catch ValueError.  Catching this error feels too generic.
-        except (
-            ValueError,
-            subprocess.CalledProcessError,
-            subprocess.TimeoutExpired,
-        ) as e:
-            logger.error("Error generating diff: %s" % e)
-
     def set_current_run_id(self, run_id):
         self._current_run_id = run_id
 
@@ -251,10 +169,12 @@ class Api(object):
         key = None
         if auth:
             key = auth[-1]
+
         # Environment should take precedence
         env_key = self._environ.get(env.API_KEY)
+        sagemaker_key = parse_sm_secrets().get(env.API_KEY)
         default_key = self.default_settings.get("api_key")
-        return env_key or key or default_key
+        return env_key or key or sagemaker_key or default_key
 
     @property
     def api_url(self):

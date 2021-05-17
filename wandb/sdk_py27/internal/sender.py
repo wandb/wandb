@@ -13,6 +13,7 @@ import os
 import time
 
 from pkg_resources import parse_version
+import requests
 from six.moves import queue
 import wandb
 from wandb import util
@@ -34,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+    from six.moves.queue import Queue
+    from wandb.proto.wandb_internal_pb2 import HttpResponse
 
     DictWithValues = NewType("DictWithValues", Dict[str, Any])
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
@@ -45,7 +48,7 @@ def _framework_priority(
     yield imp.lightgbm, "lightgbm"
     yield imp.catboost, "catboost"
     yield imp.xgboost, "xgboost"
-    yield imp.transformers, "huggingface"
+    yield imp.transformers_huggingface, "huggingface"
     yield imp.pytorch_ignite, "ignite"
     yield imp.pytorch_lightning, "lightning"
     yield imp.fastai, "fastai"
@@ -82,8 +85,6 @@ class SendManager(object):
         # keep track of config from key/val updates
         self._consolidated_config = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
-        # TODO: remove default_xaxis
-        self._config_default_xaxis = None
         self._config_metric_pbdict_list = []
         self._config_metric_index_dict = {}
         self._config_metric_dict = {}
@@ -106,8 +107,16 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(default_settings=settings)
+        self._api = internal_api.Api(
+            default_settings=settings, retry_callback=self.retry_callback
+        )
         self._api_settings = dict()
+
+        # queue filled by retry_callback
+        self._retry_q = queue.Queue()
+
+        # do we need to debounce?
+        self._config_needs_debounce = False
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
@@ -151,23 +160,34 @@ class SendManager(object):
             interface=publish_interface,
         )
 
+    def retry_callback(self, status, response_text):
+        response = wandb_internal_pb2.HttpResponse()
+        response.http_status_code = status
+        response.http_response_text = response_text
+        self._retry_q.put(response)
+
     def send(self, record):
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type != "output":
+        if record_type not in {"output", "request"}:
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
+
+    def send_preempting(self, record):
+        if self._fs:
+            self._fs.enqueue_preempting()
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
-        logger.debug("send_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
@@ -199,20 +219,46 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
-    def send_request_status(self, record):
+    def send_request_stop_status(self, record):
         assert record.control.req_resp
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
-        status_resp = result.response.status_response
-        if record.request.status.check_stop_req:
-            status_resp.run_should_stop = False
-            if self._entity and self._project and self._run.run_id:
-                try:
-                    status_resp.run_should_stop = self._api.check_stop_requested(
-                        self._project, self._entity, self._run.run_id
-                    )
-                except Exception as e:
-                    logger.warning("Failed to check stop requested status: %s", e)
+        status_resp = result.response.stop_status_response
+        status_resp.run_should_stop = False
+        if self._entity and self._project and self._run.run_id:
+            try:
+                status_resp.run_should_stop = self._api.check_stop_requested(
+                    self._project, self._entity, self._run.run_id
+                )
+            except Exception as e:
+                logger.warning("Failed to check stop requested status: %s", e)
+        self._result_q.put(result)
+
+    def debounce(self):
+        if self._config_needs_debounce:
+            self._debounce_config()
+
+    def _debounce_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        # TODO(jhr): check result of upsert_run?
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        self._config_needs_debounce = False
+
+    def send_request_network_status(self, record):
+        assert record.control.req_resp
+
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        status_resp = result.response.network_status_response
+        while True:
+            try:
+                status_resp.network_responses.append(self._retry_q.get_nowait())
+            except queue.Empty:
+                break
+            except Exception as e:
+                logger.warning("Error emptying retry queue: {}".format(e))
         self._result_q.put(result)
 
     def send_request_login(self, record):
@@ -235,7 +281,6 @@ class SendManager(object):
     def send_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
-
         logger.info("handling exit code: %s", exit.exit_code)
 
         # Pass the responsibility to respond to handle_request_defer()
@@ -267,6 +312,8 @@ class SendManager(object):
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
+        elif state == defer.FLUSH_DEBOUNCER:
+            self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -456,9 +503,6 @@ class SendManager(object):
             return
         wandb_key = "_wandb"
         config_dict.setdefault(wandb_key, dict())
-        # TODO(jhr): remove this
-        if self._config_default_xaxis:
-            config_dict[wandb_key]["x_axis"] = self._config_default_xaxis
         config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
     def _config_format(self, config_data):
@@ -472,6 +516,24 @@ class SendManager(object):
     def _config_save(self, config_value_dict):
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
+
+    def _sync_spell(self, env=None):
+        """Syncs this run with spell"""
+        try:
+            env = env or os.environ
+            self._interface.publish_config(
+                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
+            )
+            url = "{}/{}/{}/runs/{}".format(
+                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
+            )
+            return requests.put(
+                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
+                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
+                timeout=2,
+            )
+        except requests.RequestException:
+            return False
 
     def send_run(self, data):
         run = data.run
@@ -601,6 +663,8 @@ class SendManager(object):
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
+        if os.getenv("SPELL_RUN_URL"):
+            self._sync_spell()
 
     def _start_run_threads(self):
         self._fs = file_stream.FileStreamApi(
@@ -623,15 +687,15 @@ class SendManager(object):
             "output.log",
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
-        self._fs.start()
-        self._pusher = FilePusher(self._api, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,
             project=self._run.project,
             email=self._settings.email,
         )
+        self._fs.start()
+        self._pusher = FilePusher(self._api, silent=self._settings.silent)
+        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -688,6 +752,8 @@ class SendManager(object):
         line = out.line
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
+            if line.startswith("\r"):
+                self._partial_output[stream] = ""
             self._partial_output[stream] += line
             # TODO(jhr): how do we make sure this gets flushed?
             # we might need this for other stuff like telemetry
@@ -703,12 +769,7 @@ class SendManager(object):
             self._partial_output[stream] = ""
 
     def _update_config(self):
-        config_value_dict = self._config_format(self._consolidated_config)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
-        self._config_save(config_value_dict)
-        # TODO(jhr): check result of upsert_run?
+        self._config_needs_debounce = True
 
     def send_config(self, data):
         cfg = data.config
@@ -731,12 +792,6 @@ class SendManager(object):
             old_metric.MergeFrom(metric)
         self._config_metric_dict[metric.name] = old_metric
         metric = old_metric
-
-        # TODO(jhr): remove this code before shipping (only for prototype UI)
-        if metric.step_metric:
-            if metric.step_metric != self._config_default_xaxis:
-                self._config_default_xaxis = metric.step_metric
-                self._update_config()
 
         # convert step_metric to index
         if metric.step_metric:
@@ -843,6 +898,7 @@ class SendManager(object):
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,
+            incremental=artifact.incremental_beta1,
         )
 
     def send_alert(self, data):

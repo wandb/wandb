@@ -43,6 +43,8 @@ class Metric(object):
         self._callback = None
         self._name = name
         self._step_metric = step_metric
+        # default to step_sync=True if step metric is set
+        step_sync = step_sync if step_sync is not None else step_metric is not None
         self._step_sync = step_sync
         self._hidden = hidden
         self._summary = summary
@@ -81,6 +83,7 @@ class Metric(object):
 
     def _commit(self):
         m = pb.MetricRecord()
+        m.options.defined = True
         if self._name.endswith("*"):
             m.glob_name = self._name
         else:
@@ -99,6 +102,12 @@ class Metric(object):
                 m.summary.max = True
             if "mean" in summary_set:
                 m.summary.mean = True
+            if "last" in summary_set:
+                m.summary.last = True
+            if "copy" in summary_set:
+                m.summary.copy = True
+            if "none" in summary_set:
+                m.summary.none = True
             if "best" in summary_set:
                 m.summary.best = True
         if self._goal == "min":

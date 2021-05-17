@@ -27,7 +27,7 @@ message Imports {
   bool lightgbm = 8;
   bool pytorch_lightning = 9;
   bool pytorch_ignite = 10;
-  bool transformers = 11;      // huggingface
+  bool transformers_huggingface = 11;
 }
 
 message Feature {
@@ -39,6 +39,8 @@ message Feature {
   bool grpc = 6;     // grpc-server (java integration)
   bool metric = 7;   // define_metric() called
   bool keras = 8;    // Keras WandbCallback used
+  bool sagemaker = 9; // User is using sagemaker
+  bool artifact_incremental = 10; // Artifact(incremental=True) used
 }
 
 message Env {

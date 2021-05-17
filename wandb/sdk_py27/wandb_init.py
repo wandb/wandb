@@ -20,7 +20,7 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
 from wandb.util import sentry_exc
@@ -69,6 +69,7 @@ class _WandbInit(object):
         self._teardown_hooks = []
         self._wl = None
         self._reporter = None
+        self._use_sagemaker = None
 
     def setup(self, kwargs):
         """
@@ -100,8 +101,8 @@ class _WandbInit(object):
                     sm_env["WANDB_API_KEY"] = sm_api_key
                 settings._apply_environ(sm_env)
                 wandb.setup(settings=settings)
-            for k, v in six.iteritems(sm_run):
-                kwargs.setdefault(k, v)
+            settings._apply_setup(sm_run)
+            self._use_sagemaker = True
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
@@ -172,10 +173,11 @@ class _WandbInit(object):
         d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
-        self._log_setup(settings)
+        if not settings._noop:
+            self._log_setup(settings)
 
-        if settings._jupyter:
-            self._jupyter_setup(settings)
+            if settings._jupyter:
+                self._jupyter_setup(settings)
 
         self.settings = settings.freeze()
 
@@ -356,7 +358,7 @@ class _WandbInit(object):
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
-            define_metric=drun._define_metric,
+            define_metric=drun.define_metric,
             plot_table=drun.plot_table,
             alert=drun.alert,
         )
@@ -448,6 +450,8 @@ class _WandbInit(object):
             if s._windows:
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
+            if self._use_sagemaker:
+                tel.feature.sagemaker = True
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -531,9 +535,10 @@ class _WandbInit(object):
             save=run.save,
             use_artifact=run.use_artifact,
             log_artifact=run.log_artifact,
-            define_metric=run._define_metric,
+            define_metric=run.define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
+            mark_preempting=run.mark_preempting,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -615,7 +620,7 @@ def init(
         save_code: (bool, optional) Turn this on to save the main script or
             notebook to W&B. This is valuable for improving experiment
             reproducibility and to diff code across experiments in the UI. By
-            default this is off, but you can flip the default behavior to "on"
+            default this is off, but you can flip the default behavior to on
             in [Settings](wandb.ai/settings).
         group: (str, optional) Specify a group to organize individual runs into
             a larger experiment. For example, you might be doing cross
@@ -644,66 +649,63 @@ def init(
             message in git. This helps you remember what you were doing when you
             ran this run.
         dir: (str, optional) An absolute path to a directory where metadata will
-            be stored. When you call download() on an artifact, this is the
+            be stored. When you call `download()` on an artifact, this is the
             directory where downloaded files will be saved. By default this is
             the ./wandb directory.
-        sync_tensorboard: (bool, optional) Whether to copy all TensorBoard logs
-            to W&B (default: False).
-            [Tensorboard](https://docs.wandb.com/integrations/tensorboard)
-        resume (bool, str, optional): Sets the resuming behavior. Options:
-            "allow", "must", "never", "auto" or None. Defaults to None.
+        resume: (bool, str, optional) Sets the resuming behavior. Options:
+            `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
             Cases:
-            - None (default): If the new run has the same ID as a previous run,
+            - `None` (default): If the new run has the same ID as a previous run,
                 this run overwrites that data.
-            - "auto" (or True): if the preivous run on this machine crashed,
+            - `"auto"` (or `True`): if the preivous run on this machine crashed,
                 automatically resume it. Otherwise, start a new run.
-            - "allow": if id is set with init(id="UNIQUE_ID") or
-                WANDB_RUN_ID="UNIQUE_ID" and it is identical to a previous run,
+            - `"allow"`: if id is set with `init(id="UNIQUE_ID")` or
+                `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
                 wandb will automatically resume the run with that id. Otherwise,
                 wandb will start a new run.
-            - "never": if id is set with init(id="UNIQUE_ID") or
-                WANDB_RUN_ID="UNIQUE_ID" and it is identical to a previous run,
+            - `"never"`: if id is set with `init(id="UNIQUE_ID")` or
+                `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
                 wandb will crash.
-            - "must": if id is set with init(id="UNIQUE_ID") or
-                WANDB_RUN_ID="UNIQUE_ID" and it is identical to a previous run,
+            - `"must"`: if id is set with `init(id="UNIQUE_ID")` or
+                `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
                 wandb will automatically resume the run with the id. Otherwise
                 wandb will crash.
             See https://docs.wandb.com/library/advanced/resuming for more.
-        reinit: (bool, optional) Allow multiple wandb.init() calls in the same
+        reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
             process. (default: False)
         magic: (bool, dict, or str, optional) The bool controls whether we try to
             auto-instrument your script, capturing basic details of your run
-            without you having to add more wandb code. (default: False)
+            without you having to add more wandb code. (default: `False`)
             You can also pass a dict, json string, or yaml filename.
         config_exclude_keys: (list, optional) string keys to exclude from
             `wandb.config`.
         config_include_keys: (list, optional) string keys to include in
-            wandb.config.
+            `wandb.config`.
         anonymous: (str, optional) Controls anonymous data logging. Options:
-            - "never" (default): requires you to link your W&B account before
+            - `"never"` (default): requires you to link your W&B account before
                 tracking the run so you don't accidentally create an anonymous
                 run.
-            - "allow": lets a logged-in user track runs with their account, but
+            - `"allow"`: lets a logged-in user track runs with their account, but
                 lets someone who is running the script without a W&B account see
                 the charts in the UI.
-            - "must": sends the run to an anonymous account instead of to a
+            - `"must"`: sends the run to an anonymous account instead of to a
                 signed-up user account.
-        mode: (str, optional) Can be "online", "offline" or "disabled". Defaults to
+        mode: (str, optional) Can be `"online"`, `"offline"` or `"disabled"`. Defaults to
             online.
         allow_val_change: (bool, optional) Whether to allow config values to
             change after setting the keys once. By default we throw an exception
             if a config value is overwritten. If you want to track something
-            like a varying learning_rate at multiple times during training, use
-            wandb.log() instead. (default: False in scripts, True in Jupyter)
-        force: (bool, optional) If True, this crashes the script if a user isn't
-            logged in to W&B. If False, this will let the script run in offline
-            mode if a user isn't logged in to W&B. (default: False)
+            like a varying learning rate at multiple times during training, use
+            `wandb.log()` instead. (default: `False` in scripts, `True` in Jupyter)
+        force: (bool, optional) If `True`, this crashes the script if a user isn't
+            logged in to W&B. If `False`, this will let the script run in offline
+            mode if a user isn't logged in to W&B. (default: `False`)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
-            tensorboardX and saves the relevant events file. Defaults to false.
-        monitor_gym: (bool, optional) automatically logs videos of environment when
-            using OpenAI Gym. (default: False)
+            tensorboardX and saves the relevant events file. (default: `False`)
+        monitor_gym: (bool, optional) Automatically logs videos of environment when
+            using OpenAI Gym. (default: `False`)
             See https://docs.wandb.com/library/integrations/openai-gym
-        id: (str, optional) A unique ID for this run, used for Resuming. It must
+        id: (str, optional) A unique ID for this run, used for resuming. It must
             be unique in the project, and if you delete a run you can't reuse
             the ID. Use the name field for a short descriptive name, or config
             for saving hyperparameters to compare across runs. The ID cannot
