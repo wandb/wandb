@@ -15,4 +15,6 @@ PyYAML
 typing; python_version < '3.5'
 enum34; python_version < '3.4'
 pathtools # supports vendored version of watchdog 0.9.0
-urllib3<=1.25.11; sys_platform != 'darwin'
+# Temporary pin to avoid an issue introduced in 1.25.12 causing
+# `ValueError: check_hostname requires server_hostname`.
+urllib3<=1.25.11; sys_platform == 'win32' or sys_platform == 'cygwin'
