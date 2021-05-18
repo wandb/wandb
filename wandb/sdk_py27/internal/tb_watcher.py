@@ -441,26 +441,27 @@ class TBHistory(object):
             return
         # A single tensorboard step may have too much data
         # we just drop the largest keys in the step if it does.
+        # TODO: potentially re add max line size check
         # TODO: we could flush the data across multiple steps
-        if self._step_size > util.MAX_LINE_SIZE:
-            metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
-            metrics.sort(key=lambda t: t[1], reverse=True)
-            bad = 0
-            dropped_keys = []
-            for k, v in metrics:
-                # TODO: (cvp) Added a buffer of 100KiB, this feels rather brittle.
-                if self._step_size - bad < util.MAX_LINE_SIZE - 100000:
-                    break
-                else:
-                    bad += v
-                    dropped_keys.append(k)
-                    del self._data[k]
-            wandb.termwarn(
-                "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
-                    self._step, len(dropped_keys)
-                )
-            )
-            print("\t" + ("\n\t".join(dropped_keys)))
+        # if self._step_size > util.MAX_LINE_SIZE:
+        #     metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
+        #     metrics.sort(key=lambda t: t[1], reverse=True)
+        #     bad = 0
+        #     dropped_keys = []
+        #     for k, v in metrics:
+        #         # TODO: (cvp) Added a buffer of 100KiB, this feels rather brittle.
+        #         if self._step_size - bad < util.MAX_LINE_SIZE - 100000:
+        #             break
+        #         else:
+        #             bad += v
+        #             dropped_keys.append(k)
+        #             del self._data[k]
+        #     wandb.termwarn(
+        #         "Step {} exceeds max data limit, dropping {} of the largest keys:".format(
+        #             self._step, len(dropped_keys)
+        #         )
+        #     )
+        #     print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
         self._added.append(self._data)
         self._step += 1

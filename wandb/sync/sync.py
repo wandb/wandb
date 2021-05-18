@@ -152,15 +152,17 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
         mkdir_exists_ok(settings.files_dir)
-        send_manager.send_run(record, file_dir=settings.files_dir)
 
+        send_manager.send_run(record, file_dir=settings.files_dir)
         watcher = tb_watcher.TBWatcher(
             settings, proto_run, send_manager._interface, True
         )
         for tb in tb_logdirs:
+            print("Adding watcher to eventfile", tb)
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
+        print("Syncing all data this may take some time")
         # send all of our records like a boss
         while not send_manager._interface.record_q.empty():
             data = send_manager._interface.record_q.get(block=True)
