@@ -109,14 +109,16 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     ]
 
 
-def test_tb_watcher_symlink(mocked_run,tb_watcher_util_with_file):
+def test_tb_watcher_symlink(mocked_run, tb_watcher_util_with_file):
     os.mkdir("testdir")
-    
+
     # wandb.init(settings=test_settings)
     # wandb.tensorboard.patch(root_logdir="./testdir")
     file_path = utils.fixture_copy("events.out.tfevents.1585769947.cvp")
     os.symlink(file_path, "./symlink_file")
-    ctx_util = tb_watcher_util_with_file(file_path, logdir="./testdir", save=True, root_dir=mocked_run.dir)
+    ctx_util = tb_watcher_util_with_file(
+        file_path, logdir="./testdir", save=True, root_dir=mocked_run.dir
+    )
     print(os.path.islink("./testdir/symlink_file"))
     # wandb.finish()
     print(ctx_util)

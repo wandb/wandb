@@ -106,7 +106,7 @@ workflows:
          name: "Python 3.9"
          image: "python:3.9"
          toxenv: "py39"
-      - win:
+      - test:
          name: "Windows (Python 3.7)"
          toxenv: "py37,covercircle"
       - mac:

@@ -265,6 +265,7 @@ class TBDirWatcher(object):
                             interface=_loader_interface,
                             settings=_loader_settings,
                         )
+
         print("RETURNING EVENTFILELOADER")
         return EventFileLoader
 

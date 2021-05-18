@@ -833,8 +833,9 @@ def tbwatcher_util(
 
 
 @pytest.fixture
-def tb_watcher_util_with_file(mocked_run, mock_server, internal_hm, start_backend, stop_backend, parse_ctx):
-
+def tb_watcher_util_with_file(
+    mocked_run, mock_server, internal_hm, start_backend, stop_backend, parse_ctx
+):
     def fn(fpath, logdir="./", save=True, root_dir="./"):
         start_backend()
 
@@ -862,6 +863,7 @@ def tb_watcher_util_with_file(mocked_run, mock_server, internal_hm, start_backen
         return ctx_util
 
     yield fn
+
 
 def inject_requests(mock_server):
     """Fixture for injecting responses and errors to mock_server."""
