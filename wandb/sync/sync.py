@@ -157,12 +157,13 @@ class SyncThread(threading.Thread):
         watcher = tb_watcher.TBWatcher(
             settings, proto_run, send_manager._interface, True
         )
+        print("Adding tf eventfile readers to each directory. This may take some time.")
         for tb in tb_logdirs:
             print("Adding watcher to event file", tb)
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
-        print("Syncing all data this may take some time")
+        print("Sending all read data to WandB...")
         # send all of our records like a boss
         while not send_manager._interface.record_q.empty():
             data = send_manager._interface.record_q.get(block=True)
