@@ -15,6 +15,7 @@ def set_global(
     define_metric=None,
     alert=None,
     plot_table=None,
+    mark_preempting=None,
 ):
     if run:
         wandb.run = run
@@ -36,6 +37,8 @@ def set_global(
         wandb.plot_table = plot_table
     if alert:
         wandb.alert = alert
+    if mark_preempting:
+        wandb.mark_preempting = mark_preempting
 
 
 def unset_globals():
