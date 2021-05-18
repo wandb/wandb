@@ -1374,7 +1374,7 @@ class Run(object):
                 "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
             )
             emojis = dict(star="", broom="", rocket="")
-            if platform.system() != "Windows":
+            if platform.system() != "Windows" and sys.stdout.encoding == 'UTF-8':
                 emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
 
             wandb.termlog(
