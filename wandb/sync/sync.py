@@ -158,7 +158,7 @@ class SyncThread(threading.Thread):
             settings, proto_run, send_manager._interface, True
         )
         for tb in tb_logdirs:
-            print("Adding watcher to eventfile", tb)
+            print("Adding watcher to event file", tb)
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
