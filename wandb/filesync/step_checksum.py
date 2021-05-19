@@ -4,10 +4,14 @@ import collections
 import os
 import shutil
 import threading
+import distro
 import wandb.util
 
 from wandb.filesync import step_upload
 
+# prevent errors when copying files on certain linux distributions https://bugs.python.org/issue43743
+if distro.id() == "centos":
+    shutil._USE_CP_SENDFILE = False
 
 RequestUpload = collections.namedtuple(
     "RequestUpload",
