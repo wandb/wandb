@@ -25,3 +25,4 @@ torchvision==0.9.1+cpu; python_version >= '3.5' and python_version < '3.9' and s
 plotly; python_version < '3.9'
 bokeh
 tqdm
+distro
