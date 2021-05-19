@@ -28,7 +28,6 @@ from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
-from wandb import wandb_lib
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
@@ -763,7 +762,7 @@ def sweep(
     sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
     )
-    wandb_lib.sweepwarn.handle_sweep_config_violations(warnings)
+    util.handle_sweep_config_violations(warnings)
 
     wandb.termlog(
         "{} sweep with ID: {}".format(

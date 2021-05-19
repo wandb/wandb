@@ -1294,7 +1294,7 @@ class Api(object):
         """
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-        mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY", project_query))
+        mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
         mutation_2 = gql(
             mutation_str.replace("_PROJECT_QUERY_", project_query).replace(
                 "configValidationWarnings", ""
@@ -1356,6 +1356,7 @@ class Api(object):
 
         if mutation_version_used == 3:
             warnings = response["upsertSweep"]["configValidationWarnings"]
+            print("got here")
         else:
             warnings = []
 

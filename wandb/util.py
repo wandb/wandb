@@ -52,6 +52,8 @@ from wandb.errors import CommError, term
 from wandb.old.core import wandb_dir
 from wandb import env
 
+from typing import List
+
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
@@ -1247,3 +1249,15 @@ def _is_databricks():
                 sc = shell.sc
                 return sc.appName == "Databricks Shell"
     return False
+
+
+def handle_sweep_config_violations(warnings: List[str]) -> None:
+    warning_base = (
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways. "
+        "To avoid this, please fix the sweep config schema violations below:\n\n"
+    )
+    for i, warning in enumerate(warnings):
+        warning_base += "Violation {}. {}\n\n".format(i + 1, warning)
+
+    if len(warnings) > 0:
+        term.termwarn(warning_base)
