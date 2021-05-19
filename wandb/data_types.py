@@ -146,23 +146,23 @@ def _json_helper(val, artifact):
 
 class Table(Media):
     """The Table class is used to display and analyze tabular data.
-    
+
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
-    
+
     Tables can be constructed with initial data using the `data` or
     `dataframe` parameters. Additionally, users can add data to Tables
     incrementally by using the `add_data`, `add_column`, and
     `add_computed_column` functions for adding rows, columns, and computed
     columns, respectively.
-    
+
     Tables can be logged directly to runs using `run.log({"my_table": table})`
     or added to artifacts using `artifact.add(table, "my_table")`. Tables added
     directly to runs will produce a corresponding Table Visualizer in the
     Workspace which can be used for further analysis and exporting to reports.
     Tables added to artifacts can be viewed in the Artifact Tab and will render
     an equivalent Table Visualizer directly in the artifact browser.
-    
+
     Note that Tables support numerous types of data: traditional scalar values,
     numpy arrays, and most subclasses of wandb.data_types.Media. This means you
     can embed Images, Video, Audio, and other sorts of rich, annotated media
@@ -185,7 +185,7 @@ class Table(Media):
             - If a list of bool values, then the optionality is applied to each
             column - should be the same length as `columns`
             applies to all columns. A list of bool values applies to each respective column.
-        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types 
+        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
             (disables type validation). Defaults to False
     """
 
