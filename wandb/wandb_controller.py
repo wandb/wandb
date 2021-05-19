@@ -63,7 +63,7 @@ import six
 from six.moves import urllib
 import wandb
 from wandb import env
-from wandb import wandb_sdk
+from wandb import wandb_lib, wandb_sdk
 from wandb.apis import InternalApi
 import yaml
 
@@ -410,7 +410,9 @@ class _WandbController:
             if msg:
                 raise ControllerError("Validate Error: %s" % msg)
         # Create sweep
-        sweep_id = self._api.upsert_sweep(self._create)
+        sweep_id, warnings = self._api.upsert_sweep(self._create)
+        wandb_lib.sweepwarn.handle_sweep_config_violations(warnings)
+
         print("Create sweep with ID:", sweep_id)
         sweep_url = _get_sweep_url(self._api, sweep_id)
         if sweep_url:
@@ -464,9 +466,10 @@ class _WandbController:
             return
         sweep_obj_id = self._sweep_obj["id"]
         controller = json.dumps(self._controller)
-        self._api.upsert_sweep(
+        _, warnings = self._api.upsert_sweep(
             self._sweep_config, controller=controller, obj_id=sweep_obj_id
         )
+        wandb_lib.sweepwarn.handle_sweep_config_violations(warnings)
         self._controller_prev_step = self._controller.copy()
 
     def _start_if_not_started(self):
@@ -798,7 +801,8 @@ def sweep(sweep, entity=None, project=None):
     # Make sure we are logged in
     wandb_sdk.wandb_login._login(_silent=True)
     api = InternalApi()
-    sweep_id = api.upsert_sweep(sweep)
+    sweep_id, warnings = api.upsert_sweep(sweep)
+    wandb_lib.sweepwarn.handle_sweep_config_violations(warnings)
     print("Create sweep with ID:", sweep_id)
     sweep_url = _get_sweep_url(api, sweep_id)
     if sweep_url:

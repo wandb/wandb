@@ -28,6 +28,7 @@ from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
 from wandb import wandb_controller
+from wandb import wandb_lib
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
@@ -759,14 +760,17 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
-    sweep_id = api.upsert_sweep(
+    sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
     )
+    wandb_lib.sweepwarn.handle_sweep_config_violations(warnings)
+
     wandb.termlog(
         "{} sweep with ID: {}".format(
             "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
         )
     )
+
     sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:
         wandb.termlog(

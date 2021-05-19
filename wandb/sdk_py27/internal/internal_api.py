@@ -1288,13 +1288,23 @@ class Api(object):
                     name
                     _PROJECT_QUERY_
                 }
+                configValidationWarnings
             }
         }
         """
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-        mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
-        mutation_old = gql(mutation_str.replace("_PROJECT_QUERY_", ""))
+        mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY", project_query))
+        mutation_2 = gql(
+            mutation_str.replace("_PROJECT_QUERY_", project_query).replace(
+                "configValidationWarnings", ""
+            )
+        )
+        mutation_1 = gql(
+            mutation_str.replace("_PROJECT_QUERY_", "").replace(
+                "configValidationWarnings", ""
+            )
+        )
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
@@ -1309,7 +1319,7 @@ class Api(object):
             body = json.loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
-        for mutation in mutation_new, mutation_old:
+        for i, mutation in enumerate([mutation_3, mutation_2, mutation_1]):
             try:
                 response = self.gql(
                     mutation,
@@ -1331,6 +1341,7 @@ class Api(object):
                 err = e
                 continue
             err = None
+            mutation_version_used = 3 - i
             break
         if err:
             raise (err)
@@ -1343,7 +1354,12 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return response["upsertSweep"]["sweep"]["name"]
+        if mutation_version_used == 3:
+            warnings = response["upsertSweep"]["configValidationWarnings"]
+        else:
+            warnings = []
+
+        return response["upsertSweep"]["sweep"]["name"], warnings
 
     @normalize_exceptions
     def create_anonymous_api_key(self):
