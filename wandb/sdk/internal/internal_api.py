@@ -1319,7 +1319,9 @@ class Api(object):
             body = json.loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
-        for i, mutation in enumerate([mutation_3, mutation_2, mutation_1]):
+        mutations = [mutation_3, mutation_2, mutation_1]
+
+        for i, mutation in enumerate(mutations):
             try:
                 response = self.gql(
                     mutation,
@@ -1341,7 +1343,7 @@ class Api(object):
                 err = e
                 continue
             err = None
-            mutation_version_used = 3 - i
+            mutation_version_used = len(mutations) - i
             break
         if err:
             raise (err)
@@ -1354,9 +1356,8 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        if mutation_version_used == 3:
+        if mutation_version_used >= 3:
             warnings = response["upsertSweep"]["configValidationWarnings"]
-            print("got here")
         else:
             warnings = []
 
