@@ -1251,7 +1251,15 @@ def _is_databricks():
     return False
 
 
-def handle_sweep_config_violations(warnings: List[str]) -> None:
+def handle_sweep_config_violations(warnings):
+    """Render warnings from gorilla describing the ways in which a 
+    sweep config violates the allowed schema as terminal warnings.
+
+    Parameters
+    ----------
+    warnings: list of str
+        The warnings to render.
+    """
     warning_base = (
         "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways. "
         "To avoid this, please fix the sweep config schema violations below:\n\n"
