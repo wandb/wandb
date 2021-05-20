@@ -842,22 +842,19 @@ RUN_CONTEXT["ignore_unknown_options"] = True
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
-@click.option("--help", is_flag=True)
-def docker_run(ctx, docker_run_args, help):
-    """Simple wrapper for `docker run` which sets W&B environment
-    Adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
+def docker_run(ctx, docker_run_args):
+    """Simple wrapper for `docker run` which adds WANDB_API_KEY and WANDB_DOCKER
+    environment variables to any docker run command.
+
     This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
     and --runtime wasn't set.
+
+    See `docker run --help` for more details.
     """
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
-    if help or len(args) == 0:
-        wandb.termlog("This commands adds wandb env variables to your docker run calls")
-        subprocess.call(["docker", "run"] + args + ["--help"])
-        exit()
-    #  TODO: is this what we want?
     if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable(
         "nvidia-docker"
     ):
