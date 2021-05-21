@@ -2484,6 +2484,8 @@ class ArtifactCollection(object):
         self.name = name
         self.type = type
         self._attrs = attrs
+        if self._attrs is None:
+            self.load()
 
     @property
     def id(self):
@@ -2500,6 +2502,47 @@ class ArtifactCollection(object):
             self.type,
             per_page=per_page,
         )
+
+    def load(self):
+        query = gql(
+            """
+        query ArtifactCollection(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $artifactCollectionName: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactSequence(name: $artifactCollectionName) {
+                        id
+                        name
+                        description
+                        createdAt
+                    }
+                }
+            }
+        }
+        """
+        )
+        response = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactTypeName": self.type,
+                "artifactCollectionName": self.name,
+            },
+        )
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("artifactType") is None
+            or response["project"]["artifactType"].get("artifactSequence") is None
+        ):
+            raise ValueError("Could not find artifact type %s" % self.type)
+        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        return self._attrs
 
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
