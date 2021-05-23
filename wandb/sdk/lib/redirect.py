@@ -469,7 +469,7 @@ class TerminalEmulator(object):
                     )
                     + os.linesep
                 )
-        if num_lines > self._MAX_LINES:
+        if num_lines > self._MAX_LINES and False:
             shift = num_lines - self._MAX_LINES
             for i in range(shift, num_lines):
                 self.buffer[i - shift] = self.buffer[i]
