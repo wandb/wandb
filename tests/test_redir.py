@@ -332,5 +332,6 @@ def test_memory_leak(console_settings, capfd, runner):
         for i in range(10000):
             print("ABCDEFGH")
         sys.stdout.flush()
+        time.sleep(3)
         assert len(run._out_redir._emulator.buffer) <= 100
         run.finish()

@@ -607,8 +607,8 @@ class StreamWrapper(RedirectBase):
         if data is None:
             try:
                 data = self._emulator.read().encode("utf-8")
-            except Exception as e:
-                raise e
+            except Exception:
+                pass
         if data:
             for cb in self.cbs:
                 try:
