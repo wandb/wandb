@@ -22,9 +22,15 @@ from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors.term import termlog
-from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
 import yaml
+
+
+PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
+if PY3:
+    from wandb.sdk.lib import retry
+else:
+    from wandb.sdk_py27.lib import retry
 
 
 # TODO: consolidate dynamic imports
@@ -173,7 +179,7 @@ class RetryingClient(object):
     def app_url(self):
         return util.app_url(self._client.transport.url).replace("/graphql", "/")
 
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
@@ -715,7 +721,7 @@ class Projects(Paginator):
 
 
 class Project(Attrs):
-    """A project is a namespace for runs"""
+    """A project is a namespace for runs."""
 
     def __init__(self, client, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
@@ -1035,8 +1041,8 @@ class Run(Attrs):
         """
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
-            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
                 bucket {
                     ...RunFragment
                 }
@@ -1054,6 +1060,7 @@ class Run(Attrs):
             notes=self.notes,
             display_name=self.display_name,
             config=self.json_config,
+            groupName=self.group,
         )
         self.summary.update()
 
@@ -1401,15 +1408,20 @@ class Run(Attrs):
 
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep
-    Instantiate with:
-      api.sweep(sweep_path)
+    """A set of runs associated with a sweep.
+
+    Examples:
+        Instantiate with:
+        ```
+        api = wandb.Api()
+        sweep = api.sweep(path/to/sweep)
+        ```
 
     Attributes:
-        runs (`Runs`): list of runs
-        id (str): sweep id
-        project (str): name of project
-        config (str): dictionary of sweep configuration
+        runs: (`Runs`) list of runs
+        id: (str) sweep id
+        project: (str) name of project
+        config: (str) dictionary of sweep configuration
     """
 
     QUERY = gql(
@@ -1582,7 +1594,7 @@ class Sweep(Attrs):
 
 
 class Files(Paginator):
-    """Files is an iterable collection of `File` objects."""
+    """An iterable collection of `File` objects."""
 
     QUERY = gql(
         """
@@ -1708,7 +1720,7 @@ class File(object):
         return 0
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
@@ -2025,7 +2037,7 @@ class HistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
@@ -2092,7 +2104,7 @@ class SampledHistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
@@ -2472,6 +2484,8 @@ class ArtifactCollection(object):
         self.name = name
         self.type = type
         self._attrs = attrs
+        if self._attrs is None:
+            self.load()
 
     @property
     def id(self):
@@ -2488,6 +2502,47 @@ class ArtifactCollection(object):
             self.type,
             per_page=per_page,
         )
+
+    def load(self):
+        query = gql(
+            """
+        query ArtifactCollection(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $artifactCollectionName: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactSequence(name: $artifactCollectionName) {
+                        id
+                        name
+                        description
+                        createdAt
+                    }
+                }
+            }
+        }
+        """
+        )
+        response = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactTypeName": self.type,
+                "artifactCollectionName": self.name,
+            },
+        )
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("artifactType") is None
+            or response["project"]["artifactType"].get("artifactSequence") is None
+        ):
+            raise ValueError("Could not find artifact type %s" % self.type)
+        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        return self._attrs
 
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
@@ -2569,6 +2624,8 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
 
 class Artifact(artifacts.Artifact):
     """
+    A wandb Artifact.
+
     An artifact that has been logged, including all its attributes, links to the runs
     that use it, and a link to the run that logged it.
 

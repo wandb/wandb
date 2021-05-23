@@ -112,7 +112,7 @@ env_settings = dict(
 )
 
 env_convert = dict(
-    run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","),
+    run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(",")
 )
 
 
@@ -460,7 +460,7 @@ class Settings(object):
 
     @property
     def _kaggle(self):
-        is_kaggle = util._is_kaggle()
+        is_kaggle = util._is_likely_kaggle()
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
             assert isinstance(is_kaggle, bool)
         return is_kaggle
@@ -581,25 +581,14 @@ class Settings(object):
         return _error_choices(value, set(available_methods))
 
     def _validate_mode(self, value):
-        choices = {
-            "dryrun",
-            "run",
-            "offline",
-            "online",
-            "disabled",
-        }
+        choices = {"dryrun", "run", "offline", "online", "disabled"}
         if value in choices:
             return None
         return _error_choices(value, choices)
 
     def _validate_console(self, value):
         # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
-        choices = {
-            "auto",
-            "redirect",
-            "off",
-            "wrap",
-        }
+        choices = {"auto", "redirect", "off", "wrap"}
         if value in choices:
             return None
         return _error_choices(value, choices)
@@ -723,6 +712,14 @@ class Settings(object):
         if _logger:
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
+
+    def _apply_setup(
+        self, setup_settings, _logger = None
+    ):
+        # TODO: add logger for coverage
+        # if _logger:
+        #     _logger.info("setting setup settings: {}".format(setup_settings))
+        self._update(setup_settings, _source=self.Source.SETUP)
 
     def _path_convert_part(
         self, path_part, format_dict
@@ -1022,7 +1019,7 @@ class Settings(object):
     def _apply_login(
         self, args, _logger = None
     ):
-        param_map = dict(key="api_key", host="base_url",)
+        param_map = dict(key="api_key", host="base_url")
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
 

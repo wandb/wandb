@@ -45,10 +45,6 @@ if PY3:
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
-# whaaaaat depends on prompt_toolkit < 2, ipython now uses > 2 so we vendored for now
-# DANGER this changes the sys.path so we should never do this in a user script
-whaaaaat = util.vendor_import("whaaaaat")
-
 
 # TODO: turn this on in a cleaner way
 # right now we will litter the filesystem with wandb dirs
@@ -130,16 +126,11 @@ def prompt_for_project(ctx, entity):
             # description = editor()
             project = api.upsert_project(project, entity=entity)["name"]
         else:
-            project_names = [project["name"] for project in result]
-            question = {
-                "type": "list",
-                "name": "project_name",
-                "message": "Which project should we use?",
-                "choices": project_names + ["Create New"],
-            }
-            result = whaaaaat.prompt([question])
+            project_names = [project["name"] for project in result] + ["Create New"]
+            wandb.termlog("Which project should we use?")
+            result = util.prompt_choices(project_names)
             if result:
-                project = result["project_name"]
+                project = result
             else:
                 project = "Create New"
             # TODO: check with the server if the project exists
@@ -150,7 +141,7 @@ def prompt_for_project(ctx, entity):
                 # description = editor()
                 project = api.upsert_project(project, entity=entity)["name"]
 
-    except wandb.errors.error.CommError as e:
+    except wandb.errors.CommError as e:
         raise ClickException(str(e))
 
     return project
@@ -362,19 +353,14 @@ def init(ctx, project, entity, reset, mode):
 
     # At this point we should be logged in successfully.
     if len(viewer["teams"]["edges"]) > 1:
-        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]]
-        question = {
-            "type": "list",
-            "name": "team_name",
-            "message": "Which team should we use?",
-            "choices": team_names
-            # TODO(jhr): disabling manual entry for cling
-            # 'choices': team_names + ["Manual Entry"]
-        }
-        result = whaaaaat.prompt([question])
+        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
+            "Manual entry"
+        ]
+        wandb.termlog("Which team should we use?",)
+        result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
-            entity = result["team_name"]
+            entity = result
         else:
             entity = "Manual Entry"
         if entity == "Manual Entry":
@@ -664,7 +650,31 @@ def sync(
 @click.option("--program", default=False, help="Set sweep program")
 @click.option("--settings", default=False, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
-@click.argument("config_yaml")
+@click.option(
+    "--stop",
+    is_flag=True,
+    default=False,
+    help="Finish a sweep to stop running new runs and let currently running runs finish.",
+)
+@click.option(
+    "--cancel",
+    is_flag=True,
+    default=False,
+    help="Cancel a sweep to kill all running runs and stop running new runs.",
+)
+@click.option(
+    "--pause",
+    is_flag=True,
+    default=False,
+    help="Pause a sweep to temporarily stop running new runs.",
+)
+@click.option(
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="Resume a sweep to continue running new runs.",
+)
+@click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
     ctx,
@@ -676,8 +686,48 @@ def sweep(
     program,
     settings,
     update,
-    config_yaml,
+    stop,
+    cancel,
+    pause,
+    resume,
+    config_yaml_or_sweep_id,
 ):  # noqa: C901
+    state_args = "stop", "cancel", "pause", "resume"
+    lcls = locals()
+    is_state_change_command = sum((lcls[k] for k in state_args))
+    if is_state_change_command > 1:
+        raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
+    elif is_state_change_command == 1:
+        sweep_id = config_yaml_or_sweep_id
+        api = _get_cling_api()
+        if api.api_key is None:
+            wandb.termlog("Login to W&B to use the sweep feature")
+            ctx.invoke(login, no_offline=True)
+            api = _get_cling_api(reset=True)
+        parts = dict(entity=entity, project=project, name=sweep_id)
+        err = util.parse_sweep_id(parts)
+        if err:
+            wandb.termerror(err)
+            return
+        entity = parts.get("entity") or entity
+        project = parts.get("project") or project
+        sweep_id = parts.get("name") or sweep_id
+        state = [s for s in state_args if lcls[s]][0]
+        ings = {
+            "stop": "Stopping",
+            "cancel": "Cancelling",
+            "pause": "Pausing",
+            "resume": "Resuming",
+        }
+        wandb.termlog(
+            "%s sweep %s." % (ings[state], "%s/%s/%s" % (entity, project, sweep_id))
+        )
+        getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
+        wandb.termlog("Done.")
+        return
+    else:
+        config_yaml = config_yaml_or_sweep_id
+
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
