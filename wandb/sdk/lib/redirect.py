@@ -469,7 +469,7 @@ class TerminalEmulator(object):
                     )
                     + os.linesep
                 )
-        if num_lines > self._MAX_LINES and False:
+        if num_lines > self._MAX_LINES:
             shift = num_lines - self._MAX_LINES
             for i in range(shift, num_lines):
                 self.buffer[i - shift] = self.buffer[i]
@@ -477,7 +477,7 @@ class TerminalEmulator(object):
                 if i in self.buffer:
                     del self.buffer[i]
             self.cursor.y -= min(self.cursor.y, shift)
-            num_lines = self._MAX_LINES
+            self._num_lines = num_lines = self._MAX_LINES
         self._prev_num_lines = num_lines
         self._prev_last_line = self._get_line(num_lines - 1)
         return ret
