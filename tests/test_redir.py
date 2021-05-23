@@ -333,7 +333,6 @@ def test_memory_leak(cls, capfd):
         r.install()
         for i in range(10000):
             print("ABCDEFGH")
-        while len(o) < 10000:
-            time.sleep(1)
+        time.sleep(3)
         assert len(run._out_redir._emulator.buffer) <= 100
         r.uninstall()
