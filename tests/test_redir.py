@@ -329,7 +329,7 @@ def test_no_numpy(console_settings, capfd, runner):
 def test_memory_leak(console_settings, capfd, runner):
     with capfd.disabled():
         run = wandb.init(settings=console_settings)
-        for i in range(100000):
+        for i in range(10000):
             print("ABCDEFGH")
         time.sleep(1)
         assert len(run._out_redir._emulator.buffer) <= 100
