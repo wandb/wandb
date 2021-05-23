@@ -255,9 +255,9 @@ def test_offline_compression(console_settings, capfd, runner):
         print("YUIOP")
         print("12345")
 
-        time.sleep(1)
-
         print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
+
+        time.sleep(1)
 
         run.finish()
         binary_log_file = (
