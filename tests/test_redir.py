@@ -329,7 +329,7 @@ def test_no_numpy(console_settings, capfd, runner):
 def test_memory_leak(cls, capfd):
     with capfd.disabled():
         o = CapList()
-        r = cls("stdout", o.append)
+        r = cls("stdout", cbs=[o.append])
         r.install()
         for i in range(10000):
             print("ABCDEFGH")
