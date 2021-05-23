@@ -470,7 +470,7 @@ class TerminalEmulator(object):
                     + os.linesep
                 )
         if num_lines > self._MAX_LINES:
-            shift = self._MAX_LINES - num_lines
+            shift = num_lines - self._MAX_LINES
             for i in range(shift, num_lines):
                 self.buffer[i - shift] = self.buffer[i]
             for i in range(self.MAX_LINES, max(self.buffer.keys())):
@@ -808,9 +808,12 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            with self._queue.mutex:
-                data = list(self._queue.queue)
-                self._queue.queue.clear()
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.pop())
+            # with self._queue.mutex:
+            #     data = list(self._queue.queue)
+            #     self._queue.queue.clear()
             if self._stopped.is_set() and sum(map(len, data)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
