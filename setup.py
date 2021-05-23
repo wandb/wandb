@@ -21,10 +21,11 @@ aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
+sweeps_requirements = ['numpy']
 
 setup(
     name='wandb',
-    version='0.10.30.dev1',
+    version='0.10.31.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -77,7 +78,8 @@ setup(
         'gcp': gcp_requirements,
         'aws': aws_requirements,
         'grpc': grpc_requirements,
-        'media': media_requirements
+        'media': media_requirements,
+        'sweeps': sweeps_requirements
     }
 )
 
