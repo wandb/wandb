@@ -1,6 +1,5 @@
 import pytest
 import wandb
-import numpy as np
 
 
 @pytest.fixture
@@ -23,6 +22,7 @@ def test_summary_setitem(api, mock_server):
 
 
 def test_summary_media_setitem(api, mock_server):
+    import numpy as np
     run = api.runs("test/test")[0]
     with pytest.raises(Exception) as excinfo:
         run.summary["img"] = wandb.Image(np.random.random((100, 100)))
