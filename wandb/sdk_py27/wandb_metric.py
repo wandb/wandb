@@ -43,6 +43,8 @@ class Metric(object):
         self._callback = None
         self._name = name
         self._step_metric = step_metric
+        # default to step_sync=True if step metric is set
+        step_sync = step_sync if step_sync is not None else step_metric is not None
         self._step_sync = step_sync
         self._hidden = hidden
         self._summary = summary

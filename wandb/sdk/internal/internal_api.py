@@ -24,10 +24,11 @@ import wandb
 from wandb import __version__
 from wandb import env
 from wandb.old.settings import Settings
-from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
+from wandb.integration.sagemaker import parse_sm_secrets
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -59,6 +60,7 @@ class Api(object):
         load_settings=True,
         retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
+        retry_callback=None,
     ):
         self._environ = environ
         self.default_settings = {
@@ -79,12 +81,12 @@ class Api(object):
         if not (
             base_url.endswith("api.wandb.ai") or base_url.endswith("api.wandb.ai/")
         ):
-            retry_warning = (
+            local_instance_warning = (
                 "Unable to reach wandb local instance at %s. If you want to login to wandb cloud (https://api.wandb.ai) instead, run `wandb login --cloud`."
                 % base_url
             )
         else:
-            retry_warning = None
+            local_instance_warning = None
 
         self.git = GitRepo(remote=self.settings("git_remote"))
         # Mutable settings set by the _file_stream_api
@@ -108,18 +110,19 @@ class Api(object):
                 url="%s/graphql" % self.settings("base_url"),
             )
         )
-
-        self.gql = retry.Retry(
-            self.execute,
-            retry_timedelta=retry_timedelta,
-            check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(
-                RetryError,
-                requests.RequestException,
-                json.JSONDecodeError if sys.version_info[0] > 2 else ValueError,
-            ),
-            retry_warning=retry_warning,
-        )
+        self.retry_callback = retry_callback
+        try:
+            self.gql = retry.Retry(
+                self.execute,
+                retry_timedelta=retry_timedelta,
+                check_retry_fn=util.no_retry_auth,
+                retryable_exceptions=(RetryError, requests.RequestException,),
+                retry_warning=local_instance_warning,
+                retry_callback=retry_callback,
+            )
+        except Exception as e:
+            if local_instance_warning:
+                raise Exception(local_instance_warning)
         self._current_run_id = None
         self._file_stream_api = None
         # This Retry class is initialized once for each Api instance, so this
@@ -184,10 +187,12 @@ class Api(object):
         key = None
         if auth:
             key = auth[-1]
+
         # Environment should take precedence
         env_key = self._environ.get(env.API_KEY)
+        sagemaker_key = parse_sm_secrets().get(env.API_KEY)
         default_key = self.default_settings.get("api_key")
-        return env_key or key or default_key
+        return env_key or key or sagemaker_key or default_key
 
     @property
     def api_url(self):
@@ -1262,6 +1267,7 @@ class Api(object):
         obj_id=None,
         project=None,
         entity=None,
+        state=None,
     ):
         """Upsert a sweep object.
 
@@ -1286,7 +1292,8 @@ class Api(object):
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
-            $scheduler: JSONString
+            $scheduler: JSONString,
+            $state: String
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -1295,7 +1302,8 @@ class Api(object):
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                scheduler: $scheduler
+                scheduler: $scheduler,
+                state: $state
             }) {
                 sweep {
                     name
@@ -1943,6 +1951,86 @@ class Api(object):
         )
 
         return response["notifyScriptableRunAlert"]["success"]
+
+    def get_sweep_state(self, sweep, entity=None, project=None):
+        return self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")[
+            "state"
+        ]
+
+    def set_sweep_state(self, sweep, state, entity=None, project=None):
+        state = state.upper()
+        assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
+        s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
+        curr_state = s["state"].upper()
+        if state == "RUNNING" and curr_state in ("CANCELED", "FINISHED"):
+            raise Exception("Cannot resume %s sweep." % curr_state.lower())
+        elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+            raise Exception("Cannot pause %s sweep." % curr_state.lower())
+        elif curr_state not in ("RUNNING", "PAUSED"):
+            raise Exception("Sweep already %s." % curr_state.lower())
+        sweep_id = s["id"]
+        mutation = gql(
+            """
+        mutation UpsertSweep(
+            $id: ID,
+            $state: String,
+            $entityName: String,
+            $projectName: String
+        ) {
+            upsertSweep(input: {
+                id: $id,
+                state: $state,
+                entityName: $entityName,
+                projectName: $projectName
+            }){
+                sweep {
+                    name
+                }
+            }
+        }
+        """
+        )
+        self.gql(
+            mutation,
+            variable_values={
+                "id": sweep_id,
+                "state": state,
+                "entityName": entity or self.settings("entity"),
+                "projectName": project or self.settings("project"),
+            },
+        )
+
+    def stop_sweep(self, sweep, entity=None, project=None):
+        """
+        Finish the sweep to stop running new runs and let currently running runs finish.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="FINISHED", entity=entity, project=project
+        )
+
+    def cancel_sweep(self, sweep, entity=None, project=None):
+        """
+        Cancel the sweep to kill all running runs and stop running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="CANCELED", entity=entity, project=project
+        )
+
+    def pause_sweep(self, sweep, entity=None, project=None):
+        """
+        Pause the sweep to temporarily stop running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="PAUSED", entity=entity, project=project
+        )
+
+    def resume_sweep(self, sweep, entity=None, project=None):
+        """
+        Resume the sweep to continue running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="RUNNING", entity=entity, project=project
+        )
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

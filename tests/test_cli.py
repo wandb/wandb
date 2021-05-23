@@ -844,6 +844,27 @@ def test_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
+# TODO Investigate unrelated tests failing on Python 3.9
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
+)
+@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
+def test_sweep_pause(runner, mock_server, test_settings, stop_method):
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+    assert sweep_id == "test"
+    assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+    assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+    if stop_method == "stop":
+        assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+    else:
+        assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
+
+
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
@@ -859,7 +880,8 @@ def test_sync_tensorboard(runner, live_mock_server):
         ctx = live_mock_server.get_ctx()
         print(ctx)
         assert (
-            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 17
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"])
+            == 17
         )
 
         # Check the no sync tensorboard flag
@@ -885,7 +907,8 @@ def test_sync_tensorboard_big(runner, live_mock_server):
         ctx = live_mock_server.get_ctx()
         print(ctx)
         assert (
-            len(ctx["file_stream"][0]["files"]["wandb-history.jsonl"]["content"]) == 27
+            len(utils.first_filestream(ctx)["files"]["wandb-history.jsonl"]["content"])
+            == 27
         )
 
 
@@ -899,7 +922,10 @@ def test_sync_wandb_run(runner, live_mock_server):
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
-        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
+            == 1
+        )
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, ["--sync-all"])
@@ -925,7 +951,11 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
-        assert len(ctx["file_stream"][0]["files"]["wandb-events.jsonl"]["content"]) == 1
+        assert (
+            len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
+            == 1
+        )
+        assert ctx["file_bytes"]["code/standalone_tests/code-toad.py"] > 0
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, [run_dir])

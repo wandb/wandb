@@ -14,6 +14,7 @@ from . import utils
 from .utils import dummy_data
 import matplotlib
 from wandb import Api
+import time
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
@@ -45,7 +46,7 @@ def test_wb_value(live_mock_server, test_settings):
             "_type": "table",
             "data": [[]],
             "columns": [],
-            "column_types": wandb.data_types._dtypes.DictType({}).to_json(),
+            "column_types": wandb.data_types._dtypes.TypedDictType({}).to_json(),
         },
         public_art,
     )
@@ -808,6 +809,125 @@ def test_partitioned_table():
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
     assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
     assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+
+
+def test_table_column_style():
+    # Test Base Cases
+    table1 = wandb.Table(columns=[], data=[])
+    table1.add_column("number", [1, 2, 3])
+    table1.add_data(4)
+    with pytest.raises(AssertionError):
+        table1.add_column("strings", ["a"])
+    table1.add_column("strings", ["a", "b", "c", "d"])
+    table1.set_pk("strings")
+    table1.add_data(5, "e")
+    table1.add_column("np_numbers", np.array([101, 102, 103, 104, 105]))
+
+    assert table1.data == [
+        [1, "a", 101],
+        [2, "b", 102],
+        [3, "c", 103],
+        [4, "d", 104],
+        [5, "e", 105],
+    ]
+
+    assert table1.get_column("number") == [1, 2, 3, 4, 5]
+    assert table1.get_column("strings") == ["a", "b", "c", "d", "e"]
+    assert table1.get_column("np_numbers") == [101, 102, 103, 104, 105]
+
+    assert np.all(
+        table1.get_column("number", convert_to="numpy") == np.array([1, 2, 3, 4, 5])
+    )
+    assert np.all(
+        table1.get_column("strings", convert_to="numpy")
+        == np.array(["a", "b", "c", "d", "e"])
+    )
+    assert np.all(
+        table1.get_column("np_numbers", convert_to="numpy")
+        == np.array([101, 102, 103, 104, 105])
+    )
+
+    ndxs = table1.get_index()
+    assert ndxs == [0, 1, 2, 3, 4]
+    assert [ndx._table == table1 for ndx in ndxs]
+
+    # Test More Images and ndarrays
+    rand_1 = np.random.randint(255, size=(32, 32))
+    rand_2 = np.random.randint(255, size=(32, 32))
+    rand_3 = np.random.randint(255, size=(32, 32))
+    img_1 = wandb.Image(rand_1)
+    img_2 = wandb.Image(rand_2)
+    img_3 = wandb.Image(rand_3)
+
+    table2 = wandb.Table(columns=[], data=[])
+    table2.add_column("np_data", [rand_1, rand_2])
+    table2.add_column("image", [img_1, img_2])
+    table2.add_data(rand_3, img_3)
+
+    assert table2.data == [[rand_1, img_1], [rand_2, img_2], [rand_3, img_3]]
+    assert np.all(
+        table2.get_column("np_data", convert_to="numpy")
+        == np.array([rand_1, rand_2, rand_3])
+    )
+    assert table2.get_column("image") == [img_1, img_2, img_3]
+    a = table2.get_column("image", convert_to="numpy")
+    b = np.array([rand_1, rand_2, rand_3])
+    assert np.all(
+        table2.get_column("image", convert_to="numpy")
+        == np.array([rand_1, rand_2, rand_3])
+    )
+
+    table3 = wandb.Table(columns=[], data=[])
+    table3.add_column("table1_fk", table1.get_column("strings"))
+    assert table3.get_column("table1_fk")[0]._table == table1
+
+
+def test_ndarrays_in_tables():
+    rows = 10
+    d = 128
+    c = 3
+    nda_table = wandb.Table(
+        columns=["ndarray"], data=np.random.randint(255, size=(rows, 1, d, d, c))
+    )
+    nda_table.add_data(np.random.randint(255, size=(d, d, c)))
+    nda_table.add_data(np.random.randint(255, size=(d, d, c)).tolist())
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(d + 1, d, c)))
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(d + 1, d, c)).tolist())
+
+    assert any(
+        [
+            isinstance(t, wandb.data_types._dtypes.NDArrayType)
+            for t in nda_table._column_types.params["type_map"]["ndarray"].params[
+                "allowed_types"
+            ]
+        ]
+    )
+
+    nda_table = wandb.Table(columns=[], data=[])
+    nda_table.add_column(
+        "odd_col",
+        [[[i], [i]] for i in range(rows)] + [np.random.randint(255, size=(2, 1))],
+    )
+
+    assert isinstance(
+        nda_table._column_types.params["type_map"]["odd_col"],
+        wandb.data_types._dtypes.ListType,
+    )
+
+    nda_table.cast("odd_col", wandb.data_types._dtypes.NDArrayType(shape=(2, 1)))
+    nda_table.add_data(np.random.randint(255, size=(2, 1)))
+    nda_table.add_data(np.random.randint(255, size=(2, 1)).tolist())
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(2, 2)))
+    with pytest.raises(TypeError):
+        nda_table.add_data(np.random.randint(255, size=(2, 2)).tolist())
+
+    assert isinstance(
+        nda_table._column_types.params["type_map"]["odd_col"],
+        wandb.data_types._dtypes.NDArrayType,
+    )
 
 
 def test_table_logging(mocked_run, live_mock_server, test_settings, api):
