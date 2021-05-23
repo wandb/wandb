@@ -331,6 +331,6 @@ def test_memory_leak(console_settings, capfd, runner):
         run = wandb.init(settings=console_settings)
         for i in range(10000):
             print("ABCDEFGH")
-        time.sleep(3)
+        sys.stdout.flush()
         assert len(run._out_redir._emulator.buffer) <= 100
         run.finish()
