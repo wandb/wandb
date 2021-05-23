@@ -473,7 +473,7 @@ class TerminalEmulator(object):
             shift = num_lines - self._MAX_LINES
             for i in range(shift, num_lines):
                 self.buffer[i - shift] = self.buffer[i]
-            for i in range(self.MAX_LINES, max(self.buffer.keys())):
+            for i in range(self._MAX_LINES, max(self.buffer.keys())):
                 if i in self.buffer:
                     del self.buffer[i]
             self.cursor.y -= min(self.cursor.y, shift)
