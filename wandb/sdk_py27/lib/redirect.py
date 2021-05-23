@@ -810,7 +810,7 @@ class Redirect(RedirectBase):
                 continue
             data = []
             while not self._queue.empty():
-                data.append(self._queue.pop())
+                data.append(self._queue.get())
             # with self._queue.mutex:
             #     data = list(self._queue.queue)
             #     self._queue.queue.clear()
