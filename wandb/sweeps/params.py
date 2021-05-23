@@ -5,6 +5,8 @@ Hyperparameter search parameters
 import random
 import numpy as np
 from wandb.util import get_module
+from .util import is_nan_or_nan_string
+
 #import scipy.stats as stats
 
 
@@ -386,7 +388,8 @@ class HyperParameterSet(list):
             param = self.param_names_to_param[key]
             row = np.array([
                 (param.value_to_int(config[key]['value'])
-                if param.type == HyperParameter.CATEGORICAL else config[key]['value'])
+                if param.type == HyperParameter.CATEGORICAL else
+                float('nan') if is_nan_or_nan_string(config[key]['value']) else config[key]['value'])
                 if key in config else float('nan')
                 for config in runs_params
             ])
