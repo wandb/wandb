@@ -255,9 +255,9 @@ def test_offline_compression(console_settings, capfd, runner):
         print("YUIOP")
         print("12345")
 
-        time.sleep(1)
-
         print("\x1b[A\r\x1b[J\x1b[A\r\x1b[1J")
+
+        time.sleep(1)
 
         run.finish()
         binary_log_file = (
@@ -323,3 +323,14 @@ def test_no_numpy(console_settings, capfd, runner):
             ).stdout
         finally:
             wandb.wandb_sdk.lib.redirect.np = np
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+def test_memory_leak2(console_settings, capfd, runner):
+    with capfd.disabled():
+        run = wandb.init(settings=console_settings)
+        for i in range(1000):
+            print("ABCDEFGH")
+        time.sleep(3)
+        assert len(run._out_redir._emulator.buffer) < 1000
+        run.finish()

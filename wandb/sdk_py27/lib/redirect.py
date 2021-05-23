@@ -197,6 +197,8 @@ class TerminalEmulator(object):
     An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
     """
 
+    _MAX_LINES = 100
+
     def __init__(self):
         self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
         self.cursor = Cursor()
@@ -467,6 +469,15 @@ class TerminalEmulator(object):
                     )
                     + os.linesep
                 )
+        if num_lines > self._MAX_LINES:
+            shift = num_lines - self._MAX_LINES
+            for i in range(shift, num_lines):
+                self.buffer[i - shift] = self.buffer[i]
+            for i in range(self._MAX_LINES, max(self.buffer.keys())):
+                if i in self.buffer:
+                    del self.buffer[i]
+            self.cursor.y -= min(self.cursor.y, shift)
+            self._num_lines = num_lines = self._MAX_LINES
         self._prev_num_lines = num_lines
         self._prev_last_line = self._get_line(num_lines - 1)
         return ret
@@ -542,9 +553,9 @@ class StreamWrapper(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            with self._queue.mutex:
-                data = list(self._queue.queue)
-                self._queue.queue.clear()
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.get())
             if self._stopped.is_set() and sum(map(len, data)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
@@ -597,7 +608,7 @@ class StreamWrapper(RedirectBase):
             try:
                 data = self._emulator.read().encode("utf-8")
             except Exception:
-                return
+                pass
         if data:
             for cb in self.cbs:
                 try:
@@ -797,9 +808,9 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            with self._queue.mutex:
-                data = list(self._queue.queue)
-                self._queue.queue.clear()
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.get())
             if self._stopped.is_set() and sum(map(len, data)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
