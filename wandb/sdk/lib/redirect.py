@@ -808,9 +808,12 @@ class Redirect(RedirectBase):
                     return
                 time.sleep(0.5)
                 continue
-            with self._queue.mutex:
-                data = list(self._queue.queue)
-                self._queue.queue.clear()
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.pop())
+            # with self._queue.mutex:
+            #     data = list(self._queue.queue)
+            #     self._queue.queue.clear()
             if self._stopped.is_set() and sum(map(len, data)) > 100000:
                 wandb.termlog("Terminal output too large. Logging without processing.")
                 self.flush()
