@@ -123,6 +123,8 @@ class Api(object):
         except Exception as e:
             if local_instance_warning:
                 raise Exception(local_instance_warning)
+            else:
+                raise e
         self._current_run_id = None
         self._file_stream_api = None
         # This Retry class is initialized once for each Api instance, so this
