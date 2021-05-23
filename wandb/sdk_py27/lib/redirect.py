@@ -197,6 +197,8 @@ class TerminalEmulator(object):
     An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
     """
 
+    _MAX_LINES = 100
+
     def __init__(self):
         self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
         self.cursor = Cursor()
@@ -467,6 +469,15 @@ class TerminalEmulator(object):
                     )
                     + os.linesep
                 )
+        if num_lines > self._MAX_LINES:
+            shift = self._MAX_LINES - num_lines
+            for i in range(shift, num_lines):
+                self.buffer[i - shift] = self.buffer[i]
+            for i in range(self.MAX_LINES, max(self.buffer.keys())):
+                if i in self.buffer:
+                    del self.buffer[i]
+            self.cursor.y -= min(self.cursor.y, shift)
+            num_lines = self._MAX_LINES
         self._prev_num_lines = num_lines
         self._prev_last_line = self._get_line(num_lines - 1)
         return ret

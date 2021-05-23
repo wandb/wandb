@@ -323,3 +323,14 @@ def test_no_numpy(console_settings, capfd, runner):
             ).stdout
         finally:
             wandb.wandb_sdk.lib.redirect.np = np
+
+
+@pytest.mark.parametrize("console_settings", console_modes, indirect=True)
+def test_memory_leak(console_settings, capfd, runner):
+    with capfd.disabled():
+        run = wandb.init(settings=console_settings)
+        for i in range(100000):
+            print("ABCDEFGH")
+        time.sleep(1)
+        assert len(run._out_redir._emulator.buffer) <= 100
+        run.finish()
