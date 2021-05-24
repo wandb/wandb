@@ -178,21 +178,15 @@ class SyncThread(threading.Thread):
         # send all of our records like a boss
         
         while not handle_manager._record_q.empty():
-            
             data = handle_manager._record_q.get(block=True)
             handle_manager.handle(data)
             data = send_manager._record_q.get(block=True)
             send_manager.send(data)
-            # if len(data.history.ListFields()) != 0:
-            #     global_step = next(
-            #         data.history.item[i].value_json
-            #         for i in range(len(data.history.item))
-            #         if data.history.item[i].key == "global_step"
-            #     )
-            #     item = data.history.item.add()
-            #     item.key = "_step"
-            #     item.value_json = global_step
-            #send_manager.send(data)
+
+        # finish sending any data
+        while not send_manager._record_q.empty():
+            data = send_manager._record_q.get(block=True)
+            send_manager.send(data)
         sys.stdout.flush()
         handle_manager.finish()
         send_manager.finish()
