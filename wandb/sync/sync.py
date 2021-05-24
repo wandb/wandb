@@ -172,21 +172,28 @@ class SyncThread(threading.Thread):
         mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
         watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
-        print("Adding tf eventfile readers to each directory. This may take some time.")
+
         for tb in tb_logdirs:
             print("Adding watcher to event file", tb)
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
-        print("Sending all read data to WandB...")
-        # send all of our records like a boss
 
+        # send all of our records like a boss
+        progress_step = 0
+        spinner_states = ["-", "\\", "|", "/"]
+        line = " Uploading data to wandb\r"
         while not handle_manager._record_q.empty():
+
             data = handle_manager._record_q.get(block=True)
             handle_manager.handle(data)
             if not send_manager._record_q.empty():
                 data = send_manager._record_q.get(block=True)
                 send_manager.send(data)
+
+            print_line = spinner_states[progress_step % 4] + line
+            wandb.termlog(print_line, newline=False, prefix=True)
+            progress_step += 1
 
         # finish sending any data
         while not send_manager._record_q.empty():
