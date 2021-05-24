@@ -7,11 +7,11 @@ from __future__ import print_function
 import datetime
 import fnmatch
 import os
-import queue
 import sys
 import threading
 import time
 
+from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
