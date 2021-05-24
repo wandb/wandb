@@ -11,9 +11,6 @@ import queue
 import sys
 import threading
 import time
-from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface import BackendSender
-from wandb.sdk.internal.handler import HandleManager
 
 from six.moves.urllib.parse import quote as url_quote
 import wandb
@@ -28,10 +25,14 @@ if PY3:
     from wandb.sdk.internal import datastore
     from wandb.sdk.internal import sender
     from wandb.sdk.internal import tb_watcher
+    from wandb.sdk.interface import interface
+    from wandb.sdk.internal import handler
 else:
     from wandb.sdk_py27.internal import datastore
     from wandb.sdk_py27.internal import sender
     from wandb.sdk_py27.internal import tb_watcher
+    from wandb.sdk.interface import interface
+    from wandb.sdk.internal import handler
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -152,8 +153,8 @@ class SyncThread(threading.Thread):
         # we need to remake the SendManager and Backend Sender
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
-        new_interface = BackendSender(record_q)
-        send_manager = SendManager(
+        new_interface = interface.BackendSender(record_q)
+        send_manager = sender.SendManager(
             send_manager._settings, sender_record_q, queue.Queue(), new_interface
         )
         record = send_manager._interface._make_record(run=proto_run)
@@ -164,7 +165,7 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
 
-        handle_manager = HandleManager(
+        handle_manager = handler.HandleManager(
             settings, record_q, None, False, sender_record_q, None, new_interface
         )
 

@@ -106,7 +106,6 @@ def test_tf_log(mocked_run):
     assert all(isinstance(hist, wandb.Histogram) for hist in histos)
     assert summary == {
         "_step": 0,
-        "global_step": 0,
         "_runtime": summary["_runtime"],
         "_timestamp": summary["_timestamp"],
         "accuracy_1": 0.8799999952316284,
