@@ -253,9 +253,15 @@ class Api(object):
                 path_type = "runs"
             elif last == "sweeps":
                 path_type = "sweeps"
+            elif last == "reports":
+                path_type = "reports"
             elif parts[-1] == "sweeps":
                 path_type = "sweep"
                 sweep_id = last
+                parts.pop()
+            elif parts[-1] == "reports":
+                path_type = "report"
+                report_name = last
                 parts.pop()
             else:
                 if ":" in last:
@@ -297,6 +303,18 @@ class Api(object):
                     .project(name=project)
                     .sweeps()
                 )
+            elif path_type == "reports":
+                return (
+                    Entity(client=self._client, name=entity)
+                    .project(name=project)
+                    .reports(names=kwargs.get("names", []))
+                )
+            elif path_type == "report":
+                return (
+                    Entity(client=self._client, name=entity)
+                    .project(name=project)
+                    .report(name=report_name)
+                ) 
         else:
             project = kwargs.get("project", project)
             entity = kwargs.get("entity", entity)
@@ -308,7 +326,7 @@ class Api(object):
                     .run(run_id=run_id)
                 )
             elif "sweep" in kwargs or "sweep_id" in kwargs:
-                sweep_id = kwargs.get("sweep", kwargs["sweep_id"])
+                sweep_id = kwargs.get("sweep", kwargs.get("sweep_id"))
                 return (
                     Entity(client=self._client, name=entity)
                     .project(name=project)
@@ -318,6 +336,8 @@ class Api(object):
                 return Entity(client=self._client, name=entity).project(name=project)
             elif "entity" in kwargs:
                 return Entity(client=self._client, name=entity)
+            elif "report" in kwargs:
+                return Entity(client=self._client, name=entity).project(name=project).report(name=kwargs["report"])
             else:
                 # .get() returns default entity?
                 return Entity(client=self._client, name=entity)
@@ -515,7 +535,7 @@ class Project(Attrs):
             },
         )
 
-    def reports(self, names):
+    def reports(self, names=None):
         return Reports(client=self.client, project=self, names=names)
 
     def report(self, name):
