@@ -1249,6 +1249,7 @@ class Api(object):
         obj_id=None,
         project=None,
         entity=None,
+        state=None,
     ):
         """Upsert a sweep object.
 
@@ -1273,7 +1274,8 @@ class Api(object):
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
-            $scheduler: JSONString
+            $scheduler: JSONString,
+            $state: String
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -1282,7 +1284,8 @@ class Api(object):
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                scheduler: $scheduler
+                scheduler: $scheduler,
+                state: $state
             }) {
                 sweep {
                     name
@@ -1930,6 +1933,86 @@ class Api(object):
         )
 
         return response["notifyScriptableRunAlert"]["success"]
+
+    def get_sweep_state(self, sweep, entity=None, project=None):
+        return self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")[
+            "state"
+        ]
+
+    def set_sweep_state(self, sweep, state, entity=None, project=None):
+        state = state.upper()
+        assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
+        s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
+        curr_state = s["state"].upper()
+        if state == "RUNNING" and curr_state in ("CANCELED", "FINISHED"):
+            raise Exception("Cannot resume %s sweep." % curr_state.lower())
+        elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+            raise Exception("Cannot pause %s sweep." % curr_state.lower())
+        elif curr_state not in ("RUNNING", "PAUSED"):
+            raise Exception("Sweep already %s." % curr_state.lower())
+        sweep_id = s["id"]
+        mutation = gql(
+            """
+        mutation UpsertSweep(
+            $id: ID,
+            $state: String,
+            $entityName: String,
+            $projectName: String
+        ) {
+            upsertSweep(input: {
+                id: $id,
+                state: $state,
+                entityName: $entityName,
+                projectName: $projectName
+            }){
+                sweep {
+                    name
+                }
+            }
+        }
+        """
+        )
+        self.gql(
+            mutation,
+            variable_values={
+                "id": sweep_id,
+                "state": state,
+                "entityName": entity or self.settings("entity"),
+                "projectName": project or self.settings("project"),
+            },
+        )
+
+    def stop_sweep(self, sweep, entity=None, project=None):
+        """
+        Finish the sweep to stop running new runs and let currently running runs finish.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="FINISHED", entity=entity, project=project
+        )
+
+    def cancel_sweep(self, sweep, entity=None, project=None):
+        """
+        Cancel the sweep to kill all running runs and stop running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="CANCELED", entity=entity, project=project
+        )
+
+    def pause_sweep(self, sweep, entity=None, project=None):
+        """
+        Pause the sweep to temporarily stop running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="PAUSED", entity=entity, project=project
+        )
+
+    def resume_sweep(self, sweep, entity=None, project=None):
+        """
+        Resume the sweep to continue running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="RUNNING", entity=entity, project=project
+        )
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""
