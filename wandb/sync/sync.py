@@ -31,8 +31,8 @@ else:
     from wandb.sdk_py27.internal import datastore
     from wandb.sdk_py27.internal import sender
     from wandb.sdk_py27.internal import tb_watcher
-    from wandb.sdk.interface import interface
-    from wandb.sdk.internal import handler
+    from wandb.sdk_py27.interface import interface
+    from wandb.sdk_py27.internal import handler
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
