@@ -125,7 +125,7 @@ class HandleManager(object):
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
             self._sender_q.put(record)
-        if not record.control.local:
+        if not record.control.local and self._writer_q:
             self._writer_q.put(record)
 
     def debounce(self) -> None:

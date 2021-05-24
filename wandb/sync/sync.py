@@ -7,9 +7,13 @@ from __future__ import print_function
 import datetime
 import fnmatch
 import os
+import queue
 import sys
 import threading
 import time
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.interface.interface import BackendSender
+from wandb.sdk.internal.handler import HandleManager
 
 from six.moves.urllib.parse import quote as url_quote
 import wandb
@@ -135,7 +139,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
-
+        
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
             url_quote(proto_run.entity),
@@ -144,6 +148,11 @@ class SyncThread(threading.Thread):
         )
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
+        
+        record_q = queue.Queue()
+        sender_record_q = queue.Queue()
+        new_interface = BackendSender(record_q)
+        send_manager = SendManager(send_manager._settings, sender_record_q, queue.Queue(), new_interface)
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
             root_dir=TMPDIR.name,
@@ -151,11 +160,13 @@ class SyncThread(threading.Thread):
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
         )
-        mkdir_exists_ok(settings.files_dir)
 
+        handle_manager = HandleManager(settings, record_q, None, False, sender_record_q, None, new_interface)
+        
+        mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
         watcher = tb_watcher.TBWatcher(
-            settings, proto_run, send_manager._interface, True
+            settings, proto_run, new_interface, True
         )
         print("Adding tf eventfile readers to each directory. This may take some time.")
         for tb in tb_logdirs:
@@ -165,20 +176,25 @@ class SyncThread(threading.Thread):
         watcher.finish()
         print("Sending all read data to WandB...")
         # send all of our records like a boss
-        while not send_manager._interface.record_q.empty():
-            data = send_manager._interface.record_q.get(block=True)
-            if len(data.history.ListFields()) != 0:
-                # this will always exist since tb_watcher injects global_step into each record
-                global_step = next(
-                    data.history.item[i].value_json
-                    for i in range(len(data.history.item))
-                    if data.history.item[i].key == "global_step"
-                )
-                item = data.history.item.add()
-                item.key = "_step"
-                item.value_json = global_step
+        
+        while not handle_manager._record_q.empty():
+            
+            data = handle_manager._record_q.get(block=True)
+            handle_manager.handle(data)
+            data = send_manager._record_q.get(block=True)
             send_manager.send(data)
+            # if len(data.history.ListFields()) != 0:
+            #     global_step = next(
+            #         data.history.item[i].value_json
+            #         for i in range(len(data.history.item))
+            #         if data.history.item[i].key == "global_step"
+            #     )
+            #     item = data.history.item.add()
+            #     item.key = "_step"
+            #     item.value_json = global_step
+            #send_manager.send(data)
         sys.stdout.flush()
+        handle_manager.finish()
         send_manager.finish()
 
     def run(self):
