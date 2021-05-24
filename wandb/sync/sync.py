@@ -184,8 +184,9 @@ class SyncThread(threading.Thread):
         while not handle_manager._record_q.empty():
             data = handle_manager._record_q.get(block=True)
             handle_manager.handle(data)
-            data = send_manager._record_q.get(block=True)
-            send_manager.send(data)
+            if not send_manager._record_q.empty():
+                data = send_manager._record_q.get(block=True)
+                send_manager.send(data)
 
         # finish sending any data
         while not send_manager._record_q.empty():
