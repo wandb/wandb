@@ -139,7 +139,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
-        
+
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
             url_quote(proto_run.entity),
@@ -148,11 +148,14 @@ class SyncThread(threading.Thread):
         )
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
-        
+        # this sucks, but if we want to add in the Handler specifically for tb case
+        # we need to remake the SendManager and Backend Sender
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
         new_interface = BackendSender(record_q)
-        send_manager = SendManager(send_manager._settings, sender_record_q, queue.Queue(), new_interface)
+        send_manager = SendManager(
+            send_manager._settings, sender_record_q, queue.Queue(), new_interface
+        )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
             root_dir=TMPDIR.name,
@@ -161,13 +164,13 @@ class SyncThread(threading.Thread):
             _start_time=time.time(),
         )
 
-        handle_manager = HandleManager(settings, record_q, None, False, sender_record_q, None, new_interface)
-        
+        handle_manager = HandleManager(
+            settings, record_q, None, False, sender_record_q, None, new_interface
+        )
+
         mkdir_exists_ok(settings.files_dir)
         send_manager.send_run(record, file_dir=settings.files_dir)
-        watcher = tb_watcher.TBWatcher(
-            settings, proto_run, new_interface, True
-        )
+        watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
         print("Adding tf eventfile readers to each directory. This may take some time.")
         for tb in tb_logdirs:
             print("Adding watcher to event file", tb)
@@ -176,7 +179,7 @@ class SyncThread(threading.Thread):
         watcher.finish()
         print("Sending all read data to WandB...")
         # send all of our records like a boss
-        
+
         while not handle_manager._record_q.empty():
             data = handle_manager._record_q.get(block=True)
             handle_manager.handle(data)

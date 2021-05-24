@@ -280,7 +280,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     # Always add the biggest global_step key for non-default namespaces
     if step > STEPS["global"]["step"]:
         STEPS["global"]["step"] = step
-    if namespace != "" or log_dict.get("global_step") is None:
+    if namespace != "":
         log_dict["global_step"] = STEPS["global"]["step"]
 
     # Keep internal step counter
