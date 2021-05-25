@@ -8,6 +8,7 @@ numpy
 matplotlib<3.3.3
 soundfile
 boto3
+mlflow
 google-cloud-storage
 moviepy; python_version >= '3.5'
 imageio; python_version >= '3.5'
