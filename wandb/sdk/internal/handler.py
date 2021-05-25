@@ -104,10 +104,10 @@ class HandleManager(object):
         self._metric_track = dict()
         self._metric_copy = dict()
 
-    def __next__(self):
+    def __next__(self) -> Record:
         return self._record_q.get(block=True)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._record_q.queue)
 
     def handle(self, record: Record) -> None:
