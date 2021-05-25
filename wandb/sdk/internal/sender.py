@@ -164,7 +164,7 @@ class SendManager(object):
         return self._record_q.get(block=True)
 
     def __len__(self):
-        return len(self._record_q.queue)
+        return self._record_q.qsize()
 
     def retry_callback(self, status, response_text):
         response = wandb_internal_pb2.HttpResponse()

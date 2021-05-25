@@ -108,7 +108,7 @@ class HandleManager(object):
         return self._record_q.get(block=True)
 
     def __len__(self):
-        return len(self._record_q.queue)
+        return self._record_q.qsize()
 
     def handle(self, record):
         record_type = record.WhichOneof("record_type")
