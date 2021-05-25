@@ -16,7 +16,7 @@ from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.util import check_and_warn_old, mkdir_exists_ok, to_forward_slash_path
+from wandb.util import check_and_warn_old, mkdir_exists_ok
 
 
 # TODO: consolidate dynamic imports
@@ -123,9 +123,8 @@ class SyncThread(threading.Thread):
                     if tb_dir not in tb_logdirs:
                         tb_logdirs.append(tb_dir)
                 if len(tb_logdirs) > 0:
-                    tb_root = to_forward_slash_path(
-                        os.path.dirname(os.path.commonprefix(tb_logdirs))
-                    )
+                    tb_root = os.path.dirname(os.path.commonprefix(tb_logdirs))
+
             elif TFEVENT_SUBSTRING in sync_item:
                 tb_root = os.path.dirname(os.path.abspath(sync_item))
                 tb_logdirs.append(tb_root)
@@ -149,8 +148,9 @@ class SyncThread(threading.Thread):
         )
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
-        # this sucks, but if we want to add in the Handler specifically for tb case
-        # we need to remake the SendManager and Backend Sender
+        # using a handler here automatically handles the step
+        # logic, adds summaries to the run, and handles different
+        # file types (like images)... but we need to remake the send_manager
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
         new_interface = interface.BackendSender(record_q)
@@ -174,7 +174,6 @@ class SyncThread(threading.Thread):
         watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
 
         for tb in tb_logdirs:
-            print("Adding watcher to event file", tb)
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
@@ -183,12 +182,11 @@ class SyncThread(threading.Thread):
         progress_step = 0
         spinner_states = ["-", "\\", "|", "/"]
         line = " Uploading data to wandb\r"
-        while not handle_manager._record_q.empty():
-
-            data = handle_manager._record_q.get(block=True)
+        while len(handle_manager) > 0:
+            data = next(handle_manager)
             handle_manager.handle(data)
-            if not send_manager._record_q.empty():
-                data = send_manager._record_q.get(block=True)
+            while len(send_manager) > 0:
+                data = next(send_manager)
                 send_manager.send(data)
 
             print_line = spinner_states[progress_step % 4] + line
@@ -196,8 +194,8 @@ class SyncThread(threading.Thread):
             progress_step += 1
 
         # finish sending any data
-        while not send_manager._record_q.empty():
-            data = send_manager._record_q.get(block=True)
+        while len(send_manager) > 0:
+            data = next(send_manager)
             send_manager.send(data)
         sys.stdout.flush()
         handle_manager.finish()

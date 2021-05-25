@@ -104,6 +104,12 @@ class HandleManager(object):
         self._metric_track = dict()
         self._metric_copy = dict()
 
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    def __len__(self):
+        return len(self._record_q.queue)
+
     def handle(self, record):
         record_type = record.WhichOneof("record_type")
         assert record_type

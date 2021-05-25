@@ -160,6 +160,12 @@ class SendManager(object):
             interface=publish_interface,
         )
 
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    def __len__(self):
+        return len(self._record_q.queue)
+
     def retry_callback(self, status, response_text):
         response = wandb_internal_pb2.HttpResponse()
         response.http_status_code = status
