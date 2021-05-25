@@ -104,9 +104,6 @@ class HandleManager(object):
         self._metric_track = dict()
         self._metric_copy = dict()
 
-    def __next__(self) -> Record:
-        return self._record_q.get(block=True)
-
     def __len__(self) -> int:
         return self._record_q.qsize()
 
@@ -641,3 +638,8 @@ class HandleManager(object):
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+
+    def __next__(self) -> Record:
+        return self._record_q.get(block=True)
+
+    next = __next__

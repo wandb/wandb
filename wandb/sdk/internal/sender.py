@@ -160,9 +160,6 @@ class SendManager(object):
             interface=publish_interface,
         )
 
-    def __next__(self):
-        return self._record_q.get(block=True)
-
     def __len__(self):
         return self._record_q.qsize()
 
@@ -953,3 +950,8 @@ class SendManager(object):
             "max_cli_version", None
         )
         return max_cli_version
+
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    next = __next__
