@@ -84,6 +84,7 @@ SYMBOLS_ROOT_OTHER = {
     "jupyter",
     "keras",
     "lightgbm",
+    "mlflow",
     "old",
     "patched",
     "plot",

@@ -125,6 +125,7 @@ def error_reporting_enabled():
 def sync_mlflow():
     return _env_as_bool(SYNC_MLFLOW, default=True)
 
+
 def get_error_reporting(default=True, env=None):
     if env is None:
         env = os.environ
