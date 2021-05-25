@@ -2450,7 +2450,11 @@ class _LazyArtifact(ArtifactInterface):
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
-        assert isinstance(self._instance, ArtifactInterface)
+        assert isinstance(
+            self._instance, ArtifactInterface
+        ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
+            resp.artifact_id, self._api.client.app_url()
+        )
         return self._instance
 
     @property
