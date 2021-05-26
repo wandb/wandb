@@ -957,13 +957,7 @@ class Settings(object):
         pass
 
     def __setattr__(self, name, value):
-        if name not in self.__dict__:
-            raise AttributeError(name)
-        if self.__frozen:
-            raise TypeError("Settings object is frozen")
-        value = self._perform_preprocess(name, value)
-        self._check_invalid(name, value)
-        object.__setattr__(self, name, value)
+        self._update({name: value}, _source=self.Source.SETTINGS)
 
     @classmethod
     def _property_keys(cls):
