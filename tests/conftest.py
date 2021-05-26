@@ -235,7 +235,6 @@ def test_settings(test_dir, mocker, live_mock_server):
         run_id=wandb.util.generate_id(),
         _start_datetime=datetime.datetime.now(),
     )
-    settings.setdefaults()
     yield settings
     # Just incase someone forgets to join in tests
     if wandb.run is not None:

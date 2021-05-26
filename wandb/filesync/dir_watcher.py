@@ -1,5 +1,6 @@
 import logging
 import os
+import fnmatch
 import six
 from six.moves import queue
 import time
@@ -315,5 +316,13 @@ class DirWatcher(object):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._dir)
+                ignored = False
+                for glb in self._settings.ignore_globs:
+                    if len(fnmatch.filter([save_name], glb)) > 0:
+                        ignored = True
+                        logger.info("ignored: %s matching glob %s", save_name, glb)
+                        break
+                if ignored:
+                    continue
                 logger.info("scan save: %s %s", file_path, save_name)
                 self._get_file_event_handler(file_path, save_name).finish()
