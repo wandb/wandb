@@ -709,6 +709,21 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query ArtifactCollection(" in body["query"]:
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "artifactSequence": {
+                                "id": "1",
+                                "name": "mnist",
+                                "description": "",
+                                "createdAt": datetime.now().isoformat(),
+                            }
+                        }
+                    }
+                }
+            }
         if "query RunArtifacts(" in body["query"]:
             if "inputArtifacts" in body["query"]:
                 key = "inputArtifacts"

@@ -57,7 +57,7 @@ from typing import List
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
-MAX_LINE_SIZE = 4 * 1024 * 1024 - 100 * 1024  # imposed by back end
+MAX_LINE_SIZE = 9 * 1024 * 1024 - 100 * 1024  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # these match the environments for gorilla

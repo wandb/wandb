@@ -650,7 +650,31 @@ def sync(
 @click.option("--program", default=False, help="Set sweep program")
 @click.option("--settings", default=False, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
-@click.argument("config_yaml")
+@click.option(
+    "--stop",
+    is_flag=True,
+    default=False,
+    help="Finish a sweep to stop running new runs and let currently running runs finish.",
+)
+@click.option(
+    "--cancel",
+    is_flag=True,
+    default=False,
+    help="Cancel a sweep to kill all running runs and stop running new runs.",
+)
+@click.option(
+    "--pause",
+    is_flag=True,
+    default=False,
+    help="Pause a sweep to temporarily stop running new runs.",
+)
+@click.option(
+    "--resume",
+    is_flag=True,
+    default=False,
+    help="Resume a sweep to continue running new runs.",
+)
+@click.argument("config_yaml_or_sweep_id")
 @display_error
 def sweep(
     ctx,
@@ -662,8 +686,48 @@ def sweep(
     program,
     settings,
     update,
-    config_yaml,
+    stop,
+    cancel,
+    pause,
+    resume,
+    config_yaml_or_sweep_id,
 ):  # noqa: C901
+    state_args = "stop", "cancel", "pause", "resume"
+    lcls = locals()
+    is_state_change_command = sum((lcls[k] for k in state_args))
+    if is_state_change_command > 1:
+        raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
+    elif is_state_change_command == 1:
+        sweep_id = config_yaml_or_sweep_id
+        api = _get_cling_api()
+        if api.api_key is None:
+            wandb.termlog("Login to W&B to use the sweep feature")
+            ctx.invoke(login, no_offline=True)
+            api = _get_cling_api(reset=True)
+        parts = dict(entity=entity, project=project, name=sweep_id)
+        err = util.parse_sweep_id(parts)
+        if err:
+            wandb.termerror(err)
+            return
+        entity = parts.get("entity") or entity
+        project = parts.get("project") or project
+        sweep_id = parts.get("name") or sweep_id
+        state = [s for s in state_args if lcls[s]][0]
+        ings = {
+            "stop": "Stopping",
+            "cancel": "Cancelling",
+            "pause": "Pausing",
+            "resume": "Resuming",
+        }
+        wandb.termlog(
+            "%s sweep %s." % (ings[state], "%s/%s/%s" % (entity, project, sweep_id))
+        )
+        getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
+        wandb.termlog("Done.")
+        return
+    else:
+        config_yaml = config_yaml_or_sweep_id
+
     def _parse_settings(settings):
         """settings could be json or comma seperated assignments."""
         ret = {}
@@ -845,22 +909,19 @@ RUN_CONTEXT["ignore_unknown_options"] = True
 @cli.command(context_settings=RUN_CONTEXT, name="docker-run")
 @click.pass_context
 @click.argument("docker_run_args", nargs=-1)
-@click.option("--help", is_flag=True)
-def docker_run(ctx, docker_run_args, help):
-    """Simple wrapper for `docker run` which sets W&B environment
-    Adds WANDB_API_KEY and WANDB_DOCKER to any docker run command.
+def docker_run(ctx, docker_run_args):
+    """Simple wrapper for `docker run` which adds WANDB_API_KEY and WANDB_DOCKER
+    environment variables to any docker run command.
+
     This will also set the runtime to nvidia if the nvidia-docker executable is present on the system
     and --runtime wasn't set.
+
+    See `docker run --help` for more details.
     """
     api = InternalApi()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
-    if help or len(args) == 0:
-        wandb.termlog("This commands adds wandb env variables to your docker run calls")
-        subprocess.call(["docker", "run"] + args + ["--help"])
-        exit()
-    #  TODO: is this what we want?
     if len([a for a in args if a.startswith("--runtime")]) == 0 and find_executable(
         "nvidia-docker"
     ):
