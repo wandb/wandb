@@ -78,9 +78,7 @@ class Api(object):
         )
 
         base_url = self.settings("base_url")
-        if not (
-            base_url.endswith("api.wandb.ai") or base_url.endswith("api.wandb.ai/")
-        ):
+        if "api.wandb.ai" not in base_url:
             local_instance_warning = (
                 "Unable to reach wandb local instance at %s. If you want to login to wandb cloud (https://api.wandb.ai) instead, run `wandb login --cloud`."
                 % base_url
@@ -111,20 +109,14 @@ class Api(object):
             )
         )
         self.retry_callback = retry_callback
-        try:
-            self.gql = retry.Retry(
-                self.execute,
-                retry_timedelta=retry_timedelta,
-                check_retry_fn=util.no_retry_auth,
-                retryable_exceptions=(RetryError, requests.RequestException,),
-                retry_warning=local_instance_warning,
-                retry_callback=retry_callback,
-            )
-        except Exception as e:
-            if local_instance_warning:
-                raise Exception(local_instance_warning)
-            else:
-                raise e
+        self.gql = retry.Retry(
+            self.execute,
+            retry_timedelta=retry_timedelta,
+            check_retry_fn=util.no_retry_auth,
+            retryable_exceptions=(RetryError, requests.RequestException,),
+            retry_warning=local_instance_warning,
+            retry_callback=retry_callback,
+        )
         self._current_run_id = None
         self._file_stream_api = None
         # This Retry class is initialized once for each Api instance, so this
