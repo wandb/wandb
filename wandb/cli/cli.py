@@ -35,7 +35,6 @@ from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
-from wandb.old.settings import Settings
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
@@ -213,16 +212,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     if host and not host.startswith("http"):
         raise ClickException("host must start with http(s)://")
 
-    _api = InternalApi()
-    if host == "https://api.wandb.ai" or (host is None and cloud):
-        _api.clear_setting("base_url", globally=True, persist=True)
-        # To avoid writing an empty local settings file, we only clear if it exists
-        if os.path.exists(Settings._local_path()):
-            _api.clear_setting("base_url", persist=True)
-    elif host:
-        host = host.rstrip("/")
-        # force relogin if host is specified
-        _api.set_setting("base_url", host, globally=True, persist=True)
+    wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
     key = key[0] if len(key) > 0 else None
     if key:
         relogin = True

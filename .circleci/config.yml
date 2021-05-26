@@ -108,7 +108,7 @@ workflows:
          toxenv: "py39"
       - win:
          name: "Windows (Python 3.7)"
-         toxenv: "py37"
+         toxenv: "py37,wincovercircle"
       - mac:
          name: "MacOS (Python 3.7)"
          toxenv: "py37"
