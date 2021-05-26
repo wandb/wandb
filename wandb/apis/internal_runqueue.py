@@ -667,6 +667,50 @@ class Api(object):
         return response["upsertModel"]["model"]
 
     @normalize_exceptions
+    def get_project_run_queues(self, entity, project):
+        query = gql("""
+        query Project($entity: String!, $projectName: String!){
+            project(entityName: $entity, name: $projectName) {
+                runQueues {
+                    id
+                    name
+                    createdBy
+                    access
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "projectName": project,
+            "entity": entity,
+        }
+        return self.gql(query, variable_values)["project"]["runQueues"]
+
+    @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql("""
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: String!, $createdBy: String!){
+            createRunQueue(input:{ entityName: $entity, projectName: $project, queueName: $queueName, createdBy: $createdBy, access: $access }) {
+                success
+                queueId
+            }
+            
+        }
+        """
+        )
+        created_by = env.get_username(env=self._environ)
+
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+            "createdBy": created_by
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
     def pop_from_run_queue(self, queue_name, entity=None, project=None):
         mutation = gql(
             """
@@ -1316,3 +1360,37 @@ class Api(object):
     def _flatten_edges(self, response):
         """Return an array from the nested graphql relay structure"""
         return [node["node"] for node in response["edges"]]
+
+    @normalize_exceptions
+    def get_run_info(self, entity, project, name):
+        query = gql("""
+        query Run($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    runInfo {
+                        program
+                        args
+                        os
+                        python
+                        colab
+                        executable
+                        codeSaved
+                        cpuCount
+                        gpuCount
+                        gpu
+                        git {
+                            remote
+                            commit
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "name": name
+        }
+        return self.gql(query, variable_values)["project"]["run"]["runInfo"]

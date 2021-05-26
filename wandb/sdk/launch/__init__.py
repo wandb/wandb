@@ -19,14 +19,15 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def run_agent(spec, agent="local", max_parallel=4, queue=None):
+def run_agent(spec, agent="local", queues=None):
+    print(spec)
     if not spec or len(spec) != 1 or len(spec[0].split("/")) != 2:
         wandb.termerror("Specify agent spec in the form: 'entity/project'")
         sys.exit(1)
     spec = spec[0]
     entity, project = spec.split("/")
 
-    agent = LaunchAgent(entity, project, agent, max_parallel, queue)
+    agent = LaunchAgent(entity, project, agent, queues)
     agent.verify()
     agent.loop()
 

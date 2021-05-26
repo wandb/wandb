@@ -1,3 +1,4 @@
+import getpass
 import os
 import tempfile
 import time
@@ -17,7 +18,7 @@ class LaunchAgent(object):
     STATE_MAP: Dict[str, State] = {}
 
     def __init__(
-        self, entity: str, project: str, backend: str, max: int = 4, queue: str = None
+        self, entity: str, project: str, backend: str, max: int = 4, queues: str = None
     ):
         self._entity = entity
         self._project = project
@@ -31,7 +32,26 @@ class LaunchAgent(object):
         self._running = 0
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
-        self._queue = queue or "asdf"
+        self._access = "user"
+        self.setup_run_queues(queues)
+
+    def setup_run_queues(self, queues):
+        project_run_queues = self._api.get_project_run_queues(self._entity, self._project)
+        existing_run_queue_names = set([run_queue["name"] for run_queue in project_run_queues])
+        if queues is None:
+            print("queues is none")
+            for queue in project_run_queues:
+                if queue["name"] == "default":
+                    self._queues = ["default"]
+                    return
+            self._api.create_run_queue(self._entity, self._project, "default", self._access)
+            self._queues = ["default"]
+            print(self._queues)
+        else:
+            for queue in queues:
+                if queue not in existing_run_queue_names:
+                    self._api.create_run_queue(self._entity, self._project, queue, self._access)
+                self._queues.append(queue)
 
     @property
     def job_ids(self):
@@ -40,10 +60,10 @@ class LaunchAgent(object):
     def verify(self):
         return self._backend.verify()
 
-    def check_queue(self):
+    def check_queue(self, queue):
         try:
             ups = self._api.pop_from_run_queue(
-                self._queue, entity=self._entity, project=self._project
+                queue, entity=self._entity, project=self._project
             )
         except Exception as e:
             print("Exception...", e)
@@ -113,18 +133,19 @@ wandb.log({"acc": 1})
     def run_job(self, job):
         # TODO: logger
         print("agent: got job", job)
-        spec = job.get("runSpec", {})
-        path = "."  # TODO: auto spec creation?  self._spec_to_project(spec)
-        version = None  # TODO: get commit from spec
-        params = None  # TODO: get parameters from spec
-        experiment_id = None  # TODO: likely used for grouping
+        # spec = job.get("runSpec", {})
+        # path = "."  # TODO: auto spec creation?  self._spec_to_project(spec)
+        # version = None  # TODO: get commit from spec
+        # params = None  # TODO: get parameters from spec
+        # experiment_id = None  # TODO: likely used for grouping
+        uri = "https://wandb.ai/{}/{}/runs/{}".format(job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
         run = self._backend.run(
-            path,
-            "main",
-            params,
-            version,
-            spec.get(self._backend_name, {}),
-            experiment_id,
+            uri,
+            "main.py",
+            backend_config=dict(BUILD_DOCKER=True),
+            experiment_id=None,
+            params=None,
+            version="1.0"
         )
         self._jobs[run.id] = run
         self._running += 1
@@ -134,14 +155,14 @@ wandb.log({"acc": 1})
         try:
             while True:
                 self._ticks += 1
-                if self._running >= self._max:
-                    job = None
-                else:
-                    job = self.check_queue()
+                for queue in self._queues:
+                    job = self.check_queue(queue)
+                    if job:
+                        break
                 if not job:
                     time.sleep(30)
-                    for job_id in self.job_ids:
-                        self._update_finished(job_id)
+                    # for job_id in self.job_ids:
+                        # self._update_finished(job_id)
                     if self._ticks % 2 == 0:
                         self.print_status()
                     continue

@@ -184,6 +184,10 @@ class Api(object):
     @property
     def app_url(self):
         return wandb.util.app_url(self.api_url)
+    
+    @property
+    def default_entity(self):
+        return self.settings("entity")
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -937,6 +941,7 @@ class Api(object):
             "name": name
         }
         return self.gql(query, variable_values)["project"]["run"]["runInfo"]
+
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):

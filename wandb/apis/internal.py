@@ -40,6 +40,10 @@ class Api(object):
         return self.api.app_url
 
     @property
+    def default_entity(self):
+        return self.api.default_entity
+
+    @property
     def git(self):
         return self.api.git
 
@@ -119,5 +123,6 @@ class Api(object):
     
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
+
 
 __all__ = ["Api"]
