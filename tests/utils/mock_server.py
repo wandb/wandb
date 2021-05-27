@@ -65,6 +65,7 @@ def run(ctx):
         created_at = datetime.now().isoformat()
 
     stopped = ctx.get("stopped", False)
+    base_url = request.url_root.rstrip("/")
 
     # for wandb_tests::wandb_restore_name_not_found
     # if there is a fileName query, and this query is for nofile.h5
@@ -79,7 +80,7 @@ def run(ctx):
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
-            "url": request.url_root.rstrip("/") + "/storage?file=nofile.h5",
+            "url": base_url + "/storage?file=nofile.h5",
         }
     else:
         fileNode = {
@@ -87,9 +88,8 @@ def run(ctx):
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
-            "url": request.url_root.rstrip("/")
-            + "/storage?file=%s" % ctx["requested_file"],
-            "directUrl": request.url_root.rstrip("/")
+            "url": base_url + "/storage?file=%s" % ctx["requested_file"],
+            "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
@@ -222,6 +222,7 @@ def set_ctx(ctx):
 
 
 def _bucket_config():
+    base_url = request.url_root.rstrip("/")
     return {
         "commit": "HEAD",
         "github": "https://github.com/vanpelt",
@@ -230,14 +231,13 @@ def _bucket_config():
             "edges": [
                 {
                     "node": {
-                        "directUrl": request.url_root
-                        + "/storage?file=wandb-metadata.json",
+                        "directUrl": base_url + "/storage?file=wandb-metadata.json",
                         "name": "wandb-metadata.json",
                     }
                 },
                 {
                     "node": {
-                        "directUrl": request.url_root + "/storage?file=diff.patch",
+                        "directUrl": base_url + "/storage?file=diff.patch",
                         "name": "diff.patch",
                     }
                 },
@@ -302,6 +302,7 @@ def create_app(user_ctx=None):
     def graphql():
         #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
         ctx = get_ctx()
+        base_url = request.url_root.rstrip("/")
         test_name = request.headers.get("X-WANDB-USERNAME")
         if test_name:
             app.logger.info("Test request from: %s", test_name)
@@ -330,7 +331,7 @@ def create_app(user_ctx=None):
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
-            url = request.url_root + "/storage?file={}&run={}".format(
+            url = base_url + "/storage?file={}&run={}".format(
                 urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
@@ -560,7 +561,7 @@ def create_app(user_ctx=None):
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
-                url = request.url_root + "/storage?file=%s" % file_spec["name"]
+                url = base_url + "/storage?file=%s" % file_spec["name"]
                 nodes.append(
                     {
                         "node": {
@@ -606,11 +607,11 @@ def create_app(user_ctx=None):
                 else "FULL",
                 "file": {
                     "id": 1,
-                    "directUrl": request.url_root
+                    "directUrl": base_url
                     + "/storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
-                    "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "uploadUrl": base_url + "/storage?file=wandb_manifest.json",
                     "uploadHeaders": "",
                 },
             }
@@ -624,11 +625,11 @@ def create_app(user_ctx=None):
                 else "FULL",
                 "file": {
                     "id": 1,
-                    "directUrl": request.url_root
+                    "directUrl": base_url
                     + "/storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
-                    "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "uploadUrl": base_url + "/storage?file=wandb_manifest.json",
                     "uploadHeaders": "",
                 },
             }
@@ -749,11 +750,11 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=request.url_root)
+            art = artifact(ctx, request_url_root=base_url)
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
-                    request_url_root=request.url_root,
+                    request_url_root=base_url,
                     id_override=body.get("variables", {}).get("id"),
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
@@ -775,7 +776,7 @@ def create_app(user_ctx=None):
                 "id": 1,
                 "file": {
                     "id": 1,
-                    "directUrl": request.url_root
+                    "directUrl": base_url
                     + "/storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),

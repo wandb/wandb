@@ -708,7 +708,6 @@ def no_retry_auth(e):
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
         return True
-    print("DAMN", e.response, e.response.content)
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
         raise CommError("Invalid or missing api_key.  Run wandb login")
