@@ -96,7 +96,7 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
                 f1, f2 = _split_file(f, num_lines)
                 current_volume[f1["name"]] = {
                     "offset": f1["offset"],
-                    "content": _get_content(f),
+                    "content": _get_content(f1),
                 }
                 files_stack.append(f2)
                 yield current_volume
