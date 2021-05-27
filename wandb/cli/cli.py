@@ -840,7 +840,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     return user_dict
 
 
-@cli.command()
+@cli.command(help="Launch a job on a specified resource")
 @click.argument("uri")
 @click.option(
     "--entry-point",
@@ -1013,7 +1013,7 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
     api = _get_cling_api()
     queues = queues.split(",")
     if api.api_key is None:
-        wandb.termlog("Login to W&B to use the sweep agent feature")
+        wandb.termlog("Login to W&B to use the launch agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
@@ -1023,6 +1023,18 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
         agent_spec = ["{}/{}".format(entity, project)]
     wandb.termlog("Starting {} agent ✨".format(launch_agent))
     wandb_launch.run_agent(agent_spec, queues=queues)
+
+
+@cli.command(help="Push a job onto the run queue for a specified resource")
+@click.argument("uri")
+@click.option("--config", "-c", default=None, help="Path to a user config")
+@click.option("--queue", "-q", default=None, help="Run queue to push to, defaults to project queue") # @@@ check defaults
+@click.option("--resource", "-r", default=None, help="Resource to run this job on, defaults to local machine")
+def push(uri):
+    try:
+        pass    # @@@ todo
+    except Exception:
+        pass
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
