@@ -39,19 +39,22 @@ class LaunchAgent(object):
         project_run_queues = self._api.get_project_run_queues(self._entity, self._project)
         existing_run_queue_names = set([run_queue["name"] for run_queue in project_run_queues])
         if queues is None:
-            print("queues is none")
             for queue in project_run_queues:
                 if queue["name"] == "default":
                     self._queues = ["default"]
                     return
-            self._api.create_run_queue(self._entity, self._project, "default", self._access)
+            res = self._api.create_run_queue(self._entity, self._project, "default", self._access)
+            success = res["success"]
             self._queues = ["default"]
-            print(self._queues)
         else:
             for queue in queues:
+                success = True
                 if queue not in existing_run_queue_names:
-                    self._api.create_run_queue(self._entity, self._project, queue, self._access)
-                self._queues.append(queue)
+                    success = False
+                    res = self._api.create_run_queue(self._entity, self._project, queue, self._access)
+                    success = res["success"]
+                if success:
+                    self._queues.append(queue)
 
     @property
     def job_ids(self):
@@ -112,6 +115,7 @@ class LaunchAgent(object):
         self._api.ack_run_queue_item(job["runQueueItemId"], run.id)
 
     def loop(self):
+        wandb.termlog("launch agent polling project {}/{} on queues: {}".format(self._entity, self._project, ",".join(self._queues)))
         try:
             while True:
                 self._ticks += 1
