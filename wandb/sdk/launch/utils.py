@@ -124,8 +124,8 @@ def generate_docker_image(project_spec, version, entry_cmd, api):
             path,
             '"{}"'.format(entry_cmd),
             ]
-
-    #if version:
+    # Is this needed here, version refers to the github commit
+    # if version:
     #    cmd.extend(['--ref', version])
     _logger.info('Generating docker image from git repo or finding image if it already exists..........')
     stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')

@@ -999,7 +999,7 @@ def launch(
 @click.pass_context
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.option("--queues", "-q", default="default", help="The queue name to use")
+@click.option("--queues", "-q", default="default", help="The queue names to poll")
 # @click.option(
 #     "--max",
 #     default=4,
@@ -1011,7 +1011,7 @@ def launch(
 @display_error
 def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=None, queues=None):
     api = _get_cling_api()
-
+    queues = queues.split(",")
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
@@ -1021,9 +1021,8 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
         project = project or "uncategorized"
         entity = entity or api.default_entity
         agent_spec = ["{}/{}".format(entity, project)]
-    launch_agent = agent or "local"
     wandb.termlog("Starting {} agent ✨".format(launch_agent))
-    wandb_launch.run_agent(agent_spec, launch_agent, queues=queues)
+    wandb_launch.run_agent(agent_spec, queues=queues)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

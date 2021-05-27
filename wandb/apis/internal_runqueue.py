@@ -1,5 +1,6 @@
 import ast
 import datetime
+import getpass
 import json
 import logging
 import os
@@ -699,8 +700,9 @@ class Api(object):
         }
         """
         )
-        created_by = env.get_username(env=self._environ)
-
+        created_by = getpass.getuser()
+        print("CREATED BY", created_by)
+        print(queue_name)
         variable_values = {
             "project": project,
             "entity": entity,
@@ -714,20 +716,23 @@ class Api(object):
     def pop_from_run_queue(self, queue_name, entity=None, project=None):
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName }) {
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $userName: String!)  {
+            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName, userName: $userName }) {
                 runQueueItemId
                 runSpec
             }
         }
         """
         )
+        
+        username = getpass.getuser()
         response = self.gql(
             mutation,
             variable_values={
                 "entity": entity,
                 "project": project,
                 "queueName": queue_name,
+                "userName": username
             },
         )
         return response["popFromRunQueue"]

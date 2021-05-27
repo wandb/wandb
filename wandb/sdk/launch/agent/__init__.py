@@ -11,21 +11,19 @@ from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 
 if wandb.TYPE_CHECKING:
-    from typing import Dict
+    from typing import Dict, Iterable
 
 
 class LaunchAgent(object):
     STATE_MAP: Dict[str, State] = {}
 
     def __init__(
-        self, entity: str, project: str, backend: str, max: int = 4, queues: str = None
+        self, entity: str, project: str, queues: Iterable[str] = None
     ):
         self._entity = entity
         self._project = project
         self._max = max
         self._api = internal_runqueue.Api()
-        self._backend_name = backend
-        self._backend = load_backend(backend, self._api)
         self._settings = Settings()
         self._jobs: Dict[str, AbstractRun] = {}
         self._ticks = 0
@@ -33,6 +31,8 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = "user"
+        self._queues = []
+        self._backend = None
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues):
@@ -92,60 +92,20 @@ class LaunchAgent(object):
         if self._jobs[job_id].get_status() in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
-    def _spec_to_project(self, spec):
-        # TODO: likely move this logic into the backend
-        root = tempfile.mkdtemp()
-        projo = os.path.join(root, "MLproject")
-        conda = os.path.join(root, "conda.yaml")
-        main = os.path.join(root, "main.py")
-        with open(projo, "w") as f:
-            f.write(
-                """
-name: auto
-conda_env: conda.yaml
-entry_points:
-  main:
-    command: "python main.py"
-            """
-            )
-        with open(conda, "w") as f:
-            f.write(
-                """
-dependencies:
-  - numpy>=1.14.3
-  - pandas>=1.0.0
-  - pip
-  - pip:
-    - wandb
-            """
-            )
-        with open(main, "w") as f:
-            f.write(
-                """
-import wandb
-
-wandb.init(project="test-launch")
-wandb.log({"acc": 1})
-            """
-            )
-        return root
-
     def run_job(self, job):
         # TODO: logger
         print("agent: got job", job)
-        # spec = job.get("runSpec", {})
-        # path = "."  # TODO: auto spec creation?  self._spec_to_project(spec)
-        # version = None  # TODO: get commit from spec
-        # params = None  # TODO: get parameters from spec
-        # experiment_id = None  # TODO: likely used for grouping
+        # parse job
         uri = "https://wandb.ai/{}/{}/runs/{}".format(job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
+        self._backend = load_backend(job["runSpec"]["resource"], self._api)
+        self.verify()
+        backend_config = dict(BUILD_DOCKER=True, USE_CONDA=False, SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
         run = self._backend.run(
             uri,
             "main.py",
-            backend_config=dict(BUILD_DOCKER=True),
-            experiment_id=None,
+            backend_config=backend_config,
             params=None,
-            version="1.0"
+            version=None
         )
         self._jobs[run.id] = run
         self._running += 1

@@ -75,7 +75,7 @@ class LocalSubmittedRun(AbstractRun):
 
 class LocalRunner(AbstractRunner):
     def run(
-        self, project_uri, entry_point, params, version, backend_config, experiment_id
+        self, project_uri, entry_point, params, version, backend_config, experiment_id=None
     ):
         run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
         build_docker = backend_config[PROJECT_BUILD_DOCKER]
@@ -91,7 +91,7 @@ class LocalRunner(AbstractRunner):
         if build_docker:
             project.name = 'test'        # todo this is just hardcoded rn
             entry_cmd = project.get_entry_point(entry_point).command
-            image_id = generate_docker_image(project, version, entry_cmd, self._api)
+            image_id = generate_docker_image(project, entry_cmd, self._api)
             project.docker_env = {'image': image_id}
 
         command_args = []
