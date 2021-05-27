@@ -1222,6 +1222,10 @@ class ParseCTX(object):
     def manifests_created(self):
         return self._ctx.get("manifests_created") or []
 
+    @property
+    def manifests_created_ids(self):
+        return [m["id"] for m in self.manifests_created]
+
 
 if __name__ == "__main__":
     app = create_app()
