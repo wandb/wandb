@@ -1260,12 +1260,15 @@ def handle_sweep_config_violations(warnings):
     warnings: list of str
         The warnings to render.
     """
+
     warning_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways. "
-        "To avoid this, please fix the sweep config schema violations below:\n\n"
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
+        "To avoid this, please fix the sweep config schema violations below:"
     )
+
     for i, warning in enumerate(warnings):
-        warning_base += "Violation {}. {}\n\n".format(i + 1, warning)
+        warnings[i] = "  Violation {}. {}".format(i + 1, warning)
+    warning = "\n".join([warning_base] + warnings)
 
     if len(warnings) > 0:
-        term.termwarn(warning_base)
+        term.termwarn(warning)

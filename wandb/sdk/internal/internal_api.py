@@ -1322,6 +1322,7 @@ class Api(object):
             body = json.loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
+        # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_3, mutation_2, mutation_1]
 
         for i, mutation in enumerate(mutations):
