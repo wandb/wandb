@@ -27,16 +27,17 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
         if size is None:
             size = 0
             content = file["content"]
-            for i in range(file["start"], file["end"]):
+            for i in range(file["_start"], file["_end"]):
                 size += _str_size(content[i])
             file["_size"] = size
         return size
 
     def _split_file(file, num_lines):
         f1 = file.copy()
-        f1["end"] = f1["start"] + num_lines
+        f1["_end"] = f1["_start"] + num_lines
         f2 = file.copy()
-        f2["start"] += num_lines
+        f2["_start"] += num_lines
+        f2["offset"] += num_lines
         f2["_size"] = file["_size"] - _file_size(f1)
         return f1, f2
 
@@ -44,8 +45,8 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
         size = 0
         num_lines = 0
         content = file["content"]
-        start = file["start"]
-        end = file["end"]
+        start = file["_start"]
+        end = file["_end"]
         while start + num_lines < end:
             size += _str_size(content[start + num_lines])
             if size > num_bytes:
@@ -55,8 +56,8 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
 
     def _get_content(file):
         c = file["content"]
-        s = file["start"]
-        e = file["end"]
+        s = file["_start"]
+        e = file["_end"]
         if s == 0 and e == len(c):
             return c
         return c[s:e]
@@ -66,8 +67,8 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
             "name": k,
             "offset": v["offset"],
             "content": v["content"],
-            "start": 0,
-            "end": len(v["content"]),
+            "_start": 0,
+            "_end": len(v["content"]),
         }
         for k, v in files.items()
     ]
