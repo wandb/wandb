@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-We're no longer patching versions of the library <= the 0.9.x series of the wandb library.  
+We're no longer patching versions of the library <= the 0.9.x series.  
 
 | Version | Supported          |
 | ------- | ------------------ |
