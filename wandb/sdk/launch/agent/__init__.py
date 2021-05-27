@@ -25,6 +25,7 @@ class LaunchAgent(object):
         self._max = max
         self._api = internal_runqueue.Api()
         self._settings = Settings()
+        self._base_url = self._api._settings.get("default", "base_url")
         self._jobs: Dict[str, AbstractRun] = {}
         self._ticks = 0
         self._running = 0
@@ -99,7 +100,8 @@ class LaunchAgent(object):
         # TODO: logger
         print("agent: got job", job)
         # parse job
-        uri = "https://wandb.ai/{}/{}/runs/{}".format(job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
+        
+        uri = "{}/{}/{}/runs/{}".format(self._base_url, job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
         self._backend = load_backend(job["runSpec"]["resource"], self._api)
         self.verify()
         backend_config = dict(BUILD_DOCKER=True, USE_CONDA=False, SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
