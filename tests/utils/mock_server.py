@@ -79,7 +79,7 @@ def run(ctx):
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
-            "url": request.url_root + "/storage?file=nofile.h5",
+            "url": request.url_root + "storage?file=nofile.h5",
         }
     else:
         fileNode = {
@@ -87,9 +87,9 @@ def run(ctx):
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
-            "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
+            "url": request.url_root + "storage?file=%s" % ctx["requested_file"],
             "directUrl": request.url_root
-            + "/storage?file=%s&direct=true" % ctx["requested_file"],
+            + "storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
     return {
@@ -156,7 +156,7 @@ def artifact(
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
-                + "/storage?file=wandb_manifest.json&id={}".format(_id)
+                + "storage?file=wandb_manifest.json&id={}".format(_id)
             }
         },
     }
@@ -230,13 +230,13 @@ def _bucket_config():
                 {
                     "node": {
                         "directUrl": request.url_root
-                        + "/storage?file=wandb-metadata.json",
+                        + "storage?file=wandb-metadata.json",
                         "name": "wandb-metadata.json",
                     }
                 },
                 {
                     "node": {
-                        "directUrl": request.url_root + "/storage?file=diff.patch",
+                        "directUrl": request.url_root + "storage?file=diff.patch",
                         "name": "diff.patch",
                     }
                 },
@@ -329,7 +329,7 @@ def create_app(user_ctx=None):
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
-            url = request.url_root + "/storage?file={}&run={}".format(
+            url = request.url_root + "storage?file={}&run={}".format(
                 urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
@@ -559,7 +559,7 @@ def create_app(user_ctx=None):
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
-                url = request.url_root + "/storage?file=%s" % file_spec["name"]
+                url = request.url_root + "storage?file=%s" % file_spec["name"]
                 nodes.append(
                     {
                         "node": {
@@ -606,10 +606,10 @@ def create_app(user_ctx=None):
                 "file": {
                     "id": 1,
                     "directUrl": request.url_root
-                    + "/storage?file=wandb_manifest.json&name={}".format(
+                    + "storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
-                    "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "uploadUrl": request.url_root + "storage?file=wandb_manifest.json",
                     "uploadHeaders": "",
                 },
             }
@@ -624,10 +624,10 @@ def create_app(user_ctx=None):
                 "file": {
                     "id": 1,
                     "directUrl": request.url_root
-                    + "/storage?file=wandb_manifest.json&name={}".format(
+                    + "storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
-                    "uploadUrl": request.url_root + "/storage?file=wandb_manifest.json",
+                    "uploadUrl": request.url_root + "storage?file=wandb_manifest.json",
                     "uploadHeaders": "",
                 },
             }
@@ -775,7 +775,7 @@ def create_app(user_ctx=None):
                 "file": {
                     "id": 1,
                     "directUrl": request.url_root
-                    + "/storage?file=wandb_manifest.json&name={}".format(
+                    + "storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
                 },
@@ -1219,6 +1219,10 @@ class ParseCTX(object):
     @property
     def manifests_created(self):
         return self._ctx.get("manifests_created") or []
+
+    @property
+    def manifests_created_ids(self):
+        return [m["id"] for m in self.manifests_created]
 
 
 if __name__ == "__main__":
