@@ -260,6 +260,25 @@ class Notebook(object):
             {"data": b64_data, "metadata": data_with_metadata["metadata"]}
         )
 
+    def probe_ipynb(self):
+        """Return notebook as dict or None."""
+        relpath = self.settings._jupyter_path
+        if relpath:
+            if os.path.exists(relpath):
+                with open(relpath, "r") as json_file:
+                    data = json.load(json_file)
+                    return data
+
+        colab_ipynb = attempt_colab_load_ipynb()
+        if colab_ipynb:
+            return colab_ipynb
+
+        kaggle_ipynb = attempt_kaggle_load_ipynb()
+        if kaggle_ipynb and len(kaggle_ipynb["cells"]) > 0:
+            return kaggle_ipynb
+
+        return
+
     def save_ipynb(self):
         if not self.settings.save_code:
             logger.info("not saving jupyter notebook")
