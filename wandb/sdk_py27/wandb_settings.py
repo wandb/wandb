@@ -960,7 +960,7 @@ class Settings(object):
         try:
             self._update({name: value}, _source=self.Source.SETUP)
         except KeyError as e:
-            raise AttributeError(e.message)
+            raise AttributeError(str(e))
         object.__setattr__(self, name, value)
 
     @classmethod
