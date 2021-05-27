@@ -2124,7 +2124,11 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
-            if hasattr(val, "_log_type") and val._log_type == "table":
+            if hasattr(val, "_log_type") and val._log_type in [
+                "table",
+                "partitioned-table",
+                "joined-table",
+            ]:
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
@@ -2137,7 +2141,13 @@ def val_to_json(
                 )
                 art.add(val, key)
                 run.log_artifact(art)
-            val.bind_to_run(run, key, namespace)
+
+            # Partitioned tables and joined tables do not support being bound to runs.
+            if not (
+                hasattr(val, "_log_type")
+                and val._log_type in ["partitioned-table", "joined-table"]
+            ):
+                val.bind_to_run(run, key, namespace)
         return val.to_json(run)
 
     return converted  # type: ignore

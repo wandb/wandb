@@ -850,9 +850,20 @@ class PartitionedTable(Media):
         self.parts_path = parts_path
         self._loaded_part_entries = {}
 
-    def to_json(self, artifact):
-        json_obj = super(PartitionedTable, self).to_json(artifact)
-        json_obj["parts_path"] = self.parts_path
+    def to_json(self, artifact_or_run):
+        json_obj = {
+            "_type": PartitionedTable._log_type,
+        }
+        wandb_run, _ = _safe_sdk_import()
+        if isinstance(artifact_or_run, wandb_run.Run):
+            artifact_entry = self._get_artifact_reference_entry()
+            if artifact_entry is None:
+                raise ValueError(
+                    "PartitionedTables must first be added to an Artifact before logging to a Run"
+                )
+            json_obj["artifact_path"] = artifact_entry.ref_url()
+        else:
+            json_obj["parts_path"] = self.parts_path
         return json_obj
 
     @classmethod
@@ -902,6 +913,9 @@ class PartitionedTable(Media):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.parts_path == other.parts_path
+
+    def bind_to_run(self, *args, **kwargs):
+        raise ValueError("PartitionedTables cannot be bound to runs")
 
 
 class Audio(BatchableMedia):
@@ -1146,20 +1160,24 @@ class JoinedTable(Media):
 
         return table
 
-    def to_json(self, artifact):
-        json_obj = super(JoinedTable, self).to_json(artifact)
-
-        table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
-        table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
-
-        json_obj.update(
-            {
-                "_type": JoinedTable._log_type,
-                "table1": table1,
-                "table2": table2,
-                "join_key": self._join_key,
-            }
-        )
+    def to_json(self, artifact_or_run):
+        json_obj = {
+            "_type": JoinedTable._log_type,
+        }
+        wandb_run, _ = _safe_sdk_import()
+        if isinstance(artifact_or_run, wandb_run.Run):
+            artifact_entry = self._get_artifact_reference_entry()
+            if artifact_entry is None:
+                raise ValueError(
+                    "JoinedTables must first be added to an Artifact before logging to a Run"
+                )
+            json_obj["artifact_path"] = artifact_entry.ref_url()
+        else:
+            table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
+            table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
+            json_obj.update(
+                {"table1": table1, "table2": table2, "join_key": self._join_key,}
+            )
         return json_obj
 
     def __ne__(self, other):
@@ -1180,6 +1198,9 @@ class JoinedTable(Media):
 
     def __eq__(self, other):
         return self._eq_debug(other, False)
+
+    def bind_to_run(self, *args, **kwargs):
+        raise ValueError("JoinedTables cannot be bound to runs")
 
 
 class Bokeh(Media):
