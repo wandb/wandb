@@ -37,14 +37,17 @@ def split_files(files, max_mb = 10):
         f1["end"] = f1["start"] + num_lines
         f2 = file.copy()
         f2["start"] += num_lines
+        f2["_size"] = file["_size"] - _file_size(f1)
         return f1, f2
 
     def _num_lines_from_num_bytes(file, num_bytes):
         size = 0
         num_lines = 0
         content = file["content"]
-        while num_lines < len(content):
-            size += _str_size(content[num_lines])
+        start = file["start"]
+        end = file["end"]
+        while start + num_lines < end:
+            size += _str_size(content[start + num_lines])
             if size > num_bytes:
                 break
             num_lines += 1
