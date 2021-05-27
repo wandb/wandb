@@ -1133,6 +1133,7 @@ def test_reference_download(runner, live_mock_server, test_settings):
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()
+        run.finish()
 
 
 def test_communicate_artifact(publish_util, mocked_run):
