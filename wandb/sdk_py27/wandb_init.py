@@ -70,6 +70,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self._use_sagemaker = None
+        self.notebook = None
 
     def setup(self, kwargs):
         """
@@ -461,6 +462,11 @@ class _WandbInit(object):
                 tel.env.start_forkserver = True
             elif active_start_method == "thread":
                 tel.env.start_thread = True
+
+        if self.notebook:
+            run._tracking_probe_notebook(self.notebook)
+        else:
+            run._tracking_probe_main()
 
         logger.info("updated telemetry")
 

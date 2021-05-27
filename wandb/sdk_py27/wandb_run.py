@@ -11,6 +11,7 @@ import logging
 import numbers
 import os
 import platform
+import re
 import sys
 import threading
 import time
@@ -275,6 +276,8 @@ class Run(object):
     # _stderr_slave_fd: Optional[int]
 
     # _pid: int
+
+    _TRACKING_TOKEN = "wbtrack:"
 
     def __init__(
         self,
@@ -767,6 +770,62 @@ class Run(object):
                 a user name or an organization name.
         """
         return self._entity or ""
+
+    def _track(self, source = None, repo = None, **kwargs):
+        with telemetry.context(run=self) as tel:
+            if source:
+                tel.tracking_source = source
+            if repo:
+                tel.tracking_repo = repo
+
+    def _tracking_probe_main(self):
+        m = sys.modules.get("__main__")
+        if not m:
+            return
+        doc = getattr(m, "__doc__", None)
+        if not doc:
+            return
+
+        doclines = doc.splitlines()
+        self._tracking_probe_lines(doclines)
+
+    def _tracking_probe_lines(self, lines):
+        tracking_str = ""
+        for line in lines:
+            if line.startswith(self._TRACKING_TOKEN):
+                tracking_str = line[len(self._TRACKING_TOKEN) :]
+                break
+
+        if not tracking_str:
+            return
+
+        track = {}
+        tokens = re.findall('([^",]+)=("[^"]*"|[^,]+)', tracking_str)
+        for k, v in tokens:
+            v = v.strip().strip('"')
+            if k == "s":
+                track["source"] = v
+            elif k == "r":
+                track["repo"] = v
+
+        if track:
+            self._track(**track)
+
+    # TODO: annotate jupyter Notebook class
+    def _tracking_probe_notebook(self, notebook):
+        logger.info("probe notebook")
+        lines = None
+        try:
+            data = notebook.probe_ipynb()
+            cell0 = data.get("cells", [])[0]
+            lines = cell0.get("source")
+        except Exception as e:
+            print("ERR", e)
+            logger.info("Unable to probe notebook: {}".format(e))
+            return
+        if lines:
+            print("GOT", lines)
+            self._tracking_probe_lines(lines)
 
     def _repr_mimebundle_(
         self, include = None, exclude = None

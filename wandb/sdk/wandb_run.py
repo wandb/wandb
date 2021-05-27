@@ -771,7 +771,7 @@ class Run(object):
         """
         return self._entity or ""
 
-    def _track(self, source=None, repo=None, **kwargs) -> None:
+    def _track(self, source: str = None, repo: str = None, **kwargs: str) -> None:
         with telemetry.context(run=self) as tel:
             if source:
                 tel.tracking_source = source
@@ -789,11 +789,11 @@ class Run(object):
         doclines = doc.splitlines()
         self._tracking_probe_lines(doclines)
 
-    def _tracking_probe_lines(self, lines) -> None:
+    def _tracking_probe_lines(self, lines: List[str]) -> None:
         tracking_str = ""
         for line in lines:
             if line.startswith(self._TRACKING_TOKEN):
-                tracking_str = line[len(self._TRACKING_TOKEN):]
+                tracking_str = line[len(self._TRACKING_TOKEN) :]
                 break
 
         if not tracking_str:
@@ -811,7 +811,8 @@ class Run(object):
         if track:
             self._track(**track)
 
-    def _tracking_probe_notebook(self, notebook) -> None:
+    # TODO: annotate jupyter Notebook class
+    def _tracking_probe_notebook(self, notebook: Any) -> None:
         logger.info("probe notebook")
         lines = None
         try:
