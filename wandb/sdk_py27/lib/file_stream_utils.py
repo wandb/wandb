@@ -25,20 +25,18 @@ def split_files(files, max_mb = 10):
     def _file_size(file):
         size = file.get("_size")
         if size is None:
-            size = sum(map(_str_size, file["content"]))
+            size = 0
+            content = file["content"]
+            for i in range(file["start"], file["end"]):
+                size += _str_size(content[i])
             file["_size"] = size
         return size
 
     def _split_file(file, num_lines):
-        offset = file["offset"]
-        content = file["content"]
-        name = file["name"]
-        f1 = {"offset": offset, "content": content[:num_lines], "name": name}
-        f2 = {
-            "offset": offset + num_lines,
-            "content": content[num_lines:],
-            "name": name,
-        }
+        f1 = file.copy()
+        f1["end"] = f1["start"] + num_lines
+        f2 = file.copy()
+        f2["start"] += num_lines
         return f1, f2
 
     def _num_lines_from_num_bytes(file, num_bytes):
@@ -52,8 +50,22 @@ def split_files(files, max_mb = 10):
             num_lines += 1
         return num_lines
 
+    def _get_content(file):
+        c = file["content"]
+        s = file["start"]
+        e = file["end"]
+        if s == 0 and e == len(c):
+            return c
+        return c[s:e]
+
     files_stack = [
-        {"name": k, "offset": v["offset"], "content": v["content"]}
+        {
+            "name": k,
+            "offset": v["offset"],
+            "content": v["content"],
+            "start": 0,
+            "end": len(v["content"]),
+        }
         for k, v in files.items()
     ]
 
@@ -70,7 +82,7 @@ def split_files(files, max_mb = 10):
         if fsize <= rem:
             current_volume[f["name"]] = {
                 "offset": f["offset"],
-                "content": f["content"],
+                "content": _get_content(f),
             }
             current_size += fsize
         else:
@@ -81,7 +93,7 @@ def split_files(files, max_mb = 10):
                 f1, f2 = _split_file(f, num_lines)
                 current_volume[f1["name"]] = {
                     "offset": f1["offset"],
-                    "content": f1["content"],
+                    "content": _get_content(f),
                 }
                 files_stack.append(f2)
                 yield current_volume
