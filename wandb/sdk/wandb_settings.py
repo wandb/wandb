@@ -957,7 +957,11 @@ class Settings(object):
         pass
 
     def __setattr__(self, name: str, value: Any) -> None:
-        self._update({name: value}, _source=self.Source.SETTINGS)
+        try:
+            self._update({name: value}, _source=self.Source.SETUP)
+        except KeyError as e:
+            raise AttributeError(e.message)
+        object.__setattr__(self, name, value)
 
     @classmethod
     def _property_keys(cls) -> Generator[str, None, None]:

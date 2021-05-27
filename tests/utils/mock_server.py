@@ -79,7 +79,7 @@ def run(ctx):
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
-            "url": request.url_root + "/storage?file=nofile.h5",
+            "url": request.url_root.rstrip("/") + "/storage?file=nofile.h5",
         }
     else:
         fileNode = {
@@ -87,8 +87,9 @@ def run(ctx):
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
-            "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
-            "directUrl": request.url_root
+            "url": request.url_root.rstrip("/")
+            + "/storage?file=%s" % ctx["requested_file"],
+            "directUrl": request.url_root.rstrip("/")
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
