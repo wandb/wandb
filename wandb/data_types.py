@@ -21,6 +21,7 @@ import sys
 import warnings
 
 import six
+import wandb
 from wandb import util
 from wandb.compat import tempfile
 
@@ -82,19 +83,6 @@ __all__ = [
     "history_dict_to_json",
     "val_to_json",
 ]
-
-
-def _safe_sdk_import():
-    """Safely imports sdks respecting python version"""
-
-    if _PY3:
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
-    else:
-        from wandb.sdk_py27 import wandb_run
-        from wandb.sdk_py27 import wandb_artifacts
-
-    return wandb_run, wandb_artifacts
 
 
 # Get rid of cleanup warnings in Python 2.7.
@@ -520,9 +508,8 @@ class Table(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
-        wandb_run, wandb_artifacts = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, wandb_run.Run):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict.update(
                 {
                     "_type": "table-file",
@@ -531,7 +518,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -854,8 +841,7 @@ class PartitionedTable(Media):
         json_obj = {
             "_type": PartitionedTable._log_type,
         }
-        wandb_run, _ = _safe_sdk_import()
-        if isinstance(artifact_or_run, wandb_run.Run):
+        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
             artifact_entry = self._get_artifact_reference_entry()
             if artifact_entry is None:
                 raise ValueError(
@@ -1164,8 +1150,7 @@ class JoinedTable(Media):
         json_obj = {
             "_type": JoinedTable._log_type,
         }
-        wandb_run, _ = _safe_sdk_import()
-        if isinstance(artifact_or_run, wandb_run.Run):
+        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
             artifact_entry = self._get_artifact_reference_entry()
             if artifact_entry is None:
                 raise ValueError(
