@@ -305,7 +305,7 @@ class Api(object):
 
     @normalize_exceptions
     def project(self, project, entity=None):
-        """Retrive project
+        """Retrieve project
 
         Arguments:
             project (str): The project to get details for
@@ -442,7 +442,7 @@ class Api(object):
         )
 
     @normalize_exceptions
-    def launch_run(self, command, project=None, entity=None, run_id=None):
+    def launch_run(self, command, project=None, entity=None, run_id=None):  # @@@ is this used lol
         """Launch a run in the cloud.
 
         Arguments:
@@ -692,7 +692,15 @@ class Api(object):
     def create_run_queue(self, entity, project, queue_name, access):
         query = gql("""
         mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: String!, $createdBy: String!){
-            createRunQueue(input:{ entityName: $entity, projectName: $project, queueName: $queueName, createdBy: $createdBy, access: $access }) {
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    createdBy: $createdBy,
+                    access: $access
+                }
+            ) {
                 success
                 queueId
             }
@@ -713,11 +721,43 @@ class Api(object):
         return self.gql(query, variable_values)["createRunQueue"]
 
     @normalize_exceptions
+    def push_to_run_queue(self, queue_name, run_spec):
+        mutation = gql(
+            """
+        mutation pushToRunQueue() {
+            pushToRunQueue(
+                input: {
+                    queueId: ID!
+                    runSpec: JSONString!
+                    userName: String!
+                }
+            )
+        }
+        """)
+        username = getpass.getuser()
+        spec_json = json.dumps(run_spec)
+        response = self.gql(
+            mutation,
+            variable_values={
+                "queueName": queue_name,
+                "runSpec": spec_json,
+                "userName": username
+            })
+        return response["pushToRunQueue"]
+
+    @normalize_exceptions
     def pop_from_run_queue(self, queue_name, entity=None, project=None):
         mutation = gql(
             """
         mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $userName: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName, userName: $userName }) {
+            popFromRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    userName: $userName
+                }
+            ) {
                 runQueueItemId
                 runSpec
             }

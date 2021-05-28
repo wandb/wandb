@@ -1031,6 +1031,7 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
 @click.option("--queue", "-q", default=None, help="Run queue to push to, defaults to project queue") # @@@ check defaults
 @click.option("--resource", "-r", default=None, help="Resource to run this job on, defaults to local machine")
 def push(uri):
+    # @@@ find the right agent (query for), then call agent.run_job
     try:
         pass    # @@@ todo
     except Exception:

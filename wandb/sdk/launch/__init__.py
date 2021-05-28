@@ -26,7 +26,7 @@ def run_agent(spec, queues=None):
     spec = spec[0]
     entity, project = spec.split("/")
 
-    agent = LaunchAgent(entity, project, queues)
+    agent = LaunchAgent(entity, project, queues)    # @@@ only place we are creating a LaunchAgent
     agent.loop()
 
 

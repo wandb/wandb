@@ -33,7 +33,7 @@ class LaunchAgent(object):
         self._namespace = wandb.util.generate_id()
         self._access = "user"
         self._queues = []
-        self._backend = None
+        self._backend = None    # @@@ todo rename to runner
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues):
@@ -64,7 +64,10 @@ class LaunchAgent(object):
     def verify(self):
         return self._backend.verify()
 
-    def check_queue(self, queue):
+    def push_to_queue(self):
+        pass # @@@ todo
+
+    def pop_from_queue(self, queue):
         try:
             ups = self._api.pop_from_run_queue(
                 queue, entity=self._entity, project=self._project
@@ -96,7 +99,7 @@ class LaunchAgent(object):
         if self._jobs[job_id].get_status() in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
-    def run_job(self, job):
+    def run_job(self, job):         # @@@ run job from agent
         # TODO: logger
         print("agent: got job", job)
         # parse job
@@ -122,7 +125,7 @@ class LaunchAgent(object):
             while True:
                 self._ticks += 1
                 for queue in self._queues:
-                    job = self.check_queue(queue)
+                    job = self.pop_from_queue(queue)
                     if job:
                         break
                 if not job:
