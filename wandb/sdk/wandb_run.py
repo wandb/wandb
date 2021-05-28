@@ -17,6 +17,7 @@ import time
 import traceback
 
 import click
+import requests
 from six import iteritems, string_types
 from six.moves import _thread as thread
 from six.moves.collections_abc import Mapping
@@ -2232,13 +2233,19 @@ class Run(object):
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
         if not self._settings._offline:
-            public_api = self._public_api()
-            expected_type = public.Artifact.expected_type(
-                public_api.client,
-                artifact.name,
-                public_api.settings["entity"],
-                public_api.settings["project"],
-            )
+            try:
+                public_api = self._public_api()
+                expected_type = public.Artifact.expected_type(
+                    public_api.client,
+                    artifact.name,
+                    public_api.settings["entity"],
+                    public_api.settings["project"],
+                )
+            except requests.exceptions.ConnectionError:
+                # Just return early if there is a network error. This is
+                # ok, as this function is intended to help catch an invalid
+                # type early, but not a hard requirement for valid operation.
+                return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
                     "Expected artifact type {}, got {}".format(
