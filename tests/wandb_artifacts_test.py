@@ -515,13 +515,13 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
-# TODO: Figure out how to actually get the error to throw
-# def test_artifact_log_with_network_error(live_mock_server, test_settings):
-#     run = wandb.init(settings=test_settings)
-#     artifact = wandb.Artifact("table-example", "dataset")
-#     live_mock_server.set_ctx({"fail_graphql_count": 5})
-#     run.log_artifact(artifact)
-#     run.finish()
+def test_artifact_log_with_network_error(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    live_mock_server.set_ctx({"fail_graphql_times": 15})
+    run.log_artifact(artifact)
+    live_mock_server.set_ctx({"fail_graphql_times": 0})
+    run.finish()
 
 
 def test_add_obj_wbimage_no_classes(runner):
