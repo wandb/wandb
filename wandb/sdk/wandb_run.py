@@ -1474,12 +1474,6 @@ class Run(object):
         err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            # out_cap = redirect.Capture(
-            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
-            # err_cap = redirect.Capture(
-            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
@@ -1540,27 +1534,6 @@ class Run(object):
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
-
-        # TODO(jhr): everything below here is not executed as we only support redir mode
-        #
-        # from wandb.lib import console as lib_console
-        # from wandb.old import io_wrap
-        #
-        # redirect stdout
-        # if platform.system() == "Windows":
-        #     lib_console.win32_redirect(stdout_slave_fd, stderr_slave_fd)
-        # else:
-        #     self._save_stdout = sys.stdout
-        #     self._save_stderr = sys.stderr
-        #     stdout_slave = os.fdopen(stdout_slave_fd, "wb")
-        #     stderr_slave = os.fdopen(stderr_slave_fd, "wb")
-        #     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        #     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-        #     stdout_redirector.redirect()
-        #     stderr_redirector.redirect()
-        #     self.stdout_redirector = stdout_redirector
-        #     self.stderr_redirector = stderr_redirector
-        # logger.info("redirect done")
 
     def _restore(self) -> None:
         logger.info("restore")
