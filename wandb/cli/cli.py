@@ -1025,14 +1025,15 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
     wandb_launch.run_agent(agent_spec, queues=queues)
 
 
-@cli.command(help="Push a job onto the run queue for a specified resource")
+@cli.command(help="Add a job onto the run queue for a specified resource")
 @click.argument("uri")
 @click.option("--config", "-c", default=None, help="Path to a user config")
 @click.option("--queue", "-q", default=None, help="Run queue to push to, defaults to project queue") # @@@ check defaults
 @click.option("--resource", "-r", default=None, help="Resource to run this job on, defaults to local machine")
-def push(uri):
+def launch_add(uri, config=None, queue=None, resource=None):
     # @@@ find the right agent (query for), then call agent.run_job
     try:
+        print('@@@@@@@@@@@@@@@@@@@@ hey')
         pass    # @@@ todo
     except Exception:
         pass
