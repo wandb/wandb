@@ -2241,7 +2241,7 @@ class Run(object):
                     public_api.settings["entity"],
                     public_api.settings["project"],
                 )
-            except requests.exceptions.ConnectionError:
+            except requests.exceptions.RequestException:
                 # Just return early if there is a network error. This is
                 # ok, as this function is intended to help catch an invalid
                 # type early, but not a hard requirement for valid operation.

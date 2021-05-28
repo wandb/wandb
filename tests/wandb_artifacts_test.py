@@ -515,6 +515,14 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
+def test_artifact_log_with_network_error(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    live_mock_server.set_ctx({"fail_graphql_count": 5})
+    run.log_artifact(artifact)
+    run.finish()
+
+
 def test_add_obj_wbimage_no_classes(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
