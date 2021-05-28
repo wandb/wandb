@@ -104,6 +104,8 @@ env_settings = dict(
     sagemaker_disable=None,
     start_method=None,
     strict=None,
+    track_script=None,
+    track_repo=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -391,6 +393,9 @@ class Settings(object):
         _python = None,
         _kaggle = None,
         _except_exit = None,
+        track_source = None,
+        track_repo = None,
+        **kwargs,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
@@ -800,7 +805,7 @@ class Settings(object):
         __d = None,
         _source = None,
         _override = None,
-        **kwargs
+        **kwargs,
     ):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")

@@ -277,7 +277,7 @@ class Run(object):
 
     _pid: int
 
-    _TRACKING_TOKEN: str = "wbtrack:"
+    _TRACK_TOKEN: str = "wandb-track:"
 
     def __init__(
         self,
@@ -771,14 +771,14 @@ class Run(object):
         """
         return self._entity or ""
 
-    def _track(self, source: str = None, repo: str = None, **kwargs: str) -> None:
+    def _track(self, script: str = None, repo: str = None, **kwargs: str) -> None:
         with telemetry.context(run=self) as tel:
-            if source:
-                tel.tracking_source = source
+            if script:
+                tel.track_script = script
             if repo:
-                tel.tracking_repo = repo
+                tel.track_repo = repo
 
-    def _tracking_probe_main(self) -> None:
+    def _track_probe_main(self) -> None:
         m = sys.modules.get("__main__")
         if not m:
             return
@@ -787,32 +787,35 @@ class Run(object):
             return
 
         doclines = doc.splitlines()
-        self._tracking_probe_lines(doclines)
+        self._track_probe_lines(doclines)
 
-    def _tracking_probe_lines(self, lines: List[str]) -> None:
-        tracking_str = ""
+    def _track_probe_lines(self, lines: List[str]) -> None:
+        track_str = ""
         for line in lines:
-            if line.startswith(self._TRACKING_TOKEN):
-                tracking_str = line[len(self._TRACKING_TOKEN) :]
+            line = line.strip()
+            if line.startswith(self._TRACK_TOKEN):
+                track_str = line[len(self._TRACK_TOKEN) :]
+                track_str = track_str.strip()
                 break
 
-        if not tracking_str:
+        if not track_str:
             return
 
         track = {}
-        tokens = re.findall('([^",]+)=("[^"]*"|[^,]+)', tracking_str)
+        tokens = re.findall('([^",]+)=("[^"]*"|[^,]+)', track_str)
         for k, v in tokens:
+            k = k.lower()
             v = v.strip().strip('"')
-            if k == "s":
-                track["source"] = v
-            elif k == "r":
+            if k in {"s", "script"}:
+                track["script"] = v
+            elif k in {"r", "repo"}:
                 track["repo"] = v
 
         if track:
             self._track(**track)
 
     # TODO: annotate jupyter Notebook class
-    def _tracking_probe_notebook(self, notebook: Any) -> None:
+    def _track_probe_notebook(self, notebook: Any) -> None:
         logger.info("probe notebook")
         lines = None
         try:
@@ -825,7 +828,7 @@ class Run(object):
             return
         if lines:
             print("GOT", lines)
-            self._tracking_probe_lines(lines)
+            self._track_probe_lines(lines)
 
     def _repr_mimebundle_(
         self, include: Any = None, exclude: Any = None

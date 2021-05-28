@@ -14,8 +14,8 @@ message TelemetryRecord {
   string  huggingface_version = 6;
   // string  framework = 7;
   Env     env = 8;
-  string  tracking_source = 10;
-  string  tracking_repo = 11;
+  string  track_script = 10;
+  string  track_repo = 11;
 }
 
 message Imports {
