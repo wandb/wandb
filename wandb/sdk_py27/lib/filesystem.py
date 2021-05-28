@@ -69,7 +69,7 @@ class CRDedupedFile(WriteSerializingFile):
             ret.insert(0, self._buff)
         if ret:
             self._buff = ret.pop()
-        super(CRDedupedFile, self).write("\n".join(ret) + "\n")
+        super(CRDedupedFile, self).write(b"\n".join(ret) + b"\n")
 
     def close(self):
         if self._buff:

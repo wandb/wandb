@@ -68,15 +68,6 @@ _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
 
-def _safe_sdk_import():
-    """Safely import due to circular deps"""
-
-    from .wandb_artifacts import Artifact as LocalArtifact
-    from .wandb_run import Run as LocalRun
-
-    return LocalRun, LocalArtifact
-
-
 class _WBValueArtifactSource(object):
     # artifact: "PublicArtifact"
     # name: Optional[str]
@@ -469,8 +460,7 @@ class Media(WBValue):
         from wandb.data_types import Audio
 
         json_obj = {}
-        run_class, artifact_class = _safe_sdk_import()
-        if isinstance(run, run_class):
+        if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
             if not self.is_bound():
                 raise RuntimeError(
                     "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
@@ -500,7 +490,7 @@ class Media(WBValue):
             artifact_entry = self._get_artifact_reference_entry()
             if artifact_entry is not None:
                 json_obj["artifact_path"] = artifact_entry.ref_url()
-        elif isinstance(run, artifact_class):
+        elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
@@ -736,9 +726,7 @@ class Object3D(BatchableMedia):
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        _, artifact_class = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, artifact_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self._path is None or not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
@@ -1275,12 +1263,11 @@ class ImageMask(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(ImageMask, self).to_json(run_or_artifact)
-        run_class, artifact_class = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, run_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict["_type"] = self.type_name()
             return json_dict
-        elif isinstance(run_or_artifact, artifact_class):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
@@ -1455,11 +1442,10 @@ class BoundingBoxes2D(JSONMetadata):
         return True
 
     def to_json(self, run_or_artifact):
-        run_class, artifact_class = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, run_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
-        elif isinstance(run_or_artifact, artifact_class):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
@@ -1770,9 +1756,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        run_class, artifact_class = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, artifact_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None
@@ -1801,7 +1785,7 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, run_class):
+        elif not isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
@@ -2124,20 +2108,29 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
-            if hasattr(val, "_log_type") and val._log_type == "table":
+            if hasattr(val, "_log_type") and val._log_type in [
+                "table",
+                "partitioned-table",
+                "joined-table",
+            ]:
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
-                _, artifact_class = _safe_sdk_import()
                 # we sanitize the key to meet the constraints defined in wandb_artifacts.py
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = artifact_class(
+                art = wandb.wandb_sdk.wandb_artifacts.Artifact(
                     "run-{}-{}".format(run.id, sanitized_key), "run_table"
                 )
                 art.add(val, key)
                 run.log_artifact(art)
-            val.bind_to_run(run, key, namespace)
+
+            # Partitioned tables and joined tables do not support being bound to runs.
+            if not (
+                hasattr(val, "_log_type")
+                and val._log_type in ["partitioned-table", "joined-table"]
+            ):
+                val.bind_to_run(run, key, namespace)
         return val.to_json(run)
 
     return converted  # type: ignore
