@@ -131,6 +131,22 @@ class SyncThread(threading.Thread):
                 tb_event_files = 1
         return tb_event_files, tb_logdirs, tb_root
 
+    def _setup_tensorboard(self, tb_root, tb_logdirs, tb_event_files, sync_item):
+        """Returns true if this sync item can be synced as tensorboard"""
+        if tb_root is not None:
+            if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
+                wandb.termwarn("Found .wandb file, not streaming tensorboard metrics.")
+            else:
+                print("Found {} tfevent files in {}".format(tb_event_files, tb_root))
+                if len(tb_logdirs) > 3:
+                    wandb.termwarn(
+                        "Found {} directories containing tfevent files. "
+                        "If these represent multiple experiments, sync them "
+                        "individually or pass a list of paths."
+                    )
+                return True
+        return False
+
     def _send_tensorboard(self, tb_root, tb_logdirs, send_manager):
         if self._entity is None:
             viewer, server_info = send_manager._api.viewer_server_info()
@@ -201,6 +217,21 @@ class SyncThread(threading.Thread):
         handle_manager.finish()
         send_manager.finish()
 
+    def _robust_scan(self, ds):
+        """Attempt to scan data, handling incomplete files"""
+        try:
+            return ds.scan_data()
+        except AssertionError as e:
+            if ds.in_last_block():
+                wandb.termwarn(
+                    ".wandb file is incomplete ({}), be sure to sync this run again once it's finished".format(
+                        e
+                    )
+                )
+                return None
+            else:
+                raise e
+
     def run(self):
         for sync_item in self._sync_list:
             tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
@@ -214,45 +245,34 @@ class SyncThread(threading.Thread):
                     continue
                 if len(filtered_files) > 0:
                     sync_item = os.path.join(sync_item, filtered_files[0])
-            root_dir = os.path.dirname(sync_item)
-            # If we're syncing tensorboard, let's use a tmpdir
-            if tb_event_files > 0 and not sync_item.endswith(WANDB_SUFFIX):
-                root_dir = TMPDIR.name
+            sync_tb = self._setup_tensorboard(
+                tb_root, tb_logdirs, tb_event_files, sync_item
+            )
+            # If we're syncing tensorboard, let's use a tmp dir for images etc.
+            root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
             sm = sender.SendManager.setup(root_dir)
+            if sync_tb:
+                self._send_tensorboard(tb_root, tb_logdirs, sm)
+                continue
 
-            if tb_root is not None:
-                if tb_event_files > 0 and sync_item.endswith(WANDB_SUFFIX):
-                    wandb.termwarn(
-                        "Found .wandb file, not streaming tensorboard metrics."
-                    )
-                else:
-                    print(
-                        "Found {} tfevent files in {}".format(tb_event_files, tb_root)
-                    )
-                    if len(tb_logdirs) > 3:
-                        wandb.termwarn(
-                            "Found {} directories containing tfevent files. "
-                            "If these represent multiple experiments, sync them "
-                            "individually or pass a list of paths."
-                        )
-                    self._send_tensorboard(tb_root, tb_logdirs, sm)
-                    continue
             ds = datastore.DataStore()
             try:
                 ds.open_for_scan(sync_item)
-            except AssertionError:
-                print(".wandb file is empty, skipping: {}".format(sync_item))
+            except AssertionError as e:
+                print(".wandb file is empty ({}), skipping: {}".format(e, sync_item))
                 continue
 
             # save exit for final send
             exit_pb = None
+            finished = False
             shown = False
-
             while True:
-                data = ds.scan_data()
+                data = self._robust_scan(ds)
                 if data is None:
                     break
                 pb, exit_pb, cont = self._parse_pb(data, exit_pb)
+                if exit_pb is not None:
+                    finished = True
                 if cont:
                     continue
                 sm.send(pb)
@@ -277,7 +297,8 @@ class SyncThread(threading.Thread):
                         sys.stdout.flush()
                         shown = True
             sm.finish()
-            if self._mark_synced and not self._view:
+            # Only mark synced if the run actually finished
+            if self._mark_synced and not self._view and finished:
                 synced_file = "{}{}".format(sync_item, SYNCED_SUFFIX)
                 with open(synced_file, "w"):
                     pass
