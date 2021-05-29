@@ -33,7 +33,7 @@ class LaunchAgent(object):
         self._namespace = wandb.util.generate_id()
         self._access = "user"
         self._queues = []
-        self._backend = None    # @@@ todo rename to runner
+        self._backend = None    # todo: probably rename to runner to avoid confusion w cli backend
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues):

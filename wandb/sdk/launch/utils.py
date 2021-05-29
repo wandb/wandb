@@ -152,7 +152,7 @@ def load_project(work_dir):
 
 def fetch_wandb_project_run_info(uri, api=None):
     stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
-    stripped_uri = re.sub(_WANDB_DEV_URI_REGEX, '', uri)    # also for testing just run it twice
+    stripped_uri = re.sub(_WANDB_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
     entity, project, _, name = stripped_uri.split("/")[1:]
     result = api.get_run_info(entity, project, name)
     return result

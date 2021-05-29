@@ -53,7 +53,7 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
         "COPY {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
         "ENV WANDB_API_KEY={api_key}\n"      # todo this is also currently passed in via r2d
-        "USER root\n"       # todo bad idea, just to get it working
+        "USER root\n"       # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -85,6 +85,7 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
         _logger.info(
             "Temporary docker context file %s was not deleted.", build_ctx_path
         )
+    print('@@@@@@@@@@@@@@', image)
     return image
 
 

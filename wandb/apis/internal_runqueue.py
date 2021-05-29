@@ -442,7 +442,7 @@ class Api(object):
         )
 
     @normalize_exceptions
-    def launch_run(self, command, project=None, entity=None, run_id=None):  # @@@ is this used lol
+    def launch_run(self, command, project=None, entity=None, run_id=None):
         """Launch a run in the cloud.
 
         Arguments:
@@ -668,7 +668,7 @@ class Api(object):
         return response["upsertModel"]["model"]
 
     @normalize_exceptions
-    def get_project_run_queues(self, entity, project):   # @@@
+    def get_project_run_queues(self, entity, project):
         query = gql("""
         query Project($entity: String!, $projectName: String!){
             project(entityName: $entity, name: $projectName) {
@@ -686,7 +686,7 @@ class Api(object):
             "projectName": project,
             "entity": entity,
         }
-        return self.gql(query, variable_values)["project"]["runQueues"]          # @@@ todo handle nonexistent queue exception 
+        return self.gql(query, variable_values)["project"]["runQueues"]          # todo handle nonexistent queue exception 
 
     @normalize_exceptions
     def create_run_queue(self, entity, project, queue_name, access):
@@ -721,7 +721,7 @@ class Api(object):
         return self.gql(query, variable_values)["createRunQueue"]
 
     @normalize_exceptions
-    def push_to_run_queue(self, queue_name, run_spec): # @@@
+    def push_to_run_queue(self, queue_name, run_spec):
         # todo: we're adding pushToRunQueueByName to avoid this extra query
         queues_found = self.get_project_run_queues(run_spec["entity"], run_spec["project"])
         matching_queues = [q for q in queues_found if q['name'] == queue_name]

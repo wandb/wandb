@@ -109,7 +109,7 @@ class LocalRunner(AbstractRunner):
             validate_docker_installation()
             image = build_docker_image(
                 work_dir=project.dir,
-                repository_uri=project.name, # todo ??? not sure why this is passed here we should figure out this interface lol
+                repository_uri=project.name,    # todo: not sure why this is passed here we should figure out this interface
                 base_image=project.docker_env.get("image"),
                 run_id=run_id,
                 api=self._api,
@@ -138,7 +138,7 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             command_str += " " + " ".join(project.args)
-            print("Launching run in docker with command: {}".format(command_str))
+            print("Launching run in docker with command: {}".format(command_str)) # @@@
             return _run_entry_point(
                 command_str, project.dir, experiment_id, run_id=run_id
             )
