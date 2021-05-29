@@ -1040,7 +1040,7 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
 @click.option("--config", "-c", default=None, help="Path to a user config")
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.option("--queue", "-q", default=None, help="Run queue to push to, defaults to project queue") # @@@ check defaults
+@click.option("--queue", "-q", default="default", help="Run queue to push to, defaults to project queue")
 @click.option("--resource", "-r", default=None, help="Resource to run this job on, defaults to local machine")
 def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None):
     api = _get_runqueues_api()  # temp
@@ -1051,6 +1051,11 @@ def launch_add(uri, config=None, project=None, entity=None, queue=None, resource
         else:
             run_spec = {}
         res = wandb_launch.push_to_queue(api, entity, project, queue, run_spec)
+        if res is None or "runQueueItemId" not in res:
+            raise Exception("Error adding run to queue")
+        else:
+            print("internal debug: added with run queue item id {}".format(res["runQueueItemId"]))  # todo: remove
+            wandb.termlog("Added run to queue")
     except Exception as e:
         print(e)
         sys.exit(1)

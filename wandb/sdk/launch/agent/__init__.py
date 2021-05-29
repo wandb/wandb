@@ -25,8 +25,6 @@ class LaunchAgent(object):
         self._max = max
         self._api = internal_runqueue.Api()
         self._settings = Settings()
-        print(self._api._settings.__dict__)
-
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[str, AbstractRun] = {}
         self._ticks = 0
