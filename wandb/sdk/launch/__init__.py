@@ -19,6 +19,15 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
+def push_to_queue(api, entity, project, queue, run_spec):
+    try:
+        res = api.push_to_run_queue(entity, project, queue, run_spec)
+    except Exception as e:
+        print("Exception...", e)
+        return None
+    return res
+
+
 def run_agent(spec, queues=None):
     if not spec or len(spec) != 1 or len(spec[0].split("/")) != 2:
         wandb.termerror("Specify agent spec in the form: 'entity/project'")

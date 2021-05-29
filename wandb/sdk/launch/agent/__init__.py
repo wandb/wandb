@@ -64,9 +64,6 @@ class LaunchAgent(object):
     def verify(self):
         return self._backend.verify()
 
-    def push_to_queue(self):
-        pass # @@@ todo
-
     def pop_from_queue(self, queue):
         try:
             ups = self._api.pop_from_run_queue(

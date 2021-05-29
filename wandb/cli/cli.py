@@ -31,6 +31,7 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.internal_runqueue import Api as RunQueueApi     # temp until we integrate rq fns into internal api
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
@@ -106,6 +107,7 @@ def display_error(func):
 
 
 _api = None  # caching api instance allows patching from unit tests
+_rq_api = None   # temp
 
 
 def _get_cling_api(reset=None):
@@ -119,6 +121,14 @@ def _get_cling_api(reset=None):
         wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
         _api = InternalApi()
     return _api
+
+
+# temporary fn until we integrate runqueues changes into internal_api
+def _get_runqueues_api():
+    global _rq_api
+    if _rq_api is None:
+        _rq_api = RunQueueApi()
+    return _rq_api
 
 
 def prompt_for_project(ctx, entity):
@@ -1011,7 +1021,7 @@ def launch(
 @display_error
 def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=None, queues=None):
     api = _get_cling_api()
-    queues = queues.split(",")
+    queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
         wandb.termlog("Login to W&B to use the launch agent feature")
         ctx.invoke(login, no_offline=True)
@@ -1028,15 +1038,22 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
 @cli.command(help="Add a job onto the run queue for a specified resource")
 @click.argument("uri")
 @click.option("--config", "-c", default=None, help="Path to a user config")
+@click.option("--project", "-p", default=None, help="The project to use.")
+@click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.option("--queue", "-q", default=None, help="Run queue to push to, defaults to project queue") # @@@ check defaults
 @click.option("--resource", "-r", default=None, help="Resource to run this job on, defaults to local machine")
-def launch_add(uri, config=None, queue=None, resource=None):
-    # @@@ find the right agent (query for), then call agent.run_job
+def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None):
+    api = _get_runqueues_api()  # temp
     try:
-        print('@@@@@@@@@@@@@@@@@@@@ hey')
-        pass    # @@@ todo
-    except Exception:
-        pass
+        if config is not None:
+            with open(config, 'r') as f:
+                run_spec = json.load(f)
+        else:
+            run_spec = {}
+        res = wandb_launch.push_to_queue(api, entity, project, queue, run_spec)
+    except Exception as e:
+        print(e)
+        sys.exit(1)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
