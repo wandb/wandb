@@ -112,7 +112,8 @@ class DataStore(object):
         self._index += LEVELDBLOG_HEADER_LEN
         data = self._fp.read(dlength)
         checksum_computed = zlib.crc32(data, self._crc[dtype]) & 0xFFFFFFFF
-        assert checksum == checksum_computed
+        if checksum != checksum_computed:
+            return dtype, bytes()
         self._index += dlength
         return dtype, data
 
@@ -161,8 +162,8 @@ class DataStore(object):
         self._index += len(data)
 
     def _read_header(self):
-        header_length = 7
-        header = self._fp.read(header_length)
+        header = self._fp.read(LEVELDBLOG_HEADER_LEN)
+        assert len(header) == LEVELDBLOG_HEADER_LEN
         ident, magic, version = struct.unpack("<4sHB", header)
         if ident != strtobytes(LEVELDBLOG_HEADER_IDENT):
             raise Exception("Invalid header")
@@ -170,7 +171,6 @@ class DataStore(object):
             raise Exception("Invalid header")
         if version != LEVELDBLOG_HEADER_VERSION:
             raise Exception("Invalid header")
-        assert len(header) == header_length
         self._index += len(header)
 
     def _write_record(self, s, dtype=None):
