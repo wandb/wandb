@@ -138,7 +138,7 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             command_str += " " + " ".join(project.args)
-            print("Launching run in docker with command: {}".format(command_str)) # @@@
+            print("Launching run in docker with command: {}".format(command_str))
             return _run_entry_point(
                 command_str, project.dir, experiment_id, run_id=run_id
             )

@@ -85,7 +85,6 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
         _logger.info(
             "Temporary docker context file %s was not deleted.", build_ctx_path
         )
-    print('@@@@@@@@@@@@@@', image)
     return image
 
 
