@@ -91,7 +91,7 @@ class LocalRunner(AbstractRunner):
         if build_docker:
             project.name = 'test'        # todo this is just hardcoded rn
             entry_cmd = project.get_entry_point(entry_point).command
-            image_id = generate_docker_image(project, entry_cmd, self._api)
+            image_id = generate_docker_image(project, version, entry_cmd, self._api)
             project.docker_env = {'image': image_id}
 
         command_args = []

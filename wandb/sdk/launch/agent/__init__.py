@@ -96,18 +96,19 @@ class LaunchAgent(object):
         if self._jobs[job_id].get_status() in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
-    def run_job(self, job):         # @@@ run job from agent
+    def run_job(self, job):
         # TODO: logger
         print("agent: got job", job)
         # parse job
         
+        # todo: this will only let us launch runs from wandb (not eg github)
         uri = "{}/{}/{}/runs/{}".format(self._base_url, job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
         self._backend = load_backend(job["runSpec"]["resource"], self._api)
         self.verify()
         backend_config = dict(BUILD_DOCKER=True, USE_CONDA=False, SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
         run = self._backend.run(
             uri,
-            "main.py",
+            job["runSpec"]["entry_point"],
             backend_config=backend_config,
             params=None,
             version=None

@@ -23,6 +23,7 @@ _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://wandb")
+_WANDB_DEV_URI_REGEX = re.compile(r"^https://ap\w.wandb")   # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
@@ -78,7 +79,7 @@ def _expand_uri(uri):
 
 
 def _is_wandb_uri(uri):
-    return _WANDB_URI_REGEX.match(uri)
+    return _WANDB_URI_REGEX.match(uri) or _WANDB_DEV_URI_REGEX.match(uri)
 
 
 def _is_file_uri(uri):
@@ -151,6 +152,7 @@ def load_project(work_dir):
 
 def fetch_wandb_project_run_info(uri, api=None):
     stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
+    stripped_uri = re.sub(_WANDB_DEV_URI_REGEX, '', uri)    # also for testing just run it twice
     entity, project, _, name = stripped_uri.split("/")[1:]
     result = api.get_run_info(entity, project, name)
     return result

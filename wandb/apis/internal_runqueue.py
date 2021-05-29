@@ -721,9 +721,9 @@ class Api(object):
         return self.gql(query, variable_values)["createRunQueue"]
 
     @normalize_exceptions
-    def push_to_run_queue(self, entity, project, queue_name, run_spec):
+    def push_to_run_queue(self, queue_name, run_spec): # @@@
         # todo: we're adding pushToRunQueueByName to avoid this extra query
-        queues_found = self.get_project_run_queues(entity, project)
+        queues_found = self.get_project_run_queues(run_spec["entity"], run_spec["project"])
         matching_queues = [q for q in queues_found if q['name'] == queue_name]
         if not matching_queues:
             logger.error("Queue with name {} not found".format(queue_name))

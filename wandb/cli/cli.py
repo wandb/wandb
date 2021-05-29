@@ -1041,16 +1041,39 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.option("--queue", "-q", default="default", help="Run queue to push to, defaults to project queue")
-@click.option("--resource", "-r", default=None, help="Resource to run this job on, defaults to local machine")
-def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None):
-    api = _get_runqueues_api()  # temp
+@click.option("--resource", "-r", default="local", help="Resource to run this job on, defaults to local machine")
+@click.option(
+    "--entry-point",
+    "-e",
+    metavar="NAME",
+    default="main.py",
+    help="Entry point within project. [default: main]. If the entry point is not found, "
+    "attempts to run the project file with the specified name as a script, "
+    "using 'python' to run .py files and the default shell (specified by "
+    "environment variable $SHELL) to run .sh files",
+)
+def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None, entry_point=None):
+    api = _get_runqueues_api()  # todo: temporary until runqueues api integrated into internal api
+
+    uri_stripped = uri.split("?")[0]    # remove any possible query params (eg workspace)
+    run_id = uri_stripped.split("/")[-1]
+
+    run_spec = {}
+    if config is not None:
+        with open(config, "r") as f:
+            run_spec = json.load(f)
+    # current behavior we override anything in supplied config with cli args if passed
+    run_spec["run_id"] = run_id
+    run_spec["entry_point"] = entry_point
+    if project is not None:
+        run_spec["project"] = project
+    if entity is not None:
+        run_spec["entity"] = entity
+    if resource is not None:
+        run_spec["resource"] = resource
+
     try:
-        if config is not None:
-            with open(config, 'r') as f:
-                run_spec = json.load(f)
-        else:
-            run_spec = {}
-        res = wandb_launch.push_to_queue(api, entity, project, queue, run_spec)
+        res = wandb_launch.push_to_queue(api, queue, run_spec)
         if res is None or "runQueueItemId" not in res:
             raise Exception("Error adding run to queue")
         else:

@@ -19,9 +19,9 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def push_to_queue(api, entity, project, queue, run_spec):
+def push_to_queue(api, queue, run_spec):
     try:
-        res = api.push_to_run_queue(entity, project, queue, run_spec)
+        res = api.push_to_run_queue(queue, run_spec)
     except Exception as e:
         print("Exception:", e)
         return None
