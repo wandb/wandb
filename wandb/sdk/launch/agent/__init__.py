@@ -25,7 +25,9 @@ class LaunchAgent(object):
         self._max = max
         self._api = internal_runqueue.Api()
         self._settings = Settings()
-        self._base_url = self._api._settings.get("default", "base_url")
+        print(self._api._settings.__dict__)
+
+        self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[str, AbstractRun] = {}
         self._ticks = 0
         self._running = 0
@@ -70,7 +72,7 @@ class LaunchAgent(object):
                 queue, entity=self._entity, project=self._project
             )
         except Exception as e:
-            print("Exception...", e)
+            print("Exception:", e)
             return None
         return ups
 

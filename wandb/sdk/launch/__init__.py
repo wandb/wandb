@@ -23,7 +23,7 @@ def push_to_queue(api, entity, project, queue, run_spec):
     try:
         res = api.push_to_run_queue(entity, project, queue, run_spec)
     except Exception as e:
-        print("Exception...", e)
+        print("Exception:", e)
         return None
     return res
 

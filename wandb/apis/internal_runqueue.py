@@ -686,6 +686,8 @@ class Api(object):
             "projectName": project,
             "entity": entity,
         }
+        print(variable_values)
+        print(self.gql(query, variable_values))
         return self.gql(query, variable_values)["project"]["runQueues"]
 
     @normalize_exceptions
