@@ -15,23 +15,24 @@ def test_sync_in_progress(live_mock_server):
         env=env,
     )
     attempts = 0
-    while not os.path.exists("wandb") and attempts < 20:
+    latest_run = os.path.join("wandb", "latest-run")
+    while not os.path.exists(latest_run) and attempts < 20:
         time.sleep(0.1)
         attempts += 1
     sync_file = ".wandb"
     for i in range(3):
         # Generally, the first sync will fail because the .wandb file is empty
         sync = subprocess.Popen(
-            ["wandb", "sync", os.path.join("wandb", "latest-run")], env=os.environ
+            ["wandb", "sync", latest_run], env=os.environ
         )
         assert sync.wait() == 0
-        matches = glob.glob(os.path.join("wandb", "latest-run", "*.wandb"))
+        matches = glob.glob(os.path.join(latest_run, "*.wandb"))
         if len(matches) > 0:
             sync_file = matches[0]
         assert not os.path.exists(os.path.join(sync_file + ".synced"))
     assert offline_run.wait() == 0
     sync = subprocess.Popen(
-        ["wandb", "sync", os.path.join("wandb", "latest-run")], env=os.environ
+        ["wandb", "sync", latest_run], env=os.environ
     )
     assert sync.wait() == 0
     assert os.path.exists(os.path.join(sync_file + ".synced"))
