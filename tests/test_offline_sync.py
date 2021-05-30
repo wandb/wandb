@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 import time
 import glob
 from .utils import fixture_open
@@ -11,7 +12,15 @@ def test_sync_in_progress(live_mock_server, test_dir):
     env = dict(os.environ)
     env["WANDB_MODE"] = "offline"
     offline_run = subprocess.Popen(
-        ["python", "train.py", "--epochs", "50", "--sleep_every", "15", "--heavy"],
+        [
+            sys.executable,
+            "train.py",
+            "--epochs",
+            "50",
+            "--sleep_every",
+            "15",
+            "--heavy",
+        ],
         env=env,
     )
     attempts = 0
@@ -19,7 +28,18 @@ def test_sync_in_progress(live_mock_server, test_dir):
     while not os.path.exists(latest_run) and attempts < 20:
         time.sleep(0.1)
         attempts += 1
-    print("wandb dir contents: ", glob.glob("wandb"))
+    if attempts == 20:
+        print("cur dir contents: ", glob.glob("*"))
+        print("wandb dir contents: ", glob.glob(os.path.join("wandb", "*")))
+        debug = os.path.join("wandb", "debug.log")
+        debug_int = os.path.join("wandb", "debug-internal.log")
+        if os.path.exists(debug):
+            print("DEBUG")
+            print(open(debug).read())
+        if os.path.exists(debug_int):
+            print("DEBUG INTERNAL")
+            print(open(debug).read())
+        assert False, "train.py failed to launch :("
     sync_file = ".wandb"
     for i in range(3):
         # Generally, the first sync will fail because the .wandb file is empty
