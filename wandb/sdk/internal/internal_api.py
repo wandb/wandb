@@ -1325,7 +1325,7 @@ class Api(object):
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_3, mutation_2, mutation_1]
 
-        for i, mutation in enumerate(mutations):
+        for mutation in mutations:
             try:
                 response = self.gql(
                     mutation,
@@ -1347,7 +1347,6 @@ class Api(object):
                 err = e
                 continue
             err = None
-            mutation_version_used = len(mutations) - i
             break
         if err:
             raise (err)
@@ -1360,11 +1359,7 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        if mutation_version_used >= 3:
-            warnings = response["upsertSweep"]["configValidationWarnings"]
-        else:
-            warnings = []
-
+        warnings = response["upsertSweep"].get("configValidationWarnings", [])
         return response["upsertSweep"]["sweep"]["name"], warnings
 
     @normalize_exceptions
