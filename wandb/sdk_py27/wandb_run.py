@@ -17,6 +17,7 @@ import time
 import traceback
 
 import click
+import requests
 from six import iteritems, string_types
 from six.moves import _thread as thread
 from six.moves.collections_abc import Mapping
@@ -1415,12 +1416,6 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            # out_cap = redirect.Capture(
-            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
-            # err_cap = redirect.Capture(
-            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
@@ -1481,27 +1476,6 @@ class Run(object):
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
-
-        # TODO(jhr): everything below here is not executed as we only support redir mode
-        #
-        # from wandb.lib import console as lib_console
-        # from wandb.old import io_wrap
-        #
-        # redirect stdout
-        # if platform.system() == "Windows":
-        #     lib_console.win32_redirect(stdout_slave_fd, stderr_slave_fd)
-        # else:
-        #     self._save_stdout = sys.stdout
-        #     self._save_stderr = sys.stderr
-        #     stdout_slave = os.fdopen(stdout_slave_fd, "wb")
-        #     stderr_slave = os.fdopen(stderr_slave_fd, "wb")
-        #     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        #     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-        #     stdout_redirector.redirect()
-        #     stderr_redirector.redirect()
-        #     self.stdout_redirector = stdout_redirector
-        #     self.stderr_redirector = stderr_redirector
-        # logger.info("redirect done")
 
     def _restore(self):
         logger.info("restore")
@@ -2259,13 +2233,19 @@ class Run(object):
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact):  # type: ignore
         if not self._settings._offline:
-            public_api = self._public_api()
-            expected_type = public.Artifact.expected_type(
-                public_api.client,
-                artifact.name,
-                public_api.settings["entity"],
-                public_api.settings["project"],
-            )
+            try:
+                public_api = self._public_api()
+                expected_type = public.Artifact.expected_type(
+                    public_api.client,
+                    artifact.name,
+                    public_api.settings["entity"],
+                    public_api.settings["project"],
+                )
+            except requests.exceptions.RequestException:
+                # Just return early if there is a network error. This is
+                # ok, as this function is intended to help catch an invalid
+                # type early, but not a hard requirement for valid operation.
+                return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
                     "Expected artifact type {}, got {}".format(

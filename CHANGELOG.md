@@ -1,3 +1,21 @@
+## 0.10.31 (May 27, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() did not properly persist the host parameter
+- Fix issue where step information was not synced properly when syncing tensorboard directories
+- Fix some unicode issues with python2.7
+- Fixed bug in `plot_calibration_curve` for ComplementNB
+- Fall back to not using SendFile on some linux systems
+- Fix console issues where lines were truncated
+- Fix console issues where console logging could block
+
+#### :nail_care: Enhancement
+
+- Add support for preemptible sweeps
+- Add command line for sweep control
+- Add support to load artifact collection properties
+
 ## 0.10.30 (May 7, 2021)
 
 #### :bug: Bug Fix

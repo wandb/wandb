@@ -17,7 +17,41 @@ import sys
 import threading
 import time
 
+from six.moves import queue
 import wandb
+
+
+class _Numpy:  # fallback in case numpy is not available
+    def where(self, x):
+        return ([i for i in range(len(x)) if x[i]],)
+
+    def diff(self, x):
+        return [x[i + 1] - x[i] for i in range(len(x) - 1)]
+
+    def arange(self, x):
+        class Arr(list):
+            def __getitem__(self, s):
+                if isinstance(s, slice):
+                    self._start = s.start
+                    return self
+                return super(Arr, self).__getitem__(s)
+
+            def __getslice__(self, i, j):
+                self._start = i
+                return self
+
+            def __iadd__(self, i):  # type: ignore
+                for j in range(self._start, len(self)):
+                    self[j] += i
+
+        return Arr(range(x))
+
+
+try:
+    import numpy as np  # type: ignore
+except ImportError:
+    np = _Numpy()
+
 
 logger = logging.getLogger("wandb")
 
@@ -27,6 +61,13 @@ _redirects = {"stdout": None, "stderr": None}
 ANSI_CSI_RE = re.compile("\001?\033\\[((?:\\d|;)*)([a-zA-Z])\002?")
 ANSI_OSC_RE = re.compile("\001?\033\\]([^\a]*)(\a)\002?")
 
+_LAST_WRITE_TOKEN = b"L@stWr!t3T0k3n"
+
+SEP_RE = re.compile(
+    "\r|\n|"
+    # Unprintable ascii characters:
+    + "|".join([chr(i) for i in range(2 ** 8) if repr(chr(i)).startswith("'\\x")])
+)
 
 ANSI_FG = list(map(str, itertools.chain(range(30, 40), range(90, 98))))
 ANSI_BG = list(map(str, itertools.chain(range(40, 50), range(100, 108))))
@@ -156,6 +197,8 @@ class TerminalEmulator(object):
     An FSM emulating a terminal. Characters are stored in a 2D matrix (buffer) indexed by the cursor.
     """
 
+    _MAX_LINES = 100
+
     def __init__(self):
         self.buffer = defaultdict(lambda: defaultdict(lambda: _defchar))
         self.cursor = Cursor()
@@ -262,21 +305,31 @@ class TerminalEmulator(object):
             if i in self.buffer:
                 del self.buffer[i]
 
+    def _write_plain_text(self, plain_text):
+        self.buffer[self.cursor.y].update(
+            [
+                (self.cursor.x + i, self.cursor.char.copy(data=c))
+                for i, c in enumerate(plain_text)
+            ]
+        )
+        self.cursor.x += len(plain_text)
+
     def _write_text(self, text):
-        for c in text:
+        prev_end = 0
+        for match in SEP_RE.finditer(text):
+            start, end = match.span()
+            self._write_plain_text(text[prev_end:start])
+            prev_end = end
+            c = match.group()
             if c == "\n":
                 self.linefeed()
             elif c == "\r":
                 self.carriage_return()
             elif c == "\b":
                 self.cursor_left()
-            elif repr(c)[1:3] == "\\x":
-                continue
             else:
-                self.buffer[self.cursor.y][self.cursor.x] = self.cursor.char.copy(
-                    data=c
-                )
-                self.cursor.x += 1
+                continue
+        self._write_plain_text(text[prev_end:])
 
     def _remove_osc(self, text):
         return re.sub(ANSI_OSC_RE, "", text)
@@ -345,30 +398,49 @@ class TerminalEmulator(object):
         except Exception:
             pass
 
-    def _get_line(self, n, formatting=True):
+    def _get_line(self, n):
         line = self.buffer[n]
-        if not formatting:
-            return "".join(
-                [self.buffer[line][j] for j in range(self._get_line_len(line))]
-            )
-        else:
-            out = ""
-            prev_char = _defchar
-            for i in range(self._get_line_len(n)):
-                c = line[i]
-                if c.fg != prev_char.fg:
-                    out += _get_char(c.fg)
-                if c.bg != prev_char.bg:
-                    out += _get_char(c.bg)
-                for k in c.__slots__[3:]:
-                    ck = c[k]
-                    if ck != prev_char[k]:
-                        if not ck:
-                            k = "/" + k
-                        out += _get_char(ANSI_STYLES_REV[k])
-                out += c.data
-                prev_char = c
-            return out
+        line_len = self._get_line_len(n)
+        # We have to loop through each character in the line and check if foreground, background and
+        # other attributes (italics, bold, underline, etc) of the ith character are different from those of the
+        # (i-1)th character. If different, the appropriate ascii character for switching the color/attribute
+        # should be appended to the output string before appending the actual character. This loop and subsequent
+        # checks can be expensive, especially because 99% of terminal output use default colors and formatting. Even
+        # in outputs that do contain colors and styles, its unlikely that they will change on a per character basis.
+
+        # So instead we create a character list without any ascii codes (`out`), and a list of all the foregrounds
+        # in the line (`fgs`) on which we call np.diff() and np.where() to find the indices where the foreground change,
+        # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if
+        # there are more than 1 foreground color in the line in the first place (`if len(set(fgs)) > 1 else None`).
+        # Same logic is repeated for background colors and other attributes.
+
+        out = [line[i].data for i in range(line_len)]
+
+        # for dynamic insert using original indices
+        idxs = np.arange(line_len)
+        insert = lambda i, c: (out.insert(idxs[i], c), idxs[i:].__iadd__(1))  # noqa
+
+        fgs = [int(_defchar.fg)] + [int(line[i].fg) for i in range(line_len)]
+        [
+            insert(i, _get_char(line[int(i)].fg)) for i in np.where(np.diff(fgs))[0]
+        ] if len(set(fgs)) > 1 else None
+        bgs = [int(_defchar.bg)] + [int(line[i].bg) for i in range(line_len)]
+        [
+            insert(i, _get_char(line[int(i)].bg)) for i in np.where(np.diff(bgs))[0]
+        ] if len(set(bgs)) > 1 else None
+        attrs = {
+            k: [False] + [line[i][k] for i in range(line_len)]
+            for k in Char.__slots__[3:]
+        }
+        [
+            [
+                insert(i, _get_char(ANSI_STYLES_REV[k if line[int(i)][k] else "/" + k]))
+                for i in np.where(np.diff(v))[0]
+            ]
+            for k, v in attrs.items()
+            if any(v)
+        ]
+        return "".join(out)
 
     def read(self):
         num_lines = self.num_lines
@@ -397,6 +469,15 @@ class TerminalEmulator(object):
                     )
                     + os.linesep
                 )
+        if num_lines > self._MAX_LINES:
+            shift = num_lines - self._MAX_LINES
+            for i in range(shift, num_lines):
+                self.buffer[i - shift] = self.buffer[i]
+            for i in range(self._MAX_LINES, max(self.buffer.keys())):
+                if i in self.buffer:
+                    del self.buffer[i]
+            self.cursor.y -= min(self.cursor.y, shift)
+            self._num_lines = num_lines = self._MAX_LINES
         self._prev_num_lines = num_lines
         self._prev_last_line = self._get_line(num_lines - 1)
         return ret
@@ -465,6 +546,31 @@ class StreamWrapper(RedirectBase):
         self._installed = False
         self._emulator = TerminalEmulator()
 
+    def _emulator_write(self):
+        while True:
+            if self._queue.empty():
+                if self._stopped.is_set():
+                    return
+                time.sleep(0.5)
+                continue
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.get())
+            if self._stopped.is_set() and sum(map(len, data)) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                [self.flush(line.encode("utf-8")) for line in data]
+                return
+            try:
+                self._emulator.write("".join(data))
+            except Exception:
+                pass
+
+    def _callback(self):
+        while not (self._stopped.is_set() and self._queue.empty()):
+            self.flush()
+            time.sleep(_MIN_CALLBACK_INTERVAL)
+
     def install(self):
         super(StreamWrapper, self).install()
         if self._installed:
@@ -476,43 +582,33 @@ class StreamWrapper(RedirectBase):
 
         def write(data):
             self._old_write(data)
-            if isinstance(data, bytes):
-                try:
-                    data = data.decode("utf-8")
-                except UnicodeDecodeError:
-                    # TODO(frz)
-                    data = ""
-            try:
-                self._emulator.write(data)
-            except Exception:
-                pass
-            curr_time = time.time()
-            if curr_time - self._prev_callback_timestamp < _MIN_CALLBACK_INTERVAL:
-                return
-            try:
-                data = self._emulator.read().encode("utf-8")
-            except Exception:
-                data = b""
-            if data:
-                self._prev_callback_timestamp = curr_time
-                for cb in self.cbs:
-                    try:
-                        cb(data)
-                    except Exception:
-                        pass  # TODO(frz)
+            self._queue.put(data)
 
         if sys.version_info[0] > 2:
             stream.write = write
         else:
             self._old_stream = stream
             setattr(sys, self.src, _WrappedStream(stream, write))
+
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+        self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        # self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.start()
+
+        if not wandb.run or wandb.run._settings.mode == "online":
+            self._callback_thread = threading.Thread(target=self._callback)
+            self._callback_thread.daemon = True
+            self._callback_thread.start()
+
         self._installed = True
 
-    def flush(self):
-        try:
-            data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+    def flush(self, data=None):
+        if data is None:
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                pass
         if data:
             for cb in self.cbs:
                 try:
@@ -523,11 +619,19 @@ class StreamWrapper(RedirectBase):
     def uninstall(self):
         if not self._installed:
             return
-        self.flush()
         if sys.version_info[0] > 2:
             self.src_wrapped_stream.write = self._old_write
         else:
             setattr(sys, self.src, self._old_stream)
+
+        self._stopped.set()
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
+            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            self._emulator_write_thread.join()
+            wandb.termlog("Done.")
+        self.flush()
+
         self._installed = False
         super(StreamWrapper, self).uninstall()
 
@@ -568,9 +672,9 @@ class _WindowSizeChangeHandler(object):
             rows, cols, xpix, ypix = struct.unpack("HHHH", win_size)
         # Note: IOError not subclass of OSError in python 2.x
         except (OSError, IOError):  # eg. in MPI we can't do this. # noqa
-            rows, cols, xpix, ypix = 25, 80, 0, 0
+            return
         if cols == 0:
-            cols = 80
+            return
         win_size = struct.pack("HHHH", rows, cols, xpix, ypix)
         for fd in self._fds:
             fcntl.ioctl(fd, termios.TIOCSWINSZ, win_size)
@@ -611,6 +715,11 @@ class Redirect(RedirectBase):
         self._pipe_relay_thread = threading.Thread(target=self._pipe_relay)
         self._pipe_relay_thread.daemon = True
         self._pipe_relay_thread.start()
+        self._queue = queue.Queue()
+        self._stopped = threading.Event()
+        self._emulator_write_thread = threading.Thread(target=self._emulator_write)
+        self._emulator_write_thread.daemon = True
+        self._emulator_write_thread.start()
         if not wandb.run or wandb.run._settings.mode == "online":
             self._callback_thread = threading.Thread(target=self._callback)
             self._callback_thread.daemon = True
@@ -620,22 +729,38 @@ class Redirect(RedirectBase):
         if not self._installed:
             return
         self._installed = False
-        self.src_wrapped_stream.flush()
+        # If the user printed a very long string (millions of chars) right before wandb.finish(),
+        # it will take a while for it to reach pipe relay. 1 second is enough time for ~5 million chars.
         time.sleep(1)
         self._stopped.set()
         os.dup2(self._orig_src_fd, self.src_fd)
-        os.write(self._pipe_write_fd, b"\n")
-        os.close(self._pipe_write_fd)
+        os.write(self._pipe_write_fd, _LAST_WRITE_TOKEN)
+        self._pipe_relay_thread.join()
         os.close(self._pipe_read_fd)
+        os.close(self._pipe_write_fd)
+
+        t = threading.Thread(
+            target=self.src_wrapped_stream.flush
+        )  # Calling flush() from the current thread does not flush the buffer instantly.
+        t.start()
+        t.join(timeout=10)
+
+        self._emulator_write_thread.join(timeout=5)
+        if self._emulator_write_thread.is_alive():
+            wandb.termlog("Processing terminal ouput (%s)..." % self.src)
+            self._emulator_write_thread.join()
+            wandb.termlog("Done.")
         self.flush()
+
         _WSCH.remove_fd(self._pipe_read_fd)
         super(Redirect, self).uninstall()
 
-    def flush(self):
-        try:
-            data = self._emulator.read().encode("utf-8")
-        except Exception:
-            data = b""
+    def flush(self, data=None):
+        if data is None:
+            try:
+                data = self._emulator.read().encode("utf-8")
+            except Exception:
+                pass
         if data:
             for cb in self.cbs:
                 try:
@@ -651,21 +776,47 @@ class Redirect(RedirectBase):
     def _pipe_relay(self):
         while True:
             try:
+                brk = False
                 data = os.read(self._pipe_read_fd, 4096)
                 if self._stopped.is_set():
-                    return
-            except OSError:
-                return
-            try:
+                    if _LAST_WRITE_TOKEN not in data:
+                        # _LAST_WRITE_TOKEN could have gotten split up at the 4096 border
+                        n = len(_LAST_WRITE_TOKEN)
+                        while n and data[-n:] != _LAST_WRITE_TOKEN[:n]:
+                            n -= 1
+                        if n:
+                            data += os.read(
+                                self._pipe_read_fd, len(_LAST_WRITE_TOKEN) - n
+                            )
+                    if _LAST_WRITE_TOKEN in data:
+                        data = data.replace(_LAST_WRITE_TOKEN, b"")
+                        brk = True
                 i = self._orig_src.write(data)
                 if i is not None:  # python 3 w/ unbuffered i/o: we need to keep writing
                     while i < len(data):
                         i += self._orig_src.write(data[i:])
-                if sys.platform != "darwin":
-                    self.src_wrapped_stream.flush()
+                self._queue.put(data)
+                if brk:
+                    return
             except OSError:
                 return
+
+    def _emulator_write(self):
+        while True:
+            if self._queue.empty():
+                if self._stopped.is_set():
+                    return
+                time.sleep(0.5)
+                continue
+            data = []
+            while not self._queue.empty():
+                data.append(self._queue.get())
+            if self._stopped.is_set() and sum(map(len, data)) > 100000:
+                wandb.termlog("Terminal output too large. Logging without processing.")
+                self.flush()
+                [self.flush(line) for line in data]
+                return
             try:
-                self._emulator.write(data.decode("utf-8"))
-            except UnicodeDecodeError:
-                pass  # TODO(frz): partial unicode character?
+                self._emulator.write(b"".join(data).decode("utf-8"))
+            except Exception:
+                pass

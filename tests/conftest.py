@@ -783,15 +783,19 @@ def stop_backend(
 def publish_util(
     mocked_run, mock_server, internal_sender, start_backend, stop_backend, parse_ctx,
 ):
-    def fn(metrics=None, history=None):
+    def fn(metrics=None, history=None, artifacts=None):
         metrics = metrics or []
         history = history or []
+        artifacts = artifacts or []
 
         threads = start_backend()
         for m in metrics:
             internal_sender._publish_metric(m)
         for h in history:
             internal_sender.publish_history(**h)
+        for a in artifacts:
+            internal_sender.publish_artifact(**a)
+
         stop_backend(threads=threads)
 
         ctx_util = parse_ctx(mock_server.ctx)
