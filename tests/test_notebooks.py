@@ -1,5 +1,6 @@
 import os
 import platform
+import subprocess
 import pytest
 import json
 import sys
@@ -119,6 +120,9 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
         wandb.login()
 
 
-def test_notebook_exits(notebook):
-    with notebook("test_exit.ipynb") as nb:
-        nb.execute_all()
+def test_notebook_exits():
+
+    script_dirname = os.path.dirname(__file__)
+    script_fname = os.path.join(script_dirname, 'notebooks/ipython_exit.py')
+    cmd = ['ipython', script_fname]
+    subprocess.check_call(cmd)
