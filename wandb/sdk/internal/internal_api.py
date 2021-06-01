@@ -1297,6 +1297,8 @@ class Api(object):
         """
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
+
+        # mutation 3 maps to backend that can support CLI version of at least 0.10.31
         mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
         mutation_2 = gql(
             mutation_str.replace("_PROJECT_QUERY_", project_query).replace(
