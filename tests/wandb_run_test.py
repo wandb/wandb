@@ -5,10 +5,10 @@ config tests.
 import os
 import sys
 import pytest
-import yaml
+import pandas as pd
 import wandb
 from wandb import wandb_sdk
-from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
+from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord, HistoryRecord
 
 
 def test_run_basic():
@@ -140,3 +140,24 @@ def test_except_hook(test_settings):
     assert "".join(stderr) == "Exception: After wandb.init()\n"
 
     sys.stderr.write = old_stderr_write
+
+
+def test_log_dataframe(fake_run, record_q, records_util):
+
+    run = fake_run()
+    cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
+
+    with pytest.raises(ValueError):
+        run.log(
+            {"results_df": cv_results}
+        )  # Error: We do not support DataFrames in the Summary or History
+
+    run.log(
+        {"results_a": 1234}
+    )  # Error: We do not support DataFrames in the Summary or History
+
+    r = records_util(record_q)
+    assert len(r.records) == 1
+    assert isinstance(r.records[-1], HistoryRecord)
+    for d in r.records[-1].item:
+        assert "results_df" != d.key

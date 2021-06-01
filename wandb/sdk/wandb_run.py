@@ -845,7 +845,7 @@ class Run(object):
         if self._backend:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
-                row, step, publish_step=not_using_tensorboard
+                row, step, run=self, publish_step=not_using_tensorboard
             )
 
     def _console_callback(self, name: str, data: str) -> None:
