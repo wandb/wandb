@@ -443,7 +443,7 @@ class WandbCallback(keras.callbacks.Callback):
     def _is_h5_supported(self, model):
         if not getattr(model, "_is_graph_network", True):
             return False
-        for layer in model.layers:
+        for layer in getattr(model, "layers", []):
             if not self._is_h5_supported(layer):
                 return False
         return True
