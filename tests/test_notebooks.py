@@ -117,3 +117,8 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
     # when we try to call wandb.login(), should fail with no-tty
     with pytest.raises(UsageError, match="tty"):
         wandb.login()
+
+
+def test_notebook_exits(notebook):
+    with notebook("test_exit.ipynb") as nb:
+        nb.execute_all()
