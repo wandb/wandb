@@ -349,9 +349,6 @@ class WandbCallback(keras.callbacks.Callback):
         self.verbose = verbose
         self.save_weights_only = save_weights_only
         self.save_graph = save_graph
-
-        wandb.save("model-best.h5")
-        self.filepath = os.path.join(wandb.run.dir, "model-best.h5")
         self.save_model = save_model
         self.log_weights = log_weights
         self.log_gradients = log_gradients
@@ -443,7 +440,21 @@ class WandbCallback(keras.callbacks.Callback):
     def set_params(self, params):
         self.params = params
 
+    def _is_h5_supported(self, model):
+        if not getattr(model, "_is_graph_network"):
+            return False
+        for layer in model.layers:
+            if not self._is_h5_supported(layer):
+                return False
+        return True
+
     def set_model(self, model):
+        if not self.save_weights_only and not self._is_h5_supported(model):
+            filename = "model-best"
+        else:
+            filename = "model-best.h5"
+        wandb.save(filename)
+        self.filepath = os.path.join(wandb.run.dir, filename)
         self.model = model
         if self.input_type == "auto" and len(model.inputs) == 1:
             self.input_type = wandb.util.guess_data_type(
