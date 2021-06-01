@@ -1225,7 +1225,7 @@ class ImageMask(Media):
         raw_image_path = "sample_image.png"
         predicted_mask_path = "predicted_mask.png"
         class_set = wandb.Classes([
-						{"name" : "person", "id" : 0},
+            {"name" : "person", "id" : 0},
             {"name" : "tree", "id" : 1},
             {"name" : "car", "id" : 2},
             {"name" : "road", "id" : 3}
