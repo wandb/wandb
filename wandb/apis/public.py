@@ -234,7 +234,7 @@ class _Old_Api(object):  # For backward compatibility
     ) -> "Runs":
         return self.get(path, filter=filters, order=order, per_page=per_page)
 
-    def run(self, path: str) -> Run:
+    def run(self, path: str) -> "Run":
         return self.get(path)
 
     def create_run(
@@ -639,9 +639,18 @@ class Project(Attrs):
         return "<Project {}/{}>".format(*self.path)
 
     def runs(
-        self, filter: Optional[Union[str, Dict]] = None, order: str = "-created_at"
+        self,
+        filter: Optional[Union[str, Dict]] = None,
+        order: str = "-created_at",
+        per_page: int = 50,
     ) -> "Runs":
-        return Runs(client=self.client, project=self, filters=filter, order=order)
+        return Runs(
+            client=self.client,
+            project=self,
+            filters=filter,
+            order=order,
+            per_page=per_page,
+        )
 
     def run(self, run_id: str) -> "Run":
         return Run(client=self.client, project=self, run_id=run_id)
@@ -700,7 +709,7 @@ class Project(Attrs):
     def delete_run(self, run_id: str, delete_artifacts: bool = False) -> bool:
         return self.run(run_id).delete(delete_artifacts=delete_artifacts)
 
-    def artifact(self, name: str) -> Artifact:
+    def artifact(self, name: str) -> "Artifact":
         return Artifact(client=self.client, project=self, name=name)
 
     @normalize_exceptions

@@ -29,6 +29,7 @@ SYMBOLS_ROOT_DATATYPES = {
 }
 
 SYMBOLS_ROOT_SDK = {
+    "get",
     "login",
     "init",
     "log",

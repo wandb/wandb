@@ -58,7 +58,6 @@ Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.api2 import Api as Api2
 from wandb.errors import CommError, UsageError
 
 _preinit = wandb_lib.preinit
@@ -191,7 +190,7 @@ def set_trace():
 
 def get(path=None, **kwargs):
     # TODO(frz) cache Api instance
-    return Api2().get(path=path, **kwargs)
+    return Api().get(path=path, **kwargs)
 
 
 __all__ = [
