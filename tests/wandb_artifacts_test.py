@@ -990,6 +990,17 @@ def test_local_references(runner, live_mock_server, test_settings):
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
 
+def test_run_log_after_artifact_log(runner, live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    t1 = wandb.Table(columns=[], data=[])
+    artifact1 = wandb.Artifact("test_run_log_after_artifact_log", "dataset")
+    artifact1.add(t1, "t1")
+    with pytest.raises(RuntimeError):
+        run.log({"t1": t1})
+    run.log_artifact(artifact1)
+    run.log({"t1": t1})
+
+
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])

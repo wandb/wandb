@@ -488,6 +488,15 @@ class Media(WBValue):
                 }
             )
             artifact_entry = self._get_artifact_reference_entry()
+            if (
+                artifact_entry is None
+                and self._artifact_target is not None
+                and self._artifact_target.artifact._logged_artifact is None
+            ):
+                raise RuntimeError(
+                    "Attempting to log instance of wandb.Media to a Run which has been added to an Artifact which is not yet logged. "
+                    + "Please ensure that you first log your Artifact using `log_artifact` if you also want to log such Media objects to a Run."
+                )
             if artifact_entry is not None:
                 json_obj["artifact_path"] = artifact_entry.ref_url()
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
