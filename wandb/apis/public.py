@@ -2512,7 +2512,7 @@ class Artifact(artifacts.Artifact):
         attrs: Optional[Dict] = None,
     ) -> None:
         self.client = client
-        self.entity = project.entity
+        self._entity = project.entity
         self.project = project
         self._artifact_name = name
         self._attrs = attrs
@@ -2533,6 +2533,10 @@ class Artifact(artifacts.Artifact):
         self._dependent_artifacts = []
         self._download_roots = set()
         artifacts.get_artifacts_cache().store_artifact(self)
+
+    @property
+    def entity(self) -> str:
+        return self._entity.name
 
     @property
     def id(self) -> str:
@@ -2926,7 +2930,7 @@ class Artifact(artifacts.Artifact):
             response = self.client.execute(
                 query,
                 variable_values={
-                    "entityName": self.entity.name,
+                    "entityName": self.entity,
                     "projectName": self.project.name,
                     "name": self._artifact_name,
                 },
@@ -2941,7 +2945,7 @@ class Artifact(artifacts.Artifact):
         if response is None or not response.get("project", {}).get("artifact", None):
             raise ValueError(
                 'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity.name, self.project.name, self._artifact_name)
+                % (self.entity, self.project.name, self._artifact_name)
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
