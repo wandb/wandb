@@ -1230,7 +1230,6 @@ class ImageMask(Media):
             {"name" : "car", "id" : 2},
             {"name" : "road", "id" : 3}
         ])
-
         masked_image = wandb.Image(raw_image_path, classes=class_set,
             masks={"prediction" : {"path" : predicted_mask_path}})
         ```
@@ -1397,7 +1396,6 @@ class BoundingBoxes2D(JSONMetadata):
             3: "building",
             ....
         }
-
         img = wandb.Image(image, boxes={
             "predictions": {
                 "box_data": [
@@ -1452,7 +1450,7 @@ class BoundingBoxes2D(JSONMetadata):
         raw_image_path = "sample_image.png"
 
         class_set = wandb.Classes([
-                                                {"name" : "person", "id" : 0},
+            {"name" : "person", "id" : 0},
             {"name" : "car", "id" : 1},
             {"name" : "road", "id" : 2},
             {"name" : "building", "id" : 3}
@@ -1462,7 +1460,6 @@ class BoundingBoxes2D(JSONMetadata):
             boxes=[...identical to previous example...]
         ```
     """
-
     _log_type = "bounding-boxes"
     # TODO: when the change is made to have this produce a dict with a _type, define
     # it here as _log_type, associate it in to_json
