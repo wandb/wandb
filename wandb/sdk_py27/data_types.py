@@ -1181,34 +1181,81 @@ class JSONMetadata(Media):
 
 class ImageMask(Media):
     """
-    Wandb class for image masks, useful for segmentation tasks
+    Wandb class for image masks or overlays, useful for tasks like semantic segmentation.
+
+    Arguments:
+        val: (dictionary)
+            One of these two keys to represent the image:
+                mask_data : (2D numpy array) The mask containing an integer class label
+                    for each pixel in the image
+                path : (string) The path to a saved image file of the mask
+            class_labels : (dictionary of integers to stringd, optional) A mapping of the
+                integer class labels in the mask to readable class names
+        key: (string)
+            The readable name or id for this mask (e.g. ground_truth, predictions)
+
+    Examples:
+        Log a mask overlay for a given image
+        ```python
+        predicted_mask = np.array([[1, 2, 2, ... , 2, 2, 1], ...])
+        ground_truth_mask = np.array([[1, 1, 1, ... , 2, 2, 1], ...])
+
+        class_labels = {
+            0: "person",
+            1: "tree",
+            2: "car",
+            3: "road"
+        }
+
+        masked_image = wandb.Image(image, masks={
+            "predictions": {
+                "mask_data": predicted_mask,
+                "class_labels": class_labels
+            },
+            "ground_truth": {
+                "mask_data": ground_truth_mask,
+                "class_labels": class_labels
+            }
+        }
+        wandb.log({"img_with_masks" : masked_image})
+        ```
+
+        Prepare an image mask to be added to a wandb.Table
+        ```python
+        raw_image_path = "sample_image.png"
+        predicted_mask_path = "predicted_mask.png"
+        class_set = wandb.Classes([
+            {"name" : "person", "id" : 0},
+            {"name" : "tree", "id" : 1},
+            {"name" : "car", "id" : 2},
+            {"name" : "road", "id" : 3}
+        ])
+        masked_image = wandb.Image(raw_image_path, classes=class_set,
+            masks={"prediction" : {"path" : predicted_mask_path}})
+        ```
     """
 
     _log_type = "mask"
 
     def __init__(self, val, key):
         """
-        Args:
-            val (dict): dictionary following 1 of two forms:
-            {
-                "mask_data": 2d array of integers corresponding to classes,
-                "class_labels": optional mapping from class ids to strings {id: str}
-            }
-
-            {
-                "path": path to an image file containing integers corresponding to classes,
-                "class_labels": optional mapping from class ids to strings {id: str}
-            }
-            key (str): id for set of masks
+        Arguments:
+            val: (dictionary)
+                One of these two keys to represent the image:
+                    mask_data : (2D numpy array) The mask containing an integer class label
+                        for each pixel in the image
+                    path : (string) The path to a saved image file of the mask
+                class_labels : (dictionary of integers to stringd, optional) A mapping of the
+                    integer class labels in the mask to readable class names
+            key: (string)
+                The readable name or id for this mask (e.g. ground_truth, predictions)
         """
         super(ImageMask, self).__init__()
 
         if "path" in val:
             self._set_file(val["path"])
         else:
-            np = util.get_module(
-                "numpy", required="Semantic Segmentation mask support requires numpy"
-            )
+            np = util.get_module("numpy", required="Image mask support requires numpy")
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
@@ -1258,7 +1305,8 @@ class ImageMask(Media):
         cls, json_obj, source_artifact
     ):
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            key="",
         )
 
     def to_json(self, run_or_artifact):
@@ -1278,16 +1326,14 @@ class ImageMask(Media):
         return cls._log_type
 
     def validate(self, val):
-        np = util.get_module(
-            "numpy", required="Semantic Segmentation mask support requires numpy"
-        )
+        np = util.get_module("numpy", required="Image mask support requires numpy")
         # 2D Make this work with all tensor(like) types
         if "mask_data" not in val:
             raise TypeError(
-                'Missing key "mask_data": A mask requires mask data(A 2D array representing the predctions)'
+                'Missing key "mask_data": An image mask requires mask data: a 2D array representing the predictions'
             )
         else:
-            error_str = "mask_data must be a 2d array"
+            error_str = "mask_data must be a 2D array"
             shape = val["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
@@ -1303,42 +1349,149 @@ class ImageMask(Media):
                     not isinstance(v, six.string_types)
                 ):
                     raise TypeError(
-                        "Class labels must be a dictionary of numbers to string"
+                        "Class labels must be a dictionary of numbers to strings"
                     )
         return True
 
 
 class BoundingBoxes2D(JSONMetadata):
     """
-    Wandb class for 2D bounding boxes
-    """
+    Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
 
+    Arguments:
+        val: (dictionary) a dictionary of the following form:
+            box_data: (list of dictionaries) one dictionary for each box, containing
+                position: (dictionary) the position and size of the bounding box, in one of two formats
+                    Note that boxes need not all use the same format.
+                    {"minX", "minY", "maxX", "maxY"}: (dictionary) a set of coordinates defining
+                        the upper and lower bounds of the box (the bottom left and top right corners)
+                    {"middle", "width", "height"}: (dictionary) a set of coordinates defining the
+                        center and dimensions of the box, with "middle" as a list [x, y] for the
+                        center point and "width" and "height" as numbers
+                domain: (string) one of two options for the bounding box coordinate domain
+                    default or null: By default, or if no argument is passed, the coordinate domain
+                        is assumed to be relative to the original image, expressing this box as a fraction
+                        or percentage of the original image. This means all coordinates and dimensions
+                        passed into the "position" argument are floating point numbers between 0 and 1.
+                    "pixel": (string literal) The coordinate domain is set to pixel space. This means all
+                        coordinates and dimensions passed into "position" are integers within the bounds
+                        of the image dimensions.
+                class_id: (integer) the class label for this box
+                scores: (dictionary of string to float/integer, optional) a mapping of named fields
+                        to numerical (float) values, can be used for filtering boxes in the UI
+                box_caption: (string, optional) a string to be displayed as the label text above this
+                        box in the UI, often composed of the class label, class name, and/or scores
+
+            class_labels: (dictionary, optional) a map of integer class labels to their readable class names
+        key: (string)
+            The readable name or id for this set of bounding boxes (e.g. ground_truth, predictions)
+
+    Examples:
+        Log a set of predictions and ground truth bounding boxes for a given image
+        ```python
+        class_labels = {
+            0: "person",
+            1: "car",
+            2: "road",
+            3: "building",
+            ....
+        }
+        img = wandb.Image(image, boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        # one box expressed in the default relative/fractional domain
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4
+                        },
+                        "class_id" : 2,
+                        "box_caption": class_labels[2],
+                        "scores" : {
+                            "acc": 0.1,
+                            "loss": 1.2
+                        }
+                    },
+                    {
+                        # another box expressed in the pixel domain
+                        # (for illustration purposes only, all boxes are likely
+                        # to be in the same domain/format)
+                        "position": {
+                            "middle": [150, 20],
+                            "width": 68,
+                            "height": 112
+                        },
+                        "domain" : "pixel",
+                        "class_id" : 3,
+                        "box_caption": "a building",
+                        "scores" : {
+                            "acc": 0.5,
+                            "loss": 0.7
+                        }
+                    },
+                    ...
+                    # Log as many boxes an as needed
+                ],
+                "class_labels": class_labels
+            },
+            # Log each meaningful group of boxes with a unique key name
+            "ground_truth": {
+            ...
+            }
+        })
+
+        wandb.log({"driving_scene": img})
+        ```
+
+        Prepare an image with bounding boxes to be added to a wandb.Table
+        ```python
+        raw_image_path = "sample_image.png"
+
+        class_set = wandb.Classes([
+            {"name" : "person", "id" : 0},
+            {"name" : "car", "id" : 1},
+            {"name" : "road", "id" : 2},
+            {"name" : "building", "id" : 3}
+        ])
+
+        image_with_boxes = wandb.Image(raw_image_path, classes=class_set,
+            boxes=[...identical to previous example...]
+        ```
+    """
     _log_type = "bounding-boxes"
     # TODO: when the change is made to have this produce a dict with a _type, define
     # it here as _log_type, associate it in to_json
 
     def __init__(self, val, key):
         """
-        Args:
-            val (dict): dictionary following the form:
-            {
-                "class_labels": optional mapping from class ids to strings {id: str}
-                "box_data": list of boxes: [
-                    {
-                        "position": {
-                            "minX": float,
-                            "maxX": float,
-                            "minY": float,
-                            "maxY": float,
-                        },
-                        "class_id": 1,
-                        "box_caption": optional str
-                        "scores": optional dict of scores
-                    },
-                    ...
-                ],
-            }
-            key (str): id for set of bounding boxes
+        Arguments:
+            val: (dictionary) a dictionary of the following form:
+                box_data: (list of dictionaries) one dictionary for each box, containing
+                    position: (dictionary) the position and size of the bounding box, in one of two formats
+                        Note that boxes need not all use the same format.
+                        {"minX", "minY", "maxX", "maxY"}: (dictionary) a set of coordinates defining
+                            the upper and lower bounds of the box (the bottom left and top right corners)
+                        {"middle", "width", "height"}: (dictionary) a set of coordinates defining the
+                            center and dimensions of the box, with "middle" as a list [x, y] for the
+                            center point and "width" and "height" as numbers
+                    domain: (string) one of two options for the bounding box coordinate domain
+                        default or null: By default, or if no argument is passed, the coordinate domain
+                            is assumed to be relative to the original image, expressing this box as a fraction
+                            or percentage of the original image. This means all coordinates and dimensions
+                            passed into the "position" argument are floating point numbers between 0 and 1.
+                        "pixel": (string literal) The coordinate domain is set to pixel space. This means all
+                            coordinates and dimensions passed into "position" are integers within the bounds
+                            of the image dimensions.
+                    class_id: (integer) the class label for this box
+                    scores: (dictionary of string to float/integer, optional) a mapping of named fields
+                            to numerical (float) values, can be used for filtering boxes in the UI
+                    box_caption: (string, optional) a string to be displayed as the label text above this
+                            box in the UI, often composed of the class label, class name, and/or scores
+                class_labels: (dictionary, optional) a map of integer class labels to their readable class names
+            key: (string)
+                The readable name or id for this set of bounding boxes (e.g. ground_truth, predictions)
         """
         super(BoundingBoxes2D, self).__init__(val)
         self._val = val["box_data"]
@@ -1346,7 +1499,7 @@ class BoundingBoxes2D(JSONMetadata):
         # Add default class mapping
         if "class_labels" not in val:
             np = util.get_module(
-                "numpy", required="Semantic Segmentation mask support requires numpy"
+                "numpy", required="Bounding box support requires numpy"
             )
             classes = (
                 np.unique(list([box["class_id"] for box in val["box_data"]]))
@@ -1651,7 +1804,11 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data, mode = None,):
+    def _initialize_from_data(
+        self,
+        data,
+        mode = None,
+    ):
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -2348,7 +2505,9 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact = None,
+        cls,
+        json_dict,
+        artifact = None,
     ):
         classes_obj = None
         if (
