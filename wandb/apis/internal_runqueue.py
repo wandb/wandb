@@ -709,8 +709,6 @@ class Api(object):
         """
         )
         created_by = getpass.getuser()
-        print("CREATED BY", created_by)
-        print(queue_name)
         variable_values = {
             "project": project,
             "entity": entity,
@@ -733,26 +731,23 @@ class Api(object):
 
         mutation = gql(
             """
-        mutation pushToRunQueue($queueId: ID!, $runSpec: JSONString!, $userName: String!) {
+        mutation pushToRunQueue($queueId: ID!, $runSpec: JSONString!) {
             pushToRunQueue(
                 input: {
                     queueId: $queueId,
-                    runSpec: $runSpec,
-                    userName: $userName
+                    runSpec: $runSpec
                 }
             ) {
                 runQueueItemId
             }
         }
         """)
-        username = getpass.getuser()
         spec_json = json.dumps(run_spec)
         response = self.gql(
             mutation,
             variable_values={
                 "queueId": queue_id,
-                "runSpec": spec_json,
-                "userName": username
+                "runSpec": spec_json
             })
         return response["pushToRunQueue"]
 
@@ -760,13 +755,12 @@ class Api(object):
     def pop_from_run_queue(self, queue_name, entity=None, project=None):
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $userName: String!)  {
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!)  {
             popFromRunQueue(
                 input: {
                     entityName: $entity,
                     projectName: $project,
-                    queueName: $queueName,
-                    userName: $userName
+                    queueName: $queueName
                 }
             ) {
                 runQueueItemId
@@ -776,14 +770,12 @@ class Api(object):
         """
         )
         
-        username = getpass.getuser()
         response = self.gql(
             mutation,
             variable_values={
                 "entity": entity,
                 "project": project,
-                "queueName": queue_name,
-                "userName": username
+                "queueName": queue_name
             },
         )
         return response["popFromRunQueue"]

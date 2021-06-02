@@ -23,7 +23,7 @@ _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://wandb")
-_WANDB_DEV_URI_REGEX = re.compile(r"^https://ap\w.wandb")   # for testing, not sure if we wanna keep this
+_WANDB_DEV_URI_REGEX = re.compile(r"^https?://ap\w.wandb")   # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
