@@ -1189,7 +1189,7 @@ class ImageMask(Media):
                 mask_data : (2D numpy array) The mask containing an integer class label
                     for each pixel in the image
                 path : (string) The path to a saved image file of the mask
-            class_labels : (dictionary of integers to stringd, optional) A mapping of the 
+            class_labels : (dictionary of integers to stringd, optional) A mapping of the
                 integer class labels in the mask to readable class names
         key: (string)
             The readable name or id for this mask (e.g. ground_truth, predictions)
@@ -1230,10 +1230,10 @@ class ImageMask(Media):
             {"name" : "car", "id" : 2},
             {"name" : "road", "id" : 3}
         ])
-            
+
         masked_image = wandb.Image(raw_image_path, classes=class_set,
             masks={"prediction" : {"path" : predicted_mask_path}})
-        ``` 
+        ```
     """
 
     _log_type = "mask"
@@ -1246,7 +1246,7 @@ class ImageMask(Media):
                     mask_data : (2D numpy array) The mask containing an integer class label
                         for each pixel in the image
                     path : (string) The path to a saved image file of the mask
-                class_labels : (dictionary of integers to stringd, optional) A mapping of the 
+                class_labels : (dictionary of integers to stringd, optional) A mapping of the
                     integer class labels in the mask to readable class names
             key: (string)
                 The readable name or id for this mask (e.g. ground_truth, predictions)
@@ -1256,9 +1256,7 @@ class ImageMask(Media):
         if "path" in val:
             self._set_file(val["path"])
         else:
-            np = util.get_module(
-                "numpy", required="Image mask support requires numpy"
-            )
+            np = util.get_module("numpy", required="Image mask support requires numpy")
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
@@ -1308,7 +1306,8 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            key="",
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
@@ -1328,9 +1327,7 @@ class ImageMask(Media):
         return cls._log_type
 
     def validate(self, val: dict) -> bool:
-        np = util.get_module(
-            "numpy", required="Image mask support requires numpy"
-        )
+        np = util.get_module("numpy", required="Image mask support requires numpy")
         # 2D Make this work with all tensor(like) types
         if "mask_data" not in val:
             raise TypeError(
@@ -1400,7 +1397,7 @@ class BoundingBoxes2D(JSONMetadata):
             3: "building",
             ....
         }
-        
+
         img = wandb.Image(image, boxes={
             "predictions": {
                 "box_data": [
@@ -1446,25 +1443,26 @@ class BoundingBoxes2D(JSONMetadata):
             ...
             }
         })
-        
+
         wandb.log({"driving_scene": img})
         ```
-        
+
         Prepare an image with bounding boxes to be added to a wandb.Table
         ```python
         raw_image_path = "sample_image.png"
-        
+
         class_set = wandb.Classes([
-						{"name" : "person", "id" : 0},
+                                                {"name" : "person", "id" : 0},
             {"name" : "car", "id" : 1},
             {"name" : "road", "id" : 2},
             {"name" : "building", "id" : 3}
         ])
-            
+
         image_with_boxes = wandb.Image(raw_image_path, classes=class_set,
             boxes=[...identical to previous example...]
         ```
     """
+
     _log_type = "bounding-boxes"
     # TODO: when the change is made to have this produce a dict with a _type, define
     # it here as _log_type, associate it in to_json
@@ -1809,7 +1807,11 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
+    def _initialize_from_data(
+        self,
+        data: "ImageDataType",
+        mode: str = None,
+    ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -2506,7 +2508,9 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
+        cls,
+        json_dict: Dict[str, Any],
+        artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (
