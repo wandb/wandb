@@ -1253,12 +1253,11 @@ def _is_databricks():
 def _log_thread_stacks():
     """Log all threads, useful for debugging."""
 
-    _logger = logging.getLogger(__name__)
     thread_map = dict((t.ident, t.name) for t in threading.enumerate())
 
     for thread_id, frame in sys._current_frames().items():
-        _logger.debug('\n--- Stack for thread {t} {name} ---'.format(t=thread_id, name=thread_map.get(thread_id, "unknown")))
+        logger.info('\n--- Stack for thread {t} {name} ---'.format(t=thread_id, name=thread_map.get(thread_id, "unknown")))
         for filename, lineno, name, line in traceback.extract_stack(frame):
-            _logger.debug('  File: "%s", line %d, in %s' % (filename, lineno, name))
+            logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
-                _logger.debug('  Line: %s' % line)
+                logger.info('  Line: %s' % line)
