@@ -1256,8 +1256,12 @@ def _log_thread_stacks():
     thread_map = dict((t.ident, t.name) for t in threading.enumerate())
 
     for thread_id, frame in sys._current_frames().items():
-        logger.info('\n--- Stack for thread {t} {name} ---'.format(t=thread_id, name=thread_map.get(thread_id, "unknown")))
+        logger.info(
+            "\n--- Stack for thread {t} {name} ---".format(
+                t=thread_id, name=thread_map.get(thread_id, "unknown")
+            )
+        )
         for filename, lineno, name, line in traceback.extract_stack(frame):
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
-                logger.info('  Line: %s' % line)
+                logger.info("  Line: %s" % line)
