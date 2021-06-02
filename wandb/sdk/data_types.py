@@ -1189,16 +1189,18 @@ class ImageMask(Media):
                 mask_data : (2D numpy array) The mask containing an integer class label
                     for each pixel in the image
                 path : (string) The path to a saved image file of the mask
-            class_labels : (dictionary of integers to stringd, optional) A mapping of the
-                integer class labels in the mask to readable class names
+            class_labels : (dictionary of integers to strings, optional) A mapping of the
+                integer class labels in the mask to readable class names. These will default
+                to class_0, class_1, class_2, etc.
+
         key: (string)
-            The readable name or id for this mask (e.g. ground_truth, predictions)
+            The readable name or id for this mask type (e.g. predictions, ground_truth)
 
     Examples:
         Log a mask overlay for a given image
         ```python
-        predicted_mask = np.array([[1, 2, 2, ... , 2, 2, 1], ...])
-        ground_truth_mask = np.array([[1, 1, 1, ... , 2, 2, 1], ...])
+        predicted_mask = np.array([[1, 2, 2, ... , 3, 2, 1], ...])
+        ground_truth_mask = np.array([[1, 1, 1, ... , 2, 3, 1], ...])
 
         class_labels = {
             0: "person",
@@ -1245,10 +1247,12 @@ class ImageMask(Media):
                     mask_data : (2D numpy array) The mask containing an integer class label
                         for each pixel in the image
                     path : (string) The path to a saved image file of the mask
-                class_labels : (dictionary of integers to stringd, optional) A mapping of the
-                    integer class labels in the mask to readable class names
+                class_labels : (dictionary of integers to strings, optional) A mapping of the
+                    integer class labels in the mask to readable class names. These will default
+                    to class_0, class_1, class_2, etc.
+
             key: (string)
-                The readable name or id for this mask (e.g. ground_truth, predictions)
+                The readable name or id for this mask type (e.g. predictions, ground_truth)
         """
         super(ImageMask, self).__init__()
 
@@ -1358,42 +1362,43 @@ class BoundingBoxes2D(JSONMetadata):
     Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
 
     Arguments:
-        val: (dictionary) a dictionary of the following form:
-            box_data: (list of dictionaries) one dictionary for each box, containing
+        val: (dictionary) A dictionary of the following form:
+            box_data: (list of dictionaries) One dictionary for each bounding box, containing:
                 position: (dictionary) the position and size of the bounding box, in one of two formats
                     Note that boxes need not all use the same format.
-                    {"minX", "minY", "maxX", "maxY"}: (dictionary) a set of coordinates defining
+                    {"minX", "minY", "maxX", "maxY"}: (dictionary) A set of coordinates defining
                         the upper and lower bounds of the box (the bottom left and top right corners)
-                    {"middle", "width", "height"}: (dictionary) a set of coordinates defining the
+                    {"middle", "width", "height"}: (dictionary) A set of coordinates defining the
                         center and dimensions of the box, with "middle" as a list [x, y] for the
                         center point and "width" and "height" as numbers
-                domain: (string) one of two options for the bounding box coordinate domain
-                    default or null: By default, or if no argument is passed, the coordinate domain
+                domain: (string) One of two options for the bounding box coordinate domain
+                    null: By default, or if no argument is passed, the coordinate domain
                         is assumed to be relative to the original image, expressing this box as a fraction
                         or percentage of the original image. This means all coordinates and dimensions
                         passed into the "position" argument are floating point numbers between 0 and 1.
-                    "pixel": (string literal) The coordinate domain is set to pixel space. This means all
+                    "pixel": (string literal) The coordinate domain is set to the pixel space. This means all
                         coordinates and dimensions passed into "position" are integers within the bounds
                         of the image dimensions.
-                class_id: (integer) the class label for this box
-                scores: (dictionary of string to float/integer, optional) a mapping of named fields
-                        to numerical (float) values, can be used for filtering boxes in the UI
-                box_caption: (string, optional) a string to be displayed as the label text above this
+                class_id: (integer) The class label id for this box
+                scores: (dictionary of string to number, optional) A mapping of named fields
+                        to numerical values (float or int), can be used for filtering boxes in the UI
+                        based on a range of values for the corresponding field
+                box_caption: (string, optional) A string to be displayed as the label text above this
                         box in the UI, often composed of the class label, class name, and/or scores
 
-            class_labels: (dictionary, optional) a map of integer class labels to their readable class names
+            class_labels: (dictionary, optional) A map of integer class labels to their readable class names
+
         key: (string)
-            The readable name or id for this set of bounding boxes (e.g. ground_truth, predictions)
+            The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
 
     Examples:
-        Log a set of predictions and ground truth bounding boxes for a given image
+        Log a set of predicted and ground truth bounding boxes for a given image
         ```python
         class_labels = {
             0: "person",
             1: "car",
             2: "road",
-            3: "building",
-            ....
+            3: "building"
         }
         img = wandb.Image(image, boxes={
             "predictions": {
@@ -1406,17 +1411,15 @@ class BoundingBoxes2D(JSONMetadata):
                             "minY": 0.3,
                             "maxY": 0.4
                         },
-                        "class_id" : 2,
-                        "box_caption": class_labels[2],
+                        "class_id" : 1,
+                        "box_caption": class_labels[1],
                         "scores" : {
-                            "acc": 0.1,
+                            "acc": 0.2,
                             "loss": 1.2
                         }
                     },
                     {
                         # another box expressed in the pixel domain
-                        # (for illustration purposes only, all boxes are likely
-                        # to be in the same domain/format)
                         "position": {
                             "middle": [150, 20],
                             "width": 68,
@@ -1456,7 +1459,7 @@ class BoundingBoxes2D(JSONMetadata):
         ])
 
         image_with_boxes = wandb.Image(raw_image_path, classes=class_set,
-            boxes=[...identical to previous example...]
+            boxes=[...identical to previous example...])
         ```
     """
 
@@ -1467,31 +1470,34 @@ class BoundingBoxes2D(JSONMetadata):
     def __init__(self, val: dict, key: str) -> None:
         """
         Arguments:
-            val: (dictionary) a dictionary of the following form:
-                box_data: (list of dictionaries) one dictionary for each box, containing
+            val: (dictionary) A dictionary of the following form:
+                box_data: (list of dictionaries) One dictionary for each bounding box, containing:
                     position: (dictionary) the position and size of the bounding box, in one of two formats
                         Note that boxes need not all use the same format.
-                        {"minX", "minY", "maxX", "maxY"}: (dictionary) a set of coordinates defining
+                        {"minX", "minY", "maxX", "maxY"}: (dictionary) A set of coordinates defining
                             the upper and lower bounds of the box (the bottom left and top right corners)
-                        {"middle", "width", "height"}: (dictionary) a set of coordinates defining the
+                        {"middle", "width", "height"}: (dictionary) A set of coordinates defining the
                             center and dimensions of the box, with "middle" as a list [x, y] for the
                             center point and "width" and "height" as numbers
-                    domain: (string) one of two options for the bounding box coordinate domain
-                        default or null: By default, or if no argument is passed, the coordinate domain
+                    domain: (string) One of two options for the bounding box coordinate domain
+                        null: By default, or if no argument is passed, the coordinate domain
                             is assumed to be relative to the original image, expressing this box as a fraction
                             or percentage of the original image. This means all coordinates and dimensions
                             passed into the "position" argument are floating point numbers between 0 and 1.
-                        "pixel": (string literal) The coordinate domain is set to pixel space. This means all
+                        "pixel": (string literal) The coordinate domain is set to the pixel space. This means all
                             coordinates and dimensions passed into "position" are integers within the bounds
                             of the image dimensions.
-                    class_id: (integer) the class label for this box
-                    scores: (dictionary of string to float/integer, optional) a mapping of named fields
-                            to numerical (float) values, can be used for filtering boxes in the UI
-                    box_caption: (string, optional) a string to be displayed as the label text above this
+                    class_id: (integer) The class label id for this box
+                    scores: (dictionary of string to number, optional) A mapping of named fields
+                            to numerical values (float or int), can be used for filtering boxes in the UI
+                            based on a range of values for the corresponding field
+                    box_caption: (string, optional) A string to be displayed as the label text above this
                             box in the UI, often composed of the class label, class name, and/or scores
-                class_labels: (dictionary, optional) a map of integer class labels to their readable class names
+
+                class_labels: (dictionary, optional) A map of integer class labels to their readable class names
+
             key: (string)
-                The readable name or id for this set of bounding boxes (e.g. ground_truth, predictions)
+                The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
         """
         super(BoundingBoxes2D, self).__init__(val)
         self._val = val["box_data"]
