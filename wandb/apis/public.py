@@ -3303,8 +3303,9 @@ class Artifact(artifacts.Artifact):
             entry = self._manifest.entries[entry_key]
             if self._manifest_entry_is_artifact_reference(entry):
                 dep_artifact = self._get_ref_artifact_from_entry(entry)
-                dep_artifact._load_manifest()
-                self._dependent_artifacts.append(dep_artifact)
+                if dep_artifact not in self._dependent_artifacts:
+                    dep_artifact._load_manifest()
+                    self._dependent_artifacts.append(dep_artifact)
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
