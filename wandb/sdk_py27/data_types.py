@@ -1305,8 +1305,7 @@ class ImageMask(Media):
         cls, json_obj, source_artifact
     ):
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
-            key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact):
@@ -1460,6 +1459,7 @@ class BoundingBoxes2D(JSONMetadata):
             boxes=[...identical to previous example...]
         ```
     """
+
     _log_type = "bounding-boxes"
     # TODO: when the change is made to have this produce a dict with a _type, define
     # it here as _log_type, associate it in to_json
@@ -1804,11 +1804,7 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(
-        self,
-        data,
-        mode = None,
-    ):
+    def _initialize_from_data(self, data, mode = None,):
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -2505,9 +2501,7 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls,
-        json_dict,
-        artifact = None,
+        cls, json_dict, artifact = None,
     ):
         classes_obj = None
         if (
