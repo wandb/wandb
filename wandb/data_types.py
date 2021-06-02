@@ -411,6 +411,10 @@ class Table(Media):
         # Add the new data
         self.data.append(data)
 
+        for item in data:
+            if isinstance(item, Image):
+                item._free_ram()
+
         # Update the wrapper values if needed
         self._update_keys(force_last=True)
 

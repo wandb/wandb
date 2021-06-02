@@ -1866,11 +1866,11 @@ class Image(BatchableMedia):
                 )
 
         num_images_to_log = len(seq)
-        width, height = seq[0]._image.size  # type: ignore
+        width, height = seq[0].image.size  # type: ignore
         format = jsons[0]["format"]
 
         def size_equals_image(image):
-            img_width, img_height = image._image.size  # type: ignore
+            img_width, img_height = image.image.size  # type: ignore
             return img_width == width and img_height == height  # type: ignore
 
         sizes_match = all(size_equals_image(img) for img in seq)
@@ -1968,17 +1968,33 @@ class Image(BatchableMedia):
                 and self._caption == other._caption
                 and self._width == other._width
                 and self._height == other._height
-                and self._image == other._image
+                and self.image == other.image
                 and self._classes == other._classes
             )
 
     def to_data_array(self):
         res = []
-        if self._image is not None:
-            data = list(self._image.getdata())
-            for i in range(self._image.height):
-                res.append(data[i * self._image.width : (i + 1) * self._image.width])
+        if self.image is not None:
+            data = list(self.image.getdata())
+            for i in range(self.image.height):
+                res.append(data[i * self.image.width : (i + 1) * self.image.width])
         return res
+
+    def _free_ram(self):
+        if self._path is not None:
+            self._image = None
+
+    @property
+    def image(self):
+        if self._image is None:
+            if self._path is not None:
+                pil_image = util.get_module(
+                    "PIL.Image",
+                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+                )
+                self._image = pil_image.open(self._path)
+                self._image.load()
+        return self._image
 
 
 class Plotly(Media):
