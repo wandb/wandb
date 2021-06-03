@@ -152,7 +152,7 @@ class AbstractRunner(ABC):
 
     @abstractmethod
     def run(
-        self, project_uri, entry_point, params, version, backend_config, experiment_id
+        self, project_uri, entry_point, params, version, backend_config, experiment_id, run_config
     ):
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution

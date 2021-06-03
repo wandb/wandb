@@ -5,16 +5,22 @@ import posixpath
 import signal
 import subprocess
 import sys
+import tempfile
 
 from wandb.errors import ExecutionException
 
 from .abstract import AbstractRunner, AbstractRun
+from .. import _project_spec
 from ..utils import (
     get_conda_command,
     get_entry_point_command,
     get_or_create_conda_env,
     get_run_env_vars,
     generate_docker_image,
+    fetch_wandb_project_run_info,
+    _fetch_project_local,
+    _fetch_git_repo,
+    _create_ml_project_file_from_run_info,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
@@ -75,17 +81,35 @@ class LocalSubmittedRun(AbstractRun):
 
 class LocalRunner(AbstractRunner):
     def run(
-        self, project_uri, entry_point, params, version, backend_config, experiment_id=None
+        self, project_uri=None, entry_point=None, params=None, version=None, backend_config=None, experiment_id=None, run_config=None,
     ):
-        run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
-        build_docker = backend_config[PROJECT_BUILD_DOCKER]
-        project = self.fetch_and_validate_project(
-            project_uri, version, entry_point, params
-        )
-        use_conda = backend_config[PROJECT_USE_CONDA]
-        synchronous = backend_config[PROJECT_SYNCHRONOUS]
-        docker_args = backend_config[PROJECT_DOCKER_ARGS]
-        storage_dir = backend_config[PROJECT_STORAGE_DIR]
+        if run_config:
+            build_docker = True
+            uri = self._api.settings('base_url')
+            project_uri = "{}/{}/{}/runs/{}".format(uri, run_config["entity"], run_config["project"], run_config["run_id"])
+            run_info = fetch_wandb_project_run_info(project_uri, self._api)
+            dst_dir = tempfile.mkdtemp()
+            _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)
+            entry_point = run_config["overrides"].get("entrypoint") or run_info["program"]
+            name = run_config["overrides"].get("name") or "test"
+            args = run_config["overrides"].get("args") or run_info["args"]
+            docker_env = run_config["overrides"].get("docker_env") or None
+            run_id = None
+            project = _project_spec.Project(None, [], docker_env, name, dst_dir, args)
+            docker_args = None
+            synchronous = True
+            storage_dir = None
+            
+        else:
+            run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
+            build_docker = backend_config[PROJECT_BUILD_DOCKER]
+            project = self.fetch_and_validate_project(
+                project_uri, version, entry_point, params
+            )
+            use_conda = backend_config[PROJECT_USE_CONDA]
+            synchronous = backend_config[PROJECT_SYNCHRONOUS]
+            docker_args = backend_config[PROJECT_DOCKER_ARGS]
+            storage_dir = backend_config[PROJECT_STORAGE_DIR]
 
         # TODO this should be somewhere else, not at the LocalRunner level
         if build_docker:

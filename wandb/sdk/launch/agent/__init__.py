@@ -107,11 +107,7 @@ class LaunchAgent(object):
         self.verify()
         backend_config = dict(BUILD_DOCKER=True, USE_CONDA=False, SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
         run = self._backend.run(
-            uri,
-            job["runSpec"]["entry_point"],
-            backend_config=backend_config,
-            params=None,
-            version=None
+            run_config=job["runSpec"]
         )
         self._jobs[run.id] = run
         self._running += 1
