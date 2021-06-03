@@ -92,7 +92,6 @@ def load_project(directory):
                 "file was found." % conda_env_path
             )
         return Project(
-            conda_env_path=conda_env_path,
             entry_points=entry_points,
             docker_env=docker_env,
             name=project_name,
@@ -103,7 +102,6 @@ def load_project(directory):
     default_conda_path = os.path.join(directory, DEFAULT_CONDA_FILE_NAME)
     if os.path.exists(default_conda_path):
         return Project(
-            conda_env_path=default_conda_path,
             entry_points=entry_points,
             docker_env=docker_env,
             name=project_name,
@@ -112,7 +110,6 @@ def load_project(directory):
         )
 
     return Project(
-        conda_env_path=None,
         entry_points=entry_points,
         docker_env=docker_env,
         name=project_name,
@@ -123,15 +120,22 @@ def load_project(directory):
 
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
+    # @@@ todo: we should expand this to store more info beyond local dir stuff
 
-    def __init__(self, conda_env_path, entry_points, docker_env, name, directory, args):
+    def __init__(self, entry_points, docker_env, name, directory, args):
 
-        self.conda_env_path = conda_env_path
         self._entry_points = entry_points
         self.docker_env = docker_env
         self.name = name
         self.dir = directory
         self.args = args
+
+    def get_single_entry_point(self):
+        # assuming project only has 1 entry point, pull that out
+        # tmp fn until we figure out if we wanna support multiple entry points or not
+        if len(self._entry_points) != 1:
+            raise Exception("Project must have exactly one entry point")
+        return list(self._entry_points.values())[0]
 
     def get_entry_point(self, entry_point):
         if entry_point in self._entry_points:
@@ -142,7 +146,9 @@ class Project(object):
             command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
             if not isinstance(command, six.string_types):
                 command = command.encode("utf-8")
-            return EntryPoint(name=entry_point, parameters={}, command=command)
+            new_entrypoint = EntryPoint(name=entry_point, parameters={}, command=command)
+            self._entry_points[entry_point] = new_entrypoint
+            return new_entrypoint
         raise ExecutionException(
             "Could not find {0} among entry points {1} or interpret {0} as a "
             "runnable script. Supported script file extensions: "

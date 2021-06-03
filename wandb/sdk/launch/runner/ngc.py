@@ -137,13 +137,10 @@ class NGCRunner(AbstractRunner):
         return True
 
     def run(
-        self, project_uri, entry_point, params, version, backend_config, experiment_id
+        self, project, backend_config
     ):
         run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
         #  TODO: eventually we may want to require a project, for now we don't
-        project = self.fetch_and_validate_project(
-            project_uri, version, entry_point, params
-        )
 
         # Build a docker image here?
         if project.docker_env:

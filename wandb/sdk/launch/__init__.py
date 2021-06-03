@@ -13,6 +13,7 @@ from .utils import (
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     PROJECT_BUILD_DOCKER,
+    fetch_and_validate_project
 )
 
 _logger = logging.getLogger(__name__)
@@ -56,15 +57,16 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
+
+    project = fetch_and_validate_project(uri, api, version, entry_point, parameters)
+
     backend_config[PROJECT_BUILD_DOCKER] = build_docker
     backend_config[PROJECT_SYNCHRONOUS] = synchronous
     backend_config[PROJECT_DOCKER_ARGS] = docker_args
     backend_config[PROJECT_STORAGE_DIR] = storage_dir
     backend = loader.load_backend(backend_name, api)
     if backend:
-        submitted_run = backend.run(
-            uri, entry_point, parameters, version, backend_config, experiment_id,
-        )
+        submitted_run = backend.run(project, backend_config)
         return submitted_run
     else:
         raise ExecutionException(

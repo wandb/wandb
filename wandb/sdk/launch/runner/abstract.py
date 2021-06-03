@@ -120,9 +120,6 @@ class AbstractRunner(ABC):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
 
-    def fetch_and_validate_project(self, project_uri, version, entry_point, params):
-        return fetch_and_validate_project(project_uri, self._api, version, entry_point, params)
-
     def find_executable(self, cmd):
         """Cross platform utility for checking if a program is available"""
         return find_executable(cmd)
@@ -146,7 +143,7 @@ class AbstractRunner(ABC):
 
     @abstractmethod
     def run(
-        self, project_uri, entry_point, params, version, backend_config, experiment_id
+        self, project, backend_config
     ):
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution

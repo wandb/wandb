@@ -72,21 +72,20 @@ class LocalSubmittedRun(AbstractRun):
 
 class LocalRunner(AbstractRunner):
     def run(
-        self, project_uri, entry_point, params, version, backend_config, experiment_id=None
+        self, project, backend_config
     ):
         build_docker = backend_config[PROJECT_BUILD_DOCKER]
-        project = self.fetch_and_validate_project(
-            project_uri, version, entry_point, params
-        )
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
         storage_dir = backend_config[PROJECT_STORAGE_DIR]
 
+        entry_point = project.get_single_entry_point()
+
         # TODO this should be somewhere else, not at the LocalRunner level
         if build_docker:
-            project.name = 'test'        # todo this is just hardcoded rn
-            entry_cmd = project.get_entry_point(entry_point).command
-            image_id = generate_docker_image(project, version, entry_cmd, self._api)
+            project.name = 'test'        # todo this is just hardcoded rn @@@
+            entry_cmd = entry_point.command
+            image_id = generate_docker_image(project, project.version, entry_cmd, self._api)
             project.docker_env = {'image': image_id}
 
         command_args = []
@@ -122,21 +121,20 @@ class LocalRunner(AbstractRunner):
         # persisted to the tracking server if interrupted
         if synchronous:
             command_args += get_entry_point_command(
-                project, entry_point, params, storage_dir
+                project, entry_point, project.parameters, storage_dir
             )
             command_str = command_separator.join(command_args)
 
             command_str += " " + " ".join(project.args)
             print("Launching run in docker with command: {}".format(command_str))
             return _run_entry_point(
-                command_str, project.dir, experiment_id
+                command_str, project.dir
             )
         # Otherwise, invoke `wandb launch` in a subprocess
         return _invoke_wandb_run_subprocess(        # @@@ untested
             work_dir=project.dir,
             entry_point=entry_point,
-            parameters=params,
-            experiment_id=experiment_id,
+            parameters=project.parameters,
             docker_args=docker_args,
             storage_dir=storage_dir,
         )
@@ -164,7 +162,7 @@ def _run_launch_cmd(cmd, env_map):
         )
 
 
-def _run_entry_point(command, work_dir, experiment_id):
+def _run_entry_point(command, work_dir):
     """
     Run an entry point command in a subprocess, returning a SubmittedRun that can be used to
     query the run's status.
@@ -189,7 +187,6 @@ def _invoke_wandb_run_subprocess(
     work_dir,
     entry_point,
     parameters,
-    experiment_id,
     docker_args,
     storage_dir,
 ):

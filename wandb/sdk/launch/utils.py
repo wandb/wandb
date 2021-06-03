@@ -141,6 +141,8 @@ def fetch_and_validate_project(uri, api, version, entry_point, parameters):
     parameters = parameters or {}
     work_dir = _fetch_project_local(uri=uri, api=api, version=version)
     project = _project_spec.load_project(work_dir)
+    project.version = version   # @@@ hacky!!!!!!!
+    project.parameters = parameters     # @@@ hacky!!!!!
     project.get_entry_point(entry_point)._validate_parameters(parameters)
     return project
 
@@ -157,7 +159,7 @@ def fetch_wandb_project_run_info(uri, api=None):
     return result
 
 
-def _fetch_project_local(uri, api, version=None):
+def _fetch_project_local(uri, api, version=None):   # @@@ uri parsing move further up
     """
     Fetch a project into a local directory, returning the path to the local project directory.
     """
@@ -185,10 +187,10 @@ def _fetch_project_local(uri, api, version=None):
             dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
     elif _is_wandb_uri(uri):
         # TODO: so much hotness
-        run_info = fetch_wandb_project_run_info(uri, api)
+        run_info = fetch_wandb_project_run_info(uri, api)   # @@@ fetch project run info
         if not run_info["git"]:
             raise ExecutionException("Run must have git repo associated")
-        _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)
+        _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # @@@ git repo
         _create_ml_project_file_from_run_info(dst_dir, run_info)
     else:
         assert _GIT_URI_REGEX.match(parsed_uri), (
@@ -295,7 +297,7 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     )
     commands = []
     commands.append(
-        project.get_entry_point(entry_point).compute_command(
+        entry_point.compute_command(
             parameters, storage_dir_for_run
         )
     )
