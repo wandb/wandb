@@ -274,9 +274,9 @@ def get_run_env_vars(run_id):
     env_vars = {}
     # settings = wandb.Settings()
     if run_id:
-        env_vars["WANDB_RUN_ID"] = run_id
+        env_vars["WANDB_RUN_ID"] = run_id       # @@@ fix this
 
-    return env_vars
+    return env_vars         # @@@ todo this fn currently doesn't do anything
 
 
 def get_entry_point_command(project, entry_point, parameters, storage_dir):

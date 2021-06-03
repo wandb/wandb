@@ -43,7 +43,7 @@ def validate_docker_env(project):
         )
 
 
-def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
+def build_docker_image(work_dir, repository_uri, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
@@ -67,7 +67,6 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
         dockerfile = posixpath.join(
             _PROJECT_TAR_ARCHIVE_NAME, _GENERATED_DOCKERFILE_NAME
         )
-        # wandb.util.exec_cmd(["docker", "build", "--rm",  dockerfile,])
         # TODO: remove the dependency on docker / potentially just do the append builder
         # found at: https://github.com/google/containerregistry/blob/master/client/v2_2/append_.py
         client = docker.from_env()

@@ -32,8 +32,8 @@ class LocalSubmittedRun(AbstractRun):
     command locally.
     """
 
-    def __init__(self, run_id, command_proc):
-        super().__init__(run_id)
+    def __init__(self, command_proc):       # @@@ run id does nothing
+        super().__init__()
         self.command_proc = command_proc
 
     @property
@@ -57,10 +57,8 @@ class LocalSubmittedRun(AbstractRun):
                 # The child process may have exited before we attempted to terminate it, so we
                 # ignore OSErrors raised during child process termination
                 _logger.info(
-                    "Failed to terminate child process (PID %s) corresponding to W&B "
-                    "run with ID %s. The process may have already exited.",
+                    "Failed to terminate child process (PID %s). The process may have already exited.",
                     self.command_proc.pid,
-                    self._run_id,
                 )
             self.command_proc.wait()
 
@@ -77,7 +75,6 @@ class LocalRunner(AbstractRunner):
     def run(
         self, project_uri, entry_point, params, version, backend_config, experiment_id=None
     ):
-        run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
         build_docker = backend_config[PROJECT_BUILD_DOCKER]
         project = self.fetch_and_validate_project(
             project_uri, version, entry_point, params
@@ -111,12 +108,10 @@ class LocalRunner(AbstractRunner):
                 work_dir=project.dir,
                 repository_uri=project.name,    # todo: not sure why this is passed here we should figure out this interface
                 base_image=project.docker_env.get("image"),
-                run_id=run_id,
                 api=self._api,
             )
             command_args += _get_docker_command(
                 image=image,
-                run_id=run_id,
                 docker_args=docker_args,
                 volumes=project.docker_env.get("volumes"),
                 user_env_vars=project.docker_env.get("environment"),
@@ -140,10 +135,10 @@ class LocalRunner(AbstractRunner):
             command_str += " " + " ".join(project.args)
             print("Launching run in docker with command: {}".format(command_str))
             return _run_entry_point(
-                command_str, project.dir, experiment_id, run_id=run_id
+                command_str, project.dir, experiment_id
             )
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(
+        return _invoke_wandb_run_subprocess(        # @@@ untested
             work_dir=project.dir,
             entry_point=entry_point,
             parameters=params,
@@ -151,7 +146,6 @@ class LocalRunner(AbstractRunner):
             use_conda=use_conda,
             docker_args=docker_args,
             storage_dir=storage_dir,
-            run_id=run_id,
         )
 
 
@@ -177,7 +171,7 @@ def _run_launch_cmd(cmd, env_map):
         )
 
 
-def _run_entry_point(command, work_dir, experiment_id, run_id):
+def _run_entry_point(command, work_dir, experiment_id):
     """
     Run an entry point command in a subprocess, returning a SubmittedRun that can be used to
     query the run's status.
@@ -186,20 +180,16 @@ def _run_entry_point(command, work_dir, experiment_id, run_id):
     :param run: SubmittedRun object associated with the entry point execution.
     """
     env = os.environ.copy()
-    env.update(get_run_env_vars(run_id))
-    _logger.info("=== Running command '%s' in run with ID '%s' === ", command, run_id)
-    # in case os name is not 'nt', we are not running on windows. It introduces
-    # bash command otherwise.
-    if os.name != "nt":
-        process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env
-        )
-    else:
-        # process = subprocess.Popen(command, close_fds=True, cwd=work_dir, env=env)
+    if os.name == "nt":
+        # we are running on windows
         process = subprocess.Popen(
             ["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env
         )
-    return LocalSubmittedRun(run_id, process)
+    else:
+        process = subprocess.Popen(
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env
+        )
+    return LocalSubmittedRun(process)
 
 
 def _invoke_wandb_run_subprocess(
@@ -210,35 +200,35 @@ def _invoke_wandb_run_subprocess(
     use_conda,
     docker_args,
     storage_dir,
-    run_id,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
     a SubmittedRun that can be used to query run status.
     """
-    _logger.info("=== Asynchronously launching W&B run with ID %s ===", run_id)
+    # todo: this is untested and probably doesn't work
+    _logger.info("=== Asynchronously launching W&B run ===")
     wandb_run_arr = _build_wandb_run_cmd(
         uri=work_dir,
         entry_point=entry_point,
         docker_args=docker_args,
         storage_dir=storage_dir,
         use_conda=use_conda,
-        run_id=run_id,
         parameters=parameters,
     )
-    env_vars = get_run_env_vars(run_id)
+    env_vars = get_run_env_vars(None)   # todo: can probably cut this whole thing
     wandb_run_subprocess = _run_launch_cmd(wandb_run_arr, env_vars)
-    return LocalSubmittedRun(run_id, wandb_run_subprocess)
+    return LocalSubmittedRun(wandb_run_subprocess)
 
 
 def _build_wandb_run_cmd(
-    uri, entry_point, docker_args, storage_dir, use_conda, run_id, parameters
+    uri, entry_point, docker_args, storage_dir, use_conda, parameters
 ):
     """
     Build and return an array containing an ``wandb launch`` command that can be invoked to locally
     run the project at the specified URI.
     """
-    wandb_run_arr = ["wandb", "launch", uri, "-e", entry_point, "--run-id", run_id]
+    # todo: this is untested (only called in async) and probably will not work anymore
+    wandb_run_arr = ["wandb", "launch", uri, "-e", entry_point]
     if docker_args is not None:
         for key, value in docker_args.items():
             args = key if isinstance(value, bool) else "%s=%s" % (key, value)
@@ -253,11 +243,10 @@ def _build_wandb_run_cmd(
 
 
 def _get_docker_command(
-    image, run_id, docker_args=None, volumes=None, user_env_vars=None
+    image, docker_args=None, volumes=None, user_env_vars=None
 ):
     docker_path = "docker"
-    cmd = [docker_path, "run", "--rm"]
-    # cmd = [docker_path, "run"]      # todo debug -- we should probably add the option to not rm for the user to debug
+    cmd = [docker_path, "run", "--rm"]      # @@@ docker command here
 
     if docker_args:
         for name, value in docker_args.items():

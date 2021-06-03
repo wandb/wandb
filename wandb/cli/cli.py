@@ -934,13 +934,6 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "W&B downloads artifacts from distributed URIs passed to parameters of "
     "type 'path' to subdirectories of storage_dir.",
 )
-@click.option(
-    "--run-id",
-    metavar="RUN_ID",
-    help="If specified, the given run ID will be used instead of creating a new run. "
-    "Note: this argument is used internally by the wandb APIs "
-    "and should not be specified.",
-)
 def launch(
     uri,
     entry_point,
@@ -954,7 +947,6 @@ def launch(
     no_conda,       # todo this probably shouldn't be autofalse => conda autotrue
     build_docker,
     storage_dir,
-    run_id,
 ):
     """
     Run an W&B project from the given URI.
@@ -996,8 +988,7 @@ def launch(
             use_conda=(not no_conda),
             build_docker=build_docker,
             storage_dir=storage_dir,
-            synchronous=backend in ("local", "ngc") or backend is None,
-            run_id=run_id,
+            synchronous=backend in ("local", "ngc") or backend is None,     # todo currently always true
             api=api
         )
     except wandb_launch.ExecutionException as e:

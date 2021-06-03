@@ -72,7 +72,7 @@ def _run(
     else:
         raise ExecutionException(
             "Unavailable backend {}, available backends: {}".format(
-                backend_name, ", ".join(loader.WANDB_BACKENDS.keys())
+                backend_name, ", ".join(loader.WANDB_RUNNERS.keys())
             )
         )
 
@@ -91,7 +91,6 @@ def run(
     build_docker=False,
     storage_dir=None,
     synchronous=True,
-    run_id=None,
     api=None
 ):
     """
@@ -134,9 +133,6 @@ def run(
                         asynchronous runs launched via this method will be terminated. If
                         ``synchronous`` is True and the run fails, the current process will
                         error out as well.
-    :param run_id: Note: this argument is used internally by the W&B APIs and should
-                   not be specified. If specified, the run ID will be used instead of
-                   creating a new run.
     :return: :py:class:`wandb.launch.SubmittedRun` exposing information (e.g. run ID)
              about the launched run.
     .. code-block:: python
@@ -185,7 +181,7 @@ def run(
         use_conda=use_conda,
         build_docker=build_docker,
         storage_dir=storage_dir,
-        synchronous=synchronous,
+        synchronous=synchronous,        # @@@ todo synchronous not tested
         api=api
     )
     if synchronous:
@@ -195,15 +191,14 @@ def run(
 
 def _wait_for(submitted_run_obj):
     """Wait on the passed-in submitted run, reporting its status to the tracking server."""
-    run_id = submitted_run_obj.run_id
     # Note: there's a small chance we fail to report the run's status to the tracking server if
     # we're interrupted before we reach the try block below
     try:
         if submitted_run_obj.wait():
-            _logger.info("=== Run (ID '%s') succeeded ===", run_id)
+            _logger.info("=== Submitted run succeeded ===")
         else:
-            raise ExecutionException("Run (ID '%s') failed" % run_id)
+            raise ExecutionException("Submitted run failed")
     except KeyboardInterrupt:
-        _logger.error("=== Run (ID '%s') interrupted, cancelling run ===", run_id)
+        _logger.error("=== Submitted run interrupted, cancelling run ===")
         submitted_run_obj.cancel()
         raise

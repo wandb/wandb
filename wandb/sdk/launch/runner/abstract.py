@@ -48,14 +48,8 @@ class AbstractRun(ABC):
 
     STATE_MAP: Dict[str, State] = {}
 
-    def __init__(self, run_id: str):
-        self._run_id = run_id
+    def __init__(self):
         self._status = Status()
-
-    @property
-    def run_id(self):
-        # TODO: not sure if we want this..
-        return self._run_id
 
     @property
     def status(self):
