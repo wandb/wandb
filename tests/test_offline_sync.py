@@ -32,10 +32,10 @@ def test_sync_in_progress(live_mock_server, test_dir):
     )
     attempts = 0
     latest_run = os.path.join(test_dir, "wandb", "latest-run")
-    while not os.path.exists(latest_run) and attempts < 50:
+    while not os.path.exists(latest_run) and attempts < 100:
         time.sleep(0.1)
         attempts += 1
-    if attempts == 50:
+    if attempts == 100:
         print("cur dir contents: ", os.listdir(test_dir))
         print("wandb dir contents: ", os.listdir(os.path.join(test_dir, "wandb")))
         stdout.seek(0)
@@ -50,6 +50,8 @@ def test_sync_in_progress(live_mock_server, test_dir):
             print("DEBUG INTERNAL")
             print(open(debug).read())
         assert False, "train.py failed to launch :("
+    else:
+        "Starting live syncing after {} seconds".format(attempts * 0.1)
     sync_file = ".wandb"
     for i in range(3):
         # Generally, the first sync will fail because the .wandb file is empty
@@ -58,7 +60,9 @@ def test_sync_in_progress(live_mock_server, test_dir):
         matches = glob.glob(os.path.join(latest_run, "*.wandb"))
         if len(matches) > 0:
             sync_file = matches[0]
-        assert not os.path.exists(os.path.join(sync_file + ".synced"))
+        # Only confirm we don't have a .synced file if our offline run is still running
+        if offline_run.poll() is None:
+            assert not os.path.exists(os.path.join(sync_file + ".synced"))
     assert offline_run.wait() == 0
     sync = subprocess.Popen(["wandb", "sync", latest_run], env=os.environ)
     assert sync.wait() == 0
