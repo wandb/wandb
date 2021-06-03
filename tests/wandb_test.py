@@ -222,6 +222,17 @@ def test_login_anonymous(mock_server, local_netrc):
     assert wandb.api.api_key == "ANONYMOOSE" * 4
 
 
+def test_login_sets_api_base_url(mock_server):
+    base_url = "https://api.test.host.ai"
+    wandb.login(anonymous="must", host=base_url)
+    api = wandb.Api()
+    assert api.settings["base_url"] == base_url
+    base_url = "https://api.wandb.ai"
+    wandb.login(anonymous="must", host=base_url)
+    api = wandb.Api()
+    assert api.settings["base_url"] == base_url
+
+
 def test_save_policy_symlink(wandb_init_run):
     with open("test.rad", "w") as f:
         f.write("something")
