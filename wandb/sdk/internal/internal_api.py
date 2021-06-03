@@ -83,6 +83,7 @@ class Api(object):
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
+        print("internal API", env.get_username(env=self._environ), env.get_user_email(env=self._environ), self.api_key, self.settings("base_url"))
         self.client = Client(
             transport=RequestsHTTPTransport(
                 headers={

@@ -47,18 +47,26 @@ def build_docker_image(work_dir, repository_uri, base_image, run_id, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
+    host = os.environ.get("WANDB_BASE_URL") or api.settings('base_url')
+    
+    # host = "https://api.wandb.test"
+    print("HOST", host, api.api_key)
     image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=work_dir)
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
+        # "ENV WANDB_USERNAME={username}\n"
         "ENV WANDB_API_KEY={api_key}\n"      # todo this is also currently passed in via r2d
+        "ENV WANDB_BASE_URL={host}\n"
         "USER root\n"       # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         workdir=WANDB_DOCKER_WORKDIR_PATH,
+        # username="kyle",
         api_key=api.api_key,
+        host=host
     )
     build_ctx_path = _create_docker_build_ctx(work_dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:

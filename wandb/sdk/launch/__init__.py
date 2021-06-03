@@ -52,12 +52,13 @@ def _run(
     build_docker,
     storage_dir,
     synchronous,
-    api=None,
+    api,
 ):
     """
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
+
     backend_config[PROJECT_USE_CONDA] = use_conda
     backend_config[PROJECT_BUILD_DOCKER] = build_docker
     backend_config[PROJECT_SYNCHRONOUS] = synchronous

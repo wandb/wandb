@@ -24,6 +24,7 @@ _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://wandb")
 _WANDB_DEV_URI_REGEX = re.compile(r"^https?://ap\w.wandb")   # for testing, not sure if we wanna keep this
+_WANDB_DEV_URI_REGEX = re.compile(r"^https?://localhost")   # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
@@ -119,8 +120,7 @@ def generate_docker_image(project_spec, version, entry_cmd, api):
     cmd = ['jupyter-repo2docker',
             '--no-run',
             #'--no-build',
-            # '--env', 'WANDB_API_KEY={}'.format(api.api_key),
-            # '--user-name', 'root', # todo bad idea lol
+            #'--env', 'WANDB_API_KEY={},WANDB_BASE_URL={}'.format(api.api_key, api.settings('base_url')),
             # '--debug',
             path,
             '"{}"'.format(entry_cmd),
@@ -128,8 +128,11 @@ def generate_docker_image(project_spec, version, entry_cmd, api):
     # Is this needed here, version refers to the github commit
     # if version:
     #    cmd.extend(['--ref', version])
+    print(" ".join(cmd))
     _logger.info('Generating docker image from git repo or finding image if it already exists..........')
     stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')
+    print(stderr, len(stderr))
+    print("BLURp")
     image_id = re.findall(r'Successfully tagged (.+):latest', stderr)
     if not image_id:
         image_id = re.findall(r'Reusing existing image \((.+)\)', stderr)

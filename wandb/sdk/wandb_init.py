@@ -492,9 +492,11 @@ class _WandbInit(object):
             run._set_run_obj_offline(run_proto)
         else:
             logger.info("communicating current version")
+            print("COMMING version")
             ret = backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
+            print(ret)
             if ret:
                 logger.info("got version response {}".format(ret))
                 if ret.upgrade_message:
@@ -505,7 +507,9 @@ class _WandbInit(object):
                     run._set_yanked_version_message(ret.yank_message)
             run._on_init()
             logger.info("communicating run to backend with 30 second timeout")
+            print("COMMING RUN")
             ret = backend.interface.communicate_run(run, timeout=30)
+            print("RUN????", ret)
             error_message = None
             if not ret:
                 logger.error("backend process timed out")

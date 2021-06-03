@@ -288,6 +288,7 @@ class Run(object):
         _datatypes_set_callback(self._datatypes_callback)
 
         self._settings = settings
+        print(settings.base_url)
         self._wl = None
         self._reporter: Optional[Reporter] = None
 
@@ -1260,6 +1261,7 @@ class Run(object):
         if not r:
             return ""
         app_url = wandb.util.app_url(s.base_url)
+        print("APP URL", app_url)
         qs = self._get_url_query_string()
         url = "{}/{}/{}{}".format(
             app_url, url_quote(r.entity), url_quote(r.project), qs
