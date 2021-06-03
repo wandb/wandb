@@ -12,6 +12,8 @@ def test_sync_in_progress(live_mock_server, test_dir):
     env = dict(os.environ)
     env["WANDB_MODE"] = "offline"
     env["WANDB_DIR"] = test_dir
+    env["WANDB_CONSOLE"] = "off"
+    stdout = open("stdout.log", "w+")
     offline_run = subprocess.Popen(
         [
             sys.executable,
@@ -22,16 +24,23 @@ def test_sync_in_progress(live_mock_server, test_dir):
             "15",
             "--heavy",
         ],
+        stdout=stdout,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        close_fds=True,
         env=env,
     )
     attempts = 0
-    latest_run = os.path.join("wandb", "latest-run")
-    while not os.path.exists(latest_run) and attempts < 20:
+    latest_run = os.path.join(test_dir, "wandb", "latest-run")
+    while not os.path.exists(latest_run) and attempts < 50:
         time.sleep(0.1)
         attempts += 1
-    if attempts == 20:
-        print("cur dir contents: ", glob.glob("*"))
-        print("wandb dir contents: ", glob.glob(os.path.join("wandb", "*")))
+    if attempts == 50:
+        print("cur dir contents: ", os.listdir(test_dir))
+        print("wandb dir contents: ", os.listdir(os.path.join(test_dir, "wandb")))
+        stdout.seek(0)
+        print("STDOUT")
+        print(stdout.read())
         debug = os.path.join("wandb", "debug.log")
         debug_int = os.path.join("wandb", "debug-internal.log")
         if os.path.exists(debug):
