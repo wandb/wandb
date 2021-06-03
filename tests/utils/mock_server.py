@@ -1086,7 +1086,7 @@ index 30d74d2..9a2c773 100644
         summary_json = ctx["file_stream"][-1].get("files", {}).get("wandb-summary.json")
         if summary_json:
             ctx["summary"] = json.loads(summary_json["content"][0])
-        
+
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
