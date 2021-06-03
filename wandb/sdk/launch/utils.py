@@ -137,8 +137,15 @@ def generate_docker_image(project_spec, version, entry_cmd, api):
     return image_id[0]
 
 
-def fetch_and_validate_project(uri, api, version, entry_point, parameters):
+def fetch_and_validate_project(uri, api, runner_name, version, entry_point, parameters):
     parameters = parameters or {}
+
+    # todo: we maybe don't always want to dl project to local
+
+
+
+
+
     work_dir = _fetch_project_local(uri=uri, api=api, version=version)
     project = _project_spec.load_project(work_dir)
     project.version = version   # @@@ hacky!!!!!!!

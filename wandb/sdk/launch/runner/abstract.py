@@ -8,8 +8,6 @@ from dockerpycreds.utils import find_executable
 import wandb
 from wandb import Settings
 
-from ..utils import fetch_and_validate_project, load_project
-
 _logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:

@@ -45,8 +45,8 @@ def _run(
     version,
     parameters,
     docker_args,
-    backend_name,
-    backend_config,
+    runner_name,
+    runner_config,
     build_docker,
     storage_dir,
     synchronous,
@@ -57,20 +57,20 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
 
-    project = fetch_and_validate_project(uri, api, version, entry_point, parameters)
+    project = fetch_and_validate_project(uri, api, runner_name, version, entry_point, parameters)
 
-    backend_config[PROJECT_BUILD_DOCKER] = build_docker
-    backend_config[PROJECT_SYNCHRONOUS] = synchronous
-    backend_config[PROJECT_DOCKER_ARGS] = docker_args
-    backend_config[PROJECT_STORAGE_DIR] = storage_dir
-    backend = loader.load_backend(backend_name, api)
+    runner_config[PROJECT_BUILD_DOCKER] = build_docker
+    runner_config[PROJECT_SYNCHRONOUS] = synchronous
+    runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    runner_config[PROJECT_STORAGE_DIR] = storage_dir
+    backend = loader.load_backend(runner_name, api)
     if backend:
-        submitted_run = backend.run(project, backend_config)
+        submitted_run = backend.run(project, runner_config)
         return submitted_run
     else:
         raise ExecutionException(
             "Unavailable backend {}, available backends: {}".format(
-                backend_name, ", ".join(loader.WANDB_RUNNERS.keys())
+                runner_name, ", ".join(loader.WANDB_RUNNERS.keys())
             )
         )
 
@@ -166,8 +166,8 @@ def run(
         version=version,
         parameters=parameters,
         docker_args=docker_args,
-        backend_name=backend,
-        backend_config=backend_config_dict,
+        runner_name=backend,
+        runner_config=backend_config_dict,
         build_docker=build_docker,
         storage_dir=storage_dir,
         synchronous=synchronous,        # @@@ todo synchronous not tested

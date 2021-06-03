@@ -20,7 +20,7 @@ def _find_mlproject(directory):
             return os.path.join(directory, filename)
     return None
 
-
+# todo remove this
 def load_project(directory):
     mlproject_path = _find_mlproject(directory)
 
