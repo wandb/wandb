@@ -41,7 +41,6 @@ def run_agent(spec, queues=None):
 
 def _run(
     uri,
-    experiment_id,
     entry_point,
     version,
     parameters,
@@ -83,7 +82,6 @@ def run(
     parameters=None,
     docker_args=None,
     experiment_name=None,
-    experiment_id=None,
     backend="local",
     backend_config=None,
     build_docker=False,
@@ -111,7 +109,6 @@ def run(
     :param parameters: Parameters (dictionary) for the entry point command.
     :param docker_args: Arguments (dictionary) for the docker command.
     :param experiment_name: Name of experiment under which to launch the run.
-    :param experiment_id: ID of experiment under which to launch the run.
     :param backend: Execution backend for the run: W&B provides built-in support for "local",
                     and "ngc" (experimental) backends.
     :param backend_config: A dictionary, or a path to a JSON file (must end in '.json'), which will
@@ -165,7 +162,6 @@ def run(
 
     submitted_run_obj = _run(
         uri=uri,
-        experiment_id=experiment_id,
         entry_point=entry_point,
         version=version,
         parameters=parameters,

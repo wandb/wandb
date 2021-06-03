@@ -893,12 +893,6 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "specified, 'experiment-id' option will be used to launch run.",
 )
 @click.option(
-    "--experiment-id",
-    envvar="WANDB_RUN_GROUP",
-    type=click.STRING,
-    help="ID of the experiment under which to launch the run.",
-)
-@click.option(
     "--backend",
     "-b",
     metavar="BACKEND",
@@ -933,7 +927,6 @@ def launch(
     param_list,
     docker_args,
     experiment_name,
-    experiment_id,
     backend,
     backend_config,
     build_docker,
@@ -971,7 +964,6 @@ def launch(
             entry_point,
             version,
             experiment_name=experiment_name,
-            experiment_id=experiment_id,
             parameters=param_dict,
             docker_args=args_dict,
             backend=backend,

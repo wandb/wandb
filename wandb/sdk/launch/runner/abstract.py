@@ -155,7 +155,6 @@ class AbstractRunner(ABC):
         :param backend_config: A dictionary, or a path to a JSON file (must end in '.json'), which
                                will be passed as config to the backend. The exact content which
                                should be provided is different for each execution backend.
-        :param experiment_id: ID of experiment under which to launch the run.
         :return: A :py:class:`wandb.sdk.launch.runners.SubmittedRun`. This function is expected to run
                  the project asynchronously, i.e. it should trigger project execution and then
                  immediately return a `SubmittedRun` to track execution status.
