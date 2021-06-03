@@ -1291,13 +1291,25 @@ class Api(object):
                     name
                     _PROJECT_QUERY_
                 }
+                configValidationWarnings
             }
         }
         """
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-        mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
-        mutation_old = gql(mutation_str.replace("_PROJECT_QUERY_", ""))
+
+        # mutation 3 maps to backend that can support CLI version of at least 0.10.31
+        mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
+        mutation_2 = gql(
+            mutation_str.replace("_PROJECT_QUERY_", project_query).replace(
+                "configValidationWarnings", ""
+            )
+        )
+        mutation_1 = gql(
+            mutation_str.replace("_PROJECT_QUERY_", "").replace(
+                "configValidationWarnings", ""
+            )
+        )
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
@@ -1312,7 +1324,10 @@ class Api(object):
             body = json.loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
-        for mutation in mutation_new, mutation_old:
+        # TODO(dag): replace this with a query for protocol versioning
+        mutations = [mutation_3, mutation_2, mutation_1]
+
+        for mutation in mutations:
             try:
                 response = self.gql(
                     mutation,
@@ -1346,7 +1361,8 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return response["upsertSweep"]["sweep"]["name"]
+        warnings = response["upsertSweep"].get("configValidationWarnings", [])
+        return response["upsertSweep"]["sweep"]["name"], warnings
 
     @normalize_exceptions
     def create_anonymous_api_key(self):
