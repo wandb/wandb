@@ -105,7 +105,7 @@ class LaunchAgent(object):
         uri = "{}/{}/{}/runs/{}".format(self._base_url, job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
         self._backend = load_backend(job["runSpec"]["resource"], self._api)
         self.verify()
-        backend_config = dict(BUILD_DOCKER=True, USE_CONDA=False, SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
+        backend_config = dict(BUILD_DOCKER=True, SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
         run = self._backend.run(
             uri,
             job["runSpec"]["entry_point"],

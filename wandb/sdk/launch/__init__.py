@@ -12,7 +12,6 @@ from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    PROJECT_USE_CONDA,
     PROJECT_BUILD_DOCKER,
 )
 
@@ -48,7 +47,6 @@ def _run(
     docker_args,
     backend_name,
     backend_config,
-    use_conda,
     build_docker,
     storage_dir,
     synchronous,
@@ -58,7 +56,6 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-    backend_config[PROJECT_USE_CONDA] = use_conda
     backend_config[PROJECT_BUILD_DOCKER] = build_docker
     backend_config[PROJECT_SYNCHRONOUS] = synchronous
     backend_config[PROJECT_DOCKER_ARGS] = docker_args
@@ -87,7 +84,6 @@ def run(
     experiment_id=None,
     backend="local",
     backend_config=None,
-    use_conda=False,
     build_docker=False,
     storage_dir=None,
     synchronous=True,
@@ -119,10 +115,6 @@ def run(
     :param backend_config: A dictionary, or a path to a JSON file (must end in '.json'), which will
                            be passed as config to the backend. The exact content which should be
                            provided is different for each execution backend
-    :param use_conda: If True (the default), create a new Conda environment for the run and
-                      install project dependencies within that environment. Otherwise, run the
-                      project in the current environment without installing any project
-                      dependencies.
     :param storage_dir: Used only if ``backend`` is "local". W&B downloads artifacts from
                         distributed URIs passed to parameters of type ``path`` to subdirectories of
                         ``storage_dir``.
@@ -140,7 +132,7 @@ def run(
         import wandb
         project_uri = "https://github.com/wandb/examples"
         params = {"alpha": 0.5, "l1_ratio": 0.01}
-        # Run W&B project and create a reproducible conda environment
+        # Run W&B project and create a reproducible docker environment
         # on a local host
         wandb.launch(project_uri, parameters=params)
     .. code-block:: text
@@ -178,7 +170,6 @@ def run(
         docker_args=docker_args,
         backend_name=backend,
         backend_config=backend_config_dict,
-        use_conda=use_conda,
         build_docker=build_docker,
         storage_dir=storage_dir,
         synchronous=synchronous,        # @@@ todo synchronous not tested

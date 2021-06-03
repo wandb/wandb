@@ -18,7 +18,6 @@ from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    PROJECT_USE_CONDA,
     PROJECT_BUILD_DOCKER,
     WANDB_DOCKER_WORKDIR_PATH,
 )
@@ -79,7 +78,6 @@ class LocalRunner(AbstractRunner):
         project = self.fetch_and_validate_project(
             project_uri, version, entry_point, params
         )
-        use_conda = backend_config[PROJECT_USE_CONDA]
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
         storage_dir = backend_config[PROJECT_STORAGE_DIR]
@@ -116,13 +114,9 @@ class LocalRunner(AbstractRunner):
                 volumes=project.docker_env.get("volumes"),
                 user_env_vars=project.docker_env.get("environment"),
             )
+        else:
+            raise Exception("Docker environment not found for project")
 
-        # Synchronously create a conda environment (even though this may take some time)
-        # to avoid failures due to multiple concurrent attempts to create the same conda env.
-        elif use_conda:
-            command_separator = " && "
-            conda_env_name = get_or_create_conda_env(project.conda_env_path)
-            command_args += get_conda_command(conda_env_name)
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
@@ -143,7 +137,6 @@ class LocalRunner(AbstractRunner):
             entry_point=entry_point,
             parameters=params,
             experiment_id=experiment_id,
-            use_conda=use_conda,
             docker_args=docker_args,
             storage_dir=storage_dir,
         )
@@ -197,7 +190,6 @@ def _invoke_wandb_run_subprocess(
     entry_point,
     parameters,
     experiment_id,
-    use_conda,
     docker_args,
     storage_dir,
 ):
@@ -212,7 +204,6 @@ def _invoke_wandb_run_subprocess(
         entry_point=entry_point,
         docker_args=docker_args,
         storage_dir=storage_dir,
-        use_conda=use_conda,
         parameters=parameters,
     )
     env_vars = get_run_env_vars(None)   # todo: can probably cut this whole thing
@@ -221,7 +212,7 @@ def _invoke_wandb_run_subprocess(
 
 
 def _build_wandb_run_cmd(
-    uri, entry_point, docker_args, storage_dir, use_conda, parameters
+    uri, entry_point, docker_args, storage_dir, parameters
 ):
     """
     Build and return an array containing an ``wandb launch`` command that can be invoked to locally
@@ -235,8 +226,6 @@ def _build_wandb_run_cmd(
             wandb_run_arr.extend(["--docker-args", args])
     if storage_dir is not None:
         wandb_run_arr.extend(["--storage-dir", storage_dir])
-    if not use_conda:
-        wandb_run_arr.append("--no-conda")
     for key, value in parameters.items():
         wandb_run_arr.extend(["-P", "%s=%s" % (key, value)])
     return wandb_run_arr

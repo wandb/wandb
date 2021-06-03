@@ -915,14 +915,6 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "provided is different for each execution backend.",
 )
 @click.option(
-    "--no-conda",
-    is_flag=True,
-    help="If specified, will assume that code is running within "
-    "a Conda environment with the necessary dependencies for "
-    "the current project instead of attempting to create a new "
-    "conda environment.",
-)
-@click.option(
     "--build-docker",
     is_flag=True,
     help="build docker",
@@ -944,7 +936,6 @@ def launch(
     experiment_id,
     backend,
     backend_config,
-    no_conda,       # todo this probably shouldn't be autofalse => conda autotrue
     build_docker,
     storage_dir,
 ):
@@ -985,7 +976,6 @@ def launch(
             docker_args=args_dict,
             backend=backend,
             backend_config=backend_config,
-            use_conda=(not no_conda),
             build_docker=build_docker,
             storage_dir=storage_dir,
             synchronous=backend in ("local", "ngc") or backend is None,     # todo currently always true

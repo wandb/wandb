@@ -103,7 +103,6 @@ class NGCRunner(AbstractRunner):
         cfg = copy.copy(self.DEFAULT_CFG)
         cfg.update(backend_config)  # TODO: this used to call into "ngc"
         # TODO: use / setup these for running in NGC
-        # use_conda = backend_config[PROJECT_USE_CONDA]
         # docker_args = backend_config[PROJECT_DOCKER_ARGS]
         # storage_dir = backend_config[PROJECT_STORAGE_DIR]
         container_cmd = self.PREFIX.format(
