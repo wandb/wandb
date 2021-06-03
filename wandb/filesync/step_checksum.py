@@ -53,7 +53,13 @@ class StepChecksum(object):
                         "%s-%s" % (wandb.util.generate_id(), req.save_name),
                     )
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
-                    shutil.copy2(req.path, path)
+                    try:
+                        # certain linux distros throw an exception when copying
+                        # large files: https://bugs.python.org/issue43743
+                        shutil.copy2(req.path, path)
+                    except OSError:
+                        shutil._USE_CP_SENDFILE = False
+                        shutil.copy2(req.path, path)
                 checksum = None
                 if req.use_prepare_flow:
                     # passing a checksum through indicates that we'd like to use the

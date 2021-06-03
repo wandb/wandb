@@ -3,7 +3,7 @@ Hyperband Early Terminate
 """
 
 import random
-import numpy as np
+from .util import get_numpy
 from wandb.sweeps.base import EarlyTerminate
 
 
@@ -85,6 +85,7 @@ class HyperbandEarlyTerminate(EarlyTerminate):
             "Must define min_iter or max_iter for hyperband algorithm")
 
     def stop_runs(self, sweep_config, runs):
+        np = get_numpy()
         terminate_run_names = []
         self._load_metric_name_and_goal(sweep_config)
 

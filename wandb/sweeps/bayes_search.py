@@ -9,7 +9,6 @@ as well as the case where X is very large.
 
 """
 
-import numpy as np
 #from sklearn.gaussian_process import GaussianProcessRegressor
 #from sklearn.gaussian_process.kernels import Matern
 #import scipy.stats as stats
@@ -17,6 +16,8 @@ import math
 from wandb.util import get_module
 from wandb.sweeps.base import Search
 from wandb.sweeps.params import HyperParameter, HyperParameterSet
+
+from .util import get_numpy
 
 sklearn_gaussian = get_module('sklearn.gaussian_process')
 scipy_stats = get_module('scipy.stats')
@@ -27,6 +28,8 @@ def fit_normalized_gaussian_process(X, y, nu=1.5):
         We fit a gaussian process but first subtract the mean and divide by stddev.
         To undo at prediction tim, call y_pred = gp.predict(X) * y_stddev + y_mean
     """
+
+    np = get_numpy()
     gp = sklearn_gaussian.GaussianProcessRegressor(
         kernel=sklearn_gaussian.kernels.Matern(nu=nu), n_restarts_optimizer=2, alpha=0.0000001, random_state=2
     )
@@ -43,10 +46,12 @@ def fit_normalized_gaussian_process(X, y, nu=1.5):
 
 
 def sigmoid(x):
+    np = get_numpy()
     return np.exp(-np.logaddexp(0, -x))
 
 
 def random_sample(X_bounds, num_test_samples):
+    np = get_numpy()
     num_hyperparameters = len(X_bounds)
     test_X = np.empty((num_test_samples, num_hyperparameters))
     for ii in range(num_test_samples):
@@ -113,6 +118,7 @@ def train_gaussian_process(
             (gp.predict(X) * y_stddev) + y_mean
 
     """
+    np = get_numpy()
     if current_X is not None:
         current_X = np.array(current_X)
         if len(current_X.shape) != 2:
@@ -161,6 +167,7 @@ def train_gaussian_process(
 
 
 def filter_weird_values(sample_X, sample_y):
+    np = get_numpy()
     is_row_finite = ~(np.isnan(sample_X).any(axis=1) | np.isnan(sample_y))
     sample_X = sample_X[is_row_finite, :]
     sample_y = sample_y[is_row_finite]
@@ -222,6 +229,7 @@ def next_sample(
             prob_of_failure 1d array of predicted probabilites of failure
             expected_runtime 1d array of expected runtimes
     """
+    np = get_numpy()
     # Sanity check the data
     sample_X = np.array(sample_X)
     sample_y = np.array(sample_y)
@@ -348,6 +356,7 @@ def next_sample(
 
 
 def target(x):
+    np = get_numpy()
     return np.exp(-(x - 2) ** 2) + np.exp(-(x - 6) ** 2 / 10) + 1 / (x ** 2 + 1)
 
 
@@ -356,6 +365,7 @@ class BayesianSearch(Search):
         self.minimum_improvement = minimum_improvement
 
     def next_run(self, sweep):
+        np = get_numpy()
         if 'parameters' not in sweep['config']:
             raise ValueError('Bayesian search requires "parameters" section')
         if 'metric' not in sweep['config']:

@@ -295,13 +295,14 @@ class Agent(object):
         }
         try:
             command_type = command["type"]
-            result = None
             if command_type == "run":
                 result = self._command_run(command)
             elif command_type == "stop":
                 result = self._command_stop(command)
             elif command_type == "exit":
                 result = self._command_exit(command)
+            elif command_type == "resume":
+                result = self._command_run(command)
             else:
                 raise AgentError("No such command: %s" % command_type)
             response["result"] = result

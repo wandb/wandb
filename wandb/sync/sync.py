@@ -11,22 +11,28 @@ import sys
 import threading
 import time
 
+from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.util import check_and_warn_old
+from wandb.util import check_and_warn_old, mkdir_exists_ok
+
 
 # TODO: consolidate dynamic imports
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     from wandb.sdk.internal import datastore
+    from wandb.sdk.internal import handler
     from wandb.sdk.internal import sender
     from wandb.sdk.internal import tb_watcher
+    from wandb.sdk.interface import interface
 else:
     from wandb.sdk_py27.internal import datastore
+    from wandb.sdk_py27.internal import handler
     from wandb.sdk_py27.internal import sender
     from wandb.sdk_py27.internal import tb_watcher
+    from wandb.sdk_py27.interface import interface
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
@@ -117,7 +123,8 @@ class SyncThread(threading.Thread):
                     if tb_dir not in tb_logdirs:
                         tb_logdirs.append(tb_dir)
                 if len(tb_logdirs) > 0:
-                    tb_root = os.path.commonprefix(tb_logdirs)
+                    tb_root = os.path.dirname(os.path.commonprefix(tb_logdirs))
+
             elif TFEVENT_SUBSTRING in sync_item:
                 tb_root = os.path.dirname(os.path.abspath(sync_item))
                 tb_logdirs.append(tb_root)
@@ -132,6 +139,7 @@ class SyncThread(threading.Thread):
         proto_run.run_id = self._run_id or wandb.util.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
+
         url = "{}/{}/{}/runs/{}".format(
             self._app_url,
             url_quote(proto_run.entity),
@@ -140,26 +148,57 @@ class SyncThread(threading.Thread):
         )
         print("Syncing: %s ..." % url)
         sys.stdout.flush()
+        # using a handler here automatically handles the step
+        # logic, adds summaries to the run, and handles different
+        # file types (like images)... but we need to remake the send_manager
+        record_q = queue.Queue()
+        sender_record_q = queue.Queue()
+        new_interface = interface.BackendSender(record_q)
+        send_manager = sender.SendManager(
+            send_manager._settings, sender_record_q, queue.Queue(), new_interface
+        )
         record = send_manager._interface._make_record(run=proto_run)
-        send_manager.send(record)
         settings = wandb.Settings(
             root_dir=TMPDIR.name,
             run_id=proto_run.run_id,
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
         )
-        watcher = tb_watcher.TBWatcher(
-            settings, proto_run, send_manager._interface, True
+
+        handle_manager = handler.HandleManager(
+            settings, record_q, None, False, sender_record_q, None, new_interface
         )
+
+        mkdir_exists_ok(settings.files_dir)
+        send_manager.send_run(record, file_dir=settings.files_dir)
+        watcher = tb_watcher.TBWatcher(settings, proto_run, new_interface, True)
+
         for tb in tb_logdirs:
             watcher.add(tb, True, tb_root)
             sys.stdout.flush()
         watcher.finish()
+
         # send all of our records like a boss
-        while not send_manager._interface.record_q.empty():
-            data = send_manager._interface.record_q.get(block=True)
+        progress_step = 0
+        spinner_states = ["-", "\\", "|", "/"]
+        line = " Uploading data to wandb\r"
+        while len(handle_manager) > 0:
+            data = next(handle_manager)
+            handle_manager.handle(data)
+            while len(send_manager) > 0:
+                data = next(send_manager)
+                send_manager.send(data)
+
+            print_line = spinner_states[progress_step % 4] + line
+            wandb.termlog(print_line, newline=False, prefix=True)
+            progress_step += 1
+
+        # finish sending any data
+        while len(send_manager) > 0:
+            data = next(send_manager)
             send_manager.send(data)
         sys.stdout.flush()
+        handle_manager.finish()
         send_manager.finish()
 
     def run(self):

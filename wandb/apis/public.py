@@ -1041,8 +1041,8 @@ class Run(Attrs):
         """
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
-            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
                 bucket {
                     ...RunFragment
                 }
@@ -1060,6 +1060,7 @@ class Run(Attrs):
             notes=self.notes,
             display_name=self.display_name,
             config=self.json_config,
+            groupName=self.group,
         )
         self.summary.update()
 
@@ -2483,6 +2484,8 @@ class ArtifactCollection(object):
         self.name = name
         self.type = type
         self._attrs = attrs
+        if self._attrs is None:
+            self.load()
 
     @property
     def id(self):
@@ -2499,6 +2502,47 @@ class ArtifactCollection(object):
             self.type,
             per_page=per_page,
         )
+
+    def load(self):
+        query = gql(
+            """
+        query ArtifactCollection(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $artifactCollectionName: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactSequence(name: $artifactCollectionName) {
+                        id
+                        name
+                        description
+                        createdAt
+                    }
+                }
+            }
+        }
+        """
+        )
+        response = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactTypeName": self.type,
+                "artifactCollectionName": self.name,
+            },
+        )
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("artifactType") is None
+            or response["project"]["artifactType"].get("artifactSequence") is None
+        ):
+            raise ValueError("Could not find artifact type %s" % self.type)
+        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        return self._attrs
 
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
@@ -3259,8 +3303,9 @@ class Artifact(artifacts.Artifact):
             entry = self._manifest.entries[entry_key]
             if self._manifest_entry_is_artifact_reference(entry):
                 dep_artifact = self._get_ref_artifact_from_entry(entry)
-                dep_artifact._load_manifest()
-                self._dependent_artifacts.append(dep_artifact)
+                if dep_artifact not in self._dependent_artifacts:
+                    dep_artifact._load_manifest()
+                    self._dependent_artifacts.append(dep_artifact)
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
