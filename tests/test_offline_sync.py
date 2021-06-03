@@ -11,6 +11,7 @@ def test_sync_in_progress(live_mock_server, test_dir):
         f.write(fixture_open("train.py").read())
     env = dict(os.environ)
     env["WANDB_MODE"] = "offline"
+    env["WANDB_DIR"] = test_dir
     offline_run = subprocess.Popen(
         [
             sys.executable,
