@@ -9,6 +9,7 @@ from wandb.apis import internal_runqueue
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
+from ..utils import fetch_and_validate_project
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
@@ -100,19 +101,20 @@ class LaunchAgent(object):
         # TODO: logger
         print("agent: got job", job)
         # parse job
-        
+
         # todo: this will only let us launch runs from wandb (not eg github)
-        uri = "{}/{}/{}/runs/{}".format(self._base_url, job["runSpec"]["entity"], job["runSpec"]["project"], job["runSpec"]["run_id"])
-        self._backend = load_backend(job["runSpec"]["resource"], self._api)
+        run_spec = job["runSpec"]
+        entity = run_spec["entity"]
+        project = run_spec["project"]
+        run_id = run_spec["run_id"]
+        resource = run_spec["resource"]
+        entry_point = run_spec["entry_point"]
+        uri = "{}/{}/{}/runs/{}".format(self._base_url, entity, project, run_id)
+        self._backend = load_backend(resource, self._api)
         self.verify()
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
-        run = self._backend.run(
-            uri,
-            job["runSpec"]["entry_point"],
-            backend_config=backend_config,
-            params=None,
-            version=None
-        )
+        project = fetch_and_validate_project(uri, run_spec["name"], self._api, resource, run_spec.get("version", None), entry_point, run_spec.get("parameters", {}))   # @@@
+        run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run
         self._running += 1
         self._api.ack_run_queue_item(job["runQueueItemId"], run.id)

@@ -1025,7 +1025,28 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
     "using 'python' to run .py files and the default shell (specified by "
     "environment variable $SHELL) to run .sh files",
 )
-def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None, entry_point=None):
+@click.option(
+    "--experiment-name",
+    envvar="WANDB_NAME",
+    help="Name of the experiment under which to launch the run. If not "
+    "specified, 'experiment-id' option will be used to launch run.",
+)
+@click.option(
+    "--version",
+    "-v",
+    metavar="VERSION",
+    help="Version of the project to run, as a Git commit reference for Git projects.",
+)
+@click.option(
+    "--param-list",
+    "-P",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="A parameter for the run, of the form -P name=value. Provided parameters that "
+    "are not in the list of parameters for an entry point will be passed to the "
+    "corresponding entry point as command-line arguments in the form `--name value`",
+)
+def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None, entry_point=None, experiment_name=None, version=None, param_list=None):
     api = _get_runqueues_api()  # todo: temporary until runqueues api integrated into internal api
 
     uri_stripped = uri.split("?")[0]    # remove any possible query params (eg workspace)
@@ -1044,6 +1065,15 @@ def launch_add(uri, config=None, project=None, entity=None, queue=None, resource
         run_spec["entity"] = entity
     if resource is not None:
         run_spec["resource"] = resource
+    if version is not None:
+        run_spec["version"] = version
+    if param_list is not None:
+        run_spec["parameters"] = _user_args_to_dict(param_list)
+
+    if experiment_name is not None:
+        run_spec["name"] = experiment_name
+    else:
+        run_spec["name"] = "{}_{}".format(project, run_id)
 
     try:
         res = wandb_launch.push_to_queue(api, queue, run_spec)
