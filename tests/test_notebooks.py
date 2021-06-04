@@ -5,6 +5,7 @@ import pytest
 import json
 import sys
 import wandb
+import pickle
 
 from wandb.errors import UsageError
 
@@ -120,11 +121,20 @@ def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
         wandb.login()
 
 
-def test_notebook_exits():
+def test_notebook_exits(live_mock_server, test_settings):
 
     script_dirname = os.path.dirname(__file__)
     script_fname = os.path.join(script_dirname, "notebooks/ipython_exit.py")
     bindir = os.path.dirname(sys.executable)
     ipython = os.path.join(bindir, "ipython")
-    cmd = [ipython, script_fname]
-    subprocess.check_call(cmd)
+
+    tmpdir = test_settings.tmp_dir
+    if not os.path.exists(tmpdir):
+        os.makedirs(tmpdir, exist_ok=True)
+
+    test_settings_filename = os.path.join(tmpdir, "test_settings.pkl")
+    with open(test_settings_filename, "wb") as f:
+        pickle.dump(test_settings, f)
+    cmd = [ipython, script_fname, test_settings_filename]
+
+    subprocess.check_call(cmd, env={"WANDB_BASE_URL": live_mock_server.base_url})
