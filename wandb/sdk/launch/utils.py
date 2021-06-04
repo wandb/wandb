@@ -20,6 +20,7 @@ _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://wandb")
 _WANDB_DEV_URI_REGEX = re.compile(r"^https?://ap\w.wandb")   # for testing, not sure if we wanna keep this
+_WANDB_LOCAL_DEV_URI_REGEX = re.compile(r"^https?://localhost:8080")   # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
@@ -73,7 +74,11 @@ def _expand_uri(uri):
 
 
 def _is_wandb_uri(uri):
-    return _WANDB_URI_REGEX.match(uri) or _WANDB_DEV_URI_REGEX.match(uri)
+    return _WANDB_URI_REGEX.match(uri) or _WANDB_DEV_URI_REGEX.match(uri) or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
+
+
+def _is_wandb_local_uri(uri):
+    return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
 
 
 def _is_file_uri(uri):

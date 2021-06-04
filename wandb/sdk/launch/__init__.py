@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+from wandb import docker
 from gql import Client, gql
 import wandb
 from wandb.errors import ExecutionException
@@ -12,7 +13,8 @@ from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    fetch_and_validate_project
+    fetch_and_validate_project,
+    _is_wandb_local_uri
 )
 
 _logger = logging.getLogger(__name__)
@@ -140,6 +142,9 @@ def run(
         R2: 0.19729662005412607
         ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
+    if _is_wandb_local_uri(uri):
+        docker_args["network"] = "host"
+
     submitted_run_obj = _run(
         uri=uri,
         experiment_name=experiment_name,

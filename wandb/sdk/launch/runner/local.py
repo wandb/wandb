@@ -12,6 +12,7 @@ from .abstract import AbstractRunner, AbstractRun
 from ..utils import (
     get_entry_point_command,
     generate_docker_image,
+    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
@@ -101,6 +102,7 @@ class LocalRunner(AbstractRunner):
             docker_args=docker_args,
             volumes=project.docker_env.get("volumes"),
             user_env_vars=project.docker_env.get("environment"),
+            base_url=self._api.settings('base_url')
         )
 
         # In synchronous mode, run the entry point command in a blocking fashion, sending status

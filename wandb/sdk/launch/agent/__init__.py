@@ -2,6 +2,7 @@ import getpass
 import os
 import tempfile
 import time
+from wandb.sdk import backend
 
 import wandb
 from wandb import Settings
@@ -9,7 +10,7 @@ from wandb.apis import internal_runqueue
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
-from ..utils import _convert_access, fetch_and_validate_project, parse_wandb_uri
+from ..utils import _convert_access, fetch_and_validate_project, _is_wandb_local_uri,  parse_wandb_uri, PROJECT_DOCKER_ARGS
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
@@ -114,6 +115,8 @@ class LaunchAgent(object):
         self.verify()
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
         project = fetch_and_validate_project(uri, run_spec["name"], self._api, resource, run_spec.get("version", None), entry_point, run_spec.get("parameters", {}))
+        if _is_wandb_local_uri(uri):
+            backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
         run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run
         self._running += 1
