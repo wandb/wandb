@@ -57,21 +57,21 @@ def test_sync_in_progress(live_mock_server, test_dir):
             print(open(debug).read())
         assert False, "train.py failed to launch :("
     else:
-        "Starting live syncing after {} seconds".format(attempts * 0.1)
-    sync_file = ".wandb"
+        print(
+            "Starting live syncing after {} seconds from: {}".format(
+                attempts * 0.1, latest_run
+            )
+        )
     for i in range(3):
         # Generally, the first sync will fail because the .wandb file is empty
         sync = subprocess.Popen(["wandb", "sync", latest_run], env=os.environ)
         assert sync.wait() == 0
-        matches = glob.glob(os.path.join(latest_run, "*.wandb"))
-        if len(matches) > 0:
-            sync_file = matches[0]
         # Only confirm we don't have a .synced file if our offline run is still running
         if offline_run.poll() is None:
-            assert not os.path.exists(os.path.join(sync_file + ".synced"))
+            assert len(glob.glob(os.path.join(latest_run, "*.synced"))) == 0
     assert offline_run.wait() == 0
     sync = subprocess.Popen(["wandb", "sync", latest_run], env=os.environ)
     assert sync.wait() == 0
-    assert os.path.exists(os.path.join(sync_file + ".synced"))
+    assert len(glob.glob(os.path.join(latest_run, "*.synced"))) == 1
     print("Number of upserts: ", live_mock_server.get_ctx()["upsert_bucket_count"])
     assert live_mock_server.get_ctx()["upsert_bucket_count"] >= 3
