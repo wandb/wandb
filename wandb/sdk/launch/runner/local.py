@@ -101,8 +101,7 @@ class LocalRunner(AbstractRunner):
             image=image,
             docker_args=docker_args,
             volumes=project.docker_env.get("volumes"),
-            user_env_vars=project.docker_env.get("environment"),
-            base_url=self._api.settings('base_url')
+            user_env_vars=project.docker_env.get("environment")
         )
 
         # In synchronous mode, run the entry point command in a blocking fashion, sending status

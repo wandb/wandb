@@ -31,7 +31,8 @@ class Project(object):
         self.version = version
         self._entry_points = {}
         for ep in entry_points:
-            self.add_entry_point(ep)
+            if ep:
+                self.add_entry_point(ep)
         self.parameters = parameters
         self.dir = None
         # todo: better way of storing docker/anyscale/etc tracking info
@@ -99,6 +100,8 @@ class Project(object):
                 raise ExecutionException("Run must have git repo associated")
             utils._fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # git repo
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
+            if not self._entry_points:
+                self.add_entry_point(run_info["program"])
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-local URI %s should be a Git URI" % parsed_uri
@@ -172,6 +175,7 @@ class EntryPoint(object):
         )
 
     def compute_command(self, user_parameters, storage_dir):
+        print(user_parameters)
         params, extra_params = self.compute_parameters(user_parameters, storage_dir)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]

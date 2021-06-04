@@ -139,15 +139,18 @@ def generate_docker_image(project_spec, version, entry_cmd, api):
 
 def fetch_and_validate_project(uri, experiment_name, api, runner_name, version, entry_point, parameters):
     parameters = parameters or {}
+    experiment_name = experiment_name or "test"
     project = Project(uri, experiment_name, version, [entry_point], parameters)
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
-    project.get_entry_point(entry_point)._validate_parameters(parameters)
+    first_entry_point = list(project._entry_points.keys())[0]
+    project.get_entry_point(first_entry_point)._validate_parameters(parameters)
     return project
 
 def parse_wandb_uri(uri):
     stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
     stripped_uri = re.sub(_WANDB_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
+    stripped_uri = re.sub(_WANDB_LOCAL_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
     entity, project, _, name = stripped_uri.split("/")[1:]
     return entity, project, name
 

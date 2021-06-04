@@ -53,12 +53,14 @@ def build_docker_image(work_dir, repository_uri, base_image, api):
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
+        "ENV WANDB_BASE_URL={base_url}\n"      # todo this is also currently passed in via r2d
         "ENV WANDB_API_KEY={api_key}\n"      # todo this is also currently passed in via r2d
         "USER root\n"       # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         workdir=WANDB_DOCKER_WORKDIR_PATH,
+        base_url=api.settings('base_url'),
         api_key=api.api_key,
     )
     build_ctx_path = _create_docker_build_ctx(work_dir, dockerfile)

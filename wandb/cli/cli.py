@@ -857,7 +857,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "--entry-point",
     "-e",
     metavar="NAME",
-    default="main.py",
+    default=None,
     help="Entry point within project. [default: main]. If the entry point is not found, "
     "attempts to run the project file with the specified name as a script, "
     "using 'python' to run .py files and the default shell (specified by "
@@ -1020,7 +1020,7 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
     "--entry-point",
     "-e",
     metavar="NAME",
-    default="main.py",
+    default=None,
     help="Entry point within project. [default: main]. If the entry point is not found, "
     "attempts to run the project file with the specified name as a script, "
     "using 'python' to run .py files and the default shell (specified by "
@@ -1066,12 +1066,13 @@ def launch_add(uri, config=None, project=None, entity=None, queue=None, resource
     run_spec["entry_point"] = entry_point
     run_spec["project"] = project
     run_spec["entity"] = entity
+    run_spec["overrides"] = {}
     if resource is not None:
         run_spec["resource"] = resource
     if version is not None:
         run_spec["version"] = version
     if param_list is not None:
-        run_spec["parameters"] = _user_args_to_dict(param_list)
+        run_spec["overrides"]["args"] = _user_args_to_dict(param_list)
 
     if experiment_name is not None:
         run_spec["name"] = experiment_name
