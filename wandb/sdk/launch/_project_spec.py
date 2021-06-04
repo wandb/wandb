@@ -102,6 +102,11 @@ class Project(object):
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
+            print(self.parameters, not self.parameters)
+            if not self.parameters:
+                args = utils._collect_args(run_info["args"])
+                self.parameters = args
+            print(self.parameters)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-local URI %s should be a Git URI" % parsed_uri

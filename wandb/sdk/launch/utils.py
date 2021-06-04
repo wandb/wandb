@@ -114,6 +114,21 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
+def _collect_args(args):
+    dict_args = {}
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if "=" in arg:
+            name, vals = arg.split("=")
+            dict_args[name.replace("-", "")] = vals
+            i += 1
+        else:
+            dict_args[arg.replace("-", "")] = args[i+1]
+            i += 2
+    return dict_args
+
+
 def generate_docker_image(project_spec, version, entry_cmd, api):
     path = project_spec.dir
     cmd = ['jupyter-repo2docker',
