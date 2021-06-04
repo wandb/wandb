@@ -26,8 +26,8 @@ class NGCSubmittedRun(AbstractRun):
     }
     POLL_INTERVAL = 30  # TODO: backoff?
 
-    def __init__(self, run_id, cmd):
-        super().__init__(run_id)
+    def __init__(self, cmd):
+        super().__init__()
         data = self._parse_cmd(self._run_cmd(cmd))
         self._status = Status(self.STATE_MAP.get(data.get("status"), "starting"), data)
         self._last_poll = time.time()
@@ -139,7 +139,6 @@ class NGCRunner(AbstractRunner):
     def run(
         self, project, backend_config
     ):
-        run_id = os.getenv("WANDB_RUN_ID")  # TODO: bad
         #  TODO: eventually we may want to require a project, for now we don't
 
         # Build a docker image here?
@@ -147,4 +146,4 @@ class NGCRunner(AbstractRunner):
             pass
 
         cmd = self._generate_cmd(backend_config)
-        return NGCSubmittedRun(run_id, cmd)
+        return NGCSubmittedRun(cmd)

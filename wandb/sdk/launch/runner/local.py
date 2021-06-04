@@ -11,7 +11,6 @@ from wandb.errors import ExecutionException
 from .abstract import AbstractRunner, AbstractRun
 from ..utils import (
     get_entry_point_command,
-    get_run_env_vars,
     generate_docker_image,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
@@ -34,7 +33,7 @@ class LocalSubmittedRun(AbstractRun):
     command locally.
     """
 
-    def __init__(self, command_proc):       # @@@ run id does nothing
+    def __init__(self, command_proc):
         super().__init__()
         self.command_proc = command_proc
 
@@ -118,7 +117,7 @@ class LocalRunner(AbstractRunner):
                 command_str, project.dir
             )
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(        # @@@ untested
+        return _invoke_wandb_run_subprocess(        # todo: async mode is untested
             work_dir=project.dir,
             entry_point=entry_point,
             parameters=project.parameters,
@@ -127,13 +126,12 @@ class LocalRunner(AbstractRunner):
         )
 
 
-def _run_launch_cmd(cmd, env_map):
+def _run_launch_cmd(cmd):
     """
     Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
     Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.
     """
     final_env = os.environ.copy()
-    final_env.update(env_map)
     # Launch `wandb launch` command as the leader of its own process group so that we can do a
     # best-effort cleanup of all its descendant processes if needed
     if sys.platform == "win32":
@@ -190,8 +188,7 @@ def _invoke_wandb_run_subprocess(
         storage_dir=storage_dir,
         parameters=parameters,
     )
-    env_vars = get_run_env_vars(None)   # todo: can probably cut this whole thing
-    wandb_run_subprocess = _run_launch_cmd(wandb_run_arr, env_vars)
+    wandb_run_subprocess = _run_launch_cmd(wandb_run_arr)
     return LocalSubmittedRun(wandb_run_subprocess)
 
 
@@ -219,7 +216,7 @@ def _get_docker_command(
     image, docker_args=None, volumes=None, user_env_vars=None
 ):
     docker_path = "docker"
-    cmd = [docker_path, "run", "--rm"]      # @@@ docker command here
+    cmd = [docker_path, "run", "--rm"]
 
     if docker_args:
         for name, value in docker_args.items():

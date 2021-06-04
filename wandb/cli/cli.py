@@ -937,12 +937,19 @@ def launch(
     """
     param_dict = _user_args_to_dict(param_list)
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
-    if config is not None and os.path.splitext(config)[-1] != ".json":  # @@@ todo don't think jsons are handled here
-        try:
-            config = json.loads(config)
-        except ValueError as e:
-            wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
-            raise
+    if config is not None:
+        if os.path.splitext(config)[-1] == ".json":
+            with open(config, 'r') as f:
+                config = json.load(f)
+        else:
+            # assume a json string
+            try:
+                config = json.loads(config)
+            except ValueError as e:
+                wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
+                raise
+    else:
+        config = {}
 
     if resource == "ngc":
         # TODO: add queue support?

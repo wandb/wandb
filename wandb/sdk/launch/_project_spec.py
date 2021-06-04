@@ -17,9 +17,9 @@ from . import utils
 _logger = logging.getLogger(__name__)
 
 MLPROJECT_FILE_NAME = "mlproject"
+
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
-    # @@@ todo: we should expand this to store more info beyond local dir stuff
 
     def __init__(self, uri, name, version, entry_points, parameters):
 
@@ -67,7 +67,7 @@ class Project(object):
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
-    def _fetch_project_local(self, api, version=None):   # @@@ uri parsing move further up
+    def _fetch_project_local(self, api, version=None):
         """
         Fetch a project into a local directory, returning the path to the local project directory.
         """
@@ -94,10 +94,10 @@ class Project(object):
             if use_temp_dst_dir:
                 dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
         elif utils._is_wandb_uri(self.uri):
-            run_info = utils.fetch_wandb_project_run_info(self.uri, api)   # @@@ fetch project run info
+            run_info = utils.fetch_wandb_project_run_info(self.uri, api)
             if not run_info["git"]:
                 raise ExecutionException("Run must have git repo associated")
-            utils._fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # @@@ git repo
+            utils._fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # git repo
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (

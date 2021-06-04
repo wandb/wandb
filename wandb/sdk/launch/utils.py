@@ -10,9 +10,7 @@ import yaml
 from gql import Client, gql
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
-import wandb
 from wandb.errors import ExecutionException
-import time
 from ._project_spec import Project, MLPROJECT_FILE_NAME
 
 
@@ -214,20 +212,6 @@ def _fetch_zip_repo(uri):
     except requests.HTTPError as error:
         raise ExecutionException("Unable to retrieve ZIP file. Reason: %s" % str(error))
     return BytesIO(response.content)
-
-
-def get_run_env_vars(run_id):
-    """
-    Returns a dictionary of environment variable key-value pairs to set in subprocess launched
-    to run W&B projects.
-    """
-    #  TODO: pull vars from settings as well, set entity / project
-    env_vars = {}
-    # settings = wandb.Settings()
-    if run_id:
-        env_vars["WANDB_RUN_ID"] = run_id       # @@@ fix this
-
-    return env_vars         # @@@ todo this fn currently doesn't do anything
 
 
 def get_entry_point_command(project, entry_point, parameters, storage_dir):

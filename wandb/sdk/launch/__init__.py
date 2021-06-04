@@ -108,9 +108,8 @@ def run(
     :param experiment_name: Name of experiment under which to launch the run.
     :param backend: Execution backend for the run: W&B provides built-in support for "local",
                     and "ngc" (experimental) backends.
-    :param backend_config: A dictionary, or a path to a JSON file (must end in '.json'), which will
-                           be passed as config to the backend. The exact content which should be
-                           provided is different for each execution backend
+    :param backend_config: A dictionary which will be passed as config to the backend. The exact content
+                           which should be provided is different for each execution backend
     :param storage_dir: Used only if ``backend`` is "local". W&B downloads artifacts from
                         distributed URIs passed to parameters of type ``path`` to subdirectories of
                         ``storage_dir``.
@@ -141,22 +140,6 @@ def run(
         R2: 0.19729662005412607
         ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
-    backend_config_dict = config if config is not None else {}
-    if (
-        config
-        and type(config) != dict
-        and os.path.splitext(config)[-1] == ".json"
-    ):
-        with open(config, "r") as handle:
-            try:
-                backend_config_dict = json.load(handle)
-            except ValueError:
-                _logger.error(
-                    "Error when attempting to load and parse JSON cluster spec from file %s",
-                    config,
-                )
-                raise
-
     submitted_run_obj = _run(
         uri=uri,
         experiment_name=experiment_name,
@@ -165,9 +148,9 @@ def run(
         parameters=parameters,
         docker_args=docker_args,
         runner_name=resource,
-        runner_config=backend_config_dict,
+        runner_config=config,
         storage_dir=storage_dir,
-        synchronous=synchronous,        # @@@ todo synchronous not tested
+        synchronous=synchronous,
         api=api
     )
     if synchronous:
