@@ -82,8 +82,8 @@ def run(
     parameters=None,
     docker_args=None,
     experiment_name=None,
-    backend="local",
-    backend_config=None,
+    resource="local",
+    config=None,
     build_docker=False,
     storage_dir=None,
     synchronous=True,
@@ -144,19 +144,19 @@ def run(
         R2: 0.19729662005412607
         ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
-    backend_config_dict = backend_config if backend_config is not None else {}
+    backend_config_dict = config if config is not None else {}
     if (
-        backend_config
-        and type(backend_config) != dict
-        and os.path.splitext(backend_config)[-1] == ".json"
+        config
+        and type(config) != dict
+        and os.path.splitext(config)[-1] == ".json"
     ):
-        with open(backend_config, "r") as handle:
+        with open(config, "r") as handle:
             try:
                 backend_config_dict = json.load(handle)
             except ValueError:
                 _logger.error(
                     "Error when attempting to load and parse JSON cluster spec from file %s",
-                    backend_config,
+                    config,
                 )
                 raise
 
@@ -166,7 +166,7 @@ def run(
         version=version,
         parameters=parameters,
         docker_args=docker_args,
-        runner_name=backend,
+        runner_name=resource,
         runner_config=backend_config_dict,
         build_docker=build_docker,
         storage_dir=storage_dir,

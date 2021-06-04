@@ -10,9 +10,7 @@ from wandb.errors import ExecutionException
 
 from .abstract import AbstractRunner, AbstractRun
 from ..utils import (
-    get_conda_command,
     get_entry_point_command,
-    get_or_create_conda_env,
     get_run_env_vars,
     generate_docker_image,
     PROJECT_DOCKER_ARGS,
@@ -125,7 +123,6 @@ class LocalRunner(AbstractRunner):
             )
             command_str = command_separator.join(command_args)
 
-            command_str += " " + " ".join(project.args)
             print("Launching run in docker with command: {}".format(command_str))
             return _run_entry_point(
                 command_str, project.dir

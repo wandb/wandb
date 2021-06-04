@@ -7,128 +7,30 @@ import six
 from wandb import util
 from wandb.errors import Error as ExecutionException
 import yaml
+import tempfile
+import logging
+import urllib.parse
+from distutils import dir_util
 
+from . import utils
+
+_logger = logging.getLogger(__name__)
 
 MLPROJECT_FILE_NAME = "mlproject"
-DEFAULT_CONDA_FILE_NAME = "conda.yaml"
-
-
-def _find_mlproject(directory):
-    filenames = os.listdir(directory)
-    for filename in filenames:
-        if filename.lower() == MLPROJECT_FILE_NAME:
-            return os.path.join(directory, filename)
-    return None
-
-# todo remove this
-def load_project(directory):
-    mlproject_path = _find_mlproject(directory)
-
-    # TODO: Validate structure of YAML loaded from the file
-    yaml_obj = {}
-    if mlproject_path is not None:
-        with open(mlproject_path) as mlproject_file:
-            yaml_obj = yaml.safe_load(mlproject_file)
-
-    project_name = yaml_obj.get("name")
-
-    # Validate config if docker_env parameter is present
-    docker_env = yaml_obj.get("docker_env")
-    if docker_env:
-        if not docker_env.get("image"):
-            raise ExecutionException(
-                "Project configuration (MLproject file) was invalid: Docker "
-                "environment specified but no image attribute found."
-            )
-        if docker_env.get("volumes"):
-            if not (
-                isinstance(docker_env["volumes"], list)
-                and all([isinstance(i, str) for i in docker_env["volumes"]])
-            ):
-                raise ExecutionException(
-                    "Project configuration (MLproject file) was invalid: "
-                    "Docker volumes must be a list of strings, "
-                    """e.g.: '["/path1/:/path1", "/path2/:/path2"])"""
-                )
-        if docker_env.get("environment"):
-            if not (
-                isinstance(docker_env["environment"], list)
-                and all(
-                    [
-                        isinstance(i, list) or isinstance(i, str)
-                        for i in docker_env["environment"]
-                    ]
-                )
-            ):
-                raise ExecutionException(
-                    "Project configuration (MLproject file) was invalid: "
-                    "environment must be a list containing either strings (to copy environment "
-                    "variables from host system) or lists of string pairs (to define new "
-                    "environment variables)."
-                    """E.g.: '[["NEW_VAR", "new_value"], "VAR_TO_COPY_FROM_HOST"])"""
-                )
-
-    # Validate config if conda_env parameter is present
-    conda_path = yaml_obj.get("conda_env")
-    if conda_path and docker_env:
-        raise ExecutionException(
-            "Project cannot contain both a docker and " "conda environment."
-        )
-
-    # Parse entry points
-    entry_points = {}
-    for name, entry_point_yaml in yaml_obj.get("entry_points", {}).items():
-        parameters = entry_point_yaml.get("parameters", {})
-        command = entry_point_yaml.get("command")
-        entry_points[name] = EntryPoint(name, parameters, command)
-
-    args = yaml_obj.get("args", [])
-
-    if conda_path:
-        conda_env_path = os.path.join(directory, conda_path)
-        if not os.path.exists(conda_env_path):
-            raise ExecutionException(
-                "Project specified conda environment file %s, but no such "
-                "file was found." % conda_env_path
-            )
-        return Project(
-            entry_points=entry_points,
-            docker_env=docker_env,
-            name=project_name,
-            directory=directory,
-            args=args
-        )
-
-    default_conda_path = os.path.join(directory, DEFAULT_CONDA_FILE_NAME)
-    if os.path.exists(default_conda_path):
-        return Project(
-            entry_points=entry_points,
-            docker_env=docker_env,
-            name=project_name,
-            directory=directory,
-            args=args
-        )
-
-    return Project(
-        entry_points=entry_points,
-        docker_env=docker_env,
-        name=project_name,
-        directory=directory,
-        args=args
-    )
-
-
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
     # @@@ todo: we should expand this to store more info beyond local dir stuff
 
-    def __init__(self, entry_points, docker_env, name, directory, args):
+    def __init__(self, uri, name, version, entry_points, parameters):
 
-        self._entry_points = entry_points
-        self.docker_env = docker_env
+        self.uri = uri
         self.name = name
-        self.dir = directory
-        self.args = args
+        self.version = version
+        self._entry_points = {}
+        for ep in entry_points:
+            self.add_entry_point(ep)
+        self.parameters = parameters
+        self.dir = None
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
@@ -137,9 +39,7 @@ class Project(object):
             raise Exception("Project must have exactly one entry point")
         return list(self._entry_points.values())[0]
 
-    def get_entry_point(self, entry_point):
-        if entry_point in self._entry_points:
-            return self._entry_points[entry_point]
+    def add_entry_point(self, entry_point):
         _, file_extension = os.path.splitext(entry_point)
         ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
         if file_extension in ext_to_cmd:
@@ -156,6 +56,57 @@ class Project(object):
                 entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys())
             )
         )
+
+    def get_entry_point(self, entry_point):
+        if entry_point in self._entry_points:
+            return self._entry_points[entry_point]
+        return self.add_entry_point(entry_point)
+
+    def _fetch_project_local(self, api, version=None):   # @@@ uri parsing move further up
+        """
+        Fetch a project into a local directory, returning the path to the local project directory.
+        """
+        parsed_uri, subdirectory = utils._parse_subdirectory(self.uri)
+        use_temp_dst_dir = utils._is_zip_uri(parsed_uri) or not utils._is_local_uri(parsed_uri)
+        dst_dir = tempfile.mkdtemp() if use_temp_dst_dir else parsed_uri
+        if use_temp_dst_dir:
+            _logger.info("=== Fetching project from %s into %s ===", self.uri, dst_dir)
+        if utils._is_zip_uri(parsed_uri):
+            if utils._is_file_uri(parsed_uri):
+                parsed_file_uri = urllib.parse.urlparse(urllib.parse.unquote(parsed_uri))
+                parsed_uri = os.path.join(parsed_file_uri.netloc, parsed_file_uri.path)
+            utils._unzip_repo(
+                zip_file=(
+                    parsed_uri if utils._is_local_uri(parsed_uri) else utils._fetch_zip_repo(parsed_uri)
+                ),
+                dst_dir=dst_dir,
+            )
+        elif utils._is_local_uri(self.uri):
+            if version is not None:
+                raise ExecutionException(
+                    "Setting a version is only supported for Git project URIs"
+                )
+            if use_temp_dst_dir:
+                dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
+        elif utils._is_wandb_uri(self.uri):
+            # TODO: so much hotness
+            run_info = utils.fetch_wandb_project_run_info(self.uri, api)   # @@@ fetch project run info
+            if not run_info["git"]:
+                raise ExecutionException("Run must have git repo associated")
+            utils._fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # @@@ git repo
+            utils._create_ml_project_file_from_run_info(dst_dir, run_info)
+        else:
+            assert utils._GIT_URI_REGEX.match(parsed_uri), (
+                "Non-local URI %s should be a Git URI" % parsed_uri
+            )
+            utils._fetch_git_repo(parsed_uri, version, dst_dir)
+        res = os.path.abspath(os.path.join(dst_dir, subdirectory))
+        if not os.path.exists(res):
+            raise ExecutionException(
+                "Could not find subdirectory %s of %s" % (subdirectory, dst_dir)
+            )
+        self.dir = res
+        return res
 
 
 class EntryPoint(object):

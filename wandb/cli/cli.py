@@ -893,19 +893,19 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "specified, 'experiment-id' option will be used to launch run.",
 )
 @click.option(
-    "--backend",
-    "-b",
+    "--resource",
+    "-r",
     metavar="BACKEND",
     default="local",
-    help="Execution backend to use for run. Supported values: 'local', 'ngc'"
+    help="Execution resource to use for run. Supported values: 'local', 'ngc'"
     "(experimental). Defaults to 'local'.",
 )
 @click.option(
-    "--backend-config",
+    "--config",
     "-c",
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as config to the backend. The exact content which should be "
+    "as config to the compute resource. The exact content which should be "
     "provided is different for each execution backend.",
 )
 @click.option(
@@ -927,8 +927,8 @@ def launch(
     param_list,
     docker_args,
     experiment_name,
-    backend,
-    backend_config,
+    resource,
+    config,
     build_docker,
     storage_dir,
 ):
@@ -943,16 +943,16 @@ def launch(
     """
     param_dict = _user_args_to_dict(param_list)
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
-    if backend_config is not None and os.path.splitext(backend_config)[-1] != ".json":
+    if config is not None and os.path.splitext(config)[-1] != ".json":  # @@@ todo don't think jsons are handled here
         try:
-            backend_config = json.loads(backend_config)
+            config = json.loads(config)
         except ValueError as e:
             wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
             raise
 
-    if backend == "ngc":
+    if resource == "ngc":
         # TODO: add queue support?
-        if backend_config is None:
+        if config is None:
             wandb.termerror("Specify 'backend_config' when using ngc mode.")
             sys.exit(1)
 
@@ -966,11 +966,11 @@ def launch(
             experiment_name=experiment_name,
             parameters=param_dict,
             docker_args=args_dict,
-            backend=backend,
-            backend_config=backend_config,
+            resource=resource,
+            config=config,
             build_docker=build_docker,
             storage_dir=storage_dir,
-            synchronous=backend in ("local", "ngc") or backend is None,     # todo currently always true
+            synchronous=resource in ("local", "ngc") or resource is None,     # todo currently always true
             api=api
         )
     except wandb_launch.ExecutionException as e:

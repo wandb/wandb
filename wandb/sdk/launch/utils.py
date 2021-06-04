@@ -1,5 +1,4 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
-from distutils import dir_util
 import hashlib
 import json
 import logging
@@ -7,7 +6,6 @@ import os
 import subprocess
 import re
 import tempfile
-import urllib.parse
 import yaml
 from gql import Client, gql
 from gql.client import RetryError  # type: ignore
@@ -15,7 +13,7 @@ from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
 import time
-from . import _project_spec
+from ._project_spec import Project, MLPROJECT_FILE_NAME
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -141,21 +139,10 @@ def fetch_and_validate_project(uri, api, runner_name, version, entry_point, para
     parameters = parameters or {}
 
     # todo: we maybe don't always want to dl project to local
-
-
-
-
-
-    work_dir = _fetch_project_local(uri=uri, api=api, version=version)
-    project = _project_spec.load_project(work_dir)
-    project.version = version   # @@@ hacky!!!!!!!
-    project.parameters = parameters     # @@@ hacky!!!!!
+    project = Project(uri, "name", version, [entry_point], parameters)
+    project._fetch_project_local(api=api, version=version)
     project.get_entry_point(entry_point)._validate_parameters(parameters)
     return project
-
-
-def load_project(work_dir):
-    return _project_spec.load_project(work_dir)
 
 
 def fetch_wandb_project_run_info(uri, api=None):
@@ -166,54 +153,8 @@ def fetch_wandb_project_run_info(uri, api=None):
     return result
 
 
-def _fetch_project_local(uri, api, version=None):   # @@@ uri parsing move further up
-    """
-    Fetch a project into a local directory, returning the path to the local project directory.
-    """
-    parsed_uri, subdirectory = _parse_subdirectory(uri)
-    use_temp_dst_dir = _is_zip_uri(parsed_uri) or not _is_local_uri(parsed_uri)
-    dst_dir = tempfile.mkdtemp() if use_temp_dst_dir else parsed_uri
-    if use_temp_dst_dir:
-        _logger.info("=== Fetching project from %s into %s ===", uri, dst_dir)
-    if _is_zip_uri(parsed_uri):
-        if _is_file_uri(parsed_uri):
-            parsed_file_uri = urllib.parse.urlparse(urllib.parse.unquote(parsed_uri))
-            parsed_uri = os.path.join(parsed_file_uri.netloc, parsed_file_uri.path)
-        _unzip_repo(
-            zip_file=(
-                parsed_uri if _is_local_uri(parsed_uri) else _fetch_zip_repo(parsed_uri)
-            ),
-            dst_dir=dst_dir,
-        )
-    elif _is_local_uri(uri):
-        if version is not None:
-            raise ExecutionException(
-                "Setting a version is only supported for Git project URIs"
-            )
-        if use_temp_dst_dir:
-            dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
-    elif _is_wandb_uri(uri):
-        # TODO: so much hotness
-        run_info = fetch_wandb_project_run_info(uri, api)   # @@@ fetch project run info
-        if not run_info["git"]:
-            raise ExecutionException("Run must have git repo associated")
-        _fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # @@@ git repo
-        _create_ml_project_file_from_run_info(dst_dir, run_info)
-    else:
-        assert _GIT_URI_REGEX.match(parsed_uri), (
-            "Non-local URI %s should be a Git URI" % parsed_uri
-        )
-        _fetch_git_repo(parsed_uri, version, dst_dir)
-    res = os.path.abspath(os.path.join(dst_dir, subdirectory))
-    if not os.path.exists(res):
-        raise ExecutionException(
-            "Could not find subdirectory %s of %s" % (subdirectory, dst_dir)
-        )
-    return res
-
-
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
+    path = os.path.join(dst_dir, MLPROJECT_FILE_NAME)
     spec_keys_map = {
         "args": run_info["args"],
         "entrypoint": run_info["program"],
@@ -310,104 +251,3 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     )
     return commands
 
-
-# Environment variable indicating a path to a conda installation. We will default to running
-# "conda" if unset
-WANDB_CONDA_HOME = "WANDB_CONDA_HOME"
-_logger = logging.getLogger(__name__)
-
-
-def get_conda_command(conda_env_name):
-    #  Checking for newer conda versions
-    if os.name != "nt" and (
-        "CONDA_EXE" in os.environ or "WANDB_CONDA_HOME" in os.environ
-    ):
-        conda_path = get_conda_bin_executable("conda")
-        activate_conda_env = [
-            "source {}/../etc/profile.d/conda.sh".format(os.path.dirname(conda_path))
-        ]
-        activate_conda_env += ["conda activate {} 1>&2".format(conda_env_name)]
-    else:
-        activate_path = get_conda_bin_executable("activate")
-        # in case os name is not 'nt', we are not running on windows. It introduces
-        # bash command otherwise.
-        if os.name != "nt":
-            return ["source %s %s 1>&2" % (activate_path, conda_env_name)]
-        else:
-            return ["conda activate %s" % (conda_env_name)]
-    return activate_conda_env
-
-
-def get_conda_bin_executable(executable_name):
-    """
-    Return path to the specified executable, assumed to be discoverable within the 'bin'
-    subdirectory of a conda installation.
-    The conda home directory (expected to contain a 'bin' subdirectory) is configurable via the
-    ``WANDB_CONDA_HOME`` environment variable. If it's is unspecified, this method simply returns the passed-in
-    executable name.
-    """
-    conda_home = os.environ.get(WANDB_CONDA_HOME)
-    if conda_home:
-        return os.path.join(conda_home, "bin/%s" % executable_name)
-    # Use CONDA_EXE as per https://github.com/conda/conda/issues/7126
-    if "CONDA_EXE" in os.environ:
-        conda_bin_dir = os.path.dirname(os.environ["CONDA_EXE"])
-        return os.path.join(conda_bin_dir, executable_name)
-    return executable_name
-
-
-def _get_conda_env_name(conda_env_path, env_id=None):
-    conda_env_contents = open(conda_env_path).read() if conda_env_path else ""
-    if env_id:
-        conda_env_contents += env_id
-    return "wandb-%s" % hashlib.sha1(conda_env_contents.encode("utf-8")).hexdigest()
-
-
-def get_or_create_conda_env(conda_env_path, env_id=None):
-    """
-    Given a `Project`, creates a conda environment containing the project's dependencies if such a
-    conda environment doesn't already exist. Returns the name of the conda environment.
-    :param conda_env_path: Path to a conda yaml file.
-    :param env_id: Optional string that is added to the contents of the yaml file before
-                   calculating the hash. It can be used to distinguish environments that have the
-                   same conda dependencies but are supposed to be different based on the context.
-                   For example, when serving the model we may install additional dependencies to the
-                   environment after the environment has been activated.
-    """
-    conda_path = get_conda_bin_executable("conda")
-    try:
-        wandb.util.exec_cmd([conda_path, "--help"], throw_on_error=False)
-    except EnvironmentError:
-        raise ExecutionException(
-            "Could not find Conda executable at {0}. "
-            "Ensure Conda is installed as per the instructions at "
-            "https://conda.io/projects/conda/en/latest/"
-            "user-guide/install/index.html. "
-            "You can also configure W&B to look for a specific "
-            "Conda executable by setting the {1} environment variable "
-            "to the path of the Conda executable".format(conda_path, WANDB_CONDA_HOME)
-        )
-    (_, stdout, _) = wandb.util.exec_cmd([conda_path, "env", "list", "--json"])
-    env_names = [os.path.basename(env) for env in json.loads(stdout)["envs"]]
-    project_env_name = _get_conda_env_name(conda_env_path, env_id)
-    if project_env_name not in env_names:
-        _logger.info("=== Creating conda environment %s ===", project_env_name)
-        if conda_env_path:
-            wandb.util.exec_cmd(
-                [
-                    conda_path,
-                    "env",
-                    "create",
-                    "-n",
-                    project_env_name,
-                    "--file",
-                    conda_env_path,
-                ],
-                stream_output=True,
-            )
-        else:
-            wandb.util.exec_cmd(
-                [conda_path, "create", "-n", project_env_name, "python"],
-                stream_output=True,
-            )
-    return project_env_name
