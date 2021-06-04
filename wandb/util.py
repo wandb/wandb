@@ -14,6 +14,7 @@ import getpass
 import logging
 import math
 import numbers
+import traceback
 import os
 import re
 import shlex
@@ -1272,3 +1273,20 @@ def handle_sweep_config_violations(warnings):
 
     if len(warnings) > 0:
         term.termwarn(warning)
+
+
+def _log_thread_stacks():
+    """Log all threads, useful for debugging."""
+
+    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+
+    for thread_id, frame in sys._current_frames().items():
+        logger.info(
+            "\n--- Stack for thread {t} {name} ---".format(
+                t=thread_id, name=thread_map.get(thread_id, "unknown")
+            )
+        )
+        for filename, lineno, name, line in traceback.extract_stack(frame):
+            logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                logger.info("  Line: %s" % line)
