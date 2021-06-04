@@ -9,7 +9,7 @@ from wandb.apis import internal_runqueue
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
-from ..utils import fetch_and_validate_project
+from ..utils import fetch_and_validate_project, parse_wandb_uri
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
@@ -113,7 +113,7 @@ class LaunchAgent(object):
         self._backend = load_backend(resource, self._api)
         self.verify()
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS=None, STORAGE_DIR=None)
-        project = fetch_and_validate_project(uri, run_spec["name"], self._api, resource, run_spec.get("version", None), entry_point, run_spec.get("parameters", {}))   # @@@
+        project = fetch_and_validate_project(uri, run_spec["name"], self._api, resource, run_spec.get("version", None), entry_point, run_spec.get("parameters", {}))
         run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run
         self._running += 1

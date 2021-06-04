@@ -14,6 +14,7 @@ import sys
 import textwrap
 import time
 import traceback
+from wandb.sdk.launch.utils import parse_wandb_uri
 
 import click
 from click.exceptions import ClickException
@@ -1050,7 +1051,11 @@ def launch_add(uri, config=None, project=None, entity=None, queue=None, resource
     api = _get_runqueues_api()  # todo: temporary until runqueues api integrated into internal api
 
     uri_stripped = uri.split("?")[0]    # remove any possible query params (eg workspace)
-    run_id = uri_stripped.split("/")[-1]
+    uri_entity, uri_project, run_id = parse_wandb_uri(uri_stripped)
+
+    # if entity and project for queue aren't specified, default to same as in wandb uri
+    project = project if project is not None else uri_project
+    entity = entity if entity is not None else uri_entity
 
     run_spec = {}
     if config is not None:
@@ -1059,10 +1064,8 @@ def launch_add(uri, config=None, project=None, entity=None, queue=None, resource
     # current behavior we override anything in supplied config with cli args if passed
     run_spec["run_id"] = run_id
     run_spec["entry_point"] = entry_point
-    if project is not None:
-        run_spec["project"] = project
-    if entity is not None:
-        run_spec["entity"] = entity
+    run_spec["project"] = project
+    run_spec["entity"] = entity
     if resource is not None:
         run_spec["resource"] = resource
     if version is not None:
