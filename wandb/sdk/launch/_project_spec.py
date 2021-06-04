@@ -63,6 +63,11 @@ class Project(object):
             )
         )
 
+    def _merge_parameters(self, run_info_param_dict):
+        for key in run_info_param_dict.keys():
+            if not self.parameters.get(key):
+                self.parameters[key] = run_info_param_dict[key]
+
     def get_entry_point(self, entry_point):
         if entry_point in self._entry_points:
             return self._entry_points[entry_point]
@@ -102,9 +107,9 @@ class Project(object):
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
-            if not self.parameters:
-                args = utils._collect_args(run_info["args"])
-                self.parameters = args
+            
+            args = utils._collect_args(run_info["args"])
+            self._merge_parameters(args)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-local URI %s should be a Git URI" % parsed_uri
