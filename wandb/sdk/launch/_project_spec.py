@@ -24,7 +24,10 @@ class Project(object):
     def __init__(self, uri, name, version, entry_points, parameters):
 
         self.uri = uri
-        self.name = name
+        self.name = name        # todo: what to do for default names
+        if self.name is None and utils._is_wandb_uri(uri):
+            _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
+            self.name = "{}_{}".format(wandb_project, wandb_name)
         self.version = version
         self._entry_points = {}
         for ep in entry_points:
@@ -89,7 +92,6 @@ class Project(object):
             if use_temp_dst_dir:
                 dir_util.copy_tree(src=parsed_uri, dst=dst_dir)
         elif utils._is_wandb_uri(self.uri):
-            # TODO: so much hotness
             run_info = utils.fetch_wandb_project_run_info(self.uri, api)   # @@@ fetch project run info
             if not run_info["git"]:
                 raise ExecutionException("Run must have git repo associated")

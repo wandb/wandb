@@ -81,7 +81,6 @@ class LocalRunner(AbstractRunner):
 
         # TODO this should be somewhere else, not at the LocalRunner level
         if build_docker:
-            project.name = 'test'        # todo this is just hardcoded rn @@@
             entry_cmd = entry_point.command
             image_id = generate_docker_image(project, project.version, entry_cmd, self._api)
             project.docker_env = {'image': image_id}

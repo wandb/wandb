@@ -41,6 +41,7 @@ def run_agent(spec, queues=None):
 
 def _run(
     uri,
+    experiment_name,
     entry_point,
     version,
     parameters,
@@ -57,7 +58,7 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
 
-    project = fetch_and_validate_project(uri, api, runner_name, version, entry_point, parameters)
+    project = fetch_and_validate_project(uri, experiment_name, api, runner_name, version, entry_point, parameters)
 
     runner_config[PROJECT_BUILD_DOCKER] = build_docker
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
@@ -162,6 +163,7 @@ def run(
 
     submitted_run_obj = _run(
         uri=uri,
+        experiment_name=experiment_name,
         entry_point=entry_point,
         version=version,
         parameters=parameters,
