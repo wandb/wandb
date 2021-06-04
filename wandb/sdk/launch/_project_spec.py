@@ -175,7 +175,6 @@ class EntryPoint(object):
         )
 
     def compute_command(self, user_parameters, storage_dir):
-        print(user_parameters)
         params, extra_params = self.compute_parameters(user_parameters, storage_dir)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]

@@ -19,6 +19,7 @@ _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://wandb")
+_WANDB_QA_URI_REGEX = re.compile(r"^https?://ap\w.qa.wandb")   # for testing, not sure if we wanna keep this
 _WANDB_DEV_URI_REGEX = re.compile(r"^https?://ap\w.wandb")   # for testing, not sure if we wanna keep this
 _WANDB_LOCAL_DEV_URI_REGEX = re.compile(r"^https?://localhost:8080")   # for testing, not sure if we wanna keep this
 
@@ -74,7 +75,7 @@ def _expand_uri(uri):
 
 
 def _is_wandb_uri(uri):
-    return _WANDB_URI_REGEX.match(uri) or _WANDB_DEV_URI_REGEX.match(uri) or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
+    return _WANDB_URI_REGEX.match(uri) or _WANDB_DEV_URI_REGEX.match(uri) or _WANDB_LOCAL_DEV_URI_REGEX.match(uri) or _WANDB_QA_URI_REGEX.match(uri)
 
 
 def _is_wandb_local_uri(uri):
@@ -151,6 +152,7 @@ def parse_wandb_uri(uri):
     stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
     stripped_uri = re.sub(_WANDB_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
     stripped_uri = re.sub(_WANDB_LOCAL_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
+    stripped_uri = re.sub(_WANDB_QA_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
     entity, project, _, name = stripped_uri.split("/")[1:]
     return entity, project, name
 
