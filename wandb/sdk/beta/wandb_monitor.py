@@ -333,7 +333,8 @@ class Monitor(object):
         return total
 
     def _data_type(self, obj: Any, source: str, key: Union[str, int]) -> ArgType:
-        # TODO: handle sequences / tensors
+        # TODO: handle sequences / tensors more better
+        obj = wandb.util.json_friendly_val(obj)
         if wandb.util.is_numpy_array(obj):
             return ArgType(key, source, obj.nbytes, "np", obj.shape)
         elif wandb.util.is_pandas_data_frame(obj):
