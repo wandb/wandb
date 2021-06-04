@@ -9,7 +9,7 @@ from wandb.apis import internal_runqueue
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
-from ..utils import fetch_and_validate_project, parse_wandb_uri
+from ..utils import _convert_access, fetch_and_validate_project, parse_wandb_uri
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
@@ -32,7 +32,7 @@ class LaunchAgent(object):
         self._running = 0
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
-        self._access = "user"
+        self._access = _convert_access("user")
         self._queues = []
         self._backend = None    # todo: probably rename to runner to avoid confusion w cli backend
         self.setup_run_queues(queues)

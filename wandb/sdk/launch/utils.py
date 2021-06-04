@@ -237,3 +237,7 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
     )
     return commands
 
+def _convert_access(access):
+    access = access.upper()
+    assert access == "PROJECT" or access == "USER", "Queue access must be either project or user"
+    return access
