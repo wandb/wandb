@@ -86,7 +86,7 @@ class LaunchAgent(object):
         # updates = ""
         # for status, count in meta.items():
         #     updates += ", {}: {}".format(status, count)
-        print("polling on project {}, queues {} for jobs".format(self._project, self._queues.join(" ")))
+        print("polling on project {}, queues {} for jobs".format(self._project, " ".join(self._queues)))
 
     def finish_job_id(self, job_id):
         """Removes the job from our list for now"""
