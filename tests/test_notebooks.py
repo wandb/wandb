@@ -124,5 +124,7 @@ def test_notebook_exits():
 
     script_dirname = os.path.dirname(__file__)
     script_fname = os.path.join(script_dirname, 'notebooks/ipython_exit.py')
-    cmd = ['ipython', script_fname]
+    bindir = os.dirname(sys.executable)
+    ipython = os.path.join(bindir, ipython)
+    cmd = [ipython, script_fname]
     subprocess.check_call(cmd, env={'PYTHONPATH': '.'})
