@@ -65,7 +65,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
+    platform.system() == "Windows" or sys.version_info < (3, 6), reason="File syncing is somewhat busted in windows and python 2"
 )
 # TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
 def test_parallel_runs(request, live_mock_server, test_settings, test_name):

@@ -32,10 +32,15 @@ def test_sync_in_progress(live_mock_server, test_dir):
     )
     attempts = 0
     latest_run = os.path.join(test_dir, "wandb", "latest-run")
-    while not os.path.exists(latest_run) and attempts < 100:
+    while not os.path.exists(latest_run) and attempts < 50:
         time.sleep(0.1)
+        # On windows we have no symlinks, so we grab the run dir
+        if attempts > 0 and attempts % 10 == 0:
+            run_dir = os.listdir(os.path.join(test_dir, "wandb"))
+            if len(run_dir) > 0:
+                latest_run = os.path.join(test_dir, "wandb", run_dir[0])
         attempts += 1
-    if attempts == 100:
+    if attempts == 50:
         print("cur dir contents: ", os.listdir(test_dir))
         print("wandb dir contents: ", os.listdir(os.path.join(test_dir, "wandb")))
         stdout.seek(0)
