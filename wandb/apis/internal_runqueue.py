@@ -691,30 +691,27 @@ class Api(object):
     @normalize_exceptions
     def create_run_queue(self, entity, project, queue_name, access):
         query = gql("""
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: String!, $createdBy: String!){
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
             createRunQueue(
                 input: {
                     entityName: $entity,
                     projectName: $project,
                     queueName: $queueName,
-                    createdBy: $createdBy,
                     access: $access
                 }
             ) {
                 success
-                queueId
+                queueID
             }
             
         }
         """
         )
-        created_by = getpass.getuser()
         variable_values = {
             "project": project,
             "entity": entity,
             "access": access,
             "queueName": queue_name,
-            "createdBy": created_by
         }
         return self.gql(query, variable_values)["createRunQueue"]
 
@@ -731,10 +728,10 @@ class Api(object):
 
         mutation = gql(
             """
-        mutation pushToRunQueue($queueId: ID!, $runSpec: JSONString!) {
+        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
             pushToRunQueue(
                 input: {
-                    queueId: $queueId,
+                    queueID: $queueID,
                     runSpec: $runSpec
                 }
             ) {
@@ -746,7 +743,7 @@ class Api(object):
         response = self.gql(
             mutation,
             variable_values={
-                "queueId": queue_id,
+                "queueID": queue_id,
                 "runSpec": spec_json
             })
         return response["pushToRunQueue"]
