@@ -16,9 +16,14 @@ from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    PROJECT_BUILD_DOCKER,
     WANDB_DOCKER_WORKDIR_PATH,
 )
+from ..docker import (
+    validate_docker_env,
+    validate_docker_installation,
+    build_docker_image,
+)
+
 
 _logger = logging.getLogger(__name__)
 
@@ -72,46 +77,32 @@ class LocalRunner(AbstractRunner):
     def run(
         self, project, backend_config
     ):
-        build_docker = backend_config[PROJECT_BUILD_DOCKER]
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
         storage_dir = backend_config[PROJECT_STORAGE_DIR]
 
         entry_point = project.get_single_entry_point()
 
-        # TODO this should be somewhere else, not at the LocalRunner level
-        if build_docker:
-            entry_cmd = entry_point.command
-            image_id = generate_docker_image(project, project.version, entry_cmd, self._api)
-            project.docker_env = {'image': image_id}
+        entry_cmd = entry_point.command
+        project.docker_env["image"] = generate_docker_image(project, project.version, entry_cmd, self._api)
 
         command_args = []
         command_separator = " "
-        # If a docker_env attribute is defined in MLproject then it takes precedence over conda yaml
-        # environments, so the project will be executed inside a docker container.
-        if project.docker_env:
-            from ..docker import (
-                validate_docker_env,
-                validate_docker_installation,
-                build_docker_image,
-            )
 
-            validate_docker_env(project)
-            validate_docker_installation()
-            image = build_docker_image(
-                work_dir=project.dir,
-                repository_uri=project.name,    # todo: not sure why this is passed here we should figure out this interface
-                base_image=project.docker_env.get("image"),
-                api=self._api,
-            )
-            command_args += _get_docker_command(
-                image=image,
-                docker_args=docker_args,
-                volumes=project.docker_env.get("volumes"),
-                user_env_vars=project.docker_env.get("environment"),
-            )
-        else:
-            raise Exception("Docker environment not found for project")
+        validate_docker_env(project)
+        validate_docker_installation()
+        image = build_docker_image(
+            work_dir=project.dir,
+            repository_uri=project.name,    # todo: not sure why this is passed here we should figure out this interface
+            base_image=project.docker_env.get("image"),
+            api=self._api,
+        )
+        command_args += _get_docker_command(
+            image=image,
+            docker_args=docker_args,
+            volumes=project.docker_env.get("volumes"),
+            user_env_vars=project.docker_env.get("environment"),
+        )
 
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be

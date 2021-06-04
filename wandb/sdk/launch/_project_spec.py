@@ -34,6 +34,8 @@ class Project(object):
             self.add_entry_point(ep)
         self.parameters = parameters
         self.dir = None
+        # todo: better way of storing docker/anyscale/etc tracking info
+        self.docker_env = {}
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out

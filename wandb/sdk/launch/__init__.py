@@ -12,7 +12,6 @@ from .utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    PROJECT_BUILD_DOCKER,
     fetch_and_validate_project
 )
 
@@ -48,7 +47,6 @@ def _run(
     docker_args,
     runner_name,
     runner_config,
-    build_docker,
     storage_dir,
     synchronous,
     api=None,
@@ -60,7 +58,6 @@ def _run(
 
     project = fetch_and_validate_project(uri, experiment_name, api, runner_name, version, entry_point, parameters)
 
-    runner_config[PROJECT_BUILD_DOCKER] = build_docker
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
@@ -85,7 +82,6 @@ def run(
     experiment_name=None,
     resource="local",
     config=None,
-    build_docker=False,
     storage_dir=None,
     synchronous=True,
     api=None
@@ -170,7 +166,6 @@ def run(
         docker_args=docker_args,
         runner_name=resource,
         runner_config=backend_config_dict,
-        build_docker=build_docker,
         storage_dir=storage_dir,
         synchronous=synchronous,        # @@@ todo synchronous not tested
         api=api

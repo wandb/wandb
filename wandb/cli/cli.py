@@ -909,11 +909,6 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "provided is different for each execution backend.",
 )
 @click.option(
-    "--build-docker",
-    is_flag=True,
-    help="build docker",
-)
-@click.option(
     "--storage-dir",
     envvar="WANDB_TMP_DIR",
     help="Only valid when ``backend`` is local. "
@@ -929,7 +924,6 @@ def launch(
     experiment_name,
     resource,
     config,
-    build_docker,
     storage_dir,
 ):
     """
@@ -968,7 +962,6 @@ def launch(
             docker_args=args_dict,
             resource=resource,
             config=config,
-            build_docker=build_docker,
             storage_dir=storage_dir,
             synchronous=resource in ("local", "ngc") or resource is None,     # todo currently always true
             api=api

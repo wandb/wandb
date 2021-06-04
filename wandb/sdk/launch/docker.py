@@ -33,7 +33,7 @@ def validate_docker_installation():
 def validate_docker_env(project):
     if not project.name:
         raise ExecutionException(
-            "Project name in MLProject must be specified when using docker "
+            "Project name must be specified when using docker "
             "for image tagging."
         )
     if not project.docker_env.get("image"):
