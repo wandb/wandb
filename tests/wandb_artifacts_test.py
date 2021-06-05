@@ -515,6 +515,15 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
+def test_artifact_log_with_network_error(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    live_mock_server.set_ctx({"fail_graphql_times": 15})
+    run.log_artifact(artifact)
+    live_mock_server.set_ctx({"fail_graphql_times": 0})
+    run.finish()
+
+
 def test_add_obj_wbimage_no_classes(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
@@ -1133,28 +1142,11 @@ def test_reference_download(runner, live_mock_server, test_settings):
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()
+        run.finish()
 
 
-def test_communicate_artifact(
-    mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
-):
+def test_communicate_artifact(publish_util, mocked_run):
     artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-    start_backend()
-
-    proto_run = internal_sender._make_run(mocked_run)
-    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
-
-    proto_artifact = internal_sender._make_artifact(artifact)
-    proto_artifact.run_id = proto_run.run_id
-    proto_artifact.project = proto_run.project
-    proto_artifact.entity = proto_run.entity
-    proto_artifact.user_created = False
-    proto_artifact.use_after_commit = False
-    proto_artifact.finalize = True
-    for alias in ["latest"]:
-        proto_artifact.aliases.append(alias)
-    log_artifact = pb.LogArtifactRequest()
-    log_artifact.artifact.CopyFrom(proto_artifact)
-
-    art = internal_sm.send_artifact(log_artifact)
-    stop_backend()
+    artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
+    ctx_util = publish_util(artifacts=[artifact_publish])
+    assert len(set(ctx_util.manifests_created_ids)) == 1
