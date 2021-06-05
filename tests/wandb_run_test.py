@@ -8,6 +8,7 @@ import pytest
 import yaml
 import wandb
 from wandb import wandb_sdk
+from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
 def test_run_basic():
@@ -101,6 +102,17 @@ def test_log_code_custom_root(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
     art = run.log_code(root="../")
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
+
+
+def test_mark_preempting(fake_run, record_q, records_util):
+    run = fake_run()
+    run.log(dict(this=1))
+    run.log(dict(that=2))
+    run.mark_preempting()
+
+    r = records_util(record_q)
+    assert len(r.records) == 3
+    assert type(r.records[-1]) == RunPreemptingRecord
 
 
 def test_except_hook(test_settings):

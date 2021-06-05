@@ -6,15 +6,17 @@ Here we use a strategy where we take the top k runs or top k percent of runs
 and then we build up an envelope where we stop jobs where the metric doesn't get better
 """
 
-import numpy as np
+from .util import get_numpy
 from wandb.sweeps.base import EarlyTerminate
 
 
 def top_k_indicies(arr, k):
+    np = get_numpy()
     return np.argpartition(arr, -k)[-k:]
 
 
 def cumulative_min(history, envelope_len):
+    np = get_numpy()
     cur_min = np.inf
     cum_min = []
     for j in range(envelope_len):
@@ -28,6 +30,7 @@ def cumulative_min(history, envelope_len):
 
 
 def histories_for_top_n(histories, metrics, n=3):
+    np = get_numpy()
     metrics = np.array(metrics)
     histories = np.array(histories)
     indices = top_k_indicies(-metrics, n)
@@ -38,6 +41,7 @@ def histories_for_top_n(histories, metrics, n=3):
 
 
 def envelope_from_histories(histories, envelope_len):
+    np = get_numpy()
     envelope = []
     cum_min_hs = []
     longest = 0
@@ -79,6 +83,7 @@ class EnvelopeEarlyTerminate(EarlyTerminate):
         pass
 
     def stop_runs(self, sweep_config, runs):
+        np = get_numpy()
         info = {}
         terminate_run_names = []
         self._load_metric_name_and_goal(sweep_config)

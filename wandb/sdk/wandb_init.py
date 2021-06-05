@@ -538,6 +538,7 @@ class _WandbInit(object):
             define_metric=run.define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
+            mark_preempting=run.mark_preempting,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -593,6 +594,11 @@ def init(
 
     `wandb.init()` returns a run object, and you can also access the run object
     with wandb.run.
+
+    At the end of your script, we will automatically call `wandb.finish(`) to
+    finalize and cleanup the run. However, if you call `wandb.init()` from a
+    child process, you must explicitly call `wandb.finish()` at the end of the
+    child process.
 
     Arguments:
         project: (str, optional) The name of the project where you're sending

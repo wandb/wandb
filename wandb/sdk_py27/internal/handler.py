@@ -104,6 +104,9 @@ class HandleManager(object):
         self._metric_track = dict()
         self._metric_copy = dict()
 
+    def __len__(self):
+        return self._record_q.qsize()
+
     def handle(self, record):
         record_type = record.WhichOneof("record_type")
         assert record_type
@@ -125,7 +128,7 @@ class HandleManager(object):
     def _dispatch_record(self, record, always_send = False):
         if not self._settings._offline or always_send:
             self._sender_q.put(record)
-        if not record.control.local:
+        if not record.control.local and self._writer_q:
             self._writer_q.put(record)
 
     def debounce(self):
@@ -470,6 +473,9 @@ class HandleManager(object):
     def handle_final(self, record):
         self._dispatch_record(record, always_send=True)
 
+    def handle_preempting(self, record):
+        self._dispatch_record(record)
+
     def handle_header(self, record):
         self._dispatch_record(record)
 
@@ -632,3 +638,8 @@ class HandleManager(object):
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    next = __next__
