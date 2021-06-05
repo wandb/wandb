@@ -496,7 +496,8 @@ def create_app(user_ctx=None):
                                     "name": "test",
                                     "entity": {"id": "1234", "name": "test"},
                                 },
-                            }
+                            },
+                            "configValidationWarnings": [],
                         }
                     }
                 }
