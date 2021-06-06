@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 """
 multiproc full tests.
 """
@@ -6,8 +8,6 @@ import multiprocessing
 import platform
 import pytest
 import time
-
-import six
 import wandb
 
 
@@ -94,3 +94,20 @@ def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
 def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
     with pytest.raises(TypeError):
         test_settings.strict = "bad"
+
+
+def mp_func():
+    """This needs to be defined at the module level to be picklable and sendable to
+    the spawned process via multiprocessing"""
+    print("hello from the other side")
+
+
+def test_multiproc_spawn(test_settings):
+    # WB5640. Before the WB5640 fix this code fragment would raise an
+    # exception, this test checks that it runs without error
+
+    wandb.init()
+    context = multiprocessing.get_context("spawn")
+    p = context.Process(target=mp_func)
+    p.start()
+    p.join()
