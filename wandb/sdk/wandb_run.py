@@ -278,7 +278,7 @@ class Run(object):
 
     _pid: int
 
-    _TRACK_TOKEN: str = "wandb-track:"
+    _LABEL_TOKEN: str = "@wandb-label{"
 
     def __init__(
         self,
@@ -775,9 +775,9 @@ class Run(object):
     def _track(self, script: str = None, repo: str = None, **kwargs: str) -> None:
         with telemetry.context(run=self) as tel:
             if script:
-                tel.track_script = script
+                tel.label.script_str = script
             if repo:
-                tel.track_repo = repo
+                tel.label.repo_str = repo
 
     def _track_probe_main(self) -> None:
         m = sys.modules.get("__main__")
@@ -794,8 +794,8 @@ class Run(object):
         track_str = ""
         for line in lines:
             line = line.strip()
-            if line.startswith(self._TRACK_TOKEN):
-                track_str = line[len(self._TRACK_TOKEN) :]
+            if line.startswith(self._LABEL_TOKEN):
+                track_str = line[len(self._LABEL_TOKEN) :]
                 track_str = track_str.strip()
                 break
 

@@ -56,8 +56,8 @@ message Env {
 }
 
 message Labels {
-  string script_id = 1;       // script identification
-  string repo_id = 2;         // repo identification
+  string script_str = 1;      // script identification
+  string repo_str = 2;        // repo identification
   Repos  repo = 3;            // repo set
   string script_version = 4;  // script version
 }

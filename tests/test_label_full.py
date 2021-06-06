@@ -8,6 +8,7 @@ import sys
 
 import wandb
 
+
 @pytest.fixture()
 def doc_inject(live_mock_server, test_settings, parse_ctx):
     m = sys.modules.get("__main__")
@@ -27,7 +28,7 @@ def doc_inject(live_mock_server, test_settings, parse_ctx):
         m.__doc__ = main_doc
 
 
-#from wandb.proto import wandb_telemetry_pb2 as tpb
+# from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
 def test_label_none(doc_inject):
