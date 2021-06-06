@@ -40,7 +40,7 @@ def test_label_id_only(doc_inject):
               this is a test.
 
               i am a doc string
-              @wandb{my-id}
+              @wandbcode{my-id}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -52,7 +52,7 @@ def test_label_version(doc_inject):
               this is a test.
 
               i am a doc string
-                @wandb{myid, v=v3}
+                @wandbcode{myid, v=v3}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -64,7 +64,7 @@ def test_label_repo(doc_inject):
               this is a test.
 
               i am a doc string
-              #   @wandb{myid, v=3, r=repo}
+              #   @wandbcode{myid, v=3, r=repo}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -76,7 +76,7 @@ def test_label_unknown(doc_inject):
               this is a test.
 
               i am a doc string
-              #   @wandb{myid, version=3, repo=myrepo, unknown=something}
+              #   @wandbcode{myid, version=3, repo=myrepo, unknown=something}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -88,7 +88,7 @@ def test_label_strings(doc_inject):
               this is a test.
 
               i am a doc string
-              #   @wandb{myid, r="thismyrepo"}
+              #   @wandbcode{myid, r="thismyrepo"}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -100,7 +100,7 @@ def test_label_newline(doc_inject):
               this is a test.
 
               i am a doc string
-              //@wandb{myid, v=6,
+              //@wandbcode{myid, v=6,
               i dont read multilines, but i also dont fail for them
               """
     cu = doc_inject(doc_str)
@@ -110,8 +110,8 @@ def test_label_newline(doc_inject):
 
 def test_label_id_inherit(doc_inject):
     doc_str = """
-              // @wandb{myid}
-              # @wandb{version=3}
+              // @wandbcode{myid}
+              # @wandbcode{version=3}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -120,8 +120,8 @@ def test_label_id_inherit(doc_inject):
 
 def test_label_ver_drop(doc_inject):
     doc_str = """
-              // @wandb{myid, version=9}
-              # @wandb{version=}
+              // @wandbcode{myid, version=9}
+              # @wandbcode{version=}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -130,7 +130,7 @@ def test_label_ver_drop(doc_inject):
 
 def test_label_id_as_arg(doc_inject):
     doc_str = """
-              // @wandb{id=my-id, version=9}
+              // @wandbcode{id=my-id, version=9}
               ignore
               """
     cu = doc_inject(doc_str)
@@ -140,7 +140,7 @@ def test_label_id_as_arg(doc_inject):
 
 def test_label_no_id(doc_inject):
     doc_str = """
-              // @wandb{repo=my-repo}
+              // @wandbcode{repo=my-repo}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -153,7 +153,7 @@ def test_label_disble(test_settings, doc_inject):
               this is a test.
 
               i am a doc string
-                @wandb{myid, v=v3}
+                @wandbcode{myid, v=v3}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
