@@ -147,7 +147,7 @@ def test_label_no_id(doc_inject):
     assert telemetry.get("9", {}) == {"2": "my_repo"}
 
 
-def test_label_disble(test_settings, doc_inject):
+def test_label_disable(test_settings, doc_inject):
     test_settings.label_disable = True
     doc_str = """
               this is a test.

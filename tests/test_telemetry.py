@@ -4,7 +4,7 @@ telemetry lib tests.
 
 import wandb
 
-telem_lib = wandb.sdk.lib.telemetry
+telem_lib = wandb.wandb_lib.telemetry
 
 
 def test_telemetry_parse():
