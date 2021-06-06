@@ -28,9 +28,6 @@ def doc_inject(live_mock_server, test_settings, parse_ctx):
         m.__doc__ = main_doc
 
 
-# from wandb.proto import wandb_telemetry_pb2 as tpb
-
-
 def test_label_none(doc_inject):
     doc_str = None
     cu = doc_inject(doc_str)
@@ -148,3 +145,16 @@ def test_label_no_id(doc_inject):
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
     assert telemetry.get("9", {}) == {"2": "my_repo"}
+
+
+def test_label_disble(test_settings, doc_inject):
+    test_settings.label_disable = True
+    doc_str = """
+              this is a test.
+
+              i am a doc string
+                @wandb{myid, v=v3}
+              """
+    cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {}

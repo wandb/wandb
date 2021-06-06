@@ -463,10 +463,11 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
-        if self.notebook:
-            run._label_probe_notebook(self.notebook)
-        else:
-            run._label_probe_main()
+        if not s.label_disable:
+            if self.notebook:
+                run._label_probe_notebook(self.notebook)
+            else:
+                run._label_probe_main()
 
         logger.info("updated telemetry")
 

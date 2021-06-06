@@ -776,6 +776,8 @@ class Run(object):
         code_version = None,
         **kwargs
     ):
+        if self._settings.label_disable:
+            return
         with telemetry.context(run=self) as tel:
             if code:
                 tel.label.code_string = code
