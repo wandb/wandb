@@ -70,7 +70,7 @@ def _parse_label_lines(lines):
 
         # match rest of tokens on one line
         tokens = re.findall(
-            r'([a-zA-Z0-9]+)=("[a-zA-Z0-9-]*"|[a-zA-Z0-9-]*)[,}]', label_str
+            r'([a-zA-Z0-9]+)\s*=\s*("[a-zA-Z0-9-]*"|[a-zA-Z0-9-]*)[,}]', label_str
         )
         for k, v in tokens:
             ret[k] = v.strip('"').replace("-", "_")

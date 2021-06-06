@@ -134,6 +134,7 @@ def test_label_ver_drop(doc_inject):
 def test_label_id_as_arg(doc_inject):
     doc_str = """
               // @wandb{id=my-id, version=9}
+              ignore
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
