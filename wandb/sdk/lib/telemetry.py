@@ -17,7 +17,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         from .. import wandb_run
 
 
-_LABEL_TOKEN: str = "@wandb{"
+_LABEL_TOKEN: str = "@wandbcode{"
 
 
 class _TelemetryObject(object):
