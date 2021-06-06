@@ -14,11 +14,13 @@ def doc_inject(live_mock_server, test_settings, parse_ctx):
     m = sys.modules.get("__main__")
     main_doc = getattr(m, "__doc__", None)
 
-    def fn(new_doc):
+    def fn(new_doc=None, labels=None):
         # clean up leading whitespace
         if new_doc is not None:
             m.__doc__ = inspect.cleandoc(new_doc)
         run = wandb.init(settings=test_settings)
+        if labels:
+            run._label(**labels)
         run.finish()
         ctx_util = parse_ctx(live_mock_server.get_ctx())
         return ctx_util
@@ -130,7 +132,7 @@ def test_label_ver_drop(doc_inject):
 
 def test_label_id_as_arg(doc_inject):
     doc_str = """
-              // @wandbcode{id=my-id, version=9}
+              // @wandbcode{code=my-id, version=9}
               ignore
               """
     cu = doc_inject(doc_str)
@@ -140,7 +142,7 @@ def test_label_id_as_arg(doc_inject):
 
 def test_label_no_id(doc_inject):
     doc_str = """
-              // @wandbcode{repo=my-repo}
+              // @wandbcode{repo = my-repo}
               """
     cu = doc_inject(doc_str)
     telemetry = cu.telemetry or {}
@@ -156,5 +158,18 @@ def test_label_disable(test_settings, doc_inject):
                 @wandbcode{myid, v=v3}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {}
+
+
+def test_label_func_good(test_settings, doc_inject):
+    cu = doc_inject(labels=dict(code="mycode", repo="my_repo", code_version="33"))
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "mycode", "2": "my_repo", "3": "33"}
+
+
+def test_label_func_disable(test_settings, doc_inject):
+    test_settings.label_disable = True
+    cu = doc_inject(labels=dict(code="mycode", repo="my_repo", code_version="33"))
     telemetry = cu.telemetry or {}
     assert telemetry.get("9", {}) == {}

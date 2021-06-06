@@ -11,6 +11,7 @@ import logging
 import numbers
 import os
 import platform
+import re
 import sys
 import threading
 import time
@@ -101,6 +102,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
+RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
 
 class ExitHooks(object):
@@ -779,12 +781,11 @@ class Run(object):
         if self._settings.label_disable:
             return
         with telemetry.context(run=self) as tel:
-            if code:
+            if code and RE_LABEL.match(code):
                 tel.label.code_string = code
-            if repo:
-                # TODO: validate repo string
+            if repo and RE_LABEL.match(repo):
                 tel.label.repo_string = repo
-            if code_version:
+            if code_version and RE_LABEL.match(code_version):
                 tel.label.code_version = code_version
 
     def _label_probe_lines(self, lines):
@@ -794,7 +795,7 @@ class Run(object):
         if not parsed:
             return
         label_dict = {}
-        code = parsed.get("id")
+        code = parsed.get("code") or parsed.get("c")
         if code:
             label_dict["code"] = code
         repo = parsed.get("repo") or parsed.get("r")

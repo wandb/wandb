@@ -45,7 +45,7 @@ def context(run: "wandb_run.Run" = None) -> ContextManager[TelemetryRecord]:
     return _TelemetryObject(run=run)
 
 
-MATCH_RE = re.compile(r"(?P<id>[a-zA-Z0-9-]+)[,}](?P<rest>.*)")
+MATCH_RE = re.compile(r"(?P<code>[a-zA-Z0-9_-]+)[,}](?P<rest>.*)")
 
 
 def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
@@ -65,12 +65,12 @@ def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
         # Note: Parse is fairly permissive as it doesnt enforce strict syntax
         r = MATCH_RE.match(label_str)
         if r:
-            ret["id"] = r.group("id").replace("-", "_")
+            ret["code"] = r.group("code").replace("-", "_")
             label_str = r.group("rest")
 
         # match rest of tokens on one line
         tokens = re.findall(
-            r'([a-zA-Z0-9]+)\s*=\s*("[a-zA-Z0-9-]*"|[a-zA-Z0-9-]*)[,}]', label_str
+            r'([a-zA-Z0-9_]+)\s*=\s*("[a-zA-Z0-9_-]*"|[a-zA-Z0-9_-]*)[,}]', label_str
         )
         for k, v in tokens:
             ret[k] = v.strip('"').replace("-", "_")
