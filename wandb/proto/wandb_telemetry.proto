@@ -56,12 +56,7 @@ message Env {
 }
 
 message Labels {
-  string script_str = 1;      // script identification
-  string repo_str = 2;        // repo identification
-  Repos  repo = 3;            // repo set
-  string script_version = 4;  // script version
-}
-
-message Repos {
-  bool simple_transformers = 1;
+  string code_string = 1;   // code identification
+  string repo_string = 2;   // repo identification
+  string code_version = 3;  // code version
 }

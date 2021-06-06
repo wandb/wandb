@@ -11,7 +11,6 @@ import logging
 import numbers
 import os
 import platform
-import re
 import sys
 import threading
 import time
@@ -277,8 +276,6 @@ class Run(object):
     # _stderr_slave_fd: Optional[int]
 
     # _pid: int
-
-    _LABEL_TOKEN = "@wandb-label{"
 
     def __init__(
         self,
@@ -772,14 +769,41 @@ class Run(object):
         """
         return self._entity or ""
 
-    def _track(self, script = None, repo = None, **kwargs):
+    def _label(
+        self,
+        code = None,
+        repo = None,
+        code_version = None,
+        **kwargs
+    ):
         with telemetry.context(run=self) as tel:
-            if script:
-                tel.label.script_str = script
+            if code:
+                tel.label.code_string = code
             if repo:
-                tel.label.repo_str = repo
+                # TODO: validate repo string
+                tel.label.repo_string = repo
+            if code_version:
+                tel.label.code_version = code_version
 
-    def _track_probe_main(self):
+    def _label_probe_lines(self, lines):
+        if not lines:
+            return
+        parsed = telemetry._parse_label_lines(lines)
+        if not parsed:
+            return
+        label_dict = {}
+        code = parsed.get("id")
+        if code:
+            label_dict["code"] = code
+        repo = parsed.get("repo") or parsed.get("r")
+        if repo:
+            label_dict["repo"] = repo
+        code_ver = parsed.get("version") or parsed.get("v")
+        if code_ver:
+            label_dict["code_version"] = code_ver
+        self._label(**label_dict)
+
+    def _label_probe_main(self):
         m = sys.modules.get("__main__")
         if not m:
             return
@@ -788,35 +812,10 @@ class Run(object):
             return
 
         doclines = doc.splitlines()
-        self._track_probe_lines(doclines)
-
-    def _track_probe_lines(self, lines):
-        track_str = ""
-        for line in lines:
-            line = line.strip()
-            if line.startswith(self._LABEL_TOKEN):
-                track_str = line[len(self._LABEL_TOKEN) :]
-                track_str = track_str.strip()
-                break
-
-        if not track_str:
-            return
-
-        track = {}
-        tokens = re.findall('([^",]+)=("[^"]*"|[^,]+)', track_str)
-        for k, v in tokens:
-            k = k.lower()
-            v = v.strip().strip('"')
-            if k in {"s", "script"}:
-                track["script"] = v
-            elif k in {"r", "repo"}:
-                track["repo"] = v
-
-        if track:
-            self._track(**track)
+        self._label_probe_lines(doclines)
 
     # TODO: annotate jupyter Notebook class
-    def _track_probe_notebook(self, notebook):
+    def _label_probe_notebook(self, notebook):
         logger.info("probe notebook")
         lines = None
         try:
@@ -828,8 +827,7 @@ class Run(object):
             logger.info("Unable to probe notebook: {}".format(e))
             return
         if lines:
-            print("GOT", lines)
-            self._track_probe_lines(lines)
+            self._label_probe_lines(lines)
 
     def _repr_mimebundle_(
         self, include = None, exclude = None

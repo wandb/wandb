@@ -464,9 +464,9 @@ class _WandbInit(object):
                 tel.env.start_thread = True
 
         if self.notebook:
-            run._track_probe_notebook(self.notebook)
+            run._label_probe_notebook(self.notebook)
         else:
-            run._track_probe_main()
+            run._label_probe_main()
 
         logger.info("updated telemetry")
 

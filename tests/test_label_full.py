@@ -34,7 +34,8 @@ def doc_inject(live_mock_server, test_settings, parse_ctx):
 def test_label_none(doc_inject):
     doc_str = None
     cu = doc_inject(doc_str)
-    # assert telemetry and 7 in telemetry.get("3", [])
+    telemetry = cu.telemetry or {}
+    assert "9" not in telemetry
 
 
 def test_label_id_only(doc_inject):
@@ -45,6 +46,8 @@ def test_label_id_only(doc_inject):
               @wandb-label{my-id}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}).get("1") == "my_id"
 
 
 def test_label_version(doc_inject):
@@ -52,9 +55,11 @@ def test_label_version(doc_inject):
               this is a test.
 
               i am a doc string
-                @wandb-label{my-id, v=3}
+                @wandb-label{myid, v=v3}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid", "3": "v3"}
 
 
 def test_label_repo(doc_inject):
@@ -62,9 +67,11 @@ def test_label_repo(doc_inject):
               this is a test.
 
               i am a doc string
-              #   @wandb-label{my-id, v=3, r=repo}
+              #   @wandb-label{myid, v=3, r=repo}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid", "2": "repo", "3": "3"}
 
 
 def test_label_unknown(doc_inject):
@@ -72,9 +79,11 @@ def test_label_unknown(doc_inject):
               this is a test.
 
               i am a doc string
-              #   @wandb-label{my-id, version=3, r=repo, unknown=something}
+              #   @wandb-label{myid, version=3, repo=myrepo, unknown=something}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid", "2": "myrepo", "3": "3"}
 
 
 def test_label_strings(doc_inject):
@@ -82,9 +91,11 @@ def test_label_strings(doc_inject):
               this is a test.
 
               i am a doc string
-              #   @wandb-label{my-id, r="this is my repo"}
+              #   @wandb-label{myid, r="thismyrepo"}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid", "2": "thismyrepo"}
 
 
 def test_label_newline(doc_inject):
@@ -92,26 +103,32 @@ def test_label_newline(doc_inject):
               this is a test.
 
               i am a doc string
-              //@wandb-label{my-id, v=6,
+              //@wandb-label{myid, v=6,
               i dont read multilines, but i also dont fail for them
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid", "3": "6"}
 
 
 def test_label_id_inherit(doc_inject):
     doc_str = """
-              // @wandb-label{my-id}
+              // @wandb-label{myid}
               # @wandb-label{version=3}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid", "3": "3"}
 
 
-def test_label_id_inherit(doc_inject):
+def test_label_ver_drop(doc_inject):
     doc_str = """
-              // @wandb-label{my-id, version=9}
+              // @wandb-label{myid, version=9}
               # @wandb-label{version=}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "myid"}
 
 
 def test_label_id_as_arg(doc_inject):
@@ -119,6 +136,8 @@ def test_label_id_as_arg(doc_inject):
               // @wandb-label{id=my-id, version=9}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "my_id", "3": "9"}
 
 
 def test_label_no_id(doc_inject):
@@ -126,3 +145,5 @@ def test_label_no_id(doc_inject):
               // @wandb-label{repo=my-repo}
               """
     cu = doc_inject(doc_str)
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"2": "my_repo"}
