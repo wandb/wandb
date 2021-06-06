@@ -9,6 +9,7 @@ import platform
 import pytest
 import time
 import wandb
+import sys
 
 
 def train(add_val):
@@ -102,6 +103,9 @@ def mp_func():
     print("hello from the other side")
 
 
+@pytest.mark.skipif(
+    sys.version_info[0] < 3, reason="multiprocessing.get_context introduced in py3"
+)
 def test_multiproc_spawn(test_settings):
     # WB5640. Before the WB5640 fix this code fragment would raise an
     # exception, this test checks that it runs without error
