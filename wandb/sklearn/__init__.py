@@ -1093,6 +1093,12 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
             random_state=42,
         )
 
+        # ComplementNB (introduced in 0.20.0) requires non-negative features
+        if int(sklearn.__version__.split(".")[1]) >= 20 and isinstance(
+            clf, naive_bayes.ComplementNB
+        ):
+            X = X - X.min()
+
         X_train, X_test, y_train, y_test = model_selection.train_test_split(
             X, y, test_size=0.99, random_state=42
         )

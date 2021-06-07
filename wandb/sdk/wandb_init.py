@@ -595,6 +595,11 @@ def init(
     `wandb.init()` returns a run object, and you can also access the run object
     with wandb.run.
 
+    At the end of your script, we will automatically call `wandb.finish(`) to
+    finalize and cleanup the run. However, if you call `wandb.init()` from a
+    child process, you must explicitly call `wandb.finish()` at the end of the
+    child process.
+
     Arguments:
         project: (str, optional) The name of the project where you're sending
             the new run. If the project is not specified, the run is put in an

@@ -21,6 +21,7 @@ import sys
 import warnings
 
 import six
+import wandb
 from wandb import util
 from wandb.compat import tempfile
 
@@ -84,19 +85,6 @@ __all__ = [
 ]
 
 
-def _safe_sdk_import():
-    """Safely imports sdks respecting python version"""
-
-    if _PY3:
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
-    else:
-        from wandb.sdk_py27 import wandb_run
-        from wandb.sdk_py27 import wandb_artifacts
-
-    return wandb_run, wandb_artifacts
-
-
 # Get rid of cleanup warnings in Python 2.7.
 warnings.filterwarnings(
     "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
@@ -145,18 +133,48 @@ def _json_helper(val, artifact):
 
 
 class Table(Media):
-    """This is a table designed to display sets of records.
+    """The Table class is used to display and analyze tabular data.
+
+    This class is the primary class used to generate the Table Visualizer
+    in the UI: https://docs.wandb.ai/guides/data-vis/tables.
+
+    Tables can be constructed with initial data using the `data` or
+    `dataframe` parameters. Additionally, users can add data to Tables
+    incrementally by using the `add_data`, `add_column`, and
+    `add_computed_column` functions for adding rows, columns, and computed
+    columns, respectively.
+
+    Tables can be logged directly to runs using `run.log({"my_table": table})`
+    or added to artifacts using `artifact.add(table, "my_table")`. Tables added
+    directly to runs will produce a corresponding Table Visualizer in the
+    Workspace which can be used for further analysis and exporting to reports.
+    Tables added to artifacts can be viewed in the Artifact Tab and will render
+    an equivalent Table Visualizer directly in the artifact browser.
+
+    Note that Tables support numerous types of data: traditional scalar values,
+    numpy arrays, and most subclasses of wandb.data_types.Media. This means you
+    can embed Images, Video, Audio, and other sorts of rich, annotated media
+    directly in Tables, alongside other traditional scalar values. Tables expect
+    each value for a column to be of the same type. By default, a column supports
+    optional values, but not mixed values. If you absolutely need to mix types,
+    you can enable the `allow_mixed_types` flag which will disable type checking
+    on the data. This will result in some table analytics features being disabled
+    due to lack of consistent typing.
 
     Arguments:
-        columns: ([str]) Names of the columns in the table.
+        columns: (List[str]) Names of the columns in the table.
             Defaults to ["Input", "Output", "Expected"].
-        data: (array) 2D Array of values that will be displayed as strings.
+        data: (List[List[any]]) 2D row-oriented array of values.
         dataframe: (pandas.DataFrame) DataFrame object used to create the table.
-            When set, the other arguments are ignored.
-        optional (Union[bool,List[bool]]): If None values are allowed. Singular bool
+            When set, `data` and `columns` arguments are ignored.
+        optional: (Union[bool,List[bool]]) Determines if `None` values are allowed. Default to True
+            - If a singular bool value, then the optionality is enforced for all
+            columns specified at construction time
+            - If a list of bool values, then the optionality is applied to each
+            column - should be the same length as `columns`
             applies to all columns. A list of bool values applies to each respective column.
-            Default to True.
-        allow_mixed_types (bool): Determines if columns are allowed to have mixed types (disables type validation). Defaults to False
+        allow_mixed_types: (bool) Determines if columns are allowed to have mixed types
+            (disables type validation). Defaults to False
     """
 
     MAX_ROWS = 10000
@@ -490,9 +508,8 @@ class Table(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
-        wandb_run, wandb_artifacts = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, wandb_run.Run):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict.update(
                 {
                     "_type": "table-file",
@@ -501,7 +518,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -820,9 +837,19 @@ class PartitionedTable(Media):
         self.parts_path = parts_path
         self._loaded_part_entries = {}
 
-    def to_json(self, artifact):
-        json_obj = super(PartitionedTable, self).to_json(artifact)
-        json_obj["parts_path"] = self.parts_path
+    def to_json(self, artifact_or_run):
+        json_obj = {
+            "_type": PartitionedTable._log_type,
+        }
+        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
+            artifact_entry = self._get_artifact_reference_entry()
+            if artifact_entry is None:
+                raise ValueError(
+                    "PartitionedTables must first be added to an Artifact before logging to a Run"
+                )
+            json_obj["artifact_path"] = artifact_entry.ref_url()
+        else:
+            json_obj["parts_path"] = self.parts_path
         return json_obj
 
     @classmethod
@@ -872,6 +899,9 @@ class PartitionedTable(Media):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.parts_path == other.parts_path
+
+    def bind_to_run(self, *args, **kwargs):
+        raise ValueError("PartitionedTables cannot be bound to runs")
 
 
 class Audio(BatchableMedia):
@@ -1116,20 +1146,23 @@ class JoinedTable(Media):
 
         return table
 
-    def to_json(self, artifact):
-        json_obj = super(JoinedTable, self).to_json(artifact)
-
-        table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
-        table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
-
-        json_obj.update(
-            {
-                "_type": JoinedTable._log_type,
-                "table1": table1,
-                "table2": table2,
-                "join_key": self._join_key,
-            }
-        )
+    def to_json(self, artifact_or_run):
+        json_obj = {
+            "_type": JoinedTable._log_type,
+        }
+        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
+            artifact_entry = self._get_artifact_reference_entry()
+            if artifact_entry is None:
+                raise ValueError(
+                    "JoinedTables must first be added to an Artifact before logging to a Run"
+                )
+            json_obj["artifact_path"] = artifact_entry.ref_url()
+        else:
+            table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
+            table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
+            json_obj.update(
+                {"table1": table1, "table2": table2, "join_key": self._join_key,}
+            )
         return json_obj
 
     def __ne__(self, other):
@@ -1150,6 +1183,9 @@ class JoinedTable(Media):
 
     def __eq__(self, other):
         return self._eq_debug(other, False)
+
+    def bind_to_run(self, *args, **kwargs):
+        raise ValueError("JoinedTables cannot be bound to runs")
 
 
 class Bokeh(Media):

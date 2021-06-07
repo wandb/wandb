@@ -4,19 +4,39 @@
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
 """
-
 from __future__ import print_function
+
+import os
 
 import click
 import wandb
 from wandb.errors import UsageError
+from wandb.old.settings import Settings as OldSettings
 
 from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings
+from ..apis import InternalApi
+
 
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
+
+
+def _handle_host_wandb_setting(host, cloud = False):
+    """Write the host parameter from wandb.login or wandb login to
+    the global settings file so that it is used automatically by
+    the application's APIs."""
+    _api = InternalApi()
+    if host == "https://api.wandb.ai" or (host is None and cloud):
+        _api.clear_setting("base_url", globally=True, persist=True)
+        # To avoid writing an empty local settings file, we only clear if it exists
+        if os.path.exists(OldSettings._local_path()):
+            _api.clear_setting("base_url", persist=True)
+    elif host:
+        host = host.rstrip("/")
+        # force relogin if host is specified
+        _api.set_setting("base_url", host, globally=True, persist=True)
 
 
 def login(anonymous=None, key=None, relogin=None, host=None, force=None):
@@ -38,6 +58,8 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
     Raises:
         UsageError - if api_key can not configured and no tty
     """
+
+    _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
         return True
     kwargs = dict(locals())

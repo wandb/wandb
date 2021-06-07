@@ -844,6 +844,27 @@ def test_gc(runner):
         assert not os.path.exists(run1_dir)
 
 
+# TODO Investigate unrelated tests failing on Python 3.9
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
+)
+@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
+def test_sweep_pause(runner, mock_server, test_settings, stop_method):
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+    assert sweep_id == "test"
+    assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+    assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+    if stop_method == "stop":
+        assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+    else:
+        assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
+
+
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
 )
