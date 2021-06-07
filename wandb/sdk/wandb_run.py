@@ -826,7 +826,6 @@ class Run(object):
             cell0 = data.get("cells", [])[0]
             lines = cell0.get("source")
         except Exception as e:
-            print("ERR", e)
             logger.info("Unable to probe notebook: {}".format(e))
             return
         if lines:
