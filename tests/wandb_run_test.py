@@ -5,6 +5,8 @@ config tests.
 import os
 import sys
 import numpy as np
+import platform
+import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
@@ -59,6 +61,9 @@ def test_run_pub_history(fake_run, record_q, records_util):
     # TODO(jhr): check history vals
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="numpy.float128 does not exist on windows"
+)
 def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util):
     # CLI: GH2255
     run = fake_run()
