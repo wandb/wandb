@@ -4,6 +4,7 @@ from __future__ import print_function
 multiproc full tests.
 """
 
+import importlib
 import multiprocessing
 import platform
 import pytest
@@ -97,12 +98,6 @@ def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
         test_settings.strict = "bad"
 
 
-def mp_func():
-    """This needs to be defined at the module level to be picklable and sendable to
-    the spawned process via multiprocessing"""
-    print("hello from the other side")
-
-
 @pytest.mark.skipif(
     sys.version_info[0] < 3, reason="multiprocessing.get_context introduced in py3"
 )
@@ -110,11 +105,13 @@ def test_multiproc_spawn(test_settings):
     # WB5640. Before the WB5640 fix this code fragment would raise an
     # exception, this test checks that it runs without error
 
-    wandb.init()
-    context = multiprocessing.get_context("spawn")
-    p = context.Process(target=mp_func)
-    p.start()
-    p.join()
+    from .utils import test_mod
 
+    test_mod.main()
+    sys.modules["__main__"].__spec__ = importlib.machinery.ModuleSpec(
+        name="tests.utils.test_mod", loader=importlib.machinery.BuiltinImporter
+    )
+    test_mod.main()
+    sys.modules["__main__"].__spec__ = None
     # run this to get credit for the diff
-    mp_func()
+    test_mod.mp_func()
