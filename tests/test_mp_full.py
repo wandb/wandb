@@ -115,3 +115,6 @@ def test_multiproc_spawn(test_settings):
     p = context.Process(target=mp_func)
     p.start()
     p.join()
+
+    # run this to get credit for the diff
+    mp_func()
