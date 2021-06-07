@@ -73,7 +73,13 @@ def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util
     assert len(r.summary) == 0
     history = r.history
     assert len(history) == 1
-    assert history[0].item[0].value_json == "0.0"
+
+    found = False
+    for item in history[0].item:
+        if item.key == "this":
+            assert item.value_json == "0.0"
+            found = True
+    assert found
 
 
 def test_log_code_settings(live_mock_server, test_settings):
