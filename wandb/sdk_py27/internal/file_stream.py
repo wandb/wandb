@@ -201,8 +201,7 @@ class FileStreamApi(object):
         self._thread.start()
 
     def set_default_file_policy(self, filename, file_policy):
-        """Set an upload policy for a file unless one has already been set.
-        """
+        """Set an upload policy for a file unless one has already been set."""
         if filename not in self._file_policies:
             self._file_policies[filename] = file_policy
 
@@ -292,6 +291,8 @@ class FileStreamApi(object):
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
             util.sentry_exc(exc_info, delay=True)
+            message = "File stream thread has met a critical exception: {}".format(e)
+            self._api.retry_callback(0, message)
             raise e
 
     def _handle_response(self, response):
