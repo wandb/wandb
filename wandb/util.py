@@ -14,6 +14,8 @@ import json
 import getpass
 import logging
 import math
+import numbers
+import traceback
 import os
 import re
 import shlex
@@ -37,7 +39,7 @@ from six.moves import urllib
 import click
 import requests
 import six
-from six.moves import queue
+from six.moves import queue, input
 import textwrap
 from sys import getsizeof
 from collections import namedtuple
@@ -50,14 +52,16 @@ from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
-from wandb.errors import CommError, ShellCommandException
+from wandb.errors import CommError, ShellCommandException, term
 from wandb.old.core import wandb_dir
 from wandb import env
+
+from typing import List
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
-MAX_LINE_SIZE = 4 * 1024 * 1024 - 100 * 1024  # imposed by back end
+MAX_LINE_SIZE = 9 * 1024 * 1024 - 100 * 1024  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # these match the environments for gorilla
@@ -267,13 +271,15 @@ class PreInitObject(object):
 
 np = get_module("numpy")
 
-MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if "://api.wandb." in api_url:
+    if "://api.wandb.test" in api_url:
+        # dev mode
+        return api_url.replace("://api.", "://app.")
+    elif "://api.wandb." in api_url:
         # cloud
         return api_url.replace("://api.", "://")
     elif "://api." in api_url:
@@ -556,7 +562,7 @@ def json_friendly(obj):
             pass  # happens for Tensors before 0.4
 
         if obj.size():
-            obj = obj.numpy()
+            obj = obj.cpu().detach().numpy()
         else:
             return obj.item(), True
 
@@ -812,6 +818,8 @@ def no_retry_auth(e):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
         return True
+    if e.response is None:
+        return True
     # Don't retry bad request errors; raise immediately
     if e.response.status_code == 400:
         return False
@@ -825,77 +833,6 @@ def no_retry_auth(e):
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
-
-
-def request_with_retry(func, *args, **kwargs):
-    """Perform a requests http call, retrying with exponential backoff.
-
-    Arguments:
-        func: An http-requesting function to call, like requests.post
-        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
-        *args: passed through to func
-        **kwargs: passed through to func
-    """
-    max_retries = kwargs.pop("max_retries", 30)
-    retry_callback = kwargs.pop("retry_callback", None)
-    sleep = 2
-    retry_count = 0
-    while True:
-        try:
-            response = func(*args, **kwargs)
-            response.raise_for_status()
-            return response
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.Timeout,
-        ) as e:
-            if isinstance(e, requests.exceptions.HTTPError):
-                # Non-retriable HTTP errors.
-                #
-                # We retry 500s just to be cautious, and because the back end
-                # returns them when there are infrastructure issues. If retrying
-                # some request winds up being problematic, we'll change the
-                # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409} or (
-                    e.response.status_code == 500
-                    and e.response.content == b'{"error":"context deadline exceeded"}\n'
-                ):
-                    return e
-
-            if retry_count == max_retries:
-                return e
-            retry_count += 1
-            delay = sleep + random.random() * 0.25 * sleep
-            if (
-                isinstance(e, requests.exceptions.HTTPError)
-                and e.response.status_code == 429
-            ):
-                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
-                    delay
-                )
-                if retry_callback:
-                    retry_callback(e.response.status_code, err_str)
-                logger.info(err_str)
-            else:
-                pass
-                logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
-                    e,
-                    func,
-                    args,
-                    kwargs,
-                )
-            time.sleep(delay)
-            sleep *= 2
-            if sleep > MAX_SLEEP_SECONDS:
-                sleep = MAX_SLEEP_SECONDS
-        except requests.exceptions.RequestException as e:
-            logger.error(response.json()["error"])  # XXX clean this up
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
-            return e
 
 
 def find_runner(program):
@@ -936,9 +873,6 @@ def downsample(values, target_length):
     for i in range(target_length):
         result.append(values[int(i * ratio)])
     return result
-
-
-import numbers
 
 
 def has_num(dictionary, key):
@@ -1136,6 +1070,28 @@ def class_colors(class_count):
         colorsys.hsv_to_rgb(i / (class_count - 1.0), 1.0, 1.0)
         for i in range(class_count - 1)
     ]
+
+
+def _prompt_choice():
+    try:
+        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503
+    except ValueError:
+        return -1
+
+
+def prompt_choices(choices, allow_manual=False):
+    """Allow a user to choose from a list of options"""
+    for i, choice in enumerate(choices):
+        wandb.termlog("(%i) %s" % (i + 1, choice))
+
+    idx = -1
+    while idx < 0 or idx > len(choices) - 1:
+        idx = _prompt_choice()
+        if idx < 0 or idx > len(choices) - 1:
+            wandb.termwarn("Invalid choice")
+    result = choices[idx]
+    wandb.termlog("You chose '%s'" % result)
+    return result
 
 
 def guess_data_type(shape, risky=False):
@@ -1409,3 +1365,43 @@ def _is_databricks():
                 sc = shell.sc
                 return sc.appName == "Databricks Shell"
     return False
+
+
+def handle_sweep_config_violations(warnings):
+    """Render warnings from gorilla describing the ways in which a
+    sweep config violates the allowed schema as terminal warnings.
+
+    Parameters
+    ----------
+    warnings: list of str
+        The warnings to render.
+    """
+
+    warning_base = (
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
+        "To avoid this, please fix the sweep config schema violations below:"
+    )
+
+    for i, warning in enumerate(warnings):
+        warnings[i] = "  Violation {}. {}".format(i + 1, warning)
+    warning = "\n".join([warning_base] + warnings)
+
+    if len(warnings) > 0:
+        term.termwarn(warning)
+
+
+def _log_thread_stacks():
+    """Log all threads, useful for debugging."""
+
+    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+
+    for thread_id, frame in sys._current_frames().items():
+        logger.info(
+            "\n--- Stack for thread {t} {name} ---".format(
+                t=thread_id, name=thread_map.get(thread_id, "unknown")
+            )
+        )
+        for filename, lineno, name, line in traceback.extract_stack(frame):
+            logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                logger.info("  Line: %s" % line)

@@ -37,3 +37,6 @@ class WriteManager(object):
     def finish(self):
         if self._ds:
             self._ds.close()
+
+    def debounce(self):
+        pass

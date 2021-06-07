@@ -210,6 +210,11 @@ class BackendSender(object):
         rec = self._make_record(history=history)
         self._publish(rec)
 
+    def publish_preempting(self):
+        preempt_rec = pb.RunPreemptingRecord()
+        rec = self._make_record(preempting=preempt_rec)
+        self._publish(rec)
+
     def publish_history(
         self, data, step = None, run = None, publish_step = True
     ):
@@ -485,6 +490,7 @@ class BackendSender(object):
         footer = None,
         request = None,
         telemetry = None,
+        preempting = None,
     ):
         record = pb.Record()
         if run:
@@ -519,6 +525,8 @@ class BackendSender(object):
             record.telemetry.CopyFrom(telemetry)
         elif metric:
             record.metric.CopyFrom(metric)
+        elif preempting:
+            record.preempting.CopyFrom(preempting)
         else:
             raise Exception("Invalid record")
         return record
@@ -538,6 +546,8 @@ class BackendSender(object):
 
     def _communicate_async(self, rec, local = None):
         assert self._router
+        if self._process and not self._process.is_alive():
+            raise Exception("The wandb backend process has shutdown")
         future = self._router.send_and_receive(rec, local=local)
         return future
 
@@ -609,6 +619,7 @@ class BackendSender(object):
         val = None,
     ):
         cfg = self._make_config(data=data, key=key, val=val)
+
         self._publish_config(cfg)
 
     def _publish_config(self, cfg):
@@ -766,12 +777,10 @@ class BackendSender(object):
         assert result.exit_result
         return result.exit_result
 
-    def communicate_poll_exit(
-        self, timeout = None
-    ):
+    def communicate_poll_exit(self):
         poll_request = pb.PollExitRequest()
         rec = self._make_request(poll_exit=poll_request)
-        result = self._communicate(rec, timeout=timeout)
+        result = self._communicate(rec)
         if result is None:
             return None
         poll_exit_response = result.response.poll_exit_response
