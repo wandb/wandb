@@ -173,3 +173,17 @@ def test_label_func_disable(test_settings, doc_inject):
     cu = doc_inject(labels=dict(code="mycode", repo="my_repo", code_version="33"))
     telemetry = cu.telemetry or {}
     assert telemetry.get("9", {}) == {}
+
+
+def test_label_func_ignore(test_settings, doc_inject):
+    cu = doc_inject(
+        labels=dict(code="mycode", repoignore="myignorerepo", code_version="33")
+    )
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "mycode", "3": "33"}
+
+
+def test_label_func_ignore_key(test_settings, doc_inject):
+    cu = doc_inject(labels=dict(code="mycode", code_version="3.3"))
+    telemetry = cu.telemetry or {}
+    assert telemetry.get("9", {}) == {"1": "mycode"}

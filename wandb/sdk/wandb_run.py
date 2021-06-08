@@ -774,8 +774,6 @@ class Run(object):
     def _label_internal(
         self, code: str = None, repo: str = None, code_version: str = None
     ) -> None:
-        if self._settings.label_disable:
-            return
         with telemetry.context(run=self) as tel:
             if code and RE_LABEL.match(code):
                 tel.label.code_string = code
@@ -791,10 +789,12 @@ class Run(object):
         code_version: str = None,
         **kwargs: str
     ) -> None:
+        if self._settings.label_disable:
+            return
         for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
             if v and not RE_LABEL.match(v):
                 wandb.termwarn(
-                    "Label added for '{}' with invalid identifier '{}' (ignore).".format(
+                    "Label added for '{}' with invalid identifier '{}' (ignored).".format(
                         k, v
                     ),
                     repeat=False,
