@@ -771,12 +771,8 @@ class Run(object):
         """
         return self._entity or ""
 
-    def _label(
-        self,
-        code = None,
-        repo = None,
-        code_version = None,
-        **kwargs
+    def _label_internal(
+        self, code = None, repo = None, code_version = None
     ):
         if self._settings.label_disable:
             return
@@ -787,6 +783,33 @@ class Run(object):
                 tel.label.repo_string = repo
             if code_version and RE_LABEL.match(code_version):
                 tel.label.code_version = code_version
+
+    def _label(
+        self,
+        code = None,
+        repo = None,
+        code_version = None,
+        **kwargs
+    ):
+        for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
+            if v and not RE_LABEL.match(v):
+                wandb.termwarn(
+                    "Label added for '{}' with invalid identifier '{}' (ignore).".format(
+                        k, v
+                    ),
+                    repeat=False,
+                )
+        for v in kwargs:
+            wandb.termwarn(
+                "Label added for unsupported key '{}' (ignored).".format(v),
+                repeat=False,
+            )
+
+        self._label_internal(code=code, repo=repo, code_version=code_version)
+
+        # update telemetry in the backend immediately for _label() callers
+        if self._backend:
+            self._backend.interface.publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines):
         if not lines:
@@ -804,7 +827,7 @@ class Run(object):
         code_ver = parsed.get("version") or parsed.get("v")
         if code_ver:
             label_dict["code_version"] = code_ver
-        self._label(**label_dict)
+        self._label_internal(**label_dict)
 
     def _label_probe_main(self):
         m = sys.modules.get("__main__")
