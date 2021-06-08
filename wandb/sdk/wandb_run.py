@@ -701,7 +701,6 @@ class Run(object):
         """
         name = name or "{}-{}".format("source", self.id)
         art = wandb.Artifact(name, "code")
-        print("Art", art)
         files_added = False
         if root is not None:
             root = os.path.abspath(root)
@@ -2212,6 +2211,7 @@ class Run(object):
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
+        print("prepared artifact and aliases", artifact, aliases)
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
