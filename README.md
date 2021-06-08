@@ -183,7 +183,7 @@ Build scalable, structured, high-performance PyTorch models with Lightning and l
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning import Trainer
 
-wandb_logger = WandbLogger()
+wandb_logger = WandbLogger(project="gpt-3")
 trainer = Trainer(logger=wandb_logger)
 ```
 
