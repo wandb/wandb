@@ -771,6 +771,17 @@ class Run(object):
         """
         return self._entity or ""
 
+    def _label_internal(
+        self, code: str = None, repo: str = None, code_version: str = None
+    ) -> None:
+        with telemetry.context(run=self) as tel:
+            if code and RE_LABEL.match(code):
+                tel.label.code_string = code
+            if repo and RE_LABEL.match(repo):
+                tel.label.repo_string = repo
+            if code_version and RE_LABEL.match(code_version):
+                tel.label.code_version = code_version
+
     def _label(
         self,
         code: str = None,
@@ -780,13 +791,25 @@ class Run(object):
     ) -> None:
         if self._settings.label_disable:
             return
-        with telemetry.context(run=self) as tel:
-            if code and RE_LABEL.match(code):
-                tel.label.code_string = code
-            if repo and RE_LABEL.match(repo):
-                tel.label.repo_string = repo
-            if code_version and RE_LABEL.match(code_version):
-                tel.label.code_version = code_version
+        for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
+            if v and not RE_LABEL.match(v):
+                wandb.termwarn(
+                    "Label added for '{}' with invalid identifier '{}' (ignored).".format(
+                        k, v
+                    ),
+                    repeat=False,
+                )
+        for v in kwargs:
+            wandb.termwarn(
+                "Label added for unsupported key '{}' (ignored).".format(v),
+                repeat=False,
+            )
+
+        self._label_internal(code=code, repo=repo, code_version=code_version)
+
+        # update telemetry in the backend immediately for _label() callers
+        if self._backend:
+            self._backend.interface.publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines: List[str]) -> None:
         if not lines:
@@ -804,7 +827,7 @@ class Run(object):
         code_ver = parsed.get("version") or parsed.get("v")
         if code_ver:
             label_dict["code_version"] = code_ver
-        self._label(**label_dict)
+        self._label_internal(**label_dict)
 
     def _label_probe_main(self) -> None:
         m = sys.modules.get("__main__")
