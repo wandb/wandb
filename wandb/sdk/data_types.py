@@ -427,7 +427,7 @@ class Media(WBValue):
             extension = self._extension
 
         if id_ is None:
-            id_ = self._sha256[:8]
+            id_ = self._sha256[:16]
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
@@ -510,7 +510,7 @@ class Media(WBValue):
                         # we end up with a unique path for each.
                         name = os.path.join(
                             self.get_media_subdir(),
-                            self._sha256[:8],
+                            self._sha256[:16],
                             os.path.basename(self._path),
                         )
 
