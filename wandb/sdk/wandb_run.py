@@ -707,14 +707,14 @@ class Run(object):
             for file_path in filenames.filtered_dir(root, include_fn, exclude_fn):
                 files_added = True
                 save_name = os.path.relpath(file_path, root)
-                art.add_file(file_path, name=save_name)
+                # art.add_file(file_path, name=save_name)
         # Add any manually staged files such is ipynb notebooks
         for dirpath, _, files in os.walk(self._settings._tmp_code_dir):
             for fname in files:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._settings._tmp_code_dir)
                 files_added = True
-                art.add_file(file_path, name=save_name)
+                # art.add_file(file_path, name=save_name)
         if not files_added:
             return None
         return self.log_artifact(art)
