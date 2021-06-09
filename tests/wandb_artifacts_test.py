@@ -557,7 +557,7 @@ def test_add_obj_wbimage(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
@@ -583,7 +583,7 @@ def test_add_obj_using_brackets(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
@@ -689,7 +689,7 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
@@ -716,7 +716,7 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
@@ -768,7 +768,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48/2x2.png": {
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
@@ -796,11 +796,11 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/images/641e917f/img.png": {
+            "media/images/641e917f31888a48/img.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "media/images/cf37c38f/img.png": {
+            "media/images/cf37c38fd1dca3aa/img.png": {
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
