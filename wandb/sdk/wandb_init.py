@@ -92,7 +92,9 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config: Dict = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        sm_config: Dict = (
+            {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        )
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()
@@ -170,7 +172,10 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
+        d = dict(
+            _start_time=time.time(),
+            _start_datetime=datetime.datetime.now(),
+        )
         settings.update(d)
 
         if not settings._noop:
@@ -264,7 +269,8 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            self.run.log_code(root=None)
+            code_arti = self.run.log_code(root=None)
+            del code_arti
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
