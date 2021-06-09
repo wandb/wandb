@@ -260,6 +260,7 @@ class _WandbInit(object):
 
     def _jupyter_teardown(self):
         """Teardown hooks and display saving, called with wandb.finish"""
+        print("jupyter teardown hook pid:", os.getpid())
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
