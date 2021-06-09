@@ -717,7 +717,7 @@ class Run(object):
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        return self.log_artifact(art)
+        return self.log_artifact(art, finalize=True)
 
     def get_url(self) -> Optional[str]:
         """
@@ -2066,6 +2066,7 @@ class Run(object):
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        finalize: Optional[bool] = None,
     ) -> wandb_artifacts.Artifact:
         """Declare an artifact as output of a run.
 
@@ -2091,7 +2092,9 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        return self._log_artifact(artifact_or_path, name, type, aliases)
+        return self._log_artifact(
+            artifact_or_path, name, type, aliases, finalize=finalize
+        )
 
     def upsert_artifact(
         self,
@@ -2224,8 +2227,7 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                with self._public_api() as public_api:
-                    artifact._logged_artifact = _LazyArtifact(public_api, future)
+                artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
             else:
                 self._backend.interface.publish_artifact(
                     self,
