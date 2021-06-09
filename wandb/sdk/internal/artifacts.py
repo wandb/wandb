@@ -209,7 +209,6 @@ class ArtifactSaver(object):
                 extra_headers[key] = val
             with open(path, "rb") as fp:  # type: ignore
                 self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
-            os.remove(path)
 
         def on_commit() -> None:
             if finalize and use_after_commit:
