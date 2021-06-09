@@ -717,7 +717,7 @@ class Run(object):
                 art.add_file(file_path, name=save_name)
         if not files_added:
             return None
-        return self.log_artifact(art, finalize=True)
+        return self.log_artifact(art, logging_code=True)
 
     def get_url(self) -> Optional[str]:
         """
@@ -2066,7 +2066,7 @@ class Run(object):
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-        finalize: Optional[bool] = None,
+        logging_code: Optional[bool] = None,
     ) -> wandb_artifacts.Artifact:
         """Declare an artifact as output of a run.
 
@@ -2093,7 +2093,7 @@ class Run(object):
             An `Artifact` object.
         """
         return self._log_artifact(
-            artifact_or_path, name, type, aliases, finalize=finalize
+            artifact_or_path, name, type, aliases, logging_code=logging_code
         )
 
     def upsert_artifact(
@@ -2208,6 +2208,7 @@ class Run(object):
         finalize: bool = True,
         is_user_created: bool = False,
         use_after_commit: bool = False,
+        logging_code: bool = False,
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -2218,7 +2219,7 @@ class Run(object):
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
-            if not self._settings._offline:
+            if not self._settings._offline and not logging_code:
                 future = self._backend.interface.communicate_artifact(
                     self,
                     artifact,
