@@ -2224,7 +2224,8 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                # artifact._logged_artifact = _LazyArtifact(self._public_api(), future)
+                with self._public_api() as public_api:
+                    artifact._logged_artifact = _LazyArtifact(public_api, future)
             else:
                 self._backend.interface.publish_artifact(
                     self,
@@ -2234,7 +2235,7 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-        return None
+        return artifact
 
     def _public_api(self) -> PublicApi:
         overrides = {"run": self.id}
