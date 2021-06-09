@@ -887,7 +887,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "b89758a7e7503bdb021e0534fe444d9a":
+            elif _id == "d68ee9316e84e3e190d8e94e354962a6":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
