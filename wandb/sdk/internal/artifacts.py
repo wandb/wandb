@@ -178,6 +178,7 @@ class ArtifactSaver(object):
         def before_commit() -> None:
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
+                print("Arti path 1", path)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
             digest = wandb.util.md5_file(path)
             if distributed_id or incremental:

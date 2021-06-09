@@ -162,6 +162,7 @@ class Artifact(ArtifactInterface):
         self._artifact_dir = compat_tempfile.TemporaryDirectory(
             missing_ok_on_cleanup=True
         )
+        print("arti path 2", self._artifact_dir)
         self._type = type
         self._name = name
         self._description = description
