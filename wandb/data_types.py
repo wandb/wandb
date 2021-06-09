@@ -1134,7 +1134,7 @@ class JoinedTable(Media):
             # Give the new object a unique, yet deterministic name
             name = binascii.hexlify(
                 base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:16]
+            ).decode("ascii")[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
