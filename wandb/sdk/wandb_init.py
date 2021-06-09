@@ -269,8 +269,7 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            code_arti = self.run.log_code(root=None)
-            os.removedirs(code_arti._artifact_dir)
+            self.run.log_code(root=None)
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister

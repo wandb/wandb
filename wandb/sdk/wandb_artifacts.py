@@ -159,9 +159,8 @@ class Artifact(ArtifactInterface):
         self._added_objs = {}
         self._added_local_paths = {}
         # You can write into this directory when creating artifact files
-        self._artifact_dir = compat_tempfile.TemporaryDirectory(
-            missing_ok_on_cleanup=True
-        )
+        with compat_tempfile.TemporaryDirectory(missing_ok_on_cleanup=True) as arti_dir:
+            self._artifact_dir = arti_dir
         print("arti path 2", self._artifact_dir)
         self._type = type
         self._name = name
