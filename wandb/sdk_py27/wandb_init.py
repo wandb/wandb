@@ -93,7 +93,9 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        sm_config = (
+            {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        )
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()
@@ -264,7 +266,10 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            self.run.log_code(root=None)
+            art = self.run.log_code(root=None)
+            # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
+            # on pytorch lightning DDP
+            art._artifact_dir.cleanup()
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
