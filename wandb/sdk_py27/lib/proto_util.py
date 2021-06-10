@@ -41,4 +41,12 @@ def proto_encode_to_dict(
                 items = [d.number for d, v in nested if v]
                 if items:
                     data[desc.number] = items
+            else:
+                # TODO: for now this code only handles sub-messages with strings
+                md = {}
+                for d, v in nested:
+                    if not v or d.type != d.TYPE_STRING:
+                        continue
+                    md[d.number] = v
+                data[desc.number] = md
     return data

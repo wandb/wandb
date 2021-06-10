@@ -14,6 +14,7 @@ import getpass
 import logging
 import math
 import numbers
+import traceback
 import os
 import re
 import shlex
@@ -459,6 +460,13 @@ def json_friendly(obj):
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
+        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+            # obj is a numpy float with precision greater than that of native python float
+            # (i.e., float96 or float128). in this case obj.item() does not return a native
+            # python float to avoid loss of precision, so we need to explicitly cast this
+            # down to a 64bit float
+            obj = float(obj)
+
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -1272,3 +1280,20 @@ def handle_sweep_config_violations(warnings):
 
     if len(warnings) > 0:
         term.termwarn(warning)
+
+
+def _log_thread_stacks():
+    """Log all threads, useful for debugging."""
+
+    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+
+    for thread_id, frame in sys._current_frames().items():
+        logger.info(
+            "\n--- Stack for thread {t} {name} ---".format(
+                t=thread_id, name=thread_map.get(thread_id, "unknown")
+            )
+        )
+        for filename, lineno, name, line in traceback.extract_stack(frame):
+            logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                logger.info("  Line: %s" % line)
