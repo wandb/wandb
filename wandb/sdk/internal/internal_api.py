@@ -605,10 +605,21 @@ class Api(object):
                 name = file_edge["node"]["name"]
                 url = file_edge["node"]["directUrl"]
                 res = requests.get(url)
-                res.raise_for_status()
                 if name == "wandb-metadata.json":
+                    res.raise_for_status()
                     metadata = res.json()
                 elif name == "diff.patch":
+                    # Since the server doesn't know whether we want to upload
+                    # or download the file, it will always give us something
+                    # for both requested files. However, there not being a
+                    # diff.patch is normal:
+                    # * either code saving is disabled
+                    # * or the local working copy is clean and has no changes
+                    #
+                    # So we need to ignore 404's
+                    if res.status_code == 404:
+                        continue
+                    res.raise_for_status()
                     patch = res.text
         return (commit, config, patch, metadata)
 
