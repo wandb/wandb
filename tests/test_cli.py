@@ -797,6 +797,20 @@ def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
     assert "Restored config variables" in result.output
 
 
+def test_restore_no_diff(runner, mock_server, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
+    monkeypatch.setattr(subprocess, "check_call", lambda command: True)
+    mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
+    mock_server.set_context("files", {"diff.patch": ("Not Found", 404)})
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Created branch wandb/abcdef" in result.output
+
+
 def test_restore_not_git(runner, mock_server, docker, monkeypatch):
     with runner.isolated_filesystem():
         monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))

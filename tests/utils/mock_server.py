@@ -812,9 +812,11 @@ def create_app(user_ctx=None):
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
         ctx["storage"][run].append(request.args.get("file"))
-        size = ctx["files"].get(request.args.get("file"))
-        if request.method == "GET" and size:
-            return os.urandom(size), 200
+        file_response = ctx["files"].get(request.args.get("file"))
+        if request.method == "GET" and file_response:
+            if isinstance(file_response, int):
+                return os.urandom(file_response), 200
+            return file_response
         # make sure to read the data
         request.get_data()
         if request.method == "PUT":
