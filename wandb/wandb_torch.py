@@ -309,6 +309,10 @@ class TorchGraph(wandb.data_types.Graph):
         super(TorchGraph, self).__init__("torch")
         self._graph_hooks = {}
         self._graph_hooks_processed = []
+        if "fastai" in sys.modules:
+            fastai = util.get_module("fastai")
+            if fastai.__version__.startswith("1."):
+                self._should_use_full_hooks = False
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
