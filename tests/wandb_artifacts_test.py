@@ -515,6 +515,7 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
+# For reasons unclear this can take longer than 60 seconds
 @pytest.mark.timeout(120)
 def test_artifact_log_with_network_error(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
