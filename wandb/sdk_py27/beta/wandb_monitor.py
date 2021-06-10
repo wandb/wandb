@@ -280,6 +280,7 @@ class Monitor(object):
                 typ = self._artifact.type
                 meta = self._artifact.metadata
                 wandb.run.log_artifact(self._artifact)  # type: ignore[attr-defined]
+                wandb.run.log({"examples": table})  # type: ignore[attr-defined]
                 # Reset our artifact for the next flush
                 self._artifact = wandb.Artifact(name, typ, metadata=meta)
             else:
