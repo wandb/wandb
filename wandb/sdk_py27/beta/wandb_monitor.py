@@ -335,7 +335,7 @@ class Monitor(object):
     def _data_type(self, obj, source, key):
         # TODO: if this happens to be a numpy array less than 36 in length we convert
         # to a list...
-        obj = wandb.util.json_friendly_val(obj)
+        obj, _ = wandb.util.json_friendly(obj)
         if wandb.util.is_numpy_array(obj):
             return ArgType(key, source, obj.nbytes, "np", obj.shape)
         elif wandb.util.is_pandas_data_frame(obj):
