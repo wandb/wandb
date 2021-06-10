@@ -146,19 +146,26 @@ def vendor_setup():
     reset_path()
     """
     original_path = [directory for directory in sys.path]
+    original_modules = set([mod for mod in sys.modules])
 
-    def reset_import_path():
+    def reset_import_path_and_mods():
+        """To ensure users can import their own versions of vendored packages, 
+        we remove any modules we've imported from the global namespace.
+        """
+        for mod in list(sys.modules):
+            if mod not in original_modules:
+                del sys.modules[mod]
         sys.path = original_path
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
+    vendor_packages = ("graphql-core-1.1",)
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
             sys.path.insert(1, p)
 
-    return reset_import_path
+    return reset_import_path_and_mods
 
 
 def apple_gpu_stats_binary():

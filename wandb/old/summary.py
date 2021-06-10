@@ -6,12 +6,12 @@ import sys
 import time
 import requests
 
-from gql import gql
 import six
 
 import wandb
 from wandb import util
 from wandb import data_types
+from wandb.apis.client import gql
 from wandb.apis.internal import Api
 from six import string_types
 

@@ -10,16 +10,14 @@ import sys
 import tempfile
 
 from dateutil.relativedelta import relativedelta
-from gql import Client, gql
-from gql.client import RetryError
-from gql.transport.requests import RequestsHTTPTransport
 import requests
 import six
 from six.moves import urllib
 import wandb
 from wandb import __version__, env, util
-from wandb.apis.internal import Api as InternalApi
-from wandb.apis.normalize import normalize_exceptions
+from .client import gql, GQLClient
+from .internal import Api as InternalApi
+from .normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
@@ -182,7 +180,7 @@ class RetryingClient(object):
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException),
     )
     def execute(self, *args, **kwargs):
         return self._client.execute(*args, **kwargs)
@@ -224,8 +222,6 @@ class Api(object):
 
     def __init__(self, overrides={}):
         self.settings = InternalApi().settings()
-        if self.api_key is None:
-            wandb.login()
         self.settings.update(overrides)
         if "username" in overrides and "entity" not in overrides:
             wandb.termwarn(
@@ -237,17 +233,17 @@ class Api(object):
         self._sweeps = {}
         self._reports = {}
         self._default_entity = None
-        self._base_client = Client(
-            transport=RequestsHTTPTransport(
-                headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
-                use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self._HTTP_TIMEOUT,
-                auth=("api", self.api_key),
-                url="%s/graphql" % self.settings["base_url"],
-            )
+        self._base_client = GQLClient(
+            headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
+            # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
+            # https://bugs.python.org/issue22889
+            timeout=self._HTTP_TIMEOUT,
+            api_key=self.api_key,
+            url="%s/graphql" % self.settings["base_url"],
         )
+        if not self._base_client.authenticated:
+            wandb.login()
+            self._base_client.reauth(self.api_key)
         self._client = RetryingClient(self._base_client)
 
     def create_run(self, **kwargs):
@@ -1723,7 +1719,7 @@ class File(object):
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException),
     )
     def download(self, root=".", replace=False):
         """Downloads a file previously saved by a run from the wandb server.
@@ -2039,7 +2035,7 @@ class HistoryScan(object):
     @normalize_exceptions
     @retry.retriable(
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException),
     )
     def _load_next(self):
         max_step = self.page_offset + self.page_size
@@ -2106,7 +2102,7 @@ class SampledHistoryScan(object):
     @normalize_exceptions
     @retry.retriable(
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException),
     )
     def _load_next(self):
         max_step = self.page_offset + self.page_size
