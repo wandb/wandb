@@ -2394,32 +2394,18 @@ class RunArtifacts(Paginator):
         self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
-        results = []
-        for r in self.last_response["project"]["run"][self.run_key]["edges"]:
-            # Only return artifacts for which we can construct a proper name:alias
-            # combination. Prioritize the `v#` alias over others, but if that
-            # does not exist for some reason, just use what we have.
-            if r["node"]["aliases"] and len(r["node"]["aliases"]) > 0:
-                versioned_aliases = [
-                    alias for alias in r["node"]["aliases"] if alias["alias"][0] == "v"
-                ]
-                if len(versioned_aliases) > 0:
-                    alias = versioned_aliases[0]
-                else:
-                    alias = r["node"]["aliases"][0]
-                artifact_name = "{}:{}".format(
-                    alias["artifactCollectionName"], alias["alias"]
-                )
-                results.append(
-                    Artifact(
-                        self.client,
-                        self.run.entity,
-                        self.run.project,
-                        artifact_name,
-                        r["node"],
-                    )
-                )
-        return results
+        return [
+            Artifact(
+                self.client,
+                self.run.entity,
+                self.run.project,
+                "{}:v{}".format(
+                    r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
+                ),
+                r["node"],
+            )
+            for r in self.last_response["project"]["run"][self.run_key]["edges"]
+        ]
 
 
 class ArtifactType(object):
