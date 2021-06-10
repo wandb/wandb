@@ -70,6 +70,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self._use_sagemaker = None
+        self.notebook = None
 
     def setup(self, kwargs) -> None:
         """
@@ -101,8 +102,7 @@ class _WandbInit(object):
                     sm_env["WANDB_API_KEY"] = sm_api_key
                 settings._apply_environ(sm_env)
                 wandb.setup(settings=settings)
-            for k, v in six.iteritems(sm_run):
-                kwargs.setdefault(k, v)
+            settings._apply_setup(sm_run)
             self._use_sagemaker = True
 
         # Remove parameters that are not part of settings
@@ -463,6 +463,12 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
+        if not s.label_disable:
+            if self.notebook:
+                run._label_probe_notebook(self.notebook)
+            else:
+                run._label_probe_main()
+
         logger.info("updated telemetry")
 
         run._set_library(self._wl)
@@ -539,6 +545,7 @@ class _WandbInit(object):
             define_metric=run.define_metric,
             plot_table=run.plot_table,
             alert=run.alert,
+            mark_preempting=run.mark_preempting,
         )
         self._reporter.set_context(run=run)
         run._on_start()
@@ -594,6 +601,11 @@ def init(
 
     `wandb.init()` returns a run object, and you can also access the run object
     with wandb.run.
+
+    At the end of your script, we will automatically call `wandb.finish(`) to
+    finalize and cleanup the run. However, if you call `wandb.init()` from a
+    child process, you must explicitly call `wandb.finish()` at the end of the
+    child process.
 
     Arguments:
         project: (str, optional) The name of the project where you're sending

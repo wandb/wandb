@@ -104,6 +104,7 @@ env_settings = dict(
     sagemaker_disable=None,
     start_method=None,
     strict=None,
+    label_disable=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -244,6 +245,7 @@ class Settings(object):
     # host: Optional[str]
     # resume: str
     strict = None
+    label_disable = None
 
     # Public attributes
     entity = None
@@ -360,6 +362,7 @@ class Settings(object):
         email = None,
         docker = None,
         sagemaker_disable = None,
+        label_disable = None,
         _start_time = None,
         _start_datetime = None,
         _cli_only_mode = None,  # avoid running any code specific for runs
@@ -712,6 +715,14 @@ class Settings(object):
         if _logger:
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
+
+    def _apply_setup(
+        self, setup_settings, _logger = None
+    ):
+        # TODO: add logger for coverage
+        # if _logger:
+        #     _logger.info("setting setup settings: {}".format(setup_settings))
+        self._update(setup_settings, _source=self.Source.SETUP)
 
     def _path_convert_part(
         self, path_part, format_dict

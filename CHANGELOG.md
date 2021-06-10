@@ -1,3 +1,59 @@
+## 0.10.32 (June 10, 2021)
+
+#### :bug: Bug Fix
+
+- Make `log_artifact()` more resilient to network errors
+- Removed Duplicate Artifact Dependencies
+- Workaround urlib3 issue on windows
+- Fix regression where ipython was hanging
+- Allow logging of numpy high precision floating point values
+- Reduce liklyhood of collisions for file backed media or artifact objects
+- Fix wandb.watch() regression when logging pytorch graphs
+
+#### :nail_care: Enhancement
+
+- Add support for logging joined and partitioned table
+- Handle schema validation warnings for sweep configs
+- Improve wandb sync to handle errors
+- Add ability to label scripts and repositories who use wandb
+
+## 0.10.31 (May 27, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() did not properly persist the host parameter
+- Fix issue where step information was not synced properly when syncing tensorboard directories
+- Fix some unicode issues with python2.7
+- Fixed bug in `plot_calibration_curve` for ComplementNB
+- Fall back to not using SendFile on some linux systems
+- Fix console issues where lines were truncated
+- Fix console issues where console logging could block
+
+#### :nail_care: Enhancement
+
+- Add support for preemptible sweeps
+- Add command line for sweep control
+- Add support to load artifact collection properties
+
+## 0.10.30 (May 7, 2021)
+
+#### :bug: Bug Fix
+
+- Found and fixed the remaining issues causing runs to be marked crashed during outages
+- Improved performance for users of `define_metric`, pytorch-lightning, and aggressive config saving
+- Fix issue when trying to log a cuda tensor to config or summary
+- Remove dependancy on torch `backward_hooks` to compute graph
+- Fix an issue preventing the ability to resume runs on sagemaker
+- Fix issues preventing pdb from working reliably with wandb
+- Fix deprecation warning in vendored library (user submission)
+- Fix logging behavior where the library was accidently outputting logs to the console
+- Fix disabled mode to not create wandb dir and log files
+- Renamed types to prep for Tables launch
+
+#### :nail_care: Enhancement
+
+- Allow renaming groups with public api
+
 ## 0.10.29 (May 3, 2021)
 
 #### :bug: Bug Fix
