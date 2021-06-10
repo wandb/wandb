@@ -268,12 +268,12 @@ class _WandbInit(object):
         """Teardown hooks and display saving, called with wandb.finish"""
         ipython = self.notebook.shell
         self.notebook.save_history()
-        # if self.notebook.save_ipynb():
-        #     art = self.run.log_code(root=None)
-        #     # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
-        #     # on pytorch lightning DDP
-        #     art._artifact_dir.cleanup()
-        #     logger.info("saved code and history")
+        if self.notebook.save_ipynb():
+            art = self.run.log_code(root=None)
+            # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
+            # on pytorch lightning DDP
+            art._artifact_dir.cleanup()
+            logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
         for hook in ipython.events.callbacks["pre_run_cell"]:
