@@ -453,7 +453,13 @@ def test_add_gs_reference_path(runner, mocker, capsys):
 def test_add_http_reference_path(runner):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        mock_http(artifact, headers={"ETag": '"abc"', "Content-Length": "256",})
+        mock_http(
+            artifact,
+            headers={
+                "ETag": '"abc"',
+                "Content-Length": "256",
+            },
+        )
         artifact.add_reference("http://example.com/file1.txt")
 
         assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
@@ -462,7 +468,9 @@ def test_add_http_reference_path(runner):
             "digest": "abc",
             "ref": "http://example.com/file1.txt",
             "size": 256,
-            "extra": {"etag": '"abc"',},
+            "extra": {
+                "etag": '"abc"',
+            },
         }
 
 
@@ -512,16 +520,6 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     artifact.add(wb_table_float32, "wb_table_float32")
     artifact.add(wb_table_bool, "wb_table_bool")
     run.log_artifact(artifact)
-    run.finish()
-
-
-@pytest.mark.timeout(120)
-def test_artifact_log_with_network_error(live_mock_server, test_settings):
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact("table-example", "dataset")
-    live_mock_server.set_ctx({"fail_graphql_times": 15})
-    run.log_artifact(artifact)
-    live_mock_server.set_ctx({"fail_graphql_times": 0})
     run.finish()
 
 
