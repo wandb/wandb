@@ -1292,7 +1292,9 @@ class Run(object):
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
+            print("finish hook", hook.__name__)
             hook()
+        print("hooks done")
         self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:

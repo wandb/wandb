@@ -192,6 +192,7 @@ class _WandbInit(object):
         # normally this happens on the run object
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
+            print("init hook", hook.__name__)
             hook()
 
     def _enable_logging(self, log_fname, run_id=None):
