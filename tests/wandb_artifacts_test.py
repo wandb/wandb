@@ -1151,3 +1151,11 @@ def test_communicate_artifact(publish_util, mocked_run):
     artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
     ctx_util = publish_util(artifacts=[artifact_publish])
     assert len(set(ctx_util.manifests_created_ids)) == 1
+
+
+def test_log_dataframe(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
+    run.log({"results_df": cv_results})
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["artifacts"]) == 1
