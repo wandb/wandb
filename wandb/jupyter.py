@@ -171,13 +171,21 @@ def attempt_colab_load_ipynb():
     colab = wandb.util.get_module("google.colab")
     print("COLABL TPU ADDRESS", os.environ.get("COLAB_TPU_ADDR"))
     print(os.environ)
-    if colab:
+    if colab and not check_colab_on_tpu():
         # This isn't thread safe, never call in a thread
         print("getting response from colab")
         response = colab._message.blocking_request("get_ipynb", timeout_sec=5)
         print("got response from colab")
         if response:
             return response["ipynb"]
+
+
+def check_colab_on_tpu():
+    """Checks if the process is running on a TPU
+    Needed because in a colab notebook, the TPU process hangs when attempting to send a colab._message
+    """
+
+    return os.environ.get("XRT_MULTI_PROCESSING_DEVICE") is not None
 
 
 def attempt_kaggle_load_ipynb():
