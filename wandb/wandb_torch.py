@@ -3,16 +3,13 @@
 """PyTorch-specific functionality
 """
 
-from collections import namedtuple
 import itertools
 import weakref
-import sys
 from six.moves import reduce
-from distutils.version import LooseVersion
 from operator import mul
 
 from wandb import util
-from wandb.data_types import Node, Edge
+from wandb.data_types import Node
 import wandb
 
 torch = None
@@ -104,7 +101,8 @@ class TorchHistory(object):
         if jupyter_run:
             self._jupyter_run = weakref.ref(jupyter_run)
 
-        module._wandb_hook_names = []
+        if not hasattr(module, "_wandb_hook_names"):
+            module._wandb_hook_names = []
 
         if log_parameters:
 
@@ -307,8 +305,7 @@ class TorchHistory(object):
 class TorchGraph(wandb.data_types.Graph):
     def __init__(self):
         super(TorchGraph, self).__init__("torch")
-        self._graph_hooks = {}
-        self._graph_hooks_processed = []
+        self._graph_hooks = set()
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
@@ -320,8 +317,8 @@ class TorchGraph(wandb.data_types.Graph):
         graph = self
 
         def after_forward_hook(module, input, output):
-            if id(module) not in self._graph_hooks.keys():
-                # shound not happen
+            if id(module) not in self._graph_hooks:
+                # hook already processed -> noop
                 return
             if not isinstance(output, tuple):
                 output = (output,)
@@ -352,20 +349,18 @@ class TorchGraph(wandb.data_types.Graph):
                 ):
                     graph.criterion = output[0][0].grad_fn
 
-            # log graph and remove hook
-            hook = self._graph_hooks.pop(id(module), None)
-            if hook is not None:
-                self._graph_hooks_processed.append(hook)
+            # hook has been processed
+            self._graph_hooks -= {id(module)}
 
             if not self._graph_hooks:
                 # we went through the entire graph
-                for hook_processed in self._graph_hooks_processed:
-                    hook_processed.remove()
                 wandb.run.summary["graph_%i" % graph_idx] = self
 
         return after_forward_hook
 
-    def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
+    def hook_torch_modules(
+        self, module, criterion=None, prefix=None, graph_idx=0, parent=None
+    ):
         torch = util.get_module("torch", "Could not import torch")
         layers = 0
         graph = self
@@ -402,13 +397,20 @@ class TorchGraph(wandb.data_types.Graph):
                 )
                 if hasattr(torch.nn, module_classname)
             ]
+            if parent is None:
+                parent = module
 
             if isinstance(sub_module, tuple(module_types)):
-                self.hook_torch_modules(sub_module, prefix=name)
+                self.hook_torch_modules(sub_module, prefix=name, parent=parent)
             else:
-                self._graph_hooks[id(sub_module)] = sub_module.register_forward_hook(
+                self._graph_hooks |= {id(sub_module)}
+                graph_hook = sub_module.register_forward_hook(
                     self.create_forward_hook(name, graph_idx)
                 )
+                wandb.run.history.torch._hook_handles[
+                    "topology/" + str(id(graph_hook))
+                ] = graph_hook
+                parent._wandb_hook_names.append("topology/" + str(id(graph_hook)))
 
     @classmethod
     def from_torch_layers(cls, module_graph, variable):
