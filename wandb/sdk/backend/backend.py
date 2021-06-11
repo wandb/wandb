@@ -152,6 +152,7 @@ class Backend(object):
             record_q=self.record_q,
             result_q=self.result_q,
         )
+        print("inited backendsender")
 
     def server_connect(self):
         """Connect to server."""

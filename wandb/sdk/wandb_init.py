@@ -428,10 +428,12 @@ class _WandbInit(object):
             return wandb.run
 
         logger.info("starting backend")
-
+        print("launching backend")
         backend = Backend(settings=s)
         backend.ensure_launched()
+        print("ensure launched")
         backend.server_connect()
+        print("server connected")
         logger.info("backend started and connected")
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
