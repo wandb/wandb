@@ -1189,7 +1189,7 @@ class Run(object):
         base_path: Optional[str] = None,
         policy: str = "live",
     ) -> Union[bool, List[str]]:
-        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
+        """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular
@@ -1905,7 +1905,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1954,10 +1957,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1966,8 +1974,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2083,7 +2096,7 @@ class Run(object):
 
     # TODO(jhr): annotate this
     def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
-        """ Declare an artifact as an input to a run, call `download` or `file` on
+        """Declare an artifact as an input to a run, call `download` or `file` on
         the returned object to get the contents locally.
 
         Arguments:
@@ -2141,7 +2154,7 @@ class Run(object):
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> wandb_artifacts.Artifact:
-        """ Declare an artifact as output of a run.
+        """Declare an artifact as output of a run.
 
         Arguments:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
@@ -2175,7 +2188,7 @@ class Run(object):
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
     ) -> wandb_artifacts.Artifact:
-        """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
+        """Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
         run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
         need to all contribute to the same artifact.
 
@@ -2226,7 +2239,7 @@ class Run(object):
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
     ) -> wandb_artifacts.Artifact:
-        """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
+        """Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
         the same distributed ID will result in a new version
 
         Arguments:
@@ -2286,7 +2299,9 @@ class Run(object):
             artifact_or_path, name, type, aliases
         )
         artifact.distributed_id = distributed_id
+        print("asserting can log arti")
         self._assert_can_log_artifact(artifact)
+        print("done asserting")
         if self._backend:
             if not self._settings._offline:
                 future = self._backend.interface.communicate_artifact(
@@ -2307,6 +2322,7 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
+        print("done _log_artifact")
         return artifact
 
     def _public_api(self) -> PublicApi:
@@ -2440,24 +2456,24 @@ def restore(
     replace: bool = False,
     root: Optional[str] = None,
 ) -> Union[None, TextIO]:
-    """ Downloads the specified file from cloud storage into the current directory
-        or run directory.  By default this will only download the file if it doesn't
-        already exist.
+    """Downloads the specified file from cloud storage into the current directory
+    or run directory.  By default this will only download the file if it doesn't
+    already exist.
 
-        Arguments:
-            name: the name of the file
-            run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
-                if wandb.init has not been called, this is required.
-            replace: whether to download the file even if it already exists locally
-            root: the directory to download the file to.  Defaults to the current
-                directory or the run directory if wandb.init was called.
+    Arguments:
+        name: the name of the file
+        run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
+            if wandb.init has not been called, this is required.
+        replace: whether to download the file even if it already exists locally
+        root: the directory to download the file to.  Defaults to the current
+            directory or the run directory if wandb.init was called.
 
-        Returns:
-            None if it can't find the file, otherwise a file object open for reading
+    Returns:
+        None if it can't find the file, otherwise a file object open for reading
 
-        Raises:
-            wandb.CommError: if we can't connect to the wandb backend
-            ValueError: if the file is not found or can't find run_path
+    Raises:
+        wandb.CommError: if we can't connect to the wandb backend
+        ValueError: if the file is not found or can't find run_path
     """
 
     is_disabled = wandb.run is not None and wandb.run.disabled
