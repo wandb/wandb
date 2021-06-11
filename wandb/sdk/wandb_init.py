@@ -807,4 +807,5 @@ def init(
             if except_exit:
                 os._exit(-1)
             six.raise_from(Exception("problem"), error_seen)
+    print("returning run")
     return run
