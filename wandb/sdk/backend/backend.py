@@ -105,7 +105,6 @@ class Backend(object):
         # Support running code without a: __name__ == "__main__"
         save_mod_name = None
         save_mod_path = None
-        save_mod_spec = None
         main_module = sys.modules["__main__"]
         main_mod_spec = getattr(main_module, "__spec__", None)
         main_mod_path = getattr(main_module, "__file__", None)
@@ -119,9 +118,7 @@ class Backend(object):
                 else None
             )
             main_module.__spec__ = main_mod_spec
-        else:
-            save_mod_spec = main_mod_spec
-
+        main_mod_name = getattr(main_mod_spec, "name", None)
         if main_mod_name is not None:
             save_mod_name = main_mod_name
             main_module.__spec__.name = "wandb.mpmain"
@@ -141,7 +138,6 @@ class Backend(object):
         )
 
         # Undo temporary changes from: __name__ == "__main__"
-        main_module.__spec__ = save_mod_spec
         if save_mod_name:
             main_module.__spec__.name = save_mod_name
         elif save_mod_path:
