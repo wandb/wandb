@@ -155,7 +155,7 @@ class _WandbInit(object):
 
         if not settings._offline and not settings._noop:
             wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
-
+        print("After login")
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
 
@@ -163,6 +163,7 @@ class _WandbInit(object):
         save_code_pre_user_settings = settings["save_code"]
 
         settings._apply_init(kwargs)
+        print("after apply init")
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
@@ -186,6 +187,7 @@ class _WandbInit(object):
                 self._jupyter_setup(settings)
 
         self.settings = settings.freeze()
+        print("settings frozen")
 
     def teardown(self):
         # TODO: currently this is only called on failed wandb.init attempts
@@ -761,9 +763,11 @@ def init(
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
+        print("done wi setup")
         except_exit = wi.settings._except_exit
         try:
             run = wi.init()
+            print("done wi init")
             except_exit = wi.settings._except_exit
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
