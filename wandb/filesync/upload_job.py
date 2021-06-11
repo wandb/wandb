@@ -6,7 +6,7 @@ import threading
 import wandb
 
 EventJobDone = collections.namedtuple("EventJobDone", ("job", "success"))
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class UploadJob(threading.Thread):

@@ -172,7 +172,7 @@ class Agent(object):
                 continue
             job = Job(commands[0])
             logger.debug("Job received: {}".format(job))
-            if job.type == "run":
+            if job.type in ["run", "resume"]:
                 self._queue.put(job)
                 self._run_status[job.run_id] = RunStatus.QUEUED
             elif job.type == "stop":

@@ -45,6 +45,7 @@ SYMBOLS_ROOT_SDK = {
     "agent",
     "controller",
     "sweep",
+    "mark_preempting",
 }
 
 # Look into these and see what we can remove / hide
@@ -171,6 +172,7 @@ SYMBOLS_RUN = {
     "restore",
     "notes",
     "tags",
+    "mark_preempting",
 }
 
 # symbols having to do with resuming, we should clean this up

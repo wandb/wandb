@@ -46,7 +46,7 @@ def test_wb_value(live_mock_server, test_settings):
             "_type": "table",
             "data": [[]],
             "columns": [],
-            "column_types": wandb.data_types._dtypes.DictType({}).to_json(),
+            "column_types": wandb.data_types._dtypes.TypedDictType({}).to_json(),
         },
         public_art,
     )

@@ -26,6 +26,6 @@ def parse_sm_resources():
         )
     conf = json.load(open(sm_files.SM_RESOURCE_CONFIG))
     if len(conf["hosts"]) > 1:
-        run_dict["group"] = os.getenv("TRAINING_JOB_NAME")
+        run_dict["run_group"] = os.getenv("TRAINING_JOB_NAME")
     env_dict = parse_sm_secrets()
     return run_dict, env_dict

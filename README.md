@@ -177,6 +177,20 @@ learn.fit(..., cbs=WandbCallback())
 - [Docs](https://docs.wandb.com/library/integrations/fastai)
 
 
+## ⚡️ PyTorch Lightning
+Build scalable, structured, high-performance PyTorch models with Lightning and log them with W&B.
+```python
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import Trainer
+
+wandb_logger = WandbLogger(project="gpt-3")
+trainer = Trainer(logger=wandb_logger)
+```
+
+- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch-lightning/Supercharge_your_Training_with_Pytorch_Lightning_%2B_Weights_%26_Biases.ipynb)**
+- [Docs](https://docs.wandb.ai/guides/integrations/lightning)
+
+
 ## 🤗 HuggingFace
 Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed
 and we'll automatically log losses, evaluation metrics, model topology and gradients:
@@ -230,7 +244,7 @@ Parallel coordinates plots map hyperparameter values to model metrics. They're u
 
 <img src="https://i.imgur.com/THYXBN0.png" width="720" alt="Weights & Biases" />
 
-# 📜 Share insights with with Reports
+# 📜 Share insights with Reports
 Reports let you [organize visualizations, describe your findings, and share updates with collaborators](https://www.youtube.com/watch?v=o2dOSIDDr1w&&ab_channel=Weights%26Biases).
 
 ### Common use cases

@@ -16,7 +16,7 @@ from wandb.proto import wandb_internal_pb2
 
 from . import meta, sample, stats
 from . import tb_watcher
-from ..lib import proto_util
+from ..lib import handler_util, proto_util
 
 
 if wandb.TYPE_CHECKING:
@@ -104,6 +104,9 @@ class HandleManager(object):
         self._metric_track = dict()
         self._metric_copy = dict()
 
+    def __len__(self):
+        return self._record_q.qsize()
+
     def handle(self, record):
         record_type = record.WhichOneof("record_type")
         assert record_type
@@ -117,15 +120,19 @@ class HandleManager(object):
         assert request_type
         handler_str = "handle_request_" + request_type
         handler = getattr(self, handler_str, None)
-        logger.debug("handle_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("handle_request: {}".format(request_type))
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 
     def _dispatch_record(self, record, always_send = False):
         if not self._settings._offline or always_send:
             self._sender_q.put(record)
-        if not record.control.local:
+        if not record.control.local and self._writer_q:
             self._writer_q.put(record)
+
+    def debounce(self):
+        pass
 
     def handle_request_defer(self, record):
         defer = record.request.defer
@@ -299,7 +306,8 @@ class HandleManager(object):
     ):
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
-        if isinstance(v, dict):
+        # if the dict has _type key, its a wandb table object
+        if isinstance(v, dict) and not handler_util.metric_is_wandb_dict(v):
             updated = False
             for nk, nv in six.iteritems(v):
                 if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
@@ -465,6 +473,9 @@ class HandleManager(object):
     def handle_final(self, record):
         self._dispatch_record(record, always_send=True)
 
+    def handle_preempting(self, record):
+        self._dispatch_record(record)
+
     def handle_header(self, record):
         self._dispatch_record(record)
 
@@ -517,7 +528,10 @@ class HandleManager(object):
     def handle_request_poll_exit(self, record):
         self._dispatch_record(record, always_send=True)
 
-    def handle_request_status(self, record):
+    def handle_request_stop_status(self, record):
+        self._dispatch_record(record)
+
+    def handle_request_network_status(self, record):
         self._dispatch_record(record)
 
     def handle_request_get_summary(self, record):
@@ -624,3 +638,8 @@ class HandleManager(object):
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    next = __next__

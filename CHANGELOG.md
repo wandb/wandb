@@ -1,3 +1,94 @@
+## 0.10.32 (June 10, 2021)
+
+#### :bug: Bug Fix
+
+- Make `log_artifact()` more resilient to network errors
+- Removed Duplicate Artifact Dependencies
+- Workaround urlib3 issue on windows
+- Fix regression where ipython was hanging
+- Allow logging of numpy high precision floating point values
+- Reduce liklyhood of collisions for file backed media or artifact objects
+- Fix wandb.watch() regression when logging pytorch graphs
+
+#### :nail_care: Enhancement
+
+- Add support for logging joined and partitioned table
+- Handle schema validation warnings for sweep configs
+- Improve wandb sync to handle errors
+- Add ability to label scripts and repositories who use wandb
+
+## 0.10.31 (May 27, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() did not properly persist the host parameter
+- Fix issue where step information was not synced properly when syncing tensorboard directories
+- Fix some unicode issues with python2.7
+- Fixed bug in `plot_calibration_curve` for ComplementNB
+- Fall back to not using SendFile on some linux systems
+- Fix console issues where lines were truncated
+- Fix console issues where console logging could block
+
+#### :nail_care: Enhancement
+
+- Add support for preemptible sweeps
+- Add command line for sweep control
+- Add support to load artifact collection properties
+
+## 0.10.30 (May 7, 2021)
+
+#### :bug: Bug Fix
+
+- Found and fixed the remaining issues causing runs to be marked crashed during outages
+- Improved performance for users of `define_metric`, pytorch-lightning, and aggressive config saving
+- Fix issue when trying to log a cuda tensor to config or summary
+- Remove dependancy on torch `backward_hooks` to compute graph
+- Fix an issue preventing the ability to resume runs on sagemaker
+- Fix issues preventing pdb from working reliably with wandb
+- Fix deprecation warning in vendored library (user submission)
+- Fix logging behavior where the library was accidently outputting logs to the console
+- Fix disabled mode to not create wandb dir and log files
+- Renamed types to prep for Tables launch
+
+#### :nail_care: Enhancement
+
+- Allow renaming groups with public api
+
+## 0.10.29 (May 3, 2021)
+
+#### :bug: Bug Fix
+
+- Fix more network handling issues causing runs to be marked crashed (wandb sync to recover)
+- Improve logging and exception handling to improve reporting and logging of crashed processes
+
+## 0.10.28 (April 28, 2021)
+
+#### :bug: Bug Fix
+
+- Fix network handling issue causing runs to be marked crashed (wandb sync to recover)
+- Use `register_full_backward_hook` to support models with Dict outputs
+- Allow periods in table columns
+- Fix artifact cache collisions when using forked processes
+- Fix issue where custom charts do not display properly with pytorch-lightning
+
+#### :nail_care: Enhancement
+
+- Add experimental incremental artifact support
+- Improve warnings when logging is being rate limited
+
+## 0.10.27 (April 19, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync condition where metrics at end of short run are dropped 
+- Fix `wandb sync` when tensorboard files are detected
+- Fix api key prompt in databricks notebook
+
+#### :nail_care: Enhancement
+
+- Integrate DSViz into Keras WandbCallback
+- Add support for conda dependencies (user submit)
+
 ## 0.10.26 (April 13, 2021)
 
 #### :bug: Bug Fix
