@@ -171,7 +171,9 @@ def attempt_colab_load_ipynb():
     colab = wandb.util.get_module("google.colab")
     if colab:
         # This isn't thread safe, never call in a thread
+        print("getting response from colab")
         response = colab._message.blocking_request("get_ipynb", timeout_sec=5)
+        print("got response from colab")
         if response:
             return response["ipynb"]
 
