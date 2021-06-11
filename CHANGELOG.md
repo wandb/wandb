@@ -1,3 +1,22 @@
+## 0.10.32 (June 10, 2021)
+
+#### :bug: Bug Fix
+
+- Make `log_artifact()` more resilient to network errors
+- Removed Duplicate Artifact Dependencies
+- Workaround urlib3 issue on windows
+- Fix regression where ipython was hanging
+- Allow logging of numpy high precision floating point values
+- Reduce liklyhood of collisions for file backed media or artifact objects
+- Fix wandb.watch() regression when logging pytorch graphs
+
+#### :nail_care: Enhancement
+
+- Add support for logging joined and partitioned table
+- Handle schema validation warnings for sweep configs
+- Improve wandb sync to handle errors
+- Add ability to label scripts and repositories who use wandb
+
 ## 0.10.31 (May 27, 2021)
 
 #### :bug: Bug Fix

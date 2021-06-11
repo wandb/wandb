@@ -4,8 +4,11 @@ config tests.
 
 import os
 import sys
+import numpy as np
+import platform
 import pytest
 import pandas as pd
+
 import wandb
 from wandb import wandb_sdk
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord, HistoryRecord
@@ -58,6 +61,27 @@ def test_run_pub_history(fake_run, record_q, records_util):
     history = r.history
     assert len(history) == 2
     # TODO(jhr): check history vals
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="numpy.float128 does not exist on windows"
+)
+def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util):
+    # CLI: GH2255
+    run = fake_run()
+    run.log(dict(this=np.float128(0.0)))
+    r = records_util(record_q)
+    assert len(r.records) == 1
+    assert len(r.summary) == 0
+    history = r.history
+    assert len(history) == 1
+
+    found = False
+    for item in history[0].item:
+        if item.key == "this":
+            assert item.value_json == "0.0"
+            found = True
+    assert found
 
 
 def test_log_code_settings(live_mock_server, test_settings):

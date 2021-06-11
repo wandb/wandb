@@ -312,6 +312,7 @@ class TorchGraph(wandb.data_types.Graph):
         # when we detect fastai v1 has been imported :(
         self._should_use_full_hooks = True
         self._graph_hooks = {}
+        self._graph_hooks_processed = []
         if "fastai" in sys.modules:
             fastai = util.get_module("fastai")
             if fastai.__version__.startswith("1."):
@@ -352,16 +353,22 @@ class TorchGraph(wandb.data_types.Graph):
             if not graph.criterion_passed:
                 if hasattr(output[0], "grad_fn"):
                     graph.criterion = output[0].grad_fn
-                elif isinstance(output[0], list) and hasattr(output[0][0], "grad_fn"):
+                elif (
+                    isinstance(output[0], list)
+                    and output[0]
+                    and hasattr(output[0][0], "grad_fn")
+                ):
                     graph.criterion = output[0][0].grad_fn
 
             # log graph and remove hook
             hook = self._graph_hooks.pop(id(module), None)
             if hook is not None:
-                hook.remove()
+                self._graph_hooks_processed.append(hook)
 
             if not self._graph_hooks:
                 # we went through the entire graph
+                for hook_processed in self._graph_hooks_processed:
+                    hook_processed.remove()
                 wandb.run.summary["graph_%i" % graph_idx] = self
 
         return after_forward_hook
