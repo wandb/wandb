@@ -169,6 +169,7 @@ def jupyter_servers_and_kernel_id():
 
 def attempt_colab_load_ipynb():
     colab = wandb.util.get_module("google.colab")
+    print("COLABL TPU ADDRESS", os.environ.get("COLAB_TPU_ADDR"))
     if colab:
         # This isn't thread safe, never call in a thread
         print("getting response from colab")
