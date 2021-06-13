@@ -124,5 +124,20 @@ class Api(object):
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
 
+    def get_project_run_queues(self, *args, **kwargs):
+        return self.api.get_project_run_queues(*args, **kwargs)
+
+    def create_run_queue(self, *args, **kwargs):
+        return self.api.create_run_queue(*args, **kwargs)
+
+    def push_to_run_queue(self, *args, **kwargs):
+        return self.api.push_to_run_queue(*args, **kwargs)
+
+    def pop_from_run_queue(self, *args, **kwargs):
+        return self.api.pop_from_run_queue(*args, **kwargs)
+
+    def ack_run_queue_item(self, *args, **kwargs):
+        return self.api.ack_run_queue_item(*args, **kwargs)
+
 
 __all__ = ["Api"]
