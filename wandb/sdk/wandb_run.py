@@ -1288,6 +1288,7 @@ class Run(object):
         used when creating multiple runs in the same process.  We automatically
         call this method when your script exits.
         """
+        print("Finish called from", os.getpid())
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
