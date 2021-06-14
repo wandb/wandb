@@ -214,8 +214,6 @@ class Meta(object):
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
-            else:
-                self.data["program"] = "<python with no main file>"
                 if self._settings._jupyter:
                     if self._settings.notebook_name:
                         self.data["program"] = self._settings.notebook_name
