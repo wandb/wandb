@@ -217,7 +217,7 @@ class Settings(object):
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None
-    launc: Optional[bool] = None
+    launch: Optional[bool] = None
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
     log_dir_spec: Optional[str] = None

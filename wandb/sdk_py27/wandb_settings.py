@@ -217,7 +217,7 @@ class Settings(object):
     run_tags = None
     run_id = None
     sweep_id = None
-    launc = None
+    launch = None
     resume_fname_spec = None
     root_dir = None
     log_dir_spec = None
