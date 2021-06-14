@@ -85,6 +85,7 @@ env_settings = dict(
     base_url=None,
     api_key=None,
     sweep_id=None,
+    launch=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -111,9 +112,7 @@ env_settings = dict(
     run_job_type="WANDB_JOB_TYPE",
 )
 
-env_convert = dict(
-    run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(",")
-)
+env_convert = dict(run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(","))
 
 
 def _build_inverse_map(prefix, d):
@@ -141,9 +140,7 @@ def _get_program():
         return None
 
 
-def _get_program_relpath_from_gitrepo(
-    program, _logger = None
-):
+def _get_program_relpath_from_gitrepo(program, _logger=None):
     repo = GitRepo()
     root = repo.root
     if not root:
@@ -216,6 +213,7 @@ class Settings(object):
     run_tags = None
     run_id = None
     sweep_id = None
+    launch = None
     resume_fname_spec = None
     root_dir = None
     log_dir_spec = None
@@ -290,54 +288,54 @@ class Settings(object):
 
     def __init__(  # pylint: disable=unused-argument
         self,
-        base_url = None,
-        api_key = None,
-        anonymous = None,
-        mode = None,
-        start_method = None,
-        entity = None,
-        project = None,
-        run_group = None,
-        run_job_type = None,
-        run_id = None,
-        run_name = None,
-        run_notes = None,
-        resume = None,
-        magic = False,
-        run_tags = None,
-        sweep_id = None,
-        allow_val_change = None,
-        force = None,
-        relogin = None,
+        base_url=None,
+        api_key=None,
+        anonymous=None,
+        mode=None,
+        start_method=None,
+        entity=None,
+        project=None,
+        run_group=None,
+        run_job_type=None,
+        run_id=None,
+        run_name=None,
+        run_notes=None,
+        resume=None,
+        magic=False,
+        run_tags=None,
+        sweep_id=None,
+        allow_val_change=None,
+        force=None,
+        relogin=None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
-        strict = None,
-        problem = "fatal",
+        strict=None,
+        problem="fatal",
         # dynamic settings
-        system_sample_seconds = 2,
-        system_samples = 15,
-        heartbeat_seconds = 30,
-        config_paths = None,
-        sweep_param_path = None,
-        _config_dict = None,
+        system_sample_seconds=2,
+        system_samples=15,
+        heartbeat_seconds=30,
+        config_paths=None,
+        sweep_param_path=None,
+        _config_dict=None,
         # directories and files
-        root_dir = None,
-        settings_system_spec = "~/.config/wandb/settings",
-        settings_workspace_spec = "{wandb_dir}/settings",
-        sync_dir_spec = "{wandb_dir}/{run_mode}-{timespec}-{run_id}",
-        sync_file_spec = "run-{run_id}.wandb",
+        root_dir=None,
+        settings_system_spec="~/.config/wandb/settings",
+        settings_workspace_spec="{wandb_dir}/settings",
+        sync_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}",
+        sync_file_spec="run-{run_id}.wandb",
         # sync_symlink_sync_spec="{wandb_dir}/sync",
         # sync_symlink_offline_spec="{wandb_dir}/offline",
-        sync_symlink_latest_spec = "{wandb_dir}/latest-run",
-        log_dir_spec = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/logs",
-        log_user_spec = "debug.log",
-        log_internal_spec = "debug-internal.log",
-        log_symlink_user_spec = "{wandb_dir}/debug.log",
-        log_symlink_internal_spec = "{wandb_dir}/debug-internal.log",
-        resume_fname_spec = "{wandb_dir}/wandb-resume.json",
-        files_dir_spec = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
-        tmp_dir_spec = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp",
-        symlink = None,  # probed
+        sync_symlink_latest_spec="{wandb_dir}/latest-run",
+        log_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/logs",
+        log_user_spec="debug.log",
+        log_internal_spec="debug-internal.log",
+        log_symlink_user_spec="{wandb_dir}/debug.log",
+        log_symlink_internal_spec="{wandb_dir}/debug-internal.log",
+        resume_fname_spec="{wandb_dir}/wandb-resume.json",
+        files_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
+        tmp_dir_spec="{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp",
+        symlink=None,  # probed
         # where files are temporary stored when saving
         # files_dir=None,
         # tmp_dir=None,
@@ -346,51 +344,51 @@ class Settings(object):
         # data_spec="wandb-{timespec}-{pid}-data.bin",
         # run_base_dir="wandb",
         # run_dir_spec="run-{timespec}-{pid}",
-        program = None,
-        notebook_name = None,
-        disable_code = None,
-        ignore_globs = None,
-        save_code = None,
-        code_dir = None,
-        program_relpath = None,
-        git_remote = None,
+        program=None,
+        notebook_name=None,
+        disable_code=None,
+        ignore_globs=None,
+        save_code=None,
+        code_dir=None,
+        program_relpath=None,
+        git_remote=None,
         # dev_prod=None,  # in old settings files, TODO: support?
-        host = None,
-        username = None,
-        email = None,
-        docker = None,
-        sagemaker_disable = None,
-        _start_time = None,
-        _start_datetime = None,
-        _cli_only_mode = None,  # avoid running any code specific for runs
-        _disable_viewer = None,  # prevent early viewer query
-        console = None,
-        disabled = None,  # alias for mode=dryrun, not supported yet
-        reinit = None,
-        _save_requirements = True,
+        host=None,
+        username=None,
+        email=None,
+        docker=None,
+        sagemaker_disable=None,
+        _start_time=None,
+        _start_datetime=None,
+        _cli_only_mode=None,  # avoid running any code specific for runs
+        _disable_viewer=None,  # prevent early viewer query
+        console=None,
+        disabled=None,  # alias for mode=dryrun, not supported yet
+        reinit=None,
+        _save_requirements=True,
         # compute environment
-        show_colors = None,
-        show_emoji = None,
-        silent = None,
-        show_info = None,
-        show_warnings = None,
-        show_errors = None,
-        summary_errors = None,
-        summary_warnings = None,
-        _internal_queue_timeout = 2,
-        _internal_check_process = 8,
-        _disable_meta = None,
-        _disable_stats = None,
-        _jupyter_path = None,
-        _jupyter_name = None,
-        _jupyter_root = None,
-        _executable = None,
-        _cuda = None,
-        _args = None,
-        _os = None,
-        _python = None,
-        _kaggle = None,
-        _except_exit = None,
+        show_colors=None,
+        show_emoji=None,
+        silent=None,
+        show_info=None,
+        show_warnings=None,
+        show_errors=None,
+        summary_errors=None,
+        summary_warnings=None,
+        _internal_queue_timeout=2,
+        _internal_check_process=8,
+        _disable_meta=None,
+        _disable_stats=None,
+        _jupyter_path=None,
+        _jupyter_name=None,
+        _jupyter_root=None,
+        _executable=None,
+        _cuda=None,
+        _args=None,
+        _os=None,
+        _python=None,
+        _kaggle=None,
+        _except_exit=None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
@@ -657,9 +655,7 @@ class Settings(object):
         object.__setattr__(self, "_Settings_start_datetime", datetime_now)
         object.__setattr__(self, "_Settings_start_time", time_now)
 
-    def _apply_settings(
-        self, settings, _logger = None
-    ):
+    def _apply_settings(self, settings, _logger=None):
         # TODO(jhr): make a more efficient version of this
         for k in settings._public_keys():
             source = settings.__defaults_dict.get(k)
@@ -668,7 +664,7 @@ class Settings(object):
     def _apply_defaults(self, defaults):
         self._update(defaults, _source=self.Source.BASE)
 
-    def _apply_configfiles(self, _logger = None):
+    def _apply_configfiles(self, _logger=None):
         # TODO(jhr): permit setting of config in system and workspace
         if self.settings_system is not None:
             self._update(self._load(self.settings_system), _source=self.Source.SYSTEM)
@@ -677,9 +673,7 @@ class Settings(object):
                 self._load(self.settings_workspace), _source=self.Source.WORKSPACE
             )
 
-    def _apply_environ(
-        self, environ, _logger = None
-    ):
+    def _apply_environ(self, environ, _logger=None):
         inv_map = _build_inverse_map(env_prefix, env_settings)
         env_dict = dict()
         for k, v in six.iteritems(environ):
@@ -699,31 +693,23 @@ class Settings(object):
             _logger.info("setting env: {}".format(env_dict))
         self._update(env_dict, _source=self.Source.ENV)
 
-    def _apply_user(
-        self, user_settings, _logger = None
-    ):
+    def _apply_user(self, user_settings, _logger=None):
         if _logger:
             _logger.info("setting user settings: {}".format(user_settings))
         self._update(user_settings, _source=self.Source.USER)
 
-    def _apply_source_login(
-        self, login_settings, _logger = None
-    ):
+    def _apply_source_login(self, login_settings, _logger=None):
         if _logger:
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
-    def _apply_setup(
-        self, setup_settings, _logger = None
-    ):
+    def _apply_setup(self, setup_settings, _logger=None):
         # TODO: add logger for coverage
         # if _logger:
         #     _logger.info("setting setup settings: {}".format(setup_settings))
         self._update(setup_settings, _source=self.Source.SETUP)
 
-    def _path_convert_part(
-        self, path_part, format_dict
-    ):
+    def _path_convert_part(self, path_part, format_dict):
         """convert slashes, expand ~ and other macros."""
 
         path_parts = path_part.split(os.sep if os.sep in path_part else "/")
@@ -795,13 +781,7 @@ class Settings(object):
         else:
             return f(v)
 
-    def _update(
-        self,
-        __d = None,
-        _source = None,
-        _override = None,
-        **kwargs
-    ):
+    def _update(self, __d=None, _source=None, _override=None, **kwargs):
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
         d = __d or dict()
@@ -828,7 +808,7 @@ class Settings(object):
                 self.__override_dict[k] = _override
                 self.__override_dict_set.setdefault(k, set()).add(_override)
 
-    def update(self, __d = None, **kwargs):
+    def update(self, __d=None, **kwargs):
         _source = kwargs.pop("_source", None)
         _override = kwargs.pop("_override", None)
         if wandb.TYPE_CHECKING and TYPE_CHECKING:
@@ -839,9 +819,7 @@ class Settings(object):
 
         # self._update(__d, **kwargs)
 
-    def _priority_failed(
-        self, k, source, override
-    ):
+    def _priority_failed(self, k, source, override):
         key_source = self.__defaults_dict.get(k)
         key_override = self.__override_dict.get(k)
         if not key_source or not source:
@@ -927,9 +905,7 @@ class Settings(object):
 
         self.update(u)
 
-    def _infer_run_settings_from_env(
-        self, _logger = None
-    ):
+    def _infer_run_settings_from_env(self, _logger=None):
         """Modify settings based on environment (for runs only)."""
         # If there's not already a program file, infer it now.
         program = self.program or _get_program()
@@ -942,7 +918,7 @@ class Settings(object):
             program = "<python with no main file>"
             self.update(dict(program=program))
 
-    def setdefaults(self, __d = None):
+    def setdefaults(self, __d=None):
         __d = __d or defaults
         # set defaults
         for k, v in __d.items():
@@ -1016,9 +992,7 @@ class Settings(object):
                 d[k] = d[k].split(",")
         return d
 
-    def _apply_login(
-        self, args, _logger = None
-    ):
+    def _apply_login(self, args, _logger=None):
         param_map = dict(key="api_key", host="base_url")
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
@@ -1033,6 +1007,14 @@ class Settings(object):
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
+            for key in ("project", "entity", "id"):
+                val = args.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Ignored wandb.init() arg %s when running a sweep" % key
+                    )
+
+        if self.launch:
             for key in ("project", "entity", "id"):
                 val = args.pop(key, None)
                 if val:
@@ -1085,9 +1067,7 @@ class Settings(object):
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 
-    def _as_source(
-        self, source, override = None
-    ):
+    def _as_source(self, source, override=None):
         return Settings._Setter(settings=self, source=source, override=override)
 
     class _Setter(object):
@@ -1095,9 +1075,7 @@ class Settings(object):
         # _source: int
         # _override: int
 
-        def __init__(
-            self, settings, source, override
-        ):
+        def __init__(self, settings, source, override):
             object.__setattr__(self, "_settings", settings)
             object.__setattr__(self, "_source", source)
             object.__setattr__(self, "_override", override)
