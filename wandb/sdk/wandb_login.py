@@ -85,6 +85,7 @@ class _WandbLogin(object):
         if settings_param:
             login_settings._apply_settings(settings_param)
         _logger = wandb.setup()._get_logger()
+        print("login kwargs")
         login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
@@ -129,7 +130,11 @@ class _WandbLogin(object):
         else:
             login_state_str = "W&B API key is configured"
             wandb.termlog(
-                "{} {}".format(login_state_str, login_info_str,), repeat=False,
+                "{} {}".format(
+                    login_state_str,
+                    login_info_str,
+                ),
+                repeat=False,
             )
 
     def configure_api_key(self, key):

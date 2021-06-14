@@ -60,7 +60,7 @@ def _run(
     )
 
     if wandb_project is None:
-        wandb_project = api.settings("project")
+        wandb_project = api.settings("project") or "Uncategorized"
     if wandb_entity is None:
         wandb_entity = api.settings("entity")
 

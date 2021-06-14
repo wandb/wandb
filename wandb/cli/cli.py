@@ -943,14 +943,14 @@ def _user_args_to_dict(arguments, argument_type="P"):
 @click.option(
     "--entity",
     "-e",
-    metavar="TEXT",
+    metavar="<str>",
     default=None,
     help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
 )
 @click.option(
     "--project",
     "-p",
-    metavar="TEXT",
+    metavar="<str>",
     default=None,
     help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder.",
 )

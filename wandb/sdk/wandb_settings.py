@@ -679,6 +679,7 @@ class Settings(object):
             self._update(
                 self._load(self.settings_workspace), _source=self.Source.WORKSPACE
             )
+        print("BASE URL", self.base_url)
 
     def _apply_environ(
         self, environ: os._Environ, _logger: Optional[_EarlyLogger] = None
@@ -1017,6 +1018,7 @@ class Settings(object):
             # TODO (cvp): we didn't do this in the old cli, but it seems necessary
             if k == "ignore_globs":
                 d[k] = d[k].split(",")
+        print("D", d)
         return d
 
     def _apply_login(
@@ -1047,7 +1049,7 @@ class Settings(object):
                 val = args.pop(key, None)
                 if val:
                     wandb.termwarn(
-                        "Ignored wandb.init() arg %s when running running from launch"
+                        "Project, entity and id are ignored when running from wandb launch context. Ignored wandb.init() arg %s when running running from launch"
                         % key
                     )
 
