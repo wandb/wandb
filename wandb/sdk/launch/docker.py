@@ -69,7 +69,19 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):
+def pull_docker_image(docker_image: str):
+    info = docker_image.split(":")
+    client = docker.from_env()
+    if len(info) == 1:
+        image = client.images.pull(info[0])
+    else:
+        image = client.images.pull(info[0], tag=info[1])
+    return image
+
+
+def build_docker_image(
+    project: _project_spec.Project, repository_uri, base_image, api, install_reqs: bool
+):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
@@ -81,9 +93,19 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     wandb_project = project.docker_env["WANDB_PROJECT"]
     wandb_entity = project.docker_env["WANDB_ENTITY"]
     print(api.settings("base_url"), wandb_project, wandb_entity)
+    install_reqs_command = ""
+    if install_reqs:
+        path_to_reqs = os.path.abspath(os.path.join(project.dir, "requirements.txt"))
+        print(project.dir)
+        print(os.listdir(project.dir), os.path.exists(path_to_reqs))
+        install_reqs_command = (
+            f"COPY {_PROJECT_TAR_ARCHIVE_NAME}/requirements.txt requirements.txt\n"
+            "RUN pip install -r requirements.txt\n"
+        )
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
+        "{reqs_command}"
         "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
@@ -95,12 +117,15 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         workdir=WANDB_DOCKER_WORKDIR_PATH,
+        reqs_command=install_reqs_command,
         base_url=api.settings("base_url"),
         api_key=api.api_key,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
     )
+    print(dockerfile)
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
+    print(os.listdir(project.dir), os.path.exists(path_to_reqs))
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
         #  TODO: replace with shelling out

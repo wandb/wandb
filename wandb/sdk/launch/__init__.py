@@ -41,6 +41,7 @@ def _run(
     experiment_name,
     wandb_project,
     wandb_entity,
+    docker_image,
     entry_point,
     version,
     parameters,
@@ -70,6 +71,9 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
+    if docker_image:
+        runner_config["DOCKER_IMAGE"] = docker_image
+
     backend = loader.load_backend(runner_name, api)
     if backend:
         submitted_run = backend.run(project, runner_config)
@@ -92,6 +96,7 @@ def run(
     resource="local",
     wandb_project=None,
     wandb_entity=None,
+    docker_image=None,
     config=None,
     storage_dir=None,
     synchronous=True,
@@ -159,6 +164,7 @@ def run(
         experiment_name=experiment_name,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
+        docker_image=docker_image,
         entry_point=entry_point,
         version=version,
         parameters=parameters,

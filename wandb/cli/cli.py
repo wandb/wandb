@@ -942,7 +942,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
 )
 @click.option(
     "--entity",
-    "-e",
+    "-E",
     metavar="NAME=VALUE",
     default=None,
     help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
@@ -961,6 +961,13 @@ def _user_args_to_dict(arguments, argument_type="P"):
     default="local",
     help="Execution resource to use for run. Supported values: 'local', 'ngc'"
     "(experimental). Defaults to 'local'.",
+)
+@click.option(
+    "--docker-image",
+    "-i",
+    default=None,
+    metavar="DOCKER IMAGE",
+    help="Specific docker image you'd like to use. In the form name:tag.",
 )
 @click.option(
     "--config",
@@ -987,6 +994,7 @@ def launch(
     resource,
     entity,
     project,
+    docker_image,
     config,
     storage_dir,
 ):
@@ -1022,7 +1030,7 @@ def launch(
             sys.exit(1)
 
     api = _get_cling_api()
-
+    print(docker_image)
     try:
         wandb_launch.run(
             uri,
@@ -1030,6 +1038,7 @@ def launch(
             version,
             wandb_project=project,
             wandb_entity=entity,
+            docker_image=docker_image,
             experiment_name=experiment_name,
             parameters=param_dict,
             docker_args=args_dict,
