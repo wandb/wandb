@@ -501,7 +501,7 @@ class HandleManager(object):
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
             self._system_stats.start()
 
-        if not self._settings._disable_meta:
+        if not self._settings._disable_meta and not run_start.run.resumed:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface)
             run_meta.probe()
             run_meta.write()
