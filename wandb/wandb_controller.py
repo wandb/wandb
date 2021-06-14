@@ -548,7 +548,7 @@ def _sweep_status(
     run_count = len(sweep_runs)
     run_type_counts = _get_run_counts(sweep_runs)
     stopped = len([r for r in sweep_runs if r.stopped])
-    stopping = len([r for r in sweep_runs if r.shouldStop])
+    stopping = len([r for r in sweep_runs if r.should_stop])
     stopstr = ""
     if stopped or stopping:
         stopstr = "Stopped: %d" % stopped
