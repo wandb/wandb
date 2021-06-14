@@ -469,7 +469,7 @@ class Run(object):
             (str): The directory where all of the files associated with the run are
                 placed.
         """
-        return self._settings.files_dir     # @@@ run dir
+        return self._settings.files_dir
 
     @property
     def config(self) -> wandb_config.Config:

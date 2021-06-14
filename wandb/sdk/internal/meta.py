@@ -88,7 +88,7 @@ class Meta(object):
     def _save_code(self):
         logger.debug("save code")
         if self._settings.program_relpath is None:
-            logger.warning("unable to save code -- program entry not found")    # @@@ error seen
+            logger.warning("unable to save code -- program entry not found")
             return
 
         root = self._git.root or os.getcwd()
@@ -214,8 +214,6 @@ class Meta(object):
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
-            # else:
-            #     self.data["program"] = "<python with no main file>"
                 if self._settings._jupyter:
                     if self._settings.notebook_name:
                         self.data["program"] = self._settings.notebook_name

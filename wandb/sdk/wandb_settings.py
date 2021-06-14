@@ -146,7 +146,7 @@ def _get_program_relpath_from_gitrepo(
     program: str, _logger: Optional[_EarlyLogger] = None
 ) -> Optional[str]:
     repo = GitRepo()
-    root = repo.root    # @@@ searches up from current until a git repo is found, else false if we are above the repo level
+    root = repo.root
     if not root:
         root = os.getcwd()
     full_path_to_program = os.path.join(
@@ -156,7 +156,7 @@ def _get_program_relpath_from_gitrepo(
         relative_path = os.path.relpath(full_path_to_program, start=root)
         if "../" in relative_path:
             if _logger:
-                _logger.warning("could not save program above cwd: %s" % program)   # @@@
+                _logger.warning("could not save program above cwd: %s" % program)
             return None
         return relative_path
 
@@ -937,7 +937,6 @@ class Settings(object):
         # If there's not already a program file, infer it now.
         program = self.program or _get_program()
         if program:
-            print('@@@ program and self.program_relpath', self.program, self.program_relpath)
             program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
                 program, _logger=_logger
             )
