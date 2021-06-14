@@ -24,7 +24,7 @@ def test_run_from_dict():
     assert run.state == "running"
     assert run.config == {}
     assert run.summary_metrics == {}
-    
+
 
 def test_print_status(mock_server, capsys):
     c = wc.controller("test", entity="test", project="test")
@@ -41,7 +41,17 @@ def test_controller_existing(mock_server):
 
 
 def test_controller_new(mock_server):
-    tuner = wc.controller({"method": "random", "program": "train-dummy.py", "parameters": {"param1": {"values": [1, 2, 3]}, "param2": {"values": [1, 2, 3]}}, "controller": "local"})
+    tuner = wc.controller(
+        {
+            "method": "random",
+            "program": "train-dummy.py",
+            "parameters": {
+                "param1": {"values": [1, 2, 3]},
+                "param2": {"values": [1, 2, 3]},
+            },
+            "controller": "local",
+        }
+    )
     tuner.create()
     assert tuner._create == {
         "controller": {"type": "local"},
