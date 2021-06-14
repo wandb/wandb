@@ -20,3 +20,4 @@ xcuserdata/
 test-results/
 mypy-results/
 wandb/proto_check/
+.idea/
