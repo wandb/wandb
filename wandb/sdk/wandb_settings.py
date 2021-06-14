@@ -1034,7 +1034,6 @@ class Settings(object):
 
     def _apply_init(self, args: Dict[str, Union[str, int, None]]) -> None:
         # prevent setting project, entity if in sweep
-        print("_APPLY INIT", os.environ.get("WANDB_LAUNCH"), self.launch)
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
             for key in ("project", "entity", "id"):

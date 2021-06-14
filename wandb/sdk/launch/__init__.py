@@ -14,7 +14,7 @@ from .utils import (
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     fetch_and_validate_project,
-    _is_wandb_local_uri
+    _is_wandb_local_uri,
 )
 
 _logger = logging.getLogger(__name__)
@@ -57,7 +57,9 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-    project = fetch_and_validate_project(uri, experiment_name, api, runner_name, version, entry_point, parameters)
+    project = fetch_and_validate_project(
+        uri, experiment_name, api, runner_name, version, entry_point, parameters
+    )
 
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
@@ -85,7 +87,7 @@ def run(
     config=None,
     storage_dir=None,
     synchronous=True,
-    api=None
+    api=None,
 ):
     """
     Run a W&B project. The project can be local or stored at a Git URI.
@@ -155,7 +157,7 @@ def run(
         runner_config=config,
         storage_dir=storage_dir,
         synchronous=synchronous,
-        api=api
+        api=api,
     )
     if synchronous:
         _wait_for(submitted_run_obj)

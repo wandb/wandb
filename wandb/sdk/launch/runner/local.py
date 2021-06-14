@@ -168,11 +168,7 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir,
-    entry_point,
-    parameters,
-    docker_args,
-    storage_dir,
+    work_dir, entry_point, parameters, docker_args, storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning

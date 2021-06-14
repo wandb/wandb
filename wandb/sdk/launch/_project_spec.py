@@ -18,13 +18,14 @@ _logger = logging.getLogger(__name__)
 
 MLPROJECT_FILE_NAME = "mlproject"
 
+
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
     def __init__(self, uri, name, version, entry_points, parameters):
 
         self.uri = uri
-        self.name = name        # todo: what to do for default names
+        self.name = name  # todo: what to do for default names
         if self.name is None and utils._is_wandb_uri(uri):
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
             self.name = "{}_{}".format(wandb_project, wandb_name)
@@ -52,7 +53,9 @@ class Project(object):
             command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
             if not isinstance(command, six.string_types):
                 command = command.encode("utf-8")
-            new_entrypoint = EntryPoint(name=entry_point, parameters={}, command=command)
+            new_entrypoint = EntryPoint(
+                name=entry_point, parameters={}, command=command
+            )
             self._entry_points[entry_point] = new_entrypoint
             return new_entrypoint
         raise ExecutionException(
@@ -78,17 +81,23 @@ class Project(object):
         Fetch a project into a local directory, returning the path to the local project directory.
         """
         parsed_uri, subdirectory = utils._parse_subdirectory(self.uri)
-        use_temp_dst_dir = utils._is_zip_uri(parsed_uri) or not utils._is_local_uri(parsed_uri)
+        use_temp_dst_dir = utils._is_zip_uri(parsed_uri) or not utils._is_local_uri(
+            parsed_uri
+        )
         dst_dir = tempfile.mkdtemp() if use_temp_dst_dir else parsed_uri
         if use_temp_dst_dir:
             _logger.info("=== Fetching project from %s into %s ===", self.uri, dst_dir)
         if utils._is_zip_uri(parsed_uri):
             if utils._is_file_uri(parsed_uri):
-                parsed_file_uri = urllib.parse.urlparse(urllib.parse.unquote(parsed_uri))
+                parsed_file_uri = urllib.parse.urlparse(
+                    urllib.parse.unquote(parsed_uri)
+                )
                 parsed_uri = os.path.join(parsed_file_uri.netloc, parsed_file_uri.path)
             utils._unzip_repo(
                 zip_file=(
-                    parsed_uri if utils._is_local_uri(parsed_uri) else utils._fetch_zip_repo(parsed_uri)
+                    parsed_uri
+                    if utils._is_local_uri(parsed_uri)
+                    else utils._fetch_zip_repo(parsed_uri)
                 ),
                 dst_dir=dst_dir,
             )
@@ -103,11 +112,13 @@ class Project(object):
             run_info = utils.fetch_wandb_project_run_info(self.uri, api)
             if not run_info["git"]:
                 raise ExecutionException("Run must have git repo associated")
-            utils._fetch_git_repo(run_info["git"]["remote"], run_info["git"]["commit"], dst_dir)  # git repo
+            utils._fetch_git_repo(
+                run_info["git"]["remote"], run_info["git"]["commit"], dst_dir
+            )  # git repo
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
-            
+
             args = utils._collect_args(run_info["args"])
             self._merge_parameters(args)
         else:
