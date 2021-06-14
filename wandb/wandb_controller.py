@@ -54,15 +54,20 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from wandb import env
-from wandb import sweeps
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
-from wandb.util import handle_sweep_config_violations
+from wandb.util import get_module, handle_sweep_config_violations
 import yaml
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space
 # TODO(jhr): Add print_summary
+
+sweeps = get_module(
+    "wandb.sweeps",
+    required="This module requires wandb to be built with the local "
+    "controller. Please run pip install wandb[sweeps].",
+)
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
 SWEEP_INITIAL_RUN_STATE = sweeps.RunState.proposed
