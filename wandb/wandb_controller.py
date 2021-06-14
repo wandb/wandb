@@ -45,12 +45,13 @@ Example:
 
 from __future__ import print_function
 
+import copy
 import json
 import os
 import random
 import string
 import time
-import copy
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from six.moves import urllib
 from wandb import env
@@ -60,8 +61,6 @@ from wandb.util import handle_sweep_config_violations
 import yaml
 
 from . import sweeps as wandb_sweeps
-
-from typing import List, Union, Dict, Optional, Callable, Tuple, Any
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space
@@ -213,7 +212,7 @@ class _WandbController:
             for config_key, controller_attr in zip(
                 ["method", "early_terminate"], ["_custom_search", "_custom_stopping"]
             ):
-                if hasattr(self._create[config_key], "__call__"):
+                if callable(self._create[config_key]):
                     setattr(self, controller_attr, self._create[config_key])
                     self._create[config_key] = "custom"
 
@@ -635,7 +634,7 @@ def sweep(
         ```
     """
 
-    if hasattr(sweep, "__call__"):
+    if callable(sweep):
         sweep = sweep()
     """Sweep create for controller api and jupyter (eventually for cli)."""
     if entity:
