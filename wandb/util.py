@@ -58,6 +58,9 @@ from typing import List
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+# Boolean, unsigned integer, signed integer, float, complex.
+NUMERIC_KINDS = set("buifc")
+
 MAX_LINE_SIZE = 9 * 1024 * 1024 - 100 * 1024  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
