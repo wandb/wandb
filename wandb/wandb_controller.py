@@ -50,6 +50,7 @@ import os
 import random
 import string
 import time
+import copy
 
 from six.moves import urllib
 from wandb import env
@@ -60,7 +61,7 @@ import yaml
 
 from . import sweeps as wandb_sweeps
 
-from typing import List, Union, Dict, Optional, Callable, Tuple
+from typing import List, Union, Dict, Optional, Callable, Tuple, Any
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space
@@ -226,6 +227,17 @@ class _WandbController:
         if sweep_obj is None:
             raise ControllerError("Can not find sweep")
         self._sweep_obj = sweep_obj
+
+    def configure(self, key: str, value: Any) -> None:
+        self._configure_check()
+        proposed = copy.deepcopy(self._create)
+        proposed[key] = value
+
+        # this will throw an exception if the config is invalid
+        new_config = wandb_sweeps.SweepConfig(proposed)
+
+        # if no exception is thrown then we overwrite
+        self._create = new_config
 
     @property
     def sweep_config(self) -> Union[dict, wandb_sweeps.SweepConfig]:
