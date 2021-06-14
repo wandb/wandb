@@ -1,4 +1,4 @@
-from wandb import wandb_controller as wc
+from wandb.sdk import wandb_controller as wc
 import sys
 import pytest
 
@@ -9,8 +9,8 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_run_from_dict():
-    run = wc._Run.init_from_dict(
-        {
+    run = wc.wandb_sweeps.SweepRun(
+        **{
             "name": "test",
             "state": "running",
             "config": "{}",
@@ -23,8 +23,8 @@ def test_run_from_dict():
     assert run.name == "test"
     assert run.state == "running"
     assert run.config == {}
-    assert run.summaryMetrics == {}
-
+    assert run.summary_metrics == {}
+    
 
 def test_print_status(mock_server, capsys):
     c = wc.controller("test", entity="test", project="test")
@@ -41,12 +41,7 @@ def test_controller_existing(mock_server):
 
 
 def test_controller_new(mock_server):
-    tuner = wc.controller()
-    tuner.configure_search("random")
-    tuner.configure_program("train-dummy.py")
-    tuner.configure_parameter("param1", values=[1, 2, 3])
-    tuner.configure_parameter("param2", values=[1, 2, 3])
-    tuner.configure_controller(type="local")
+    tuner = wc.controller({"method": "random", "program": "train-dummy.py", "parameters": {"param1": {"values": [1, 2, 3]}, "param2": {"values": [1, 2, 3]}}, "controller": "local"})
     tuner.create()
     assert tuner._create == {
         "controller": {"type": "local"},

@@ -27,7 +27,7 @@ from wandb import Config
 from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
-from wandb import wandb_controller
+from wandb.sdk import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi

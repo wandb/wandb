@@ -60,7 +60,7 @@ from wandb.apis import InternalApi
 from wandb.util import handle_sweep_config_violations
 import yaml
 
-from . import sweeps as wandb_sweeps
+from wandb import sweeps as wandb_sweeps
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space

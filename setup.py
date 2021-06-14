@@ -11,6 +11,9 @@ with open('package_readme.md') as readme_file:
 with open('requirements.txt') as requirements_file:
     requirements = requirements_file.read().splitlines()
 
+with open('wandb/sweeps/requirements.txt') as sweeps_requirements_file:
+    sweeps_requirements = sweeps_requirements_file.read().splitlines()
+
 test_requirements = [
     'mock>=2.0.0',
     'tox-pyenv>=1.0.3'
@@ -21,7 +24,6 @@ aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
-sweeps_requirements = ['numpy']
 
 setup(
     name='wandb',
