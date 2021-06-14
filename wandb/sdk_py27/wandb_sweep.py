@@ -1,9 +1,9 @@
 from typing import Callable, Union
 
 from six.moves import urllib
-from wandb.apis import InternalApi
 from wandb import env
 from wandb import wandb_sdk
+from wandb.apis import InternalApi
 from wandb.util import handle_sweep_config_violations
 
 

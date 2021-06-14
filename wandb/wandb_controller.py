@@ -54,13 +54,11 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from wandb import env
-from wandb.apis import InternalApi
-from wandb.util import handle_sweep_config_violations
-from wandb.sdk import wandb_sweep
 from wandb import sweeps
-
+from wandb.apis import InternalApi
+from wandb.sdk import wandb_sweep
+from wandb.util import handle_sweep_config_violations
 import yaml
-
 
 # TODO(jhr): Add metric status
 # TODO(jhr): Add print_space

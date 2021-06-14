@@ -52,7 +52,6 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
-controller = wandb_sdk.controller
 sweep = wandb_sdk.sweep
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
@@ -179,6 +178,9 @@ lightgbm = _lazyloader.LazyLoader(
 docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
+controller = _lazyloader.LazyLoader(
+    "wandb.controller", globals(), "wandb.wandb_controller.controller"
+)
 
 
 def ensure_configured():
@@ -199,6 +201,7 @@ __all__ = [
     "setup",
     "save",
     "sweep",
+    "controller",
     "agent",
     "config",
     "log",
