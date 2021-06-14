@@ -1,15 +1,17 @@
 import logging
 import os
 import posixpath
+import re
 import shutil
+import subprocess
 import tempfile
 
 import docker
 from dockerpycreds.utils import find_executable
 import wandb
 from wandb.errors import ExecutionException
-from . import _project_spec
 
+from . import _project_spec
 from .utils import WANDB_DOCKER_WORKDIR_PATH
 from ..lib.git import GitRepo
 
@@ -31,7 +33,7 @@ def validate_docker_installation():
         )
 
 
-def validate_docker_env(project):
+def validate_docker_env(project: _project_spec.Project):
     if not project.name:
         raise ExecutionException(
             "Project name must be specified when using docker " "for image tagging."
@@ -41,6 +43,30 @@ def validate_docker_env(project):
             "Project with docker environment must specify the docker image "
             "to use via an 'image' field under the 'docker_env' field."
         )
+
+
+def generate_docker_image(project: _project_spec.Project, entry_cmd):
+    path = project.dir
+    print("generate docker path", path)
+    cmd = [
+        "jupyter-repo2docker",
+        "--no-run",
+        path,
+        '"{}"'.format(entry_cmd),
+    ]
+
+    _logger.info(
+        "Generating docker image from git repo or finding image if it already exists.........."
+    )
+    stderr = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ).stderr.decode("utf-8")
+    image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
+    if not image_id:
+        image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
+    if not image_id:
+        raise Exception("error running repo2docker")
+    return image_id[0]
 
 
 def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):

@@ -1,9 +1,5 @@
-import json
 import logging
-import os
 import sys
-from wandb import docker
-from gql import Client, gql
 import wandb
 from wandb.errors import ExecutionException
 

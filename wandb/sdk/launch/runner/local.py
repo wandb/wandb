@@ -11,17 +11,16 @@ from wandb.errors import ExecutionException
 from .abstract import AbstractRunner, AbstractRun
 from ..utils import (
     get_entry_point_command,
-    generate_docker_image,
-    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     WANDB_DOCKER_WORKDIR_PATH,
 )
 from ..docker import (
+    build_docker_image,
+    generate_docker_image,
     validate_docker_env,
     validate_docker_installation,
-    build_docker_image,
 )
 
 
@@ -82,9 +81,7 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        project.docker_env["image"] = generate_docker_image(
-            project, project.version, entry_cmd, self._api
-        )
+        project.docker_env["image"] = generate_docker_image(project, entry_cmd)
 
         command_args = []
         command_separator = " "
@@ -168,7 +165,11 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, docker_args, storage_dir,
+    work_dir,
+    entry_point,
+    parameters,
+    docker_args,
+    storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
