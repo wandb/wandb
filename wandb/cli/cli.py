@@ -361,7 +361,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -939,6 +941,20 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "specified, 'experiment-id' option will be used to launch run.",
 )
 @click.option(
+    "--entity",
+    "-e",
+    metavar="NAME=VALUE",
+    default=None,
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
+)
+@click.option(
+    "--project",
+    "-p",
+    metavar="NAME=VALUE",
+    default=None,
+    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder.",
+)
+@click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
@@ -969,6 +985,8 @@ def launch(
     docker_args,
     experiment_name,
     resource,
+    entity,
+    project,
     config,
     storage_dir,
 ):
@@ -1010,6 +1028,8 @@ def launch(
             uri,
             entry_point,
             version,
+            wandb_project=project,
+            wandb_entity=entity,
             experiment_name=experiment_name,
             parameters=param_dict,
             docker_args=args_dict,
@@ -1549,7 +1569,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

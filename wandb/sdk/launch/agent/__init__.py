@@ -92,15 +92,6 @@ class LaunchAgent(object):
         return ups
 
     def print_status(self):
-        # todo: track jobs
-        # meta = {}
-        # for job_id in self.job_ids:
-        #     status = self._jobs[job_id].status.state
-        #     meta.setdefault(status, 0)
-        #     meta[status] += 1
-        # updates = ""
-        # for status, count in meta.items():
-        #     updates += ", {}: {}".format(status, count)
         print(
             "polling on project {}, queues {} for jobs".format(
                 self._project, " ".join(self._queues)
