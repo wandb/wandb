@@ -1,4 +1,4 @@
-from wandb.sdk import wandb_controller as wc
+from wandb import wandb_controller as wc
 import sys
 import pytest
 

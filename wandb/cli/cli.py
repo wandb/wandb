@@ -23,11 +23,10 @@ from dockerpycreds.utils import find_executable
 import six
 from six.moves import configparser
 import wandb
-from wandb import Config
+from wandb import Config, wandb_controller
 from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
-from wandb.sdk import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
