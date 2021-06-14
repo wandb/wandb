@@ -400,11 +400,11 @@ class _WandbController:
 
     def step(self) -> None:
         self._step()
-        params = self.search()
-        self.schedule(params)
-        runs = self.stopping()
-        if runs:
-            self.stop_runs(runs)
+        suggestion = self.search()
+        self.schedule(suggestion)
+        to_stop = self.stopping()
+        if len(to_stop) > 0:
+            self.stop_runs(to_stop)
 
     def done(self) -> bool:
         self._start_if_not_started()
