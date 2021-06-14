@@ -99,7 +99,6 @@ SYMBOLS_ROOT_OTHER = {
     "set_trace",
     "setup",
     "sklearn",
-    "superagent",
     "sys",
     "tensorboard",
     "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?

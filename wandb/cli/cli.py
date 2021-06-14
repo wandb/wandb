@@ -270,15 +270,6 @@ def grpc_server(project=None, entity=None, port=None):
     grpc_server(port=port)
 
 
-@cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.argument("agent_spec", nargs=-1)
-@display_error
-def superagent(project=None, entity=None, agent_spec=None):
-    wandb.superagent.run_agent(agent_spec)
-
-
 @cli.command(
     context_settings=CONTEXT, help="Configure a directory with Weights & Biases"
 )
