@@ -112,7 +112,6 @@ class Project(object):
             run_info = utils.fetch_wandb_project_run_info(self.uri, api)
             if not run_info["git"]:
                 raise ExecutionException("Run must have git repo associated")
-            print("Calling fetch_git_repo")
             utils._fetch_git_repo(
                 run_info["git"]["remote"], run_info["git"]["commit"], dst_dir
             )  # git repo

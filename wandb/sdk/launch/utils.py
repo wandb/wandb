@@ -88,6 +88,9 @@ def _is_wandb_uri(uri):
         or _WANDB_QA_URI_REGEX.match(uri)
     )
 
+def _is_wandb_dev_uri(uri):
+    return _WANDB_DEV_URI_REGEX.match(uri)
+
 
 def _is_wandb_local_uri(uri):
     return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
@@ -252,7 +255,6 @@ def _fetch_git_repo(uri, version, dst_dir):
     else:
         repo.create_head("master", origin.refs.master)
         repo.heads.master.checkout()
-    print("WAHH", os.listdir(dst_dir))
     repo.submodule_update(init=True, recursive=True)
 
 

@@ -941,9 +941,7 @@ class Api(object):
         """
         )
         variable_values = {"project": project, "entity": entity, "name": name}
-        res = self.gql(query, variable_values)["project"]["run"]["runInfo"]
-        print(res)
-        return res
+        return self.gql(query, variable_values)["project"]["run"]["runInfo"]
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
