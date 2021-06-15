@@ -214,23 +214,21 @@ class Meta(object):
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
-            else:
-                if self._settings._jupyter:
-                    if self._settings.notebook_name:
-                        self.data["program"] = self._settings.notebook_name
+            if self._settings._jupyter:
+                if self._settings.notebook_name:
+                    self.data["program"] = self._settings.notebook_name
+                elif self._settings._jupyter_path:
+                    if "fileId=" in self._settings._jupyter_path:
+                        self.data["colab"] = (
+                            "https://colab.research.google.com/drive/"
+                            + self._settings._jupyter_path.split(  # noqa
+                                "fileId="
+                            )[1]
+                        )
+                        self.data["program"] = self._settings._jupyter_name
                     else:
-                        if self._settings._jupyter_path:
-                            if "fileId=" in self._settings._jupyter_path:
-                                self.data["colab"] = (
-                                    "https://colab.research.google.com/drive/"
-                                    + self._settings._jupyter_path.split(  # noqa
-                                        "fileId="
-                                    )[1]
-                                )
-                                self.data["program"] = self._settings._jupyter_name
-                            else:
-                                self.data["program"] = self._settings._jupyter_path
-                                self.data["root"] = self._settings._jupyter_root
+                        self.data["program"] = self._settings._jupyter_path
+                        self.data["root"] = self._settings._jupyter_root
             self._setup_git()
 
         if self._settings.anonymous != "true":
