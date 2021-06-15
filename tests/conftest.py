@@ -98,6 +98,7 @@ def start_mock_server(worker_id):
         root, "tests", "logs", "live_mock_server-{}.log".format(worker_id)
     )
     logfile = open(logfname, "w")
+    print(command)
     server = subprocess.Popen(
         command,
         stdout=logfile,

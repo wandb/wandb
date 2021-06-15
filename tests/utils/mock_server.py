@@ -5,6 +5,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 import json
+import platform
 import yaml
 import six
 
@@ -17,7 +18,6 @@ import logging
 from six.moves import urllib
 import threading
 from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
-
 
 def default_ctx():
     return {
@@ -113,7 +113,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -125,6 +129,21 @@ def run(ctx):
         "sweepName": None,
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
+        "runInfo": {
+            "program": "train.py",
+            "args": [],
+            "os": platform.system(),
+            "python": platform.python_version(),
+            "colab": None,
+            "executable": None,
+            "codeSaved": False,
+            "cpuCount": 12,
+            "gpuCount": 0,
+            "git": {
+                "remote": "https://foo:bar@github.com/FooTest/Foo.git",
+                "commit": "HEAD",
+            },
+        },
     }
 
 
@@ -153,7 +172,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -395,6 +416,7 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Run(" in body["query"]:
+            print(ctx)
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
@@ -504,14 +526,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -617,7 +649,13 @@ def create_app(user_ctx=None):
                 },
             }
             ctx["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -634,7 +672,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {

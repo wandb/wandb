@@ -184,7 +184,7 @@ class Api(object):
     @property
     def app_url(self):
         return wandb.util.app_url(self.api_url)
-    
+
     @property
     def default_entity(self):
         return self.settings("entity")
@@ -656,7 +656,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -910,7 +914,8 @@ class Api(object):
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):
-        query = gql("""
+        query = gql(
+            """
         query Run($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
@@ -935,13 +940,10 @@ class Api(object):
         }
         """
         )
-        variable_values = {
-            "project": project,
-            "entity": entity,
-            "name": name
-        }
-        return self.gql(query, variable_values)["project"]["run"]["runInfo"]
-
+        variable_values = {"project": project, "entity": entity, "name": name}
+        res = self.gql(query, variable_values)["project"]["run"]["runInfo"]
+        print(res)
+        return res
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
@@ -1047,7 +1049,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))

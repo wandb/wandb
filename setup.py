@@ -13,15 +13,17 @@ with open('requirements.txt') as requirements_file:
 
 test_requirements = [
     'mock>=2.0.0',
-    'tox-pyenv>=1.0.3'
+    'tox-pyenv>=1.0.3',
+    'docker'
 ]
 
 gcp_requirements = ['google-cloud-storage']
 aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
-media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
-sweeps_requirements = ['numpy']
+media_requirements = ['docker', 'numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
+sweeps_requirements = ['numpy', 'docker']
+launch_requirements = ['docker', 'jupyter-repo2docker']
 
 setup(
     name='wandb',
@@ -79,7 +81,8 @@ setup(
         'aws': aws_requirements,
         'grpc': grpc_requirements,
         'media': media_requirements,
-        'sweeps': sweeps_requirements
+        'sweeps': sweeps_requirements,
+        'launch': launch_requirements
     }
 )
 
