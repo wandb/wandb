@@ -3,6 +3,9 @@ import subprocess
 import sys
 import time
 import glob
+
+import pytest
+
 from .utils import fixture_open
 
 
