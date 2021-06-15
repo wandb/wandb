@@ -20,8 +20,8 @@ gcp_requirements = ['google-cloud-storage']
 aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
-media_requirements = ['docker', 'numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
-sweeps_requirements = ['numpy', 'docker']
+media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
+sweeps_requirements = ['numpy']
 launch_requirements = ['docker', 'jupyter-repo2docker']
 
 setup(

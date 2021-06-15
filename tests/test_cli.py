@@ -3,7 +3,6 @@ from wandb.cli import cli
 from wandb.apis.internal import InternalApi
 import contextlib
 import datetime
-from unittest import mock
 import traceback
 import platform
 import getpass
@@ -965,16 +964,3 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             "WARNING Found .wandb file, not streaming tensorboard metrics"
             in result.output
         )
-
-
-def test_launch_base_case(runner, docker, mock_server):
-    m = mock.MagicMock()
-    with mock.patch.dict("sys.modules", git=m):
-        with runner.isolated_filesystem():
-            print(
-                runner.invoke(
-                    cli.launch,
-                    ["https://api.wandb.ai/mock_server_entity/test-project/runs/1"],
-                )
-            )
-            assert False

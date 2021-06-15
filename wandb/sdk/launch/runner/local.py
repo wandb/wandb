@@ -18,7 +18,7 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
     WANDB_DOCKER_WORKDIR_PATH,
 )
-from ..launch_docker import (
+from ..docker import (
     validate_docker_env,
     validate_docker_installation,
     build_docker_image,

@@ -411,7 +411,6 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Run(" in body["query"]:
-            print(ctx)
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
