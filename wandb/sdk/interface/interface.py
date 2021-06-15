@@ -156,18 +156,21 @@ class BackendSender(object):
     process: Optional[Process]
     _run: Optional["Run"]
     _router: Optional[MessageRouter]
+    _process_check: bool
 
     def __init__(
         self,
         record_q: "Queue[pb.Record]" = None,
         result_q: "Queue[pb.Result]" = None,
         process: Process = None,
+        process_check: bool = True,
     ) -> None:
         self.record_q = record_q
         self.result_q = result_q
         self._process = process
         self._run = None
         self._router = None
+        self._process_check = process_check
 
         if record_q and result_q:
             self._router = MessageRouter(record_q, result_q)
@@ -532,8 +535,8 @@ class BackendSender(object):
         return record
 
     def _publish(self, record: pb.Record, local: bool = None) -> None:
-        # if self._process and not self._process.is_alive():
-        #     raise Exception("The wandb backend process has shutdown")
+        if self._process_check and self._process and not self._process.is_alive():
+            raise Exception("The wandb backend process has shutdown")
         if local:
             record.control.local = local
         if self.record_q:
@@ -546,8 +549,8 @@ class BackendSender(object):
 
     def _communicate_async(self, rec: pb.Record, local: bool = None) -> _Future:
         assert self._router
-        # if self._process and not self._process.is_alive():
-        #     raise Exception("The wandb backend process has shutdown")
+        if self._process_check and self._process and not self._process.is_alive():
+            raise Exception("The wandb backend process has shutdown")
         future = self._router.send_and_receive(rec, local=local)
         return future
 
