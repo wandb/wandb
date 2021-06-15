@@ -90,8 +90,6 @@ class Backend(object):
         self.result_q = self._multiprocessing.Queue()
 
         start_method = settings.get("start_method")
-        assert start_method, "start method should be configured"
-
         if start_method == "grpc":
             # note: conditional import needed for optional grpcio
             from ..internal import grpc_router
