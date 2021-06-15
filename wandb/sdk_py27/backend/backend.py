@@ -115,7 +115,7 @@ class Backend(object):
                 ),
             )
         else:
-            self.wandb_process = self._mutiprocessing.Process(
+            self.wandb_process = self._multiprocessing.Process(
                 target=wandb_internal,
                 kwargs=dict(
                     settings=settings, record_q=self.record_q, result_q=self.result_q,
