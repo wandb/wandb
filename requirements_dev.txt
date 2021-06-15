@@ -4,7 +4,6 @@ tox==3.7
 pip
 Pillow
 pandas
-numpy
 matplotlib<3.3.3
 soundfile
 boto3
