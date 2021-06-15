@@ -86,7 +86,7 @@ class Backend:
         self._record_q = None
         self._result_q = None
 
-    def _make_settings():
+    def _make_settings(self):
         log_level = logging.DEBUG
         start_time = time.time()
         start_datetime = datetime.datetime.now()
