@@ -6,6 +6,8 @@ import glob
 from .utils import fixture_open
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(sys.version_info < (3, 5), reason="flaky test")
 def test_sync_in_progress(live_mock_server, test_dir):
     with open("train.py", "w") as f:
         f.write(fixture_open("train.py").read())
