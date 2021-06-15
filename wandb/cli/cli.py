@@ -1029,7 +1029,7 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
 def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None, entry_point=None, experiment_name=None, version=None, param_list=None):
-    api = _get_cling_api()  # todo: temporary until runqueues api integrated into internal api
+    api = _get_cling_api()
 
     uri_stripped = uri.split("?")[0]    # remove any possible query params (eg workspace)
     uri_entity, uri_project, run_id = parse_wandb_uri(uri_stripped)
