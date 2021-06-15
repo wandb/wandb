@@ -237,7 +237,8 @@ def _bucket_config(ctx):
                         "directUrl": base_url + "/storage?file=" + name,
                         "name": name,
                     }
-                } for name in files
+                }
+                for name in files
             ]
         },
     }
