@@ -55,7 +55,6 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-    print("ENTRYPOINT", entry_point)
     project = fetch_and_validate_project(
         uri, experiment_name, api, runner_name, version, entry_point, parameters
     )

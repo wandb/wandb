@@ -29,6 +29,7 @@ def default_ctx():
         "page_times": 2,
         "requested_file": "weights.h5",
         "current_run": None,
+        "current_run_project": None,
         "files": {},
         "k8s": False,
         "resume": False,
@@ -335,6 +336,7 @@ def create_app(user_ctx=None):
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
+            ctx["current_run_project"] = body["variables"]["project"]
         if "mutation UpsertBucket(" in body["query"]:
             param_config = body["variables"].get("config")
             if param_config:
