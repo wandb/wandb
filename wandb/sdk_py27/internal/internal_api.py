@@ -29,7 +29,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib import retry
-from ..lib.filenames import DIFF_FNAME
+from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 
 from .progress import Progress
@@ -576,7 +576,7 @@ class Api(object):
                 bucket(name: $run) {
                     config
                     commit
-                    files(names: ["wandb-metadata.json", "diff.patch"]) {
+                    files {
                         edges {
                             node {
                                 name
@@ -600,26 +600,18 @@ class Api(object):
         config = json.loads(run["config"] or "{}")
         patch = None
         metadata = {}
+        whitelist = set([DIFF_FNAME, METADATA_FNAME])
         if len(run["files"]["edges"]) > 0:
             for file_edge in run["files"]["edges"]:
                 name = file_edge["node"]["name"]
                 url = file_edge["node"]["directUrl"]
+                if name not in whitelist:
+                    continue
                 res = requests.get(url)
-                if name == "wandb-metadata.json":
-                    res.raise_for_status()
+                res.raise_for_status()
+                if name == METADATA_FNAME:
                     metadata = res.json()
-                elif name == "diff.patch":
-                    # Since the server doesn't know whether we want to upload
-                    # or download the file, it will always give us something
-                    # for both requested files. However, there not being a
-                    # diff.patch is normal:
-                    # * either code saving is disabled
-                    # * or the local working copy is clean and has no changes
-                    #
-                    # So we need to ignore 404's
-                    if res.status_code == 404:
-                        continue
-                    res.raise_for_status()
+                elif name == DIFF_FNAME:
                     patch = res.text
         return (commit, config, patch, metadata)
 

@@ -221,7 +221,10 @@ def set_ctx(ctx):
     g.ctx.set(ctx)
 
 
-def _bucket_config():
+def _bucket_config(ctx):
+    files = ["wandb-metadata.json", "diff.patch"]
+    if "bucket_config" in ctx and "files" in ctx["bucket_config"]:
+        files = ctx["bucket_config"]["files"]
     base_url = request.url_root.rstrip("/")
     return {
         "commit": "HEAD",
@@ -231,16 +234,10 @@ def _bucket_config():
             "edges": [
                 {
                     "node": {
-                        "directUrl": base_url + "/storage?file=wandb-metadata.json",
-                        "name": "wandb-metadata.json",
+                        "directUrl": base_url + "/storage?file=" + name,
+                        "name": name,
                     }
-                },
-                {
-                    "node": {
-                        "directUrl": base_url + "/storage?file=diff.patch",
-                        "name": "diff.patch",
-                    }
-                },
+                } for name in files
             ]
         },
     }
@@ -404,7 +401,7 @@ def create_app(user_ctx=None):
                 project_field_name = "model"
                 run_field_name = "bucket"
             if "commit" in body["query"]:
-                run_config = _bucket_config()
+                run_config = _bucket_config(ctx)
             else:
                 run_config = run(ctx)
             return json.dumps(
@@ -812,11 +809,9 @@ def create_app(user_ctx=None):
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
         ctx["storage"][run].append(request.args.get("file"))
-        file_response = ctx["files"].get(request.args.get("file"))
-        if request.method == "GET" and file_response:
-            if isinstance(file_response, int):
-                return os.urandom(file_response), 200
-            return file_response
+        size = ctx["files"].get(request.args.get("file"))
+        if request.method == "GET" and size:
+            return os.urandom(size), 200
         # make sure to read the data
         request.get_data()
         if request.method == "PUT":
