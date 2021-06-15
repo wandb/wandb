@@ -16,7 +16,6 @@ import threading
 import wandb
 
 from ..interface import interface
-from ..internal import grpc_router
 from ..internal.internal import wandb_internal
 
 logger = logging.getLogger("wandb")
@@ -94,6 +93,9 @@ class Backend(object):
         assert start_method, "start method should be configured"
 
         if start_method == "grpc":
+            # note: conditional import needed for optional grpcio
+            from ..internal import grpc_router
+
             wandb._set_internal_process(disable=True)
             stopped = threading.Event()
             grpc_thread = grpc_router.GrpcRouterThread(
