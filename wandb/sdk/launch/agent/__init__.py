@@ -6,7 +6,7 @@ from wandb.sdk import backend
 
 import wandb
 from wandb import Settings
-from wandb.apis import internal_runqueue
+from ...internal.internal_api import Api
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
@@ -30,7 +30,7 @@ class LaunchAgent(object):
         self._entity = entity
         self._project = project
         self._max = max
-        self._api = internal_runqueue.Api()
+        self._api = Api()
         self._settings = Settings()
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[str, AbstractRun] = {}
