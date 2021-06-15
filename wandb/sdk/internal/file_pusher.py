@@ -37,7 +37,7 @@ warnings.filterwarnings(
 TMP_DIR = tempfile.TemporaryDirectory("wandb")
 
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class FilePusher(object):

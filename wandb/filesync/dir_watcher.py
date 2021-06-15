@@ -10,7 +10,7 @@ import glob
 wd_polling = util.vendor_import("watchdog.observers.polling")
 wd_events = util.vendor_import("watchdog.events")
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class FileEventHandler(object):
@@ -152,10 +152,10 @@ class PolicyLive(FileEventHandler):
 
 
 class DirWatcher(object):
-    def __init__(self, settings, api, file_pusher):
+    def __init__(self, settings, api, file_pusher, file_dir=None):
         self._api = api
         self._file_count = 0
-        self._dir = settings.files_dir
+        self._dir = file_dir or settings.files_dir
         self._settings = settings
         self._user_file_policies = {"end": set(), "live": set(), "now": set()}
         self._file_pusher = file_pusher

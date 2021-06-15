@@ -85,6 +85,7 @@ env_settings = dict(
     base_url=None,
     api_key=None,
     sweep_id=None,
+    launch=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -216,6 +217,7 @@ class Settings(object):
     run_tags = None
     run_id = None
     sweep_id = None
+    launch = None
     resume_fname_spec = None
     root_dir = None
     log_dir_spec = None
@@ -306,6 +308,7 @@ class Settings(object):
         magic = False,
         run_tags = None,
         sweep_id = None,
+        launch = None,
         allow_val_change = None,
         force = None,
         relogin = None,
@@ -713,6 +716,14 @@ class Settings(object):
             _logger.info("setting login settings: {}".format(login_settings))
         self._update(login_settings, _source=self.Source.LOGIN)
 
+    def _apply_setup(
+        self, setup_settings, _logger = None
+    ):
+        # TODO: add logger for coverage
+        # if _logger:
+        #     _logger.info("setting setup settings: {}".format(setup_settings))
+        self._update(setup_settings, _source=self.Source.SETUP)
+
     def _path_convert_part(
         self, path_part, format_dict
     ):
@@ -1030,6 +1041,14 @@ class Settings(object):
                 if val:
                     wandb.termwarn(
                         "Ignored wandb.init() arg %s when running a sweep" % key
+                    )
+        if self.launch:
+            for key in ("project", "entity", "id"):
+                val = args.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Project, entity and id are ignored when running from wandb launch context. Ignored wandb.init() arg %s when running running from launch"
+                        % key
                     )
 
         # strip out items where value is None

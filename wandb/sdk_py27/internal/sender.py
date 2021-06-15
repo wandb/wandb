@@ -115,6 +115,9 @@ class SendManager(object):
         # queue filled by retry_callback
         self._retry_q = queue.Queue()
 
+        # do we need to debounce?
+        self._config_needs_debounce = False
+
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
@@ -157,6 +160,9 @@ class SendManager(object):
             interface=publish_interface,
         )
 
+    def __len__(self):
+        return self._record_q.qsize()
+
     def retry_callback(self, status, response_text):
         response = wandb_internal_pb2.HttpResponse()
         response.http_status_code = status
@@ -169,17 +175,22 @@ class SendManager(object):
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type != "output":
+        if record_type not in {"output", "request"}:
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
+
+    def send_preempting(self, record):
+        if self._fs:
+            self._fs.enqueue_preempting()
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
-        logger.debug("send_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
@@ -226,6 +237,19 @@ class SendManager(object):
                 logger.warning("Failed to check stop requested status: %s", e)
         self._result_q.put(result)
 
+    def debounce(self):
+        if self._config_needs_debounce:
+            self._debounce_config()
+
+    def _debounce_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        # TODO(jhr): check result of upsert_run?
+        self._api.upsert_run(
+            name=self._run.run_id, config=config_value_dict, **self._api_settings
+        )
+        self._config_save(config_value_dict)
+        self._config_needs_debounce = False
+
     def send_request_network_status(self, record):
         assert record.control.req_resp
 
@@ -260,7 +284,6 @@ class SendManager(object):
     def send_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
-
         logger.info("handling exit code: %s", exit.exit_code)
 
         # Pass the responsibility to respond to handle_request_defer()
@@ -292,6 +315,8 @@ class SendManager(object):
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             pass
+        elif state == defer.FLUSH_DEBOUNCER:
+            self.debounce()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
@@ -513,7 +538,7 @@ class SendManager(object):
         except requests.RequestException:
             return False
 
-    def send_run(self, data):
+    def send_run(self, data, file_dir=None):
         run = data.run
         error = None
         is_wandb_init = self._run is None
@@ -576,7 +601,7 @@ class SendManager(object):
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
-            self._start_run_threads()
+            self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
 
@@ -644,7 +669,7 @@ class SendManager(object):
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self):
+    def _start_run_threads(self, file_dir=None):
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
@@ -665,14 +690,16 @@ class SendManager(object):
             "output.log",
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
-        self._fs.start()
-        self._pusher = FilePusher(self._api, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,
             project=self._run.project,
             email=self._settings.email,
+        )
+        self._fs.start()
+        self._pusher = FilePusher(self._api, silent=self._settings.silent)
+        self._dir_watcher = DirWatcher(
+            self._settings, self._api, self._pusher, file_dir
         )
         logger.info(
             "run started: %s with start time %s",
@@ -747,12 +774,7 @@ class SendManager(object):
             self._partial_output[stream] = ""
 
     def _update_config(self):
-        config_value_dict = self._config_format(self._consolidated_config)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
-        self._config_save(config_value_dict)
-        # TODO(jhr): check result of upsert_run?
+        self._config_needs_debounce = True
 
     def send_config(self, data):
         cfg = data.config
@@ -928,3 +950,8 @@ class SendManager(object):
             "max_cli_version", None
         )
         return max_cli_version
+
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    next = __next__

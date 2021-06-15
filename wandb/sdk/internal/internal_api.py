@@ -25,11 +25,11 @@ import wandb
 from wandb import __version__
 from wandb import env
 from wandb.old.settings import Settings
-from wandb.old import retry
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME
 from ..lib.git import GitRepo
 
@@ -184,7 +184,7 @@ class Api(object):
     @property
     def app_url(self):
         return wandb.util.app_url(self.api_url)
-    
+
     @property
     def default_entity(self):
         return self.settings("entity")
@@ -1007,7 +1007,8 @@ class Api(object):
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):
-        query = gql("""
+        query = gql(
+            """
         query Run($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
@@ -1032,13 +1033,8 @@ class Api(object):
         }
         """
         )
-        variable_values = {
-            "project": project,
-            "entity": entity,
-            "name": name
-        }
+        variable_values = {"project": project, "entity": entity, "name": name}
         return self.gql(query, variable_values)["project"]["run"]["runInfo"]
-
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
@@ -1391,6 +1387,7 @@ class Api(object):
         obj_id=None,
         project=None,
         entity=None,
+        state=None,
     ):
         """Upsert a sweep object.
 
@@ -1415,7 +1412,8 @@ class Api(object):
             $entityName: String,
             $projectName: String,
             $controller: JSONString,
-            $scheduler: JSONString
+            $scheduler: JSONString,
+            $state: String
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -1424,19 +1422,32 @@ class Api(object):
                 entityName: $entityName,
                 projectName: $projectName,
                 controller: $controller,
-                scheduler: $scheduler
+                scheduler: $scheduler,
+                state: $state
             }) {
                 sweep {
                     name
                     _PROJECT_QUERY_
                 }
+                configValidationWarnings
             }
         }
         """
         # FIXME(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-        mutation_new = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
-        mutation_old = gql(mutation_str.replace("_PROJECT_QUERY_", ""))
+
+        # mutation 3 maps to backend that can support CLI version of at least 0.10.31
+        mutation_3 = gql(mutation_str.replace("_PROJECT_QUERY_", project_query))
+        mutation_2 = gql(
+            mutation_str.replace("_PROJECT_QUERY_", project_query).replace(
+                "configValidationWarnings", ""
+            )
+        )
+        mutation_1 = gql(
+            mutation_str.replace("_PROJECT_QUERY_", "").replace(
+                "configValidationWarnings", ""
+            )
+        )
 
         # don't retry on validation errors
         # TODO(jhr): generalize error handling routines
@@ -1451,7 +1462,10 @@ class Api(object):
             body = json.loads(e.response.content)
             raise UsageError(body["errors"][0]["message"])
 
-        for mutation in mutation_new, mutation_old:
+        # TODO(dag): replace this with a query for protocol versioning
+        mutations = [mutation_3, mutation_2, mutation_1]
+
+        for mutation in mutations:
             try:
                 response = self.gql(
                     mutation,
@@ -1485,7 +1499,8 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return response["upsertSweep"]["sweep"]["name"]
+        warnings = response["upsertSweep"].get("configValidationWarnings", [])
+        return response["upsertSweep"]["sweep"]["name"], warnings
 
     @normalize_exceptions
     def create_anonymous_api_key(self):
@@ -2072,6 +2087,86 @@ class Api(object):
         )
 
         return response["notifyScriptableRunAlert"]["success"]
+
+    def get_sweep_state(self, sweep, entity=None, project=None):
+        return self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")[
+            "state"
+        ]
+
+    def set_sweep_state(self, sweep, state, entity=None, project=None):
+        state = state.upper()
+        assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
+        s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
+        curr_state = s["state"].upper()
+        if state == "RUNNING" and curr_state in ("CANCELED", "FINISHED"):
+            raise Exception("Cannot resume %s sweep." % curr_state.lower())
+        elif state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+            raise Exception("Cannot pause %s sweep." % curr_state.lower())
+        elif curr_state not in ("RUNNING", "PAUSED"):
+            raise Exception("Sweep already %s." % curr_state.lower())
+        sweep_id = s["id"]
+        mutation = gql(
+            """
+        mutation UpsertSweep(
+            $id: ID,
+            $state: String,
+            $entityName: String,
+            $projectName: String
+        ) {
+            upsertSweep(input: {
+                id: $id,
+                state: $state,
+                entityName: $entityName,
+                projectName: $projectName
+            }){
+                sweep {
+                    name
+                }
+            }
+        }
+        """
+        )
+        self.gql(
+            mutation,
+            variable_values={
+                "id": sweep_id,
+                "state": state,
+                "entityName": entity or self.settings("entity"),
+                "projectName": project or self.settings("project"),
+            },
+        )
+
+    def stop_sweep(self, sweep, entity=None, project=None):
+        """
+        Finish the sweep to stop running new runs and let currently running runs finish.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="FINISHED", entity=entity, project=project
+        )
+
+    def cancel_sweep(self, sweep, entity=None, project=None):
+        """
+        Cancel the sweep to kill all running runs and stop running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="CANCELED", entity=entity, project=project
+        )
+
+    def pause_sweep(self, sweep, entity=None, project=None):
+        """
+        Pause the sweep to temporarily stop running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="PAUSED", entity=entity, project=project
+        )
+
+    def resume_sweep(self, sweep, entity=None, project=None):
+        """
+        Resume the sweep to continue running new runs.
+        """
+        self.set_sweep_state(
+            sweep=sweep, state="RUNNING", entity=entity, project=project
+        )
 
     def _status_request(self, url, length):
         """Ask google how much we've uploaded"""

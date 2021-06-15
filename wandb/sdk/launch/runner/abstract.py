@@ -140,9 +140,7 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(
-        self, project, backend_config
-    ):
+    def run(self, project, backend_config):
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution
         :param project_uri: URI of the project to execute, e.g. a local filesystem path

@@ -760,7 +760,6 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
             cols.append("video:video")
 
         tcols = t.columns
-
         row = t.data[0]
 
         assert set(tcols) == set(cols)

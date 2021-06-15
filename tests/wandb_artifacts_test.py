@@ -515,6 +515,16 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
+@pytest.mark.timeout(120)
+def test_artifact_log_with_network_error(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    live_mock_server.set_ctx({"fail_graphql_times": 15})
+    run.log_artifact(artifact)
+    live_mock_server.set_ctx({"fail_graphql_times": 0})
+    run.finish()
+
+
 def test_add_obj_wbimage_no_classes(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
@@ -541,7 +551,7 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
@@ -552,8 +562,8 @@ def test_add_obj_wbimage(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
+                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
+                "size": 293,
             },
         }
 
@@ -567,7 +577,7 @@ def test_add_obj_using_brackets(runner):
         artifact["my-image"] = wb_image
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "14e7a694dd91e2cebe7a0638745f21ba"
+        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
@@ -578,8 +588,8 @@ def test_add_obj_using_brackets(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
+                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
+                "size": 293,
             },
         }
 
@@ -684,8 +694,8 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "caWKIWtOV96QLSx8Y3uwnw==",
-                "size": 215,
+                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
+                "size": 293,
             },
         }
 
@@ -711,8 +721,8 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "ksQ+BJCt+KZSsyC03K2+Uw==",
-                "size": 216,
+                "digest": "3lTCGIlHAbNJlwIp2ALaTQ==",
+                "size": 294,
             },
         }
 
@@ -734,8 +744,8 @@ def test_add_obj_wbimage_image_already_added(runner):
                 "size": 64,
             },
             "my-image.image-file.json": {
-                "digest": "ZeHjOyjSSVRwrmibiprSQw==",
-                "size": 193,
+                "digest": "8ZJmhiCv9lrjXBCz5oVl8g==",
+                "size": 271,
             },
         }
 
@@ -762,7 +772,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "cdDElzSZxodt71nbTWNkVw==", "size": 857},
+            "my-table.table.json": {"digest": "dQsR9hmEpOiRckgfFbiO1g==", "size": 1011},
         }
 
 
@@ -794,7 +804,7 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "QArBMeEZwF9gz3E27v1OXw==", "size": 643},
+            "my-table.table.json": {"digest": "Ts96ecO6RcC9J0aOABjflw==", "size": 797},
         }
 
 
@@ -1133,28 +1143,11 @@ def test_reference_download(runner, live_mock_server, test_settings):
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()
+        run.finish()
 
 
-def test_communicate_artifact(
-    mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
-):
+def test_communicate_artifact(publish_util, mocked_run):
     artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-    start_backend()
-
-    proto_run = internal_sender._make_run(mocked_run)
-    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
-
-    proto_artifact = internal_sender._make_artifact(artifact)
-    proto_artifact.run_id = proto_run.run_id
-    proto_artifact.project = proto_run.project
-    proto_artifact.entity = proto_run.entity
-    proto_artifact.user_created = False
-    proto_artifact.use_after_commit = False
-    proto_artifact.finalize = True
-    for alias in ["latest"]:
-        proto_artifact.aliases.append(alias)
-    log_artifact = pb.LogArtifactRequest()
-    log_artifact.artifact.CopyFrom(proto_artifact)
-
-    art = internal_sm.send_artifact(log_artifact)
-    stop_backend()
+    artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
+    ctx_util = publish_util(artifacts=[artifact_publish])
+    assert len(set(ctx_util.manifests_created_ids)) == 1

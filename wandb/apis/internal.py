@@ -103,6 +103,24 @@ class Api(object):
     def upsert_sweep(self, *args, **kwargs):
         return self.api.upsert_sweep(*args, **kwargs)
 
+    def set_sweep_state(self, *args, **kwargs):
+        return self.api.set_sweep_state(*args, **kwargs)
+
+    def get_sweep_state(self, *args, **kwargs):
+        return self.api.get_sweep_state(*args, **kwargs)
+
+    def stop_sweep(self, *args, **kwargs):
+        return self.api.stop_sweep(*args, **kwargs)
+
+    def cancel_sweep(self, *args, **kwargs):
+        return self.api.cancel_sweep(*args, **kwargs)
+
+    def pause_sweep(self, *args, **kwargs):
+        return self.api.pause_sweep(*args, **kwargs)
+
+    def resume_sweep(self, *args, **kwargs):
+        return self.api.resume_sweep(*args, **kwargs)
+
     def register_agent(self, *args, **kwargs):
         return self.api.register_agent(*args, **kwargs)
 
@@ -120,7 +138,7 @@ class Api(object):
 
     def upload_file_retry(self, *args, **kwargs):
         return self.api.upload_file_retry(*args, **kwargs)
-    
+
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
 

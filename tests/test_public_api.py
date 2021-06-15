@@ -224,7 +224,7 @@ def test_run_file_direct(runner, mock_server, api):
         file = run.file("weights.h5")
         assert (
             file.direct_url
-            == "https://api.wandb.ai//storage?file=weights.h5&direct=true"
+            == "https://api.wandb.ai/storage?file=weights.h5&direct=true"
         )
 
 
@@ -234,7 +234,7 @@ def test_run_upload_file(runner, mock_server, api):
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb")
-        assert file.url == "https://api.wandb.ai//storage?file=new_file.pb"
+        assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
 
 
 def test_run_upload_file_relative(runner, mock_server, api):
@@ -245,7 +245,7 @@ def test_run_upload_file_relative(runner, mock_server, api):
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb", "../")
-        assert file.url == "https://api.wandb.ai//storage?file=foo/new_file.pb"
+        assert file.url == "https://api.wandb.ai/storage?file=foo/new_file.pb"
 
 
 def test_upload_file_retry(runner, mock_server, api):
@@ -255,7 +255,7 @@ def test_upload_file_retry(runner, mock_server, api):
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb")
-        assert file.url == "https://api.wandb.ai//storage?file=new_file.pb"
+        assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
 
 
 def test_runs_from_path(mock_server, api):

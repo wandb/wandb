@@ -103,6 +103,7 @@ def wandb_internal(
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
+        debounce_interval_ms=1000,
     )
     threads.append(record_sender_thread)
 
@@ -159,6 +160,7 @@ def wandb_internal(
             print("Thread {}:".format(thread.name), file=sys.stderr)
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
+            wandb.termerror("Internal wandb error: file data was not synced")
             sys.exit(-1)
 
 
@@ -166,7 +168,6 @@ def configure_logging(log_fname, log_level, run_id = None):
     # TODO: we may want make prints and stdout make it into the logs
     # sys.stdout = open(settings.log_internal, "a")
     # sys.stderr = open(settings.log_internal, "a")
-    logging.root.handlers = []
     log_handler = logging.FileHandler(log_fname)
     log_handler.setLevel(log_level)
 
@@ -193,6 +194,7 @@ def configure_logging(log_fname, log_level, run_id = None):
     # are not streamed to `debug-internal.log` when we spawn with fork
     # TODO: (cvp) we should really take another pass at logging in general
     root = logging.getLogger("wandb")
+    root.propagate = False
     root.setLevel(logging.DEBUG)
     root.addHandler(log_handler)
 
@@ -213,9 +215,13 @@ class HandlerThread(internal_util.RecordLoopThread):
         sender_q,
         writer_q,
         interface,
+        debounce_interval_ms = 1000,
     ):
         super(HandlerThread, self).__init__(
-            input_record_q=record_q, result_q=result_q, stopped=stopped,
+            input_record_q=record_q,
+            result_q=result_q,
+            stopped=stopped,
+            debounce_interval_ms=debounce_interval_ms,
         )
         self.name = "HandlerThread"
         self._settings = settings
@@ -243,6 +249,9 @@ class HandlerThread(internal_util.RecordLoopThread):
     def _finish(self):
         self._hm.finish()
 
+    def _debounce(self):
+        self._hm.debounce()
+
 
 class SenderThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to sender routines."""
@@ -257,9 +266,13 @@ class SenderThread(internal_util.RecordLoopThread):
         result_q,
         stopped,
         interface,
+        debounce_interval_ms = 5000,
     ):
         super(SenderThread, self).__init__(
-            input_record_q=record_q, result_q=result_q, stopped=stopped,
+            input_record_q=record_q,
+            result_q=result_q,
+            stopped=stopped,
+            debounce_interval_ms=debounce_interval_ms,
         )
         self.name = "SenderThread"
         self._settings = settings
@@ -281,6 +294,9 @@ class SenderThread(internal_util.RecordLoopThread):
     def _finish(self):
         self._sm.finish()
 
+    def _debounce(self):
+        self._sm.debounce()
+
 
 class WriterThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to writer routines."""
@@ -295,9 +311,13 @@ class WriterThread(internal_util.RecordLoopThread):
         result_q,
         stopped,
         writer_q,
+        debounce_interval_ms = 1000,
     ):
         super(WriterThread, self).__init__(
-            input_record_q=writer_q, result_q=result_q, stopped=stopped,
+            input_record_q=writer_q,
+            result_q=result_q,
+            stopped=stopped,
+            debounce_interval_ms=debounce_interval_ms,
         )
         self.name = "WriterThread"
         self._settings = settings
@@ -314,6 +334,9 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _finish(self):
         self._wm.finish()
+
+    def _debounce(self):
+        self._wm.debounce()
 
 
 class ProcessCheck(object):
