@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 
 from dockerpycreds.utils import find_executable
-import docker
 
 import wandb
 from wandb.errors import ExecutionException
@@ -73,6 +72,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
+    import docker
 
     image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=project.dir)
     if _is_wandb_local_uri(api.settings("base_url")):

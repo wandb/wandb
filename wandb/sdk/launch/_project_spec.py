@@ -124,8 +124,11 @@ class Project(object):
                 run_info["git"]["remote"], run_info["git"]["commit"], dst_dir
             )  # git repo
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
+            print("ADDING ENTRY POINT?")
             if not self._entry_points:
+                print("ADDING ENTRY POINT DOING", run_info["program"])
                 self.add_entry_point(run_info["program"])
+
 
             args = utils._collect_args(run_info["args"])
             self._merge_parameters(args)
