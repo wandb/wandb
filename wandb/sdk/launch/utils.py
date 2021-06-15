@@ -1,16 +1,12 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
-import hashlib
-import json
 import logging
 import os
-import subprocess
 import re
 import tempfile
 import yaml
-from gql import Client, gql
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+
 from wandb.errors import ExecutionException
+
 from ._project_spec import Project, MLPROJECT_FILE_NAME
 
 
@@ -23,7 +19,7 @@ _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
 _WANDB_DEV_URI_REGEX = re.compile(
-    r"^https?://ap\w.wandb"
+    r"^https?://ap\w.wandb.test"
 )  # for testing, not sure if we wanna keep this
 _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
@@ -142,35 +138,6 @@ def _collect_args(args):
             dict_args[arg.replace("-", "")] = args[i + 1]
             i += 2
     return dict_args
-
-
-def generate_docker_image(project_spec, version, entry_cmd, api):
-    path = project_spec.dir
-    cmd = [
-        "jupyter-repo2docker",
-        "--no-run",
-        #'--no-build',
-        # '--env', 'WANDB_API_KEY={}'.format(api.api_key),
-        # '--user-name', 'root', # todo bad idea lol
-        # '--debug',
-        path,
-        '"{}"'.format(entry_cmd),
-    ]
-    # Is this needed here, version refers to the github commit
-    # if version:
-    #    cmd.extend(['--ref', version])
-    _logger.info(
-        "Generating docker image from git repo or finding image if it already exists.........."
-    )
-    stderr = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ).stderr.decode("utf-8")
-    image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
-    if not image_id:
-        image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
-    if not image_id:
-        raise Exception("error running repo2docker")
-    return image_id[0]
 
 
 def fetch_and_validate_project(

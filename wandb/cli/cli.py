@@ -939,6 +939,20 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "specified, 'experiment-id' option will be used to launch run.",
 )
 @click.option(
+    "--entity",
+    "-e",
+    metavar="<str>",
+    default=None,
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
+)
+@click.option(
+    "--project",
+    "-p",
+    metavar="<str>",
+    default=None,
+    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder.",
+)
+@click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
@@ -969,6 +983,8 @@ def launch(
     docker_args,
     experiment_name,
     resource,
+    entity,
+    project,
     config,
     storage_dir,
 ):
@@ -985,7 +1001,7 @@ def launch(
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
-            with open(config, 'r') as f:
+            with open(config, "r") as f:
                 config = json.load(f)
         else:
             # assume a json string
@@ -1010,6 +1026,8 @@ def launch(
             uri,
             entry_point,
             version,
+            wandb_project=project,
+            wandb_entity=entity,
             experiment_name=experiment_name,
             parameters=param_dict,
             docker_args=args_dict,
@@ -1062,8 +1080,18 @@ def launch_agent(
 @click.option("--config", "-c", default=None, help="Path to a user config")
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.option("--queue", "-q", default="default", help="Run queue to push to, defaults to project queue")
-@click.option("--resource", "-r", default="local", help="Resource to run this job on, defaults to local machine")
+@click.option(
+    "--queue",
+    "-q",
+    default="default",
+    help="Run queue to push to, defaults to project queue",
+)
+@click.option(
+    "--resource",
+    "-r",
+    default="local",
+    help="Resource to run this job on, defaults to local machine",
+)
 @click.option(
     "--entry-point",
     "-e",

@@ -1,7 +1,9 @@
 import logging
 import os
 import posixpath
+import re
 import shutil
+import subprocess
 import tempfile
 
 from dockerpycreds.utils import find_executable
@@ -11,6 +13,7 @@ import wandb
 from wandb.errors import ExecutionException
 
 from .utils import WANDB_DOCKER_WORKDIR_PATH, _is_wandb_local_uri, _is_wandb_dev_uri
+from . import _project_spec
 from ..lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)
@@ -31,7 +34,7 @@ def validate_docker_installation():
         )
 
 
-def validate_docker_env(project):
+def validate_docker_env(project: _project_spec.Project):
     if not project.name:
         raise ExecutionException(
             "Project name must be specified when using docker " "for image tagging."
@@ -43,12 +46,35 @@ def validate_docker_env(project):
         )
 
 
-def build_docker_image(work_dir, repository_uri, base_image, api):
+def generate_docker_image(project: _project_spec.Project, entry_cmd):
+    path = project.dir
+    cmd = [
+        "jupyter-repo2docker",
+        "--no-run",
+        path,
+        '"{}"'.format(entry_cmd),
+    ]
+
+    _logger.info(
+        "Generating docker image from git repo or finding image if it already exists.........."
+    )
+    stderr = subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ).stderr.decode("utf-8")
+    image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
+    if not image_id:
+        image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
+    if not image_id:
+        raise Exception("error running repo2docker")
+    return image_id[0]
+
+
+def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
 
-    image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=work_dir)
+    image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=project.dir)
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
@@ -56,12 +82,21 @@ def build_docker_image(work_dir, repository_uri, base_image, api):
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
+    image_uri = _get_docker_image_uri(
+        repository_uri=repository_uri, work_dir=project.dir
+    )
+
+    wandb_project = project.docker_env["WANDB_PROJECT"]
+    wandb_entity = project.docker_env["WANDB_ENTITY"]
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
+        "ENV WANDB_PROJECT={wandb_project}\n"
+        "ENV WANDB_ENTITY={wandb_entity}\n"
+        "ENV WANDB_LAUNCH=True\n"
         "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
@@ -69,8 +104,10 @@ def build_docker_image(work_dir, repository_uri, base_image, api):
         workdir=WANDB_DOCKER_WORKDIR_PATH,
         base_url=base_url,
         api_key=api.api_key,
+        wandb_project=wandb_project,
+        wandb_entity=wandb_entity,
     )
-    build_ctx_path = _create_docker_build_ctx(work_dir, dockerfile)
+    build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
         #  TODO: replace with shelling out

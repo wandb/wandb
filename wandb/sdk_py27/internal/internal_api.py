@@ -184,7 +184,7 @@ class Api(object):
     @property
     def app_url(self):
         return wandb.util.app_url(self.api_url)
-    
+
     @property
     def default_entity(self):
         return self.settings("entity")
@@ -910,7 +910,8 @@ class Api(object):
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):
-        query = gql("""
+        query = gql(
+            """
         query Run($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
@@ -935,13 +936,8 @@ class Api(object):
         }
         """
         )
-        variable_values = {
-            "project": project,
-            "entity": entity,
-            "name": name
-        }
+        variable_values = {"project": project, "entity": entity, "name": name}
         return self.gql(query, variable_values)["project"]["run"]["runInfo"]
-
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):

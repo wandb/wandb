@@ -11,17 +11,16 @@ from wandb.errors import ExecutionException
 from .abstract import AbstractRunner, AbstractRun
 from ..utils import (
     get_entry_point_command,
-    generate_docker_image,
-    _is_wandb_local_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     WANDB_DOCKER_WORKDIR_PATH,
 )
 from ..docker import (
+    build_docker_image,
+    generate_docker_image,
     validate_docker_env,
     validate_docker_installation,
-    build_docker_image,
 )
 
 
@@ -83,7 +82,7 @@ class LocalRunner(AbstractRunner):
 
         entry_cmd = entry_point.command
         project.docker_env["image"] = generate_docker_image(
-            project, project.version, entry_cmd, self._api
+            project,entry_cmd
         )
 
         command_args = []
@@ -92,7 +91,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_env(project)
         validate_docker_installation()
         image = build_docker_image(
-            work_dir=project.dir,
+            project=project,
             repository_uri=project.name,  # todo: not sure why this is passed here we should figure out this interface
             base_image=project.docker_env.get("image"),
             api=self._api,

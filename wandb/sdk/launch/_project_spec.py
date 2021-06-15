@@ -1,18 +1,19 @@
 """Internal utilities for parsing MLproject YAML files."""
 
+from distutils import dir_util
+import logging
 import os
 from shlex import quote
-
 import six
+import tempfile
+import urllib.parse
+
 from wandb import util
 from wandb.errors import Error as ExecutionException
-import yaml
-import tempfile
-import logging
-import urllib.parse
-from distutils import dir_util
 
 from . import utils
+
+from typing import Any, Dict, List
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +23,14 @@ MLPROJECT_FILE_NAME = "mlproject"
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
-    def __init__(self, uri, name, version, entry_points, parameters):
+    def __init__(
+        self,
+        uri: str,
+        name: str,
+        version,
+        entry_points: List[str],
+        parameters: Dict[str, Any],
+    ):
 
         self.uri = uri
         self.name = name  # todo: what to do for default names

@@ -1,9 +1,5 @@
-import json
 import logging
-import os
 import sys
-from wandb import docker
-from gql import Client, gql
 import wandb
 from wandb.errors import ExecutionException
 
@@ -43,6 +39,8 @@ def run_agent(spec, queues=None):
 def _run(
     uri,
     experiment_name,
+    wandb_project,
+    wandb_entity,
     entry_point,
     version,
     parameters,
@@ -60,6 +58,14 @@ def _run(
     project = fetch_and_validate_project(
         uri, experiment_name, api, runner_name, version, entry_point, parameters
     )
+
+    if wandb_project is None:
+        wandb_project = api.settings("project") or "Uncategorized"
+    if wandb_entity is None:
+        wandb_entity = api.settings("entity")
+
+    project.docker_env["WANDB_PROJECT"] = wandb_project
+    project.docker_env["WANDB_ENTITY"] = wandb_entity
 
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
@@ -84,6 +90,8 @@ def run(
     docker_args=None,
     experiment_name=None,
     resource="local",
+    wandb_project=None,
+    wandb_entity=None,
     config=None,
     storage_dir=None,
     synchronous=True,
@@ -149,6 +157,8 @@ def run(
     submitted_run_obj = _run(
         uri=uri,
         experiment_name=experiment_name,
+        wandb_project=wandb_project,
+        wandb_entity=wandb_entity,
         entry_point=entry_point,
         version=version,
         parameters=parameters,

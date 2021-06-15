@@ -92,15 +92,6 @@ class LaunchAgent(object):
         return ups
 
     def print_status(self):
-        # todo: track jobs
-        # meta = {}
-        # for job_id in self.job_ids:
-        #     status = self._jobs[job_id].status.state
-        #     meta.setdefault(status, 0)
-        #     meta[status] += 1
-        # updates = ""
-        # for status, count in meta.items():
-        #     updates += ", {}: {}".format(status, count)
         print(
             "polling on project {}, queues {} for jobs".format(
                 self._project, " ".join(self._queues)
@@ -125,12 +116,11 @@ class LaunchAgent(object):
 
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
-        entity = run_spec["entity"]
-        project = run_spec["project"]
-        run_id = run_spec["run_id"]
+        wandb_entity = run_spec["entity"]
+        wandb_project = run_spec["project"]
         resource = run_spec["resource"]
         entry_point = run_spec["overrides"].get("entrypoint")
-        uri = "{}/{}/{}/runs/{}".format(self._base_url, entity, project, run_id)
+        uri = run_spec["uri"]
         self._backend = load_backend(resource, self._api)
         self.verify()
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
@@ -144,6 +134,8 @@ class LaunchAgent(object):
             entry_point,
             args_dict,
         )
+        project.docker_env["WANDB_PROJECT"] = wandb_project
+        project.docker_env["WANDB_ENTITY"] = wandb_entity
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
         run = self._backend.run(project, backend_config)
