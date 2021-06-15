@@ -13,8 +13,7 @@ with open('requirements.txt') as requirements_file:
 
 test_requirements = [
     'mock>=2.0.0',
-    'tox-pyenv>=1.0.3',
-    'docker'
+    'tox-pyenv>=1.0.3'
 ]
 
 gcp_requirements = ['google-cloud-storage']

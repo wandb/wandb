@@ -19,6 +19,7 @@ from six.moves import urllib
 import threading
 from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
 
+
 def default_ctx():
     return {
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
@@ -113,11 +114,7 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [
-                {
-                    "node": fileNode,
-                }
-            ]
+            "edges": [{"node": fileNode,}]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -172,9 +169,7 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {
-            "name": collection_name,
-        },
+        "artifactSequence": {"name": collection_name,},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -526,24 +521,14 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {
-                    "data": {
-                        "createAgent": {
-                            "agent": {
-                                "id": "mock-server-agent-93xy",
-                            }
-                        }
-                    }
-                }
+                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {
-                                "id": "mock-server-agent-93xy",
-                            },
+                            "agent": {"id": "mock-server-agent-93xy",},
                             "commands": json.dumps(
                                 [
                                     {
@@ -649,13 +634,7 @@ def create_app(user_ctx=None):
                 },
             }
             ctx["manifests_created"].append(manifest)
-            return {
-                "data": {
-                    "createArtifactManifest": {
-                        "artifactManifest": manifest,
-                    }
-                }
-            }
+            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -672,13 +651,7 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {
-                "data": {
-                    "updateArtifactManifest": {
-                        "artifactManifest": manifest,
-                    }
-                }
-            }
+            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {

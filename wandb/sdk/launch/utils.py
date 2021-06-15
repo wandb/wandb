@@ -88,6 +88,7 @@ def _is_wandb_uri(uri):
         or _WANDB_QA_URI_REGEX.match(uri)
     )
 
+
 def _is_wandb_dev_uri(uri):
     return _WANDB_DEV_URI_REGEX.match(uri)
 

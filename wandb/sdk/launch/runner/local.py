@@ -74,9 +74,7 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    def run(
-        self, project, backend_config
-    ):
+    def run(self, project, backend_config):
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
         storage_dir = backend_config[PROJECT_STORAGE_DIR]
@@ -84,7 +82,9 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        project.docker_env["image"] = generate_docker_image(project, project.version, entry_cmd, self._api)
+        project.docker_env["image"] = generate_docker_image(
+            project, project.version, entry_cmd, self._api
+        )
 
         command_args = []
         command_separator = " "
@@ -93,7 +93,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         image = build_docker_image(
             work_dir=project.dir,
-            repository_uri=project.name,    # todo: not sure why this is passed here we should figure out this interface
+            repository_uri=project.name,  # todo: not sure why this is passed here we should figure out this interface
             base_image=project.docker_env.get("image"),
             api=self._api,
         )
@@ -101,7 +101,7 @@ class LocalRunner(AbstractRunner):
             image=image,
             docker_args=docker_args,
             volumes=project.docker_env.get("volumes"),
-            user_env_vars=project.docker_env.get("environment")
+            user_env_vars=project.docker_env.get("environment"),
         )
 
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
@@ -114,11 +114,9 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             print("Launching run in docker with command: {}".format(command_str))
-            return _run_entry_point(
-                command_str, project.dir
-            )
+            return _run_entry_point(command_str, project.dir)
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(        # todo: async mode is untested
+        return _invoke_wandb_run_subprocess(  # todo: async mode is untested
             work_dir=project.dir,
             entry_point=entry_point,
             parameters=project.parameters,
@@ -170,11 +168,7 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir,
-    entry_point,
-    parameters,
-    docker_args,
-    storage_dir,
+    work_dir, entry_point, parameters, docker_args, storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
@@ -193,9 +187,7 @@ def _invoke_wandb_run_subprocess(
     return LocalSubmittedRun(wandb_run_subprocess)
 
 
-def _build_wandb_run_cmd(
-    uri, entry_point, docker_args, storage_dir, parameters
-):
+def _build_wandb_run_cmd(uri, entry_point, docker_args, storage_dir, parameters):
     """
     Build and return an array containing an ``wandb launch`` command that can be invoked to locally
     run the project at the specified URI.
@@ -213,9 +205,7 @@ def _build_wandb_run_cmd(
     return wandb_run_arr
 
 
-def _get_docker_command(
-    image, docker_args=None, volumes=None, user_env_vars=None
-):
+def _get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None):
     docker_path = "docker"
     cmd = [docker_path, "run", "--rm"]
 
