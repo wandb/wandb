@@ -3235,7 +3235,7 @@ class Artifact(artifacts.Artifact):
             # which don't include ":" and are 32 characters long
             if ":" not in self._artifact_name and len(self._artifact_name) != 32:
                 raise ValueError(
-                    'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")'
+                    'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest"): {}'.format(self._artifact_name)
                 )
         if (
             response is None
