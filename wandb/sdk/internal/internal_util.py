@@ -55,6 +55,7 @@ class ExceptionThread(threading.Thread):
             self._run()
         except Exception:
             self.__exception = sys.exc_info()
+            print("DEBUG", self.__exception)
         finally:
             if self.__exception and self.__stopped:
                 self.__stopped.set()
