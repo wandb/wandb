@@ -16,6 +16,7 @@ import threading
 import wandb
 
 from ..interface import interface
+from ..internal import grpc_router
 from ..internal.internal import wandb_internal
 
 logger = logging.getLogger("wandb")
@@ -56,7 +57,7 @@ class Backend(object):
         self.interface._hack_set_run(run)
 
     def _multiprocessing_setup(self):
-        if self._settings.start_method == "thread":
+        if self._settings.start_method in {"thread", "grpc"}:
             return
 
         # defaulting to spawn for now, fork needs more testing
@@ -88,19 +89,39 @@ class Backend(object):
 
         self.record_q = self._multiprocessing.Queue()
         self.result_q = self._multiprocessing.Queue()
-        if settings.get("start_method") != "thread":
-            process_class = self._multiprocessing.Process
-        else:
-            process_class = BackendThread
-            # disable interal process checks since we are one process
+
+        start_method = settings.get("start_method")
+        assert start_method, "start method should be configured"
+
+        if start_method == "grpc":
             wandb._set_internal_process(disable=True)
-        self.wandb_process = process_class(
-            target=wandb_internal,
-            kwargs=dict(
-                settings=settings, record_q=self.record_q, result_q=self.result_q,
-            ),
-        )
-        self.wandb_process.name = "wandb_internal"
+            stopped = threading.Event()
+            grpc_thread = grpc_router.GrpcRouterThread(
+                settings=settings,
+                record_q=self.record_q,
+                result_q=self.result_q,
+                stopped=stopped,
+            )
+            self.wandb_process = grpc_thread
+            self.wandb_process.daemon = True
+            self.wandb_process.pid = 0
+            grpc_thread._launch_grpc_server()
+        elif start_method == "thread":
+            wandb._set_internal_process(disable=True)
+            self.wandb_process = BackendThread(
+                target=wandb_internal,
+                kwargs=dict(
+                    settings=settings, record_q=self.record_q, result_q=self.result_q,
+                ),
+            )
+        else:
+            self.wandb_process = self._mutiprocessing.Process(
+                target=wandb_internal,
+                kwargs=dict(
+                    settings=settings, record_q=self.record_q, result_q=self.result_q,
+                ),
+            )
+            self.wandb_process.name = "wandb_internal"
 
         # Support running code without a: __name__ == "__main__"
         save_mod_name = None

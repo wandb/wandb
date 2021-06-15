@@ -576,7 +576,7 @@ class Settings(object):
         return self._path_convert(self.settings_workspace_spec)
 
     def _validate_start_method(self, value):
-        available_methods = ["thread"]
+        available_methods = ["thread", "grpc"]
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
         if value in available_methods:

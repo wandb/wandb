@@ -10,7 +10,6 @@ import time
 
 import grpc
 import wandb
-from wandb import wandb_sdk
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
@@ -25,7 +24,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
 
     def RunUpdate(self, run_data, context):  # noqa: N802
         if not run_data.run_id:
-            run_data.run_id = wandb_sdk.lib.runid.generate_id()
+            run_data.run_id = wandb.wandb_lib.runid.generate_id()
         # Record telemetry info about grpc server
         run_data.telemetry.feature.grpc = True
         run_data.telemetry.cli_version = wandb.__version__
@@ -87,7 +86,7 @@ class Backend:
         self._record_q = None
         self._result_q = None
 
-    def setup(self):
+    def _make_settings():
         log_level = logging.DEBUG
         start_time = time.time()
         start_datetime = datetime.datetime.now()
@@ -132,26 +131,34 @@ class Backend:
             email=None,
             silent=None,
         )
+        return settings
 
+    def setup(self, process=None, record_q=None, result_q=None):
+        settings = None
+        if not process:
+            settings = self._make_settings()
         mp = multiprocessing
         fd_pipe_child, fd_pipe_parent = mp.Pipe()
 
-        record_q = mp.Queue()
+        record_q = record_q or mp.Queue()
         # TODO: should this be one item just to make sure it stays fully synchronous?
-        result_q = mp.Queue()
+        result_q = result_q or mp.Queue()
 
-        wandb_process = mp.Process(
-            target=wandb_sdk.internal.internal.wandb_internal,
-            kwargs=dict(settings=settings, record_q=record_q, result_q=result_q,),
-        )
-        wandb_process.name = "wandb_internal"
-        wandb_process.start()
+        if process:
+            wandb_process = process
+        else:
+            wandb_process = mp.Process(
+                target=wandb.wandb_sdk.internal.internal.wandb_internal,
+                kwargs=dict(settings=settings, record_q=record_q, result_q=result_q,),
+            )
+            wandb_process.name = "wandb_internal"
+            wandb_process.start()
 
         self.record_q = record_q
         self.result_q = result_q
         self.wandb_process = wandb_process
 
-        self._interface = wandb_sdk.interface.interface.BackendSender(
+        self._interface = wandb.wandb_sdk.interface.interface.BackendSender(
             record_q=record_q, result_q=result_q, process=wandb_process,
         )
 
@@ -168,8 +175,11 @@ class Backend:
 
 
 def serve(backend, port):
+    options = (("grpc.so_reuseport", 1),)
     try:
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=10), options=options
+        )
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
             InternalServiceServicer(server, backend), server
         )
