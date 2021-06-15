@@ -47,7 +47,6 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
-    print("generate docker path", path)
     cmd = [
         "jupyter-repo2docker",
         "--no-run",
@@ -80,7 +79,6 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
 
     wandb_project = project.docker_env["WANDB_PROJECT"]
     wandb_entity = project.docker_env["WANDB_ENTITY"]
-    print(api.settings("base_url"), wandb_project, wandb_entity)
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"

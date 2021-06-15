@@ -679,7 +679,6 @@ class Settings(object):
             self._update(
                 self._load(self.settings_workspace), _source=self.Source.WORKSPACE
             )
-        print("BASE URL", self.base_url)
 
     def _apply_environ(
         self, environ: os._Environ, _logger: Optional[_EarlyLogger] = None
@@ -1018,7 +1017,6 @@ class Settings(object):
             # TODO (cvp): we didn't do this in the old cli, but it seems necessary
             if k == "ignore_globs":
                 d[k] = d[k].split(",")
-        print("D", d)
         return d
 
     def _apply_login(
