@@ -1,16 +1,12 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
-import hashlib
-import json
 import logging
 import os
-import subprocess
 import re
 import tempfile
 import yaml
-from gql import Client, gql
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+
 from wandb.errors import ExecutionException
+
 from ._project_spec import Project, MLPROJECT_FILE_NAME
 
 
@@ -19,9 +15,15 @@ _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://wandb")
-_WANDB_QA_URI_REGEX = re.compile(r"^https?://ap\w.qa.wandb")   # for testing, not sure if we wanna keep this
-_WANDB_DEV_URI_REGEX = re.compile(r"^https?://ap\w.wandb")   # for testing, not sure if we wanna keep this
-_WANDB_LOCAL_DEV_URI_REGEX = re.compile(r"^https?://localhost:8080")   # for testing, not sure if we wanna keep this
+_WANDB_QA_URI_REGEX = re.compile(
+    r"^https?://ap\w.qa.wandb"
+)  # for testing, not sure if we wanna keep this
+_WANDB_DEV_URI_REGEX = re.compile(
+    r"^https?://ap\w.wandb"
+)  # for testing, not sure if we wanna keep this
+_WANDB_LOCAL_DEV_URI_REGEX = re.compile(
+    r"^https?://localhost:8080"
+)  # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
@@ -75,7 +77,12 @@ def _expand_uri(uri):
 
 
 def _is_wandb_uri(uri):
-    return _WANDB_URI_REGEX.match(uri) or _WANDB_DEV_URI_REGEX.match(uri) or _WANDB_LOCAL_DEV_URI_REGEX.match(uri) or _WANDB_QA_URI_REGEX.match(uri)
+    return (
+        _WANDB_URI_REGEX.match(uri)
+        or _WANDB_DEV_URI_REGEX.match(uri)
+        or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
+        or _WANDB_QA_URI_REGEX.match(uri)
+    )
 
 
 def _is_wandb_local_uri(uri):
@@ -124,36 +131,14 @@ def _collect_args(args):
             dict_args[name.replace("-", "")] = vals
             i += 1
         else:
-            dict_args[arg.replace("-", "")] = args[i+1]
+            dict_args[arg.replace("-", "")] = args[i + 1]
             i += 2
     return dict_args
 
 
-def generate_docker_image(project_spec, version, entry_cmd, api):
-    path = project_spec.dir
-    cmd = ['jupyter-repo2docker',
-            '--no-run',
-            #'--no-build',
-            # '--env', 'WANDB_API_KEY={}'.format(api.api_key),
-            # '--user-name', 'root', # todo bad idea lol
-            # '--debug',
-            path,
-            '"{}"'.format(entry_cmd),
-            ]
-    # Is this needed here, version refers to the github commit
-    # if version:
-    #    cmd.extend(['--ref', version])
-    _logger.info('Generating docker image from git repo or finding image if it already exists..........')
-    stderr = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stderr.decode('utf-8')
-    image_id = re.findall(r'Successfully tagged (.+):latest', stderr)
-    if not image_id:
-        image_id = re.findall(r'Reusing existing image \((.+)\)', stderr)
-    if not image_id:
-        raise Exception('error running repo2docker')
-    return image_id[0]
-
-
-def fetch_and_validate_project(uri, experiment_name, api, runner_name, version, entry_point, parameters):
+def fetch_and_validate_project(
+    uri, experiment_name, api, runner_name, version, entry_point, parameters
+):
     parameters = parameters or {}
     experiment_name = experiment_name or "test"
     project = Project(uri, experiment_name, version, [entry_point], parameters)
@@ -163,11 +148,18 @@ def fetch_and_validate_project(uri, experiment_name, api, runner_name, version, 
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
     return project
 
+
 def parse_wandb_uri(uri):
-    stripped_uri = re.sub(_WANDB_URI_REGEX, '', uri)
-    stripped_uri = re.sub(_WANDB_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
-    stripped_uri = re.sub(_WANDB_LOCAL_DEV_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
-    stripped_uri = re.sub(_WANDB_QA_URI_REGEX, '', stripped_uri)    # also for testing just run it twice
+    stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
+    stripped_uri = re.sub(
+        _WANDB_DEV_URI_REGEX, "", stripped_uri
+    )  # also for testing just run it twice
+    stripped_uri = re.sub(
+        _WANDB_LOCAL_DEV_URI_REGEX, "", stripped_uri
+    )  # also for testing just run it twice
+    stripped_uri = re.sub(
+        _WANDB_QA_URI_REGEX, "", stripped_uri
+    )  # also for testing just run it twice
     entity, project, _, name = stripped_uri.split("/")[1:]
     return entity, project, name
 
@@ -183,9 +175,12 @@ def _create_ml_project_file_from_run_info(dst_dir, run_info):
     spec_keys_map = {
         "args": run_info["args"],
         "entrypoint": run_info["program"],
-        "git": {"remote": run_info["git"]["remote"], "commit": run_info["git"]["commit"]},
+        "git": {
+            "remote": run_info["git"]["remote"],
+            "commit": run_info["git"]["commit"],
+        },
         "python": run_info["python"],
-        "os": run_info["os"]
+        "os": run_info["os"],
     }
     with open(path, "w") as fp:
         yaml.dump(spec_keys_map, fp)
@@ -255,14 +250,13 @@ def get_entry_point_command(project, entry_point, parameters, storage_dir):
         storage_dir_for_run,
     )
     commands = []
-    commands.append(
-        entry_point.compute_command(
-            parameters, storage_dir_for_run
-        )
-    )
+    commands.append(entry_point.compute_command(parameters, storage_dir_for_run))
     return commands
+
 
 def _convert_access(access):
     access = access.upper()
-    assert access == "PROJECT" or access == "USER", "Queue access must be either project or user"
+    assert (
+        access == "PROJECT" or access == "USER"
+    ), "Queue access must be either project or user"
     return access

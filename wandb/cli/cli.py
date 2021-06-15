@@ -32,7 +32,9 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.internal_runqueue import Api as RunQueueApi     # temp until we integrate rq fns into internal api
+from wandb.apis.internal_runqueue import (
+    Api as RunQueueApi,
+)  # temp until we integrate rq fns into internal api
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
@@ -103,7 +105,7 @@ def display_error(func):
 
 
 _api = None  # caching api instance allows patching from unit tests
-_rq_api = None   # temp
+_rq_api = None  # temp
 
 
 def _get_cling_api(reset=None):
@@ -937,6 +939,20 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "specified, 'experiment-id' option will be used to launch run.",
 )
 @click.option(
+    "--entity",
+    "-e",
+    metavar="<str>",
+    default=None,
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
+)
+@click.option(
+    "--project",
+    "-p",
+    metavar="<str>",
+    default=None,
+    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder.",
+)
+@click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
@@ -967,6 +983,8 @@ def launch(
     docker_args,
     experiment_name,
     resource,
+    entity,
+    project,
     config,
     storage_dir,
 ):
@@ -983,7 +1001,7 @@ def launch(
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
-            with open(config, 'r') as f:
+            with open(config, "r") as f:
                 config = json.load(f)
         else:
             # assume a json string
@@ -1008,14 +1026,17 @@ def launch(
             uri,
             entry_point,
             version,
+            wandb_project=project,
+            wandb_entity=entity,
             experiment_name=experiment_name,
             parameters=param_dict,
             docker_args=args_dict,
             resource=resource,
             config=config,
             storage_dir=storage_dir,
-            synchronous=resource in ("local", "ngc") or resource is None,     # todo currently always true
-            api=api
+            synchronous=resource in ("local", "ngc")
+            or resource is None,  # todo currently always true
+            api=api,
         )
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)
@@ -1033,10 +1054,12 @@ def launch(
 #     type=int,
 #     help="The maximum number of launchs to manage in parallel.",
 # )
-#@click.argument("agent")
+# @click.argument("agent")
 @click.argument("agent_spec", nargs=-1)
 @display_error
-def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=None, queues=None):
+def launch_agent(
+    ctx, project=None, entity=None, max=4, agent=None, agent_spec=None, queues=None
+):
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1057,8 +1080,18 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
 @click.option("--config", "-c", default=None, help="Path to a user config")
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.option("--queue", "-q", default="default", help="Run queue to push to, defaults to project queue")
-@click.option("--resource", "-r", default="local", help="Resource to run this job on, defaults to local machine")
+@click.option(
+    "--queue",
+    "-q",
+    default="default",
+    help="Run queue to push to, defaults to project queue",
+)
+@click.option(
+    "--resource",
+    "-r",
+    default="local",
+    help="Resource to run this job on, defaults to local machine",
+)
 @click.option(
     "--entry-point",
     "-e",
@@ -1090,10 +1123,23 @@ def launch_agent(ctx, project=None, entity=None, max=4, agent=None, agent_spec=N
     "are not in the list of parameters for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
-def launch_add(uri, config=None, project=None, entity=None, queue=None, resource=None, entry_point=None, experiment_name=None, version=None, param_list=None):
-    api = _get_runqueues_api()  # todo: temporary until runqueues api integrated into internal api
+def launch_add(
+    uri,
+    config=None,
+    project=None,
+    entity=None,
+    queue=None,
+    resource=None,
+    entry_point=None,
+    experiment_name=None,
+    version=None,
+    param_list=None,
+):
+    api = (
+        _get_runqueues_api()
+    )  # todo: temporary until runqueues api integrated into internal api
 
-    uri_stripped = uri.split("?")[0]    # remove any possible query params (eg workspace)
+    uri_stripped = uri.split("?")[0]  # remove any possible query params (eg workspace)
     uri_entity, uri_project, run_id = parse_wandb_uri(uri_stripped)
 
     # if entity and project for queue aren't specified, default to same as in wandb uri
@@ -1127,7 +1173,11 @@ def launch_add(uri, config=None, project=None, entity=None, queue=None, resource
         if res is None or "runQueueItemId" not in res:
             raise Exception("Error adding run to queue")
         else:
-            print("internal debug: added with run queue item id {}".format(res["runQueueItemId"]))  # todo: remove
+            print(
+                "internal debug: added with run queue item id {}".format(
+                    res["runQueueItemId"]
+                )
+            )  # todo: remove
             wandb.termlog("Added run to queue")
     except Exception as e:
         print(e)

@@ -10,7 +10,14 @@ from wandb.apis import internal_runqueue
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
-from ..utils import _collect_args, _convert_access, fetch_and_validate_project, _is_wandb_local_uri,  parse_wandb_uri, PROJECT_DOCKER_ARGS
+from ..utils import (
+    _collect_args,
+    _convert_access,
+    fetch_and_validate_project,
+    _is_wandb_local_uri,
+    parse_wandb_uri,
+    PROJECT_DOCKER_ARGS,
+)
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
@@ -19,9 +26,7 @@ if wandb.TYPE_CHECKING:
 class LaunchAgent(object):
     STATE_MAP: Dict[str, State] = {}
 
-    def __init__(
-        self, entity: str, project: str, queues: Iterable[str] = None
-    ):
+    def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
         self._entity = entity
         self._project = project
         self._max = max
@@ -35,18 +40,26 @@ class LaunchAgent(object):
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         self._queues = []
-        self._backend = None    # todo: probably rename to runner to avoid confusion w cli backend
+        self._backend = (
+            None  # todo: probably rename to runner to avoid confusion w cli backend
+        )
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues):
-        project_run_queues = self._api.get_project_run_queues(self._entity, self._project)
-        existing_run_queue_names = set([run_queue["name"] for run_queue in project_run_queues])
+        project_run_queues = self._api.get_project_run_queues(
+            self._entity, self._project
+        )
+        existing_run_queue_names = set(
+            [run_queue["name"] for run_queue in project_run_queues]
+        )
         if queues is None:
             for queue in project_run_queues:
                 if queue["name"] == "default":
                     self._queues = ["default"]
                     return
-            res = self._api.create_run_queue(self._entity, self._project, "default", self._access)
+            res = self._api.create_run_queue(
+                self._entity, self._project, "default", self._access
+            )
             success = res["success"]
             self._queues = ["default"]
         else:
@@ -54,7 +67,9 @@ class LaunchAgent(object):
                 success = True
                 if queue not in existing_run_queue_names:
                     success = False
-                    res = self._api.create_run_queue(self._entity, self._project, queue, self._access)
+                    res = self._api.create_run_queue(
+                        self._entity, self._project, queue, self._access
+                    )
                     success = res["success"]
                 if success:
                     self._queues.append(queue)
@@ -77,16 +92,11 @@ class LaunchAgent(object):
         return ups
 
     def print_status(self):
-        # todo: track jobs
-        # meta = {}
-        # for job_id in self.job_ids:
-        #     status = self._jobs[job_id].status.state
-        #     meta.setdefault(status, 0)
-        #     meta[status] += 1
-        # updates = ""
-        # for status, count in meta.items():
-        #     updates += ", {}: {}".format(status, count)
-        print("polling on project {}, queues {} for jobs".format(self._project, " ".join(self._queues)))
+        print(
+            "polling on project {}, queues {} for jobs".format(
+                self._project, " ".join(self._queues)
+            )
+        )
 
     def finish_job_id(self, job_id):
         """Removes the job from our list for now"""
@@ -104,20 +114,28 @@ class LaunchAgent(object):
         print("agent: got job", job)
         # parse job
 
-        
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
-        entity = run_spec["entity"]
-        project = run_spec["project"]
-        run_id = run_spec["run_id"]
+        wandb_entity = run_spec["entity"]
+        wandb_project = run_spec["project"]
         resource = run_spec["resource"]
         entry_point = run_spec["overrides"].get("entrypoint")
-        uri = "{}/{}/{}/runs/{}".format(self._base_url, entity, project, run_id)
+        uri = run_spec["uri"]
         self._backend = load_backend(resource, self._api)
         self.verify()
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         args_dict = _collect_args(run_spec["overrides"].get("args", {}))
-        project = fetch_and_validate_project(uri, run_spec["overrides"].get("name"), self._api, resource, run_spec.get("version", None), entry_point, args_dict)
+        project = fetch_and_validate_project(
+            uri,
+            run_spec["overrides"].get("name"),
+            self._api,
+            resource,
+            run_spec.get("version", None),
+            entry_point,
+            args_dict,
+        )
+        project.docker_env["WANDB_PROJECT"] = wandb_project
+        project.docker_env["WANDB_ENTITY"] = wandb_entity
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
         run = self._backend.run(project, backend_config)
@@ -126,7 +144,11 @@ class LaunchAgent(object):
         self._api.ack_run_queue_item(job["runQueueItemId"], run.id)
 
     def loop(self):
-        wandb.termlog("launch agent polling project {}/{} on queues: {}".format(self._entity, self._project, ",".join(self._queues)))
+        wandb.termlog(
+            "launch agent polling project {}/{} on queues: {}".format(
+                self._entity, self._project, ",".join(self._queues)
+            )
+        )
         try:
             while True:
                 self._ticks += 1
@@ -137,7 +159,7 @@ class LaunchAgent(object):
                 if not job:
                     time.sleep(30)
                     # for job_id in self.job_ids:
-                        # self._update_finished(job_id)
+                    # self._update_finished(job_id)
                     if self._ticks % 2 == 0:
                         self.print_status()
                     continue
