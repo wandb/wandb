@@ -27,7 +27,7 @@ class _Features(object):
     def apply(self) -> None:
         """Call apply_feature method for supported features"""
         for feature_item in self._features:
-            parts = feature_item.split(":", 2)[0]
+            parts = feature_item.split(":", 2)
             # TODO: support version in parts[1:]
             feature = parts[0]
             func_str = "feature_{}".format(feature.replace("-", "_"))

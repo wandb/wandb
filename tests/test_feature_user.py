@@ -19,3 +19,10 @@ def test_feature_list(user_test):
 def test_feature_version(user_test):
     wandb.use_feature("something:beta")
 
+
+def test_feature_extra_args(user_test):
+    wandb.use_feature("something:beta", "unsupported")
+
+
+def test_feature_extra_kwargs(user_test):
+    wandb.use_feature("something:beta", junk="unsupported")
