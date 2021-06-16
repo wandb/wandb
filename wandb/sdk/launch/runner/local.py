@@ -91,7 +91,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         image = build_docker_image(
             project=project,
-            repository_uri=project.name,  # todo: not sure why this is passed here we should figure out this interface @@@
+            name=project.name,
             base_image=project.docker_env.get("image"),
             api=self._api,
         )
@@ -114,7 +114,7 @@ class LocalRunner(AbstractRunner):
             print("Launching run in docker with command: {}".format(command_str))
             return _run_entry_point(command_str, project.dir)
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(  # todo: async mode is untested
+        return _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
             work_dir=project.dir,
             entry_point=entry_point,
             parameters=project.parameters,
@@ -172,7 +172,7 @@ def _invoke_wandb_run_subprocess(
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
     a SubmittedRun that can be used to query run status.
     """
-    # todo: this is untested and probably doesn't work
+    # todo: this is untested/inaccessible and probably doesn't work
     _logger.info("=== Asynchronously launching W&B run ===")
     wandb_run_arr = _build_wandb_run_cmd(
         uri=work_dir,

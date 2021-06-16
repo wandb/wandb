@@ -140,7 +140,6 @@ def fetch_and_validate_project(
     uri, experiment_name, api, runner_name, version, entry_point, parameters
 ):
     parameters = parameters or {}
-    experiment_name = experiment_name or "test"
     project = Project(uri, experiment_name, version, [entry_point], parameters)
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)

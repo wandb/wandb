@@ -68,13 +68,13 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):
+def build_docker_image(project: _project_spec.Project, name, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
 
     image_uri = _get_docker_image_uri(
-        repository_uri=repository_uri, work_dir=project.dir
+        name=name, work_dir=project.dir
     )
 
     wandb_project = project.docker_env["WANDB_PROJECT"]
@@ -172,22 +172,22 @@ def get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None
     return cmd
 
 
-def _get_docker_image_uri(repository_uri, work_dir):
+def _get_docker_image_uri(name, work_dir):
     """
     Returns an appropriate Docker image URI for a project based on the git hash of the specified
     working directory.
-    :param repository_uri: The URI of the Docker repository with which to tag the image. The
+    :param name: The URI of the Docker repository with which to tag the image. The
                            repository URI is used as the prefix of the image URI.
     :param work_dir: Path to the working directory in which to search for a git commit hash
     """
-    repository_uri = (
-        repository_uri.replace(" ", "-") if repository_uri else "docker-project"
+    name = (
+        name.replace(" ", "-") if name else "docker-project"
     )
     # Optionally include first 7 digits of git SHA in tag name, if available.
 
     git_commit = GitRepo(work_dir).last_commit
     version_string = ":" + git_commit[:7] if git_commit else ""
-    return repository_uri + version_string
+    return name + version_string
 
 
 def _create_docker_build_ctx(work_dir, dockerfile_contents):

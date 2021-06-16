@@ -33,8 +33,9 @@ class Project(object):
     ):
 
         self.uri = uri
-        self.name = name  # todo: what to do for default names
+        self.name = name
         if self.name is None and utils._is_wandb_uri(uri):
+            # default name is {project}_{runid}
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
             self.name = "{}_{}".format(wandb_project, wandb_name)
         self.version = version
@@ -44,7 +45,7 @@ class Project(object):
                 self.add_entry_point(ep)
         self.parameters = parameters
         self.dir = None
-        # todo: better way of storing docker/anyscale/etc tracking info
+        # todo: better way of storing docker/etc tracking info
         self.docker_env = {}
 
     def get_single_entry_point(self):
