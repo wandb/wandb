@@ -575,15 +575,14 @@ class Api(object):
             $name: String!,
             $entity: String!,
             $run: String!,
-            $first: Int!,
-            $after: String,
+            $pattern: String!,
             $includeConfig: Boolean!,
         ) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     config @include(if: $includeConfig)
                     commit @include(if: $includeConfig)
-                    files(first: $first, after: $after) {
+                    files(pattern: $pattern) {
                         pageInfo {
                             hasNextPage
                             endCursor
@@ -605,8 +604,6 @@ class Api(object):
             "name": project,
             "run": run,
             "entity": entity,
-            "first": 100,
-            "after": None,
             "includeConfig": True,
         }
 
@@ -615,46 +612,37 @@ class Api(object):
         patch = None
         metadata = {}
 
-        # If we query for specific filenames, the server will helpfully give us
-        # and 'open' file handle to the files that don't exist. This is so that
-        # we can upload data to it. However, in this case, we just want to
-        # download that file and not upload to it, so let's instead query for
-        # the files that do exist.
+        # If we use the `names` paramter on the `files` node, then the server
+        # will helpfully give us and 'open' file handle to the files that don't
+        # exist. This is so that we can upload data to it. However, in this
+        # case, we just want to download that file and not upload to it, so
+        # let's instead query for the files that do exist using `pattern`
+        # (with no wildcards).
         #
         # Unfortunately we're unable to construct a single pattern that matches
-        # our 2 files.
-        to_fetch = set([DIFF_FNAME, METADATA_FNAME])
-        has_next_page = True
-        while has_next_page:
+        # our 2 files, we would need something like regex for that.
+        for filename in [DIFF_FNAME, METADATA_FNAME]:
+            variable_values["pattern"] = filename
             response = self.gql(query, variable_values=variable_values)
             if response["model"] == None:
                 raise CommError("Run {}/{}/{} not found".format(entity, project, run))
             run = response["model"]["bucket"]
-            # we only need to fetch the config once
+            # we only need to fetch this config once
             if variable_values["includeConfig"]:
                 commit = run["commit"]
                 config = json.loads(run["config"] or "{}")
                 variable_values["includeConfig"] = False
-            if len(run["files"]["edges"]) > 0:
+            if run["files"] is not None:
                 for file_edge in run["files"]["edges"]:
                     name = file_edge["node"]["name"]
                     url = file_edge["node"]["directUrl"]
-                    if name not in to_fetch:
-                        continue
                     res = requests.get(url)
                     res.raise_for_status()
                     if name == METADATA_FNAME:
                         metadata = res.json()
                     elif name == DIFF_FNAME:
                         patch = res.text
-                    to_fetch.remove(name)
-                # if we've found all the files we want, then no need to continue looking
-                if len(to_fetch) == 0:
-                    break
 
-            page_info = run["files"]["pageInfo"]
-            variable_values["after"] = page_info["endCursor"]
-            has_next_page = page_info["hasNextPage"]
         return (commit, config, patch, metadata)
 
     @normalize_exceptions
