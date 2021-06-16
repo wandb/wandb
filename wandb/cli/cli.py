@@ -47,6 +47,7 @@ if PY3:
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
     from wandb.sdk_py27 import launch as wandb_launch
+
     # todo: codemod to bring into py27?
     # from wandb.sdk.launch.utils import parse_wandb_uri
 

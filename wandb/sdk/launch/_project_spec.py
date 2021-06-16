@@ -25,6 +25,7 @@ MLPROJECT_FILE_NAME = "mlproject"
 
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
+
     dir: str
 
     def __init__(

@@ -55,8 +55,8 @@ def _get_storage_dir(storage_dir):
 
 
 def _get_git_repo_url(work_dir):
-    from git import Repo # type: ignore
-    from git.exc import GitCommandError, InvalidGitRepositoryError # type: ignore
+    from git import Repo  # type: ignore
+    from git.exc import GitCommandError, InvalidGitRepositoryError  # type: ignore
 
     try:
         repo = Repo(work_dir, search_parent_directories=True)
@@ -145,7 +145,9 @@ def fetch_and_validate_project(
 ):
     parameters = parameters or {}
     experiment_name = experiment_name or "test"
-    project = _project_spec.Project(uri, experiment_name, version, [entry_point], parameters)
+    project = _project_spec.Project(
+        uri, experiment_name, version, [entry_point], parameters
+    )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
     first_entry_point = list(project._entry_points.keys())[0]
@@ -206,7 +208,7 @@ def _fetch_git_repo(uri, version, dst_dir):
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git # type: ignore
+    import git  # type: ignore
 
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
