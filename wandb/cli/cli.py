@@ -32,12 +32,6 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-<<<<<<< HEAD
-from wandb.apis.internal_runqueue import (
-    Api as RunQueueApi,
-)  # temp until we integrate rq fns into internal api
-=======
->>>>>>> feature/wandb-launch
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
@@ -108,10 +102,6 @@ def display_error(func):
 
 
 _api = None  # caching api instance allows patching from unit tests
-<<<<<<< HEAD
-_rq_api = None  # temp
-=======
->>>>>>> feature/wandb-launch
 
 
 def _get_cling_api(reset=None):
