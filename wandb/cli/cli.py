@@ -1167,9 +1167,11 @@ def launch_add(
         run_spec["name"] = experiment_name
     else:
         run_spec["name"] = "{}_{}".format(project, run_id)
-
+    print("push project", project, entity)
+    print("pushing to run queue")
     try:
         res = wandb_launch.push_to_queue(api, queue, run_spec)
+        print(res)
         if res is None or "runQueueItemId" not in res:
             raise Exception("Error adding run to queue")
         else:

@@ -964,3 +964,16 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             "WARNING Found .wandb file, not streaming tensorboard metrics"
             in result.output
         )
+
+
+def test_launch_add(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        assert (
+            runner.invoke(
+                cli.launch_add,
+                ["https://wandb.ai/mock_server_entity/test-project/runs/1"],
+            ).exit_code
+            == 0
+        )
+    # check that run queue id 1 has 1 item in it
+    assert len(live_mock_server.get_ctx()["run_queues"]["1"]) == 1

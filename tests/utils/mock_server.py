@@ -30,6 +30,7 @@ def default_ctx():
         "requested_file": "weights.h5",
         "current_run": None,
         "current_run_project": None,
+        "run_queues": {},
         "files": {},
         "k8s": False,
         "resume": False,
@@ -336,8 +337,9 @@ def create_app(user_ctx=None):
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
-            ctx["current_run_project"] = body["variables"]["project"]
+
         if "mutation UpsertBucket(" in body["query"]:
+            app.logger.info("UPSERT BUCKET MUTATION BODY {}".format(body))
             param_config = body["variables"].get("config")
             if param_config:
                 ctx.setdefault("config", []).append(json.loads(param_config))
@@ -345,6 +347,8 @@ def create_app(user_ctx=None):
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
             ctx["upsert_bucket_count"] += 1
+            if body["variables"].get("project"):
+                ctx["current_run_project"] = body["variables"]["project"]
 
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
@@ -552,7 +556,7 @@ def create_app(user_ctx=None):
                             "name": body["variables"].get("name", "abc123"),
                             "displayName": "lovely-dawn-32",
                             "project": {
-                                "name": "test",
+                                "name": body["variables"].get("project") or "test",
                                 "entity": {"name": "mock_server_entity"},
                             },
                         },
@@ -682,6 +686,7 @@ def create_app(user_ctx=None):
             }
         if "mutation UseArtifact(" in body["query"]:
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
+
         if "query ProjectArtifactType(" in body["query"]:
             return {
                 "data": {
@@ -802,6 +807,34 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query Project" in body["query"] and "runQueues" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "project": {
+                            "runQueues": [
+                                {
+                                    "id": 1,
+                                    "name": "default",
+                                    "createdBy": "mock_server_entity",
+                                    "access": "PROJECT",
+                                }
+                            ]
+                        }
+                    }
+                }
+            )
+
+        if "mutation pushToRunQueue" in body["query"]:
+            if ctx["run_queues"].get(body["variables"]["queueID"]):
+                ctx["run_queues"][body["variables"]["queueID"]].append(
+                    body["variables"]["queueID"]
+                )
+            else:
+                ctx["run_queues"][body["variables"]["queueID"]] = [
+                    body["variables"]["queueID"]
+                ]
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
         if "stopped" in body["query"]:
             return json.dumps(
                 {

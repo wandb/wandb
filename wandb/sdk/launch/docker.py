@@ -74,7 +74,9 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     """
     import docker
 
-    image_uri = _get_docker_image_uri(repository_uri=repository_uri, work_dir=project.dir)
+    image_uri = _get_docker_image_uri(
+        repository_uri=repository_uri, work_dir=project.dir
+    )
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)

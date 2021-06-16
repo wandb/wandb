@@ -81,9 +81,7 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        project.docker_env["image"] = generate_docker_image(
-            project,entry_cmd
-        )
+        project.docker_env["image"] = generate_docker_image(project, entry_cmd)
 
         command_args = []
         command_separator = " "
