@@ -340,9 +340,7 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog(
-            "Which team should we use?",
-        )
+        wandb.termlog("Which team should we use?",)
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
