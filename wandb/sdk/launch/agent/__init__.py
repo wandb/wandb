@@ -4,7 +4,7 @@ import time
 import wandb
 from wandb import Settings
 
-from ...internal.internal_api import Api
+
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 from ..utils import (
@@ -14,6 +14,7 @@ from ..utils import (
     fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
 )
+from ...internal.internal_api import Api
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable

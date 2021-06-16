@@ -4,16 +4,19 @@ from distutils import dir_util
 import logging
 import os
 from shlex import quote
-import six
 import tempfile
 import urllib.parse
 
+import six
+import wandb
 from wandb import util
 from wandb.errors import Error as ExecutionException
 
 from . import utils
 
-from typing import Any, Dict, List
+if wandb.TYPE_CHECKING:
+    from typing import Any, Dict, List
+
 
 _logger = logging.getLogger(__name__)
 
@@ -126,6 +129,7 @@ class Project(object):
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
+
             args = utils._collect_args(run_info["args"])
             self._merge_parameters(args)
         else:

@@ -14,7 +14,7 @@ import sys
 import textwrap
 import time
 import traceback
-from wandb.sdk.launch.utils import parse_wandb_uri
+
 
 import click
 from click.exceptions import ClickException
@@ -43,9 +43,12 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
+    from wandb.sdk.launch.utils import parse_wandb_uri
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
     from wandb.sdk_py27 import launch as wandb_launch
+    # todo: codemod to bring into py27?
+    # from wandb.sdk.launch.utils import parse_wandb_uri
 
 
 # TODO: turn this on in a cleaner way
@@ -1144,11 +1147,9 @@ def launch_add(
         run_spec["name"] = experiment_name
     else:
         run_spec["name"] = "{}_{}".format(project, run_id)
-    print("push project", project, entity)
-    print("pushing to run queue")
+
     try:
         res = wandb_launch.push_to_queue(api, queue, run_spec)
-        print(res)
         if res is None or "runQueueItemId" not in res:
             raise Exception("Error adding run to queue")
         else:

@@ -339,7 +339,6 @@ def create_app(user_ctx=None):
             ctx["current_run"] = body["variables"]["run"]
 
         if "mutation UpsertBucket(" in body["query"]:
-            app.logger.info("UPSERT BUCKET MUTATION BODY {}".format(body))
             param_config = body["variables"].get("config")
             if param_config:
                 ctx.setdefault("config", []).append(json.loads(param_config))
@@ -349,7 +348,6 @@ def create_app(user_ctx=None):
             ctx["upsert_bucket_count"] += 1
             if body["variables"].get("project"):
                 ctx["current_run_project"] = body["variables"]["project"]
-
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
@@ -686,7 +684,6 @@ def create_app(user_ctx=None):
             }
         if "mutation UseArtifact(" in body["query"]:
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
-
         if "query ProjectArtifactType(" in body["query"]:
             return {
                 "data": {
