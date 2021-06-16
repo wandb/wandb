@@ -105,6 +105,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     sagemaker_disable=None,
     start_method=None,
     strict=None,
+    label_disable=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -246,6 +247,7 @@ class Settings(object):
     host: Optional[str]
     resume: str
     strict: Optional[str] = None
+    label_disable: Optional[bool] = None
 
     # Public attributes
     entity: Optional[str] = None
@@ -363,6 +365,7 @@ class Settings(object):
         email: str = None,
         docker: str = None,
         sagemaker_disable: bool = None,
+        label_disable: bool = None,
         _start_time: float = None,
         _start_datetime: datetime = None,
         _cli_only_mode: bool = None,  # avoid running any code specific for runs
