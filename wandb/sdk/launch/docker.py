@@ -64,7 +64,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise Exception("error running repo2docker")
+        raise Exception("Error generating docker image")
     return image_id[0]
 
 
@@ -81,14 +81,13 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     wandb_entity = project.docker_env["WANDB_ENTITY"]
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY {build_context_path}/ {workdir}\n"
+        "COPY --chown={uid} {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
-        "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
-        "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
+        "ENV WANDB_BASE_URL={base_url}\n"
+        "ENV WANDB_API_KEY={api_key}\n"
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_LAUNCH=True\n"
-        "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -97,6 +96,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         api_key=api.api_key,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
+        uid=os.getuid(),
     )
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
@@ -123,6 +123,53 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
             "Temporary docker context file %s was not deleted.", build_ctx_path
         )
     return image
+
+
+def get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None):
+    docker_path = "docker"
+    cmd = [docker_path, "run", "--rm"]
+
+    if docker_args:
+        for name, value in docker_args.items():
+            # Passed just the name as boolean flag
+            if isinstance(value, bool) and value:
+                if len(name) == 1:
+                    cmd += ["-" + name]
+                else:
+                    cmd += ["--" + name]
+            else:
+                # Passed name=value
+                if len(name) == 1:
+                    cmd += ["-" + name, value]
+                else:
+                    cmd += ["--" + name, value]
+
+    env_vars = {}  # TODO: get these from elsewhere?
+    if user_env_vars is not None:
+        for user_entry in user_env_vars:
+            if isinstance(user_entry, list):
+                # User has defined a new environment variable for the docker environment
+                env_vars[user_entry[0]] = user_entry[1]
+            else:
+                # User wants to copy an environment variable from system environment
+                system_var = os.environ.get(user_entry)
+                if system_var is None:
+                    raise ExecutionException(
+                        "This project expects the %s environment variables to "
+                        "be set on the machine running the project, but %s was "
+                        "not set. Please ensure all expected environment variables "
+                        "are set" % (", ".join(user_env_vars), user_entry)
+                    )
+                env_vars[user_entry] = system_var
+
+    if volumes is not None:
+        for v in volumes:
+            cmd += ["-v", v]
+
+    for key, value in env_vars.items():
+        cmd += ["-e", "{key}={value}".format(key=key, value=value)]
+    cmd += [image.tags[0]]
+    return cmd
 
 
 def _get_docker_image_uri(repository_uri, work_dir):
