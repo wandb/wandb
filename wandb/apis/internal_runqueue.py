@@ -730,7 +730,6 @@ class Api(object):
         queues_found = self.get_project_run_queues(
             run_spec["entity"], run_spec["project"]
         )
-        print("Queues found", queues_found, queue_name)
         matching_queues = [q for q in queues_found if q["name"] == queue_name]
         if not matching_queues:
             logger.error("Queue with name {} not found".format(queue_name))
@@ -756,7 +755,6 @@ class Api(object):
         response = self.gql(
             mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
         )
-        print("RESPONSE FROM PUSH", response)
         return response["pushToRunQueue"]
 
     @normalize_exceptions
