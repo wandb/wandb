@@ -46,6 +46,7 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "use_feature",
 }
 
 # Look into these and see what we can remove / hide
