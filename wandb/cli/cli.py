@@ -32,9 +32,12 @@ from wandb import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
+<<<<<<< HEAD
 from wandb.apis.internal_runqueue import (
     Api as RunQueueApi,
 )  # temp until we integrate rq fns into internal api
+=======
+>>>>>>> feature/wandb-launch
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
@@ -105,7 +108,10 @@ def display_error(func):
 
 
 _api = None  # caching api instance allows patching from unit tests
+<<<<<<< HEAD
 _rq_api = None  # temp
+=======
+>>>>>>> feature/wandb-launch
 
 
 def _get_cling_api(reset=None):
@@ -119,14 +125,6 @@ def _get_cling_api(reset=None):
         wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
         _api = InternalApi()
     return _api
-
-
-# temporary fn until we integrate runqueues changes into internal_api
-def _get_runqueues_api():
-    global _rq_api
-    if _rq_api is None:
-        _rq_api = RunQueueApi()
-    return _rq_api
 
 
 def prompt_for_project(ctx, entity):
@@ -261,15 +259,6 @@ def grpc_server(project=None, entity=None, port=None):
     from wandb.server.grpc_server import main as grpc_server
 
     grpc_server(port=port)
-
-
-@cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.argument("agent_spec", nargs=-1)
-@display_error
-def superagent(project=None, entity=None, agent_spec=None):
-    wandb.superagent.run_agent(agent_spec)
 
 
 @cli.command(
@@ -942,15 +931,15 @@ def _user_args_to_dict(arguments, argument_type="P"):
 )
 @click.option(
     "--entity",
-    "-E",
-    metavar="NAME=VALUE",
+    "-e",
+    metavar="<str>",
     default=None,
     help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
 )
 @click.option(
     "--project",
     "-p",
-    metavar="NAME=VALUE",
+    metavar="<str>",
     default=None,
     help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder.",
 )
@@ -1146,9 +1135,7 @@ def launch_add(
     version=None,
     param_list=None,
 ):
-    api = (
-        _get_runqueues_api()
-    )  # todo: temporary until runqueues api integrated into internal api
+    api = _get_cling_api()
 
     uri_stripped = uri.split("?")[0]  # remove any possible query params (eg workspace)
     uri_entity, uri_project, run_id = parse_wandb_uri(uri_stripped)

@@ -1047,7 +1047,11 @@ class Settings(object):
                 val = args.pop(key, None)
                 if val:
                     wandb.termwarn(
+<<<<<<< HEAD
                         "Ignored wandb.init() arg %s when running running from launch"
+=======
+                        "Project, entity and id are ignored when running from wandb launch context. Ignored wandb.init() arg %s when running running from launch"
+>>>>>>> feature/wandb-launch
                         % key
                     )
 

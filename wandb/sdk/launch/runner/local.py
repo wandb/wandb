@@ -82,12 +82,16 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
+<<<<<<< HEAD
         install_reqs = False
         if backend_config.get("DOCKER_IMAGE"):
             project.docker_env["image"] = backend_config.get("DOCKER_IMAGE")
             install_reqs = True
         else:
             project.docker_env["image"] = generate_docker_image(project, entry_cmd)
+=======
+        project.docker_env["image"] = generate_docker_image(project, entry_cmd)
+>>>>>>> feature/wandb-launch
 
         command_args = []
         command_separator = " "
@@ -172,11 +176,7 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir,
-    entry_point,
-    parameters,
-    docker_args,
-    storage_dir,
+    work_dir, entry_point, parameters, docker_args, storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning

@@ -47,7 +47,6 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
-    print("generate docker path", path)
     cmd = [
         "jupyter-repo2docker",
         "--no-run",
@@ -78,10 +77,7 @@ def pull_docker_image(docker_image: str):
         image = client.images.pull(info[0], tag=info[1])
     return image
 
-
-def build_docker_image(
-    project: _project_spec.Project, repository_uri, base_image, api, install_reqs: bool
-):
+def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api, install_reqs):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
@@ -92,7 +88,6 @@ def build_docker_image(
 
     wandb_project = project.docker_env["WANDB_PROJECT"]
     wandb_entity = project.docker_env["WANDB_ENTITY"]
-    print(api.settings("base_url"), wandb_project, wandb_entity)
     install_reqs_command = ""
     if install_reqs:
         path_to_reqs = os.path.abspath(os.path.join(project.dir, "requirements.txt"))
@@ -123,9 +118,7 @@ def build_docker_image(
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
     )
-    print(dockerfile)
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
-    print(os.listdir(project.dir), os.path.exists(path_to_reqs))
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
         #  TODO: replace with shelling out
