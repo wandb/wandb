@@ -1009,7 +1009,7 @@ def launch(
             sys.exit(1)
 
     api = _get_cling_api()
-    print(docker_image)
+
     try:
         wandb_launch.run(
             uri,

@@ -91,8 +91,6 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     install_reqs_command = ""
     if install_reqs:
         path_to_reqs = os.path.abspath(os.path.join(project.dir, "requirements.txt"))
-        print(project.dir)
-        print(os.listdir(project.dir), os.path.exists(path_to_reqs))
         install_reqs_command = (
             f"COPY {_PROJECT_TAR_ARCHIVE_NAME}/requirements.txt requirements.txt\n"
             "RUN pip install -r requirements.txt\n"

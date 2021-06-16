@@ -82,16 +82,12 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-<<<<<<< HEAD
         install_reqs = False
         if backend_config.get("DOCKER_IMAGE"):
             project.docker_env["image"] = backend_config.get("DOCKER_IMAGE")
             install_reqs = True
         else:
             project.docker_env["image"] = generate_docker_image(project, entry_cmd)
-=======
-        project.docker_env["image"] = generate_docker_image(project, entry_cmd)
->>>>>>> feature/wandb-launch
 
         command_args = []
         command_separator = " "
