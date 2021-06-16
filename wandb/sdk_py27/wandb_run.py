@@ -211,9 +211,7 @@ class RunStatusChecker(object):
         self._join_event.set()
 
     def join(self):
-        print("STOP1", time.time())
         self.stop()
-        print("STOP2", time.time())
         self._stop_thread.join()
         self._retry_thread.join()
 
