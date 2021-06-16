@@ -59,6 +59,8 @@ def wandb_internal(
     settings,
     record_q,
     result_q,
+    port = None,
+    port_q = None,
 ):
     """Internal process function entrypoint.
 
@@ -138,6 +140,11 @@ def wandb_internal(
         thread.start()
 
     interrupt_count = 0
+
+    # signal that we are up and running
+    if port_q and port:
+        port_q.put(port)
+
     while not stopped.is_set():
         try:
             # wait for stop event

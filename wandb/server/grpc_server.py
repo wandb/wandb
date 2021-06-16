@@ -177,22 +177,32 @@ class Backend:
         # No printing allowed from here until redirect restore!!!
 
 
-def serve(backend, port):
-    options = (("grpc.so_reuseport", 1),)
+def serve(backend, port, port_q=None):
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     try:
-        server = grpc.server(
-            futures.ThreadPoolExecutor(max_workers=10), options=options
-        )
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
             InternalServiceServicer(server, backend), server
         )
-        server.add_insecure_port("[::]:{}".format(port))
+        port = server.add_insecure_port("[::]:{}".format(port))
+        if port_q:
+            port_q.put(port)
         server.start()
         server.wait_for_termination()
-        # print("server shutting down")
-        # print("shutdown")
     except KeyboardInterrupt:
         print("control-c")
+        server.stop(0)
+
+
+def serve_async(backend, port, port_q=None):
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
+        InternalServiceServicer(server, backend), server
+    )
+    port = server.add_insecure_port("localhost:{}".format(port))
+    if port_q:
+        port_q.put(port)
+    server.start()
+    return server
 
 
 def main(port=None):
