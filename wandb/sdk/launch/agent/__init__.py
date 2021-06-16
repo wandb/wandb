@@ -36,7 +36,7 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._queues = []
+        self._queues: Iterable[Dict[str, str]] = []
         self._backend = (
             None  # todo: probably rename to runner to avoid confusion w cli backend
         )

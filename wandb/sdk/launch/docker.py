@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from typing import Sequence
 
 from dockerpycreds.utils import find_executable
 import wandb
@@ -46,7 +47,7 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
-    cmd = [
+    cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
         path,

@@ -15,13 +15,9 @@ if wandb.TYPE_CHECKING:
 
 
 # TODO: is this ok?
-try:
+if wandb.TYPE_CHECKING:
     from typing import Literal
-except ImportError:
-    from typing_extensions import Literal
-
-
-State = Literal["unknown", "starting", "running", "failed", "finished"]
+    State = Literal["unknown", "starting", "running", "failed", "finished"]
 
 
 class Status(object):

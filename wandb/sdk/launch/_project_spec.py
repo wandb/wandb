@@ -25,6 +25,7 @@ MLPROJECT_FILE_NAME = "mlproject"
 
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
+    dir: str
 
     def __init__(
         self,
@@ -41,14 +42,13 @@ class Project(object):
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
             self.name = "{}_{}".format(wandb_project, wandb_name)
         self.version = version
-        self._entry_points = {}
+        self._entry_points: Dict[str, EntryPoint] = {}
         for ep in entry_points:
             if ep:
                 self.add_entry_point(ep)
         self.parameters = parameters
-        self.dir = None
         # todo: better way of storing docker/anyscale/etc tracking info
-        self.docker_env = {}
+        self.docker_env: Dict[str, str] = {}
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out

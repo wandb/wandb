@@ -59,13 +59,13 @@ def _get_git_repo_url(work_dir):
     from git.exc import GitCommandError, InvalidGitRepositoryError
 
     try:
-        repo = Repo(work_dir, search_parent_directories=True)
+        repo = git.Repo(work_dir, search_parent_directories=True)
         remote_urls = [remote.url for remote in repo.remotes]
         if len(remote_urls) == 0:
             return None
-    except GitCommandError:
+    except git.exc.GitCommandError:
         return None
-    except InvalidGitRepositoryError:
+    except git.exc.InvalidGitRepositoryError:
         return None
     return remote_urls[0]
 
