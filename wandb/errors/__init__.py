@@ -37,10 +37,17 @@ class LogMultiprocessError(LogError):
     pass
 
 
+class UseFeatureError(Error):
+    """Raised when wandb.use_feature() fails"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
     "CommError",
     "LogError",
     "LogMultiprocessError",
+    "UseFeatureError",
 ]

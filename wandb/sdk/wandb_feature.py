@@ -11,6 +11,7 @@ Example:
 """
 
 import wandb
+from wandb.errors import UseFeatureError
 
 if wandb.TYPE_CHECKING:
     from typing import List
@@ -26,6 +27,7 @@ class _Features(object):
 
     def apply(self) -> None:
         """Call apply_feature method for supported features"""
+        last_message: str = ""
         for feature_item in self._features:
             parts = feature_item.split(":", 2)
             # TODO: support version in parts[1:]
@@ -33,9 +35,13 @@ class _Features(object):
             func_str = "feature_{}".format(feature.replace("-", "_"))
             func = getattr(self, func_str, None)
             if not func:
-                wandb.termwarn("use_feature() unsupported feature: {}".format(feature))
+                last_message = "use_feature() unsupported feature: {}".format(feature)
+                wandb.termwarn(last_message)
                 continue
             func()
+
+        if last_message:
+            raise UseFeatureError(last_message)
 
 
 def use_feature(features: str, *args: str, **kwargs: str) -> None:
@@ -44,8 +50,8 @@ def use_feature(features: str, *args: str, **kwargs: str) -> None:
     Arguments:
         features: (str) Features to enable
 
-    Returns:
-        `str` indicating any errors or None if successful
+    Raises:
+        wandb.errors.UseFeatureError: if not supported or other error
     """
     for v in args:
         wandb.termwarn("use_feature() ignoring unsupported parameter: {}".format(v))
