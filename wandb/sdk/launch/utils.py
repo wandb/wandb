@@ -7,14 +7,14 @@ import tempfile
 from wandb.errors import ExecutionException
 import yaml
 
-from ._project_spec import MLPROJECT_FILE_NAME, Project
+from . import _project_spec
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
-_WANDB_URI_REGEX = re.compile(r"^https://wandb")
+_WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
@@ -145,7 +145,7 @@ def fetch_and_validate_project(
 ):
     parameters = parameters or {}
     experiment_name = experiment_name or "test"
-    project = Project(uri, experiment_name, version, [entry_point], parameters)
+    project = _project_spec.Project(uri, experiment_name, version, [entry_point], parameters)
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
     first_entry_point = list(project._entry_points.keys())[0]
@@ -175,7 +175,7 @@ def fetch_wandb_project_run_info(uri, api=None):
 
 
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, MLPROJECT_FILE_NAME)
+    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
     spec_keys_map = {
         "args": run_info["args"],
         "entrypoint": run_info["program"],
