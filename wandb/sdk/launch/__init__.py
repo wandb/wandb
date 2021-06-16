@@ -1,16 +1,17 @@
 import logging
 import sys
+
 import wandb
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
+    _is_wandb_local_uri,
+    fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    fetch_and_validate_project,
-    _is_wandb_local_uri,
 )
 
 _logger = logging.getLogger(__name__)

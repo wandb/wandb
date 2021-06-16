@@ -3,11 +3,11 @@ import logging
 import os
 import re
 import tempfile
-import yaml
 
 from wandb.errors import ExecutionException
+import yaml
 
-from ._project_spec import Project, MLPROJECT_FILE_NAME
+from ._project_spec import MLPROJECT_FILE_NAME, Project
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that

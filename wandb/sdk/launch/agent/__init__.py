@@ -1,21 +1,17 @@
-import getpass
 import os
-import tempfile
 import time
-from wandb.sdk import backend
 
 import wandb
 from wandb import Settings
-from ...internal.internal_api import Api
 
+from ...internal.internal_api import Api
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 from ..utils import (
     _collect_args,
     _convert_access,
-    fetch_and_validate_project,
     _is_wandb_local_uri,
-    parse_wandb_uri,
+    fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
 )
 

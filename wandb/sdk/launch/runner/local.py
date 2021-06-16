@@ -8,19 +8,19 @@ import sys
 
 from wandb.errors import ExecutionException
 
-from .abstract import AbstractRunner, AbstractRun
+from .abstract import AbstractRun, AbstractRunner
+from ..docker import (
+    build_docker_image,
+    generate_docker_image,
+    validate_docker_env,
+    validate_docker_installation,
+)
 from ..utils import (
     get_entry_point_command,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
     WANDB_DOCKER_WORKDIR_PATH,
-)
-from ..docker import (
-    build_docker_image,
-    generate_docker_image,
-    validate_docker_env,
-    validate_docker_installation,
 )
 
 
