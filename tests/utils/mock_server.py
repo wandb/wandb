@@ -849,7 +849,7 @@ def create_app(user_ctx=None):
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
-                            "media/tables/5aac4cea.table.json": {
+                            "media/tables/5aac4cea496fd061e813.table.json": {
                                 "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                                 "size": 81299,
                             },
@@ -887,7 +887,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "b89758a7e7503bdb021e0534fe444d9a":
+            elif _id == "6ddbe1c239de9c9fc6c397fc5591555a":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
