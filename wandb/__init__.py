@@ -52,6 +52,7 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
+use_feature = wandb_sdk.use_feature
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
@@ -139,7 +140,6 @@ summary = _preinit.PreInitCallable(
 log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)
 restore = wandb_sdk.wandb_run.restore
-use_feature = wandb_sdk.wandb_feature.use_feature
 use_artifact = _preinit.PreInitCallable(
     "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact
 )
