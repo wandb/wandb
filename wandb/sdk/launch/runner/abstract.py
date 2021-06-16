@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from dockerpycreds.utils import find_executable
+from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 
