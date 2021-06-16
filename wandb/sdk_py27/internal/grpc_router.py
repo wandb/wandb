@@ -7,15 +7,14 @@ GRPC router handles requests on a queue and sends them to a grpc server.
 
 from __future__ import print_function
 
-import contextlib
 import datetime
 import logging
 import multiprocessing
 import os
-import socket
 import time
 
 import grpc  # type: ignore
+import setproctitle  # type: ignore
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2
@@ -32,7 +31,6 @@ if wandb.TYPE_CHECKING:
         from .settings_static import SettingsStatic
         from typing import Any, Callable, Optional
         from six.moves.queue import Queue
-        from multiprocessing import Process
         from wandb.proto.wandb_internal_pb2 import Record, Result
         from wandb.proto.wandb_server_pb2_grpc import InternalServiceStub
         from threading import Event
@@ -76,32 +74,40 @@ def configure_logging(log_fname, log_level, run_id = None):
     root.addHandler(log_handler)
 
 
-def _run_server(bind_address, port, process, record_q, result_q):
-    """Start a server in a subprocess."""
-    # setproctitle.setproctitle("python grpcserver")
-    try:
-        logging.basicConfig()
+class InternalGrpcProcess(multiprocessing.Process):
+    def __init__(self, record_q, result_q, port, settings, port_q):
+        super(InternalGrpcProcess, self).__init__()
+        self._record_q = record_q
+        self._result_q = result_q
+        self._port = port
+        self._settings = settings
+        self._port_q = port_q
+
+    def run(self):
+        local_port_q = multiprocessing.Queue()
         backend = grpc_server.Backend()
+        backend.setup(process=self, record_q=self._record_q, result_q=self._result_q)
+        _ = grpc_server.serve_async(
+            backend=backend, port=self._port, port_q=local_port_q
+        )
 
-        backend.setup(process=process, record_q=record_q, result_q=result_q)
-        grpc_server.serve(backend, port)
-    except KeyboardInterrupt:
-        print("outer control-c")
-    print("done serve")
+        port = local_port_q.get(timeout=5)
+        if port is None:
+            print("ERROR: port not found")
+            # TODO error
 
+        setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
 
-@contextlib.contextmanager
-def _reserve_port():
-    """Find and reserve a port for all subprocesses to use."""
-    sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-    if sock.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) == 0:
-        raise RuntimeError("Failed to set SO_REUSEPORT.")
-    sock.bind(("localhost", 0))
-    try:
-        yield sock.getsockname()[1]
-    finally:
-        sock.close()
+        try:
+            wandb.wandb_sdk.internal.internal.wandb_internal(
+                settings=self._settings,
+                record_q=self._record_q,
+                result_q=self._result_q,
+                port=port,
+                port_q=self._port_q,
+            )
+        except KeyboardInterrupt:
+            pass
 
 
 class GrpcRouterThread(internal_util.RecordLoopThread):
@@ -139,7 +145,8 @@ class GrpcRouterThread(internal_util.RecordLoopThread):
         pass
 
     def route_request_check_version(self, record):
-        pass
+        result = pb.Result(uuid=record.uuid)
+        self._result_q.put(result)
 
     def route_request_poll_exit(self, record):
         result = pb.Result(uuid=record.uuid)
@@ -173,24 +180,19 @@ class GrpcRouterThread(internal_util.RecordLoopThread):
         router_func(record)
 
     def route_run(self, data):
-        print("DEBUG")
-        print("DEBUG0", data, self._stub)
+        # print("DEBUG0", data, self._stub)
         if not self._stub:
             return
         run_result = self._stub.RunUpdate(data.run)
-        print("DEBUG0a", run_result)
 
         if data.control.req_resp:
-            print("DEBUG1a", run_result)
             resp = pb.Result(uuid=data.uuid)
-            print("DEBUG1b", run_result)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
             resp.run_result.run.CopyFrom(run_result.run)
-            print("DEBUG2", resp)
+            # print("SEND run", time.time(), resp)
             self._result_q.put(resp)
-        print("DEBUG3")
 
     def route_summary(self, data):
         pass
@@ -205,7 +207,8 @@ class GrpcRouterThread(internal_util.RecordLoopThread):
         pass
 
     def route_request_run_start(self, data):
-        pass
+        resp = pb.Result(uuid=data.uuid)
+        self._result_q.put(resp)
 
     def route_request_stop_status(self, record):
         assert record.control.req_resp
@@ -223,7 +226,7 @@ class GrpcRouterThread(internal_util.RecordLoopThread):
         self._result_q.put(result)
 
     def _process(self, record):
-        print("DEBUG: process", record)
+        # print("DEBUG: process", time.time(), record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         router_str = "route_" + record_type
@@ -237,7 +240,7 @@ class GrpcRouterThread(internal_util.RecordLoopThread):
     def _debounce(self):
         pass
 
-    def _create_internal(self, record_q, result_q):
+    def _create_settings(self):
         log_level = logging.DEBUG
         start_time = time.time()
         start_datetime = datetime.datetime.now()
@@ -282,42 +285,39 @@ class GrpcRouterThread(internal_util.RecordLoopThread):
             email=None,
             silent=None,
         )
-
-        internal_proc = multiprocessing.Process(
-            target=wandb.wandb_sdk.internal.internal.wandb_internal,
-            kwargs=dict(settings=settings, record_q=record_q, result_q=result_q,),
-        )
-        internal_proc.daemon = True
-        internal_proc.name = "wandb_internal"
-        return internal_proc
+        return settings
 
     def _connect(self, port):
         channel = grpc.insecure_channel("localhost:{}".format(port))
         stub = wandb_server_pb2_grpc.InternalServiceStub(channel)
         self._stub = stub
         d = wandb_server_pb2.ServerStatusRequest()
-        print("DEBUG: Connecting to", port, "...")
         _ = self._stub.ServerStatus(d)
-        print("DEBUG: Connected to", port)
 
-    def _launch_grpc_server(self):
-        print("DEBUG: launch")
-        with _reserve_port() as port:
-            # port = 50051
-            print("DEBUG: Using port", port)
-            bind_address = "localhost:{}".format(port)
+    def _launch_grpc_server(self, port=0):
+        # bind_address = "localhost:{}".format(port)
+        record_q = multiprocessing.Queue()
+        result_q = multiprocessing.Queue()
+        port_q = multiprocessing.Queue()
 
-            record_q = multiprocessing.Queue()
-            result_q = multiprocessing.Queue()
+        settings = self._create_settings()
 
-            internal_proc = self._create_internal(record_q, result_q)
-            internal_proc.start()
-            worker = multiprocessing.Process(
-                target=_run_server,
-                args=(bind_address, port, internal_proc, record_q, result_q),
-            )
-            worker.daemon = True
-            worker.start()
-            self._connect(port)
-            # TODO: verify started before exiting context
-        print("DEBUG: done_launch")
+        internal_proc = InternalGrpcProcess(
+            port=port,
+            settings=settings,
+            record_q=record_q,
+            result_q=result_q,
+            port_q=port_q,
+        )
+        internal_proc.daemon = True
+        internal_proc.name = "wandb_internal"
+        internal_proc.start()
+
+        port = port_q.get(timeout=5)
+        if port is None:
+            print("ERROR: couldnt spawn grpc server quick enough")
+            # TODO: raise error?
+
+        self._connect(port)
+        # TODO: verify started before exiting context
+        # print("DEBUG: done_launch", time.time())
