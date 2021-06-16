@@ -27,6 +27,9 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
 
     Returns:
         `wandb.Graph` The graph object that will populate after the first backward pass
+
+    Raises:
+        ValueError: If called before `wandb.init` or if any of models is not a torch.nn.Module.
     """
     global _global_watch_idx
 
