@@ -18,7 +18,7 @@ from .utils import (
 )
 
 _logger = logging.getLogger(__name__)
-
+UNCATEGORIZED_PROJECT = "uncategorized"
 
 def push_to_queue(api, queue, run_spec):
     try:
@@ -60,7 +60,7 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
 
-    src_project = "Uncategorized"
+    src_project = UNCATEGORIZED_PROJECT
     if _is_wandb_uri(uri):
         src_project, _, _ = parse_wandb_uri(uri)
     if wandb_project is None:

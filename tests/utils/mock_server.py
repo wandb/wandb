@@ -565,7 +565,7 @@ def create_app(user_ctx=None):
                             "name": body["variables"].get("name", "abc123"),
                             "displayName": "lovely-dawn-32",
                             "project": {
-                                "name": body["variables"].get("project") or "test",
+                                "name": "test",
                                 "entity": {"name": "mock_server_entity"},
                             },
                         },

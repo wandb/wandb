@@ -919,7 +919,7 @@ def test_sync_wandb_run(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("wandb")
 
-        result = runner.invoke(cli.sync, ["--sync-all", "--project=test"])
+        result = runner.invoke(cli.sync, ["--sync-all"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
@@ -948,7 +948,7 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             os.path.join(run_dir, "events.out.tfevents.1585769947.cvp"),
         )
 
-        result = runner.invoke(cli.sync, ["--sync-all", "--project=test"])
+        result = runner.invoke(cli.sync, ["--sync-all"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
