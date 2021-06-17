@@ -29,8 +29,6 @@ def default_ctx():
         "page_times": 2,
         "requested_file": "weights.h5",
         "current_run": None,
-        "current_run_project": None,
-        "run_queues": {},
         "files": {},
         "k8s": False,
         "resume": False,
@@ -115,7 +113,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -170,7 +172,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -336,7 +340,6 @@ def create_app(user_ctx=None):
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
-
         if "mutation UpsertBucket(" in body["query"]:
             param_config = body["variables"].get("config")
             if param_config:
@@ -345,8 +348,7 @@ def create_app(user_ctx=None):
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
             ctx["upsert_bucket_count"] += 1
-            if body["variables"].get("project"):
-                ctx["current_run_project"] = body["variables"]["project"]
+
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
@@ -523,14 +525,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -636,7 +648,13 @@ def create_app(user_ctx=None):
                 },
             }
             ctx["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -653,7 +671,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {
