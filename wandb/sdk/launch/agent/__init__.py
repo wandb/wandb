@@ -128,7 +128,6 @@ class LaunchAgent(object):
             wandb_project,
             run_spec["overrides"].get("name"),
             self._api,
-            resource,
             run_spec.get("version", None),
             entry_point,
             args_dict,
