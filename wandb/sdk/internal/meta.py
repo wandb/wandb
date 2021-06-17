@@ -221,9 +221,7 @@ class Meta(object):
                     if "fileId=" in self._settings._jupyter_path:
                         self.data["colab"] = (
                             "https://colab.research.google.com/drive/"
-                            + self._settings._jupyter_path.split(  # noqa
-                                "fileId="
-                            )[1]
+                            + self._settings._jupyter_path.split("fileId=")[1]  # noqa
                         )
                         self.data["program"] = self._settings._jupyter_name
                     else:
