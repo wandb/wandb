@@ -941,7 +941,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
 )
 @click.option(
     "--docker-image",
-    "-i",
+    "-d",
     default=None,
     metavar="DOCKER IMAGE",
     help="Specific docker image you'd like to use. In the form name:tag.",
