@@ -124,12 +124,13 @@ def _is_valid_branch_name(work_dir, version):
             return False
     return False
 
-
+# TODO: Fix this dumb heuristic
 def _collect_args(args):
     dict_args = {}
     i = 0
     while i < len(args):
         arg = args[i]
+        print(arg)
         if "=" in arg:
             name, vals = arg.split("=")
             dict_args[name.replace("-", "")] = vals

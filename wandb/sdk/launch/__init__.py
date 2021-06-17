@@ -7,11 +7,14 @@ from wandb.errors import ExecutionException
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
+    _collect_args,
     _is_wandb_local_uri,
+    _is_wandb_uri,
     fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
+    parse_wandb_uri,
 )
 
 _logger = logging.getLogger(__name__)
@@ -56,14 +59,26 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
+
     project = fetch_and_validate_project(
         uri, experiment_name, api, version, entry_point, parameters
     )
+    overrides = runner_config.get("overrides")
+    if overrides:
+        args = overrides.get("args")
+        if args:
+            args = _collect_args(args)
+            project._merge_parameters(args)
 
+    src_project = "Uncategorized"
+    if _is_wandb_uri(uri):
+        src_project, _, _ = parse_wandb_uri(uri)
     if wandb_project is None:
-        wandb_project = api.settings("project") or "Uncategorized"
+        wandb_project = (
+            runner_config.get("project") or api.settings("project") or src_project
+        )
     if wandb_entity is None:
-        wandb_entity = api.settings("entity")
+        wandb_entity = runner_config.get("entity") or api.settings("entity")
 
     project.docker_env["WANDB_PROJECT"] = wandb_project
     project.docker_env["WANDB_ENTITY"] = wandb_entity
@@ -71,7 +86,7 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
-
+    print(runner_config)
     backend = loader.load_backend(runner_name, api)
     if backend:
         submitted_run = backend.run(project, runner_config)
