@@ -48,9 +48,9 @@ def mock_load_backend():
 def check_project_spec(project_spec, api, uri, wandb_project=None, wandb_entity=None):
     assert project_spec.uri == uri
     expected_project = wandb_project or uri.split("/")[4]
-    assert project_spec.docker_env["WANDB_PROJECT"] == expected_project
+    assert project_spec.target_project == expected_project
     expected_target_entity = wandb_entity or api.default_entity
-    assert project_spec.docker_env["WANDB_ENTITY"] == expected_target_entity
+    assert project_spec.target_entity == expected_target_entity
 
 
 def check_backend_config(config, expected_config):
