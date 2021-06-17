@@ -113,7 +113,6 @@ class LaunchAgent(object):
         # TODO: logger
         print("agent: got job", job)
         # parse job
-
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
         wandb_entity = run_spec["entity"]
@@ -134,10 +133,18 @@ class LaunchAgent(object):
             entry_point,
             args_dict,
         )
-        project.docker_env["WANDB_PROJECT"] = wandb_project or self._api.settings().get("project") or "Uncategorized"
-        project.docker_env["WANDB_ENTITY"] = wandb_entity or self._api.settings().get("entity")
+        project.docker_env["WANDB_PROJECT"] = (
+            wandb_project or self._api.settings().get("project") or "Uncategorized"
+        )
+        project.docker_env["WANDB_ENTITY"] = wandb_entity or self._api.settings().get(
+            "entity"
+        )
+
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
+
+        if run_spec.get("docker_image"):
+            backend_config["DOCKER_IMAGE"] = run_spec.get("docker_image")
         run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run
         self._running += 1
