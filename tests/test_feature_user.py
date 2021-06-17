@@ -21,7 +21,7 @@ def feature_mock(mocker):
 
     yield fn
     for feature in cleanup:
-        wandb.__dict__.pop("test_feature_" + feature, None)
+        wandb.__dict__.pop("feature_" + feature, None)
 
 
 def test_feature_single(user_test, capsys):
