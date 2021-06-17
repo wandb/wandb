@@ -50,7 +50,7 @@ def _run(
     parameters,
     docker_args,
     runner_name,
-    runner_config,
+    launch_config,
     storage_dir,
     synchronous,
     api=None,
@@ -59,11 +59,11 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-    experiment_name = experiment_name or runner_config.get("name")
+    experiment_name = experiment_name or launch_config.get("name")
     project = fetch_and_validate_project(
         uri, experiment_name, api, version, entry_point, parameters
     )
-    overrides = runner_config.get("overrides")
+    overrides = launch_config.get("overrides")
     if overrides:
         args = overrides.get("args")
         if args:
@@ -75,21 +75,21 @@ def _run(
         src_project, _, _ = parse_wandb_uri(uri)
     if wandb_project is None:
         wandb_project = (
-            runner_config.get("project") or api.settings("project") or src_project
+            launch_config.get("project") or api.settings("project") or src_project
         )
     if wandb_entity is None:
-        wandb_entity = runner_config.get("entity") or api.settings("entity")
+        wandb_entity = launch_config.get("entity") or api.settings("entity")
 
     project.docker_env["WANDB_PROJECT"] = wandb_project
     project.docker_env["WANDB_ENTITY"] = wandb_entity
 
-    runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = docker_args
-    runner_config[PROJECT_STORAGE_DIR] = storage_dir
+    launch_config[PROJECT_SYNCHRONOUS] = synchronous
+    launch_config[PROJECT_DOCKER_ARGS] = docker_args
+    launch_config[PROJECT_STORAGE_DIR] = storage_dir
 
     backend = loader.load_backend(runner_name, api)
     if backend:
-        submitted_run = backend.run(project, runner_config)
+        submitted_run = backend.run(project, launch_config)
         return submitted_run
     else:
         raise ExecutionException(
@@ -181,7 +181,7 @@ def run(
         parameters=parameters,
         docker_args=docker_args,
         runner_name=resource,
-        runner_config=config,
+        launch_config=config,
         storage_dir=storage_dir,
         synchronous=synchronous,
         api=api,
