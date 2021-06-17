@@ -5,7 +5,23 @@ metric user tests.
 import pytest
 import wandb
 
-# TODO: improve tests by mocking some features
+
+@pytest.fixture
+def feature_mock(mocker):
+    cleanup = []
+
+    def fn(feature, func):
+        cleanup.append(feature)
+        mocker.patch.object(
+            wandb.wandb_sdk.wandb_feature._Features,
+            "feature_" + feature,
+            func,
+            create=True,
+        )
+
+    yield fn
+    for feature in cleanup:
+        wandb.__dict__.pop("test_feature_" + feature, None)
 
 
 def test_feature_single(user_test, capsys):
@@ -44,16 +60,11 @@ def test_feature_extra_kwargs(user_test, capsys):
     assert "ignoring unsupported named parameter: junk" in captured.err
 
 
-def test_feature_good(user_test, mocker):
+def test_feature_good(user_test, feature_mock):
     def mock_feature_test(self):
-        wandb.test_method = lambda x: x + 2
+        wandb.feature_test = lambda x: x + 2
 
-    mocker.patch.object(
-        wandb.wandb_sdk.wandb_feature._Features,
-        "feature_test",
-        mock_feature_test,
-        create=True,
-    )
+    feature_mock("test", mock_feature_test)
     wandb.use_feature("test")
 
-    assert wandb.test_method(2) == 4
+    assert wandb.feature_test(2) == 4
