@@ -90,7 +90,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         image = build_docker_image(
             project=project,
-            repository_uri=project.name,  # todo: not sure why this is passed here we should figure out this interface
+            docker_repository_uri=project.name,  # todo: not sure why this is passed here we should figure out this interface
             base_image=project.docker_env.get("image"),
             api=self._api,
         )

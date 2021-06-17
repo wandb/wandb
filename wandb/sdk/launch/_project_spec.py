@@ -41,7 +41,7 @@ class Project(object):
         self.name = name  # todo: what to do for default names
         if self.name is None and utils._is_wandb_uri(uri):
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
-            self.name = "{}_{}".format(wandb_project, wandb_name)
+            self.name = "{}_{}_launch".format(wandb_project, wandb_name)
         self.version = version
         self._entry_points: Dict[str, EntryPoint] = {}
         for ep in entry_points:

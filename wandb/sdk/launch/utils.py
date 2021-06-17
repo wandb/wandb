@@ -145,7 +145,7 @@ def fetch_and_validate_project(
     uri, experiment_name, api, version, entry_point, parameters
 ):
     parameters = parameters or {}
-    experiment_name = experiment_name or "test"
+    experiment_name = experiment_name
     project = _project_spec.Project(
         uri, experiment_name, version, [entry_point], parameters
     )

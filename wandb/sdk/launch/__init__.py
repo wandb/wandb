@@ -59,7 +59,7 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-
+    experiment_name = experiment_name or runner_config.get("name")
     project = fetch_and_validate_project(
         uri, experiment_name, api, version, entry_point, parameters
     )
@@ -86,7 +86,7 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
-    print(runner_config)
+
     backend = loader.load_backend(runner_name, api)
     if backend:
         submitted_run = backend.run(project, runner_config)

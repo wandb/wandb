@@ -34,10 +34,6 @@ def validate_docker_installation():
 
 
 def validate_docker_env(project: _project_spec.Project):
-    if not project.name:
-        raise ExecutionException(
-            "Project name must be specified when using docker " "for image tagging."
-        )
     if not project.docker_env.get("image"):
         raise ExecutionException(
             "Project with docker environment must specify the docker image "
@@ -68,14 +64,14 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):
+def build_docker_image(project: _project_spec.Project, docker_repository_uri, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
     import docker  # type: ignore
 
     image_uri = _get_docker_image_uri(
-        repository_uri=repository_uri, work_dir=project.dir
+        repository_uri=docker_repository_uri, work_dir=project.dir
     )
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
@@ -85,11 +81,15 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     else:
         base_url = api.settings("base_url")
     image_uri = _get_docker_image_uri(
-        repository_uri=repository_uri, work_dir=project.dir
+        repository_uri=docker_repository_uri, work_dir=project.dir
     )
 
     wandb_project = project.docker_env["WANDB_PROJECT"]
     wandb_entity = project.docker_env["WANDB_ENTITY"]
+    if project.name:
+        name_env = "ENV WANDB_NAME={}\n".format(project.name)
+    else:
+        name_env = ""
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
@@ -98,6 +98,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
+        "{name_env}"
         "ENV WANDB_LAUNCH=True\n"
         "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
@@ -108,6 +109,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         api_key=api.api_key,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
+        name_env=name_env
     )
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
