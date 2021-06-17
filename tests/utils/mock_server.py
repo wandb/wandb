@@ -52,7 +52,6 @@ def mock_server(mocker):
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
-    mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)

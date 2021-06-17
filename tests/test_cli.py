@@ -916,11 +916,12 @@ def test_sync_wandb_run(runner, live_mock_server):
     with runner.isolated_filesystem():
         utils.fixture_copy("wandb")
 
-        result = runner.invoke(cli.sync, ["--sync-all"])
+        result = runner.invoke(cli.sync, ["--sync-all", "--project=test"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
+        print(result.output)
         assert "mock_server_entity/test/runs/g9dvvkua ...done." in result.output
         assert (
             len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
@@ -945,7 +946,7 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             os.path.join(run_dir, "events.out.tfevents.1585769947.cvp"),
         )
 
-        result = runner.invoke(cli.sync, ["--sync-all"])
+        result = runner.invoke(cli.sync, ["--sync-all", "--project=test"])
         print(result.output)
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
