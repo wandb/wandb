@@ -130,7 +130,6 @@ def _collect_args(args):
     i = 0
     while i < len(args):
         arg = args[i]
-        print(arg)
         if "=" in arg:
             name, vals = arg.split("=")
             dict_args[name.replace("-", "")] = vals
