@@ -58,6 +58,7 @@ def check_backend_config(config, expected_config):
         if key not in [PROJECT_DOCKER_ARGS, PROJECT_STORAGE_DIR, PROJECT_SYNCHRONOUS]:
             assert item == expected_config[key]
 
+
 def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
     for arg in mock_with_run_info.args:
         if isinstance(arg, _project_spec.Project):
@@ -83,8 +84,6 @@ def test_launch_base_case(
     kwargs = {"uri": uri, "api": api}
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
-    
-
 
 
 def test_launch_specified_project(
@@ -99,10 +98,8 @@ def test_launch_specified_project(
     kwargs = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
-        "wandb_project": "new_test_project"
+        "wandb_project": "new_test_project",
     }
     expected_config = {}
-    mock_with_run_info = launch.run(
-        **kwargs
-    )
+    mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
