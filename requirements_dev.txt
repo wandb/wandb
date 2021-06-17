@@ -26,3 +26,4 @@ plotly; python_version < '3.9'
 bokeh
 tqdm
 docker
+jupyter-repo2docker

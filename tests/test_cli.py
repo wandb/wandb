@@ -976,5 +976,5 @@ def test_launch_add(runner, live_mock_server):
             ).exit_code
             == 0
         )
-    # check that run queue id 1 has 1 item in it
-    assert len(live_mock_server.get_ctx()["run_queues"]["1"]) == 1
+        # check that run queue id 1 has 1 item in it
+        assert len(live_mock_server.get_ctx()["run_queues"]["1"]) == 1
