@@ -141,7 +141,7 @@ def _collect_args(args):
 
 
 def fetch_and_validate_project(
-    uri, experiment_name, api, runner_name, version, entry_point, parameters
+    uri, experiment_name, api, version, entry_point, parameters
 ):
     parameters = parameters or {}
     experiment_name = experiment_name or "test"

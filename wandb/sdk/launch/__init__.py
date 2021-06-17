@@ -57,7 +57,7 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
     project = fetch_and_validate_project(
-        uri, experiment_name, api, runner_name, version, entry_point, parameters
+        uri, experiment_name, api, version, entry_point, parameters
     )
 
     if wandb_project is None:
@@ -71,6 +71,7 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
+
     backend = loader.load_backend(runner_name, api)
     if backend:
         submitted_run = backend.run(project, runner_config)
@@ -93,7 +94,7 @@ def run(
     resource="local",
     wandb_project=None,
     wandb_entity=None,
-    config=None,
+    config={},
     storage_dir=None,
     synchronous=True,
     api=None,
