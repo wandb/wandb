@@ -76,8 +76,8 @@ def pull_docker_image(docker_image: str):
             image = client.images.pull(info[0])
         else:
             image = client.images.pull(info[0], tag=info[1])
-    except docker.DockerApiError as e:
-        raise("Docker server returned error: {}".format(e))
+    except docker.errors.APIError:
+        raise("Docker server returned error: {}")
     return image
 
 
