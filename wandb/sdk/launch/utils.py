@@ -142,12 +142,12 @@ def _collect_args(args):
 
 
 def fetch_and_validate_project(
-    uri, experiment_name, api, version, entry_point, parameters
+    uri, target_entity, target_project, experiment_name, api, version, entry_point, parameters
 ):
     parameters = parameters or {}
     experiment_name = experiment_name
     project = _project_spec.Project(
-        uri, experiment_name, version, [entry_point], parameters
+        uri, target_entity, target_project, experiment_name, version, [entry_point], parameters
     )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)

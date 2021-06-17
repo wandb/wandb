@@ -124,6 +124,8 @@ class LaunchAgent(object):
         args_dict = _collect_args(run_spec["overrides"].get("args", {}))
         project = fetch_and_validate_project(
             uri,
+            wandb_entity,
+            wandb_project,
             run_spec["overrides"].get("name"),
             self._api,
             resource,
@@ -131,8 +133,7 @@ class LaunchAgent(object):
             entry_point,
             args_dict,
         )
-        project.docker_env["WANDB_PROJECT"] = wandb_project
-        project.docker_env["WANDB_ENTITY"] = wandb_entity
+
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
         run = self._backend.run(project, backend_config)

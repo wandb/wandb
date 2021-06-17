@@ -31,6 +31,8 @@ class Project(object):
     def __init__(
         self,
         uri: str,
+        target_entity: str,
+        target_project: str,
         name: str,
         version,
         entry_points: List[str],
@@ -42,6 +44,9 @@ class Project(object):
         if self.name is None and utils._is_wandb_uri(uri):
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
             self.name = "{}_{}_launch".format(wandb_project, wandb_name)
+        self.target_entity = target_entity
+        self.target_project = target_project
+
         self.version = version
         self._entry_points: Dict[str, EntryPoint] = {}
         for ep in entry_points:

@@ -84,8 +84,8 @@ def build_docker_image(project: _project_spec.Project, docker_repository_uri, ba
         repository_uri=docker_repository_uri, work_dir=project.dir
     )
 
-    wandb_project = project.docker_env["WANDB_PROJECT"]
-    wandb_entity = project.docker_env["WANDB_ENTITY"]
+    wandb_project = project.target_project
+    wandb_entity = project.target_entity
     if project.name:
         name_env = "ENV WANDB_NAME={}\n".format(project.name)
     else:

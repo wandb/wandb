@@ -59,16 +59,6 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-    experiment_name = experiment_name or launch_config.get("name")
-    project = fetch_and_validate_project(
-        uri, experiment_name, api, version, entry_point, parameters
-    )
-    overrides = launch_config.get("overrides")
-    if overrides:
-        args = overrides.get("args")
-        if args:
-            args = _collect_args(args)
-            project._merge_parameters(args)
 
     src_project = "Uncategorized"
     if _is_wandb_uri(uri):
@@ -80,8 +70,23 @@ def _run(
     if wandb_entity is None:
         wandb_entity = launch_config.get("entity") or api.settings("entity")
 
-    project.docker_env["WANDB_PROJECT"] = wandb_project
-    project.docker_env["WANDB_ENTITY"] = wandb_entity
+    experiment_name = experiment_name or launch_config.get("name")
+    project = fetch_and_validate_project(
+        uri,
+        wandb_entity,
+        wandb_project,
+        experiment_name,
+        api,
+        version,
+        entry_point,
+        parameters,
+    )
+    overrides = launch_config.get("overrides")
+    if overrides:
+        args = overrides.get("args")
+        if args:
+            args = _collect_args(args)
+            project._merge_parameters(args)
 
     launch_config[PROJECT_SYNCHRONOUS] = synchronous
     launch_config[PROJECT_DOCKER_ARGS] = docker_args
