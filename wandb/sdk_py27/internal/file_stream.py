@@ -154,6 +154,7 @@ class FileStreamApi(object):
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
     Preempting = collections.namedtuple("Preempting", ())
+    PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -241,6 +242,7 @@ class FileStreamApi(object):
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
+        uploaded = set()
         finished = None
         while finished is None:
             items = self._read_queue()
@@ -251,8 +253,17 @@ class FileStreamApi(object):
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "preempting": True},
+                        json={
+                            "complete": False,
+                            "preempting": True,
+                            "uploaded": list(uploaded),
+                        },
                     )
+                    uploaded = set()
+                elif isinstance(item, self.PushSuccess):
+                    # inform the server about successfully uploaded files (not artifacts)
+                    if not item.artifact_id:
+                        uploaded.add(item.save_name)
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
@@ -273,14 +284,23 @@ class FileStreamApi(object):
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "failed": False},
+                        json={
+                            "complete": False,
+                            "failed": False,
+                            "uploaded": list(uploaded),
+                        },
                     )
                 )
+                uploaded = set()
         # post the final close message. (item is self.Finish instance now)
         request_with_retry(
             self._client.post,
             self._endpoint,
-            json={"complete": True, "exitcode": int(finished.exitcode)},
+            json={
+                "complete": True,
+                "exitcode": int(finished.exitcode),
+                "uploaded": list(uploaded),
+            },
         )
 
     def _thread_except_body(self):
@@ -352,6 +372,15 @@ class FileStreamApi(object):
             chunk: File data.
         """
         self._queue.put(Chunk(filename, data))
+
+    def push_success(self, artifact_id, save_name):
+        """Notification that a file upload has been successfully completed
+
+        Arguments:
+            artifact_id: ID of artifact
+            save_name: saved name of the uploaded file
+        """
+        self._queue.put(self.PushSuccess(artifact_id, save_name))
 
     def finish(self, exitcode):
         """Cleans up.
