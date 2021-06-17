@@ -71,13 +71,17 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
 def pull_docker_image(docker_image: str):
     info = docker_image.split(":")
     client = docker.from_env()
-    if len(info) == 1:
-        image = client.images.pull(info[0])
-    else:
-        image = client.images.pull(info[0], tag=info[1])
+    try:
+        if len(info) == 1:
+            image = client.images.pull(info[0])
+        else:
+            image = client.images.pull(info[0], tag=info[1])
+    except docker.DockerApiError as e:
+        raise("Docker server returned error: {}".format(e))
     return image
 
-def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api, install_reqs):
+
+def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
@@ -88,17 +92,9 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
 
     wandb_project = project.docker_env["WANDB_PROJECT"]
     wandb_entity = project.docker_env["WANDB_ENTITY"]
-    install_reqs_command = ""
-    if install_reqs:
-        path_to_reqs = os.path.abspath(os.path.join(project.dir, "requirements.txt"))
-        install_reqs_command = (
-            f"COPY {_PROJECT_TAR_ARCHIVE_NAME}/requirements.txt requirements.txt\n"
-            "RUN pip install -r requirements.txt\n"
-        )
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
-        "{reqs_command}"
         "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
@@ -110,7 +106,6 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         workdir=WANDB_DOCKER_WORKDIR_PATH,
-        reqs_command=install_reqs_command,
         base_url=api.settings("base_url"),
         api_key=api.api_key,
         wandb_project=wandb_project,

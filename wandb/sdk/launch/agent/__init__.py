@@ -134,8 +134,8 @@ class LaunchAgent(object):
             entry_point,
             args_dict,
         )
-        project.docker_env["WANDB_PROJECT"] = wandb_project
-        project.docker_env["WANDB_ENTITY"] = wandb_entity
+        project.docker_env["WANDB_PROJECT"] = wandb_project or self._api.settings().get("project") or "Uncategorized"
+        project.docker_env["WANDB_ENTITY"] = wandb_entity or self._api.settings().get("entity")
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
         run = self._backend.run(project, backend_config)

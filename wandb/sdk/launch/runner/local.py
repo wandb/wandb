@@ -82,10 +82,9 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        install_reqs = False
         if backend_config.get("DOCKER_IMAGE"):
             project.docker_env["image"] = backend_config.get("DOCKER_IMAGE")
-            install_reqs = True
+            pull_docker_image(backend_config.get("DOCKER_IMAGE"))
         else:
             project.docker_env["image"] = generate_docker_image(project, entry_cmd)
 
@@ -99,7 +98,6 @@ class LocalRunner(AbstractRunner):
             repository_uri=project.name,  # todo: not sure why this is passed here we should figure out this interface
             base_image=project.docker_env.get("image"),
             api=self._api,
-            install_reqs=install_reqs,
         )
         command_args += _get_docker_command(
             image=image,
