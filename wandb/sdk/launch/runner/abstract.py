@@ -19,7 +19,7 @@ if wandb.TYPE_CHECKING:
     try:
         from typing import Literal
     except ImportError:
-        from typing_extensions import Literal
+        from typing_extensions import Literal  # type: ignore
 
     State = Literal["unknown", "starting", "running", "failed", "finished"]
 
