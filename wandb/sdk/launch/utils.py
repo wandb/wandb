@@ -124,6 +124,7 @@ def _is_valid_branch_name(work_dir, version):
             return False
     return False
 
+
 # TODO: Fix this dumb heuristic
 def _collect_args(args):
     dict_args = {}
@@ -141,12 +142,25 @@ def _collect_args(args):
 
 
 def fetch_and_validate_project(
-    uri, target_entity, target_project, experiment_name, api, version, entry_point, parameters
+    uri,
+    target_entity,
+    target_project,
+    experiment_name,
+    api,
+    version,
+    entry_point,
+    parameters,
 ):
     parameters = parameters or {}
     experiment_name = experiment_name
     project = _project_spec.Project(
-        uri, target_entity, target_project, experiment_name, version, [entry_point], parameters
+        uri,
+        target_entity,
+        target_project,
+        experiment_name,
+        version,
+        [entry_point],
+        parameters,
     )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
