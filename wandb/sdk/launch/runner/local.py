@@ -111,6 +111,7 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             print("Launching run in docker with command: {}".format(command_str))
+            import pdb; pdb.set_trace()
             return _run_entry_point(command_str, project.dir)
         # Otherwise, invoke `wandb launch` in a subprocess
         return _invoke_wandb_run_subprocess(  # todo: async mode is untested

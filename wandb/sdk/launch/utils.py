@@ -112,7 +112,6 @@ def fetch_and_validate_project(
     project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
-    import pdb; pdb.set_trace()
     return project
 
 

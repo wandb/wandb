@@ -81,7 +81,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
     wandb_entity = project.docker_env[wandb.env.ENTITY]
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY {build_context_path}/ {workdir}\n"
+        "COPY --chown={uid} {build_context_path}/ {workdir}\n"  # @@@ todo
         "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
@@ -89,7 +89,6 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_LAUNCH=True\n"
         "ENV LAUNCH_CONFIG_PATH={config_path}\n"
-        "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -99,6 +98,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         config_path=project.config_path,
+        uid=os.getuid()
     )
 
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
