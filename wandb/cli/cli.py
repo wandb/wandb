@@ -1026,12 +1026,15 @@ def launch(
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
 @click.pass_context
 @click.argument("project", nargs=1)
-@click.option("--entity", "-e", default=None, help="The entity to use. Defaults to current logged-in user")
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
-def launch_agent(
-    ctx, project=None, entity=None, queues=None
-):
+def launch_agent(ctx, project=None, entity=None, queues=None):
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:

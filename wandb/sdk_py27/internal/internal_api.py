@@ -187,7 +187,7 @@ class Api(object):
 
     @property
     def default_entity(self):
-        return self.settings("entity")
+        return self.viewer().get("entity")
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
