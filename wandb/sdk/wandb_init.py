@@ -380,7 +380,7 @@ class _WandbInit(object):
         logger.info("calling init triggers")
         trigger.call("on_init", **self.kwargs)
         s = self.settings
-        sweep_config = self.sweep_config    # @@@ sweep config passed in init
+        sweep_config = self.sweep_config
         config = self.config
         logger.info(
             "wandb.init called with sweep_config: {}\nconfig: {}".format(

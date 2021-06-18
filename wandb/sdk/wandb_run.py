@@ -371,7 +371,7 @@ class Run(object):
             )
         if sweep_config:
             self._config.update_locked(
-                sweep_config, user="sweep", _allow_val_change=True      # @@@ override config
+                sweep_config, user="sweep", _allow_val_change=True
             )
         self._config._update(config, ignore_locked=True)
 

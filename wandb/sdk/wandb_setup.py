@@ -199,10 +199,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
-        print('@@@@@@@@@@@@@@@', self._settings.launch_config_path)
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
-            self._sweep_config = config_util.dict_from_config_file(     # @@@ reload sweep file here
+            self._sweep_config = config_util.dict_from_config_file(
                 sweep_path, must_exist=True
             )
 
