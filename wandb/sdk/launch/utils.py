@@ -35,45 +35,10 @@ PROJECT_STORAGE_DIR = "STORAGE_DIR"
 _logger = logging.getLogger(__name__)
 
 
-def _parse_subdirectory(uri):
-    # Parses a uri and returns the uri and subdirectory as separate values.
-    # Uses '#' as a delimiter.
-    subdirectory = ""
-    parsed_uri = uri
-    if "#" in uri:
-        subdirectory = uri[uri.find("#") + 1 :]
-        parsed_uri = uri[: uri.find("#")]
-    if subdirectory and "." in subdirectory:
-        raise ExecutionException("'.' is not allowed in project subdirectory paths.")
-    return parsed_uri, subdirectory
-
-
 def _get_storage_dir(storage_dir):
     if storage_dir is not None and not os.path.exists(storage_dir):
         os.makedirs(storage_dir)
     return tempfile.mkdtemp(dir=storage_dir)
-
-
-def _get_git_repo_url(work_dir):
-    from git import Repo
-    from git.exc import GitCommandError, InvalidGitRepositoryError
-
-    try:
-        repo = Repo(work_dir, search_parent_directories=True)
-        remote_urls = [remote.url for remote in repo.remotes]
-        if len(remote_urls) == 0:
-            return None
-    except GitCommandError:
-        return None
-    except InvalidGitRepositoryError:
-        return None
-    return remote_urls[0]
-
-
-def _expand_uri(uri):
-    if _is_local_uri(uri):
-        return os.path.abspath(uri)
-    return uri
 
 
 def _is_wandb_uri(uri):
@@ -144,8 +109,10 @@ def fetch_and_validate_project(
     project = Project(uri, experiment_name, version, [entry_point], parameters, config)
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
+    project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
+    import pdb; pdb.set_trace()
     return project
 
 
