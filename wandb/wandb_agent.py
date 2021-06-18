@@ -347,7 +347,7 @@ class Agent(object):
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
-        # TODO(jhr): move into settings
+        # TODO(jhr): move into settings     # @@@
         config_file = os.path.join(
             "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
         )
@@ -359,8 +359,8 @@ class Agent(object):
 
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
-        os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
-        wandb_lib.config_util.save_config_file_from_dict(
+        os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path   # @@@ sets env var to path -- todo copy the config file in, set env var
+        wandb_lib.config_util.save_config_file_from_dict(   # @@@ generates config file from argdict
             sweep_param_path, command["args"]
         )
 

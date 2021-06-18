@@ -55,8 +55,12 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
+    runner_config[PROJECT_SYNCHRONOUS] = synchronous
+    runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    runner_config[PROJECT_STORAGE_DIR] = storage_dir
+
     project = fetch_and_validate_project(
-        uri, experiment_name, api, runner_name, version, entry_point, parameters
+        uri, experiment_name, api, runner_name, version, entry_point, parameters, runner_config
     )
 
     if wandb_project is None:
@@ -64,15 +68,12 @@ def _run(
     if wandb_entity is None:
         wandb_entity = api.settings("entity")
 
-    project.docker_env["WANDB_PROJECT"] = wandb_project
-    project.docker_env["WANDB_ENTITY"] = wandb_entity
+    project.docker_env[wandb.env.PROJECT] = wandb_project
+    project.docker_env[wandb.env.ENTITY] = wandb_entity
 
-    runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = docker_args
-    runner_config[PROJECT_STORAGE_DIR] = storage_dir
     backend = loader.load_backend(runner_name, api)
     if backend:
-        submitted_run = backend.run(project, runner_config)
+        submitted_run = backend.run(project)
         return submitted_run
     else:
         raise ExecutionException(

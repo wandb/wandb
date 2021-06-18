@@ -73,10 +73,10 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    def run(self, project, backend_config):
-        synchronous = backend_config[PROJECT_SYNCHRONOUS]
-        docker_args = backend_config[PROJECT_DOCKER_ARGS]
-        storage_dir = backend_config[PROJECT_STORAGE_DIR]
+    def run(self, project):
+        synchronous = project.config[PROJECT_SYNCHRONOUS]
+        docker_args = project.config[PROJECT_DOCKER_ARGS]
+        storage_dir = project.config[PROJECT_STORAGE_DIR]
 
         entry_point = project.get_single_entry_point()
 

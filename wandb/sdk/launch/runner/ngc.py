@@ -136,12 +136,12 @@ class NGCRunner(AbstractRunner):
             sys.exit(1)
         return True
 
-    def run(self, project, backend_config):
+    def run(self, project):
         #  TODO: eventually we may want to require a project, for now we don't
 
         # Build a docker image here?
         if project.docker_env:
             pass
 
-        cmd = self._generate_cmd(backend_config)
+        cmd = self._generate_cmd(project.config)
         return NGCSubmittedRun(cmd)

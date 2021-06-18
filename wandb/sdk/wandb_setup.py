@@ -201,7 +201,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _setup(self):
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
-            self._sweep_config = config_util.dict_from_config_file(
+            self._sweep_config = config_util.dict_from_config_file(     # @@@ reload sweep file here
                 sweep_path, must_exist=True
             )
 

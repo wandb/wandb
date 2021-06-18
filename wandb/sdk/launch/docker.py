@@ -77,8 +77,8 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         repository_uri=repository_uri, work_dir=project.dir
     )
 
-    wandb_project = project.docker_env["WANDB_PROJECT"]
-    wandb_entity = project.docker_env["WANDB_ENTITY"]
+    wandb_project = project.docker_env[wandb.env.PROJECT]
+    wandb_entity = project.docker_env[wandb.env.ENTITY]
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
@@ -88,6 +88,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_LAUNCH=True\n"
+        "ENV LAUNCH_CONFIG_PATH={config_path}\n"
         "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
@@ -97,7 +98,12 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         api_key=api.api_key,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
+        config_path=project.config_path,
     )
+
+    print('@@@@@@', project.config)
+    print('@@@@@@', project.config_path)
+    print('@@@@@@', dockerfile)
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)

@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 _logger = logging.getLogger(__name__)
 
 MLPROJECT_FILE_NAME = "mlproject"
+DEFAULT_CONFIG_PATH = "launch_override_config.json"
 
 
 class Project(object):
@@ -30,6 +31,7 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
+        config: Dict[str, Any],
     ):
 
         self.uri = uri
@@ -44,6 +46,8 @@ class Project(object):
                 self.add_entry_point(ep)
         self.parameters = parameters
         self.dir = None
+        self.config = config
+        self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env = {}
 
