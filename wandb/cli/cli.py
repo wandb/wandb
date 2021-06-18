@@ -976,6 +976,7 @@ def launch(
     By default, Git projects run in a new working directory with the given parameters, while
     local projects run from the project's root directory.
     """
+    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
     param_dict = _user_args_to_dict(param_list)
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
     if config is not None:
@@ -1024,20 +1025,12 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
 @click.pass_context
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
+@click.argument("project", nargs=1)
+@click.option("--entity", "-e", default=None, help="The entity to use. Defaults to current logged-in user")
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
-# @click.option(
-#     "--max",
-#     default=4,
-#     type=int,
-#     help="The maximum number of launchs to manage in parallel.",
-# )
-# @click.argument("agent")
-@click.argument("agent_spec", nargs=-1)
 @display_error
 def launch_agent(
-    ctx, project=None, entity=None, max=4, agent=None, agent_spec=None, queues=None
+    ctx, project=None, entity=None, queues=None
 ):
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
@@ -1046,12 +1039,11 @@ def launch_agent(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if agent_spec is None or agent_spec == ():
-        project = project or "uncategorized"
-        entity = entity or api.default_entity
-        agent_spec = ["{}/{}".format(entity, project)]
+    if entity is None:
+        entity = api.default_entity
+
     wandb.termlog("Starting {} agent ✨".format(launch_agent))
-    wandb_launch.run_agent(agent_spec, queues=queues)
+    wandb_launch.run_agent(entity, project, queues=queues)
 
 
 @cli.command(help="Add a job onto the run queue for a specified resource")
