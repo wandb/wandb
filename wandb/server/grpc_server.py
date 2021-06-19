@@ -139,7 +139,7 @@ class Backend:
             save_code=None,
             sync_file=sync_file,
             _internal_queue_timeout=20,
-            _internal_check_process=0,
+            _internal_check_process=8,
             _disable_meta=True,
             _disable_stats=False,
             git_remote=None,
@@ -168,6 +168,7 @@ class Backend:
         settings = self._make_settings()
         mp = multiprocessing
         fd_pipe_child, fd_pipe_parent = mp.Pipe()
+        self._monitor_pid = pid
 
         record_q = record_q or mp.Queue()
         # TODO: should this be one item just to make sure it stays fully synchronous?
@@ -202,6 +203,7 @@ class Backend:
                 record_q=self._record_q,
                 result_q=self._result_q,
                 port=port,
+                user_pid=self._monitor_pid,
             )
         except KeyboardInterrupt:
             pass

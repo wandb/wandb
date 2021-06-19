@@ -236,10 +236,12 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
-@click.option("--port", default=None, help="The host port to bind grpc service.")
+@click.option(
+    "--port", default=None, type=int, help="The host port to bind grpc service."
+)
 @click.option("--port-filename", default=None, help="Save port to file.")
 @click.option("--address", default=None, help="The address to bind grpc service.")
-@click.option("--pid", default=None, help="The pid to monitor (0 is ppid)")
+@click.option("--pid", default=None, type=int, help="The pid to monitor (0 is ppid)")
 @click.option("--run", default=None, help="The run id")
 @click.option("--rundir", default=None, help="Path to the rundir")
 @display_error

@@ -60,7 +60,7 @@ def wandb_internal(
     record_q,
     result_q,
     port = None,
-    port_q = None,
+    user_pid = None,
 ):
     """Internal process function entrypoint.
 
@@ -88,7 +88,9 @@ def wandb_internal(
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
-    parent_pid = os.getppid()
+    if user_pid == 0:
+        # wind py27 FIXME
+        user_pid = os.getppid()
     pid = os.getpid()
 
     logger.info(
@@ -134,16 +136,12 @@ def wandb_internal(
     )
     threads.append(record_handler_thread)
 
-    process_check = ProcessCheck(settings=_settings, pid=parent_pid)
+    process_check = ProcessCheck(settings=_settings, user_pid=user_pid)
 
     for thread in threads:
         thread.start()
 
     interrupt_count = 0
-
-    # signal that we are up and running
-    if port_q and port:
-        port_q.put(port)
 
     while not stopped.is_set():
         try:
@@ -355,9 +353,9 @@ class ProcessCheck(object):
 
     # check_process_last: "Optional[float]"
 
-    def __init__(self, settings, pid):
+    def __init__(self, settings, user_pid):
         self.settings = settings
-        self.pid = pid
+        self.pid = user_pid
         self.check_process_last = None
         self.check_process_interval = settings._internal_check_process
 
@@ -372,6 +370,7 @@ class ProcessCheck(object):
             return False
         self.check_process_last = time_now
 
+        # TODO(jhr): check for os.getppid on unix being 1?
         exists = psutil.pid_exists(self.pid)
         if not exists:
             logger.warning(

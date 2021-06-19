@@ -110,8 +110,18 @@ class Backend(object):
         except Exception:
             pass
 
+        pid_str = str(os.getpid())
         internal_proc = subprocess.Popen(
-            [sys.executable, "-m", "wandb", "grpc-server", "--port-filename", fname],
+            [
+                sys.executable,
+                "-m",
+                "wandb",
+                "grpc-server",
+                "--port-filename",
+                fname,
+                "--pid",
+                pid_str,
+            ],
             env=os.environ,
             **kwargs
         )
@@ -142,6 +152,7 @@ class Backend(object):
 
         self.record_q = self._multiprocessing.Queue()
         self.result_q = self._multiprocessing.Queue()
+        user_pid = os.getpid()
 
         interface_class = interface.BackendSender
         start_method = settings.get("start_method")
@@ -152,14 +163,20 @@ class Backend(object):
             self.wandb_process = BackendThread(
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings, record_q=self.record_q, result_q=self.result_q,
+                    settings=settings,
+                    record_q=self.record_q,
+                    result_q=self.result_q,
+                    user_pid=user_pid,
                 ),
             )
         else:
             self.wandb_process = self._multiprocessing.Process(
                 target=wandb_internal,
                 kwargs=dict(
-                    settings=settings, record_q=self.record_q, result_q=self.result_q,
+                    settings=settings,
+                    record_q=self.record_q,
+                    result_q=self.result_q,
+                    user_pid=user_pid,
                 ),
             )
             self.wandb_process.name = "wandb_internal"
