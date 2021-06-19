@@ -10,15 +10,18 @@ import importlib
 import logging
 import multiprocessing
 import os
-import sys
-import time
-import threading
 import subprocess
+import sys
+import threading
+import time
 
 import wandb
 
 from ..interface import interface
 from ..internal.internal import wandb_internal
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Optional
 
 logger = logging.getLogger("wandb")
 

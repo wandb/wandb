@@ -10,15 +10,18 @@ import importlib
 import logging
 import multiprocessing
 import os
-import sys
-import time
-import threading
 import subprocess
+import sys
+import threading
+import time
 
 import wandb
 
 from ..interface import interface
 from ..internal.internal import wandb_internal
+
+if wandb.TYPE_CHECKING:  # type: ignore
+    from typing import Optional
 
 logger = logging.getLogger("wandb")
 
@@ -77,7 +80,7 @@ class Backend(object):
         ctx = multiprocessing.get_context(start_method)
         self._multiprocessing = ctx
 
-    def _grpc_wait_for_port(self, fname, proc=None) -> "Optional[int]":
+    def _grpc_wait_for_port(self, fname, proc=None) -> Optional[int]:
         time_max = time.time() + 30
         port = None
         while time.time() < time_max:
@@ -96,7 +99,7 @@ class Backend(object):
             return port
         return None
 
-    def _grpc_launch_server(self, port=0) -> "Optional[int]":
+    def _grpc_launch_server(self, port=0) -> Optional[int]:
         # https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
         # https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
         kwargs = dict(close_fds=True, start_new_session=True)

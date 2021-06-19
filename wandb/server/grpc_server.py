@@ -6,11 +6,11 @@ import datetime
 import logging
 import multiprocessing
 import os
-import time
 import tempfile
-import setproctitle
+import time
 
 import grpc
+import setproctitle
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
@@ -248,7 +248,7 @@ def serve(backend, port, port_filename=None, address=None):
         backend.cleanup()
         server.stop(0)
         raise
-    except Exception as e:
+    except Exception:
         backend.cleanup()
         server.stop(0)
         raise

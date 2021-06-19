@@ -1,10 +1,10 @@
 #
 
-import sys
-import os
-import types
-import traceback
 import multiprocessing
+import os
+import sys
+import traceback
+import types
 
 import wandb
 

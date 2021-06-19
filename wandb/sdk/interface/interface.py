@@ -11,6 +11,7 @@ import logging
 import threading
 import uuid
 
+import grpc  # type: ignore
 import six
 from six.moves import queue
 import wandb
@@ -29,7 +30,6 @@ from wandb.util import (
     WandBJSONEncoderOld,
 )
 
-import grpc  # type: ignore
 from .artifacts import ArtifactManifest
 from ..wandb_artifacts import Artifact
 

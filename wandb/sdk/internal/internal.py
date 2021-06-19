@@ -89,8 +89,8 @@ def wandb_internal(
         configure_logging(_settings.log_internal, _settings._log_level)
 
     if user_pid == 0:
-        # wind py27 FIXME
-        user_pid = os.getppid()
+        if hasattr(os, "getppid"):  # Remove when we drop py27 (required for win+py27)
+            user_pid = os.getppid()
     pid = os.getpid()
 
     logger.info(
