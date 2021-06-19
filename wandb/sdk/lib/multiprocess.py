@@ -61,6 +61,7 @@ def install_exit_handler() -> None:
     old_exit_handler = sys.exit
     sys.exit = custom_mp_exit_handler
 
+    global old_osexit_handler
     old_osexit_handler = os._exit
     os._exit = custom_mp_osexit_handler
     print("INSTALL3")

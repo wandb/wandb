@@ -164,7 +164,7 @@ class Backend:
         )
         return settings
 
-    def setup(self, process=None, record_q=None, result_q=None):
+    def setup(self, process=None, record_q=None, result_q=None, pid=None):
         settings = self._make_settings()
         mp = multiprocessing
         fd_pipe_child, fd_pipe_parent = mp.Pipe()
@@ -218,7 +218,7 @@ class Backend:
         # No printing allowed from here until redirect restore!!!
 
 
-def serve(backend, port, port_filename=None):
+def serve(backend, port, port_filename=None, address=None):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     try:
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
@@ -253,14 +253,14 @@ def serve(backend, port, port_filename=None):
     return port
 
 
-def main(port=None, port_filename=None):
+def main(port=None, port_filename=None, address=None, pid=None, run=None, rundir=None):
     logging.basicConfig()
     record_q = multiprocessing.Queue()
     result_q = multiprocessing.Queue()
     proc = multiprocessing.current_process()
     backend = Backend()
-    backend.setup(process=proc, record_q=record_q, result_q=result_q)
-    port = serve(backend, port or 0, port_filename=port_filename)
+    backend.setup(process=proc, record_q=record_q, result_q=result_q, pid=pid)
+    port = serve(backend, port or 0, port_filename=port_filename, address=address)
     if port:
         setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
     backend.run(port=port)

@@ -77,10 +77,14 @@ class Backend(object):
         ctx = multiprocessing.get_context(start_method)
         self._multiprocessing = ctx
 
-    def _grpc_wait_for_port(self, fname) -> "Optional[int]":
+    def _grpc_wait_for_port(self, fname, proc=None) -> "Optional[int]":
         time_max = time.time() + 30
         port = None
         while time.time() < time_max:
+            if proc and proc.poll():
+                # process finished
+                print("proc exited with", proc.returncode)
+                return None
             if not os.path.isfile(fname):
                 time.sleep(0.2)
                 continue
@@ -112,7 +116,7 @@ class Backend(object):
             **kwargs
         )
 
-        port = self._grpc_wait_for_port(fname)
+        port = self._grpc_wait_for_port(fname, proc=internal_proc)
         try:
             os.unlink(fname)
         except Exception:
