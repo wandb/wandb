@@ -20,6 +20,31 @@ class InternalServiceStub(object):
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
         )
+    self.RunStart = channel.unary_unary(
+        '/wandb_internal.InternalService/RunStart',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartResponse.FromString,
+        )
+    self.GetSummary = channel.unary_unary(
+        '/wandb_internal.InternalService/GetSummary',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.FromString,
+        )
+    self.SampledHistory = channel.unary_unary(
+        '/wandb_internal.InternalService/SampledHistory',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.FromString,
+        )
+    self.PollExit = channel.unary_unary(
+        '/wandb_internal.InternalService/PollExit',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitResponse.FromString,
+        )
+    self.Shutdown = channel.unary_unary(
+        '/wandb_internal.InternalService/Shutdown',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.FromString,
+        )
     self.RunExit = channel.unary_unary(
         '/wandb_internal.InternalService/RunExit',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
@@ -62,6 +87,41 @@ class InternalServiceServicer(object):
   pass
 
   def RunUpdate(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def RunStart(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def GetSummary(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def SampledHistory(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def PollExit(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Shutdown(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -124,6 +184,31 @@ def add_InternalServiceServicer_to_server(servicer, server):
           servicer.RunUpdate,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.SerializeToString,
+      ),
+      'RunStart': grpc.unary_unary_rpc_method_handler(
+          servicer.RunStart,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartResponse.SerializeToString,
+      ),
+      'GetSummary': grpc.unary_unary_rpc_method_handler(
+          servicer.GetSummary,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.GetSummaryResponse.SerializeToString,
+      ),
+      'SampledHistory': grpc.unary_unary_rpc_method_handler(
+          servicer.SampledHistory,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.SampledHistoryResponse.SerializeToString,
+      ),
+      'PollExit': grpc.unary_unary_rpc_method_handler(
+          servicer.PollExit,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PollExitResponse.SerializeToString,
+      ),
+      'Shutdown': grpc.unary_unary_rpc_method_handler(
+          servicer.Shutdown,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ShutdownResponse.SerializeToString,
       ),
       'RunExit': grpc.unary_unary_rpc_method_handler(
           servicer.RunExit,

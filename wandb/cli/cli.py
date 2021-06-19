@@ -237,15 +237,16 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
 )
 @click.option("--port", default=None, help="The host port to bind grpc service.")
+@click.option("--port-filename", default=None, help="Save port to file.")
 @display_error
-def grpc_server(project=None, entity=None, port=None):
+def grpc_server(port=None, port_filename=None):
     _ = util.get_module(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
     from wandb.server.grpc_server import main as grpc_server
 
-    grpc_server(port=port)
+    grpc_server(port=port, port_filename=port_filename)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)

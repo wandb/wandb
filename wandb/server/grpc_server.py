@@ -7,6 +7,8 @@ import logging
 import multiprocessing
 import os
 import time
+import tempfile
+import setproctitle
 
 import grpc
 import wandb
@@ -31,12 +33,39 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = self._backend._interface._communicate_run(run_data)
 
         # initiate run (stats and metadata probing)
-        _ = self._backend._interface.communicate_run_start(result.run)
+        # _ = self._backend._interface.communicate_run_start(result.run)
 
         return result
 
+    def RunStart(self, run_data, context):  # noqa: N802
+        # initiate run (stats and metadata probing)
+        result = self._backend._interface.communicate_run_start(run_data.run)
+        return result
+
+    def PollExit(self, poll_exit, context):  # noqa: N802
+        # initiate run (stats and metadata probing)
+        result = self._backend._interface.communicate_poll_exit()
+        return result
+
+    def GetSummary(self, poll_exit, context):  # noqa: N802
+        # initiate run (stats and metadata probing)
+        result = self._backend._interface.communicate_summary()
+        return result
+
+    def SampledHistory(self, poll_exit, context):  # noqa: N802
+        # initiate run (stats and metadata probing)
+        result = self._backend._interface.communicate_sampled_history()
+        return result
+
+    def Shutdown(self, poll_exit, context):  # noqa: N802
+        # initiate run (stats and metadata probing)
+        self._backend._interface._communicate_shutdown()
+        result = wandb_internal_pb2.ShutdownResponse()
+        return result
+
     def RunExit(self, exit_data, context):  # noqa: N802
-        result = self._backend._interface._communicate_exit(exit_data)
+        self._backend._interface.publish_exit(exit_data.exit_code)
+        result = wandb_internal_pb2.RunExitResult()
         return result
 
     def Log(self, log_data, context):  # noqa: N802
@@ -85,6 +114,7 @@ class Backend:
         self._interface = None
         self._record_q = None
         self._result_q = None
+        self._settings = None
 
     def _make_settings(self):
         log_level = logging.DEBUG
@@ -93,7 +123,8 @@ class Backend:
         timespec = datetime.datetime.strftime(start_datetime, "%Y%m%d_%H%M%S")
 
         wandb_dir = "wandb"
-        run_path = "run-{}-server".format(timespec)
+        pid = os.getpid()
+        run_path = "run-{}-{}-server".format(timespec, pid)
         run_dir = os.path.join(wandb_dir, run_path)
         files_dir = os.path.join(run_dir, "files")
         sync_file = os.path.join(run_dir, "run-{}.wandb".format(start_time))
@@ -134,9 +165,7 @@ class Backend:
         return settings
 
     def setup(self, process=None, record_q=None, result_q=None):
-        settings = None
-        if not process:
-            settings = self._make_settings()
+        settings = self._make_settings()
         mp = multiprocessing
         fd_pipe_child, fd_pipe_parent = mp.Pipe()
 
@@ -154,8 +183,9 @@ class Backend:
             wandb_process.name = "wandb_internal"
             wandb_process.start()
 
-        self.record_q = record_q
-        self.result_q = result_q
+        self._settings = settings
+        self._record_q = record_q
+        self._result_q = result_q
         self.wandb_process = wandb_process
 
         self._interface = wandb.wandb_sdk.interface.interface.BackendSender(
@@ -165,54 +195,76 @@ class Backend:
             process_check=False,
         )
 
+    def run(self, port=None):
+        try:
+            wandb.wandb_sdk.internal.internal.wandb_internal(
+                settings=self._settings,
+                record_q=self._record_q,
+                result_q=self._result_q,
+                port=port,
+            )
+        except KeyboardInterrupt:
+            pass
+
     def cleanup(self):
         # TODO: make _done atomic
         if self._done:
             return
         self._done = True
         self._interface.join()
-        self.wandb_process.join()
-        self.record_q.close()
-        self.result_q.close()
+        # self.wandb_process.join()
+        self._record_q.close()
+        self._result_q.close()
         # No printing allowed from here until redirect restore!!!
 
 
-def serve(backend, port, port_q=None):
+def serve(backend, port, port_filename=None):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     try:
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
             InternalServiceServicer(server, backend), server
         )
-        port = server.add_insecure_port("[::]:{}".format(port))
-        if port_q:
-            port_q.put(port)
+        port = server.add_insecure_port("localhost:{}".format(port))
         server.start()
-        server.wait_for_termination()
+
+        if port_filename:
+            dname, bname = os.path.split(port_filename)
+            f = tempfile.NamedTemporaryFile(
+                prefix=bname, dir=dname, mode="w", delete=False
+            )
+            tmp_filename = f.name
+            try:
+                with f:
+                    f.write("%d" % port)
+                os.rename(tmp_filename, port_filename)
+            except Exception:
+                os.unlink(tmp_filename)
+                raise
+
+        # server.wait_for_termination()
     except KeyboardInterrupt:
-        print("control-c")
+        backend.cleanup()
         server.stop(0)
+        raise
+    except Exception as e:
+        backend.cleanup()
+        server.stop(0)
+        raise
+    return port
 
 
-def serve_async(backend, port, port_q=None):
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
-        InternalServiceServicer(server, backend), server
-    )
-    port = server.add_insecure_port("localhost:{}".format(port))
-    if port_q:
-        port_q.put(port)
-    server.start()
-    return server
-
-
-def main(port=None):
-    try:
-        logging.basicConfig()
-        backend = Backend()
-        backend.setup()
-        serve(backend, port or 50051)
-    except KeyboardInterrupt:
-        print("outer control-c")
+def main(port=None, port_filename=None):
+    logging.basicConfig()
+    record_q = multiprocessing.Queue()
+    result_q = multiprocessing.Queue()
+    proc = multiprocessing.current_process()
+    backend = Backend()
+    backend.setup(process=proc, record_q=record_q, result_q=result_q)
+    port = serve(backend, port or 0, port_filename=port_filename)
+    if port:
+        setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
+    backend.run(port=port)
+    backend.cleanup()
 
 
 if __name__ == "__main__":

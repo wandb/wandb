@@ -10,6 +10,7 @@ from __future__ import print_function
 
 import datetime
 import logging
+import multiprocessing
 import os
 import platform
 import sys
@@ -27,7 +28,7 @@ from wandb.util import sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import filesystem, ipython, module, reporting, telemetry
+from .lib import filesystem, ipython, module, multiprocess, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run
@@ -179,6 +180,13 @@ class _WandbInit(object):
 
             if settings._jupyter:
                 self._jupyter_setup(settings)
+
+            if multiprocess.is_likely_multiprocessing_process():
+                wandb.termwarn(
+                    "Detected wandb.init() called from multiprocessing process: See http://wandb.me/client-"
+                )
+
+                multiprocess.install_exit_handler()
 
         self.settings = settings.freeze()
 

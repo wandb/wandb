@@ -11,7 +11,9 @@ import logging
 import multiprocessing
 import os
 import sys
+import time
 import threading
+import subprocess
 
 import wandb
 
@@ -75,8 +77,56 @@ class Backend(object):
         ctx = multiprocessing.get_context(start_method)
         self._multiprocessing = ctx
 
+    def _grpc_wait_for_port(self, fname) -> "Optional[int]":
+        time_max = time.time() + 30
+        port = None
+        while time.time() < time_max:
+            if not os.path.isfile(fname):
+                time.sleep(0.2)
+                continue
+            try:
+                f = open(fname)
+                port = int(f.read())
+            except Exception as e:
+                print("Error:", e)
+            return port
+        return None
+
+    def _grpc_launch_server(self, port=0) -> "Optional[int]":
+        # https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
+        # https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
+        kwargs = dict(close_fds=True, start_new_session=True)
+
+        # TODO(add processid)
+        pid = os.getpid()
+        fname = "/tmp/out-{}-port.txt".format(pid)
+
+        try:
+            os.unlink(fname)
+        except Exception:
+            pass
+
+        internal_proc = subprocess.Popen(
+            [sys.executable, "-m", "wandb", "grpc-server", "--port-filename", fname],
+            env=os.environ,
+            **kwargs
+        )
+
+        port = self._grpc_wait_for_port(fname)
+        try:
+            os.unlink(fname)
+        except Exception:
+            pass
+
+        if not port:
+            return None, None
+
+        # return internal_proc, port
+        return internal_proc, port
+
     def ensure_launched(self):
         """Launch backend worker if not running."""
+        grpc_port: int = None
         settings = dict(self._settings or ())
         settings["_log_level"] = self._log_level or logging.DEBUG
 
@@ -89,23 +139,10 @@ class Backend(object):
         self.record_q = self._multiprocessing.Queue()
         self.result_q = self._multiprocessing.Queue()
 
+        interface_class = interface.BackendSender
         start_method = settings.get("start_method")
         if start_method == "grpc":
-            # note: conditional import needed for optional grpcio
-            from ..internal import grpc_router
-
-            wandb._set_internal_process(disable=True)
-            stopped = threading.Event()
-            grpc_thread = grpc_router.GrpcRouterThread(
-                settings=settings,
-                record_q=self.record_q,
-                result_q=self.result_q,
-                stopped=stopped,
-            )
-            self.wandb_process = grpc_thread
-            self.wandb_process.daemon = True
-            self.wandb_process.pid = 0
-            grpc_thread._launch_grpc_server()
+            interface_class = interface.BackendGrpcSender
         elif start_method == "thread":
             wandb._set_internal_process(disable=True)
             self.wandb_process = BackendThread(
@@ -155,11 +192,15 @@ class Backend(object):
 
         logger.info("starting backend process...")
         # Start the process with __name__ == "__main__" workarounds
-        self.wandb_process.start()
-        self._internal_pid = self.wandb_process.pid
-        logger.info(
-            "started backend process with pid: {}".format(self.wandb_process.pid)
-        )
+        if self.wandb_process:
+            self.wandb_process.start()
+            self._internal_pid = self.wandb_process.pid
+            logger.info(
+                "started backend process with pid: {}".format(self.wandb_process.pid)
+            )
+
+        if self._settings.start_method == "grpc":
+            proc, grpc_port = self._grpc_launch_server()
 
         # Undo temporary changes from: __name__ == "__main__"
         main_module.__spec__ = save_mod_spec
@@ -168,9 +209,12 @@ class Backend(object):
         elif save_mod_path:
             main_module.__file__ = save_mod_path
 
-        self.interface = interface.BackendSender(
+        self.interface = interface_class(
             process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
+
+        if self._settings.start_method == "grpc" and grpc_port:
+            self.interface._connect(grpc_port)
 
     def server_connect(self):
         """Connect to server."""
@@ -186,7 +230,8 @@ class Backend(object):
             return
         self._done = True
         self.interface.join()
-        self.wandb_process.join()
+        if self.wandb_process:
+            self.wandb_process.join()
         self.record_q.close()
         self.result_q.close()
         # No printing allowed from here until redirect restore!!!

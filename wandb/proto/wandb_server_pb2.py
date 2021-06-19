@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\x17\n\x15ServerShutdownRequest\"\x16\n\x14ServerShutdownResult\"\x15\n\x13ServerStatusRequest\"\x14\n\x12ServerStatusResult2\x85\x05\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\x17\n\x15ServerShutdownRequest\"\x16\n\x14ServerShutdownResult\"\x15\n\x13ServerStatusRequest\"\x14\n\x12ServerStatusResult2\xb2\x08\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,])
 
@@ -164,7 +164,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   serialized_start=179,
-  serialized_end=824,
+  serialized_end=1253,
   methods=[
   _descriptor.MethodDescriptor(
     name='RunUpdate',
@@ -176,9 +176,54 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
+    name='RunStart',
+    full_name='wandb_internal.InternalService.RunStart',
+    index=1,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNSTARTREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNSTARTRESPONSE,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='GetSummary',
+    full_name='wandb_internal.InternalService.GetSummary',
+    index=2,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._GETSUMMARYREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._GETSUMMARYRESPONSE,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='SampledHistory',
+    full_name='wandb_internal.InternalService.SampledHistory',
+    index=3,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._SAMPLEDHISTORYREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._SAMPLEDHISTORYRESPONSE,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='PollExit',
+    full_name='wandb_internal.InternalService.PollExit',
+    index=4,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._POLLEXITREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._POLLEXITRESPONSE,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
+    name='Shutdown',
+    full_name='wandb_internal.InternalService.Shutdown',
+    index=5,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._SHUTDOWNREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._SHUTDOWNRESPONSE,
+    serialized_options=None,
+  ),
+  _descriptor.MethodDescriptor(
     name='RunExit',
     full_name='wandb_internal.InternalService.RunExit',
-    index=1,
+    index=6,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNEXITRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNEXITRESULT,
@@ -187,7 +232,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Log',
     full_name='wandb_internal.InternalService.Log',
-    index=2,
+    index=7,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._HISTORYRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._HISTORYRESULT,
@@ -196,7 +241,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Summary',
     full_name='wandb_internal.InternalService.Summary',
-    index=3,
+    index=8,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._SUMMARYRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._SUMMARYRESULT,
@@ -205,7 +250,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Config',
     full_name='wandb_internal.InternalService.Config',
-    index=4,
+    index=9,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._CONFIGRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._CONFIGRESULT,
@@ -214,7 +259,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Output',
     full_name='wandb_internal.InternalService.Output',
-    index=5,
+    index=10,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._OUTPUTRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._OUTPUTRESULT,
@@ -223,7 +268,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerShutdown',
     full_name='wandb_internal.InternalService.ServerShutdown',
-    index=6,
+    index=11,
     containing_service=None,
     input_type=_SERVERSHUTDOWNREQUEST,
     output_type=_SERVERSHUTDOWNRESULT,
@@ -232,7 +277,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerStatus',
     full_name='wandb_internal.InternalService.ServerStatus',
-    index=7,
+    index=12,
     containing_service=None,
     input_type=_SERVERSTATUSREQUEST,
     output_type=_SERVERSTATUSRESULT,
