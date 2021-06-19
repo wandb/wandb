@@ -48,11 +48,9 @@ def custom_mp_osexit_handler(code: int = None) -> None:
 
 
 def install_exit_handler() -> None:
-    print("INSTALL1")
     if not isinstance(sys.exit, types.BuiltinFunctionType):
         wandb.termerror("Not installing mp exit handler since it has already been set.")
         return
-    print("INSTALL2")
 
     # if sys.excepthook == sys.__excepthook__:
     #     pass
@@ -64,7 +62,6 @@ def install_exit_handler() -> None:
     global old_osexit_handler
     old_osexit_handler = os._exit
     os._exit = custom_mp_osexit_handler
-    print("INSTALL3")
 
 
 def uninstall_multiprocess_exit_handler() -> None:
