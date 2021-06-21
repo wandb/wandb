@@ -162,7 +162,9 @@ class Backend(object):
         interface_class = interface.BackendSender
         start_method = settings.get("start_method")
         if start_method == "grpc":
-            interface_class = interface.BackendGrpcSender
+            from ..interface import iface_grpc
+
+            interface_class = iface_grpc.BackendGrpcSender
         elif start_method == "thread":
             wandb._set_internal_process(disable=True)
             self.wandb_process = BackendThread(

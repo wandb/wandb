@@ -11,14 +11,11 @@ import logging
 import threading
 import uuid
 
-import grpc  # type: ignore
 import six
 from six.moves import queue
 import wandb
 from wandb import data_types
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_server_pb2
-from wandb.proto import wandb_server_pb2_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.util import (
     get_h5_typename,
@@ -150,7 +147,12 @@ class MessageRouter(object):
         future._set_object(msg)
 
 
-class BackendSender(object):
+class BackendSenderBase(object):
+    def __init__(self):
+        pass
+
+
+class BackendSender(BackendSenderBase):
     class ExceptionTimeout(Exception):
         pass
 
@@ -168,6 +170,7 @@ class BackendSender(object):
         process = None,
         process_check = True,
     ):
+        super(BackendSender, self).__init__()
         self.record_q = record_q
         self.result_q = result_q
         self._process = process
@@ -852,87 +855,3 @@ class BackendSender(object):
 
         if self._router:
             self._router.join()
-
-
-class BackendGrpcSender(BackendSender):
-    def __init__(
-        self,
-        record_q = None,
-        result_q = None,
-        process = None,
-        process_check = True,
-    ):
-        super(BackendGrpcSender, self).__init__(
-            record_q=record_q,
-            result_q=result_q,
-            process=process,
-            process_check=process_check,
-        )
-        self._stub = None
-        self._process_check = None
-
-    def _publish(self, record, local = None):
-        super(BackendGrpcSender, self)._publish(record=record, local=local)
-
-    def _init_router(self):
-        pass
-
-    def _connect(self, port):
-        channel = grpc.insecure_channel("localhost:{}".format(port))
-        stub = wandb_server_pb2_grpc.InternalServiceStub(channel)
-        self._stub = stub
-        d = wandb_server_pb2.ServerStatusRequest()
-        _ = self._stub.ServerStatus(d)
-
-    def communicate_check_version(
-        self, current_version = None
-    ):
-        pass
-
-    def _communicate_run(
-        self, run, timeout = None
-    ):
-        run_result = self._stub.RunUpdate(run)
-        return run_result
-
-    def _communicate_shutdown(self):
-        shutdown = pb.ShutdownRequest()
-        _ = self._stub.Shutdown(shutdown)
-        return None
-
-    def communicate_run_start(self, run_pb):
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
-        _ = self._stub.RunStart(run_start)
-        result = pb.Result()
-        return result
-
-    def communicate_network_status(
-        self, timeout = None
-    ):
-        return None
-
-    def communicate_stop_status(
-        self, timeout = None
-    ):
-        return None
-
-    def publish_exit(self, exit_code):
-        exit_data = self._make_exit(exit_code)
-        _ = self._stub.RunExit(exit_data)
-        return None
-
-    def communicate_poll_exit(self):
-        req = pb.PollExitRequest()
-        ret = self._stub.PollExit(req)
-        return ret
-
-    def communicate_summary(self):
-        req = pb.GetSummaryRequest()
-        ret = self._stub.GetSummary(req)
-        return ret
-
-    def communicate_sampled_history(self):
-        req = pb.SampledHistoryRequest()
-        ret = self._stub.SampledHistory(req)
-        return ret
