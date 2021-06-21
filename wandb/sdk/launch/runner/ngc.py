@@ -7,7 +7,7 @@ import time
 
 import wandb
 
-from .abstract import AbstractRunner, AbstractRun, Status
+from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
 

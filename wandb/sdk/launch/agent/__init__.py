@@ -1,23 +1,20 @@
-import getpass
 import os
-import tempfile
 import time
-from wandb.sdk import backend
 
 import wandb
 from wandb import Settings
-from ...internal.internal_api import Api
+
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 from ..utils import (
     _collect_args,
     _convert_access,
-    fetch_and_validate_project,
     _is_wandb_local_uri,
-    parse_wandb_uri,
+    fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
 )
+from ...internal.internal_api import Api
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
@@ -39,7 +36,7 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._queues = []
+        self._queues: Iterable[Dict[str, str]] = []
         self._backend = (
             None  # todo: probably rename to runner to avoid confusion w cli backend
         )
@@ -126,18 +123,13 @@ class LaunchAgent(object):
         args_dict = _collect_args(run_spec["overrides"].get("args", {}))
         project = fetch_and_validate_project(
             uri,
+            wandb_entity,
+            wandb_project,
             run_spec["overrides"].get("name"),
             self._api,
-            resource,
             run_spec.get("version", None),
             entry_point,
             args_dict,
-        )
-        project.docker_env["WANDB_PROJECT"] = (
-            wandb_project or self._api.settings().get("project") or "Uncategorized"
-        )
-        project.docker_env["WANDB_ENTITY"] = wandb_entity or self._api.settings().get(
-            "entity"
         )
 
         if _is_wandb_local_uri(uri):

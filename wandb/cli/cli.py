@@ -14,7 +14,7 @@ import sys
 import textwrap
 import time
 import traceback
-from wandb.sdk.launch.utils import parse_wandb_uri
+
 
 import click
 from click.exceptions import ClickException
@@ -43,9 +43,13 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
+    from wandb.sdk.launch.utils import parse_wandb_uri
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
     from wandb.sdk_py27 import launch as wandb_launch
+
+    # todo: codemod to bring into py27?
+    # from wandb.sdk.launch.utils import parse_wandb_uri
 
 
 # TODO: turn this on in a cleaner way
@@ -879,7 +883,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
 @click.argument("uri")
 @click.option(
     "--entry-point",
-    "-e",
+    "-E",
     metavar="NAME",
     default=None,
     help="Entry point within project. [default: main]. If the entry point is not found, "
@@ -1022,7 +1026,7 @@ def launch(
             resource=resource,
             config=config,
             storage_dir=storage_dir,
-            synchronous=resource in ("local", "ngc")
+            synchronous=resource in ("local")
             or resource is None,  # todo currently always true
             api=api,
         )
@@ -1036,13 +1040,6 @@ def launch(
 @click.option("--project", "-p", default=None, help="The project to use.")
 @click.option("--entity", "-e", default=None, help="The entity to use.")
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
-# @click.option(
-#     "--max",
-#     default=4,
-#     type=int,
-#     help="The maximum number of launchs to manage in parallel.",
-# )
-# @click.argument("agent")
 @click.argument("agent_spec", nargs=-1)
 @display_error
 def launch_agent(
