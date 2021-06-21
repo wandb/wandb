@@ -158,6 +158,15 @@ def _check_keras_version():
         )
 
 
+def _update_if_numeric(metrics, key, values):
+    if is_numeric_array(values):
+        metrics[key] = wandb.Histogram(values)
+    else:
+        wandb.termwarn(
+            "Non-numeric values found in layer: {}, not logging this layer".format(key)
+        )
+
+
 if "keras" in sys.modules:
     _check_keras_version()
 else:
@@ -224,14 +233,14 @@ class WandbCallback(keras.callbacks.Callback):
         ```
 
     `WandbCallback` will automatically log history data from any
-    metrics collected by keras: loss and anything passed into `keras_model.compile()`. 
+    metrics collected by keras: loss and anything passed into `keras_model.compile()`.
 
     `WandbCallback` will set summary metrics for the run associated with the "best" training
     step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
-    to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model 
+    to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model
     associated with the best `epoch`.
 
-    `WandbCallback` can optionally log gradient and parameter histograms. 
+    `WandbCallback` can optionally log gradient and parameter histograms.
 
     `WandbCallback` can optionally save training and validation data for wandb to visualize.
 
@@ -250,9 +259,9 @@ class WandbCallback(keras.callbacks.Callback):
             is saved (`model.save(filepath)`).
         log_weights: (boolean) if True save histograms of the model's layer's weights.
         log_gradients: (boolean) if True log histograms of the training gradients
-        training_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  This is needed 
+        training_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  This is needed
             for calculating gradients - this is mandatory if `log_gradients` is `True`.
-        validate_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data 
+        validate_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
             for wandb to visualize.  If this is set, every epoch, wandb will
             make a small number of predictions and save the results for later visualization.
         generator: (generator) a generator that returns validation data for wandb to visualize.  This
@@ -260,34 +269,34 @@ class WandbCallback(keras.callbacks.Callback):
             be set for wandb to visualize specific data examples.
         validation_steps: (int) if `validation_data` is a generator, how many
             steps to run the generator for the full validation set.
-        labels: (list) If you are visualizing your data with wandb this list of labels 
+        labels: (list) If you are visualizing your data with wandb this list of labels
             will convert numeric output to understandable string if you are building a
             multiclass classifier.  If you are making a binary classifier you can pass in
             a list of two labels ["label for false", "label for true"].  If `validate_data`
             and generator are both false, this won't do anything.
-        predictions: (int) the number of predictions to make for visualization each epoch, max 
+        predictions: (int) the number of predictions to make for visualization each epoch, max
             is 100.
         input_type: (string) type of the model input to help visualization. can be one of:
             (`image`, `images`, `segmentation_mask`).
         output_type: (string) type of the model output to help visualziation. can be one of:
-            (`image`, `images`, `segmentation_mask`).  
-        log_evaluation: (boolean) if True, save a Table containing validation data and the 
-            model's preditions at each epoch. See `validation_indexes`, 
+            (`image`, `images`, `segmentation_mask`).
+        log_evaluation: (boolean) if True, save a Table containing validation data and the
+            model's preditions at each epoch. See `validation_indexes`,
             `validation_row_processor`, and `output_row_processor` for additional details.
-        class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
+        class_colors: ([float, float, float]) if the input or output is a segmentation mask,
             an array containing an rgb tuple (range 0-1) for each class.
         log_batch_frequency: (integer) if None, callback will log every epoch.
-            If set to integer, callback will log training metrics every `log_batch_frequency` 
+            If set to integer, callback will log training metrics every `log_batch_frequency`
             batches.
         log_best_prefix: (string) if None, no extra summary metrics will be saved.
             If set to a string, the monitored metric and epoch will be prepended with this value
             and stored as summary metrics.
-        validation_indexes: ([wandb.data_types._TableLinkMixin]) an ordered list of index keys to associate 
+        validation_indexes: ([wandb.data_types._TableLinkMixin]) an ordered list of index keys to associate
             with each validation example.  If log_evaluation is True and `validation_indexes` is provided,
             then a Table of validation data will not be created and instead each prediction will
             be associated with the row represented by the `TableLinkMixin`. The most common way to obtain
             such keys are is use `Table.get_index()` which will return a list of row keys.
-        validation_row_processor: (Callable) a function to apply to the validation data, commonly used to visualize the data. 
+        validation_row_processor: (Callable) a function to apply to the validation data, commonly used to visualize the data.
             The function will receive an `ndx` (int) and a `row` (dict). If your model has a single input,
             then `row["input"]` will be the input data for the row. Else, it will be keyed based on the name of the
             input slot. If your fit function takes a single target, then `row["target"]` will be the target data for the row. Else,
@@ -296,7 +305,7 @@ class WandbCallback(keras.callbacks.Callback):
             as the processor. Ignored if log_evaluation is False or `validation_indexes` are present.
         output_row_processor: (Callable) same as `validation_row_processor`, but applied to the model's output. `row["output"]` will contain
             the results of the model output.
-        infer_missing_processors: (bool) Determines if `validation_row_processor` and `output_row_processor` 
+        infer_missing_processors: (bool) Determines if `validation_row_processor` and `output_row_processor`
             should be inferred if missing. Defaults to True. If `labels` are provided, we will attempt to infer classification-type
             processors where appropriate.
     """
@@ -461,11 +470,15 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
@@ -786,38 +799,16 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                if is_numeric_array(weights[0]):
-                    metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                        weights[0]
-                    )
-                else:
-                    wandb.termwarn(
-                        "Non-numeric values found in layer: parameters/{}.weights, not logging this layer".format(
-                            layer.name
-                        )
-                    )
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                )
             elif len(weights) == 2:
-                if is_numeric_array(weights[0]):
-
-                    metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                        weights[0]
-                    )
-                else:
-                    wandb.termwarn(
-                        "Non-numeric values found in layer: parameters/{}.weights, not logging this layer".format(
-                            layer.name
-                        )
-                    )
-                if is_numeric_array(weights[1]):
-                    metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
-                        weights[1]
-                    )
-                else:
-                    wandb.termwarn(
-                        "Non-numeric values found in layer: parameters/{}.bias, not logging this layer".format(
-                            layer.name
-                        )
-                    )
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                )
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".bias", weights[1]
+                )
         return metrics
 
     def _log_gradients(self):
