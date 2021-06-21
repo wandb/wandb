@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from dockerpycreds.utils import find_executable
+from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
 
@@ -15,13 +15,13 @@ if wandb.TYPE_CHECKING:
 
 
 # TODO: is this ok?
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal
+if wandb.TYPE_CHECKING:
+    try:
+        from typing import Literal
+    except ImportError:
+        from typing_extensions import Literal  # type: ignore
 
-
-State = Literal["unknown", "starting", "running", "failed", "finished"]
+    State = Literal["unknown", "starting", "running", "failed", "finished"]
 
 
 class Status(object):

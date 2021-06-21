@@ -1,5 +1,4 @@
 #
-from wandb.vendor.pygments.lexers.robotframework import normalize
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
@@ -737,10 +736,11 @@ class Api(object):
         # TODO(jhr): Commenting out 'repo' field for cling, add back
         #   'description': description, 'repo': self.git.remote_url, 'id': id})
         return response["upsertModel"]["model"]
-    
+
     @normalize_exceptions
     def get_project_run_queues(self, entity, project):
-        query = gql("""
+        query = gql(
+            """
         query Project($entity: String!, $projectName: String!){
             project(entityName: $entity, name: $projectName) {
                 runQueues {
@@ -757,11 +757,14 @@ class Api(object):
             "projectName": project,
             "entity": entity,
         }
-        return self.gql(query, variable_values)["project"]["runQueues"]          # todo handle nonexistent queue exception 
+        return self.gql(query, variable_values)["project"][
+            "runQueues"
+        ]  # todo handle nonexistent queue exception
 
     @normalize_exceptions
     def create_run_queue(self, entity, project, queue_name, access):
-        query = gql("""
+        query = gql(
+            """
         mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
             createRunQueue(
                 input: {
@@ -789,8 +792,10 @@ class Api(object):
     @normalize_exceptions
     def push_to_run_queue(self, queue_name, run_spec):
         # todo: we're adding pushToRunQueueByName to avoid this extra query
-        queues_found = self.get_project_run_queues(run_spec["entity"], run_spec["project"])
-        matching_queues = [q for q in queues_found if q['name'] == queue_name]
+        queues_found = self.get_project_run_queues(
+            run_spec["entity"], run_spec["project"]
+        )
+        matching_queues = [q for q in queues_found if q["name"] == queue_name]
         if not matching_queues:
             logger.error("Queue with name {} not found".format(queue_name))
         elif len(matching_queues) > 1:
@@ -809,14 +814,12 @@ class Api(object):
                 runQueueItemId
             }
         }
-        """)
+        """
+        )
         spec_json = json.dumps(run_spec)
         response = self.gql(
-            mutation,
-            variable_values={
-                "queueID": queue_id,
-                "runSpec": spec_json
-            })
+            mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
+        )
         return response["pushToRunQueue"]
 
     @normalize_exceptions

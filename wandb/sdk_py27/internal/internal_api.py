@@ -820,6 +820,91 @@ class Api(object):
         return response["pushToRunQueue"]
 
     @normalize_exceptions
+    def get_project_run_queues(self, entity, project):
+        query = gql(
+            """
+        query Project($entity: String!, $projectName: String!){
+            project(entityName: $entity, name: $projectName) {
+                runQueues {
+                    id
+                    name
+                    createdBy
+                    access
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "projectName": project,
+            "entity": entity,
+        }
+        return self.gql(query, variable_values)["project"][
+            "runQueues"
+        ]  # todo handle nonexistent queue exception
+
+    @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+            
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
+    def push_to_run_queue(self, queue_name, run_spec):
+        # todo: we're adding pushToRunQueueByName to avoid this extra query
+        queues_found = self.get_project_run_queues(
+            run_spec["entity"], run_spec["project"]
+        )
+        matching_queues = [q for q in queues_found if q["name"] == queue_name]
+        if not matching_queues:
+            logger.error("Queue with name {} not found".format(queue_name))
+        elif len(matching_queues) > 1:
+            logger.error("Multiple queues with name {} found".format(queue_name))
+        queue_id = matching_queues[0]["id"]
+
+        mutation = gql(
+            """
+        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
+            pushToRunQueue(
+                input: {
+                    queueID: $queueID,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+        spec_json = json.dumps(run_spec)
+        response = self.gql(
+            mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
+        )
+        return response["pushToRunQueue"]
+
+    @normalize_exceptions
     def pop_from_run_queue(self, queue_name, entity=None, project=None):
         mutation = gql(
             """

@@ -5,14 +5,14 @@ import re
 import shutil
 import subprocess
 import tempfile
+from typing import Sequence
 
-import docker
-from dockerpycreds.utils import find_executable
+from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
 
 from . import _project_spec
-from .utils import WANDB_DOCKER_WORKDIR_PATH
+from .utils import _is_wandb_dev_uri, _is_wandb_local_uri, WANDB_DOCKER_WORKDIR_PATH
 from ..lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)
@@ -34,10 +34,6 @@ def validate_docker_installation():
 
 
 def validate_docker_env(project: _project_spec.Project):
-    if not project.name:
-        raise ExecutionException(
-            "Project name must be specified when using docker " "for image tagging."
-        )
     if not project.docker_env.get("image"):
         raise ExecutionException(
             "Project with docker environment must specify the docker image "
@@ -47,7 +43,7 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
-    cmd = [
+    cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
         path,
@@ -68,17 +64,25 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, repository_uri, base_image, api):
+def build_docker_image(project: _project_spec.Project, name, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
+    import docker  # type: ignore
 
-    image_uri = _get_docker_image_uri(
-        repository_uri=repository_uri, work_dir=project.dir
-    )
+    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
+    if _is_wandb_local_uri(api.settings("base_url")):
+        _, _, port = _, _, port = api.settings("base_url").split(":")
+        base_url = "http://host.docker.internal:{}".format(port)
+    elif _is_wandb_dev_uri(api.settings("base_url")):
+        base_url = "http://host.docker.internal:9002"
+    else:
+        base_url = api.settings("base_url")
+    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
 
-    wandb_project = project.docker_env[wandb.env.PROJECT]
-    wandb_entity = project.docker_env[wandb.env.ENTITY]
+    wandb_project = project.target_project
+    wandb_entity = project.target_entity
+
     dockerfile = (
         "FROM {imagename}\n"
         "COPY {build_context_path}/ {workdir}\n"
@@ -87,6 +91,7 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
+        "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
         "ENV LAUNCH_CONFIG_PATH={config_path}\n"
         "USER root\n"  # todo: very bad idea, just to get it working
@@ -94,10 +99,11 @@ def build_docker_image(project: _project_spec.Project, repository_uri, base_imag
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         workdir=WANDB_DOCKER_WORKDIR_PATH,
-        base_url=api.settings("base_url"),
+        base_url=base_url,
         api_key=api.api_key,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
+        wandb_name=project.name,
         config_path=project.config_path,
     )
 

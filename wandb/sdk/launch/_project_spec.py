@@ -4,17 +4,20 @@ from distutils import dir_util
 import logging
 import os
 from shlex import quote
-import six
 import json
 import tempfile
 import urllib.parse
 
+import six
+import wandb
 from wandb import util
 from wandb.errors import Error as ExecutionException
 
 from . import utils
 
-from typing import Any, Dict, List
+if wandb.TYPE_CHECKING:
+    from typing import Any, Dict, List
+
 
 _logger = logging.getLogger(__name__)
 
@@ -25,9 +28,13 @@ DEFAULT_CONFIG_PATH = "launch_override_config.json"
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
+    dir: str
+
     def __init__(
         self,
         uri: str,
+        target_entity: str,
+        target_project: str,
         name: str,
         version,
         entry_points: List[str],
@@ -39,9 +46,12 @@ class Project(object):
         self.name = name  # todo: what to do for default names
         if self.name is None and utils._is_wandb_uri(uri):
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
-            self.name = "{}_{}".format(wandb_project, wandb_name)
+            self.name = "{}_{}_launch".format(wandb_project, wandb_name)
+        self.target_entity = target_entity
+        self.target_project = target_project
+
         self.version = version
-        self._entry_points = {}
+        self._entry_points: Dict[str, EntryPoint] = {}
         for ep in entry_points:
             if ep:
                 self.add_entry_point(ep)
@@ -50,7 +60,7 @@ class Project(object):
         self.config = config
         self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
-        self.docker_env = {}
+        self.docker_env: Dict[str, str] = {}
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
@@ -154,7 +164,6 @@ class Project(object):
         with open(os.path.join(self.dir, DEFAULT_CONFIG_PATH), "w+") as f:
             json.dump(self.config["overrides"], f)
         return self.dir
-        
 
 
 class EntryPoint(object):

@@ -22,6 +22,7 @@ grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
 sweeps_requirements = ['numpy']
+launch_requirements = ['docker', 'jupyter-repo2docker']
 
 setup(
     name='wandb',
@@ -79,7 +80,8 @@ setup(
         'aws': aws_requirements,
         'grpc': grpc_requirements,
         'media': media_requirements,
-        'sweeps': sweeps_requirements
+        'sweeps': sweeps_requirements,
+        'launch': launch_requirements
     }
 )
 

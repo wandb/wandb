@@ -3,26 +3,26 @@ import logging
 import os
 import re
 import tempfile
-import yaml
 
 from wandb.errors import ExecutionException
+import yaml
 
-from ._project_spec import Project, MLPROJECT_FILE_NAME
+from . import _project_spec
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
-_WANDB_URI_REGEX = re.compile(r"^https://wandb")
+_WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
 _WANDB_DEV_URI_REGEX = re.compile(
-    r"^https?://ap\w.wandb"
+    r"^https?://ap\w.wandb.test"
 )  # for testing, not sure if we wanna keep this
 _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
-    r"^https?://localhost:8080"
+    r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
@@ -41,6 +41,28 @@ def _get_storage_dir(storage_dir):
     return tempfile.mkdtemp(dir=storage_dir)
 
 
+def _get_git_repo_url(work_dir):
+    from git import Repo  # type: ignore
+    from git.exc import GitCommandError, InvalidGitRepositoryError  # type: ignore
+
+    try:
+        repo = Repo(work_dir, search_parent_directories=True)
+        remote_urls = [remote.url for remote in repo.remotes]
+        if len(remote_urls) == 0:
+            return None
+    except GitCommandError:
+        return None
+    except InvalidGitRepositoryError:
+        return None
+    return remote_urls[0]
+
+
+def _expand_uri(uri):
+    if _is_local_uri(uri):
+        return os.path.abspath(uri)
+    return uri
+
+
 def _is_wandb_uri(uri):
     return (
         _WANDB_URI_REGEX.match(uri)
@@ -48,6 +70,10 @@ def _is_wandb_uri(uri):
         or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
         or _WANDB_QA_URI_REGEX.match(uri)
     )
+
+
+def _is_wandb_dev_uri(uri):
+    return _WANDB_DEV_URI_REGEX.match(uri)
 
 
 def _is_wandb_local_uri(uri):
@@ -86,6 +112,7 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
+# TODO: Fix this dumb heuristic
 def _collect_args(args):
     dict_args = {}
     i = 0
@@ -102,11 +129,26 @@ def _collect_args(args):
 
 
 def fetch_and_validate_project(
-    uri, experiment_name, api, runner_name, version, entry_point, parameters, config
+    uri,
+    target_entity,
+    target_project,
+    experiment_name,
+    api,
+    version,
+    entry_point,
+    parameters,
 ):
     parameters = parameters or {}
-    experiment_name = experiment_name or "test"
-    project = Project(uri, experiment_name, version, [entry_point], parameters, config)
+    experiment_name = experiment_name
+    project = _project_spec.Project(
+        uri,
+        target_entity,
+        target_project,
+        experiment_name,
+        version,
+        [entry_point],
+        parameters,
+    )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
     project._copy_config_local()
@@ -137,7 +179,7 @@ def fetch_wandb_project_run_info(uri, api=None):
 
 
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, MLPROJECT_FILE_NAME)
+    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
     spec_keys_map = {
         "args": run_info["args"],
         "entrypoint": run_info["program"],
@@ -168,7 +210,7 @@ def _fetch_git_repo(uri, version, dst_dir):
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git
+    import git  # type: ignore
 
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
