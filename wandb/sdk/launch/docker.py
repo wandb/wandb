@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from typing import Sequence
 
+from six.moves import shlex_quote
 from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
@@ -56,6 +57,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     stderr = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ).stderr.decode("utf-8")
+    print(stderr)
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
@@ -64,13 +66,12 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, name, base_image, api):
+def build_docker_image(project: _project_spec.Project, base_image, uid, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
     import docker  # type: ignore
 
-    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
@@ -78,7 +79,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
+    image_uri = _get_docker_image_uri(name=project.name, work_dir=project.dir)
 
     wandb_project = project.target_project
     wandb_entity = project.target_entity
@@ -102,7 +103,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        uid=os.getuid(),
+        uid=uid or os.getuid(),
     )
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
@@ -175,7 +176,7 @@ def get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None
     for key, value in env_vars.items():
         cmd += ["-e", "{key}={value}".format(key=key, value=value)]
     cmd += [image.tags[0]]
-    return cmd
+    return [shlex_quote(c) for c in cmd]
 
 
 def _get_docker_image_uri(name, work_dir):

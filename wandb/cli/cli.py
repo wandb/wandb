@@ -958,6 +958,12 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "W&B downloads artifacts from distributed URIs passed to parameters of "
     "type 'path' to subdirectories of storage_dir.",
 )
+@click.option(
+    "--uid",
+    "-u",
+    default=None,
+    help="uid to use for the user, defaults to 1000, since blah blah blah",
+)
 def launch(
     uri,
     entry_point,
@@ -970,6 +976,7 @@ def launch(
     project,
     config,
     storage_dir,
+    uid,
 ):
     """
     Run an W&B project from the given URI.
@@ -1003,6 +1010,10 @@ def launch(
             sys.exit(1)
 
     api = _get_cling_api()
+    if uid is not None:
+        if config.get("docker") is None:
+            config["docker"] = {}
+        config["docker"]["uid"] = uid
 
     try:
         wandb_launch.run(
