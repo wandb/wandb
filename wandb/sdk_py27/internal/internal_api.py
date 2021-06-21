@@ -375,7 +375,7 @@ class Api(object):
 
     @normalize_exceptions
     def project(self, project, entity=None):
-        """Retrive project
+        """Retrieve project
 
         Arguments:
             project (str): The project to get details for
@@ -737,6 +737,172 @@ class Api(object):
         # TODO(jhr): Commenting out 'repo' field for cling, add back
         #   'description': description, 'repo': self.git.remote_url, 'id': id})
         return response["upsertModel"]["model"]
+    
+    @normalize_exceptions
+    def get_project_run_queues(self, entity, project):
+        query = gql("""
+        query Project($entity: String!, $projectName: String!){
+            project(entityName: $entity, name: $projectName) {
+                runQueues {
+                    id
+                    name
+                    createdBy
+                    access
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "projectName": project,
+            "entity": entity,
+        }
+        return self.gql(query, variable_values)["project"]["runQueues"]          # todo handle nonexistent queue exception 
+
+    @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql("""
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+            
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
+    def push_to_run_queue(self, queue_name, run_spec):
+        # todo: we're adding pushToRunQueueByName to avoid this extra query
+        queues_found = self.get_project_run_queues(run_spec["entity"], run_spec["project"])
+        matching_queues = [q for q in queues_found if q['name'] == queue_name]
+        if not matching_queues:
+            logger.error("Queue with name {} not found".format(queue_name))
+        elif len(matching_queues) > 1:
+            logger.error("Multiple queues with name {} found".format(queue_name))
+        queue_id = matching_queues[0]["id"]
+
+        mutation = gql(
+            """
+        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
+            pushToRunQueue(
+                input: {
+                    queueID: $queueID,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """)
+        spec_json = json.dumps(run_spec)
+        response = self.gql(
+            mutation,
+            variable_values={
+                "queueID": queue_id,
+                "runSpec": spec_json
+            })
+        return response["pushToRunQueue"]
+
+    @normalize_exceptions
+    def get_project_run_queues(self, entity, project):
+        query = gql(
+            """
+        query Project($entity: String!, $projectName: String!){
+            project(entityName: $entity, name: $projectName) {
+                runQueues {
+                    id
+                    name
+                    createdBy
+                    access
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "projectName": project,
+            "entity": entity,
+        }
+        return self.gql(query, variable_values)["project"][
+            "runQueues"
+        ]  # todo handle nonexistent queue exception
+
+    @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+            
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
+    def push_to_run_queue(self, queue_name, run_spec):
+        # todo: we're adding pushToRunQueueByName to avoid this extra query
+        queues_found = self.get_project_run_queues(
+            run_spec["entity"], run_spec["project"]
+        )
+        matching_queues = [q for q in queues_found if q["name"] == queue_name]
+        if not matching_queues:
+            logger.error("Queue with name {} not found".format(queue_name))
+        elif len(matching_queues) > 1:
+            logger.error("Multiple queues with name {} found".format(queue_name))
+        queue_id = matching_queues[0]["id"]
+
+        mutation = gql(
+            """
+        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
+            pushToRunQueue(
+                input: {
+                    queueID: $queueID,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+        spec_json = json.dumps(run_spec)
+        response = self.gql(
+            mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
+        )
+        return response["pushToRunQueue"]
 
     @normalize_exceptions
     def pop_from_run_queue(self, queue_name, entity=None, project=None):
@@ -759,6 +925,22 @@ class Api(object):
             },
         )
         return response["popFromRunQueue"]
+
+    @normalize_exceptions
+    def ack_run_queue_item(self, item_id, run_id=None):
+        mutation = gql(
+            """
+        mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
+            ackRunQueueItem(input: { runQueueItemId: $itemId, runName: $runId }) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
+        )
+        return response["ackRunQueueItem"]["success"]
 
     @normalize_exceptions
     def upsert_run(

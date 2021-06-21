@@ -8,20 +8,20 @@ import sys
 
 from wandb.errors import ExecutionException
 
-from .abstract import AbstractRunner, AbstractRun
-from ..utils import (
-    get_entry_point_command,
-    PROJECT_DOCKER_ARGS,
-    PROJECT_STORAGE_DIR,
-    PROJECT_SYNCHRONOUS,
-    WANDB_DOCKER_WORKDIR_PATH,
-)
+from .abstract import AbstractRun, AbstractRunner
 from ..docker import (
     build_docker_image,
     generate_docker_image,
     get_docker_command,
     validate_docker_env,
     validate_docker_installation,
+)
+from ..utils import (
+    get_entry_point_command,
+    PROJECT_DOCKER_ARGS,
+    PROJECT_STORAGE_DIR,
+    PROJECT_SYNCHRONOUS,
+    WANDB_DOCKER_WORKDIR_PATH,
 )
 
 
@@ -91,7 +91,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         image = build_docker_image(
             project=project,
-            name=project.name,
+            name=project.name,  # todo: not sure why this is passed here we should figure out this interface
             base_image=project.docker_env.get("image"),
             api=self._api,
         )
@@ -114,12 +114,14 @@ class LocalRunner(AbstractRunner):
             print("Launching run in docker with command: {}".format(command_str))
             return _run_entry_point(command_str, project.dir)
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
-            work_dir=project.dir,
-            entry_point=entry_point,
-            parameters=project.parameters,
-            docker_args=docker_args,
-            storage_dir=storage_dir,
+        return (
+            _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
+                work_dir=project.dir,
+                entry_point=entry_point,
+                parameters=project.parameters,
+                docker_args=docker_args,
+                storage_dir=storage_dir,
+            )
         )
 
 
@@ -166,7 +168,11 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, docker_args, storage_dir,
+    work_dir,
+    entry_point,
+    parameters,
+    docker_args,
+    storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning

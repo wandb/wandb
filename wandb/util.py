@@ -575,6 +575,13 @@ def json_friendly(obj):
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
+        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+            # obj is a numpy float with precision greater than that of native python float
+            # (i.e., float96 or float128). in this case obj.item() does not return a native
+            # python float to avoid loss of precision, so we need to explicitly cast this
+            # down to a 64bit float
+            obj = float(obj)
+
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
