@@ -6,6 +6,7 @@ import datetime
 import logging
 import multiprocessing
 import os
+import sys
 import tempfile
 import time
 
@@ -164,8 +165,12 @@ class Backend:
         )
         return settings
 
-    def setup(self, process=None, record_q=None, result_q=None, pid=None):
+    def setup(self, process=None, record_q=None, result_q=None, pid=None, debug=None):
+
         settings = self._make_settings()
+        if debug:
+            settings["log_internal"] = None
+
         mp = multiprocessing
         fd_pipe_child, fd_pipe_parent = mp.Pipe()
         self._monitor_pid = pid
@@ -173,16 +178,7 @@ class Backend:
         record_q = record_q or mp.Queue()
         # TODO: should this be one item just to make sure it stays fully synchronous?
         result_q = result_q or mp.Queue()
-
-        if process:
-            wandb_process = process
-        else:
-            wandb_process = mp.Process(
-                target=wandb.wandb_sdk.internal.internal.wandb_internal,
-                kwargs=dict(settings=settings, record_q=record_q, result_q=result_q,),
-            )
-            wandb_process.name = "wandb_internal"
-            wandb_process.start()
+        wandb_process = process
 
         self._settings = settings
         self._record_q = record_q
@@ -255,13 +251,26 @@ def serve(backend, port, port_filename=None, address=None):
     return port
 
 
-def main(port=None, port_filename=None, address=None, pid=None, run=None, rundir=None):
-    logging.basicConfig()
+def main(
+    port=None,
+    port_filename=None,
+    address=None,
+    pid=None,
+    run=None,
+    rundir=None,
+    debug=None,
+):
+
+    if debug:
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
     record_q = multiprocessing.Queue()
     result_q = multiprocessing.Queue()
     proc = multiprocessing.current_process()
     backend = Backend()
-    backend.setup(process=proc, record_q=record_q, result_q=result_q, pid=pid)
+    backend.setup(
+        process=proc, record_q=record_q, result_q=result_q, pid=pid, debug=debug
+    )
     port = serve(backend, port or 0, port_filename=port_filename, address=address)
     if port:
         setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))

@@ -244,9 +244,16 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @click.option("--pid", default=None, type=int, help="The pid to monitor (0 is ppid)")
 @click.option("--run", default=None, help="The run id")
 @click.option("--rundir", default=None, help="Path to the rundir")
+@click.option("--debug", default=None)
 @display_error
 def grpc_server(
-    port=None, port_filename=None, address=None, pid=None, run=None, rundir=None
+    port=None,
+    port_filename=None,
+    address=None,
+    pid=None,
+    run=None,
+    rundir=None,
+    debug=None,
 ):
     _ = util.get_module(
         "grpc",
@@ -261,6 +268,7 @@ def grpc_server(
         pid=pid,
         run=run,
         rundir=rundir,
+        debug=debug,
     )
 
 

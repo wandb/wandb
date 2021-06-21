@@ -124,6 +124,8 @@ class Backend(object):
                 fname,
                 "--pid",
                 pid_str,
+                # "--debug",
+                # "true",
             ],
             env=os.environ,
             **kwargs

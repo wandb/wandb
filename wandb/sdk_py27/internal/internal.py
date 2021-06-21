@@ -360,7 +360,7 @@ class ProcessCheck(object):
         self.check_process_interval = settings._internal_check_process
 
     def is_dead(self):
-        if not self.check_process_interval:
+        if not self.check_process_interval or not self.pid:
             return False
         time_now = time.time()
         if (
