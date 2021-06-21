@@ -291,8 +291,11 @@ class FileStreamApi(object):
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
             util.sentry_exc(exc_info, delay=True)
-            message = "File stream thread has met a critical exception: {}".format(e)
-            self._api.retry_callback(0, message)
+            if self._api.retry_callback:
+                message = "File stream thread has met a critical exception: {}".format(
+                    e
+                )
+                self._api.retry_callback(0, message)
             raise e
 
     def _handle_response(self, response):
