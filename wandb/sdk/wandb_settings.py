@@ -112,7 +112,6 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
-    # launch_config_path="WANDB_LAUNCH_CONFIG_PATH"
 )
 
 env_convert: Dict[str, Callable[[str], List[str]]] = dict(

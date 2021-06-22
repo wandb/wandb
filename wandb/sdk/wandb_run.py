@@ -373,11 +373,10 @@ class Run(object):
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
-        print("LAUNCH CONFIG PATH", self._settings.launch_config_path)
+
         if self._settings.launch and os.path.exists(self._settings.launch_config_path):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
-            print("LAUNCH CONFIG", launch_config)
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )

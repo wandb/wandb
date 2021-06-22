@@ -106,7 +106,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         wandb_name=project.name,
         config_path=project.config_path,
     )
-    print("DOCKERFILE", dockerfile)
+
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)

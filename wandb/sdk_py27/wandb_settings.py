@@ -86,6 +86,7 @@ env_settings = dict(
     api_key=None,
     sweep_id=None,
     launch=None,
+    launch_config_path=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -111,6 +112,7 @@ env_settings = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
+    # launch_config_path="WANDB_LAUNCH_CONFIG_PATH"
 )
 
 env_convert = dict(
@@ -311,6 +313,7 @@ class Settings(object):
         run_tags = None,
         sweep_id = None,
         launch = None,
+        launch_config_path = None,
         allow_val_change = None,
         force = None,
         relogin = None,
