@@ -10,14 +10,13 @@ from wandb import Settings
 
 _logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:
-    from typing import Dict
-
 
 # TODO: is this ok?
 if wandb.TYPE_CHECKING:
+    from typing import Dict
+
     try:
-        from typing import Literal
+        from typing import Literal  # type: ignore
     except ImportError:
         from typing_extensions import Literal  # type: ignore
 
@@ -25,7 +24,7 @@ if wandb.TYPE_CHECKING:
 
 
 class Status(object):
-    def __init__(self, state: State = "unknown", data=None):
+    def __init__(self, state: State = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
 
@@ -44,7 +43,7 @@ class AbstractRun(ABC):
     run.
     """
 
-    STATE_MAP: Dict[str, State] = {}
+    STATE_MAP: Dict[str, State] = {}  # type: ignore
 
     def __init__(self):
         self._status = Status()
