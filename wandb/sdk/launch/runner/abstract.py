@@ -25,7 +25,7 @@ if wandb.TYPE_CHECKING:
 
 
 class Status(object):
-    def __init__(self, state: State = "unknown", data=None):
+    def __init__(self, state: State = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
 
@@ -44,7 +44,7 @@ class AbstractRun(ABC):
     run.
     """
 
-    STATE_MAP: Dict[str, State] = {}
+    STATE_MAP: Dict[str, State] = {}  # type: ignore
 
     def __init__(self):
         self._status = Status()
