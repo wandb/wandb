@@ -10,12 +10,11 @@ from wandb import Settings
 
 _logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:
-    from typing import Dict
-
 
 # TODO: is this ok?
 if wandb.TYPE_CHECKING:
+    from typing import Dict
+
     try:
         from typing import Literal  # type: ignore
     except ImportError:
