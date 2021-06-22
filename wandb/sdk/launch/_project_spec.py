@@ -1,10 +1,10 @@
 """Internal utilities for parsing MLproject YAML files."""
 
 from distutils import dir_util
+import json
 import logging
 import os
 from shlex import quote
-import json
 import tempfile
 import urllib.parse
 
