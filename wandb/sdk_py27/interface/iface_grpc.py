@@ -45,10 +45,6 @@ class BackendGrpcSender(BackendSenderBase):
             self._run._set_iface_pid(pid)
             self._run._set_iface_port(port)
 
-    def _init_router(self):
-        # no router needed, grpc has its own router
-        pass
-
     def _hack_set_run(self, run):
         super(BackendGrpcSender, self)._hack_set_run(run)
         if self._grpc_port:
@@ -62,10 +58,12 @@ class BackendGrpcSender(BackendSenderBase):
         _ = self._stub.ServerStatus(d)
         self._grpc_port = port
 
-    def communicate_check_version(
-        self, current_version = None
+    def _communicate_check_version(
+        self, check_version
     ):
-        pass
+        assert self._stub
+        run_result = self._stub.CheckVersion(check_version)
+        return run_result
 
     def _communicate_run(
         self, run, timeout = None
@@ -75,19 +73,21 @@ class BackendGrpcSender(BackendSenderBase):
         return run_result
 
     def _publish_summary(self, summary):
-        pass
+        assert self._stub
+        _ = self._stub.Summary(summary)
 
     def _publish_telemetry(self, telem):
-        pass
+        assert self._stub
+        _ = self._stub.Telemetry(telem)
 
     def _publish_history(self, history):
-        pass
+        assert self._stub
+        _ = self._stub.Log(history)
 
     def _communicate_shutdown(self):
         assert self._stub
         shutdown = pb.ShutdownRequest()
         _ = self._stub.Shutdown(shutdown)
-        return None
 
     def _communicate_run_start(
         self, run_start
@@ -100,12 +100,12 @@ class BackendGrpcSender(BackendSenderBase):
     def communicate_network_status(
         self, timeout = None
     ):
-        return None
+        pass
 
     def communicate_stop_status(
         self, timeout = None
     ):
-        return None
+        pass
 
     def publish_exit(self, exit_code):
         assert self._stub

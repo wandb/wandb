@@ -3,6 +3,7 @@ import grpc
 
 from wandb.proto import wandb_internal_pb2 as wandb_dot_proto_dot_wandb__internal__pb2
 from wandb.proto import wandb_server_pb2 as wandb_dot_proto_dot_wandb__server__pb2
+from wandb.proto import wandb_telemetry_pb2 as wandb_dot_proto_dot_wandb__telemetry__pb2
 
 
 class InternalServiceStub(object):
@@ -69,6 +70,16 @@ class InternalServiceStub(object):
         '/wandb_internal.InternalService/Output',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.FromString,
+        )
+    self.Telemetry = channel.unary_unary(
+        '/wandb_internal.InternalService/Telemetry',
+        request_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
+        )
+    self.CheckVersion = channel.unary_unary(
+        '/wandb_internal.InternalService/CheckVersion',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.FromString,
         )
     self.ServerShutdown = channel.unary_unary(
         '/wandb_internal.InternalService/ServerShutdown',
@@ -163,6 +174,20 @@ class InternalServiceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def Telemetry(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def CheckVersion(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
   def ServerShutdown(self, request, context):
     # missing associated documentation comment in .proto file
     pass
@@ -234,6 +259,16 @@ def add_InternalServiceServicer_to_server(servicer, server):
           servicer.Output,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.OutputResult.SerializeToString,
+      ),
+      'Telemetry': grpc.unary_unary_rpc_method_handler(
+          servicer.Telemetry,
+          request_deserializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.SerializeToString,
+      ),
+      'CheckVersion': grpc.unary_unary_rpc_method_handler(
+          servicer.CheckVersion,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.SerializeToString,
       ),
       'ServerShutdown': grpc.unary_unary_rpc_method_handler(
           servicer.ServerShutdown,

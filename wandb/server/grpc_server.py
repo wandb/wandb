@@ -16,6 +16,7 @@ import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2  # type: ignore
 from wandb.proto import wandb_server_pb2_grpc  # type: ignore
+from wandb.proto import wandb_telemetry_pb2  # type: ignore
 
 
 class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
@@ -32,10 +33,6 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         run_data.telemetry.feature.grpc = True
         run_data.telemetry.cli_version = wandb.__version__
         result = self._backend._interface._communicate_run(run_data)
-
-        # initiate run (stats and metadata probing)
-        # _ = self._backend._interface.communicate_run_start(result.run)
-
         return result
 
     def RunStart(self, run_data, context):  # noqa: N802
@@ -43,23 +40,23 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = self._backend._interface.communicate_run_start(run_data.run)
         return result
 
+    def CheckVersion(self, check_version, context):  # noqa: N802
+        result = self._backend._interface._communicate_check_version(check_version)
+        return result
+
     def PollExit(self, poll_exit, context):  # noqa: N802
-        # initiate run (stats and metadata probing)
         result = self._backend._interface.communicate_poll_exit()
         return result
 
     def GetSummary(self, poll_exit, context):  # noqa: N802
-        # initiate run (stats and metadata probing)
         result = self._backend._interface.communicate_summary()
         return result
 
     def SampledHistory(self, poll_exit, context):  # noqa: N802
-        # initiate run (stats and metadata probing)
         result = self._backend._interface.communicate_sampled_history()
         return result
 
     def Shutdown(self, poll_exit, context):  # noqa: N802
-        # initiate run (stats and metadata probing)
         self._backend._interface._communicate_shutdown()
         result = wandb_internal_pb2.ShutdownResponse()
         return result
@@ -81,6 +78,13 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         self._backend._interface._publish_summary(summary_data)
         # make up a response even though this was async
         result = wandb_internal_pb2.SummaryResult()
+        return result
+
+    def Telemetry(self, telem, context):  # noqa: N802
+        # TODO: make this sync?
+        self._backend._interface._publish_telemetry(telem)
+        # make up a response even though this was async
+        result = wandb_telemetry_pb2.TelemetryResult()
         return result
 
     def Output(self, output_data, context):  # noqa: N802

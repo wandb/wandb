@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_telemetry.proto";
 
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
@@ -16,6 +17,8 @@ service InternalService {
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}
   rpc Output(OutputRecord) returns (OutputResult) {}
+  rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
+  rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
 }

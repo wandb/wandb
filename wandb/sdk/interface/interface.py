@@ -167,6 +167,20 @@ class BackendSenderBase(object):
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
+    def communicate_check_version(
+        self, current_version: str = None
+    ) -> Optional[pb.CheckVersionResponse]:
+        check_version = pb.CheckVersionRequest()
+        if current_version:
+            check_version.current_version = current_version
+        ret = self._communicate_check_version(check_version)
+        return ret
+
+    def _communicate_check_version(
+        self, current_version: pb.CheckVersionRequest
+    ) -> Optional[pb.CheckVersionResponse]:
+        raise NotImplementedError
+
     def _make_config(
         self,
         data: dict = None,
@@ -856,12 +870,9 @@ class BackendSender(BackendSenderBase):
         assert poll_exit_response
         return poll_exit_response
 
-    def communicate_check_version(
-        self, current_version: str = None
+    def _communicate_check_version(
+        self, check_version: pb.CheckVersionRequest
     ) -> Optional[pb.CheckVersionResponse]:
-        check_version = pb.CheckVersionRequest()
-        if current_version:
-            check_version.current_version = current_version
         rec = self._make_request(check_version=check_version)
         result = self._communicate(rec)
         if result is None:

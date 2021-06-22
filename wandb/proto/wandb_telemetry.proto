@@ -17,6 +17,9 @@ message TelemetryRecord {
   Labels  label = 9;
 }
 
+message TelemetryResult {
+}
+
 message Imports {
   bool torch = 1;
   bool keras = 2;
