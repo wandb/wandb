@@ -374,7 +374,11 @@ class Run(object):
                 sweep_config, user="sweep", _allow_val_change=True
             )
 
-        if self._settings.launch and os.path.exists(self._settings.launch_config_path):
+        if (
+            self._settings.launch
+            and self._settings.launch_config_path
+            and os.path.exists(self._settings.launch_config_path)
+        ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             self._config.update_locked(

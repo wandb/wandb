@@ -112,7 +112,6 @@ env_settings = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
-    # launch_config_path="WANDB_LAUNCH_CONFIG_PATH"
 )
 
 env_convert = dict(
@@ -221,6 +220,7 @@ class Settings(object):
     run_id = None
     sweep_id = None
     launch = None
+    launch_config_path = None
     resume_fname_spec = None
     root_dir = None
     log_dir_spec = None
