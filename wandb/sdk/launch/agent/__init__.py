@@ -122,6 +122,7 @@ class LaunchAgent(object):
         self.verify()
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+        run_config = run_spec["overrides"].get("config")
         project = fetch_and_validate_project(
             uri,
             wandb_entity,
@@ -131,6 +132,7 @@ class LaunchAgent(object):
             run_spec.get("version", None),
             entry_point,
             args_dict,
+            run_config,
         )
 
         if _is_wandb_local_uri(uri):

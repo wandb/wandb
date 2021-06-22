@@ -73,10 +73,10 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    def run(self, project):
-        synchronous = project.config[PROJECT_SYNCHRONOUS]
-        docker_args = project.config[PROJECT_DOCKER_ARGS]
-        storage_dir = project.config[PROJECT_STORAGE_DIR]
+    def run(self, project, backend_config):
+        synchronous = backend_config[PROJECT_SYNCHRONOUS]
+        docker_args = backend_config[PROJECT_DOCKER_ARGS]
+        storage_dir = backend_config[PROJECT_STORAGE_DIR]
 
         entry_point = project.get_single_entry_point()
 
@@ -165,7 +165,11 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, docker_args, storage_dir,
+    work_dir,
+    entry_point,
+    parameters,
+    docker_args,
+    storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning

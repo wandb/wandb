@@ -74,6 +74,10 @@ def _run(
         wandb_entity = launch_config.get("entity") or api.settings("entity")
 
     experiment_name = experiment_name or launch_config.get("name")
+    overrides = launch_config.get("overrides")
+    run_config = None
+    if overrides:
+        run_config = overrides.get("config")
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -83,6 +87,7 @@ def _run(
         version,
         entry_point,
         parameters,
+        run_config,
     )
     overrides = launch_config.get("overrides")
     if overrides:

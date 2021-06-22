@@ -39,7 +39,7 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
-        config: Dict[str, Any],
+        run_config: Dict[str, Any],
     ):
 
         self.uri = uri
@@ -57,7 +57,7 @@ class Project(object):
                 self.add_entry_point(ep)
         self.parameters = parameters
         self.dir = None
-        self.config = config
+        self.run_config = run_config
         self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env: Dict[str, str] = {}
@@ -156,13 +156,13 @@ class Project(object):
         return self.dir
 
     def _copy_config_local(self):
-        if "overrides" not in self.config:
+        if not self.run_config:
             return None
         if not self.dir:
             dst_dir = tempfile.mkdtemp()
             self.dir = dst_dir
         with open(os.path.join(self.dir, DEFAULT_CONFIG_PATH), "w+") as f:
-            json.dump(self.config["overrides"], f)
+            json.dump(self.run_config, f)
         return self.dir
 
 
