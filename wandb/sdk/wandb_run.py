@@ -277,7 +277,9 @@ class Run(object):
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
 
-    _pid: int
+    _init_pid: int
+    _iface_pid: Optional[int]
+    _iface_port: Optional[int]
 
     def __init__(
         self,
@@ -379,7 +381,19 @@ class Run(object):
         self._use_redirect = True
         self._progress_step = 0
 
-        self._pid = os.getpid()
+        # pid is set so we know if this run object was initialized by this process
+        self._init_pid = os.getpid()
+
+        # interface pid and port configured when backend is configured (See _hack_set_run)
+        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        self._iface_pid = None
+        self._iface_port = None
+
+    def _set_iface_pid(self, iface_pid: int) -> None:
+        self._iface_pid = iface_pid
+
+    def _set_iface_port(self, iface_port: int) -> None:
+        self._iface_port = iface_port
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -461,6 +475,31 @@ class Run(object):
 
     def __setstate__(self, state: Any) -> None:
         pass
+
+    def _attach(self, method=None) -> bool:
+        """Attach to our backend process (could block)"""
+        message = None
+        current_pid = os.getpid()
+
+        if current_pid == self._iface_pid:
+            return True
+
+        if self._iface_port:
+            assert self._backend
+            self._backend.interface._reconnect(pid=current_pid, port=self._iface_port)
+            return True
+
+        if method:
+            message = "{}() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                method, current_pid, self._iface_pid
+            )
+        if self._settings._strict:
+            if message:
+                wandb.termerror(message, repeat=False)
+            raise errors.LogMultiprocessError("log() does not support multiprocessing")
+        if message:
+            wandb.termwarn(message, repeat=False)
+        return False
 
     @property
     def dir(self) -> str:
@@ -1134,17 +1173,7 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        current_pid = os.getpid()
-        if current_pid != self._pid:
-            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                current_pid, self._pid
-            )
-            if self._settings._strict:
-                wandb.termerror(message, repeat=False)
-                raise errors.LogMultiprocessError(
-                    "log() does not support multiprocessing"
-                )
-            wandb.termwarn(message, repeat=False)
+        if not self._attach(method="log"):
             return
 
         if not isinstance(data, Mapping):

@@ -23,6 +23,7 @@ if wandb.TYPE_CHECKING:
     from typing import TYPE_CHECKING
 
     if TYPE_CHECKING:
+        from ..wandb_run import Run
         from six.moves.queue import Queue
 else:
 
@@ -34,6 +35,9 @@ logger = logging.getLogger("wandb")
 
 
 class BackendGrpcSender(BackendSender):
+
+    # _grpc_port: Optional[int]
+
     def __init__(
         self,
         record_q = None,
@@ -49,12 +53,23 @@ class BackendGrpcSender(BackendSender):
         )
         self._stub = None
         self._process_check = None
+        self._grpc_port = None
+
+    def _reconnect(self, pid, port):
+        self._connect(port)
+        self._run._set_iface_pid(pid)
+        self._run._set_iface_port(port)
 
     def _publish(self, record, local = None):
         super(BackendGrpcSender, self)._publish(record=record, local=local)
 
     def _init_router(self):
+        # no router needed, grpc has its own router
         pass
+
+    def _hack_set_run(self, run):
+        super(BackendGrpcSender, self)._hack_set_run(run)
+        self._run._set_iface_port(self._grpc_port)
 
     def _connect(self, port):
         channel = grpc.insecure_channel("localhost:{}".format(port))
@@ -62,6 +77,7 @@ class BackendGrpcSender(BackendSender):
         self._stub = stub
         d = wandb_server_pb2.ServerStatusRequest()
         _ = self._stub.ServerStatus(d)
+        self._grpc_port = port
 
     def communicate_check_version(
         self, current_version = None

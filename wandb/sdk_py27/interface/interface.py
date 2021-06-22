@@ -8,6 +8,7 @@ Manage backend sender.
 
 import json
 import logging
+import os
 import threading
 import uuid
 
@@ -189,6 +190,8 @@ class BackendSender(BackendSenderBase):
 
     def _hack_set_run(self, run):
         self._run = run
+        current_pid = os.getpid()
+        self._run._set_iface_pid(current_pid)
 
     def publish_output(self, name, data):
         # from vendor.protobuf import google3.protobuf.timestamp
