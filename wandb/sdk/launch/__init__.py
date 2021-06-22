@@ -89,7 +89,7 @@ def _run(
         parameters,
         run_config,
     )
-    overrides = launch_config.get("overrides")
+
     if overrides:
         args = overrides.get("args")
         if args:
