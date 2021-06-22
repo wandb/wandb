@@ -17,7 +17,7 @@ if wandb.TYPE_CHECKING:
 # TODO: is this ok?
 if wandb.TYPE_CHECKING:
     try:
-        from typing import Literal
+        from typing import Literal  # type: ignore
     except ImportError:
         from typing_extensions import Literal  # type: ignore
 
