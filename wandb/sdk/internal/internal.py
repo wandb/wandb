@@ -353,7 +353,7 @@ class ProcessCheck(object):
 
     check_process_last: "Optional[float]"
 
-    def __init__(self, settings: "SettingsStatic", user_pid: int) -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
         self.settings = settings
         self.pid = user_pid
         self.check_process_last = None

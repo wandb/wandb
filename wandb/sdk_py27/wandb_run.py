@@ -476,12 +476,12 @@ class Run(object):
     def __setstate__(self, state):
         pass
 
-    def _attach(self, method=None):
+    def _attach(self, method = None):
         """Attach to our backend process (could block)"""
         message = None
         current_pid = os.getpid()
 
-        if current_pid == self._iface_pid:
+        if current_pid == self._iface_pid or self._iface_pid is None:
             return True
 
         if self._iface_port:
@@ -848,7 +848,7 @@ class Run(object):
 
         # update telemetry in the backend immediately for _label() callers
         if self._backend:
-            self._backend.interface.publish_telemetry(self._telemetry_obj)
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines):
         if not lines:
@@ -1785,7 +1785,7 @@ class Run(object):
 
         # telemetry could have changed, publish final data
         if self._backend:
-            self._backend.interface.publish_telemetry(self._telemetry_obj)
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me

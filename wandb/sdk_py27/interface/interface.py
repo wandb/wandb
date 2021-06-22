@@ -149,49 +149,190 @@ class MessageRouter(object):
 
 
 class BackendSenderBase(object):
-    def __init__(self):
-        pass
 
-
-class BackendSender(BackendSenderBase):
-    class ExceptionTimeout(Exception):
-        pass
-
-    # record_q: Optional["Queue[pb.Record]"]
-    # result_q: Optional["Queue[pb.Result]"]
-    # process: Optional[Process]
     # _run: Optional["Run"]
-    # _router: Optional[MessageRouter]
-    # _process_check: bool
 
-    def __init__(
-        self,
-        record_q = None,
-        result_q = None,
-        process = None,
-        process_check = True,
-    ):
-        super(BackendSender, self).__init__()
-        self.record_q = record_q
-        self.result_q = result_q
-        self._process = process
+    def __init__(self):
         self._run = None
-        self._router = None
-        self._process_check = process_check
-
-        self._init_router()
-
-    def _init_router(self):
-        if self.record_q and self.result_q:
-            self._router = MessageRouter(self.record_q, self.result_q)
-
-    def _connect(self, port):
-        pass
 
     def _hack_set_run(self, run):
         self._run = run
         current_pid = os.getpid()
         self._run._set_iface_pid(current_pid)
+
+    def publish_header(self):
+        header = pb.HeaderRecord()
+        self._publish_header(header)
+
+    def _publish_header(self, header):
+        raise NotImplementedError
+
+    def _make_config(
+        self,
+        data = None,
+        key = None,
+        val = None,
+        obj = None,
+    ):
+        config = obj or pb.ConfigRecord()
+        if data:
+            for k, v in six.iteritems(data):
+                update = config.update.add()
+                update.key = k
+                update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
+        if key:
+            update = config.update.add()
+            if isinstance(key, tuple):
+                for k in key:
+                    update.nested_key.append(k)
+            else:
+                update.key = key
+            update.value_json = json_dumps_safer(json_friendly(val)[0])  # type: ignore
+        return config
+
+    def _make_run(self, run):
+        proto_run = pb.RunRecord()
+        run._make_proto_run(proto_run)
+        if run._settings.host:
+            proto_run.host = run._settings.host
+        if run._config is not None:
+            config_dict = run._config._as_dict()  # type: ignore
+            self._make_config(data=config_dict, obj=proto_run.config)
+        if run._telemetry_obj:
+            proto_run.telemetry.MergeFrom(run._telemetry_obj)
+        return proto_run
+
+    def communicate_run(
+        self, run_obj, timeout = None
+    ):
+        run = self._make_run(run_obj)
+        return self._communicate_run(run, timeout=timeout)
+
+    def _communicate_run(
+        self, run, timeout = None
+    ):
+        raise NotImplementedError
+
+    def communicate_run_start(self, run_pb):
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(run_pb)
+        result = self._communicate_run_start(run_start)
+        return result
+
+    def _communicate_run_start(
+        self, run_start
+    ):
+        raise NotImplementedError
+
+    def _make_summary_from_dict(self, summary_dict):
+        summary = pb.SummaryRecord()
+        for k, v in six.iteritems(summary_dict):
+            update = summary.update.add()
+            update.key = k
+            update.value_json = json.dumps(v)
+        return summary
+
+    def _summary_encode(self, value, path_from_root):
+        """Normalize, compress, and encode sub-objects for backend storage.
+
+        value: Object to encode.
+        path_from_root: `str` dot separated string from the top-level summary to the
+            current `value`.
+
+        Returns:
+            A new tree of dict's with large objects replaced with dictionaries
+            with "_type" entries that say which type the original data was.
+        """
+
+        # Constructs a new `dict` tree in `json_value` that discards and/or
+        # encodes objects that aren't JSON serializable.
+
+        if isinstance(value, dict):
+            json_value = {}
+            for key, value in six.iteritems(value):
+                json_value[key] = self._summary_encode(
+                    value, path_from_root + "." + key
+                )
+            return json_value
+        else:
+            friendly_value, converted = json_friendly(  # type: ignore
+                data_types.val_to_json(
+                    self._run, path_from_root, value, namespace="summary"
+                )
+            )
+            json_value, compressed = maybe_compress_summary(  # type: ignore
+                friendly_value, get_h5_typename(value)  # type: ignore
+            )
+            if compressed:
+                # TODO(jhr): impleement me
+                pass
+                # self.write_h5(path_from_root, friendly_value)
+
+            return json_value
+
+    def _make_summary(self, summary_record):
+        pb_summary_record = pb.SummaryRecord()
+
+        for item in summary_record.update:
+            pb_summary_item = pb_summary_record.update.add()
+            key_length = len(item.key)
+
+            assert key_length > 0
+
+            if key_length > 1:
+                pb_summary_item.nested_key.extend(item.key)
+            else:
+                pb_summary_item.key = item.key[0]
+
+            path_from_root = ".".join(item.key)
+            json_value = self._summary_encode(item.value, path_from_root)
+            json_value, _ = json_friendly(json_value)  # type: ignore
+
+            pb_summary_item.value_json = json.dumps(
+                json_value, cls=WandBJSONEncoderOld,
+            )
+
+        for item in summary_record.remove:
+            pb_summary_item = pb_summary_record.remove.add()
+            key_length = len(item.key)
+
+            assert key_length > 0
+
+            if key_length > 1:
+                pb_summary_item.nested_key.extend(item.key)
+            else:
+                pb_summary_item.key = item.key[0]
+
+        return pb_summary_record
+
+    def publish_summary(self, summary_record):
+        pb_summary_record = self._make_summary(summary_record)
+        self._publish_summary(pb_summary_record)
+
+    def _publish_summary(self, summary):
+        raise NotImplementedError
+
+    def _publish_telemetry(self, telem):
+        raise NotImplementedError
+
+    def publish_history(
+        self, data, step = None, run = None, publish_step = True
+    ):
+        run = run or self._run
+        data = data_types.history_dict_to_json(run, data, step=step)
+        history = pb.HistoryRecord()
+        if publish_step:
+            assert step is not None
+            history.step.num = step
+        data.pop("_step", None)
+        for k, v in six.iteritems(data):
+            item = history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)  # type: ignore
+        self._publish_history(history)
+
+    def _publish_history(self, history):
+        raise NotImplementedError
 
     def publish_output(self, name, data):
         # from vendor.protobuf import google3.protobuf.timestamp
@@ -208,6 +349,60 @@ class BackendSender(BackendSenderBase):
         o = pb.OutputRecord(output_type=otype, line=data)
         o.timestamp.GetCurrentTime()
         self._publish_output(o)
+
+    def _publish_output(self, outdata):
+        raise NotImplementedError
+
+    def _make_exit(self, exit_code):
+        exit = pb.RunExitRecord()
+        exit.exit_code = exit_code
+        return exit
+
+    def communicate_exit(self, exit_code, timeout = None):
+        exit_data = self._make_exit(exit_code)
+        return self._communicate_exit(exit_data, timeout=timeout)
+
+    def _communicate_exit(
+        self, exit_data, timeout = None
+    ):
+        raise NotImplementedError
+
+    def join(self):
+        self._communicate_shutdown()
+
+    def _communicate_shutdown(self):
+        raise NotImplementedError
+
+
+class BackendSender(BackendSenderBase):
+    class ExceptionTimeout(Exception):
+        pass
+
+    # record_q: Optional["Queue[pb.Record]"]
+    # result_q: Optional["Queue[pb.Result]"]
+    # process: Optional[Process]
+    # _router: Optional[MessageRouter]
+    # _process_check: bool
+
+    def __init__(
+        self,
+        record_q = None,
+        result_q = None,
+        process = None,
+        process_check = True,
+    ):
+        super(BackendSender, self).__init__()
+        self.record_q = record_q
+        self.result_q = result_q
+        self._process = process
+        self._router = None
+        self._process_check = process_check
+
+        self._init_router()
+
+    def _init_router(self):
+        if self.record_q and self.result_q:
+            self._router = MessageRouter(self.record_q, self.result_q)
 
     def _publish_output(self, outdata):
         rec = pb.Record()
@@ -233,37 +428,9 @@ class BackendSender(BackendSenderBase):
         rec = self._make_record(preempting=preempt_rec)
         self._publish(rec)
 
-    def publish_history(
-        self, data, step = None, run = None, publish_step = True
-    ):
-        run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
-        history = pb.HistoryRecord()
-        if publish_step:
-            assert step is not None
-            history.step.num = step
-        data.pop("_step", None)
-        for k, v in six.iteritems(data):
-            item = history.item.add()
-            item.key = k
-            item.value_json = json_dumps_safer_history(v)  # type: ignore
-        self._publish_history(history)
-
-    def publish_telemetry(self, telem):
+    def _publish_telemetry(self, telem):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
-
-    def _make_run(self, run):
-        proto_run = pb.RunRecord()
-        run._make_proto_run(proto_run)
-        if run._settings.host:
-            proto_run.host = run._settings.host
-        if run._config is not None:
-            config_dict = run._config._as_dict()  # type: ignore
-            self._make_config(data=config_dict, obj=proto_run.config)
-        if run._telemetry_obj:
-            proto_run.telemetry.MergeFrom(run._telemetry_obj)
-        return proto_run
 
     def _make_artifact(self, artifact):
         proto_artifact = pb.ArtifactRecord()
@@ -310,34 +477,6 @@ class BackendSender(BackendSenderBase):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
-    def _make_exit(self, exit_code):
-        exit = pb.RunExitRecord()
-        exit.exit_code = exit_code
-        return exit
-
-    def _make_config(
-        self,
-        data = None,
-        key = None,
-        val = None,
-        obj = None,
-    ):
-        config = obj or pb.ConfigRecord()
-        if data:
-            for k, v in six.iteritems(data):
-                update = config.update.add()
-                update.key = k
-                update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
-        if key:
-            update = config.update.add()
-            if isinstance(key, tuple):
-                for k in key:
-                    update.nested_key.append(k)
-            else:
-                update.key = key
-            update.value_json = json_dumps_safer(json_friendly(val)[0])  # type: ignore
-        return config
-
     def _make_stats(self, stats_dict):
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
@@ -347,87 +486,6 @@ class BackendSender(BackendSenderBase):
             item.key = k
             item.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
         return stats
-
-    def _summary_encode(self, value, path_from_root):
-        """Normalize, compress, and encode sub-objects for backend storage.
-
-        value: Object to encode.
-        path_from_root: `str` dot separated string from the top-level summary to the
-            current `value`.
-
-        Returns:
-            A new tree of dict's with large objects replaced with dictionaries
-            with "_type" entries that say which type the original data was.
-        """
-
-        # Constructs a new `dict` tree in `json_value` that discards and/or
-        # encodes objects that aren't JSON serializable.
-
-        if isinstance(value, dict):
-            json_value = {}
-            for key, value in six.iteritems(value):
-                json_value[key] = self._summary_encode(
-                    value, path_from_root + "." + key
-                )
-            return json_value
-        else:
-            friendly_value, converted = json_friendly(  # type: ignore
-                data_types.val_to_json(
-                    self._run, path_from_root, value, namespace="summary"
-                )
-            )
-            json_value, compressed = maybe_compress_summary(  # type: ignore
-                friendly_value, get_h5_typename(value)  # type: ignore
-            )
-            if compressed:
-                # TODO(jhr): impleement me
-                pass
-                # self.write_h5(path_from_root, friendly_value)
-
-            return json_value
-
-    def _make_summary_from_dict(self, summary_dict):
-        summary = pb.SummaryRecord()
-        for k, v in six.iteritems(summary_dict):
-            update = summary.update.add()
-            update.key = k
-            update.value_json = json.dumps(v)
-        return summary
-
-    def _make_summary(self, summary_record):
-        pb_summary_record = pb.SummaryRecord()
-
-        for item in summary_record.update:
-            pb_summary_item = pb_summary_record.update.add()
-            key_length = len(item.key)
-
-            assert key_length > 0
-
-            if key_length > 1:
-                pb_summary_item.nested_key.extend(item.key)
-            else:
-                pb_summary_item.key = item.key[0]
-
-            path_from_root = ".".join(item.key)
-            json_value = self._summary_encode(item.value, path_from_root)
-            json_value, _ = json_friendly(json_value)  # type: ignore
-
-            pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
-            )
-
-        for item in summary_record.remove:
-            pb_summary_item = pb_summary_record.remove.add()
-            key_length = len(item.key)
-
-            assert key_length > 0
-
-            if key_length > 1:
-                pb_summary_item.nested_key.extend(item.key)
-            else:
-                pb_summary_item.key = item.key[0]
-
-        return pb_summary_record
 
     def _make_files(self, files_dict):
         files = pb.FilesRecord()
@@ -592,8 +650,7 @@ class BackendSender(BackendSenderBase):
     def publish_defer(self, state = 0):
         self._publish_defer(cast("pb.DeferRequest.DeferStateValue", state))
 
-    def publish_header(self):
-        header = pb.HeaderRecord()
+    def _publish_header(self, header):
         rec = self._make_record(header=header)
         self._publish(rec)
 
@@ -677,12 +734,6 @@ class BackendSender(BackendSenderBase):
             return None
         assert resp.HasField("run_result")
         return resp.run_result
-
-    def communicate_run(
-        self, run_obj, timeout = None
-    ):
-        run = self._make_run(run_obj)
-        return self._communicate_run(run, timeout=timeout)
 
     def publish_stats(self, stats_dict):
         stats = self._make_stats(stats_dict)
@@ -818,16 +869,12 @@ class BackendSender(BackendSenderBase):
             return None
         return result.response.check_version_response
 
-    def communicate_run_start(self, run_pb):
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(run_pb)
+    def _communicate_run_start(
+        self, run_start
+    ):
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
         return result
-
-    def communicate_exit(self, exit_code, timeout = None):
-        exit_data = self._make_exit(exit_code)
-        return self._communicate_exit(exit_data, timeout=timeout)
 
     def communicate_summary(self):
         record = self._make_request(get_summary=pb.GetSummaryRequest())
@@ -854,7 +901,7 @@ class BackendSender(BackendSenderBase):
         _ = self._communicate(record)
 
     def join(self):
-        self._communicate_shutdown()
+        super(BackendSender, self).join()
 
         if self._router:
             self._router.join()

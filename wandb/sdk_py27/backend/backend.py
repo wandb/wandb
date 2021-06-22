@@ -21,7 +21,7 @@ from ..interface import interface
 from ..internal.internal import wandb_internal
 
 if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional
+    from typing import Any, Dict, Optional
 
 logger = logging.getLogger("wandb")
 
@@ -56,6 +56,11 @@ class Backend(object):
 
         self._multiprocessing = multiprocessing
         self._multiprocessing_setup()
+
+        # for _module_main_* methods
+        self._save_mod_name = None
+        self._save_mod_path = None
+        self._save_mod_spec = None
 
     def _hack_set_run(self, run):
         self.interface._hack_set_run(run)
@@ -137,15 +142,54 @@ class Backend(object):
         except Exception:
             pass
 
-        if not port:
-            return None, None
+        return port
 
-        # return internal_proc, port
-        return internal_proc, port
+    def _module_main_install(self):
+        # Support running code without a: __name__ == "__main__"
+        main_module = sys.modules["__main__"]
+        main_mod_spec = getattr(main_module, "__spec__", None)
+        main_mod_path = getattr(main_module, "__file__", None)
+        main_mod_name = None
+        if main_mod_spec is None:  # hack for pdb
+            main_mod_spec = (
+                importlib.machinery.ModuleSpec(
+                    name="wandb.mpmain", loader=importlib.machinery.BuiltinImporter
+                )
+                if sys.version_info[0] > 2
+                else None
+            )
+            main_module.__spec__ = main_mod_spec
+        else:
+            self._save_mod_spec = main_mod_spec
+
+        if main_mod_name is not None:
+            self._save_mod_name = main_mod_name
+            main_module.__spec__.name = "wandb.mpmain"
+        elif main_mod_path is not None:
+            self._save_mod_path = main_module.__file__
+            fname = os.path.join(
+                os.path.dirname(wandb.__file__), "mpmain", "__main__.py"
+            )
+            main_module.__file__ = fname
+
+    def _module_main_uninstall(self):
+        main_module = sys.modules["__main__"]
+        # Undo temporary changes from: __name__ == "__main__"
+        main_module.__spec__ = self._save_mod_spec
+        if self._save_mod_name:
+            main_module.__spec__.name = self._save_mod_name
+        elif self._save_mod_path:
+            main_module.__file__ = self._save_mod_path
+
+    def _ensure_launched_grpc(self):
+        from ..interface import iface_grpc
+
+        grpc_port = self._grpc_launch_server()
+        self.interface = iface_grpc.BackendGrpcSender()
+        self.interface._connect(grpc_port)
 
     def ensure_launched(self):
         """Launch backend worker if not running."""
-        grpc_port = None
         settings = dict(self._settings or ())
         settings["_log_level"] = self._log_level or logging.DEBUG
 
@@ -155,17 +199,17 @@ class Backend(object):
         if "_early_logger" in settings:
             del settings["_early_logger"]
 
+        start_method = settings.get("start_method")
+
+        if start_method == "grpc":
+            self._ensure_launched_grpc()
+            return
+
         self.record_q = self._multiprocessing.Queue()
         self.result_q = self._multiprocessing.Queue()
         user_pid = os.getpid()
 
-        interface_class = interface.BackendSender
-        start_method = settings.get("start_method")
-        if start_method == "grpc":
-            from ..interface import iface_grpc
-
-            interface_class = iface_grpc.BackendGrpcSender
-        elif start_method == "thread":
+        if start_method == "thread":
             wandb._set_internal_process(disable=True)
             self.wandb_process = BackendThread(
                 target=wandb_internal,
@@ -188,61 +232,22 @@ class Backend(object):
             )
             self.wandb_process.name = "wandb_internal"
 
-        # Support running code without a: __name__ == "__main__"
-        save_mod_name = None
-        save_mod_path = None
-        save_mod_spec = None
-        main_module = sys.modules["__main__"]
-        main_mod_spec = getattr(main_module, "__spec__", None)
-        main_mod_path = getattr(main_module, "__file__", None)
-        main_mod_name = None
-        if main_mod_spec is None:  # hack for pdb
-            main_mod_spec = (
-                importlib.machinery.ModuleSpec(
-                    name="wandb.mpmain", loader=importlib.machinery.BuiltinImporter
-                )
-                if sys.version_info[0] > 2
-                else None
-            )
-            main_module.__spec__ = main_mod_spec
-        else:
-            save_mod_spec = main_mod_spec
-
-        if main_mod_name is not None:
-            save_mod_name = main_mod_name
-            main_module.__spec__.name = "wandb.mpmain"
-        elif main_mod_path is not None:
-            save_mod_path = main_module.__file__
-            fname = os.path.join(
-                os.path.dirname(wandb.__file__), "mpmain", "__main__.py"
-            )
-            main_module.__file__ = fname
+        self._module_main_install()
 
         logger.info("starting backend process...")
         # Start the process with __name__ == "__main__" workarounds
-        if self.wandb_process:
-            self.wandb_process.start()
-            self._internal_pid = self.wandb_process.pid
-            logger.info(
-                "started backend process with pid: {}".format(self.wandb_process.pid)
-            )
-
-        if self._settings.start_method == "grpc":
-            proc, grpc_port = self._grpc_launch_server()
-
-        # Undo temporary changes from: __name__ == "__main__"
-        main_module.__spec__ = save_mod_spec
-        if save_mod_name:
-            main_module.__spec__.name = save_mod_name
-        elif save_mod_path:
-            main_module.__file__ = save_mod_path
-
-        self.interface = interface_class(
-            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
+        assert self.wandb_process
+        self.wandb_process.start()
+        self._internal_pid = self.wandb_process.pid
+        logger.info(
+            "started backend process with pid: {}".format(self.wandb_process.pid)
         )
 
-        if self._settings.start_method == "grpc" and grpc_port:
-            self.interface._connect(grpc_port)
+        self._module_main_uninstall()
+
+        self.interface = interface.BackendSender(
+            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
+        )
 
     def server_connect(self):
         """Connect to server."""
@@ -260,6 +265,9 @@ class Backend(object):
         self.interface.join()
         if self.wandb_process:
             self.wandb_process.join()
-        self.record_q.close()
-        self.result_q.close()
+
+        if self.record_q:
+            self.record_q.close()
+        if self.result_q:
+            self.result_q.close()
         # No printing allowed from here until redirect restore!!!

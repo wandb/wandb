@@ -12,8 +12,9 @@ import wandb
 def is_likely_multiprocessing_process() -> bool:
     """Heuristic to guess if current process started by multiprocessing"""
 
-    if hasattr(multiprocessing, "parent_process"):  # py38+ only
-        return multiprocessing.parent_process() is not None
+    parent_process_func = getattr(multiprocessing, "parent_process", None)  # py38+
+    if parent_process_func:
+        return parent_process_func() is not None
     proc = multiprocessing.current_process()
     if not proc:
         return False  # not sure when this might happen, lets guess not mp
