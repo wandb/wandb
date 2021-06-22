@@ -16,7 +16,7 @@ from wandb.errors import Error as ExecutionException
 from . import utils
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List
+    from typing import Any, Dict, List, Optional
 
 
 _logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ DEFAULT_CONFIG_PATH = "launch_override_config.json"
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
-    dir: str
+    dir: Optional[str]
 
     def __init__(
         self,
