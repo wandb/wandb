@@ -220,6 +220,7 @@ class Settings(object):
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None
     launch: Optional[bool] = None
+    launch_config_path: Optional[str] = None
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
     log_dir_spec: Optional[str] = None
