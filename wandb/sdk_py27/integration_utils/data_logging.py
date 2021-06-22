@@ -18,7 +18,9 @@ CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.min
 
 
 class ValidationDataLogger(object):
-    """ValidationDataLogger is intended to be used inside of library integrations
+    """ValidationDataLogger helps to develop integrations which log  model predictions.
+
+    ValidationDataLogger is intended to be used inside of library integrations
     in order to facilitate the process of optionally building a validation dataset
     and logging periodic predictions against such validation data using WandB best
     practices.
@@ -166,7 +168,9 @@ class ValidationDataLogger(object):
         table_name = "validation_predictions",
         commit = False,
     ):
-        """Logs a set of predictions. Intended usage:
+        """Logs a set of predictions.
+
+        Intended usage:
 
         vl.log_predictions(vl.make_predictions(self.model.predict))
 
@@ -210,7 +214,7 @@ class ValidationDataLogger(object):
 
 
 def _make_example(data):
-    """Used to make an example input, target, or output"""
+    """Used to make an example input, target, or output."""
     # example: Optional[Union[Dict, Sequence, Any]]
 
     if isinstance(data, dict):
@@ -226,7 +230,7 @@ def _make_example(data):
 
 
 def _get_example_shape(example):
-    """Gets the shape of an object if applicable"""
+    """Gets the shape of an object if applicable."""
     shape = []
     if hasattr(example, "__len__"):
         length = len(example)
@@ -237,7 +241,7 @@ def _get_example_shape(example):
 
 
 def _bind(lambda_fn, **closure_kwargs):
-    """Creates a closure around a lambda function by binding `closure_kwargs` to the function"""
+    """Creates a closure around a lambda function by binding `closure_kwargs` to the function."""
 
     def closure(*args, **kwargs):
         _k = {}
@@ -253,8 +257,11 @@ def _infer_single_example_keyed_processor(
     class_labels_table = None,
     possible_base_example = None,
 ):
-    """Infers a processor from a single example, with optional class_labels_table
-    and base_example. Base example is useful for cases such as segmentation masks"""
+    """Infers a processor from a single example.
+
+    Infers a processor from a single example with optional class_labels_table
+    and base_example. Base example is useful for cases such as segmentation masks
+    """
     shape = _get_example_shape(example)
     processors = {}
     if (
@@ -341,7 +348,7 @@ def _infer_validation_row_processor(
     input_col_name = "input",
     target_col_name = "target",
 ):
-    """Infers the composit processor for the validation data"""
+    """Infers the composit processor for the validation data."""
     single_processors = {}
     if isinstance(example_input, dict):
         for key in example_input:
@@ -412,7 +419,7 @@ def _infer_prediction_row_processor(
     input_col_name = "input",
     output_col_name = "output",
 ):
-    """Infers the composit processor for the prediction output data"""
+    """Infers the composit processor for the prediction output data."""
     single_processors = {}
 
     if isinstance(example_prediction, dict):
