@@ -43,6 +43,9 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
+    # this check will always pass since the dir attribute will always be populated
+    # by _fetch_project_local
+    assert isinstance(path, str)
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
