@@ -125,7 +125,6 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
-# TODO: Fix this dumb heuristic
 def _collect_args(args):
     dict_args = {}
     i = 0
@@ -133,11 +132,15 @@ def _collect_args(args):
         arg = args[i]
         if "=" in arg:
             name, vals = arg.split("=")
-            dict_args[name.replace("-", "")] = vals
+            dict_args[name.lstrip("-")] = vals
             i += 1
-        else:
-            dict_args[arg.replace("-", "")] = args[i + 1]
+        # check if an argument follows and next arg doesn't have leading hyphens
+        elif i < len(args) - 1 and not args[i + 1].startswith("-"):
+            dict_args[arg.lstrip("-")] = args[i + 1]
             i += 2
+        # this argument is a flag argument and should be treated as such
+        else:
+            dict_args[arg.lstrip("-")] = arg
     return dict_args
 
 
