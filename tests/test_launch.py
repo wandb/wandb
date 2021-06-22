@@ -56,7 +56,8 @@ def check_project_spec(
     expected_target_entity = wandb_entity or api.default_entity
     assert project_spec.target_entity == expected_target_entity
     if (
-        config.get("config")
+        config
+        and config.get("config")
         and config["config"].get("overrides")
         and config["config"]["overrides"].get("run_config")
     ):
