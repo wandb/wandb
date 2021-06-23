@@ -2,9 +2,11 @@
 import logging
 import os
 import re
+import subprocess
 import tempfile
 
 import requests
+import wandb
 from wandb.errors import ExecutionException
 import yaml
 
@@ -201,11 +203,14 @@ def fetch_project_diff(uri, api=None):
 def apply_patch(patch_string, dst_dir):
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
-    os.system(
-        "patch -s --directory={} -p1 < {}".format(
-            dst_dir, os.path.join(dst_dir, "diff.patch")
+    try:
+        subprocess.check_call(
+            "patch -s --directory={} -p1 < {}".format(
+                dst_dir, os.path.join(dst_dir, "diff.patch")
+            )
         )
-    )
+    except subprocess.CalledProcessError:
+        raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
