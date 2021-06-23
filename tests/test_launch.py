@@ -30,6 +30,8 @@ def mocked_fetchable_git_repo():
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
@@ -67,6 +69,11 @@ def check_project_spec(
         and config["config"]["overrides"].get("run_config")
     ):
         assert project_spec.run_config == config["config"]["overrides"]["run_config"]
+
+    with open(os.path.join(project_spec.dir, "patch.txt"), "r") as fp:
+        contents = fp.read()
+        print(contents)
+        assert contents == "testing"
 
 
 def check_backend_config(config, expected_backend_config):
@@ -111,10 +118,7 @@ def test_launch_base_case(
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server,
-    test_settings,
-    mocked_fetchable_git_repo,
-    mock_load_backend,
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
