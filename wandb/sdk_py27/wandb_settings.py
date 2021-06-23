@@ -86,6 +86,7 @@ env_settings = dict(
     api_key=None,
     sweep_id=None,
     launch=None,
+    launch_config_path=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -219,6 +220,7 @@ class Settings(object):
     run_id = None
     sweep_id = None
     launch = None
+    launch_config_path = None
     resume_fname_spec = None
     root_dir = None
     log_dir_spec = None
@@ -311,6 +313,7 @@ class Settings(object):
         run_tags = None,
         sweep_id = None,
         launch = None,
+        launch_config_path = None,
         allow_val_change = None,
         force = None,
         relogin = None,

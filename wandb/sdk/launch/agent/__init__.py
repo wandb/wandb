@@ -116,23 +116,32 @@ class LaunchAgent(object):
         wandb_entity = run_spec["entity"]
         wandb_project = run_spec["project"]
         resource = run_spec["resource"]
-        entry_point = run_spec["overrides"].get("entrypoint")
+
         uri = run_spec["uri"]
         self._backend = load_backend(resource, self._api)
         self.verify()
-        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
-        args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+
+        run_config = {}
+        args_dict = {}
+        entry_point = None
+        name = None
+        if run_spec.get("overrides"):
+            entry_point = run_spec["overrides"].get("entrypoint")
+            name = run_spec["overrides"].get("name")
+            args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+            run_config = run_spec["overrides"].get("run_config")
         project = fetch_and_validate_project(
             uri,
             wandb_entity,
             wandb_project,
-            run_spec["overrides"].get("name"),
+            name,
             self._api,
             run_spec.get("version", None),
             entry_point,
             args_dict,
+            run_config,
         )
-
+        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
         run = self._backend.run(project, backend_config)

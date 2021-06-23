@@ -35,19 +35,6 @@ PROJECT_STORAGE_DIR = "STORAGE_DIR"
 _logger = logging.getLogger(__name__)
 
 
-def _parse_subdirectory(uri):
-    # Parses a uri and returns the uri and subdirectory as separate values.
-    # Uses '#' as a delimiter.
-    subdirectory = ""
-    parsed_uri = uri
-    if "#" in uri:
-        subdirectory = uri[uri.find("#") + 1 :]
-        parsed_uri = uri[: uri.find("#")]
-    if subdirectory and "." in subdirectory:
-        raise ExecutionException("'.' is not allowed in project subdirectory paths.")
-    return parsed_uri, subdirectory
-
-
 def _get_storage_dir(storage_dir):
     if storage_dir is not None and not os.path.exists(storage_dir):
         os.makedirs(storage_dir)
@@ -150,6 +137,7 @@ def fetch_and_validate_project(
     version,
     entry_point,
     parameters,
+    run_config,
 ):
     parameters = parameters or {}
     experiment_name = experiment_name
@@ -161,9 +149,11 @@ def fetch_and_validate_project(
         version,
         [entry_point],
         parameters,
+        run_config,
     )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
+    project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
     return project

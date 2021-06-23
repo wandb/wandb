@@ -1,6 +1,7 @@
 """Internal utilities for parsing MLproject YAML files."""
 
 from distutils import dir_util
+import json
 import logging
 import os
 from shlex import quote
@@ -15,18 +16,19 @@ from wandb.errors import Error as ExecutionException
 from . import utils
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List
+    from typing import Any, Dict, List, Optional
 
 
 _logger = logging.getLogger(__name__)
 
 MLPROJECT_FILE_NAME = "mlproject"
+DEFAULT_CONFIG_PATH = "launch_override_config.json"
 
 
 class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
-    dir: str
+    dir: Optional[str]
 
     def __init__(
         self,
@@ -37,6 +39,7 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
+        run_config: Dict[str, Any],
     ):
 
         self.uri = uri
@@ -53,6 +56,9 @@ class Project(object):
             if ep:
                 self.add_entry_point(ep)
         self.parameters = parameters
+        self.dir = None
+        self.run_config = run_config
+        self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env: Dict[str, str] = {}
 
@@ -97,11 +103,14 @@ class Project(object):
         """
         Fetch a project into a local directory, returning the path to the local project directory.
         """
-        parsed_uri, subdirectory = utils._parse_subdirectory(self.uri)
+        parsed_uri = self.uri
         use_temp_dst_dir = utils._is_zip_uri(parsed_uri) or not utils._is_local_uri(
             parsed_uri
         )
-        dst_dir = tempfile.mkdtemp() if use_temp_dst_dir else parsed_uri
+        if use_temp_dst_dir:
+            dst_dir = self.dir if self.dir else tempfile.mkdtemp()
+        else:
+            dst_dir = parsed_uri
         if use_temp_dst_dir:
             _logger.info("=== Fetching project from %s into %s ===", self.uri, dst_dir)
         if utils._is_zip_uri(parsed_uri):
@@ -143,13 +152,18 @@ class Project(object):
                 "Non-local URI %s should be a Git URI" % parsed_uri
             )
             utils._fetch_git_repo(parsed_uri, version, dst_dir)
-        res = os.path.abspath(os.path.join(dst_dir, subdirectory))
-        if not os.path.exists(res):
-            raise ExecutionException(
-                "Could not find subdirectory %s of %s" % (subdirectory, dst_dir)
-            )
-        self.dir = res
-        return res
+        self.dir = dst_dir
+        return self.dir
+
+    def _copy_config_local(self):
+        if not self.run_config:
+            return None
+        if not self.dir:
+            dst_dir = tempfile.mkdtemp()
+            self.dir = dst_dir
+        with open(os.path.join(self.dir, DEFAULT_CONFIG_PATH), "w+") as f:
+            json.dump(self.run_config, f)
+        return self.dir
 
 
 class EntryPoint(object):
