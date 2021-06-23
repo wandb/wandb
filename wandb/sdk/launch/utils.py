@@ -203,6 +203,21 @@ def fetch_project_diff(uri, api=None):
     return patch
 
 
+def apply_patch(patch_string, dst_dir):
+    # patch = get_module(
+    #     "patch",
+    #     required="wandb launch requires python-patch to apply patch files. pip install python-patch",
+    # )
+    print(dst_dir)
+    ini_dir = os.getcwd()
+    os.chdir(dst_dir)
+    with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
+        fp.write(patch_string)
+    print(patch_string)
+    os.system("patch -s -p1 < {}".format(os.path.join(dst_dir, "diff.patch")))
+    os.chdir(ini_dir)
+
+
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
     path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
     spec_keys_map = {

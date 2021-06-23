@@ -133,14 +133,11 @@ class Project(object):
                 run_info["git"]["remote"], run_info["git"]["commit"], dst_dir
             )
             patch = utils.fetch_project_diff(self.uri, api)
+
             if patch:
                 # TODO: do this better
-                with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
-                    fp.write(patch)
-                print(patch)
-                os.system(
-                    "patch -s -p0 < {}".format(os.path.join(dst_dir, "diff.patch"))
-                )
+                utils.apply_patch(patch, dst_dir)
+
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
