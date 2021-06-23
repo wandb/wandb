@@ -80,6 +80,10 @@ class BackendGrpcSender(BackendSenderBase):
         assert self._stub
         _ = self._stub.Config(cfg)
 
+    def _publish_metric(self, metric):
+        assert self._stub
+        _ = self._stub.Metric(metric)
+
     def _publish_summary(self, summary):
         assert self._stub
         _ = self._stub.Summary(summary)

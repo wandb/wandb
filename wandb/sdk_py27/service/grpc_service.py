@@ -161,6 +161,15 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = pb.ConfigResult()
         return result
 
+    def Metric(  # noqa: N802
+        self, metric, context
+    ):
+        assert self._backend and self._backend._interface
+        self._backend._interface._publish_metric(metric)
+        # make up a response even though this was async
+        result = pb.MetricResult()
+        return result
+
     def ServerShutdown(  # noqa: N802
         self,
         request,

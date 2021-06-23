@@ -218,6 +218,9 @@ message MetricRecord {
   }
 }
 
+message MetricResult {
+}
+
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;

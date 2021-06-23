@@ -13,6 +13,7 @@ service InternalService {
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
+  rpc Metric(MetricRecord) returns (MetricResult) {}
   rpc Log(HistoryRecord) returns (HistoryResult) {}
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}

@@ -535,6 +535,13 @@ class MetricRecord(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"_control",b"_control",u"glob_name",b"glob_name",u"goal",b"goal",u"name",b"name",u"options",b"options",u"step_metric",b"step_metric",u"step_metric_index",b"step_metric_index",u"summary",b"summary"]) -> None: ...
 global___MetricRecord = MetricRecord
 
+class MetricResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___MetricResult = MetricResult
+
 class MetricOptions(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     STEP_SYNC_FIELD_NUMBER: builtins.int

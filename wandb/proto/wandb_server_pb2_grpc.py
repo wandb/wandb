@@ -51,6 +51,11 @@ class InternalServiceStub(object):
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.FromString,
         )
+    self.Metric = channel.unary_unary(
+        '/wandb_internal.InternalService/Metric',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricResult.FromString,
+        )
     self.Log = channel.unary_unary(
         '/wandb_internal.InternalService/Log',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.HistoryRecord.SerializeToString,
@@ -140,6 +145,13 @@ class InternalServiceServicer(object):
     raise NotImplementedError('Method not implemented!')
 
   def RunExit(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Metric(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -239,6 +251,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
           servicer.RunExit,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.SerializeToString,
+      ),
+      'Metric': grpc.unary_unary_rpc_method_handler(
+          servicer.Metric,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricResult.SerializeToString,
       ),
       'Log': grpc.unary_unary_rpc_method_handler(
           servicer.Log,

@@ -236,6 +236,9 @@ class BackendSenderBase(object):
     def _publish_config(self, cfg):
         raise NotImplementedError
 
+    def _publish_metric(self, metric):
+        raise NotImplementedError
+
     def communicate_run(
         self, run_obj, timeout = None
     ):
