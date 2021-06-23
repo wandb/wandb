@@ -61,6 +61,9 @@ class Project(object):
         self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env: Dict[str, str] = {}
+        run = wandb.init(project=target_project, entity=target_entity, name=self.name)
+        self.run_id = run.id
+        run.finish()
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
