@@ -84,6 +84,10 @@ class BackendGrpcSender(BackendSenderBase):
         assert self._stub
         _ = self._stub.Log(history)
 
+    def _publish_output(self, outdata: pb.OutputRecord) -> None:
+        assert self._stub
+        _ = self._stub.Output(outdata)
+
     def _communicate_shutdown(self) -> None:
         assert self._stub
         shutdown = pb.ShutdownRequest()
