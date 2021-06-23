@@ -103,7 +103,6 @@ def _run(
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
 
     backend = loader.load_backend(runner_name, api)
-    print("LAUNCH CONFIG", launch_config)
     if backend:
         submitted_run = backend.run(project, runner_config)
         return submitted_run
