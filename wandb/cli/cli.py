@@ -46,10 +46,6 @@ if PY3:
     from wandb.sdk.launch.utils import parse_wandb_uri
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
-    from wandb.sdk_py27 import launch as wandb_launch
-
-    # todo: codemod to bring into py27?
-    # from wandb.sdk.launch.utils import parse_wandb_uri
 
 
 # TODO: turn this on in a cleaner way
@@ -949,7 +945,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
     "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend.",
+    "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
     "--storage-dir",

@@ -43,6 +43,9 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
+    # this check will always pass since the dir attribute will always be populated
+    # by _fetch_project_local
+    assert isinstance(path, str)
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
@@ -93,6 +96,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
+        "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
         "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
@@ -103,7 +107,9 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
+        config_path=project.config_path,
     )
+
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)

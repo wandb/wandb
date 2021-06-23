@@ -74,6 +74,10 @@ def _run(
         wandb_entity = launch_config.get("entity") or api.settings("entity")
 
     experiment_name = experiment_name or launch_config.get("name")
+    overrides = launch_config.get("overrides")
+    run_config = None
+    if overrides:
+        run_config = overrides.get("run_config")
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -83,21 +87,25 @@ def _run(
         version,
         entry_point,
         parameters,
+        run_config,
     )
-    overrides = launch_config.get("overrides")
+
     if overrides:
         args = overrides.get("args")
         if args:
             args = _collect_args(args)
             project._merge_parameters(args)
 
-    launch_config[PROJECT_SYNCHRONOUS] = synchronous
-    launch_config[PROJECT_DOCKER_ARGS] = docker_args
-    launch_config[PROJECT_STORAGE_DIR] = storage_dir
+    # construct runner config.
+    runner_config = {}
+    runner_config[PROJECT_SYNCHRONOUS] = synchronous
+    runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    runner_config[PROJECT_STORAGE_DIR] = storage_dir
 
     backend = loader.load_backend(runner_name, api)
+    print("LAUNCH CONFIG", launch_config)
     if backend:
-        submitted_run = backend.run(project, launch_config)
+        submitted_run = backend.run(project, runner_config)
         return submitted_run
     else:
         raise ExecutionException(
