@@ -133,9 +133,7 @@ class Project(object):
                 run_info["git"]["remote"], run_info["git"]["commit"], dst_dir
             )
             patch = utils.fetch_project_diff(self.uri, api)
-
             if patch:
-                # TODO: do this better
                 utils.apply_patch(patch, dst_dir)
 
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
