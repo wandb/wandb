@@ -56,5 +56,6 @@ protoc.main((
     '--python_out=.',
     '--grpc_python_out=.',
     '--mypy_out=.',
+    '--mypy_grpc_out=.',
     'wandb/proto/wandb_server.proto',
     ))

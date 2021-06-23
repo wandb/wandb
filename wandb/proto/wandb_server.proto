@@ -19,18 +19,18 @@ service InternalService {
   rpc Output(OutputRecord) returns (OutputResult) {}
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
-  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
-  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
+  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
+  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
 }
 
 message ServerShutdownRequest {
 }
 
-message ServerShutdownResult {
+message ServerShutdownResponse {
 }
 
 message ServerStatusRequest {
 }
 
-message ServerStatusResult {
+message ServerStatusResponse {
 }

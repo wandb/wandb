@@ -76,6 +76,10 @@ class BackendGrpcSender(BackendSenderBase):
         assert self._stub
         _ = self._stub.RunUpdate(run)
 
+    def _publish_config(self, cfg: pb.ConfigRecord) -> None:
+        assert self._stub
+        _ = self._stub.Config(cfg)
+
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         assert self._stub
         _ = self._stub.Summary(summary)
@@ -99,11 +103,10 @@ class BackendGrpcSender(BackendSenderBase):
 
     def _communicate_run_start(
         self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.Result]:
+    ) -> Optional[pb.RunStartResponse]:
         assert self._stub
-        _ = self._stub.RunStart(run_start)
-        result = pb.Result()
-        return result
+        run_start_response = self._stub.RunStart(run_start)
+        return run_start_response
 
     def communicate_network_status(
         self, timeout: int = None

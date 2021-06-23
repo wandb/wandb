@@ -35,7 +35,7 @@ if wandb.TYPE_CHECKING:
     import typing as t
     from . import summary_record as sr
     from typing import Any, Dict, Iterable, Optional, Tuple, Union
-    from multiprocessing import Process
+    from multiprocessing.process import BaseProcess
     from typing import cast
     from typing import TYPE_CHECKING
 
@@ -51,7 +51,7 @@ else:
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyTypeValue":
+def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -61,7 +61,7 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyTypeValue":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyTypeValue") -> str:
+def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy = "now"
     elif enum == pb.FilesItem.PolicyType.END:
@@ -223,6 +223,19 @@ class BackendSenderBase(object):
     def _publish_run(self, run: pb.RunRecord) -> None:
         raise NotImplementedError
 
+    def publish_config(
+        self,
+        data: dict = None,
+        key: Union[Tuple[str, ...], str] = None,
+        val: Any = None,
+    ) -> None:
+        cfg = self._make_config(data=data, key=key, val=val)
+
+        self._publish_config(cfg)
+
+    def _publish_config(self, cfg: pb.ConfigRecord) -> None:
+        raise NotImplementedError
+
     def communicate_run(
         self, run_obj: "Run", timeout: int = None
     ) -> Optional[pb.RunUpdateResult]:
@@ -234,15 +247,15 @@ class BackendSenderBase(object):
     ) -> Optional[pb.RunUpdateResult]:
         raise NotImplementedError
 
-    def communicate_run_start(self, run_pb: pb.RunRecord) -> Optional[pb.Result]:
+    def communicate_run_start(self, run_pb: pb.RunRecord) -> bool:
         run_start = pb.RunStartRequest()
         run_start.run.CopyFrom(run_pb)
         result = self._communicate_run_start(run_start)
-        return result
+        return result is not None
 
     def _communicate_run_start(
         self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.Result]:
+    ) -> Optional[pb.RunStartResponse]:
         raise NotImplementedError
 
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
@@ -401,7 +414,7 @@ class BackendSender(BackendSenderBase):
 
     record_q: Optional["Queue[pb.Record]"]
     result_q: Optional["Queue[pb.Result]"]
-    process: Optional[Process]
+    process: Optional[BaseProcess]
     _router: Optional[MessageRouter]
     _process_check: bool
 
@@ -409,7 +422,7 @@ class BackendSender(BackendSenderBase):
         self,
         record_q: "Queue[pb.Record]" = None,
         result_q: "Queue[pb.Result]" = None,
-        process: Process = None,
+        process: BaseProcess = None,
         process_check: bool = True,
     ) -> None:
         super(BackendSender, self).__init__()
@@ -663,13 +676,13 @@ class BackendSender(BackendSenderBase):
         assert login_response
         return login_response
 
-    def _publish_defer(self, state: "pb.DeferRequest.DeferStateValue") -> None:
+    def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
         self._publish(rec, local=True)
 
     def publish_defer(self, state: int = 0) -> None:
-        self._publish_defer(cast("pb.DeferRequest.DeferStateValue", state))
+        self._publish_defer(cast("pb.DeferRequest.DeferState.V", state))
 
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         rec = self._make_record(header=header)
@@ -703,16 +716,6 @@ class BackendSender(BackendSenderBase):
     def _publish_run(self, run: pb.RunRecord) -> None:
         rec = self._make_record(run=run)
         self._publish(rec)
-
-    def publish_config(
-        self,
-        data: dict = None,
-        key: Union[Tuple[str, ...], str] = None,
-        val: Any = None,
-    ) -> None:
-        cfg = self._make_config(data=data, key=key, val=val)
-
-        self._publish_config(cfg)
 
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         rec = self._make_record(config=cfg)
@@ -885,10 +888,13 @@ class BackendSender(BackendSenderBase):
 
     def _communicate_run_start(
         self, run_start: pb.RunStartRequest
-    ) -> Optional[pb.Result]:
+    ) -> Optional[pb.RunStartResponse]:
         rec = self._make_request(run_start=run_start)
         result = self._communicate(rec)
-        return result
+        if result is None:
+            return None
+        run_start_response = result.response.run_start_response
+        return run_start_response
 
     def communicate_summary(self) -> Optional[pb.GetSummaryResponse]:
         record = self._make_request(get_summary=pb.GetSummaryRequest())

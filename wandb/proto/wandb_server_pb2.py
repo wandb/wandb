@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='wandb_internal',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x17\n\x15ServerShutdownRequest\"\x16\n\x14ServerShutdownResult\"\x15\n\x13ServerStatusRequest\"\x14\n\x12ServerStatusResult2\xe0\t\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12_\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a$.wandb_internal.ServerShutdownResult\"\x00\x12Y\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a\".wandb_internal.ServerStatusResult\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x17\n\x15ServerShutdownRequest\"\x18\n\x16ServerShutdownResponse\"\x15\n\x13ServerStatusRequest\"\x16\n\x14ServerStatusResponse2\xe4\t\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__telemetry__pb2.DESCRIPTOR,])
 
@@ -51,9 +51,9 @@ _SERVERSHUTDOWNREQUEST = _descriptor.Descriptor(
 )
 
 
-_SERVERSHUTDOWNRESULT = _descriptor.Descriptor(
-  name='ServerShutdownResult',
-  full_name='wandb_internal.ServerShutdownResult',
+_SERVERSHUTDOWNRESPONSE = _descriptor.Descriptor(
+  name='ServerShutdownResponse',
+  full_name='wandb_internal.ServerShutdownResponse',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
@@ -71,7 +71,7 @@ _SERVERSHUTDOWNRESULT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=144,
-  serialized_end=166,
+  serialized_end=168,
 )
 
 
@@ -94,14 +94,14 @@ _SERVERSTATUSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=168,
-  serialized_end=189,
+  serialized_start=170,
+  serialized_end=191,
 )
 
 
-_SERVERSTATUSRESULT = _descriptor.Descriptor(
-  name='ServerStatusResult',
-  full_name='wandb_internal.ServerStatusResult',
+_SERVERSTATUSRESPONSE = _descriptor.Descriptor(
+  name='ServerStatusResponse',
+  full_name='wandb_internal.ServerStatusResponse',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
@@ -118,14 +118,14 @@ _SERVERSTATUSRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=191,
-  serialized_end=211,
+  serialized_start=193,
+  serialized_end=215,
 )
 
 DESCRIPTOR.message_types_by_name['ServerShutdownRequest'] = _SERVERSHUTDOWNREQUEST
-DESCRIPTOR.message_types_by_name['ServerShutdownResult'] = _SERVERSHUTDOWNRESULT
+DESCRIPTOR.message_types_by_name['ServerShutdownResponse'] = _SERVERSHUTDOWNRESPONSE
 DESCRIPTOR.message_types_by_name['ServerStatusRequest'] = _SERVERSTATUSREQUEST
-DESCRIPTOR.message_types_by_name['ServerStatusResult'] = _SERVERSTATUSRESULT
+DESCRIPTOR.message_types_by_name['ServerStatusResponse'] = _SERVERSTATUSRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 ServerShutdownRequest = _reflection.GeneratedProtocolMessageType('ServerShutdownRequest', (_message.Message,), {
@@ -135,12 +135,12 @@ ServerShutdownRequest = _reflection.GeneratedProtocolMessageType('ServerShutdown
   })
 _sym_db.RegisterMessage(ServerShutdownRequest)
 
-ServerShutdownResult = _reflection.GeneratedProtocolMessageType('ServerShutdownResult', (_message.Message,), {
-  'DESCRIPTOR' : _SERVERSHUTDOWNRESULT,
+ServerShutdownResponse = _reflection.GeneratedProtocolMessageType('ServerShutdownResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSHUTDOWNRESPONSE,
   '__module__' : 'wandb.proto.wandb_server_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ServerShutdownResult)
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerShutdownResponse)
   })
-_sym_db.RegisterMessage(ServerShutdownResult)
+_sym_db.RegisterMessage(ServerShutdownResponse)
 
 ServerStatusRequest = _reflection.GeneratedProtocolMessageType('ServerStatusRequest', (_message.Message,), {
   'DESCRIPTOR' : _SERVERSTATUSREQUEST,
@@ -149,12 +149,12 @@ ServerStatusRequest = _reflection.GeneratedProtocolMessageType('ServerStatusRequ
   })
 _sym_db.RegisterMessage(ServerStatusRequest)
 
-ServerStatusResult = _reflection.GeneratedProtocolMessageType('ServerStatusResult', (_message.Message,), {
-  'DESCRIPTOR' : _SERVERSTATUSRESULT,
+ServerStatusResponse = _reflection.GeneratedProtocolMessageType('ServerStatusResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERSTATUSRESPONSE,
   '__module__' : 'wandb.proto.wandb_server_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.ServerStatusResult)
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerStatusResponse)
   })
-_sym_db.RegisterMessage(ServerStatusResult)
+_sym_db.RegisterMessage(ServerStatusResponse)
 
 
 
@@ -164,8 +164,8 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=214,
-  serialized_end=1462,
+  serialized_start=218,
+  serialized_end=1470,
   methods=[
   _descriptor.MethodDescriptor(
     name='RunUpdate',
@@ -290,7 +290,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     index=13,
     containing_service=None,
     input_type=_SERVERSHUTDOWNREQUEST,
-    output_type=_SERVERSHUTDOWNRESULT,
+    output_type=_SERVERSHUTDOWNRESPONSE,
     serialized_options=None,
   ),
   _descriptor.MethodDescriptor(
@@ -299,7 +299,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     index=14,
     containing_service=None,
     input_type=_SERVERSTATUSREQUEST,
-    output_type=_SERVERSTATUSRESULT,
+    output_type=_SERVERSTATUSRESPONSE,
     serialized_options=None,
   ),
 ])

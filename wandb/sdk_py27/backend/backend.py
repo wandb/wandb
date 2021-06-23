@@ -43,6 +43,7 @@ class BackendThread(threading.Thread):
 class Backend(object):
     # multiprocessing context or module
     # _multiprocessing: object
+    # interface: interface.BackendSenderBase
 
     def __init__(self, settings=None, log_level=None):
         self._done = False

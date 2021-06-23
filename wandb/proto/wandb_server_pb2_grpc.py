@@ -84,12 +84,12 @@ class InternalServiceStub(object):
     self.ServerShutdown = channel.unary_unary(
         '/wandb_internal.InternalService/ServerShutdown',
         request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
-        response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResult.FromString,
+        response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.FromString,
         )
     self.ServerStatus = channel.unary_unary(
         '/wandb_internal.InternalService/ServerStatus',
         request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.SerializeToString,
-        response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResult.FromString,
+        response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.FromString,
         )
 
 
@@ -273,12 +273,12 @@ def add_InternalServiceServicer_to_server(servicer, server):
       'ServerShutdown': grpc.unary_unary_rpc_method_handler(
           servicer.ServerShutdown,
           request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.FromString,
-          response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResult.SerializeToString,
+          response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownResponse.SerializeToString,
       ),
       'ServerStatus': grpc.unary_unary_rpc_method_handler(
           servicer.ServerStatus,
           request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusRequest.FromString,
-          response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResult.SerializeToString,
+          response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerStatusResponse.SerializeToString,
       ),
   }
   generic_handler = grpc.method_handlers_generic_handler(
