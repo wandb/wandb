@@ -390,6 +390,20 @@ class BackendSenderBase(object):
     def _publish_output(self, outdata):
         raise NotImplementedError
 
+    def publish_pause(self):
+        pause = pb.PauseRequest()
+        self._publish_pause(pause)
+
+    def _publish_pause(self, pause):
+        raise NotImplementedError
+
+    def publish_resume(self):
+        resume = pb.ResumeRequest()
+        self._publish_resume(resume)
+
+    def _publish_resume(self, resume):
+        raise NotImplementedError
+
     def _make_exit(self, exit_code):
         exit = pb.RunExitRecord()
         exit.exit_code = exit_code
@@ -706,13 +720,11 @@ class BackendSender(BackendSenderBase):
         rec = self._make_request(login=login)
         self._publish(rec)
 
-    def publish_pause(self):
-        pause = pb.PauseRequest()
+    def _publish_pause(self, pause):
         rec = self._make_request(pause=pause)
         self._publish(rec)
 
-    def publish_resume(self):
-        resume = pb.ResumeRequest()
+    def _publish_resume(self, resume):
         rec = self._make_request(resume=resume)
         self._publish(rec)
 

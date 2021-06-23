@@ -66,6 +66,14 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.CheckVersionRequest,
     ) -> wandb.proto.wandb_internal_pb2.CheckVersionResponse: ...
 
+    def Pause(self,
+        request: wandb.proto.wandb_internal_pb2.PauseRequest,
+    ) -> wandb.proto.wandb_internal_pb2.PauseResponse: ...
+
+    def Resume(self,
+        request: wandb.proto.wandb_internal_pb2.ResumeRequest,
+    ) -> wandb.proto.wandb_internal_pb2.ResumeResponse: ...
+
     def ServerShutdown(self,
         request: global___ServerShutdownRequest,
     ) -> global___ServerShutdownResponse: ...
@@ -159,6 +167,18 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.CheckVersionRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.CheckVersionResponse: ...
+
+    @abc.abstractmethod
+    def Pause(self,
+        request: wandb.proto.wandb_internal_pb2.PauseRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.PauseResponse: ...
+
+    @abc.abstractmethod
+    def Resume(self,
+        request: wandb.proto.wandb_internal_pb2.ResumeRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ResumeResponse: ...
 
     @abc.abstractmethod
     def ServerShutdown(self,

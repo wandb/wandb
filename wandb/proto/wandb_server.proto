@@ -20,6 +20,8 @@ service InternalService {
   rpc Output(OutputRecord) returns (OutputResult) {}
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
+  rpc Pause(PauseRequest) returns (PauseResponse) {}
+  rpc Resume(ResumeRequest) returns (ResumeResponse) {}
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
 }

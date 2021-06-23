@@ -170,6 +170,24 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = pb.MetricResult()
         return result
 
+    def Pause(  # noqa: N802
+        self, pause, context
+    ):
+        assert self._backend and self._backend._interface
+        self._backend._interface._publish_pause(pause)
+        # make up a response even though this was async
+        result = pb.PauseResponse()
+        return result
+
+    def Resume(  # noqa: N802
+        self, resume, context
+    ):
+        assert self._backend and self._backend._interface
+        self._backend._interface._publish_resume(resume)
+        # make up a response even though this was async
+        result = pb.ResumeResponse()
+        return result
+
     def ServerShutdown(  # noqa: N802
         self,
         request,

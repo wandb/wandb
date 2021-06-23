@@ -448,10 +448,16 @@ message DeferRequest {
 message PauseRequest {
 }
 
+message PauseResponse {
+}
+
 /*
  * ResumeRequest: internal message to resume the heartbeat
  */
 message ResumeRequest {
+}
+
+message ResumeResponse {
 }
 
 /*

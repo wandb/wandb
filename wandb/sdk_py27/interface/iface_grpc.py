@@ -147,7 +147,16 @@ class BackendGrpcSender(BackendSenderBase):
         return ret
 
     def _publish_header(self, header):
+        # TODO: implement?
         pass
+
+    def _publish_pause(self, pause):
+        assert self._stub
+        _ = self._stub.Pause(pause)
+
+    def _publish_resume(self, resume):
+        assert self._stub
+        _ = self._stub.Resume(resume)
 
     def join(self):
         super(BackendGrpcSender, self).join()

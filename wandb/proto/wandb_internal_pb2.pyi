@@ -1155,12 +1155,26 @@ class PauseRequest(google.protobuf.message.Message):
         ) -> None: ...
 global___PauseRequest = PauseRequest
 
+class PauseResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___PauseResponse = PauseResponse
+
 class ResumeRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
     def __init__(self,
         ) -> None: ...
 global___ResumeRequest = ResumeRequest
+
+class ResumeResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ResumeResponse = ResumeResponse
 
 class LoginRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

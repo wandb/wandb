@@ -86,6 +86,16 @@ class InternalServiceStub(object):
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.FromString,
         )
+    self.Pause = channel.unary_unary(
+        '/wandb_internal.InternalService/Pause',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseResponse.FromString,
+        )
+    self.Resume = channel.unary_unary(
+        '/wandb_internal.InternalService/Resume',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.FromString,
+        )
     self.ServerShutdown = channel.unary_unary(
         '/wandb_internal.InternalService/ServerShutdown',
         request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
@@ -200,6 +210,20 @@ class InternalServiceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def Pause(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Resume(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
   def ServerShutdown(self, request, context):
     # missing associated documentation comment in .proto file
     pass
@@ -286,6 +310,16 @@ def add_InternalServiceServicer_to_server(servicer, server):
           servicer.CheckVersion,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionResponse.SerializeToString,
+      ),
+      'Pause': grpc.unary_unary_rpc_method_handler(
+          servicer.Pause,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.PauseResponse.SerializeToString,
+      ),
+      'Resume': grpc.unary_unary_rpc_method_handler(
+          servicer.Resume,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.SerializeToString,
       ),
       'ServerShutdown': grpc.unary_unary_rpc_method_handler(
           servicer.ServerShutdown,
