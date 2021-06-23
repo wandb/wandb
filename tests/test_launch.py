@@ -1,5 +1,10 @@
 import os
-from unittest import mock
+
+try:
+    from unittest import mock
+except ImportError:  # TODO: this is only for python2
+    import mock
+import sys
 
 import wandb
 import wandb.sdk.launch as launch
@@ -72,6 +77,10 @@ def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
             check_backend_config(arg, expected_config)
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
 def test_launch_base_case(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
@@ -86,8 +95,15 @@ def test_launch_base_case(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions <3.5",
+)
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
