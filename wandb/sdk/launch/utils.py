@@ -2,11 +2,9 @@
 import logging
 import os
 import re
-import requests
 import tempfile
 
-from requests.models import HTTPError
-
+import requests
 from wandb.errors import ExecutionException
 import yaml
 
