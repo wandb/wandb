@@ -72,6 +72,10 @@ class BackendGrpcSender(BackendSenderBase):
         run_result = self._stub.RunUpdate(run)
         return run_result
 
+    def _publish_run(self, run):
+        assert self._stub
+        _ = self._stub.RunUpdate(run)
+
     def _publish_summary(self, summary):
         assert self._stub
         _ = self._stub.Summary(summary)

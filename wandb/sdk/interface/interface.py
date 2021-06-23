@@ -216,6 +216,13 @@ class BackendSenderBase(object):
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
         return proto_run
 
+    def publish_run(self, run_obj: "Run") -> None:
+        run = self._make_run(run_obj)
+        self._publish_run(run)
+
+    def _publish_run(self, run: pb.RunRecord) -> None:
+        raise NotImplementedError
+
     def communicate_run(
         self, run_obj: "Run", timeout: int = None
     ) -> Optional[pb.RunUpdateResult]:
@@ -696,10 +703,6 @@ class BackendSender(BackendSenderBase):
     def _publish_run(self, run: pb.RunRecord) -> None:
         rec = self._make_record(run=run)
         self._publish(rec)
-
-    def publish_run(self, run_obj: "Run") -> None:
-        run = self._make_run(run_obj)
-        self._publish_run(run)
 
     def publish_config(
         self,
