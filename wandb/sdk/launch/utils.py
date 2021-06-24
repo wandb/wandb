@@ -205,9 +205,14 @@ def apply_patch(patch_string, dst_dir):
         fp.write(patch_string)
     try:
         subprocess.check_call(
-            "patch -s --directory={} -p1 < {}".format(
-                dst_dir, os.path.join(dst_dir, "diff.patch")
-            )
+            [
+                "patch",
+                "-s",
+                "--directory={}".format(dst_dir),
+                "-p1",
+                "-i",
+                "diff.patch",
+            ]
         )
     except subprocess.CalledProcessError:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
