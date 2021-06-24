@@ -24,8 +24,6 @@ import threading
 import time
 import traceback
 
-# import setproctitle
-
 import psutil
 from six.moves import queue
 import wandb
@@ -75,8 +73,6 @@ def wandb_internal(
     # mark this process as internal
     wandb._set_internal_process()
     started = time.time()
-
-    # setproctitle.setproctitle("python internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
@@ -142,7 +138,6 @@ def wandb_internal(
         thread.start()
 
     interrupt_count = 0
-
     while not stopped.is_set():
         try:
             # wait for stop event

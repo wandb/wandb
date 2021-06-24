@@ -523,6 +523,7 @@ class BackendSenderBase(object):
         tbrecord.log_dir = log_dir
         tbrecord.save = save
         tbrecord.root_dir = root_logdir or ""
+        self._publish_tbdata(tbrecord)
 
     @abstractmethod
     def _publish_tbdata(self, tbrecord):
