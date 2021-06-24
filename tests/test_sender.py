@@ -51,7 +51,7 @@ def test_parallel_requests(mock_server, internal_sender, start_backend):
             assert status_resp is not None
             assert status_resp.run_should_stop
         elif i % 3 == 2:
-            summary_resp = internal_sender.communicate_summary()
+            summary_resp = internal_sender.communicate_get_summary()
             assert summary_resp is not None
             assert hasattr(summary_resp, "item")
         work_queue.task_done()
