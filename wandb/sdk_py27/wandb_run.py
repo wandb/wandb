@@ -709,8 +709,7 @@ class Run(object):
         root = ".",
         name = None,
         include_fn = lambda path: path.endswith(".py"),
-        exclude_fn = lambda path: os.sep + "wandb" + os.sep
-        in path,
+        exclude_fn = filenames.exclude_wandb_fn,
     ):
         """
         log_code() saves the current state of your code to a W&B artifact.  By

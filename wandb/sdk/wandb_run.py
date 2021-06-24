@@ -709,8 +709,7 @@ class Run(object):
         root: str = ".",
         name: str = None,
         include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
-        exclude_fn: Callable[[str], bool] = lambda path: os.sep + "wandb" + os.sep
-        in path,
+        exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
         """
         log_code() saves the current state of your code to a W&B artifact.  By
