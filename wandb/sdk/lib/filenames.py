@@ -6,6 +6,7 @@ import wandb
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Callable
 
+WANDB_DIRS = ("wandb", ".wandb")
 
 CONFIG_FNAME = "config.yaml"
 OUTPUT_FNAME = "output.log"
@@ -40,3 +41,7 @@ def filtered_dir(
             file_path = os.path.join(dirpath, fname)
             if include_fn(file_path) and not exclude_fn(file_path):
                 yield file_path
+
+
+def exclude_wandb_fn(path: str) -> bool:
+    return any(os.sep + wandb_dir + os.sep in path for wandb_dir in WANDB_DIRS)
