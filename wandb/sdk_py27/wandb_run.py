@@ -74,7 +74,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
     from types import TracebackType
     from .wandb_settings import Settings, SettingsConsole
     from .interface.summary_record import SummaryRecord
-    from .interface.interface import BackendSender
+    from .interface.interface import BackendSenderBase
     from .lib.reporting import Reporter
     from wandb.proto.wandb_internal_pb2 import (
         RunRecord,
@@ -92,6 +92,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
         from typing import NoReturn
 
         from .data_types import WBValue
+        from .wandb_alerts import AlertLevel
 
         from .interface.artifacts import (
             ArtifactEntry,
@@ -271,7 +272,7 @@ class Run(object):
     # _run_status_checker: Optional[RunStatusChecker]
     # _poll_exit_response: Optional[PollExitResponse]
 
-    # _sampled_history: Optional[Dict[str, Union[List[int], List[float]]]]
+    # _sampled_history: Optional[Dict[str, Union[Sequence[int], Sequence[float]]]]
 
     # _use_redirect: bool
     # _stdout_slave_fd: Optional[int]
@@ -485,8 +486,10 @@ class Run(object):
             return True
 
         if self._iface_port:
-            assert self._backend
-            self._backend.interface._reconnect(pid=current_pid, port=self._iface_port)
+            assert self._backend and self._backend.interface_grpc
+            self._backend.interface_grpc._reconnect(
+                pid=current_pid, port=self._iface_port
+            )
             return True
 
         if method:
@@ -539,7 +542,7 @@ class Run(object):
     @name.setter
     def name(self, name):
         self._name = name
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -557,7 +560,7 @@ class Run(object):
     @notes.setter
     def notes(self, notes):
         self._notes = notes
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -576,7 +579,7 @@ class Run(object):
     @tags.setter
     def tags(self, tags):
         self._tags = tuple(tags)
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -847,7 +850,7 @@ class Run(object):
         self._label_internal(code=code, repo=repo, code_version=code_version)
 
         # update telemetry in the backend immediately for _label() callers
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines):
@@ -918,21 +921,23 @@ class Run(object):
         self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record):
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
     def _summary_get_current_summary_callback(self):
-        if not self._backend:
+        if not self._backend or not self._backend.interface:
             return {}
-        ret = self._backend.interface.communicate_summary()
+        ret = self._backend.interface.communicate_get_summary()
+        if not ret:
+            return {}
         return proto_util.dict_from_proto_list(ret.item)
 
     def _metric_callback(self, metric_record):
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface._publish_metric(metric_record)
 
     def _datatypes_callback(self, fname):
-        if not self._backend:
+        if not self._backend or not self._backend.interface:
             return
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
@@ -966,7 +971,7 @@ class Run(object):
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
 
-        if self._backend:
+        if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
                 row, step, publish_step=not_using_tensorboard
@@ -974,7 +979,7 @@ class Run(object):
 
     def _console_callback(self, name, data):
         # logger.info("console callback: %s, %s", name, data)
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(
@@ -982,7 +987,7 @@ class Run(object):
     ):
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library):
@@ -1299,7 +1304,7 @@ class Run(object):
                 % file_str
             )
         files_dict = dict(files=[(wandb_glob_str, policy)])
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
 
@@ -1685,7 +1690,7 @@ class Run(object):
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
-        if self._backend and not self._settings._offline:
+        if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
@@ -1740,7 +1745,7 @@ class Run(object):
 
     def _wait_for_finish(self):
         while True:
-            if self._backend:
+            if self._backend and self._backend.interface:
                 poll_exit_resp = self._backend.interface.communicate_poll_exit()
             logger.info("got exit ret: %s", poll_exit_resp)
 
@@ -1784,26 +1789,31 @@ class Run(object):
                 wandb.termlog(status_str)
 
         # telemetry could have changed, publish final data
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface._publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_exit(self._exit_code)
 
         # Wait for data to be synced
         self._poll_exit_response = self._wait_for_finish()
 
-        if self._backend:
-            ret = self._backend.interface.communicate_summary()
-            self._final_summary = proto_util.dict_from_proto_list(ret.item)
+        if self._backend and self._backend.interface:
+            ret = self._backend.interface.communicate_get_summary()
+            if ret:
+                self._final_summary = proto_util.dict_from_proto_list(ret.item)
 
-        if self._backend:
-            ret = self._backend.interface.communicate_sampled_history()
-            d = {item.key: item.values_float or item.values_int for item in ret.item}
-            self._sampled_history = d
-
+        if self._backend and self._backend.interface:
+            sampled = self._backend.interface.communicate_sampled_history()
+            if sampled:
+                d = {}
+                for item in sampled.item:
+                    d[item.key] = (
+                        item.values_float if item.values_float else item.values_int
+                    )
+                self._sampled_history = d
         if self._backend:
             self._backend.cleanup()
 
@@ -2314,7 +2324,7 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        if self._backend:
+        if self._backend and self._backend.interface:
             if not self._settings._offline:
                 future = self._backend.interface.communicate_artifact(
                     self,
@@ -2419,13 +2429,8 @@ class Run(object):
                 alert with this title.
         """
         level = level or wandb.AlertLevel.INFO
-        if isinstance(level, wandb.AlertLevel):
-            level = level.value
-        if level not in (
-            wandb.AlertLevel.INFO.value,
-            wandb.AlertLevel.WARN.value,
-            wandb.AlertLevel.ERROR.value,
-        ):
+        level_str = level.value if isinstance(level, wandb.AlertLevel) else level
+        if level_str not in {lev.value for lev in wandb.AlertLevel}:
             raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
 
         wait_duration = wait_duration or timedelta(minutes=1)
@@ -2437,8 +2442,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        if self._backend:
-            self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_alert(title, text, level_str, wait_duration)
 
     def __enter__(self):
         return self
@@ -2456,7 +2461,7 @@ class Run(object):
     def mark_preempting(self):
         """Mark this run as preempting and tell the internal process
         to immediately report this to the server."""
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
 
 

@@ -138,10 +138,16 @@ message RunExitRecord {
   int32 exit_code = 1;
 }
 
+message RunExitResult {
+}
+
+/*
+ * RunPreemptingRecord: run being preempted
+ */
 message RunPreemptingRecord {
 }
 
-message RunExitResult {
+message RunPreemptingResult {
 }
 
 /*
@@ -293,6 +299,9 @@ message FilesItem {
   string external_path = 16;
 }
 
+message FilesResult {
+}
+
 /*
  * StatsRecord: system metrics
  */
@@ -366,6 +375,9 @@ message TBRecord {
   string log_dir = 1;
   bool   save = 2;
   string root_dir = 3;
+}
+
+message TBResult {
 }
 
 /*

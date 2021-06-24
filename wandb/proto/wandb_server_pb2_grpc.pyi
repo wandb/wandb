@@ -14,6 +14,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.RunRecord,
     ) -> wandb.proto.wandb_internal_pb2.RunUpdateResult: ...
 
+    def TBSend(self,
+        request: wandb.proto.wandb_internal_pb2.TBRecord,
+    ) -> wandb.proto.wandb_internal_pb2.TBResult: ...
+
     def RunStart(self,
         request: wandb.proto.wandb_internal_pb2.RunStartRequest,
     ) -> wandb.proto.wandb_internal_pb2.RunStartResponse: ...
@@ -38,6 +42,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.RunExitRecord,
     ) -> wandb.proto.wandb_internal_pb2.RunExitResult: ...
 
+    def RunPreempting(self,
+        request: wandb.proto.wandb_internal_pb2.RunPreemptingRecord,
+    ) -> wandb.proto.wandb_internal_pb2.RunPreemptingResult: ...
+
     def Metric(self,
         request: wandb.proto.wandb_internal_pb2.MetricRecord,
     ) -> wandb.proto.wandb_internal_pb2.MetricResult: ...
@@ -53,6 +61,10 @@ class InternalServiceStub:
     def Config(self,
         request: wandb.proto.wandb_internal_pb2.ConfigRecord,
     ) -> wandb.proto.wandb_internal_pb2.ConfigResult: ...
+
+    def Files(self,
+        request: wandb.proto.wandb_internal_pb2.FilesRecord,
+    ) -> wandb.proto.wandb_internal_pb2.FilesResult: ...
 
     def Output(self,
         request: wandb.proto.wandb_internal_pb2.OutputRecord,
@@ -91,6 +103,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
     ) -> wandb.proto.wandb_internal_pb2.RunUpdateResult: ...
 
     @abc.abstractmethod
+    def TBSend(self,
+        request: wandb.proto.wandb_internal_pb2.TBRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.TBResult: ...
+
+    @abc.abstractmethod
     def RunStart(self,
         request: wandb.proto.wandb_internal_pb2.RunStartRequest,
         context: grpc.ServicerContext,
@@ -127,6 +145,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
     ) -> wandb.proto.wandb_internal_pb2.RunExitResult: ...
 
     @abc.abstractmethod
+    def RunPreempting(self,
+        request: wandb.proto.wandb_internal_pb2.RunPreemptingRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.RunPreemptingResult: ...
+
+    @abc.abstractmethod
     def Metric(self,
         request: wandb.proto.wandb_internal_pb2.MetricRecord,
         context: grpc.ServicerContext,
@@ -149,6 +173,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.ConfigRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.ConfigResult: ...
+
+    @abc.abstractmethod
+    def Files(self,
+        request: wandb.proto.wandb_internal_pb2.FilesRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.FilesResult: ...
 
     @abc.abstractmethod
     def Output(self,

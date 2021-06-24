@@ -21,6 +21,11 @@ class InternalServiceStub(object):
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
         )
+    self.TBSend = channel.unary_unary(
+        '/wandb_internal.InternalService/TBSend',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.TBResult.FromString,
+        )
     self.RunStart = channel.unary_unary(
         '/wandb_internal.InternalService/RunStart',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.SerializeToString,
@@ -51,6 +56,11 @@ class InternalServiceStub(object):
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.FromString,
         )
+    self.RunPreempting = channel.unary_unary(
+        '/wandb_internal.InternalService/RunPreempting',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.FromString,
+        )
     self.Metric = channel.unary_unary(
         '/wandb_internal.InternalService/Metric',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.SerializeToString,
@@ -70,6 +80,11 @@ class InternalServiceStub(object):
         '/wandb_internal.InternalService/Config',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigResult.FromString,
+        )
+    self.Files = channel.unary_unary(
+        '/wandb_internal.InternalService/Files',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesRecord.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesResult.FromString,
         )
     self.Output = channel.unary_unary(
         '/wandb_internal.InternalService/Output',
@@ -119,6 +134,13 @@ class InternalServiceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def TBSend(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
   def RunStart(self, request, context):
     # missing associated documentation comment in .proto file
     pass
@@ -161,6 +183,13 @@ class InternalServiceServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def RunPreempting(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
   def Metric(self, request, context):
     # missing associated documentation comment in .proto file
     pass
@@ -183,6 +212,13 @@ class InternalServiceServicer(object):
     raise NotImplementedError('Method not implemented!')
 
   def Config(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Files(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -246,6 +282,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.SerializeToString,
       ),
+      'TBSend': grpc.unary_unary_rpc_method_handler(
+          servicer.TBSend,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.TBResult.SerializeToString,
+      ),
       'RunStart': grpc.unary_unary_rpc_method_handler(
           servicer.RunStart,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunStartRequest.FromString,
@@ -276,6 +317,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunExitResult.SerializeToString,
       ),
+      'RunPreempting': grpc.unary_unary_rpc_method_handler(
+          servicer.RunPreempting,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingRecord.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunPreemptingResult.SerializeToString,
+      ),
       'Metric': grpc.unary_unary_rpc_method_handler(
           servicer.Metric,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetricRecord.FromString,
@@ -295,6 +341,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
           servicer.Config,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ConfigResult.SerializeToString,
+      ),
+      'Files': grpc.unary_unary_rpc_method_handler(
+          servicer.Files,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesRecord.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.FilesResult.SerializeToString,
       ),
       'Output': grpc.unary_unary_rpc_method_handler(
           servicer.Output,

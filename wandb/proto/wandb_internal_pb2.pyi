@@ -347,6 +347,13 @@ class RunExitRecord(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"exit_code",b"exit_code"]) -> None: ...
 global___RunExitRecord = RunExitRecord
 
+class RunExitResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___RunExitResult = RunExitResult
+
 class RunPreemptingRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
@@ -354,12 +361,12 @@ class RunPreemptingRecord(google.protobuf.message.Message):
         ) -> None: ...
 global___RunPreemptingRecord = RunPreemptingRecord
 
-class RunExitResult(google.protobuf.message.Message):
+class RunPreemptingResult(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
 
     def __init__(self,
         ) -> None: ...
-global___RunExitResult = RunExitResult
+global___RunPreemptingResult = RunPreemptingResult
 
 class SettingsRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
@@ -733,6 +740,13 @@ class FilesItem(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"external_path",b"external_path",u"path",b"path",u"policy",b"policy"]) -> None: ...
 global___FilesItem = FilesItem
 
+class FilesResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___FilesResult = FilesResult
+
 class StatsRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     class _StatsType(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[StatsType.V], builtins.type):
@@ -942,6 +956,13 @@ class TBRecord(google.protobuf.message.Message):
         ) -> None: ...
     def ClearField(self, field_name: typing_extensions.Literal[u"log_dir",b"log_dir",u"root_dir",b"root_dir",u"save",b"save"]) -> None: ...
 global___TBRecord = TBRecord
+
+class TBResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___TBResult = TBResult
 
 class AlertRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...

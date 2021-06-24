@@ -7,16 +7,19 @@ import "wandb/proto/wandb_telemetry.proto";
 
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
+  rpc TBSend(TBRecord) returns (TBResult) {}
   rpc RunStart(RunStartRequest) returns (RunStartResponse) {}
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse) {}
   rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
   rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
+  rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
   rpc Log(HistoryRecord) returns (HistoryResult) {}
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}
+  rpc Files(FilesRecord) returns (FilesResult) {}
   rpc Output(OutputRecord) returns (OutputResult) {}
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}

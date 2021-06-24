@@ -6,6 +6,7 @@ Manage backend sender.
 
 """
 
+from abc import abstractmethod
 import json
 import logging
 import os
@@ -164,6 +165,7 @@ class BackendSenderBase(object):
         header = pb.HeaderRecord()
         self._publish_header(header)
 
+    @abstractmethod
     def _publish_header(self, header):
         raise NotImplementedError
 
@@ -176,8 +178,31 @@ class BackendSenderBase(object):
         ret = self._communicate_check_version(check_version)
         return ret
 
+    @abstractmethod
     def _communicate_check_version(
         self, current_version
+    ):
+        raise NotImplementedError
+
+    def communicate_stop_status(self):
+        status = pb.StopStatusRequest()
+        resp = self._communicate_stop_status(status)
+        return resp
+
+    @abstractmethod
+    def _communicate_stop_status(
+        self, status
+    ):
+        raise NotImplementedError
+
+    def communicate_network_status(self):
+        status = pb.NetworkStatusRequest()
+        resp = self._communicate_network_status(status)
+        return resp
+
+    @abstractmethod
+    def _communicate_network_status(
+        self, status
     ):
         raise NotImplementedError
 
@@ -220,6 +245,7 @@ class BackendSenderBase(object):
         run = self._make_run(run_obj)
         self._publish_run(run)
 
+    @abstractmethod
     def _publish_run(self, run):
         raise NotImplementedError
 
@@ -233,9 +259,11 @@ class BackendSenderBase(object):
 
         self._publish_config(cfg)
 
+    @abstractmethod
     def _publish_config(self, cfg):
         raise NotImplementedError
 
+    @abstractmethod
     def _publish_metric(self, metric):
         raise NotImplementedError
 
@@ -245,6 +273,7 @@ class BackendSenderBase(object):
         run = self._make_run(run_obj)
         return self._communicate_run(run, timeout=timeout)
 
+    @abstractmethod
     def _communicate_run(
         self, run, timeout = None
     ):
@@ -256,6 +285,7 @@ class BackendSenderBase(object):
         result = self._communicate_run_start(run_start)
         return result is not None
 
+    @abstractmethod
     def _communicate_run_start(
         self, run_start
     ):
@@ -346,142 +376,46 @@ class BackendSenderBase(object):
         pb_summary_record = self._make_summary(summary_record)
         self._publish_summary(pb_summary_record)
 
+    @abstractmethod
     def _publish_summary(self, summary):
         raise NotImplementedError
 
-    def _publish_telemetry(self, telem):
-        raise NotImplementedError
+    def communicate_get_summary(self):
+        get_summary = pb.GetSummaryRequest()
+        return self._communicate_get_summary(get_summary)
 
-    def publish_history(
-        self, data, step = None, run = None, publish_step = True
-    ):
-        run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
-        history = pb.HistoryRecord()
-        if publish_step:
-            assert step is not None
-            history.step.num = step
-        data.pop("_step", None)
-        for k, v in six.iteritems(data):
-            item = history.item.add()
-            item.key = k
-            item.value_json = json_dumps_safer_history(v)  # type: ignore
-        self._publish_history(history)
-
-    def _publish_history(self, history):
-        raise NotImplementedError
-
-    def publish_output(self, name, data):
-        # from vendor.protobuf import google3.protobuf.timestamp
-        # ts = timestamp.Timestamp()
-        # ts.GetCurrentTime()
-        # now = datetime.now()
-        if name == "stdout":
-            otype = pb.OutputRecord.OutputType.STDOUT
-        elif name == "stderr":
-            otype = pb.OutputRecord.OutputType.STDERR
-        else:
-            # TODO(jhr): throw error?
-            print("unknown type")
-        o = pb.OutputRecord(output_type=otype, line=data)
-        o.timestamp.GetCurrentTime()
-        self._publish_output(o)
-
-    def _publish_output(self, outdata):
-        raise NotImplementedError
-
-    def publish_pause(self):
-        pause = pb.PauseRequest()
-        self._publish_pause(pause)
-
-    def _publish_pause(self, pause):
-        raise NotImplementedError
-
-    def publish_resume(self):
-        resume = pb.ResumeRequest()
-        self._publish_resume(resume)
-
-    def _publish_resume(self, resume):
-        raise NotImplementedError
-
-    def _make_exit(self, exit_code):
-        exit = pb.RunExitRecord()
-        exit.exit_code = exit_code
-        return exit
-
-    def communicate_exit(self, exit_code, timeout = None):
-        exit_data = self._make_exit(exit_code)
-        return self._communicate_exit(exit_data, timeout=timeout)
-
-    def _communicate_exit(
-        self, exit_data, timeout = None
+    @abstractmethod
+    def _communicate_get_summary(
+        self, get_summary
     ):
         raise NotImplementedError
 
-    def join(self):
-        self._communicate_shutdown()
+    def communicate_sampled_history(self):
+        sampled_history = pb.SampledHistoryRequest()
+        resp = self._communicate_sampled_history(sampled_history)
+        return resp
 
-    def _communicate_shutdown(self):
+    @abstractmethod
+    def _communicate_sampled_history(
+        self, sampled_history
+    ):
         raise NotImplementedError
 
+    def _make_files(self, files_dict):
+        files = pb.FilesRecord()
+        for path, policy in files_dict["files"]:
+            f = files.files.add()
+            f.path = path
+            f.policy = file_policy_to_enum(policy)
+        return files
 
-class BackendSender(BackendSenderBase):
-    class ExceptionTimeout(Exception):
-        pass
+    def publish_files(self, files_dict):
+        files = self._make_files(files_dict)
+        self._publish_files(files)
 
-    # record_q: Optional["Queue[pb.Record]"]
-    # result_q: Optional["Queue[pb.Result]"]
-    # process: Optional[BaseProcess]
-    # _router: Optional[MessageRouter]
-    # _process_check: bool
-
-    def __init__(
-        self,
-        record_q = None,
-        result_q = None,
-        process = None,
-        process_check = True,
-    ):
-        super(BackendSender, self).__init__()
-        self.record_q = record_q
-        self.result_q = result_q
-        self._process = process
-        self._router = None
-        self._process_check = process_check
-
-        self._init_router()
-
-    def _init_router(self):
-        if self.record_q and self.result_q:
-            self._router = MessageRouter(self.record_q, self.result_q)
-
-    def _publish_output(self, outdata):
-        rec = pb.Record()
-        rec.output.CopyFrom(outdata)
-        self._publish(rec)
-
-    def publish_tbdata(
-        self, log_dir, save, root_logdir
-    ):
-        tbrecord = pb.TBRecord()
-        tbrecord.log_dir = log_dir
-        tbrecord.save = save
-        tbrecord.root_dir = root_logdir or ""
-        rec = self._make_record(tbrecord=tbrecord)
-        self._publish(rec)
-
-    def _publish_history(self, history):
-        rec = self._make_record(history=history)
-        self._publish(rec)
-
-    def publish_preempting(self):
-        preempt_rec = pb.RunPreemptingRecord()
-        rec = self._make_record(preempting=preempt_rec)
-        self._publish(rec)
-
-    def _publish_telemetry(self, telem):
-        rec = self._make_record(telemetry=telem)
-        self._publish(rec)
+    @abstractmethod
+    def _publish_files(self, files):
+        raise NotImplementedError
 
     def _make_artifact(self, artifact):
         proto_artifact = pb.ArtifactRecord()
@@ -528,6 +462,237 @@ class BackendSender(BackendSenderBase):
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
+    def communicate_artifact(
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created = False,
+        use_after_commit = False,
+        finalize = True,
+    ):
+        proto_run = self._make_run(run)
+        proto_artifact = self._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = is_user_created
+        proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
+        for alias in aliases:
+            proto_artifact.aliases.append(alias)
+
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
+        resp = self._communicate_artifact(log_artifact)
+        return resp
+
+    @abstractmethod
+    def _communicate_artifact(self, log_artifact):
+        raise NotImplementedError
+
+    def publish_artifact(
+        self,
+        run,
+        artifact,
+        aliases,
+        is_user_created = False,
+        use_after_commit = False,
+        finalize = True,
+    ):
+        proto_run = self._make_run(run)
+        proto_artifact = self._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = is_user_created
+        proto_artifact.use_after_commit = use_after_commit
+        proto_artifact.finalize = finalize
+        for alias in aliases:
+            proto_artifact.aliases.append(alias)
+        self._publish_artifact(proto_artifact)
+
+    @abstractmethod
+    def _publish_artifact(self, proto_artifact):
+        raise NotImplementedError
+
+    def publish_tbdata(
+        self, log_dir, save, root_logdir
+    ):
+        tbrecord = pb.TBRecord()
+        tbrecord.log_dir = log_dir
+        tbrecord.save = save
+        tbrecord.root_dir = root_logdir or ""
+
+    @abstractmethod
+    def _publish_tbdata(self, tbrecord):
+        raise NotImplementedError
+
+    @abstractmethod
+    def _publish_telemetry(self, telem):
+        raise NotImplementedError
+
+    def publish_history(
+        self, data, step = None, run = None, publish_step = True
+    ):
+        run = run or self._run
+        data = data_types.history_dict_to_json(run, data, step=step)
+        history = pb.HistoryRecord()
+        if publish_step:
+            assert step is not None
+            history.step.num = step
+        data.pop("_step", None)
+        for k, v in six.iteritems(data):
+            item = history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)  # type: ignore
+        self._publish_history(history)
+
+    @abstractmethod
+    def _publish_history(self, history):
+        raise NotImplementedError
+
+    def publish_preempting(self):
+        preempt_rec = pb.RunPreemptingRecord()
+        self._publish_preempting(preempt_rec)
+
+    @abstractmethod
+    def _publish_preempting(self, preempt_rec):
+        raise NotImplementedError
+
+    def publish_output(self, name, data):
+        # from vendor.protobuf import google3.protobuf.timestamp
+        # ts = timestamp.Timestamp()
+        # ts.GetCurrentTime()
+        # now = datetime.now()
+        if name == "stdout":
+            otype = pb.OutputRecord.OutputType.STDOUT
+        elif name == "stderr":
+            otype = pb.OutputRecord.OutputType.STDERR
+        else:
+            # TODO(jhr): throw error?
+            print("unknown type")
+        o = pb.OutputRecord(output_type=otype, line=data)
+        o.timestamp.GetCurrentTime()
+        self._publish_output(o)
+
+    @abstractmethod
+    def _publish_output(self, outdata):
+        raise NotImplementedError
+
+    def publish_pause(self):
+        pause = pb.PauseRequest()
+        self._publish_pause(pause)
+
+    @abstractmethod
+    def _publish_pause(self, pause):
+        raise NotImplementedError
+
+    def publish_resume(self):
+        resume = pb.ResumeRequest()
+        self._publish_resume(resume)
+
+    @abstractmethod
+    def _publish_resume(self, resume):
+        raise NotImplementedError
+
+    def publish_alert(
+        self, title, text, level, wait_duration
+    ):
+        proto_alert = pb.AlertRecord()
+        proto_alert.title = title
+        proto_alert.text = text
+        proto_alert.level = level
+        proto_alert.wait_duration = wait_duration
+
+    @abstractmethod
+    def _publish_alert(self, alert):
+        raise NotImplementedError
+
+    def _make_exit(self, exit_code):
+        exit = pb.RunExitRecord()
+        if exit_code is not None:
+            exit.exit_code = exit_code
+        return exit
+
+    def publish_exit(self, exit_code):
+        exit_data = self._make_exit(exit_code)
+        self._publish_exit(exit_data)
+
+    @abstractmethod
+    def _publish_exit(self, exit_data):
+        raise NotImplementedError
+
+    def communicate_poll_exit(self):
+        poll_exit = pb.PollExitRequest()
+        resp = self._communicate_poll_exit(poll_exit)
+        return resp
+
+    @abstractmethod
+    def _communicate_poll_exit(
+        self, poll_exit
+    ):
+        raise NotImplementedError
+
+    def join(self):
+        self._communicate_shutdown()
+
+    @abstractmethod
+    def _communicate_shutdown(self):
+        raise NotImplementedError
+
+
+class BackendSender(BackendSenderBase):
+    class ExceptionTimeout(Exception):
+        pass
+
+    # record_q: Optional["Queue[pb.Record]"]
+    # result_q: Optional["Queue[pb.Result]"]
+    # process: Optional[BaseProcess]
+    # _router: Optional[MessageRouter]
+    # _process_check: bool
+
+    def __init__(
+        self,
+        record_q = None,
+        result_q = None,
+        process = None,
+        process_check = True,
+    ):
+        super(BackendSender, self).__init__()
+        self.record_q = record_q
+        self.result_q = result_q
+        self._process = process
+        self._router = None
+        self._process_check = process_check
+
+        self._init_router()
+
+    def _init_router(self):
+        if self.record_q and self.result_q:
+            self._router = MessageRouter(self.record_q, self.result_q)
+
+    def _publish_output(self, outdata):
+        rec = pb.Record()
+        rec.output.CopyFrom(outdata)
+        self._publish(rec)
+
+    def _publish_tbdata(self, tbrecord):
+        rec = self._make_record(tbrecord=tbrecord)
+        self._publish(rec)
+
+    def _publish_history(self, history):
+        rec = self._make_record(history=history)
+        self._publish(rec)
+
+    def _publish_preempting(self, preempt_rec):
+        rec = self._make_record(preempting=preempt_rec)
+        self._publish(rec)
+
+    def _publish_telemetry(self, telem):
+        rec = self._make_record(telemetry=telem)
+        self._publish(rec)
+
     def _make_stats(self, stats_dict):
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
@@ -537,14 +702,6 @@ class BackendSender(BackendSenderBase):
             item.key = k
             item.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
         return stats
-
-    def _make_files(self, files_dict):
-        files = pb.FilesRecord()
-        for path, policy in files_dict["files"]:
-            f = files.files.add()
-            f.path = path
-            f.policy = file_policy_to_enum(policy)
-        return files
 
     def _make_login(self, api_key = None):
         login = pb.LoginRequest()
@@ -775,115 +932,50 @@ class BackendSender(BackendSenderBase):
         rec = self._make_record(stats=stats)
         self._publish(rec)
 
-    def publish_files(self, files_dict):
-        files = self._make_files(files_dict)
+    def _publish_files(self, files):
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def communicate_artifact(
-        self,
-        run,
-        artifact,
-        aliases,
-        is_user_created = False,
-        use_after_commit = False,
-        finalize = True,
-    ):
-        proto_run = self._make_run(run)
-        proto_artifact = self._make_artifact(artifact)
-        proto_artifact.run_id = proto_run.run_id
-        proto_artifact.project = proto_run.project
-        proto_artifact.entity = proto_run.entity
-        proto_artifact.user_created = is_user_created
-        proto_artifact.use_after_commit = use_after_commit
-        proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
-
-        log_artifact = pb.LogArtifactRequest()
-        log_artifact.artifact.CopyFrom(proto_artifact)
+    def _communicate_artifact(self, log_artifact):
         rec = self._make_request(log_artifact=log_artifact)
         return self._communicate_async(rec)
 
-    def publish_artifact(
-        self,
-        run,
-        artifact,
-        aliases,
-        is_user_created = False,
-        use_after_commit = False,
-        finalize = True,
-    ):
-        proto_run = self._make_run(run)
-        proto_artifact = self._make_artifact(artifact)
-        proto_artifact.run_id = proto_run.run_id
-        proto_artifact.project = proto_run.project
-        proto_artifact.entity = proto_run.entity
-        proto_artifact.user_created = is_user_created
-        proto_artifact.use_after_commit = use_after_commit
-        proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+    def _publish_artifact(self, proto_artifact):
         rec = self._make_record(artifact=proto_artifact)
         self._publish(rec)
 
-    def publish_alert(
-        self, title, text, level, wait_duration
-    ):
-        proto_alert = pb.AlertRecord()
-        proto_alert.title = title
-        proto_alert.text = text
-        proto_alert.level = level
-        proto_alert.wait_duration = wait_duration
+    def _publish_alert(self, proto_alert):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def communicate_stop_status(
-        self, timeout = None
+    def _communicate_stop_status(
+        self, status
     ):
-        status = pb.StopStatusRequest()
         req = self._make_request(stop_status=status)
-
-        resp = self._communicate(req, timeout=timeout, local=True)
+        resp = self._communicate(req, local=True)
         if resp is None:
             return None
         assert resp.response.stop_status_response
         return resp.response.stop_status_response
 
-    def communicate_network_status(
-        self, timeout = None
+    def _communicate_network_status(
+        self, status
     ):
-        status = pb.NetworkStatusRequest()
         req = self._make_request(network_status=status)
-
-        resp = self._communicate(req, timeout=timeout, local=True)
+        resp = self._communicate(req, local=True)
         if resp is None:
             return None
         assert resp.response.network_status_response
         return resp.response.network_status_response
 
-    def publish_exit(self, exit_code):
-        exit_data = self._make_exit(exit_code)
+    def _publish_exit(self, exit_data):
         rec = self._make_record(exit=exit_data)
         self._publish(rec)
 
-    def _communicate_exit(
-        self, exit_data, timeout = None
+    def _communicate_poll_exit(
+        self, poll_exit
     ):
-        req = self._make_record(exit=exit_data)
-
-        result = self._communicate(req, timeout=timeout)
-        if result is None:
-            # TODO: friendlier error message here
-            raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
-            )
-        assert result.exit_result
-        return result.exit_result
-
-    def communicate_poll_exit(self):
-        poll_request = pb.PollExitRequest()
-        rec = self._make_request(poll_exit=poll_request)
+        rec = self._make_request(poll_exit=poll_exit)
         result = self._communicate(rec)
         if result is None:
             return None
@@ -911,8 +1003,10 @@ class BackendSender(BackendSenderBase):
         run_start_response = result.response.run_start_response
         return run_start_response
 
-    def communicate_summary(self):
-        record = self._make_request(get_summary=pb.GetSummaryRequest())
+    def _communicate_get_summary(
+        self, get_summary
+    ):
+        record = self._make_request(get_summary=get_summary)
         result = self._communicate(record, timeout=10)
         if result is None:
             return None
@@ -920,8 +1014,10 @@ class BackendSender(BackendSenderBase):
         assert get_summary_response
         return get_summary_response
 
-    def communicate_sampled_history(self):
-        record = self._make_request(sampled_history=pb.SampledHistoryRequest())
+    def _communicate_sampled_history(
+        self, sampled_history
+    ):
+        record = self._make_request(sampled_history=sampled_history)
         result = self._communicate(record)
         if result is None:
             return None

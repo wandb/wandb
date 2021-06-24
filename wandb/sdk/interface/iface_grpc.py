@@ -15,7 +15,7 @@ from wandb.proto import wandb_server_pb2
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .interface import BackendSenderBase
+from .interface import _Future, BackendSenderBase
 
 if wandb.TYPE_CHECKING:
     from typing import Optional
@@ -88,6 +88,13 @@ class BackendGrpcSender(BackendSenderBase):
         assert self._stub
         _ = self._stub.Summary(summary)
 
+    def _communicate_get_summary(
+        self, get_summary: pb.GetSummaryRequest
+    ) -> Optional[pb.GetSummaryResponse]:
+        assert self._stub
+        resp = self._stub.GetSummary(get_summary)
+        return resp
+
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         assert self._stub
         _ = self._stub.Telemetry(telem)
@@ -95,6 +102,10 @@ class BackendGrpcSender(BackendSenderBase):
     def _publish_history(self, history: pb.HistoryRecord) -> None:
         assert self._stub
         _ = self._stub.Log(history)
+
+    def _publish_preempting(self, preempt_rec: pb.RunPreemptingRecord) -> None:
+        assert self._stub
+        _ = self._stub.RunPreempting(preempt_rec)
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         assert self._stub
@@ -112,38 +123,58 @@ class BackendGrpcSender(BackendSenderBase):
         run_start_response = self._stub.RunStart(run_start)
         return run_start_response
 
-    def communicate_network_status(
-        self, timeout: int = None
-    ) -> Optional[pb.NetworkStatusResponse]:
-        pass
-
-    def communicate_stop_status(
-        self, timeout: int = None
-    ) -> Optional[pb.StopStatusResponse]:
-        pass
-
-    def publish_exit(self, exit_code: int) -> None:
+    def _publish_files(self, files: pb.FilesRecord) -> None:
         assert self._stub
-        exit_data = self._make_exit(exit_code)
+        _ = self._stub.Files(files)
+
+    def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
+        # TODO: implement
+        pass
+
+    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> _Future:
+        # TODO: implement
+        dummy = pb.Result()
+        future = _Future()
+        future._set_object(dummy)
+        return future
+
+    def _communicate_network_status(
+        self, status: pb.NetworkStatusRequest
+    ) -> Optional[pb.NetworkStatusResponse]:
+        # TODO: implement
+        pass
+
+    def _communicate_stop_status(
+        self, status: pb.StopStatusRequest
+    ) -> Optional[pb.StopStatusResponse]:
+        # TODO: implement
+        pass
+
+    def _publish_alert(self, alert: pb.AlertRecord) -> None:
+        # TODO: implement
+        pass
+
+    def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
+        # TODO: implement
+        pass
+
+    def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
+        assert self._stub
         _ = self._stub.RunExit(exit_data)
         return None
 
-    def communicate_poll_exit(self) -> Optional[pb.PollExitResponse]:
+    def _communicate_poll_exit(
+        self, poll_exit: pb.PollExitRequest
+    ) -> Optional[pb.PollExitResponse]:
         assert self._stub
-        req = pb.PollExitRequest()
-        ret = self._stub.PollExit(req)
+        ret = self._stub.PollExit(poll_exit)
         return ret
 
-    def communicate_summary(self) -> Optional[pb.GetSummaryResponse]:
+    def _communicate_sampled_history(
+        self, sampled_history: pb.SampledHistoryRequest
+    ) -> Optional[pb.SampledHistoryResponse]:
         assert self._stub
-        req = pb.GetSummaryRequest()
-        ret = self._stub.GetSummary(req)
-        return ret
-
-    def communicate_sampled_history(self) -> Optional[pb.SampledHistoryResponse]:
-        assert self._stub
-        req = pb.SampledHistoryRequest()
-        ret = self._stub.SampledHistory(req)
+        ret = self._stub.SampledHistory(sampled_history)
         return ret
 
     def _publish_header(self, header: pb.HeaderRecord) -> None:

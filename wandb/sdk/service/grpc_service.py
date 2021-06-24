@@ -88,7 +88,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         self, get_summary: pb.GetSummaryRequest, context: grpc.ServicerContext
     ) -> pb.GetSummaryResponse:
         assert self._backend and self._backend._interface
-        result = self._backend._interface.communicate_summary()
+        result = self._backend._interface.communicate_get_summary()
         assert result  # TODO: handle errors
         return result
 
@@ -114,6 +114,22 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         assert self._backend and self._backend._interface
         self._backend._interface.publish_exit(exit_data.exit_code)
         result = pb.RunExitResult()
+        return result
+
+    def RunPreempting(  # noqa: N802
+        self, preempt: pb.RunPreemptingRecord, context: grpc.ServicerContext
+    ) -> pb.RunPreemptingResult:
+        assert self._backend and self._backend._interface
+        self._backend._interface._publish_preempting(preempt)
+        result = pb.RunPreemptingResult()
+        return result
+
+    def TBSend(  # noqa: N802
+        self, tb_data: pb.TBRecord, context: grpc.ServicerContext
+    ) -> pb.TBResult:
+        assert self._backend and self._backend._interface
+        self._backend._interface._publish_tbdata(tb_data)
+        result = pb.TBResult()
         return result
 
     def Log(  # noqa: N802
@@ -150,6 +166,15 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         self._backend._interface._publish_output(output_data)
         # make up a response even though this was async
         result = pb.OutputResult()
+        return result
+
+    def Files(  # noqa: N802
+        self, files_data: pb.FilesRecord, context: grpc.ServicerContext
+    ) -> pb.FilesResult:
+        assert self._backend and self._backend._interface
+        self._backend._interface._publish_files(files_data)
+        # make up a response even though this was async
+        result = pb.FilesResult()
         return result
 
     def Config(  # noqa: N802
