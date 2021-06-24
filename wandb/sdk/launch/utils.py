@@ -7,7 +7,7 @@ import tempfile
 
 import requests
 import wandb
-from wandb.errors import ExecutionException
+from wandb.errors import CommError, ExecutionException
 import yaml
 
 from . import _project_spec
@@ -195,7 +195,7 @@ def fetch_project_diff(uri, api=None):
     try:
         entity, project, name = parse_wandb_uri(uri)
         (_, _, patch, _) = api.run_config(project, name, entity)
-    except requests.exceptions.HTTPError:
+    except CommError:
         pass
     return patch
 
