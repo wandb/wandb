@@ -11,8 +11,8 @@ import urllib.parse
 import six
 import wandb
 from wandb import util
-from wandb.sdk.lib.runid import generate_id
 from wandb.errors import Error as ExecutionException
+from wandb.sdk.lib.runid import generate_id
 
 from . import utils
 
