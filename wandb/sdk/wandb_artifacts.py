@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import time
+import shortuuid
 
 import requests
 from six.moves.urllib.parse import quote, urlparse
@@ -70,6 +71,11 @@ _REQUEST_POOL_MAXSIZE = 64
 ARTIFACT_TMP = compat_tempfile.TemporaryDirectory("wandb-artifacts")
 
 
+def generateClientUUID():
+    # TODO: Write out the match to verify this is sufficiently large
+    run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
+    return run_gen.random(16)
+
 class _AddedObj(object):
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
         self.entry = entry
@@ -122,6 +128,7 @@ class Artifact(ArtifactInterface):
     _metadata: dict
     _logged_artifact: Optional[ArtifactInterface]
     _incremental: bool
+    _artifactClientId: str
 
     def __init__(
         self,
@@ -167,6 +174,7 @@ class Artifact(ArtifactInterface):
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
+        self._artifactClientId = generateClientUUID()
 
         if incremental:
             self._incremental = incremental
