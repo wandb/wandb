@@ -63,7 +63,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise Exception("error running repo2docker")
+        raise Exception("error running repo2docker: {}".format(stderr))
     return image_id[0]
 
 

@@ -2,8 +2,11 @@
 import logging
 import os
 import re
+import subprocess
 import tempfile
 
+import requests
+import wandb
 from wandb.errors import ExecutionException
 import yaml
 
@@ -185,6 +188,34 @@ def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
     return result
+
+
+def fetch_project_diff(uri, api=None):
+    patch = None
+    try:
+        entity, project, name = parse_wandb_uri(uri)
+        (_, _, patch, _) = api.run_config(project, name, entity)
+    except requests.exceptions.HTTPError:
+        pass
+    return patch
+
+
+def apply_patch(patch_string, dst_dir):
+    with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
+        fp.write(patch_string)
+    try:
+        subprocess.check_call(
+            [
+                "patch",
+                "-s",
+                "--directory={}".format(dst_dir),
+                "-p1",
+                "-i",
+                "diff.patch",
+            ]
+        )
+    except subprocess.CalledProcessError:
+        raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
 def _create_ml_project_file_from_run_info(dst_dir, run_info):

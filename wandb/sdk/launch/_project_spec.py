@@ -143,7 +143,11 @@ class Project(object):
                 raise ExecutionException("Run must have git repo associated")
             utils._fetch_git_repo(
                 run_info["git"]["remote"], run_info["git"]["commit"], dst_dir
-            )  # git repo
+            )
+            patch = utils.fetch_project_diff(self.uri, api)
+            if patch:
+                utils.apply_patch(patch, dst_dir)
+
             utils._create_ml_project_file_from_run_info(dst_dir, run_info)
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
