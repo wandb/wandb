@@ -261,9 +261,7 @@ class FileStreamApi(object):
                     )
                     uploaded = set()
                 elif isinstance(item, self.PushSuccess):
-                    # inform the server about successfully uploaded files (not artifacts)
-                    if not item.artifact_id:
-                        uploaded.add(item.save_name)
+                    uploaded.add(item.save_name)
                 else:
                     # item is Chunk
                     ready_chunks.append(item)

@@ -327,6 +327,11 @@ class SendManager(object):
         elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
+                if self._pusher:
+                    # pusher generates some events for filestream, so we need
+                    # to join on pusher to make sure that we have all events
+                    # flushed for filestream to finish with
+                    self._pusher.join()
                 self._fs.finish(self._exit_code)
                 self._fs = None
         elif state == defer.FLUSH_FINAL:
