@@ -17,7 +17,7 @@ import time
 
 import wandb
 
-from ..interface import iface_grpc, interface
+from ..interface import interface
 from ..internal.internal import wandb_internal
 
 # Using exception block for pre py3.4 and to preservee type info
@@ -57,7 +57,6 @@ class Backend(object):
     _multiprocessing: multiprocessing.context.BaseContext
     interface: Optional[interface.BackendSenderBase]
     _internal_pid: Optional[int]
-    interface_grpc: Optional[iface_grpc.BackendGrpcSender]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Optional[Settings]
     record_q: Optional["multiprocessing.Queue[Record]"]
@@ -203,8 +202,9 @@ class Backend(object):
         from ..interface import iface_grpc
 
         grpc_port = self._grpc_launch_server()
-        self.interface_grpc = self.interface = iface_grpc.BackendGrpcSender()
-        self.interface._connect(grpc_port)
+        grpc_interface = iface_grpc.BackendGrpcSender()
+        self.interface = grpc_interface
+        grpc_interface._connect(grpc_port)
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
