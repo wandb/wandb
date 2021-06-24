@@ -150,7 +150,7 @@ class Project(object):
                 self.add_entry_point(run_info["program"])
 
             args = utils._collect_args(run_info["args"])
-            self._merge_parameters(args)
+            self.parameters = utils.merge_parameters(self.parameters, args)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-local URI %s should be a Git URI" % parsed_uri

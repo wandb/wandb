@@ -303,3 +303,10 @@ def _convert_access(access):
         access == "PROJECT" or access == "USER"
     ), "Queue access must be either project or user"
     return access
+
+
+def merge_parameters(higher_priority_params, lower_priority_params):
+    for key in lower_priority_params.keys():
+        if higher_priority_params.get(key) is None:
+            higher_priority_params[key] = lower_priority_params[key]
+    return higher_priority_params
