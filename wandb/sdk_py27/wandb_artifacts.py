@@ -176,7 +176,7 @@ class Artifact(ArtifactInterface):
         self._logged_artifact = None
         self._incremental = False
         self._artifact_client_id = generate_client_uuid()
-        self._cache._artifacts_by_client_id(self)
+        self._cache.store_client_artifact(self)
 
         if incremental:
             self._incremental = incremental

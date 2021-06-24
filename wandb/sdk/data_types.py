@@ -266,7 +266,7 @@ class WBValue(object):
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
         ):
-            return "wandb-artifact://{}/{}".format(
+            return "wandb-artifact-client://{}/{}".format(
                 self._artifact_target.artifact._artifact_client_id,
                 type(self).with_suffix(self._artifact_target.name),
             )
@@ -488,9 +488,9 @@ class Media(WBValue):
                     )
                 )
 
-            assert (
-                self._run is run
-            ), "We don't support referring to media files across runs."
+            # assert (
+            #     self._run is run
+            # ), "We don't support referring to media files across runs."
 
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
