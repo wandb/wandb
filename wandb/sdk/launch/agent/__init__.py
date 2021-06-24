@@ -145,8 +145,7 @@ class LaunchAgent(object):
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
 
-        self._api.ack_run_queue_item(job["runQueueItemId"], project.run_id)
-        wandb.finish()
+        backend_config["runQueueItemId"] = job["runQueueItemId"]
         run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run
         self._running += 1

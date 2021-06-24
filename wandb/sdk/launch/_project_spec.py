@@ -63,8 +63,7 @@ class Project(object):
         self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env: Dict[str, str] = {}
-        # init a run so the
-
+        # generate id for run to ack with in agent
         self.run_id = generate_id()
 
     def get_single_entry_point(self):
