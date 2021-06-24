@@ -842,12 +842,12 @@ class PartitionedTable(Media):
             "_type": PartitionedTable._log_type,
         }
         if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is None:
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is None:
                 raise ValueError(
                     "PartitionedTables must first be added to an Artifact before logging to a Run"
                 )
-            json_obj["artifact_path"] = artifact_entry.ref_url()
+            json_obj["artifact_path"] = artifact_entry_url
         else:
             json_obj["parts_path"] = self.parts_path
         return json_obj
@@ -1151,12 +1151,12 @@ class JoinedTable(Media):
             "_type": JoinedTable._log_type,
         }
         if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is None:
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is None:
                 raise ValueError(
                     "JoinedTables must first be added to an Artifact before logging to a Run"
                 )
-            json_obj["artifact_path"] = artifact_entry.ref_url()
+            json_obj["artifact_path"] = artifact_entry_url
         else:
             table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
             table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)

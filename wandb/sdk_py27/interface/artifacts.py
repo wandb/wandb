@@ -834,6 +834,7 @@ class ArtifactsCache(object):
         self._artifacts_by_id = {}
         self._random = random.Random()
         self._random.seed()
+        self._artifacts_by_client_id = {}
 
     def check_md5_obj_path(self, b64_md5, size):
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -857,6 +858,12 @@ class ArtifactsCache(object):
 
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
+
+    def get_client_artifact(self, artifact_client_id):
+        return self._artifacts_by_client_id.get(artifact_client_id)
+
+    def store_client_artifact(self, artifact):
+        self._artifacts_by_client_id[artifact._artifact_client_id] = artifact
 
     def cleanup(self, target_size):
         bytes_reclaimed = 0

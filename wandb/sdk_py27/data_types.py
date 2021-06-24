@@ -231,6 +231,7 @@ class WBValue(object):
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
+    # DO NOT USE in user process (.wait)
     def _get_artifact_reference_entry(self):
         ref_entry = None
         # If the object is coming from another artifact
@@ -251,6 +252,25 @@ class WBValue(object):
                 type(self).with_suffix(self._artifact_target.name)
             )
         return ref_entry
+
+    def _get_artifact_entry_ref_url(self):
+        # If the object is coming from another artifact
+        if self._artifact_source and self._artifact_source.name:
+            ref_entry = self._artifact_source.artifact.get_path(
+                type(self).with_suffix(self._artifact_source.name)
+            )
+            return str(ref_entry.ref_url())
+        # Else, if the object is destined for another artifact
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._logged_artifact is not None
+        ):
+            return "wandb-artifact://{}/{}".format(
+                self._artifact_target.artifact._artifact_client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        return None
 
 
 class Histogram(WBValue):
@@ -487,9 +507,9 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is not None:
-                json_obj["artifact_path"] = artifact_entry.ref_url()
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is not None:
+                json_obj["artifact_path"] = artifact_entry_url
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
