@@ -11,6 +11,7 @@ from .utils import (
     _is_wandb_local_uri,
     _is_wandb_uri,
     fetch_and_validate_project,
+    merge_parameters,
     parse_wandb_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
@@ -78,6 +79,11 @@ def _run(
     run_config = None
     if overrides:
         run_config = overrides.get("run_config")
+        args = overrides.get("args")
+        if args:
+            args = _collect_args(args)
+            parameters = merge_parameters(parameters, args)
+
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -89,12 +95,6 @@ def _run(
         parameters,
         run_config,
     )
-
-    if overrides:
-        args = overrides.get("args")
-        if args:
-            args = _collect_args(args)
-            project._merge_parameters(args)
 
     # construct runner config.
     runner_config = {}

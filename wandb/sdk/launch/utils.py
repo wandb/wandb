@@ -120,11 +120,18 @@ def _collect_args(args):
         arg = args[i]
         if "=" in arg:
             name, vals = arg.split("=")
-            dict_args[name.replace("-", "")] = vals
+            dict_args[name.lstrip("-")] = vals
             i += 1
-        else:
-            dict_args[arg.replace("-", "")] = args[i + 1]
+        elif (
+            arg.startswith("-")
+            and i < len(args) - 1
+            and not args[i + 1].startswith("-")
+        ):
+            dict_args[arg.lstrip("-")] = args[i + 1]
             i += 2
+        else:
+            dict_args[arg.lstrip("-")] = None
+            i += 1
     return dict_args
 
 
@@ -270,3 +277,10 @@ def _convert_access(access):
         access == "PROJECT" or access == "USER"
     ), "Queue access must be either project or user"
     return access
+
+
+def merge_parameters(higher_priority_params, lower_priority_params):
+    for key in lower_priority_params.keys():
+        if higher_priority_params.get(key) is None:
+            higher_priority_params[key] = lower_priority_params[key]
+    return higher_priority_params

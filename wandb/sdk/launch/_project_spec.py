@@ -149,7 +149,7 @@ class Project(object):
                 self.add_entry_point(run_info["program"])
 
             args = utils._collect_args(run_info["args"])
-            self._merge_parameters(args)
+            self.parameters = utils.merge_parameters(self.parameters, args)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-local URI %s should be a Git URI" % parsed_uri
@@ -232,13 +232,19 @@ class EntryPoint(object):
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
         command_arr.extend(
-            ["--%s %s" % (key, value) for key, value in extra_params.items()]
+            [
+                "--%s %s" % (key, value) if value is not None else "--%s" % (key)
+                for key, value in extra_params.items()
+            ]
         )
         return " ".join(command_arr)
 
     @staticmethod
     def _sanitize_param_dict(param_dict):
-        return {str(key): quote(str(value)) for key, value in param_dict.items()}
+        return {
+            (str(key)): (quote(str(value)) if value is not None else None)
+            for key, value in param_dict.items()
+        }
 
 
 class Parameter(object):
