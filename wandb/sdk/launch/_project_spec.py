@@ -11,6 +11,7 @@ import urllib.parse
 import six
 import wandb
 from wandb import util
+from wandb.sdk.lib.runid import generate_id
 from wandb.errors import Error as ExecutionException
 
 from . import utils
@@ -29,6 +30,7 @@ class Project(object):
     """A project specification loaded from an MLproject file in the passed-in directory."""
 
     dir: Optional[str]
+    run_id: str
 
     def __init__(
         self,
@@ -61,9 +63,9 @@ class Project(object):
         self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env: Dict[str, str] = {}
-        run = wandb.init(project=target_project, entity=target_entity, name=self.name)
-        self.run_id = run.id
-        run.finish()
+        # init a run so the
+
+        self.run_id = generate_id()
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
