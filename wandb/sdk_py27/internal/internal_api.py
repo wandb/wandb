@@ -1597,6 +1597,7 @@ class Api(object):
         artifact_type_name,
         artifact_collection_name,
         digest,
+        artifact_client_id=None,
         entity_name=None,
         project_name=None,
         run_name=None,
@@ -1620,6 +1621,7 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
+            $artifactClientId: String
             %s
         ) {
             createArtifact(input: {
@@ -1634,6 +1636,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                artifactClientId: $artifactClientId,
                 %s
             }) {
                 artifact {
@@ -1679,6 +1682,7 @@ class Api(object):
                 "runName": run_name,
                 "artifactTypeName": artifact_type_name,
                 "artifactCollectionNames": [artifact_collection_name],
+                "artifactClientId": artifact_client_id,
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
@@ -1854,6 +1858,33 @@ class Api(object):
             response["updateArtifactManifest"]["artifactManifest"]["id"],
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
+
+    def _resolve_artifact_client_id(
+        self, artifact_client_id,
+    ):
+
+        if artifact_client_id in self._artifact_client_id_mapping:
+            return self._artifact_client_id_mapping[artifact_client_id]
+
+        mutation = gql(
+            """
+        query ArtifactByClientID($clientID: String!) {
+            artifact {
+                id
+            }
+        }
+        """
+        )
+
+        response = self.gql(
+            mutation, variable_values={"clientID": artifact_client_id,},
+        )
+
+        # TODO: Handle invalid case
+        raw_artifact_id = response["artifact"]["id"]
+        artifact_id = util.b64_to_hex_id(raw_artifact_id)
+        self._artifact_client_id_mapping[artifact_client_id] = artifact_id
+        return artifact_id
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):

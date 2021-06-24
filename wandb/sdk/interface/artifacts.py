@@ -64,13 +64,14 @@ class ArtifactManifest(object):
 
     @classmethod
     # TODO: we don't need artifact here.
-    def from_manifest_json(cls, artifact, manifest_json):
+    def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
         for sub in cls.__subclasses__():
             if sub.version() == version:
                 return sub.from_manifest_json(artifact, manifest_json)
+        raise ValueError("Invalid manifest version.")
 
     @classmethod
     def version(cls):

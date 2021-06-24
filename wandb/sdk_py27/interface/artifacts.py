@@ -71,6 +71,7 @@ class ArtifactManifest(object):
         for sub in cls.__subclasses__():
             if sub.version() == version:
                 return sub.from_manifest_json(artifact, manifest_json)
+        raise ValueError("Invalid manifest version.")
 
     @classmethod
     def version(cls):
