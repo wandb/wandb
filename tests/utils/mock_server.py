@@ -956,6 +956,18 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
+            elif _id == "e04169452d5584146eb7ebb405647cc8":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "results_df.table.json": {
+                            "digest": "0aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 363,
+                        },
+                    },
+                }
             else:
                 return {
                     "version": 1,
