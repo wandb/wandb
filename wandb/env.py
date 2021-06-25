@@ -63,6 +63,7 @@ ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
+DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -99,6 +100,7 @@ def immutable_keys():
         HOST,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
+        DISABLE_SSL,
     ]
 
 
@@ -119,6 +121,10 @@ def is_debug(default=None, env=None):
 
 def error_reporting_enabled():
     return _env_as_bool(ERROR_REPORTING, default=True)
+
+
+def ssl_disabled():
+    return _env_as_bool(DISABLE_SSL, default=False)
 
 
 def get_error_reporting(default=True, env=None):
