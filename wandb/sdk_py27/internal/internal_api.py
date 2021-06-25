@@ -1868,10 +1868,8 @@ class Api(object):
 
         mutation = gql(
             """
-        query ArtifactByClientID($clientID: String!) {
-            artifact {
-                id
-            }
+        query ArtifactByClientID($clientId: String!) {
+            id
         }
         """
         )
@@ -1881,7 +1879,7 @@ class Api(object):
         )
 
         # TODO: Handle invalid case
-        raw_artifact_id = response["artifact"]["id"]
+        raw_artifact_id = response["id"]
         artifact_id = util.b64_to_hex_id(raw_artifact_id)
         self._artifact_client_id_mapping[artifact_client_id] = artifact_id
         return artifact_id
