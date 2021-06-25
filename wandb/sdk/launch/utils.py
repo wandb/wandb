@@ -7,7 +7,6 @@ import tempfile
 
 import wandb
 from wandb.errors import CommError, ExecutionException
-import yaml
 
 from . import _project_spec
 
@@ -215,22 +214,6 @@ def apply_patch(patch_string, dst_dir):
         )
     except subprocess.CalledProcessError:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
-
-
-def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
-    spec_keys_map = {
-        "args": run_info["args"],
-        "entrypoint": run_info["program"],
-        "git": {
-            "remote": run_info["git"]["remote"],
-            "commit": run_info["git"]["commit"],
-        },
-        "python": run_info["python"],
-        "os": run_info["os"],
-    }
-    with open(path, "w") as fp:
-        yaml.dump(spec_keys_map, fp)
 
 
 def _unzip_repo(zip_file, dst_dir):
