@@ -1045,7 +1045,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
     if entity is None:
         entity = api.default_entity
 
-    wandb.termlog("Starting {} agent ✨".format(launch_agent))
+    wandb.termlog("Starting launch agent ✨")
     wandb_launch.run_agent(entity, project, queues=queues)
 
 
