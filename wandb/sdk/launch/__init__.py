@@ -1,7 +1,5 @@
 import logging
-import sys
 
-import wandb
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
