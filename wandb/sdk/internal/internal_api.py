@@ -757,9 +757,16 @@ class Api(object):
             "projectName": project,
             "entity": entity,
         }
-        return self.gql(query, variable_values)["project"][
-            "runQueues"
-        ]  # todo handle nonexistent queue exception
+
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise Exception(
+                "Error fetching run queues for {}/{} check that you have access to this entity and project".format(
+                    entity, project
+                )
+            )
+
+        return res["project"]["runQueues"]
 
     @normalize_exceptions
     def create_run_queue(self, entity, project, queue_name, access):
@@ -1037,7 +1044,20 @@ class Api(object):
         """
         )
         variable_values = {"project": project, "entity": entity, "name": name}
-        return self.gql(query, variable_values)["project"]["run"]["runInfo"]
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise Exception(
+                "Error fetching run info for {}/{}/{} check that you have access to this entity and project".format(
+                    entity, project, name
+                )
+            )
+        elif res["project"].get("run") is None:
+            raise Exception(
+                "Error fetching run info for run: {} check that this run id exists".format(
+                    name
+                )
+            )
+        return res["project"]["run"]["runInfo"]
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):

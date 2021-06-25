@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from typing import Sequence
 
+
 from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
@@ -56,9 +57,16 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     _logger.info(
         "Generating docker image from git repo or finding image if it already exists.........."
     )
-    stderr = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ).stderr.decode("utf-8")
+    wandb.termlog("Generating docker image, this may take a few minutes")
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stderr = ""
+    for line in process.stderr:
+        line = line.decode("utf-8")
+        if line.endswith("\n"):
+            line = line.rstrip("\n")
+        wandb.termlog(line)
+        stderr = stderr + line
+    stderr = stderr
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)

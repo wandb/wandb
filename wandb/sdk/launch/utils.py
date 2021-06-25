@@ -5,7 +5,6 @@ import re
 import subprocess
 import tempfile
 
-import requests
 import wandb
 from wandb.errors import CommError, ExecutionException
 import yaml
@@ -254,6 +253,7 @@ def _fetch_git_repo(uri, version, dst_dir):
 
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
+
     origin.fetch()
     if version is not None:
         try:
