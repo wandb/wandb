@@ -1151,4 +1151,3 @@ def test_communicate_artifact(publish_util, mocked_run):
     artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
     ctx_util = publish_util(artifacts=[artifact_publish])
     assert len(set(ctx_util.manifests_created_ids)) == 1
-
