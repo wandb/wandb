@@ -10,7 +10,6 @@ WANDB_RUNNERS = {"local": LocalRunner}
 
 
 def load_backend(backend_name, api=None):
-    backend_name = "asdasds"
     # Static backends
     if backend_name in WANDB_RUNNERS:
         return WANDB_RUNNERS[backend_name](api)

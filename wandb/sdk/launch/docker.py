@@ -61,7 +61,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stderr = ""
     # this will always pass, repo2docker writes to stderr.
-    assert process.stderr, ""
+    assert process.stderr
     for line in process.stderr:
         decoded_line = line.decode("utf-8")
         if decoded_line.endswith("\n"):
