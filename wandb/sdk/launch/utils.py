@@ -2,27 +2,30 @@
 import logging
 import os
 import re
+import subprocess
 import tempfile
+
+import requests
+import wandb
+from wandb.errors import ExecutionException
 import yaml
 
-from wandb.errors import ExecutionException
-
-from ._project_spec import Project, MLPROJECT_FILE_NAME
+from . import _project_spec
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/]*:")
 _FILE_URI_REGEX = re.compile(r"^file://.+")
 _ZIP_URI_REGEX = re.compile(r".+\.zip$")
-_WANDB_URI_REGEX = re.compile(r"^https://wandb")
+_WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
 _WANDB_DEV_URI_REGEX = re.compile(
-    r"^https?://ap\w.wandb"
+    r"^https?://ap\w.wandb.test"
 )  # for testing, not sure if we wanna keep this
 _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
-    r"^https?://localhost:8080"
+    r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
 WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
@@ -35,19 +38,6 @@ PROJECT_STORAGE_DIR = "STORAGE_DIR"
 _logger = logging.getLogger(__name__)
 
 
-def _parse_subdirectory(uri):
-    # Parses a uri and returns the uri and subdirectory as separate values.
-    # Uses '#' as a delimiter.
-    subdirectory = ""
-    parsed_uri = uri
-    if "#" in uri:
-        subdirectory = uri[uri.find("#") + 1 :]
-        parsed_uri = uri[: uri.find("#")]
-    if subdirectory and "." in subdirectory:
-        raise ExecutionException("'.' is not allowed in project subdirectory paths.")
-    return parsed_uri, subdirectory
-
-
 def _get_storage_dir(storage_dir):
     if storage_dir is not None and not os.path.exists(storage_dir):
         os.makedirs(storage_dir)
@@ -55,8 +45,8 @@ def _get_storage_dir(storage_dir):
 
 
 def _get_git_repo_url(work_dir):
-    from git import Repo
-    from git.exc import GitCommandError, InvalidGitRepositoryError
+    from git import Repo  # type: ignore
+    from git.exc import GitCommandError, InvalidGitRepositoryError  # type: ignore
 
     try:
         repo = Repo(work_dir, search_parent_directories=True)
@@ -83,6 +73,10 @@ def _is_wandb_uri(uri):
         or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
         or _WANDB_QA_URI_REGEX.match(uri)
     )
+
+
+def _is_wandb_dev_uri(uri):
+    return _WANDB_DEV_URI_REGEX.match(uri)
 
 
 def _is_wandb_local_uri(uri):
@@ -121,6 +115,7 @@ def _is_valid_branch_name(work_dir, version):
     return False
 
 
+# TODO: Fix this dumb heuristic
 def _collect_args(args):
     dict_args = {}
     i = 0
@@ -128,22 +123,47 @@ def _collect_args(args):
         arg = args[i]
         if "=" in arg:
             name, vals = arg.split("=")
-            dict_args[name.replace("-", "")] = vals
+            dict_args[name.lstrip("-")] = vals
             i += 1
-        else:
-            dict_args[arg.replace("-", "")] = args[i + 1]
+        elif (
+            arg.startswith("-")
+            and i < len(args) - 1
+            and not args[i + 1].startswith("-")
+        ):
+            dict_args[arg.lstrip("-")] = args[i + 1]
             i += 2
+        else:
+            dict_args[arg.lstrip("-")] = None
+            i += 1
     return dict_args
 
 
 def fetch_and_validate_project(
-    uri, experiment_name, api, runner_name, version, entry_point, parameters
+    uri,
+    target_entity,
+    target_project,
+    experiment_name,
+    api,
+    version,
+    entry_point,
+    parameters,
+    run_config,
 ):
     parameters = parameters or {}
-    experiment_name = experiment_name or "test"
-    project = Project(uri, experiment_name, version, [entry_point], parameters)
+    experiment_name = experiment_name
+    project = _project_spec.Project(
+        uri,
+        target_entity,
+        target_project,
+        experiment_name,
+        version,
+        [entry_point],
+        parameters,
+        run_config,
+    )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
+    project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
     return project
@@ -170,8 +190,36 @@ def fetch_wandb_project_run_info(uri, api=None):
     return result
 
 
+def fetch_project_diff(uri, api=None):
+    patch = None
+    try:
+        entity, project, name = parse_wandb_uri(uri)
+        (_, _, patch, _) = api.run_config(project, name, entity)
+    except requests.exceptions.HTTPError:
+        pass
+    return patch
+
+
+def apply_patch(patch_string, dst_dir):
+    with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
+        fp.write(patch_string)
+    try:
+        subprocess.check_call(
+            [
+                "patch",
+                "-s",
+                "--directory={}".format(dst_dir),
+                "-p1",
+                "-i",
+                "diff.patch",
+            ]
+        )
+    except subprocess.CalledProcessError:
+        raise wandb.Error("Failed to apply diff.patch associated with run.")
+
+
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, MLPROJECT_FILE_NAME)
+    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
     spec_keys_map = {
         "args": run_info["args"],
         "entrypoint": run_info["program"],
@@ -202,7 +250,7 @@ def _fetch_git_repo(uri, version, dst_dir):
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git
+    import git  # type: ignore
 
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
@@ -260,3 +308,10 @@ def _convert_access(access):
         access == "PROJECT" or access == "USER"
     ), "Queue access must be either project or user"
     return access
+
+
+def merge_parameters(higher_priority_params, lower_priority_params):
+    for key in lower_priority_params.keys():
+        if higher_priority_params.get(key) is None:
+            higher_priority_params[key] = lower_priority_params[key]
+    return higher_priority_params

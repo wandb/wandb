@@ -1,19 +1,25 @@
 import logging
 import sys
+
 import wandb
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
+    _collect_args,
+    _is_wandb_local_uri,
+    _is_wandb_uri,
+    fetch_and_validate_project,
+    merge_parameters,
+    parse_wandb_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    fetch_and_validate_project,
-    _is_wandb_local_uri,
 )
 
 _logger = logging.getLogger(__name__)
+UNCATEGORIZED_PROJECT = "uncategorized"
 
 
 def push_to_queue(api, queue, run_spec):
@@ -40,7 +46,7 @@ def _run(
     parameters,
     docker_args,
     runner_name,
-    runner_config,
+    launch_config,
     storage_dir,
     synchronous,
     api=None,
@@ -49,21 +55,47 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
+
+    src_project = UNCATEGORIZED_PROJECT
+    if launch_config is None:
+        launch_config = {}
+    if _is_wandb_uri(uri):
+        src_project, _, _ = parse_wandb_uri(uri)
+    if wandb_project is None:
+        wandb_project = (
+            launch_config.get("project") or api.settings("project") or src_project
+        )
+    if wandb_entity is None:
+        wandb_entity = launch_config.get("entity") or api.settings("entity")
+
+    experiment_name = experiment_name or launch_config.get("name")
+    overrides = launch_config.get("overrides")
+    run_config = None
+    if overrides:
+        run_config = overrides.get("run_config")
+        args = overrides.get("args")
+        if args:
+            args = _collect_args(args)
+            parameters = merge_parameters(parameters, args)
+
     project = fetch_and_validate_project(
-        uri, experiment_name, api, runner_name, version, entry_point, parameters
+        uri,
+        wandb_entity,
+        wandb_project,
+        experiment_name,
+        api,
+        version,
+        entry_point,
+        parameters,
+        run_config,
     )
 
-    if wandb_project is None:
-        wandb_project = api.settings("project") or "uncategorized"
-    if wandb_entity is None:
-        wandb_entity = api.settings("entity")
-
-    project.docker_env["WANDB_PROJECT"] = wandb_project
-    project.docker_env["WANDB_ENTITY"] = wandb_entity
-
+    # construct runner config.
+    runner_config = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
     runner_config[PROJECT_STORAGE_DIR] = storage_dir
+
     backend = loader.load_backend(runner_name, api)
     if backend:
         submitted_run = backend.run(project, runner_config)
@@ -158,7 +190,7 @@ def run(
         parameters=parameters,
         docker_args=docker_args,
         runner_name=resource,
-        runner_config=config,
+        launch_config=config,
         storage_dir=storage_dir,
         synchronous=synchronous,
         api=api,

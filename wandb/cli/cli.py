@@ -14,7 +14,7 @@ import sys
 import textwrap
 import time
 import traceback
-from wandb.sdk.launch.utils import parse_wandb_uri
+
 
 import click
 from click.exceptions import ClickException
@@ -43,9 +43,9 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
+    from wandb.sdk.launch.utils import parse_wandb_uri
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
-    from wandb.sdk_py27 import launch as wandb_launch
 
 
 # TODO: turn this on in a cleaner way
@@ -879,7 +879,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
 @click.argument("uri")
 @click.option(
     "--entry-point",
-    "-e",
+    "-E",
     metavar="NAME",
     default=None,
     help="Entry point within project. [default: main]. If the entry point is not found, "
@@ -945,7 +945,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
     "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend.",
+    "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
     "--storage-dir",
@@ -1014,7 +1014,7 @@ def launch(
             resource=resource,
             config=config,
             storage_dir=storage_dir,
-            synchronous=resource in ("local", "ngc")
+            synchronous=resource in ("local")
             or resource is None,  # todo currently always true
             api=api,
         )
