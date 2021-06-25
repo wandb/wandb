@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 from typing import Sequence
 
-
 from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb.errors import ExecutionException
