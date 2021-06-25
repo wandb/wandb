@@ -60,13 +60,14 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     wandb.termlog("Generating docker image, this may take a few minutes")
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stderr = ""
-    for line in process.stderr:
-        line = line.decode("utf-8")
-        if line.endswith("\n"):
-            line = line.rstrip("\n")
-        wandb.termlog(line)
-        stderr = stderr + line
-    stderr = stderr
+    # this will always be true, repo2docker writes to stderr.
+    if process.stderr:
+        for line in process.stderr:
+            line = line.decode("utf-8")
+            if line.endswith("\n"):
+                line = line.rstrip("\n")
+            wandb.termlog(line)
+            stderr = stderr + line
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
