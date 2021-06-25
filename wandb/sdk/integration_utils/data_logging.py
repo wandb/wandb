@@ -235,7 +235,7 @@ def _get_example_shape(example: Union[Sequence, Any]):
     if hasattr(example, "__len__"):
         length = len(example)
         shape = [length]
-        if length > 0:
+        if length > 0 and type(example) is not str:
             shape += _get_example_shape(example[0])
     return shape
 
