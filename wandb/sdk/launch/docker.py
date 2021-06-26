@@ -97,6 +97,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
         "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
+        "ENV WANDB_RUN_ID={run_id}\n"
         "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
@@ -108,6 +109,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         wandb_entity=wandb_entity,
         wandb_name=project.name,
         config_path=project.config_path,
+        run_id=project.run_id or None,
     )
 
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
