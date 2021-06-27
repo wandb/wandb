@@ -21,6 +21,11 @@ class InternalServiceStub(object):
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.SerializeToString,
         response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.FromString,
         )
+    self.Attach = channel.unary_unary(
+        '/wandb_internal.InternalService/Attach',
+        request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
+        response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
+        )
     self.TBSend = channel.unary_unary(
         '/wandb_internal.InternalService/TBSend',
         request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
@@ -128,6 +133,13 @@ class InternalServiceServicer(object):
   pass
 
   def RunUpdate(self, request, context):
+    # missing associated documentation comment in .proto file
+    pass
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
+  def Attach(self, request, context):
     # missing associated documentation comment in .proto file
     pass
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -281,6 +293,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
           servicer.RunUpdate,
           request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.RunRecord.FromString,
           response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.RunUpdateResult.SerializeToString,
+      ),
+      'Attach': grpc.unary_unary_rpc_method_handler(
+          servicer.Attach,
+          request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.FromString,
+          response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.SerializeToString,
       ),
       'TBSend': grpc.unary_unary_rpc_method_handler(
           servicer.TBSend,

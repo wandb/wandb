@@ -412,6 +412,7 @@ message Request {
     CheckVersionRequest   check_version = 12;
     LogArtifactRequest    log_artifact = 13;
     ShutdownRequest       shutdown = 64;
+    AttachRequest         attach = 65;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -431,6 +432,7 @@ message Response {
     CheckVersionResponse   check_version_response = 29;
     LogArtifactResponse    log_artifact_response = 30;
     ShutdownResponse       shutdown_response = 64;
+    AttachResponse         attach_response = 65;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -548,6 +550,18 @@ message ShutdownRequest {
 }
 
 message ShutdownResponse {
+}
+
+/*
+ * AttachRequest:
+ */
+message AttachRequest {
+  string attach_id = 20;
+}
+
+message AttachResponse {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
 }
 
 /*

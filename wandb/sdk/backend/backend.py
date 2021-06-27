@@ -201,7 +201,16 @@ class Backend(object):
     def _ensure_launched_grpc(self) -> None:
         from ..interface import iface_grpc
 
-        grpc_port = self._grpc_launch_server()
+        grpc_port: Optional[int] = None
+
+        attach_id = self._settings._attach_id if self._settings else None
+        if attach_id:
+            # already have a server, assume it is already up
+            grpc_port = int(attach_id)
+        else:
+            grpc_port = self._grpc_launch_server()
+
+        assert grpc_port
         grpc_interface = iface_grpc.BackendGrpcSender()
         self.interface = grpc_interface
         grpc_interface._connect(grpc_port)

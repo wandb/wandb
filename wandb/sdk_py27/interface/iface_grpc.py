@@ -65,6 +65,13 @@ class BackendGrpcSender(BackendSenderBase):
         run_result = self._stub.CheckVersion(check_version)
         return run_result
 
+    def _communicate_attach(
+        self, attach
+    ):
+        assert self._stub
+        resp = self._stub.Attach(attach)
+        return resp
+
     def _communicate_run(
         self, run, timeout = None
     ):

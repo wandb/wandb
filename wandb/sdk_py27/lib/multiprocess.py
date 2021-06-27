@@ -3,7 +3,8 @@
 import multiprocessing
 import os
 import sys
-import traceback
+
+# import traceback
 import types
 
 import wandb
@@ -30,8 +31,8 @@ old_exit_handler = None
 
 
 def custom_mp_exit_handler(code = None):
-    print("EXIT", code)
-    traceback.print_stack()
+    # print("EXIT", code)
+    # traceback.print_stack()
 
     if old_exit_handler:
         old_exit_handler(code)
@@ -41,8 +42,8 @@ old_osexit_handler = None
 
 
 def custom_mp_osexit_handler(code = None):
-    print("OS_EXIT", code)
-    traceback.print_stack()
+    # print("OS_EXIT", code)
+    # traceback.print_stack()
 
     if old_osexit_handler:
         old_osexit_handler(code)

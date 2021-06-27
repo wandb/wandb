@@ -50,7 +50,7 @@ class BackendGrpcSender(BackendSenderBase):
         if self._grpc_port:
             run._set_iface_port(self._grpc_port)
 
-    def _connect(self, port) -> None:
+    def _connect(self, port: int) -> None:
         channel = grpc.insecure_channel("localhost:{}".format(port))
         stub = pbgrpc.InternalServiceStub(channel)
         self._stub = stub
@@ -64,6 +64,13 @@ class BackendGrpcSender(BackendSenderBase):
         assert self._stub
         run_result = self._stub.CheckVersion(check_version)
         return run_result
+
+    def _communicate_attach(
+        self, attach: pb.AttachRequest
+    ) -> Optional[pb.AttachResponse]:
+        assert self._stub
+        resp = self._stub.Attach(attach)
+        return resp
 
     def _communicate_run(
         self, run: pb.RunRecord, timeout: int = None

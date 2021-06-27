@@ -46,6 +46,7 @@ from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
 from .lib import (
     apikey,
+    attach,
     config_util,
     filenames,
     filesystem,
@@ -281,6 +282,7 @@ class Run(object):
     # _init_pid: int
     # _iface_pid: Optional[int]
     # _iface_port: Optional[int]
+    # _attach_id: Optional[str]
 
     def __init__(
         self,
@@ -389,12 +391,16 @@ class Run(object):
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
+        self._attach_id = None
 
     def _set_iface_pid(self, iface_pid):
         self._iface_pid = iface_pid
 
     def _set_iface_port(self, iface_port):
         self._iface_port = iface_port
+        # TODO: cleaen up this interface, but here we know we have grpc run
+        a = attach.AttachGenerate(port=iface_port)
+        self._attach_id = a.attach_id
 
     def _telemetry_callback(self, telem_obj):
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -471,13 +477,16 @@ class Run(object):
             run.start_time.FromSeconds(int(self._start_time))
         # Note: run.config is set in interface/interface:_make_run()
 
+    def _attach_child_runs(self):
+        pass
+
     def __getstate__(self):
         pass
 
     def __setstate__(self, state):
         pass
 
-    def _attach(self, method = None):
+    def _auto_attach(self, method = None):
         """Attach to our backend process (could block)"""
         message = None
         current_pid = os.getpid()
@@ -1177,7 +1186,7 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        if not self._attach(method="log"):
+        if not self._auto_attach(method="log"):
             return
 
         if not isinstance(data, Mapping):
@@ -1441,6 +1450,9 @@ class Run(object):
         return r.display_name
 
     def _display_run(self):
+        if self._settings._attach_id:
+            # TODO: any message here? it could end up in console logs, so maybe not?
+            return
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
@@ -1654,6 +1666,10 @@ class Run(object):
             self._on_final()
 
     def _console_start(self):
+        if self._settings._attach_id:
+            logger.info("not installing exit hooks in attach mode")
+            return
+
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()

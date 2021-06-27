@@ -222,6 +222,28 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
+    def _send_request_attach(
+        self,
+        req,
+        resp,
+    ):
+        attach_id = req.attach_id
+        if not attach_id:
+            resp.error.message = "NoAttach"
+            return
+        if not self._run:
+            resp.error.message = "NoRun"
+            return
+        resp.run.CopyFrom(self._run)
+
+    def send_request_attach(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._send_request_attach(
+            record.request.attach, result.response.attach_response
+        )
+        self._result_q.put(result)
+
     def send_request_stop_status(self, record):
         assert record.control.req_resp
 

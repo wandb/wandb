@@ -76,6 +76,14 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         assert result  # TODO: handle errors
         return result
 
+    def Attach(  # noqa: N802
+        self, attach, context
+    ):
+        assert self._backend and self._backend._interface
+        result = self._backend._interface._communicate_attach(attach)
+        assert result  # TODO: handle errors
+        return result
+
     def PollExit(  # noqa: N802
         self, poll_exit, context
     ):

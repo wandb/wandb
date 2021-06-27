@@ -267,6 +267,17 @@ class BackendSenderBase(object):
     def _publish_metric(self, metric):
         raise NotImplementedError
 
+    def communicate_attach(self, attach_id):
+        attach = pb.AttachRequest(attach_id=attach_id)
+        resp = self._communicate_attach(attach)
+        return resp
+
+    @abstractmethod
+    def _communicate_attach(
+        self, attach
+    ):
+        raise NotImplementedError
+
     def communicate_run(
         self, run_obj, timeout = None
     ):
@@ -724,6 +735,7 @@ class BackendSender(BackendSenderBase):
         check_version = None,
         log_artifact = None,
         defer = None,
+        attach = None,
     ):
         request = pb.Request()
         if login:
@@ -750,6 +762,8 @@ class BackendSender(BackendSenderBase):
             request.log_artifact.CopyFrom(log_artifact)
         elif defer:
             request.defer.CopyFrom(defer)
+        elif attach:
+            request.attach.CopyFrom(attach)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -905,6 +919,15 @@ class BackendSender(BackendSenderBase):
     def _publish_metric(self, metric):
         rec = self._make_record(metric=metric)
         self._publish(rec)
+
+    def _communicate_attach(
+        self, attach
+    ):
+        req = self._make_request(attach=attach)
+        resp = self._communicate(req)
+        if resp is None:
+            return None
+        return resp.response.attach_response
 
     def _communicate_run(
         self, run, timeout = None

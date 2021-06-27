@@ -151,7 +151,12 @@ class _WandbInit(object):
         # TODO: move above parameters into apply_init_login
         settings._apply_init_login(kwargs)
 
-        if not settings._offline and not settings._noop:
+        # TODO: Should we assume login isnt needed?  would be nice if login knew the settings
+        attach_intent = False
+        if "attach" in kwargs:
+            attach_intent = True
+
+        if not settings._offline and not settings._noop and not attach_intent:
             wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
 
         # apply updated global state after login was handled
@@ -180,7 +185,10 @@ class _WandbInit(object):
             if settings._jupyter:
                 self._jupyter_setup(settings)
 
-            if multiprocess.is_likely_multiprocessing_process():
+            if (
+                not settings._attach_id
+                and multiprocess.is_likely_multiprocessing_process()
+            ):
                 wandb.termwarn(
                     "Detected wandb.init() called from multiprocessing process: See http://wandb.me/client-"
                 )
@@ -423,6 +431,9 @@ class _WandbInit(object):
             logger.info("wandb.init() called when a run is still active")
             return wandb.run
 
+        if s._attach_id and s.start_method != "grpc":
+            wandb.termwarn("Must use start_method = grpc to use `wandb.init(attach=)`")
+
         logger.info("starting backend")
 
         backend = Backend(settings=s)
@@ -509,6 +520,14 @@ class _WandbInit(object):
                 if check.yank_message:
                     run._set_yanked_version_message(check.yank_message)
             run._on_init()
+        if not s._offline and s._attach_id:
+            resp = backend.interface.communicate_attach(s._attach_id)
+            if not resp:
+                raise UsageError("problem")
+            if resp and resp.error and resp.error.message:
+                raise UsageError("bad: {}".format(resp.error.message))
+            run._set_run_obj(resp.run)
+        if not s._offline and not s._attach_id:
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
             error_message = None
@@ -598,6 +617,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
+    attach: str = None,
 ) -> Union[Run, RunDisabled, None]:
     """
     Start a new tracked run with `wandb.init()`.
@@ -734,6 +754,7 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
             See https://docs.wandb.com/library/resuming
+        attach: (str, optional) internal id used for multiprocess training.
 
 
     Examples:
