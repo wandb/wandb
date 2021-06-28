@@ -21,59 +21,52 @@ config = {
     "total_timesteps": 25000
 }
 
-c = WandbCallback("sb3", config, "MyPPO")
 env = DummyVecEnv([make_env])
 model = PPO(config['policy_type'], env, verbose=1, tensorboard_log=f"runs/ppo")
-model.learn(total_timesteps=config['total_timesteps'], callback=c)
+model.learn(total_timesteps=config['total_timesteps'],
+    callback=WandbCallback(project="sb3", config))
 ```
 """
 
 import os
-import wandb
+
 from stable_baselines3.common.callbacks import BaseCallback
+import wandb
 
 
 class WandbCallback(BaseCallback):
-    """
-    Callback for saving a model every ``save_freq`` calls
-    to ``env.step()``.
+    """ Log SB3 experiments to Weights and Biases
 
-    .. warning::
-
-      When using multiple environments, each call to  ``env.step()``
-      will effectively correspond to ``n_envs`` steps.
-      To account for that, you can use ``save_freq = max(save_freq // n_envs, 1)``
-
-    :param save_freq:
-    :param save_path: Path to the folder where the model will be saved.
-    :param name_prefix: Common prefix to the saved models
-    :param verbose:
-        , save_freq: int, save_path: str, name_prefix: str = "rl_model"
+        - Added model tracking and uploading
+        - Added complete hyperparameters recording
+        - Added gradient logging
+    Arguments:
+        project - The project name under which this experiment lives
+        config - The dictionary configuration
+        name - The name of this experiment
+        verbose - The verbosity of sb3 output
+        save_freq - Frequency to save the model
+        save_path - Path to the folder where the model will be saved
     """
 
     def __init__(
         self,
-        project: str,
-        config: dict,
-        experiment_name: str = None,
-        verbose: int = 0,
-        save_freq: int = 1000,
+        project,
+        config,
+        name=None,
+        verbose=0,
+        save_freq=1000,
         save_path="./models",
     ):
         super(WandbCallback, self).__init__(verbose)
         self.save_freq = save_freq
         self.save_path = save_path
-        # self.name_prefix = name_prefix
-        self.experiment_name = (
-            experiment_name
-            if experiment_name
-            else f"{type(self.model).__name__}_{int(time.time())}"
-        )
+        self.name = name
         wandb.init(
             project=project,
             config=config,
             sync_tensorboard=True,
-            name=self.experiment_name,
+            name=self.name,
             monitor_gym=True,
             save_code=True,
             allow_val_change=True,
