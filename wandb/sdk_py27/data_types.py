@@ -465,11 +465,14 @@ class Media(WBValue):
                     )
                 )
 
+            assert (
+                self._run is run
+            ), "We don't support referring to media files across runs."
+
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
             # mypy to understand that these are strings below.
             assert isinstance(self._path, six.string_types)
-            assert self._run is not None
 
             json_obj.update(
                 {
