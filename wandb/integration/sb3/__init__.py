@@ -94,5 +94,5 @@ class WandbCallback(BaseCallback):
             self.model.save(self.path)
             wandb.save(self.path)
             if self.verbose > 1:
-                print(f"Saving model checkpoint to {self.path}")
+                print("Saving model checkpoint to", self.path)
         return True
