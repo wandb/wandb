@@ -107,7 +107,7 @@ def test_launch_base_case(
     )
     expected_config = {}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {"uri": uri, "api": api}
+    kwargs = {"uri": uri, "api": api, "wandb_entity": "mock_server_entity", "wandb_project": "test"}
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
@@ -126,6 +126,22 @@ def test_launch_specified_project(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
         "wandb_project": "new_test_project",
+        "wandb_entity": "mock_server_entity",
+    }
+    expected_config = {}
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+def test_launch_unowned_project(live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    kwargs = {
+        "uri": "https://wandb.ai/other_user/test_project/runs/1",
+        "api": api,
+        "wandb_project": "new_test_project",
+        "wandb_entity": "mock_server_entity",
     }
     expected_config = {}
     mock_with_run_info = launch.run(**kwargs)
@@ -142,6 +158,7 @@ def test_launch_run_config_in_spec(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
         "wandb_project": "new_test_project",
+        "wandb_entity": "mock_server_entity",
         "config": {"overrides": {"run_config": {"epochs": 3}}},
     }
 
@@ -160,6 +177,7 @@ def test_launch_args_supersede_config_vals(
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
         "wandb_project": "new_test_project",
+        "wandb_entity": "mock_server_entity",
         "config": {
             "project": "not-this-project",
             "overrides": {"run_config": {"epochs": 3}},

@@ -1047,14 +1047,14 @@ class Api(object):
         res = self.gql(query, variable_values)
         if res.get("project") is None:
             raise Exception(
-                "Error fetching run info for {}/{}/{} check that you have access to this entity and project".format(
+                "Error fetching run info for {}/{}/{}. Check that you have access to this entity and project".format(
                     entity, project, name
                 )
             )
         elif res["project"].get("run") is None:
             raise Exception(
-                "Error fetching run info for run: {} check that this run id exists".format(
-                    name
+                "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
+                    entity, project, name
                 )
             )
         return res["project"]["run"]["runInfo"]

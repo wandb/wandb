@@ -32,6 +32,8 @@ PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 PROJECT_STORAGE_DIR = "STORAGE_DIR"
 
+UNCATEGORIZED_PROJECT = "uncategorized"
+
 
 _logger = logging.getLogger(__name__)
 
@@ -168,6 +170,7 @@ def fetch_and_validate_project(
 
 
 def parse_wandb_uri(uri):
+    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
     stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
     stripped_uri = re.sub(
         _WANDB_DEV_URI_REGEX, "", stripped_uri
@@ -185,6 +188,8 @@ def parse_wandb_uri(uri):
 def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
+    if result is None:
+        raise Exception("Run info is invalid or doesn't exist for {}".format(uri))
     return result
 
 
@@ -196,6 +201,17 @@ def fetch_project_diff(uri, api=None):
     except CommError:
         pass
     return patch
+
+
+def set_project_entity_defaults(uri, project, entity, api):
+    if not _is_wandb_uri(uri):
+        raise Exception("Non-wandb URLs not yet supported in this feature")
+    _, uri_project, run_id = parse_wandb_uri(uri)
+    if project is None:
+        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if entity is None:
+        entity = api.default_entity
+    return project, entity, run_id
 
 
 def apply_patch(patch_string, dst_dir):
