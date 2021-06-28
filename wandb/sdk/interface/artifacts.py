@@ -859,11 +859,11 @@ class ArtifactsCache(object):
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
 
-    def get_client_artifact(self, artifact_client_id):
-        return self._artifacts_by_client_id.get(artifact_client_id)
+    def get_client_artifact(self, client_id):
+        return self._artifacts_by_client_id.get(client_id)
 
     def store_client_artifact(self, artifact):
-        self._artifacts_by_client_id[artifact._artifact_client_id] = artifact
+        self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
         bytes_reclaimed: int = 0

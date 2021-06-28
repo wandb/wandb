@@ -35,7 +35,6 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:  # pragma: no cover
-        from .interface.artifacts import ArtifactEntry
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
@@ -231,28 +230,6 @@ class WBValue(object):
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    # DO NOT USE in user process (.wait)
-    def _get_artifact_reference_entry(self) -> Optional["ArtifactEntry"]:
-        ref_entry = None
-        # If the object is coming from another artifact
-        if self._artifact_source and self._artifact_source.name:
-            ref_entry = self._artifact_source.artifact.get_path(
-                type(self).with_suffix(self._artifact_source.name)
-            )
-        # Else, if the object is destined for another artifact
-        elif (
-            self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._logged_artifact is not None
-        ):
-            # Currently, we do not have a way to obtain a reference URL without waiting for the
-            # upstream artifact to be logged. This implies that this only works online as well.
-            self._artifact_target.artifact.wait()
-            ref_entry = self._artifact_target.artifact.get_path(
-                type(self).with_suffix(self._artifact_target.name)
-            )
-        return ref_entry
-
     def _get_artifact_entry_ref_url(self) -> Optional[str]:
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
@@ -267,7 +244,7 @@ class WBValue(object):
             and self._artifact_target.artifact._logged_artifact is not None
         ):
             return "wandb-artifact-client://{}/{}".format(
-                self._artifact_target.artifact._artifact_client_id,
+                self._artifact_target.artifact._client_id,
                 type(self).with_suffix(self._artifact_target.name),
             )
         return None
@@ -488,14 +465,11 @@ class Media(WBValue):
                     )
                 )
 
-            # assert (
-            #     self._run is run
-            # ), "We don't support referring to media files across runs."
-
             # The following two assertions are guaranteed to pass
             # by definition is_bound, but are needed for
             # mypy to understand that these are strings below.
             assert isinstance(self._path, six.string_types)
+            assert self._run is not None
 
             json_obj.update(
                 {

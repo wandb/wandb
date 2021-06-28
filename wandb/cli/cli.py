@@ -1226,7 +1226,7 @@ def put(path, name, description, type, alias):
         type,
         artifact_name,
         artifact.digest,
-        artifact_client_id=artifact._artifact_client_id,
+        client_id=artifact._client_id,
         entity_name=entity,
         project_name=project,
         run_name=run.id,

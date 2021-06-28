@@ -1868,7 +1868,7 @@ _ARTIFACTRECORD = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='artifact_client_id', full_name='wandb_internal.ArtifactRecord.artifact_client_id', index=14,
+      name='client_id', full_name='wandb_internal.ArtifactRecord.client_id', index=14,
       number=15, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
