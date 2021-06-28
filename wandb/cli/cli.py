@@ -43,7 +43,7 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
-    from wandb.sdk.launch.utils import parse_wandb_uri, set_project_entity_defaults
+    from wandb.sdk.launch.utils import set_project_entity_defaults
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 

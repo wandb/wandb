@@ -107,7 +107,12 @@ def test_launch_base_case(
     )
     expected_config = {}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {"uri": uri, "api": api, "wandb_entity": "mock_server_entity", "wandb_project": "test"}
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "wandb_entity": "mock_server_entity",
+        "wandb_project": "test",
+    }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
@@ -133,7 +138,9 @@ def test_launch_specified_project(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
-def test_launch_unowned_project(live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend):
+def test_launch_unowned_project(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )

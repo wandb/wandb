@@ -7,10 +7,8 @@ from .runner import loader
 from .utils import (
     _collect_args,
     _is_wandb_local_uri,
-    _is_wandb_uri,
     fetch_and_validate_project,
     merge_parameters,
-    parse_wandb_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
@@ -103,7 +101,7 @@ def run(
     resource="local",
     wandb_project=None,
     wandb_entity=None,
-    config={},
+    config=None,
     storage_dir=None,
     synchronous=True,
     api=None,
@@ -164,6 +162,9 @@ def run(
     """
     if _is_wandb_local_uri(uri):
         docker_args["network"] = "host"
+
+    if config is None:
+        config = {}
 
     submitted_run_obj = _run(
         uri=uri,
