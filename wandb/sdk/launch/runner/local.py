@@ -103,8 +103,10 @@ class LocalRunner(AbstractRunner):
             volumes=project.docker_env.get("volumes"),
             user_env_vars=project.docker_env.get("environment"),
         )
-
-        self._api.ack_run_queue_item(backend_config["runQueueItemId"], project.run_id)
+        if backend_config.get("runQueueItemId"):
+            self._api.ack_run_queue_item(
+                backend_config["runQueueItemId"], project.run_id
+            )
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
@@ -170,7 +172,11 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, docker_args, storage_dir,
+    work_dir,
+    entry_point,
+    parameters,
+    docker_args,
+    storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
