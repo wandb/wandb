@@ -1,7 +1,5 @@
 import logging
-import sys
 
-import wandb
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
@@ -31,13 +29,7 @@ def push_to_queue(api, queue, run_spec):
     return res
 
 
-def run_agent(spec, queues=None):
-    if not spec or len(spec) != 1 or len(spec[0].split("/")) != 2:
-        wandb.termerror("Specify agent spec in the form: 'entity/project'")
-        sys.exit(1)
-    spec = spec[0]
-    entity, project = spec.split("/")
-
+def run_agent(entity, project, queues=None):
     agent = LaunchAgent(entity, project, queues)
     agent.loop()
 
