@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import platform
 import pytest
+
 import wandb
 from wandb import wandb_sdk
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord

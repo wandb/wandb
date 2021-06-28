@@ -197,7 +197,7 @@ def test_embedding_dict_watch(wandb_init_run):
 @pytest.mark.timeout(120)
 def test_sequence_net(wandb_init_run):
     net = Sequence()
-    graph = wandb.wandb_torch.TorchGraph.hook_torch(net)
+    graph = wandb.watch(net)[0]
     output = net.forward(dummy_torch_tensor((97, 100)))
     output.backward(torch.zeros((97, 100)))
     graph = graph._to_graph_json()
