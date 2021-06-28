@@ -28,6 +28,7 @@ model.learn(total_timesteps=config['total_timesteps'], callback=c)
 ```
 """
 
+import os
 import wandb
 from stable_baselines3.common.callbacks import BaseCallback
 
