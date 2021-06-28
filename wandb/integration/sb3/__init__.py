@@ -74,7 +74,7 @@ class WandbCallback(BaseCallback):
         # Create folder if needed
         if self.save_path is not None:
             os.makedirs(self.save_path, exist_ok=True)
-        self.path = os.path.join(self.save_path, "model.pt")
+        self.path = os.path.join(self.save_path, "model.zip")
 
     def _init_callback(self) -> None:
 
