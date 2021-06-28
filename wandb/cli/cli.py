@@ -955,10 +955,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "type 'path' to subdirectories of storage_dir.",
 )
 @click.option(
-    "--uid",
-    "-u",
-    default=None,
-    help="uid to use for the user, defaults to 1000, since blah blah blah",
+    "--uid", "-u", default=None, help="uid to use for the user, defaults to users uid",
 )
 def launch(
     uri,
