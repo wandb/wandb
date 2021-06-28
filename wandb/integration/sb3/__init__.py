@@ -24,7 +24,7 @@ config = {
 env = DummyVecEnv([make_env])
 model = PPO(config['policy_type'], env, verbose=1, tensorboard_log=f"runs/ppo")
 model.learn(total_timesteps=config['total_timesteps'],
-    callback=WandbCallback(project="sb3", config))
+    callback=WandbCallback(project="sb3", config=config))
 ```
 """
 
