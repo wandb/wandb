@@ -846,11 +846,12 @@ class WandbStoragePolicy(StoragePolicy):
         http = HTTPHandler(self._session)
         https = HTTPHandler(self._session, scheme="https")
         artifact = WBArtifactHandler()
+        local_artifact = WBLocalArtifactHandler()
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, http, https, artifact, file_handler,],
+            handlers=[s3, gcs, http, https, artifact, local_artifact, file_handler,],
             default_handler=TrackingHandler(),
         )
 

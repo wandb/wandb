@@ -1621,7 +1621,7 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $clientId: String
+            $clientID: String
             %s
         ) {
             createArtifact(input: {
@@ -1636,7 +1636,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                clientId: $clientId,
+                clientID: $clientID,
                 %s
             }) {
                 artifact {
@@ -1682,7 +1682,7 @@ class Api(object):
                 "runName": run_name,
                 "artifactTypeName": artifact_type_name,
                 "artifactCollectionNames": [artifact_collection_name],
-                "clientId": client_id,
+                "clientID": client_id,
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
