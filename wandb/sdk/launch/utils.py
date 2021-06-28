@@ -147,6 +147,7 @@ def fetch_and_validate_project(
     version,
     entry_point,
     parameters,
+    uid,
     run_config,
 ):
     parameters = parameters or {}
@@ -159,6 +160,7 @@ def fetch_and_validate_project(
         version,
         [entry_point],
         parameters,
+        uid,
         run_config,
     )
     # todo: we maybe don't always want to dl project to local

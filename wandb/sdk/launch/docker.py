@@ -50,6 +50,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
+        "--user-id={}".format(project.uid),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -68,7 +69,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, base_image, uid, api):
+def build_docker_image(project: _project_spec.Project, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
@@ -107,7 +108,7 @@ def build_docker_image(project: _project_spec.Project, base_image, uid, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        uid=uid or os.getuid(),
+        uid=project.uid,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )
