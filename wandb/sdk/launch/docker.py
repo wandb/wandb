@@ -7,8 +7,8 @@ import subprocess
 import tempfile
 from typing import Sequence
 
-from six.moves import shlex_quote
 from dockerpycreds.utils import find_executable  # type: ignore
+from six.moves import shlex_quote
 import wandb
 from wandb.errors import ExecutionException
 

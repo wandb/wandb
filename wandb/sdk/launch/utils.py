@@ -5,7 +5,6 @@ import re
 import subprocess
 import tempfile
 
-import requests
 import wandb
 from wandb.errors import CommError, ExecutionException
 import yaml

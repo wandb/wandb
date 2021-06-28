@@ -6,7 +6,6 @@ import signal
 import subprocess
 import sys
 
-from wandb.errors import ExecutionException
 
 from .abstract import AbstractRun, AbstractRunner
 from ..docker import (
