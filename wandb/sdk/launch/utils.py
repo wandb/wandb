@@ -2,9 +2,12 @@
 import logging
 import os
 import re
+import subprocess
 import tempfile
 
-from wandb.errors import ExecutionException
+import requests
+import wandb
+from wandb.errors import CommError, ExecutionException
 import yaml
 
 from . import _project_spec
@@ -33,19 +36,6 @@ PROJECT_STORAGE_DIR = "STORAGE_DIR"
 
 
 _logger = logging.getLogger(__name__)
-
-
-def _parse_subdirectory(uri):
-    # Parses a uri and returns the uri and subdirectory as separate values.
-    # Uses '#' as a delimiter.
-    subdirectory = ""
-    parsed_uri = uri
-    if "#" in uri:
-        subdirectory = uri[uri.find("#") + 1 :]
-        parsed_uri = uri[: uri.find("#")]
-    if subdirectory and "." in subdirectory:
-        raise ExecutionException("'.' is not allowed in project subdirectory paths.")
-    return parsed_uri, subdirectory
 
 
 def _get_storage_dir(storage_dir):
@@ -133,11 +123,18 @@ def _collect_args(args):
         arg = args[i]
         if "=" in arg:
             name, vals = arg.split("=")
-            dict_args[name.replace("-", "")] = vals
+            dict_args[name.lstrip("-")] = vals
             i += 1
-        else:
-            dict_args[arg.replace("-", "")] = args[i + 1]
+        elif (
+            arg.startswith("-")
+            and i < len(args) - 1
+            and not args[i + 1].startswith("-")
+        ):
+            dict_args[arg.lstrip("-")] = args[i + 1]
             i += 2
+        else:
+            dict_args[arg.lstrip("-")] = None
+            i += 1
     return dict_args
 
 
@@ -150,6 +147,7 @@ def fetch_and_validate_project(
     version,
     entry_point,
     parameters,
+    run_config,
 ):
     parameters = parameters or {}
     experiment_name = experiment_name
@@ -161,9 +159,11 @@ def fetch_and_validate_project(
         version,
         [entry_point],
         parameters,
+        run_config,
     )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
+    project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
     return project
@@ -188,6 +188,34 @@ def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
     return result
+
+
+def fetch_project_diff(uri, api=None):
+    patch = None
+    try:
+        entity, project, name = parse_wandb_uri(uri)
+        (_, _, patch, _) = api.run_config(project, name, entity)
+    except CommError:
+        pass
+    return patch
+
+
+def apply_patch(patch_string, dst_dir):
+    with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
+        fp.write(patch_string)
+    try:
+        subprocess.check_call(
+            [
+                "patch",
+                "-s",
+                "--directory={}".format(dst_dir),
+                "-p1",
+                "-i",
+                "diff.patch",
+            ]
+        )
+    except subprocess.CalledProcessError:
+        raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
 def _create_ml_project_file_from_run_info(dst_dir, run_info):
@@ -280,3 +308,10 @@ def _convert_access(access):
         access == "PROJECT" or access == "USER"
     ), "Queue access must be either project or user"
     return access
+
+
+def merge_parameters(higher_priority_params, lower_priority_params):
+    for key in lower_priority_params.keys():
+        if higher_priority_params.get(key) is None:
+            higher_priority_params[key] = lower_priority_params[key]
+    return higher_priority_params

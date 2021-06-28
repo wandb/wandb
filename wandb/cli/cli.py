@@ -945,7 +945,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
     "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend.",
+    "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
     "--storage-dir",

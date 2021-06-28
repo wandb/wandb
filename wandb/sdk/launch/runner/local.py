@@ -104,6 +104,7 @@ class LocalRunner(AbstractRunner):
             user_env_vars=project.docker_env.get("environment"),
         )
 
+        self._api.ack_run_queue_item(backend_config["runQueueItemId"], project.run_id)
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted

@@ -44,6 +44,9 @@ def validate_docker_env(project: _project_spec.Project):
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
+    # this check will always pass since the dir attribute will always be populated
+    # by _fetch_project_local
+    assert isinstance(path, str)
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
@@ -57,12 +60,11 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     stderr = subprocess.run(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ).stderr.decode("utf-8")
-    print(stderr)
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise Exception("Error generating docker image")
+        raise Exception("error running repo2docker: {}".format(stderr))
     return image_id[0]
 
 
@@ -94,6 +96,8 @@ def build_docker_image(project: _project_spec.Project, base_image, uid, api):
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
+        "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
+        "ENV WANDB_RUN_ID={run_id}\n"
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -104,7 +108,10 @@ def build_docker_image(project: _project_spec.Project, base_image, uid, api):
         wandb_entity=wandb_entity,
         wandb_name=project.name,
         uid=uid or os.getuid(),
+        config_path=project.config_path,
+        run_id=project.run_id or None,
     )
+
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)

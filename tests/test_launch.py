@@ -1,5 +1,11 @@
+import json
 import os
-from unittest import mock
+
+try:
+    from unittest import mock
+except ImportError:  # TODO: this is only for python2
+    import mock
+import sys
 
 import wandb
 import wandb.sdk.launch as launch
@@ -9,6 +15,7 @@ from wandb.sdk.launch.utils import (
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
 )
+
 from .utils import fixture_open
 
 import pytest
@@ -23,6 +30,8 @@ def mocked_fetchable_git_repo():
             f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
         return mock.Mock()
 
     m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
@@ -45,18 +54,31 @@ def mock_load_backend():
         yield mock_load_backend
 
 
-def check_project_spec(project_spec, api, uri, wandb_project=None, wandb_entity=None):
+def check_project_spec(
+    project_spec, api, uri, wandb_project=None, wandb_entity=None, config=None
+):
     assert project_spec.uri == uri
     expected_project = wandb_project or uri.split("/")[4]
     assert project_spec.target_project == expected_project
     expected_target_entity = wandb_entity or api.default_entity
     assert project_spec.target_entity == expected_target_entity
+    if (
+        config
+        and config.get("config")
+        and config["config"].get("overrides")
+        and config["config"]["overrides"].get("run_config")
+    ):
+        assert project_spec.run_config == config["config"]["overrides"]["run_config"]
+
+    with open(os.path.join(project_spec.dir, "patch.txt"), "r") as fp:
+        contents = fp.read()
+        assert contents == "testing"
 
 
-def check_backend_config(config, expected_config):
+def check_backend_config(config, expected_backend_config):
     for key, item in config.items():
         if key not in [PROJECT_DOCKER_ARGS, PROJECT_STORAGE_DIR, PROJECT_SYNCHRONOUS]:
-            assert item == expected_config[key]
+            assert item == expected_backend_config[key]
 
 
 def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
@@ -72,6 +94,10 @@ def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
             check_backend_config(arg, expected_config)
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
 def test_launch_base_case(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
@@ -86,6 +112,10 @@ def test_launch_base_case(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions <3.5",
+)
 def test_launch_specified_project(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
 ):
@@ -100,3 +130,55 @@ def test_launch_specified_project(
     expected_config = {}
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+def test_launch_run_config_in_spec(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    kwargs = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "api": api,
+        "wandb_project": "new_test_project",
+        "config": {"overrides": {"run_config": {"epochs": 3}}},
+    }
+
+    expected_runner_config = {}
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
+
+
+def test_launch_args_supersede_config_vals(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    kwargs = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "api": api,
+        "wandb_project": "new_test_project",
+        "config": {
+            "project": "not-this-project",
+            "overrides": {"run_config": {"epochs": 3}},
+        },
+    }
+
+    expected_runner_config = {}
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
+
+
+def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        path = "./config.json"
+        with open(path, "w") as fp:
+            json.dump({"epochs": 10}, fp)
+        test_settings.launch = True
+        test_settings.launch_config_path = path
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+        run.finish()
