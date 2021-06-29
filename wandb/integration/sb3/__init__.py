@@ -20,7 +20,7 @@ experiment_name = f"PPO_{int(time.time())}"
 
 def make_env():
     env = gym.make("CartPole-v1")
-    env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True)      # record videos
+    env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True) # record videos
     env = gym.wrappers.RecordEpisodeStatistics(env) # record stats such as returns
     return env
 
@@ -38,8 +38,8 @@ env = DummyVecEnv([make_env])
 model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}")
 model.learn(total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
-        gradient_save_freq=100,
-        model_save_freq=1000,
+        gradient_save_freq=1000, # 1000 is a good frequency for both gradient logging
+        model_save_freq=1000,    # and model saving
         model_save_path=f"models/{experiment_name}",
 ))
 ```
