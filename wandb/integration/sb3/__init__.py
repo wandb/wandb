@@ -59,16 +59,16 @@ class WandbCallback(BaseCallback):
         - Added gradient logging
     Arguments:
         verbose - The verbosity of sb3 output
+        model_save_path - Path to the folder where the model will be saved, The default value is `None` so the model is not logged
         model_save_freq - Frequency to save the model
-        model_save_path - Path to the folder where the model will be saved
-        gradient_save_freq - Frequency to log gradient. If set 0, then gradients are not logged
+        gradient_save_freq - Frequency to log gradient. The default value is 0 so the gradients are not logged
     """
 
     def __init__(
         self,
         verbose=0,
-        model_save_freq=1000,
         model_save_path=None,
+        model_save_freq=1000,
         gradient_save_freq=0,
     ):
         super(WandbCallback, self).__init__(verbose)
