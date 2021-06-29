@@ -173,9 +173,9 @@ class FilePusher(object):
         )
         self._incoming_queue.put(event)
 
-    def finish(self):
+    def finish(self, callback=None):
         logger.info("shutting down file pusher")
-        self._incoming_queue.put(step_checksum.RequestFinish())
+        self._incoming_queue.put(step_checksum.RequestFinish(callback))
 
     def join(self):
         # NOTE: must have called finish before join

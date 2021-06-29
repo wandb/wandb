@@ -303,49 +303,52 @@ class SendManager(object):
         state = defer.state
         logger.info("handle sender defer: {}".format(state))
 
+        def transition_state():
+            state = defer.state + 1
+            logger.info("send defer: {}".format(state))
+            self._interface.publish_defer(state)
+
         done = False
         if state == defer.BEGIN:
-            pass
+            transition_state()
         elif state == defer.FLUSH_STATS:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_TB:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_DEBOUNCER:
             self.debounce()
+            transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
                 self._dir_watcher = None
+            transition_state()
         elif state == defer.FLUSH_FP:
             if self._pusher:
-                self._pusher.finish()
+                self._pusher.finish(transition_state)
+            else:
+                transition_state()
         elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
-                if self._pusher:
-                    # pusher generates some events for filestream, so we need
-                    # to join on pusher to make sure that we have all events
-                    # flushed for filestream to finish with
-                    self._pusher.join()
                 self._fs.finish(self._exit_code)
                 self._fs = None
+            transition_state()
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
             self._interface.publish_footer()
+            transition_state()
         elif state == defer.END:
             done = True
         else:
             raise AssertionError("unknown state")
 
         if not done:
-            state += 1
-            logger.info("send defer: {}".format(state))
-            self._interface.publish_defer(state)
             return
 
         exit_result = wandb_internal_pb2.RunExitResult()
