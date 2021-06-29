@@ -70,7 +70,7 @@ class WandbCallback(BaseCallback):
         gradient_save_freq=0,
     ):
         super(WandbCallback, self).__init__(verbose)
-        assert self._wandb.run is not None, "no wandb run detected; use `wandb.init()` to initialize a run"
+        assert wandb.run is not None, "no wandb run detected; use `wandb.init()` to initialize a run"
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq
