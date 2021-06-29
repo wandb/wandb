@@ -330,6 +330,10 @@ class SendManager(object):
             transition_state()
         elif state == defer.FLUSH_FP:
             if self._pusher:
+                # FilePusher generates some events for FileStreamApi, so we
+                # need to wait for pusher to finish before going to the next
+                # state to ensure that filestream gets all the events that we
+                # want before telling it to finish up
                 self._pusher.finish(transition_state)
             else:
                 transition_state()
