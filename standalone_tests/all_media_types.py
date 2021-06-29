@@ -79,6 +79,7 @@ def main():
     #ax.add_patch(c1)
     #matplotlib.pyplot.plt.axis('scaled')
     # pytorch model graph
+
     #alex = models.AlexNet()
     #graph = wandb.wandb_torch.TorchGraph.hook_torch(alex)
     #alex.forward(dummy_torch_tensor((2, 3, 224, 224)))
