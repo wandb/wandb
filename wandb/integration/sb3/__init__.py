@@ -4,41 +4,43 @@ Really simple callback to get logging for each tree
 
 Example usage:
 
-```
+```python
 import gym
+import time
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 from wandb.integration.sb3 import WandbCallback
 import wandb
 
+config = {
+    "policy_type": "MlpPolicy",
+    "total_timesteps": 25000
+}
+experiment_name = f"PPO_{int(time.time())}"
+
 def make_env():
     env = gym.make("CartPole-v1")
-    env = gym.wrappers.Monitor(env, f"videos", force=True)      # record videos
+    env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True)      # record videos
     env = gym.wrappers.RecordEpisodeStatistics(env) # record stats such as returns
     return env
 
-config = {
-    "policy_type": 'MlpPolicy',
-    "total_timesteps": 25000
-}
-
 wandb.init(
-    name="my_ppo_experiment",
+    name=experiment_name,
     project="sb3",
     config=config,
-    allow_val_change=True, # auto-log the model's hyperparams
+    allow_val_change=True, # auto-populate config with the model's hyperparams
     sync_tensorboard=True, # auto-upload metrics
     monitor_gym=True,  # auto-upload the videos of agents playing the game
-    save_code=True,  
+    save_code=True,  # optional
 )
 
 env = DummyVecEnv([make_env])
-model = PPO(config['policy_type'], env, verbose=1, tensorboard_log=f"runs/ppo")
-model.learn(total_timesteps=config['total_timesteps'],
+model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}")
+model.learn(total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
         gradient_save_freq=100,
         model_save_freq=1000,
-        model_save_path="./models",
+        model_save_path=f"models/{experiment_name}",
 ))
 ```
 """
@@ -70,7 +72,9 @@ class WandbCallback(BaseCallback):
         gradient_save_freq=0,
     ):
         super(WandbCallback, self).__init__(verbose)
-        assert wandb.run is not None, "no wandb run detected; use `wandb.init()` to initialize a run"
+        assert (
+            wandb.run is not None
+        ), "no wandb run detected; use `wandb.init()` to initialize a run"
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq
