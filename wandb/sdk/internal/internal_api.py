@@ -1880,8 +1880,8 @@ class Api(object):
         response = self.gql(query, variable_values={"clientID": client_id,},)
 
         # TODO: Handle invalid case
-        print(response)
-        raw_artifact_id = response["serverID"]
+        raw_artifact_id = response["clientIDMapping"]["serverID"]
+        print(raw_artifact_id)
         artifact_id = util.b64_to_hex_id(raw_artifact_id)
         self._client_id_mapping[client_id] = artifact_id
         return artifact_id
