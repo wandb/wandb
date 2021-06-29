@@ -67,6 +67,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
             decoded_line = decoded_line.rstrip("\n")
         wandb.termlog(decoded_line)
         stderr = stderr + decoded_line
+    process.wait()
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)

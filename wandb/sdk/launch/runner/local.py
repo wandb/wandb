@@ -114,7 +114,9 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             print("Launching run in docker with command: {}".format(command_str))
-            return _run_entry_point(command_str, project.dir)
+            run = _run_entry_point(command_str, project.dir)
+            run.wait()
+            return run
         # Otherwise, invoke `wandb launch` in a subprocess
         return _invoke_wandb_run_subprocess(  # todo: async mode is untested
             work_dir=project.dir,
@@ -168,11 +170,7 @@ def _run_entry_point(command, work_dir):
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir,
-    entry_point,
-    parameters,
-    docker_args,
-    storage_dir,
+    work_dir, entry_point, parameters, docker_args, storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
