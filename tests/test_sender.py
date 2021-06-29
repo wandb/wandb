@@ -127,6 +127,12 @@ def test_save_live_existing_file(
     internal_sender.publish_files({"files": [("test.txt", "live")]})
     stop_backend()
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
+    assert any(
+        [
+            "test.txt" in request_dict.get("uploaded", [])
+            for request_dict in mock_server.ctx["file_stream"]
+        ]
+    )
 
 
 def test_save_live_write_after_policy(
