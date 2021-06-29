@@ -44,6 +44,7 @@ setup(
     package_data={
         'wandb': [
             'py.typed',
+            'sweeps/requirements.txt'
         ]
     },
     entry_points={

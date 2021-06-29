@@ -2,7 +2,7 @@ from typing import Callable, Union
 
 from six.moves import urllib
 from wandb import env
-from wandb import wandb_sdk
+from . import wandb_login
 from wandb.apis import InternalApi
 from wandb.util import handle_sweep_config_violations
 
@@ -82,7 +82,7 @@ def sweep(
         env.set_project(project)
 
     # Make sure we are logged in
-    wandb_sdk.wandb_login._login(_silent=True)
+    wandb_login._login(_silent=True)
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep)
     handle_sweep_config_violations(warnings)
