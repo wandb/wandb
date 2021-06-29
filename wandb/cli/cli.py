@@ -340,7 +340,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -954,9 +956,6 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "W&B downloads artifacts from distributed URIs passed to parameters of "
     "type 'path' to subdirectories of storage_dir.",
 )
-@click.option(
-    "--uid", "-u", default=None, help="uid to use for the user, defaults to users uid",
-)
 def launch(
     uri,
     entry_point,
@@ -969,7 +968,6 @@ def launch(
     project,
     config,
     storage_dir,
-    uid,
 ):
     """
     Run an W&B project from the given URI.
@@ -998,11 +996,6 @@ def launch(
                 raise
     else:
         config = {}
-
-    if uid is not None:
-        if config.get("docker") is None:
-            config["docker"] = {}
-        config["docker"]["uid"] = uid
 
     try:
         wandb_launch.run(
@@ -1536,7 +1529,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
