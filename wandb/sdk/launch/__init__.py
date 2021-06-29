@@ -7,17 +7,14 @@ from .runner import loader
 from .utils import (
     _collect_args,
     _is_wandb_local_uri,
-    _is_wandb_uri,
     fetch_and_validate_project,
     merge_parameters,
-    parse_wandb_uri,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
 )
 
 _logger = logging.getLogger(__name__)
-UNCATEGORIZED_PROJECT = "uncategorized"
 
 
 def push_to_queue(api, queue, run_spec):
@@ -53,18 +50,6 @@ def _run(
     Helper that delegates to the project-running method corresponding to the passed-in backend.
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
-
-    src_project = UNCATEGORIZED_PROJECT
-    if launch_config is None:
-        launch_config = {}
-    if _is_wandb_uri(uri):
-        src_project, _, _ = parse_wandb_uri(uri)
-    if wandb_project is None:
-        wandb_project = (
-            launch_config.get("project") or api.settings("project") or src_project
-        )
-    if wandb_entity is None:
-        wandb_entity = launch_config.get("entity") or api.settings("entity")
 
     experiment_name = experiment_name or launch_config.get("name")
     overrides = launch_config.get("overrides")
@@ -182,6 +167,9 @@ def run(
     """
     if _is_wandb_local_uri(uri):
         docker_args["network"] = "host"
+
+    if config is None:
+        config = {}
 
     submitted_run_obj = _run(
         uri=uri,

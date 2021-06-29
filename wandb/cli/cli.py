@@ -43,7 +43,7 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
-    from wandb.sdk.launch.utils import parse_wandb_uri
+    from wandb.sdk.launch.utils import set_project_entity_defaults
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
@@ -980,7 +980,9 @@ def launch(
     By default, Git projects run in a new working directory with the given parameters, while
     local projects run from the project's root directory.
     """
-    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
+    api = _get_cling_api()
+    project, entity, _ = set_project_entity_defaults(uri, project, entity, api)
+
     param_dict = _user_args_to_dict(param_list)
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
     if config is not None:
@@ -997,13 +999,6 @@ def launch(
     else:
         config = {}
 
-    if resource == "ngc":
-        # TODO: add queue support?
-        if config is None:
-            wandb.termerror("Specify 'backend_config' when using ngc mode.")
-            sys.exit(1)
-
-    api = _get_cling_api()
     if uid is not None:
         if config.get("docker") is None:
             config["docker"] = {}
@@ -1118,13 +1113,7 @@ def launch_add(
     param_list=None,
 ):
     api = _get_cling_api()
-
-    uri_stripped = uri.split("?")[0]  # remove any possible query params (eg workspace)
-    uri_entity, uri_project, run_id = parse_wandb_uri(uri_stripped)
-
-    # if entity and project for queue aren't specified, default to same as in wandb uri
-    project = project if project is not None else uri_project
-    entity = entity if entity is not None else uri_entity
+    project, entity, run_id = set_project_entity_defaults(uri, project, entity, api)
 
     run_spec = {}
     if config is not None:

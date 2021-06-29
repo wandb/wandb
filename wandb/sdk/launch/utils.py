@@ -6,8 +6,7 @@ import subprocess
 import tempfile
 
 import wandb
-from wandb.errors import CommError, ExecutionException
-import yaml
+from wandb.errors import CommError, ExecutionException, LaunchException
 
 from . import _project_spec
 
@@ -32,6 +31,8 @@ WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 PROJECT_STORAGE_DIR = "STORAGE_DIR"
+
+UNCATEGORIZED_PROJECT = "uncategorized"
 
 
 _logger = logging.getLogger(__name__)
@@ -171,6 +172,7 @@ def fetch_and_validate_project(
 
 
 def parse_wandb_uri(uri):
+    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
     stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
     stripped_uri = re.sub(
         _WANDB_DEV_URI_REGEX, "", stripped_uri
@@ -188,6 +190,8 @@ def parse_wandb_uri(uri):
 def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
+    if result is None:
+        raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     return result
 
 
@@ -199,6 +203,17 @@ def fetch_project_diff(uri, api=None):
     except CommError:
         pass
     return patch
+
+
+def set_project_entity_defaults(uri, project, entity, api):
+    if not _is_wandb_uri(uri):
+        raise LaunchException("Non-wandb URLs not yet supported in this feature")
+    _, uri_project, run_id = parse_wandb_uri(uri)
+    if project is None:
+        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if entity is None:
+        entity = api.default_entity
+    return project, entity, run_id
 
 
 def apply_patch(patch_string, dst_dir):
@@ -217,22 +232,6 @@ def apply_patch(patch_string, dst_dir):
         )
     except subprocess.CalledProcessError:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
-
-
-def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
-    spec_keys_map = {
-        "args": run_info["args"],
-        "entrypoint": run_info["program"],
-        "git": {
-            "remote": run_info["git"]["remote"],
-            "commit": run_info["git"]["commit"],
-        },
-        "python": run_info["python"],
-        "os": run_info["os"],
-    }
-    with open(path, "w") as fp:
-        yaml.dump(spec_keys_map, fp)
 
 
 def _unzip_repo(zip_file, dst_dir):
