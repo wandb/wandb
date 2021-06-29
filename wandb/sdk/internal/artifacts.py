@@ -5,6 +5,7 @@ import tempfile
 import threading
 
 import wandb
+from wandb import util
 import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
@@ -175,7 +176,7 @@ class ArtifactSaver(object):
         commit_event = threading.Event()
 
         def before_commit() -> None:
-            # self._resolve_client_id_manifest_references()
+            self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
@@ -230,14 +231,15 @@ class ArtifactSaver(object):
 
         return self._server_artifact
 
-    # def _resolve_client_id_manifest_references(self) -> None:
-    #     for entry_path in self._manifest.entries:
-    #         entry = self._manifest.entries[entry_path]
-    #         if entry.ref is not None:
-    #             if entry.ref.startswith("wandb-artifact-client:"):
-    #                 client_id = util.host_from_path(entry.ref)
-    #                 artifact_file_path = util.uri_from_path(entry.ref)
-    #                 artifact_id = self._api._resolve_client_id(client_id)
-    #                 entry.ref = "wandb-artifact://{}/{}".format(
-    #                     util.b64_to_hex_id(artifact_id), artifact_file_path
-    #                 )
+    def _resolve_client_id_manifest_references(self) -> None:
+        for entry_path in self._manifest.entries:
+            entry = self._manifest.entries[entry_path]
+            if entry.ref is not None:
+                if entry.ref.startswith("wandb-client-artifact:"):
+                    print("entry.ref", entry.ref)
+                    client_id = util.host_from_path(entry.ref)
+                    artifact_file_path = util.uri_from_path(entry.ref)
+                    artifact_id = self._api._resolve_client_id(client_id)
+                    entry.ref = "wandb-artifact://{}/{}".format(
+                        util.b64_to_hex_id(artifact_id), artifact_file_path
+                    )

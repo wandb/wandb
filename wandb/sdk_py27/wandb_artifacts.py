@@ -1849,7 +1849,7 @@ class WBLocalArtifactHandler(StorageHandler):
     # _client: Optional[PublicApi]
 
     def __init__(self, scheme = None):
-        self._scheme = "wandb-artifact-client"
+        self._scheme = "wandb-client-artifact"
         self._cache = get_artifacts_cache()
 
     @property

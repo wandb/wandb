@@ -243,7 +243,7 @@ class WBValue(object):
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
         ):
-            return "wandb-artifact-client://{}/{}".format(
+            return "wandb-client-artifact://{}/{}".format(
                 self._artifact_target.artifact._client_id,
                 type(self).with_suffix(self._artifact_target.name),
             )

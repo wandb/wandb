@@ -112,6 +112,7 @@ class Api(object):
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
+        self._client_id_mapping = {}
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -1621,7 +1622,7 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $clientID: String
+            $clientID: ID!
             %s
         ) {
             createArtifact(input: {
@@ -1859,30 +1860,31 @@ class Api(object):
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
 
-    # def _resolve_client_id(
-    #     self, client_id,
-    # ):
+    def _resolve_client_id(
+        self, client_id,
+    ):
 
-    #     if client_id in self._client_id_mapping:
-    #         return self._client_id_mapping[client_id]
+        if client_id in self._client_id_mapping:
+            return self._client_id_mapping[client_id]
 
-    #     mutation = gql(
-    #         """
-    #     query ArtifactByClientID($clientId: String!) {
-    #         id
-    #     }
-    #     """
-    #     )
+        query = gql(
+            """
+            query ClientIDMapping($clientID: ID!) {
+                clientIDMapping(clientID: $clientID) {
+                    serverID
+                }
+            }
+        """
+        )
+        print("client_id", client_id)
+        response = self.gql(query, variable_values={"clientID": client_id,},)
 
-    #     response = self.gql(
-    #         mutation, variable_values={"clientID": client_id,},
-    #     )
-
-    #     # TODO: Handle invalid case
-    #     raw_artifact_id = response["id"]
-    #     artifact_id = util.b64_to_hex_id(raw_artifact_id)
-    #     self._client_id_mapping[client_id] = artifact_id
-    #     return artifact_id
+        # TODO: Handle invalid case
+        print(response)
+        raw_artifact_id = response["serverID"]
+        artifact_id = util.b64_to_hex_id(raw_artifact_id)
+        self._client_id_mapping[client_id] = artifact_id
+        return artifact_id
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):
