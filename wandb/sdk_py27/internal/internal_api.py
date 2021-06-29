@@ -1295,11 +1295,11 @@ class Api(object):
                     if isinstance(parameter["min"], int) and isinstance(
                         parameter["max"], int
                     ):
-                        parameter["distribution"] = "uniform"
+                        parameter["distribution"] = "int_uniform"
                     elif isinstance(parameter["min"], float) and isinstance(
                         parameter["max"], float
                     ):
-                        parameter["distribution"] = "int_uniform"
+                        parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
                             "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
