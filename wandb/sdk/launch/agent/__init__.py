@@ -3,6 +3,7 @@ import time
 
 import wandb
 from wandb import Settings
+from wandb.errors import LaunchException
 
 
 from ..runner.abstract import AbstractRun, State
@@ -54,22 +55,20 @@ class LaunchAgent(object):
                 if queue["name"] == "default":
                     self._queues = ["default"]
                     return
-            res = self._api.create_run_queue(
-                self._entity, self._project, "default", self._access
+            raise LaunchException(
+                "Error launching launch-agent: Requested default queue for {}/{} but default queue does not exist.".format(
+                    self._entity, self._project
+                )
             )
-            success = res["success"]
-            self._queues = ["default"]
         else:
             for queue in queues:
-                success = True
                 if queue not in existing_run_queue_names:
-                    success = False
-                    res = self._api.create_run_queue(
-                        self._entity, self._project, queue, self._access
+                    raise LaunchException(
+                        "Error launching launch-agent: {} does not exist for {}/{}".format(
+                            queue, self._entity, self._project
+                        )
                     )
-                    success = res["success"]
-                if success:
-                    self._queues.append(queue)
+                self._queues.append(queue)
 
     @property
     def job_ids(self):

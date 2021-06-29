@@ -9,7 +9,7 @@ from typing import Sequence
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
-from wandb.errors import ExecutionException
+from wandb.errors import ExecutionException, LaunchException
 
 from . import _project_spec
 from .utils import _is_wandb_dev_uri, _is_wandb_local_uri, WANDB_DOCKER_WORKDIR_PATH
@@ -56,14 +56,23 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     _logger.info(
         "Generating docker image from git repo or finding image if it already exists.........."
     )
-    stderr = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ).stderr.decode("utf-8")
+    wandb.termlog("Generating docker image, this may take a few minutes")
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stderr = ""
+    # this will always pass, repo2docker writes to stderr.
+    assert process.stderr
+    for line in process.stderr:
+        decoded_line = line.decode("utf-8")
+        if decoded_line.endswith("\n"):
+            decoded_line = decoded_line.rstrip("\n")
+        wandb.termlog(decoded_line)
+        stderr = stderr + decoded_line
+    process.wait()
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise Exception("error running repo2docker: {}".format(stderr))
+        raise LaunchException("error running repo2docker: {}".format(stderr))
     return image_id[0]
 
 
@@ -122,14 +131,17 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         # TODO: remove the dependency on docker / potentially just do the append builder
         # found at: https://github.com/google/containerregistry/blob/master/client/v2_2/append_.py
         client = docker.from_env()
-        image, _ = client.images.build(
-            tag=image_uri,
-            forcerm=True,
-            dockerfile=dockerfile,
-            fileobj=docker_build_ctx,
-            custom_context=True,
-            encoding="gzip",
-        )
+        try:
+            image, _ = client.images.build(
+                tag=image_uri,
+                forcerm=True,
+                dockerfile=dockerfile,
+                fileobj=docker_build_ctx,
+                custom_context=True,
+                encoding="gzip",
+            )
+        except ConnectionError as e:
+            raise ("Error communicating with docker client: {}".format(e))
     try:
         os.remove(build_ctx_path)
     except Exception:
