@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 
 import wandb
-from wandb.errors import CommError, ExecutionException
+from wandb.errors import CommError, ExecutionException, LaunchException
 
 from . import _project_spec
 
@@ -189,7 +189,7 @@ def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
     if result is None:
-        raise Exception("Run info is invalid or doesn't exist for {}".format(uri))
+        raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     return result
 
 
@@ -205,7 +205,7 @@ def fetch_project_diff(uri, api=None):
 
 def set_project_entity_defaults(uri, project, entity, api):
     if not _is_wandb_uri(uri):
-        raise Exception("Non-wandb URLs not yet supported in this feature")
+        raise LaunchException("Non-wandb URLs not yet supported in this feature")
     _, uri_project, run_id = parse_wandb_uri(uri)
     if project is None:
         project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
