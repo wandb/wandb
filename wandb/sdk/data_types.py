@@ -2229,11 +2229,8 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        raise ValueError(
-            "We do not support DataFrames in the Summary or History. Try run.log({{'{}': wandb.Table(dataframe=df)}})".format(
-                key
-            )
-        )
+        val = wandb.Table(dataframe=val)
+
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
@@ -2272,6 +2269,7 @@ def val_to_json(
                 "partitioned-table",
                 "joined-table",
             ]:
+
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
@@ -2290,6 +2288,7 @@ def val_to_json(
                 and val._log_type in ["partitioned-table", "joined-table"]
             ):
                 val.bind_to_run(run, key, namespace)
+
         return val.to_json(run)
 
     return converted  # type: ignore

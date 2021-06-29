@@ -635,9 +635,9 @@ def sync(
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=False, help="Set sweep name")
-@click.option("--program", default=False, help="Set sweep program")
-@click.option("--settings", default=False, help="Set sweep settings", hidden=True)
+@click.option("--name", default=None, help="Set sweep name")
+@click.option("--program", default=None, help="Set sweep program")
+@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
     "--stop",
