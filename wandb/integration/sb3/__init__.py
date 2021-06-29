@@ -57,14 +57,18 @@ class WandbCallback(BaseCallback):
         verbose=0,
         save_freq=1000,
         save_path="./models",
+        log_gradient_freq=100,
     ):
         super(WandbCallback, self).__init__(verbose)
+        self.project = project
+        self.config = config
+        self.name = name
         self.save_freq = save_freq
         self.save_path = save_path
-        self.name = name
+        self.log_gradient_freq = log_gradient_freq
         wandb.init(
-            project=project,
-            config=config,
+            project=self.project,
+            config=self.config,
             sync_tensorboard=True,
             name=self.name,
             monitor_gym=True,
@@ -74,25 +78,26 @@ class WandbCallback(BaseCallback):
         # Create folder if needed
         if self.save_path is not None:
             os.makedirs(self.save_path, exist_ok=True)
-        self.path = os.path.join(self.save_path, "model.zip")
+            self.path = os.path.join(self.save_path, "model.zip")
 
     def _init_callback(self) -> None:
-
         d = {}
         for key in self.model.__dict__:
             if key in wandb.config:
                 continue
-            if type(self.model.__dict__[key]) in [float, int]:
+            if type(self.model.__dict__[key]) in [float, int, str]:
                 d[key] = self.model.__dict__[key]
             else:
                 d[key] = str(self.model.__dict__[key])
-        wandb.watch(self.model.policy, log_freq=100, log="all")
+        if self.log_gradient_freq:
+            wandb.watch(self.model.policy, log_freq=100, log="all")
         wandb.config.update(d)
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.save_freq == 0:
-            self.model.save(self.path)
-            wandb.save(self.path)
-            if self.verbose > 1:
-                print("Saving model checkpoint to", self.path)
+        if self.save_path is not None:
+            if self.n_calls % self.save_freq == 0:
+                self.model.save(self.path)
+                wandb.save(self.path)
+                if self.verbose > 1:
+                    print("Saving model checkpoint to", self.path)
         return True
