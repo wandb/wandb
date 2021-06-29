@@ -78,7 +78,6 @@ def main():
     #ax = matplotlib.pyplot.plt.gca()
     #ax.add_patch(c1)
     #matplotlib.pyplot.plt.axis('scaled')
-    
     # pytorch model graph
     #alex = models.AlexNet()
     #graph = wandb.wandb_torch.TorchGraph.hook_torch(alex)
