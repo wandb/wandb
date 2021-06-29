@@ -142,7 +142,9 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
                 encoding="gzip",
             )
         except ConnectionError as e:
-            raise ("Error communicating with docker client: {}".format(e))
+            raise LaunchException(
+                "Error communicating with docker client: {}".format(e)
+            )
     try:
         os.remove(build_ctx_path)
     except Exception:
