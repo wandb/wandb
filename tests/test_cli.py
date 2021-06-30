@@ -964,3 +964,16 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             "WARNING Found .wandb file, not streaming tensorboard metrics"
             in result.output
         )
+
+
+def test_launch_add_default(runner, live_mock_server):
+    with runner.isolated_filesystem():
+        args = [
+            "https://wandb.ai/mock_server_entity/test_project/runs/run",
+            "--project=test_project",
+            "--entity=mock_server_entity",
+        ]
+        result = runner.invoke(cli.launch_add, args)
+        assert result.exit_code == 0
+        ctx = live_mock_server.get_ctx()
+        assert len(ctx["run_queues"]["1"]) == 1

@@ -207,3 +207,17 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
+
+
+def test_push_to_runqueue(live_mock_server, test_settings):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    run_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    api.push_to_run_queue("default", run_spec)
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["run_queues"]["1"]) == 1

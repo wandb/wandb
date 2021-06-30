@@ -36,6 +36,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "run_queues": {"1": []},
     }
 
 
