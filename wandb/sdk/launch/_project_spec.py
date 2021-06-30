@@ -1,10 +1,10 @@
 """Internal utilities for parsing MLproject YAML files."""
 
 from distutils import dir_util
+import getpass
 import json
 import logging
 import os
-import pwd
 from shlex import quote
 import tempfile
 import urllib.parse
@@ -68,7 +68,7 @@ class Project(object):
         self.docker_env: Dict[str, str] = {}
         # generate id for run to ack with in agent
         self.run_id = generate_id()
-        self.uid = uid or pwd.getpwuid(os.getuid())[2]
+        self.user_info = uid or getpass.getuser()
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out

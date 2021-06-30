@@ -83,6 +83,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     Build a docker image containing the project in `work_dir`, using the base image.
     """
     import docker  # type: ignore
+    import getpass
 
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
@@ -95,7 +96,6 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
 
     wandb_project = project.target_project
     wandb_entity = project.target_entity
-
     dockerfile = (
         "FROM {imagename}\n"
         "COPY --chown={uid} {build_context_path}/ {workdir}\n"
@@ -117,7 +117,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        uid=project.uid,
+        uid=project.user_info,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )
