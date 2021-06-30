@@ -66,10 +66,10 @@ class WandbCallback(BaseCallback):
 
     def __init__(
         self,
-        verbose=0,
-        model_save_path=None,
-        model_save_freq=1000,
-        gradient_save_freq=0,
+        verbose: int = 0,
+        model_save_path: str = None,
+        model_save_freq: int = 1000,
+        gradient_save_freq: int = 0,
     ):
         super(WandbCallback, self).__init__(verbose)
         assert (
