@@ -250,6 +250,19 @@ class WBValue(object):
             )
         return None
 
+    def _get_artifact_entry_latest_ref_url(self):
+        if (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._sequence_client_id is not None
+            and self._artifact_target.artifact._final
+        ):
+            return "wandb-client-artifact://{}:latest/{}".format(
+                self._artifact_target.artifact._sequence_client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        return None
+
 
 class Histogram(WBValue):
     """wandb class for histograms.
@@ -488,6 +501,9 @@ class Media(WBValue):
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is not None:
                 json_obj["artifact_path"] = artifact_entry_url
+            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
+            if artifact_entry_latest_url is not None:
+                json_obj["_latest_artifact_path"] = artifact_entry_latest_url
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass

@@ -249,7 +249,7 @@ class WBValue(object):
                 type(self).with_suffix(self._artifact_target.name),
             )
         return None
-    
+
     def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
         if (
             self._artifact_target
@@ -503,7 +503,7 @@ class Media(WBValue):
                 json_obj["artifact_path"] = artifact_entry_url
             artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
             if artifact_entry_latest_url is not None:
-                json_obj["latest_artifact_path"] = artifact_entry_latest_url
+                json_obj["_latest_artifact_path"] = artifact_entry_latest_url
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
