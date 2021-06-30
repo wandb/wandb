@@ -12,18 +12,12 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from wandb.integration.sb3 import WandbCallback
 import wandb
 
+# initialize the experiment
 config = {
     "policy_type": "MlpPolicy",
     "total_timesteps": 25000
 }
 experiment_name = f"PPO_{int(time.time())}"
-
-def make_env():
-    env = gym.make("CartPole-v1")
-    env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True) # record videos
-    env = gym.wrappers.RecordEpisodeStatistics(env) # record stats such as returns
-    return env
-
 wandb.init(
     name=experiment_name,
     project="sb3",
@@ -34,7 +28,16 @@ wandb.init(
     save_code=True,  # optional
 )
 
+# initialize the run
+def make_env():
+    env = gym.make("CartPole-v1")
+    env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True) # record videos
+    env = gym.wrappers.RecordEpisodeStatistics(env) # record stats such as returns
+    return env
 env = DummyVecEnv([make_env])
+
+# initialize the model
+# note `tensorboard_log` needs to be toggled so that the WandbCallback can pick up its log files
 model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}")
 model.learn(total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
