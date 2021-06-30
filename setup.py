@@ -26,7 +26,7 @@ launch_requirements = ['docker', 'jupyter-repo2docker']
 
 setup(
     name='wandb',
-    version='0.10.33.dev1',
+    version='0.10.34.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

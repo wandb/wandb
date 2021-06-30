@@ -235,7 +235,7 @@ def _get_example_shape(example):
     if hasattr(example, "__len__"):
         length = len(example)
         shape = [length]
-        if length > 0:
+        if length > 0 and type(example) is not str:
             shape += _get_example_shape(example[0])
     return shape
 
@@ -274,6 +274,7 @@ def _infer_single_example_keyed_processor(
         )
         # Assume these are logits
         class_names = class_labels_table.get_column("label")
+
         processors["max_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
             np.argmax(d)
         )
@@ -281,9 +282,13 @@ def _infer_single_example_keyed_processor(
         # processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
         #     np.argmin(d)
         # )
-        processors["score"] = lambda n, d, p: {
-            class_names[i]: d[i] for i in range(shape[0])
-        }
+
+        values = np.unique(example)
+        is_one_hot = len(values) == 2 and set(values) == set([0, 1])
+        if not is_one_hot:
+            processors["score"] = lambda n, d, p: {
+                class_names[i]: d[i] for i in range(shape[0])
+            }
     elif (
         len(shape) == 1
         and shape[0] == 1
@@ -297,7 +302,7 @@ def _infer_single_example_keyed_processor(
             processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0]) if d[0] < len(class_labels_table.data) else d[0]  # type: ignore
         else:
             processors["val"] = lambda n, d, p: d[0]
-    elif len(shape) == 1 and shape[0] <= 10:
+    elif len(shape) == 1:
         np = wandb.util.get_module(
             "numpy", required="Infering processors require numpy",
         )
@@ -311,7 +316,11 @@ def _infer_single_example_keyed_processor(
             ]
         # just report the argmax and argmin
         processors["argmax"] = lambda n, d, p: np.argmax(d)
-        processors["argmin"] = lambda n, d, p: np.argmin(d)
+
+        values = np.unique(example)
+        is_one_hot = len(values) == 2 and set(values) == set([0, 1])
+        if not is_one_hot:
+            processors["argmin"] = lambda n, d, p: np.argmin(d)
     elif len(shape) == 2 and CAN_INFER_IMAGE_AND_VIDEO:
         if (
             class_labels_table is not None
