@@ -13,6 +13,7 @@ from wandb.integration.sb3 import WandbCallback
 import wandb
 
 # initialize the experiment
+# note that you have to call `wandb.init(...)` before using WandbCallback
 config = {
     "policy_type": "MlpPolicy",
     "total_timesteps": 25000
@@ -60,6 +61,7 @@ class WandbCallback(BaseCallback):
         - Added complete hyperparameters recording
         - Added gradient logging
         - Note that `wandb.init(...)` must be called before the WandbCallback can be used
+
     Args:
         verbose: The verbosity of sb3 output
         model_save_path: Path to the folder where the model will be saved, The default value is `None` so the model is not logged
