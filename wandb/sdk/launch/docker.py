@@ -88,7 +88,6 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     Build a docker image containing the project in `work_dir`, using the base image.
     """
     import docker  # type: ignore
-    import getpass
 
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
