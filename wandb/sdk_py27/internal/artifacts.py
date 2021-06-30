@@ -239,6 +239,10 @@ class ArtifactSaver(object):
                     client_id = util.host_from_path(entry.ref)
                     artifact_file_path = util.uri_from_path(entry.ref)
                     artifact_id = self._api._resolve_client_id(client_id)
+                    if artifact_id is None:
+                        raise RuntimeError(
+                            "Could not resolve client id {}".format(client_id)
+                        )
                     entry.ref = "wandb-artifact://{}/{}".format(
                         util.b64_to_hex_id(artifact_id), artifact_file_path
                     )

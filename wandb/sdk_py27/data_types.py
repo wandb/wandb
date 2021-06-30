@@ -241,7 +241,8 @@ class WBValue(object):
         elif (
             self._artifact_target
             and self._artifact_target.name
-            and self._artifact_target.artifact._logged_artifact is not None
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
         ):
             return "wandb-client-artifact://{}/{}".format(
                 self._artifact_target.artifact._client_id,

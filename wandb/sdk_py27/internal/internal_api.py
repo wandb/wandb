@@ -1878,10 +1878,10 @@ class Api(object):
         )
         response = self.gql(query, variable_values={"clientID": client_id,},)
 
-        # TODO: Handle invalid case
-        raw_artifact_id = response["clientIDMapping"]["serverID"]
-        self._client_id_mapping[client_id] = raw_artifact_id
-        return raw_artifact_id
+        server_id = response.get("clientIDMapping", {}).get("serverID", None)
+        if server_id is not None:
+            self._client_id_mapping[client_id] = server_id
+        return server_id
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):
