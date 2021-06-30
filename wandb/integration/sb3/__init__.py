@@ -57,11 +57,11 @@ class WandbCallback(BaseCallback):
         - Added model tracking and uploading
         - Added complete hyperparameters recording
         - Added gradient logging
-    Arguments:
-        verbose - The verbosity of sb3 output
-        model_save_path - Path to the folder where the model will be saved, The default value is `None` so the model is not logged
-        model_save_freq - Frequency to save the model
-        gradient_save_freq - Frequency to log gradient. The default value is 0 so the gradients are not logged
+    Args:
+        verbose: The verbosity of sb3 output
+        model_save_path: Path to the folder where the model will be saved, The default value is `None` so the model is not logged
+        model_save_freq: Frequency to save the model
+        gradient_save_freq: Frequency to log gradient. The default value is 0 so the gradients are not logged
     """
 
     def __init__(
