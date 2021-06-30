@@ -47,10 +47,15 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
     assert isinstance(path, str)
+    if isinstance(project.user_info, int):
+        uline = "--user-id={}".format(project.user_info)
+    elif isinstance(project.user_info, str):
+        uline = "--user-name={}".format(project.user_info)
+
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        "--user-id={}".format(project.uid),
+        uline,
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -98,7 +103,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     wandb_entity = project.target_entity
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY --chown={uid} {build_context_path}/ {workdir}\n"
+        "COPY --chown={uinfo} {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"
         "ENV WANDB_API_KEY={api_key}\n"
@@ -117,7 +122,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        uid=project.user_info,
+        uinfo=project.user_info,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )

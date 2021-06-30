@@ -61,9 +61,9 @@ def _run(
             args = _collect_args(args)
             parameters = merge_parameters(parameters, args)
 
-    uid = None
-    if launch_config.get("docker") and launch_config["docker"].get("uid"):
-        uid = launch_config["docker"]["uid"]
+    uinfo = None
+    if launch_config.get("docker") and launch_config["docker"].get("uinfo"):
+        uinfo = launch_config["docker"]["uinfo"]
 
     project = fetch_and_validate_project(
         uri,
@@ -74,7 +74,7 @@ def _run(
         version,
         entry_point,
         parameters,
-        uid,
+        uinfo,
         run_config,
     )
 

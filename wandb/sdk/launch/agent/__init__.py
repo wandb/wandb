@@ -129,9 +129,9 @@ class LaunchAgent(object):
             name = run_spec["overrides"].get("name")
             args_dict = _collect_args(run_spec["overrides"].get("args", {}))
             run_config = run_spec["overrides"].get("run_config")
-        uid = None
-        if run_spec.get("docker") and run_spec["docker"].get("uid"):
-            uid = run_spec["docker"]["uid"]
+        uinfo = None
+        if run_spec.get("docker") and run_spec["docker"].get("uinfo"):
+            uinfo = run_spec["docker"]["uinfo"]
 
         project = fetch_and_validate_project(
             uri,
@@ -142,7 +142,7 @@ class LaunchAgent(object):
             run_spec.get("version", None),
             entry_point,
             args_dict,
-            uid,
+            uinfo,
             run_config,
         )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)

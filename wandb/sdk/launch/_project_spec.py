@@ -18,7 +18,7 @@ from wandb.sdk.lib.runid import generate_id
 from . import utils
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, List, Optional, Union
 
 
 _logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
-        uid: int,
+        uinfo: Optional[Union[int, str]],
         run_config: Dict[str, Any],
     ):
 
@@ -68,7 +68,7 @@ class Project(object):
         self.docker_env: Dict[str, str] = {}
         # generate id for run to ack with in agent
         self.run_id = generate_id()
-        self.user_info = uid or getpass.getuser()
+        self.user_info = uinfo or getpass.getuser()
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
