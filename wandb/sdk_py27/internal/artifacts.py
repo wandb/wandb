@@ -75,6 +75,7 @@ class ArtifactSaver(object):
         type,
         name,
         client_id,
+        sequence_client_id,
         distributed_id = None,
         finalize = True,
         metadata = None,
@@ -113,6 +114,7 @@ class ArtifactSaver(object):
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,
             client_id=client_id,
+            sequence_client_id=sequence_client_id,
         )
 
         # TODO(artifacts):

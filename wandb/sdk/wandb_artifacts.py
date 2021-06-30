@@ -169,6 +169,7 @@ class Artifact(ArtifactInterface):
         self._logged_artifact = None
         self._incremental = False
         self._client_id = util.generate_id(64)
+        self._sequence_client_id = util.generate_id(64)
         self._cache.store_client_artifact(self)
 
         if incremental:

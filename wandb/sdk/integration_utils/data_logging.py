@@ -207,7 +207,7 @@ class ValidationDataLogger(object):
         if self.prediction_row_processor is not None:
             pred_table.add_computed_columns(self.prediction_row_processor)
 
-        wandb.log({table_name: pred_table})
+        wandb.log({table_name: pred_table}, commit=commit)
         return pred_table
 
 

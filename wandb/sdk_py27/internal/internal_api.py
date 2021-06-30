@@ -1599,6 +1599,7 @@ class Api(object):
         artifact_collection_name,
         digest,
         client_id=None,
+        sequence_client_id=None,
         entity_name=None,
         project_name=None,
         run_name=None,
@@ -1623,6 +1624,7 @@ class Api(object):
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
             $clientID: ID!
+            $sequenceClientID: ID!
             %s
         ) {
             createArtifact(input: {
@@ -1638,6 +1640,7 @@ class Api(object):
                 aliases: $aliases,
                 metadata: $metadata,
                 clientID: $clientID,
+                sequenceClientID: $sequenceClientID,
                 %s
             }) {
                 artifact {
@@ -1684,6 +1687,7 @@ class Api(object):
                 "artifactTypeName": artifact_type_name,
                 "artifactCollectionNames": [artifact_collection_name],
                 "clientID": client_id,
+                "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
