@@ -53,10 +53,10 @@ import wandb
 
 class WandbCallback(BaseCallback):
     """ Log SB3 experiments to Weights and Biases
-
         - Added model tracking and uploading
         - Added complete hyperparameters recording
         - Added gradient logging
+        - Note that `wandb.init(...)` must be called before the WandbCallback can be used
     Args:
         verbose: The verbosity of sb3 output
         model_save_path: Path to the folder where the model will be saved, The default value is `None` so the model is not logged
