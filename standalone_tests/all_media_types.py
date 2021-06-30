@@ -80,10 +80,9 @@ def main():
     #matplotlib.pyplot.plt.axis('scaled')
 
     # pytorch model graph
-    #alex = models.AlexNet()
-    #graph = wandb.wandb_torch.TorchGraph.hook_torch(alex)
-    #alex.forward(dummy_torch_tensor((2, 3, 224, 224)))
-
+    alex = models.AlexNet()
+    graph = wandb.wandb_torch.TorchGraph.hook_torch(alex)
+    alex.forward(dummy_torch_tensor((2, 3, 224, 224)))
 
 
     with tensorflow.Session().as_default() as sess:
@@ -128,7 +127,7 @@ def main():
             'tensorflow-variable-single-summary': tensorflow_variable_single,
             'tensorflow-variable-multi-summary': tensorflow_variable_multi,
 
-            #'graph-summary': graph,
+            'graph-summary': graph,
         })
 
         for i in range(10):
@@ -207,7 +206,7 @@ def main():
             'tensorflow-variable-single-summary': tensorflow_variable_single,
             'tensorflow-variable-multi-summary': tensorflow_variable_multi,
 
-            #'graph-summary': graph,
+            'graph-summary': graph,
         })
 
         #history.add({
