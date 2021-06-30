@@ -15,15 +15,16 @@ RequestUpload = collections.namedtuple(
 RequestCommitArtifact = collections.namedtuple(
     "RequestCommitArtifact", ("artifact_id", "finalize", "before_commit", "on_commit")
 )
-RequestFinish = collections.namedtuple("RequestFinish", ())
+RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
 
 
 class StepUpload(object):
-    def __init__(self, api, stats, event_queue, max_jobs, silent=False):
+    def __init__(self, api, stats, event_queue, max_jobs, file_stream, silent=False):
         self._api = api
         self._stats = stats
         self._event_queue = event_queue
         self._max_jobs = max_jobs
+        self._file_stream = file_stream
 
         self._thread = threading.Thread(target=self._thread_body)
         self._thread.daemon = True
@@ -40,9 +41,11 @@ class StepUpload(object):
     def _thread_body(self):
         # Wait for event in the queue, and process one by one until a
         # finish event is received
+        finish_callback = None
         while True:
             event = self._event_queue.get()
             if isinstance(event, RequestFinish):
+                finish_callback = event.callback
                 break
             self._handle_event(event)
 
@@ -62,6 +65,8 @@ class StepUpload(object):
                 self._handle_event(event)
             elif not self._running_jobs:
                 # Queue was empty and no jobs left.
+                if finish_callback:
+                    finish_callback()
                 break
 
     def _handle_event(self, event):
@@ -123,6 +128,7 @@ class StepUpload(object):
             self._event_queue,
             self._stats,
             self._api,
+            self._file_stream,
             self.silent,
             event.save_name,
             event.path,
