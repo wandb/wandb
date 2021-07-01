@@ -112,17 +112,34 @@ class TestRunner:
             self._backend.reset()
             t.run()
             self._capture_result(t)
-            break
+
+    def _check_dict(self, result, s, expected, actual):
+        if expected is None:
+            return
+        for k, v in actual.items():
+            exp = expected.get(k)
+            if exp != v:
+                result.append("BAD_{}({}:{}!={})".format(s, k, exp, v))
+        for k, v in expected.items():
+            act = actual.get(k)
+            if v != act:
+                result.append("BAD_{}({}:{}!={})".format(s, k, v, act))
 
     def _capture_result(self, t):
         test_cfg = t._test_cfg
         if not test_cfg:
             return
+        if not self._backend._server:
+            # we are live
+            return
         ctx = self._backend.get_state()
-        got = ParseCTX(ctx)
-        print("DEBUG config", got.config)
-        print("DEBUG summary", got.summary)
+        # print("GOT ctx", ctx)
+        parsed = ParseCTX(ctx)
+        print("DEBUG config", parsed.config)
+        print("DEBUG summary", parsed.summary)
         runs = test_cfg.get("run")
+
+        result = []
         if runs is not None:
             # only support one run right now
             assert len(runs) == 1
@@ -130,17 +147,40 @@ class TestRunner:
             config = run.get("config")
             exit = run.get("exit")
             summary = run.get("summary")
-            print("CHECK", exit, config, summary)
+            print("EXPECTED", exit, config, summary)
 
-        self._results[t._tname] = t._retcode
+            ctx_config = parsed.config or {}
+            ctx_config.pop("_wandb", None)
+            ctx_summary = parsed.summary or {}
+            for k in list(ctx_summary):
+                if k.startswith("_"):
+                    ctx_summary.pop(k)
+            print("ACTUAL", exit, config, summary)
+
+            if exit is not None:
+                fs_list = ctx.get("file_stream")
+                ctx_exit = fs_list[-1].get("exitcode")
+                if exit != ctx_exit:
+                    result.append("BAD_EXIT({}!={})".format(exit, ctx_exit))
+            self._check_dict(result, "CONFIG", expected=config, actual=ctx_config)
+            self._check_dict(result, "SUMMARY", expected=summary, actual=ctx_summary)
+
+        result_str = ",".join(result)
+        self._results[t._tname] = result_str
 
     def run(self):
         self._populate()
         self._runall()
 
     def finish(self):
-        for k in sorted(self._results):
-            print("{}: {}".format(k, self._results[k]))
+        exit = 0
+        r_names = sorted(self._results)
+        for k in r_names:
+            r = self._results[k]
+            print("{}: {}".format(k, r))
+            if r:
+                exit = 1
+        sys.exit(exit)
 
 
 class Backend:
