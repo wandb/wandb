@@ -1,7 +1,6 @@
 """Internal utilities for parsing MLproject YAML files."""
 
 from distutils import dir_util
-import getpass
 import json
 import logging
 import os
@@ -18,7 +17,7 @@ from wandb.sdk.lib.runid import generate_id
 from . import utils
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional, Union
+    from typing import Any, Dict, List, Optional
 
 
 _logger = logging.getLogger(__name__)
@@ -42,7 +41,7 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
-        user_id: Optional[Union[int, str]],
+        user_id: Optional[int],
         run_config: Dict[str, Any],
     ):
 
