@@ -1,4 +1,5 @@
 import logging
+import getpass
 import os
 import platform
 import posixpath
@@ -20,7 +21,6 @@ from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    WANDB_DOCKER_WORKDIR_PATH,
 )
 
 
@@ -88,7 +88,9 @@ class LocalRunner(AbstractRunner):
         validate_docker_env(project)
         validate_docker_installation()
         image = build_docker_image(
-            project=project, base_image=project.docker_env.get("image"), api=self._api,
+            project=project,
+            base_image=project.docker_env.get("image"),
+            api=self._api,
         )
         command_args += get_docker_command(
             image=image,
@@ -114,12 +116,14 @@ class LocalRunner(AbstractRunner):
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
-            work_dir=project.dir,
-            entry_point=entry_point,
-            parameters=project.parameters,
-            docker_args=docker_args,
-            storage_dir=storage_dir,
+        return (
+            _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
+                work_dir=project.dir,
+                entry_point=entry_point,
+                parameters=project.parameters,
+                docker_args=docker_args,
+                storage_dir=storage_dir,
+            )
         )
 
 
@@ -160,14 +164,21 @@ def _run_entry_point(command, work_dir):
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, docker_args, storage_dir,
+    work_dir,
+    entry_point,
+    parameters,
+    docker_args,
+    storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
@@ -208,7 +219,9 @@ def _get_local_artifact_cmd_and_envs(uri):
     artifact_dir = os.path.dirname(uri)
     container_path = artifact_dir
     if not os.path.isabs(container_path):
-        container_path = os.path.join(WANDB_DOCKER_WORKDIR_PATH, container_path)
+        container_path = os.path.join(
+            "/home/{}".format(getpass.getuser()), container_path
+        )
         container_path = os.path.normpath(container_path)
     abs_artifact_dir = os.path.abspath(artifact_dir)
     return ["-v", "%s:%s" % (abs_artifact_dir, container_path)], {}

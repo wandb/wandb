@@ -13,7 +13,7 @@ import wandb
 from wandb.errors import ExecutionException, LaunchException
 
 from . import _project_spec
-from .utils import _is_wandb_dev_uri, _is_wandb_local_uri, WANDB_DOCKER_WORKDIR_PATH
+from .utils import _is_wandb_dev_uri, _is_wandb_local_uri
 from ..lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)
@@ -107,8 +107,6 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     wandb_entity = project.target_entity
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY --chown={user_id} {build_context_path}/ {workdir}\n"
-        "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"
         "ENV WANDB_API_KEY={api_key}\n"
         "ENV WANDB_PROJECT={wandb_project}\n"
@@ -120,7 +118,6 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
-        workdir=WANDB_DOCKER_WORKDIR_PATH,
         base_url=base_url,
         api_key=api.api_key,
         wandb_project=wandb_project,
