@@ -1,44 +1,22 @@
 #!/usr/bin/env python
 
 import time
-import ast
 import argparse
 import glob
 import subprocess
+import socket
 import sys
 import shutil
 import yaml
 import os
 import requests
 
+# Allow this script to load wandb and tests modules
+client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.insert(1, client_dir)
 
-def load_docstring(filepath):
-    file_contents = ""
-    with open(filepath) as fd:
-        file_contents = fd.read()
-    module = ast.parse(file_contents)
-    docstring = ast.get_docstring(module)
-    if docstring is None:
-        docstring = ""
-    return docstring
-
-
-# From: github.com/marshmallow-code/apispec
-def load_yaml_from_docstring(docstring):
-    """Loads YAML from docstring."""
-    split_lines = docstring.split("\n")
-
-    # Cut YAML from rest of docstring
-    for index, line in enumerate(split_lines):
-        line = line.strip()
-        if line.startswith("---"):
-            cut_from = index
-            break
-    else:
-        return None
-
-    yaml_string = "\n".join(split_lines[cut_from:])
-    return yaml.load(yaml_string, Loader=yaml.BaseLoader)
+from tests.utils.mock_server import ParseCTX
+from tests.standalone.testlib import testspec, testcfg
 
 
 def wandb_dir_safe_cleanup(base_dir=None):
@@ -70,6 +48,7 @@ class Test:
         self._tname = tname
         self._args = args
         self._retcode = None
+        self._test_cfg = None
 
     def _run(self):
         tname = self._tname
@@ -91,22 +70,18 @@ class Test:
                 sys.exit(1)
         print("DONE:", p.returncode)
         self._retcode = p.returncode
-        # https://stackoverflow.com/questions/18344932/python-subprocess-call-stdout-to-file-stderr-to-file-display-stderr-on-scree
-        # https://stackoverflow.com/questions/2715847/read-streaming-input-from-subprocess-communicate
-        # ret = subprocess.call(cmd)
-        # p = subprocess.Popen([cmd], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        # t = subprocess.Popen(['tee', 'log_file'], stdin=p.stdout)
-        # p.stdout.close()
-        # t.communicate()
 
     def _prep(self):
         """Cleanup and/or populate wandb dir."""
         wandb_dir_safe_cleanup()
         # load file and docstring eval criteria
 
-        docstr = load_docstring(self._tname)
-        spec = load_yaml_from_docstring(docstr)
+        docstr = testspec.load_docstring(self._tname)
+        spec = testspec.load_yaml_from_docstring(docstr)
         print("SPEC:", spec)
+        cfg = testcfg.TestlibConfig(spec)
+        print("TESTCFG", cfg)
+        self._test_cfg = cfg
 
     def _fin(self):
         """Reap anything in wandb dir"""
@@ -114,13 +89,15 @@ class Test:
 
     def run(self):
         self._prep()
-        self._run()
+        if not self._args.dryrun:
+            self._run()
         self._fin()
 
 
 class TestRunner:
-    def __init__(self, args):
+    def __init__(self, args, backend):
         self._args = args
+        self._backend = backend
         self._test_files = []
         self._results = {}
 
@@ -131,15 +108,30 @@ class TestRunner:
 
     def _runall(self):
         for tname in self._test_files:
-            if self._args.dryrun:
-                print("DRYRUN:", tname)
-                continue
             t = Test(tname, args=self._args)
+            self._backend.reset()
             t.run()
             self._capture_result(t)
             break
 
     def _capture_result(self, t):
+        test_cfg = t._test_cfg
+        if not test_cfg:
+            return
+        ctx = self._backend.get_state()
+        got = ParseCTX(ctx)
+        print("DEBUG config", got.config)
+        print("DEBUG summary", got.summary)
+        runs = test_cfg.get("run")
+        if runs is not None:
+            # only support one run right now
+            assert len(runs) == 1
+            run = runs[0]
+            config = run.get("config")
+            exit = run.get("exit")
+            summary = run.get("summary")
+            print("CHECK", exit, config, summary)
+
         self._results[t._tname] = t._retcode
 
     def run(self):
@@ -151,12 +143,10 @@ class TestRunner:
             print("{}: {}".format(k, self._results[k]))
 
 
-import socket
-
-
 class Backend:
-    def __init__(self):
-        pass
+    def __init__(self, args):
+        self._args = args
+        self._server = None
 
     def _free_port(self):
         sock = socket.socket()
@@ -165,6 +155,11 @@ class Backend:
         return port
 
     def start(self):
+        if self._args.dryrun:
+            return
+        if self._args.live:
+            return
+        # TODO: consolidate with github.com/wandb/client:tests/conftest.py
         port = self._free_port()
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
         path = os.path.join(root, "tests", "utils", "mock_server.py")
@@ -188,6 +183,20 @@ class Backend:
             bufsize=1,
             close_fds=True,
         )
+
+        def get_ctx():
+            return requests.get(server.base_url + "/ctx").json()
+
+        def set_ctx(payload):
+            return requests.put(server.base_url + "/ctx", json=payload).json()
+
+        def reset_ctx():
+            return requests.delete(server.base_url + "/ctx").json()
+
+        server.get_ctx = get_ctx
+        server.set_ctx = set_ctx
+        server.reset_ctx = reset_ctx
+
         server._port = port
         server.base_url = "http://localhost:%i" % server._port
         self._server = server
@@ -217,23 +226,37 @@ class Backend:
             raise Exception("problem")
 
         os.environ["WANDB_BASE_URL"] = "http://127.0.0.1:{}".format(port)
-        os.environ["WANDB_API_KEY"] = "1824812581259009ca9981580f8f8a9012409eee"
+        DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
+        os.environ["WANDB_API_KEY"] = DUMMY_API_KEY
+
+    def reset(self):
+        if not self._server:
+            return
+        self._server.reset_ctx()
+
+    def get_state(self):
+        if not self._server:
+            return
+        ret = self._server.get_ctx()
+        return ret
 
     def stop(self):
-        if self._server:
-            self._server.terminate()
-            self._server = None
+        if not self._server:
+            return
+        self._server.terminate()
+        self._server = None
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dryrun", action="store_true")
+    parser.add_argument("--live", action="store_true")
     args = parser.parse_args()
 
-    backend = Backend()
+    backend = Backend(args=args)
     try:
         backend.start()
-        tr = TestRunner(args)
+        tr = TestRunner(args=args, backend=backend)
         tr.run()
         tr.finish()
     finally:

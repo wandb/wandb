@@ -3,11 +3,11 @@
 
 ---
 run:
-  - state: finished
+  - exit: 0
     config: {}
     summary:
-      - m1: 1
-        m2: 2
+      m1: 1
+      m2: 2
 """
 
 import wandb
