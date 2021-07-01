@@ -1,8 +1,0 @@
-# .coveragerc to control coverage.py
-[run]
-branch = True
-
-[report]
-exclude_lines =
-    pragma: no cover
-    if TYPE_CHECKING:

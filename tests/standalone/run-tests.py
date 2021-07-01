@@ -88,7 +88,7 @@ class Test:
                 cmd,
             ]
         else:
-            cmd_list = ["coverage", "run", "--branch", "--concurrency=multiprocessing", "--parallel-mode", cmd]
+            cmd_list = ["coverage", "run", "--parallel-mode", cmd]
         print("RUNNING", cmd_list)
         p = subprocess.Popen(cmd_list)
         try:
