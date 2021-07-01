@@ -38,12 +38,14 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
+        user_id: Optional[int],
         run_config: Dict[str, Any],
     ):
 
         self.uri = uri
-        self.name = name  # todo: what to do for default names
+        self.name = name
         if self.name is None and utils._is_wandb_uri(uri):
+            # default name is {project}_{runid}
             _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
             self.name = "{}_{}_launch".format(wandb_project, wandb_name)
         self.target_entity = target_entity
@@ -62,6 +64,7 @@ class Project(object):
         self.docker_env: Dict[str, str] = {}
         # generate id for run to ack with in agent
         self.run_id = generate_id()
+        self.user_id = user_id or 1000
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out

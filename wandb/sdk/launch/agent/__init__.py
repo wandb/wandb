@@ -129,6 +129,10 @@ class LaunchAgent(object):
             name = run_spec["overrides"].get("name")
             args_dict = _collect_args(run_spec["overrides"].get("args", {}))
             run_config = run_spec["overrides"].get("run_config")
+        user_id = None
+        if run_spec.get("docker") and run_spec["docker"].get("user_id"):
+            user_id = run_spec["docker"]["user_id"]
+
         project = fetch_and_validate_project(
             uri,
             wandb_entity,
@@ -138,6 +142,7 @@ class LaunchAgent(object):
             run_spec.get("version", None),
             entry_point,
             args_dict,
+            user_id,
             run_config,
         )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={})
