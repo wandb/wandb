@@ -176,10 +176,10 @@ class Project(object):
 class EntryPoint(object):
     """An entry point in an MLproject specification."""
 
-    def __init__(self, name, parameters, command):
+    def __init__(self, name, command):
         self.name = name
-        self.parameters = {k: Parameter(k, v) for (k, v) in parameters.items()}
         self.command = command
+        self.parameters = {}
 
     def _validate_parameters(self, user_parameters):
         missing_params = []
@@ -192,17 +192,13 @@ class EntryPoint(object):
                 % ", ".join(["'%s'" % name for name in missing_params])
             )
 
-    def compute_parameters(self, user_parameters, storage_dir):
+    def compute_parameters(self, user_parameters):
         """
         Given a dict mapping user-specified param names to values, computes parameters to
         substitute into the command for this entry point. Returns a tuple (params, extra_params)
         where `params` contains key-value pairs for parameters specified in the entry point
         definition, and `extra_params` contains key-value pairs for additional parameters passed
-        by the user.
-        Note that resolving parameter values can be a heavy operation, e.g. if a remote URI is
-        passed for a parameter of type `path`, we download the URI to a local path within
-        `storage_dir` and substitute in the local path as the parameter value.
-        If `storage_dir` is `None`, report path will be return as parameter.
+        by the user. Report path will be returned as parameter.
         """
         if user_parameters is None:
             user_parameters = {}
@@ -220,9 +216,7 @@ class EntryPoint(object):
                 if key in user_parameters
                 else self.parameters[key].default
             )
-            final_params[key] = param_obj.compute_value(
-                value, storage_dir, key_position
-            )
+            final_params[key] = param_obj.compute_value(value, key_position)
         for key in user_parameters:
             if key not in final_params:
                 extra_params[key] = user_parameters[key]
@@ -231,8 +225,8 @@ class EntryPoint(object):
             self._sanitize_param_dict(extra_params),
         )
 
-    def compute_command(self, user_parameters, storage_dir):
-        params, extra_params = self.compute_parameters(user_parameters, storage_dir)
+    def compute_command(self, user_parameters):
+        params, extra_params = self.compute_parameters(user_parameters)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
         command_arr.extend(
@@ -249,49 +243,3 @@ class EntryPoint(object):
             (str(key)): (quote(str(value)) if value is not None else None)
             for key, value in param_dict.items()
         }
-
-
-class Parameter(object):
-    """A parameter in an MLproject entry point."""
-
-    def __init__(self, name, yaml_obj):
-        self.name = name
-        if isinstance(yaml_obj, six.string_types):
-            self.type = yaml_obj
-            self.default = None
-        else:
-            self.type = yaml_obj.get("type", "string")
-            self.default = yaml_obj.get("default")
-
-    def _compute_uri_value(self, user_param_value):
-        if not util.is_uri(user_param_value):
-            raise ExecutionException(
-                "Expected URI for parameter %s but got "
-                "%s" % (self.name, user_param_value)
-            )
-        return user_param_value
-
-    def _compute_path_value(self, user_param_value, storage_dir, key_position):
-        local_path = util.get_local_path_or_none(user_param_value)
-        if local_path:
-            if not os.path.exists(local_path):
-                raise ExecutionException(
-                    "Got value %s for parameter %s, but no such file or "
-                    "directory was found." % (user_param_value, self.name)
-                )
-            return os.path.abspath(local_path)
-        target_sub_dir = "param_{}".format(key_position)
-        download_dir = os.path.join(storage_dir, target_sub_dir)
-        os.mkdir(download_dir)
-        raise ExecutionException("Haven't implemented artifact download yet")
-        # return artifact_utils._download_artifact_from_uri(
-        #    artifact_uri=user_param_value, output_path=download_dir
-        # )
-
-    def compute_value(self, param_value, storage_dir, key_position):
-        if storage_dir and self.type == "path":
-            return self._compute_path_value(param_value, storage_dir, key_position)
-        elif self.type == "uri":
-            return self._compute_uri_value(param_value)
-        else:
-            return param_value

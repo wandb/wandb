@@ -140,7 +140,7 @@ class LaunchAgent(object):
             args_dict,
             run_config,
         )
-        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
+        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={})
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
 

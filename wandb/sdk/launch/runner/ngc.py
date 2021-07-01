@@ -104,7 +104,6 @@ class NGCRunner(AbstractRunner):
         cfg.update(backend_config)  # TODO: this used to call into "ngc"
         # TODO: use / setup these for running in NGC
         # docker_args = backend_config[PROJECT_DOCKER_ARGS]
-        # storage_dir = backend_config[PROJECT_STORAGE_DIR]
         container_cmd = self.PREFIX.format(
             self.api_key, cfg["command"] or "wandb status"
         )

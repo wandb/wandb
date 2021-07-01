@@ -30,18 +30,11 @@ WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
-PROJECT_STORAGE_DIR = "STORAGE_DIR"
 
 UNCATEGORIZED_PROJECT = "uncategorized"
 
 
 _logger = logging.getLogger(__name__)
-
-
-def _get_storage_dir(storage_dir):
-    if storage_dir is not None and not os.path.exists(storage_dir):
-        os.makedirs(storage_dir)
-    return tempfile.mkdtemp(dir=storage_dir)
 
 
 def _get_git_repo_url(work_dir):
@@ -280,23 +273,15 @@ def _fetch_zip_repo(uri):
     return BytesIO(response.content)
 
 
-def get_entry_point_command(project, entry_point, parameters, storage_dir):
+def get_entry_point_command(project, entry_point, parameters):
     """
     Returns the shell command to execute in order to run the specified entry point.
     :param project: Project containing the target entry point
     :param entry_point: Entry point to run
     :param parameters: Parameters (dictionary) for the entry point command
-    :param storage_dir: Base local directory to use for downloading remote artifacts passed to
-                        arguments of type 'path'. If None, a temporary base directory is used.
     """
-    storage_dir_for_run = _get_storage_dir(storage_dir)
-    _logger.info(
-        "=== Created directory %s for downloading remote URIs passed to arguments of"
-        " type 'path' ===",
-        storage_dir_for_run,
-    )
     commands = []
-    commands.append(entry_point.compute_command(parameters, storage_dir_for_run))
+    commands.append(entry_point.compute_command(parameters))
     return commands
 
 
