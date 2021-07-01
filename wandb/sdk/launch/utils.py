@@ -3,7 +3,6 @@ import logging
 import os
 import re
 import subprocess
-import tempfile
 
 import wandb
 from wandb.errors import CommError, ExecutionException, LaunchException
@@ -13,8 +12,6 @@ from . import _project_spec
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/]*:")
-_FILE_URI_REGEX = re.compile(r"^file://.+")
-_ZIP_URI_REGEX = re.compile(r".+\.zip$")
 _WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
@@ -37,28 +34,6 @@ UNCATEGORIZED_PROJECT = "uncategorized"
 _logger = logging.getLogger(__name__)
 
 
-def _get_git_repo_url(work_dir):
-    from git import Repo  # type: ignore
-    from git.exc import GitCommandError, InvalidGitRepositoryError  # type: ignore
-
-    try:
-        repo = Repo(work_dir, search_parent_directories=True)
-        remote_urls = [remote.url for remote in repo.remotes]
-        if len(remote_urls) == 0:
-            return None
-    except GitCommandError:
-        return None
-    except InvalidGitRepositoryError:
-        return None
-    return remote_urls[0]
-
-
-def _expand_uri(uri):
-    if _is_local_uri(uri):
-        return os.path.abspath(uri)
-    return uri
-
-
 def _is_wandb_uri(uri):
     return (
         _WANDB_URI_REGEX.match(uri)
@@ -76,39 +51,11 @@ def _is_wandb_local_uri(uri):
     return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
 
 
-def _is_file_uri(uri):
-    """Returns True if the passed-in URI is a file:// URI."""
-    return _FILE_URI_REGEX.match(uri)
-
-
 def _is_local_uri(uri):
     """Returns True if the passed-in URI should be interpreted as a path on the local filesystem."""
     return not _GIT_URI_REGEX.match(uri)
 
 
-def _is_zip_uri(uri):
-    """Returns True if the passed-in URI points to a ZIP file."""
-    return _ZIP_URI_REGEX.match(uri)
-
-
-def _is_valid_branch_name(work_dir, version):
-    """
-    Returns True if the ``version`` is the name of a branch in a Git project.
-    ``work_dir`` must be the working directory in a git repo.
-    """
-    if version is not None:
-        from git import Repo
-        from git.exc import GitCommandError
-
-        repo = Repo(work_dir, search_parent_directories=True)
-        try:
-            return repo.git.rev_parse("--verify", "refs/heads/%s" % version) != ""
-        except GitCommandError:
-            return False
-    return False
-
-
-# TODO: Fix this dumb heuristic
 def _collect_args(args):
     dict_args = {}
     i = 0
@@ -225,13 +172,6 @@ def apply_patch(patch_string, dst_dir):
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _unzip_repo(zip_file, dst_dir):
-    import zipfile
-
-    with zipfile.ZipFile(zip_file) as zip_in:
-        zip_in.extractall(dst_dir)
-
-
 def _fetch_git_repo(uri, version, dst_dir):
     """
     Clone the git repo at ``uri`` into ``dst_dir``, checking out commit ``version`` (or defaulting
@@ -259,18 +199,6 @@ def _fetch_git_repo(uri, version, dst_dir):
         repo.create_head("master", origin.refs.master)
         repo.heads.master.checkout()
     repo.submodule_update(init=True, recursive=True)
-
-
-def _fetch_zip_repo(uri):
-    import requests
-    from io import BytesIO
-
-    response = requests.get(uri)
-    try:
-        response.raise_for_status()
-    except requests.HTTPError as error:
-        raise ExecutionException("Unable to retrieve ZIP file. Reason: %s" % str(error))
-    return BytesIO(response.content)
 
 
 def get_entry_point_command(project, entry_point, parameters):
