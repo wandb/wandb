@@ -122,7 +122,6 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        user_id=project.user_id,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )
