@@ -4,6 +4,9 @@ codecov:
     after_n_builds: 1
     wait_for_ci: no
 
+ignore:
+  - "wandb/vendor"
+
 coverage:
   precision: 2
   round: down

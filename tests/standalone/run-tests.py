@@ -12,8 +12,6 @@ import os
 import requests
 
 
-
-
 def load_docstring(filepath):
     file_contents = ""
     with open(filepath) as fd:
@@ -28,12 +26,12 @@ def load_docstring(filepath):
 # From: github.com/marshmallow-code/apispec
 def load_yaml_from_docstring(docstring):
     """Loads YAML from docstring."""
-    split_lines = docstring.split('\n')
+    split_lines = docstring.split("\n")
 
     # Cut YAML from rest of docstring
     for index, line in enumerate(split_lines):
         line = line.strip()
-        if line.startswith('---'):
+        if line.startswith("---"):
             cut_from = index
             break
     else:
@@ -43,7 +41,7 @@ def load_yaml_from_docstring(docstring):
     return yaml.load(yaml_string, Loader=yaml.BaseLoader)
 
 
-def wandb_dir_safe_cleanup(base_dir = None):
+def wandb_dir_safe_cleanup(base_dir=None):
     """make sure directory has only wandb like files before deleting."""
 
     prefix = "wandb/"
@@ -55,7 +53,7 @@ def wandb_dir_safe_cleanup(base_dir = None):
     for f in fnames:
         # print("CHECK:", f)
         assert f.startswith(prefix)
-        f = f[len(prefix):]
+        f = f[len(prefix) :]
         if f in allowed:
             continue
         if f.startswith("run-"):
@@ -80,7 +78,15 @@ class Test:
         # cmd_list = [cmd]
         if self._args.base:
             base = "{}/wandb/".format(self._args.base)
-            cmd_list = ["coverage", "run", "--branch",  "--source", base, "--parallel-mode", cmd]
+            cmd_list = [
+                "coverage",
+                "run",
+                "--branch",
+                "--source",
+                base,
+                "--parallel-mode",
+                cmd,
+            ]
         else:
             cmd_list = ["coverage", "run", "--branch", "--parallel-mode", cmd]
         print("RUNNING", cmd_list)
@@ -134,7 +140,7 @@ class TestRunner:
         for x in glob.glob("t_[0-9-]*_*.py"):
             self._test_files.append(x)
         self._test_files.sort()
-    
+
     def _runall(self):
         for tname in self._test_files:
             if self._args.dryrun:
@@ -155,9 +161,11 @@ class TestRunner:
     def finish(self):
         for k in sorted(self._results):
             print("{}: {}".format(k, self._results[k]))
-    
+
 
 import socket
+
+
 class Backend:
     def __init__(self):
         pass
@@ -178,7 +186,10 @@ class Backend:
         env["PYTHONPATH"] = root
         worker_id = 1
         logfname = os.path.join(
-            root, "tests", "logs", "standalone-live_mock_server-{}.log".format(worker_id)
+            root,
+            "tests",
+            "logs",
+            "standalone-live_mock_server-{}.log".format(worker_id),
         )
         logfile = open(logfname, "w")
         server = subprocess.Popen(
@@ -202,7 +213,9 @@ class Backend:
                 print("Attempting to connect but got: %s" % res)
             except requests.exceptions.RequestException:
                 print(
-                    "Timed out waiting for server to start...", server.base_url, time.time()
+                    "Timed out waiting for server to start...",
+                    server.base_url,
+                    time.time(),
                 )
                 if server.poll() is None:
                     time.sleep(1)
@@ -223,12 +236,13 @@ class Backend:
             self._server.terminate()
             self._server = None
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dryrun', action='store_true')
-    parser.add_argument('--base', default="")
+    parser.add_argument("--dryrun", action="store_true")
+    parser.add_argument("--base", default="")
     args = parser.parse_args()
-    
+
     backend = Backend()
     try:
         backend.start()
