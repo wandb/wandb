@@ -42,20 +42,25 @@ def validate_docker_env(project: _project_spec.Project):
         )
 
 
+def get_r2d_err_string(process):
+    err_string = ""
+    for line in process.stdout:
+        err_string += line.decode("utf-8")
+    for line in process.stderr:
+        err_string += line.decode("utf-8")
+    return err_string
+
+
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
     assert isinstance(path, str)
-    if isinstance(project.user_info, int):
-        uline = "--user-id={}".format(project.user_info)
-    elif isinstance(project.user_info, str):
-        uline = "--user-name={}".format(project.user_info)
-
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        uline,
+        "--user-name=jovyan",
+        "--user-id={}".format(project.user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -79,7 +84,8 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise LaunchException("error running repo2docker: {}".format(stderr))
+        err_string = get_r2d_err_string(process)
+        raise LaunchException("error running repo2docker: {}".format(err_string))
     return image_id[0]
 
 
@@ -102,7 +108,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     wandb_entity = project.target_entity
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY --chown={uinfo} {build_context_path}/ {workdir}\n"
+        "COPY --chown={user_id} {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"
         "ENV WANDB_API_KEY={api_key}\n"
@@ -112,6 +118,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         "ENV WANDB_LAUNCH=True\n"
         "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
         "ENV WANDB_RUN_ID={run_id}\n"
+        "USER jovyan\n"
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -121,7 +128,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        uinfo=project.user_info,
+        user_id=project.user_id,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )

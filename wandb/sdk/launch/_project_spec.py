@@ -42,7 +42,7 @@ class Project(object):
         version,
         entry_points: List[str],
         parameters: Dict[str, Any],
-        uinfo: Optional[Union[int, str]],
+        user_id: Optional[Union[int, str]],
         run_config: Dict[str, Any],
     ):
 
@@ -68,7 +68,7 @@ class Project(object):
         self.docker_env: Dict[str, str] = {}
         # generate id for run to ack with in agent
         self.run_id = generate_id()
-        self.user_info = uinfo or getpass.getuser()
+        self.user_id = user_id or 1000
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
