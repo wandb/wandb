@@ -61,6 +61,10 @@ def _run(
             args = _collect_args(args)
             parameters = merge_parameters(parameters, args)
 
+    user_id = None
+    if launch_config.get("docker") and launch_config["docker"].get("user_id"):
+        user_id = launch_config["docker"]["user_id"]
+
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -70,6 +74,7 @@ def _run(
         version,
         entry_point,
         parameters,
+        user_id,
         run_config,
     )
 
