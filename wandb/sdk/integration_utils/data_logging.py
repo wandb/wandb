@@ -102,17 +102,18 @@ class ValidationDataLogger(object):
         if indexes is None:
             assert targets is not None
             local_validation_table = wandb.Table(columns=[], data=[])
-            if isinstance(inputs, dict):
-                for col_name in inputs:
-                    local_validation_table.add_column(col_name, inputs[col_name])
-            else:
-                local_validation_table.add_column(input_col_name, inputs)
 
             if isinstance(targets, dict):
                 for col_name in targets:
                     local_validation_table.add_column(col_name, targets[col_name])
             else:
                 local_validation_table.add_column(target_col_name, targets)
+
+            if isinstance(inputs, dict):
+                for col_name in inputs:
+                    local_validation_table.add_column(col_name, inputs[col_name])
+            else:
+                local_validation_table.add_column(input_col_name, inputs)
 
             if validation_row_processor is None and infer_missing_processors:
                 example_input = _make_example(inputs)
@@ -187,12 +188,12 @@ class ValidationDataLogger(object):
             self.local_validation_artifact.wait()
 
         pred_table = wandb.Table(columns=[], data=[])
-        pred_table.add_column(val_ndx_col_name, self.validation_indexes)
         if isinstance(predictions, dict):
             for col_name in predictions:
                 pred_table.add_column(col_name, predictions[col_name])
         else:
             pred_table.add_column(prediction_col_name, predictions)
+        pred_table.add_column(val_ndx_col_name, self.validation_indexes)
 
         if self.prediction_row_processor is None and self.infer_missing_processors:
             example_prediction = _make_example(predictions)
@@ -232,10 +233,10 @@ def _make_example(data: Any) -> Optional[Union[Dict, Sequence, Any]]:
 def _get_example_shape(example: Union[Sequence, Any]):
     """Gets the shape of an object if applicable."""
     shape = []
-    if hasattr(example, "__len__"):
+    if type(example) is not str and hasattr(example, "__len__"):
         length = len(example)
         shape = [length]
-        if length > 0 and type(example) is not str:
+        if length > 0:
             shape += _get_example_shape(example[0])
     return shape
 
