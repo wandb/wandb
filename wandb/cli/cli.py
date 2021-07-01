@@ -340,7 +340,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -1014,7 +1016,7 @@ def launch(
         )
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)
-        sys.exit(1)
+        sys.exit(e)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
@@ -1527,7 +1529,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

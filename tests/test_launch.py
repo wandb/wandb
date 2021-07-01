@@ -122,7 +122,10 @@ def test_launch_base_case(
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -221,3 +224,31 @@ def test_push_to_runqueue(live_mock_server, test_settings):
     api.push_to_run_queue("default", run_spec)
     ctx = live_mock_server.get_ctx()
     assert len(ctx["run_queues"]["1"]) == 1
+
+
+def test_launch_agent(
+    test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: try_this_out(c, queue),
+    )
+    wandb.sdk.launch.run_agent("mock_server_entity", "test_project")
+    ctx = live_mock_server.get_ctx()
+    assert ctx["num_popped"] == 1
+    assert ctx["num_acked"] == 1
+
+
+def try_this_out(self, queue):
+    try:
+        ups = self._api.pop_from_run_queue(
+            queue, entity=self._entity, project=self._project
+        )
+        wandb.termlog("UPS {}".format(ups))
+        if ups is None:
+            wandb.termlog("UPS IS NONE {}".format(ups))
+            raise KeyboardInterrupt
+    except Exception as e:
+        print("Exception:", e)
+        return None
+    return ups

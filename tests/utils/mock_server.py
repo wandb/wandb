@@ -37,6 +37,8 @@ def default_ctx():
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
         "run_queues": {"1": []},
+        "num_popped": 0,
+        "num_acked": 0,
     }
 
 
@@ -114,7 +116,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -169,7 +175,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -321,6 +329,7 @@ def create_app(user_ctx=None):
         if test_name:
             app.logger.info("Test request from: %s", test_name)
         app.logger.info("graphql post")
+
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
@@ -331,6 +340,7 @@ def create_app(user_ctx=None):
                 return json.dumps({"error": "rate limit exceeded"}), 429
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
+        app.logger.info("KYLE {}".format(body))
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
         if "mutation UpsertBucket(" in body["query"]:
@@ -518,14 +528,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -631,7 +651,13 @@ def create_app(user_ctx=None):
                 },
             }
             ctx["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -648,7 +674,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {
@@ -815,7 +847,25 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-
+        if "mutation popFromRunQueue" in body["query"]:
+            if ctx["num_popped"] != 0:
+                return json.dumps({"data": {"popFromRunQueue": None}})
+            ctx["num_popped"] += 1
+            return json.dumps(
+                {
+                    "data": {
+                        "popFromRunQueue": {
+                            "runQueueItemId": 1,
+                            "runSpec": {
+                                "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                "project": "test_project",
+                                "entity": "mock_server_entity",
+                                "resource": "local",
+                            },
+                        }
+                    }
+                }
+            )
         if "mutation pushToRunQueue" in body["query"]:
             if ctx["run_queues"].get(body["variables"]["queueID"]):
                 ctx["run_queues"][body["variables"]["queueID"]].append(
@@ -826,6 +876,9 @@ def create_app(user_ctx=None):
                     body["variables"]["queueID"]
                 ]
             return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+        if "mutation ackRunQueueItem" in body["query"]:
+            ctx["num_acked"] += 1
+            return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "stopped" in body["query"]:
             return json.dumps(
                 {
