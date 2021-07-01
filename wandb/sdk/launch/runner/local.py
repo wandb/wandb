@@ -1,3 +1,4 @@
+import getpass
 import logging
 import os
 import platform
@@ -20,7 +21,6 @@ from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    WANDB_DOCKER_WORKDIR_PATH,
 )
 
 
@@ -208,7 +208,9 @@ def _get_local_artifact_cmd_and_envs(uri):
     artifact_dir = os.path.dirname(uri)
     container_path = artifact_dir
     if not os.path.isabs(container_path):
-        container_path = os.path.join(WANDB_DOCKER_WORKDIR_PATH, container_path)
+        container_path = os.path.join(
+            "/home/{}".format(getpass.getuser()), container_path
+        )
         container_path = os.path.normpath(container_path)
     abs_artifact_dir = os.path.abspath(artifact_dir)
     return ["-v", "%s:%s" % (abs_artifact_dir, container_path)], {}
