@@ -34,7 +34,7 @@ UNCATEGORIZED_PROJECT = "uncategorized"
 _logger = logging.getLogger(__name__)
 
 
-def _is_wandb_uri(uri):
+def _is_wandb_uri(uri: str):
     return (
         _WANDB_URI_REGEX.match(uri)
         or _WANDB_DEV_URI_REGEX.match(uri)
@@ -43,17 +43,12 @@ def _is_wandb_uri(uri):
     )
 
 
-def _is_wandb_dev_uri(uri):
+def _is_wandb_dev_uri(uri: str):
     return _WANDB_DEV_URI_REGEX.match(uri)
 
 
-def _is_wandb_local_uri(uri):
+def _is_wandb_local_uri(uri: str):
     return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
-
-
-def _is_local_uri(uri):
-    """Returns True if the passed-in URI should be interpreted as a path on the local filesystem."""
-    return not _GIT_URI_REGEX.match(uri)
 
 
 def _collect_args(args):
