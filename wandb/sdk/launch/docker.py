@@ -59,7 +59,6 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        "--user-name=jovyan",
         "--user-id={}".format(project.user_id),
         path,
         '"{}"'.format(entry_cmd),
