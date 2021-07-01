@@ -321,7 +321,7 @@ class HandleManager(object):
         updated = self._update_summary_leaf(kl=kl, v=v, d=d)
         return updated
 
-    def _update_summary_media_objects(self, v: Dict[str, Any]):
+    def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
         # For now, non recursive - just top level
         for nk, nv in six.iteritems(v):
             if (
