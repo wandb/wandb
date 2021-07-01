@@ -1,6 +1,7 @@
 [run]
 parallel = True
-branch = True
+# TODO(jhr): enable this in the future
+# branch = True
 concurrency = multiprocessing,thread
 
 omit =

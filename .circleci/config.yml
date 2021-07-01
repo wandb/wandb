@@ -107,7 +107,7 @@ workflows:
          image: "python:3.9"
          toxenv: "py39"
       - test:
-         name: "Standalone 3.7"
+         name: "Standalone (Linux - Python 3.7)"
          image: "python:3.7"
          toxenv: "standalone-py37,standalone-covercircle"
       - win:
