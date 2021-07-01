@@ -8,6 +8,7 @@ import tempfile
 from typing import Sequence
 
 from dockerpycreds.utils import find_executable  # type: ignore
+from six.moves import shlex_quote
 import wandb
 from wandb.errors import ExecutionException, LaunchException
 
@@ -41,6 +42,15 @@ def validate_docker_env(project: _project_spec.Project):
         )
 
 
+def get_r2d_err_string(process):
+    err_string = ""
+    for line in process.stdout:
+        err_string += line.decode("utf-8")
+    for line in process.stderr:
+        err_string += line.decode("utf-8")
+    return err_string
+
+
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
     # this check will always pass since the dir attribute will always be populated
@@ -49,6 +59,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
+        "--user-id={}".format(project.user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -72,17 +83,17 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise LaunchException("error running repo2docker: {}".format(stderr))
+        err_string = get_r2d_err_string(process)
+        raise LaunchException("error running repo2docker: {}".format(err_string))
     return image_id[0]
 
 
-def build_docker_image(project: _project_spec.Project, name, base_image, api):
+def build_docker_image(project: _project_spec.Project, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
     import docker  # type: ignore
 
-    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
@@ -90,24 +101,22 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
+    image_uri = _get_docker_image_uri(name=project.name, work_dir=project.dir)
 
     wandb_project = project.target_project
     wandb_entity = project.target_entity
-
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY {build_context_path}/ {workdir}\n"
+        "COPY --chown={user_id} {build_context_path}/ {workdir}\n"
         "WORKDIR {workdir}\n"
-        "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
-        "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
+        "ENV WANDB_BASE_URL={base_url}\n"
+        "ENV WANDB_API_KEY={api_key}\n"
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
         "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
         "ENV WANDB_RUN_ID={run_id}\n"
-        "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
@@ -117,6 +126,7 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
+        user_id=project.user_id,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )
@@ -141,7 +151,9 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
                 encoding="gzip",
             )
         except ConnectionError as e:
-            raise ("Error communicating with docker client: {}".format(e))
+            raise LaunchException(
+                "Error communicating with docker client: {}".format(e)
+            )
     try:
         os.remove(build_ctx_path)
     except Exception:
@@ -151,22 +163,67 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
     return image
 
 
-def _get_docker_image_uri(repository_uri, work_dir):
+def get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None):
+    docker_path = "docker"
+    cmd = [docker_path, "run", "--rm"]
+
+    if docker_args:
+        for name, value in docker_args.items():
+            # Passed just the name as boolean flag
+            if isinstance(value, bool) and value:
+                if len(name) == 1:
+                    cmd += ["-" + name]
+                else:
+                    cmd += ["--" + name]
+            else:
+                # Passed name=value
+                if len(name) == 1:
+                    cmd += ["-" + name, value]
+                else:
+                    cmd += ["--" + name, value]
+
+    env_vars = {}  # TODO: get these from elsewhere?
+    if user_env_vars is not None:
+        for user_entry in user_env_vars:
+            if isinstance(user_entry, list):
+                # User has defined a new environment variable for the docker environment
+                env_vars[user_entry[0]] = user_entry[1]
+            else:
+                # User wants to copy an environment variable from system environment
+                system_var = os.environ.get(user_entry)
+                if system_var is None:
+                    raise ExecutionException(
+                        "This project expects the %s environment variables to "
+                        "be set on the machine running the project, but %s was "
+                        "not set. Please ensure all expected environment variables "
+                        "are set" % (", ".join(user_env_vars), user_entry)
+                    )
+                env_vars[user_entry] = system_var
+
+    if volumes is not None:
+        for v in volumes:
+            cmd += ["-v", v]
+
+    for key, value in env_vars.items():
+        cmd += ["-e", "{key}={value}".format(key=key, value=value)]
+    cmd += [image.tags[0]]
+    return [shlex_quote(c) for c in cmd]
+
+
+def _get_docker_image_uri(name, work_dir):
     """
     Returns an appropriate Docker image URI for a project based on the git hash of the specified
     working directory.
-    :param repository_uri: The URI of the Docker repository with which to tag the image. The
+    :param name: The URI of the Docker repository with which to tag the image. The
                            repository URI is used as the prefix of the image URI.
     :param work_dir: Path to the working directory in which to search for a git commit hash
     """
-    repository_uri = (
-        repository_uri.replace(" ", "-") if repository_uri else "docker-project"
-    )
+    name = name.replace(" ", "-") if name else "docker-project"
     # Optionally include first 7 digits of git SHA in tag name, if available.
 
     git_commit = GitRepo(work_dir).last_commit
     version_string = ":" + git_commit[:7] if git_commit else ""
-    return repository_uri + version_string
+    return name + version_string
 
 
 def _create_docker_build_ctx(work_dir, dockerfile_contents):
