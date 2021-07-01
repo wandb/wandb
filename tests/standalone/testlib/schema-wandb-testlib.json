@@ -13,15 +13,16 @@
                 "type": "object",
                 "properties": {
                     "exit": {
-                        "type": "string",
-                        "format": "xnumber",
+                        "type": "number",
+                        "format": "integer",
                         "description": "Run exit",
+                        "multipleOf": 1.0
                     },
                     "config": {"type": "object", "description": "Config dictionary"},
-                    "summary": {"type": "object", "description": "Summary dictionary"},
+                    "summary": {"type": "object", "description": "Summary dictionary"}
                 },
-                "additionalProperties": false,
-            },
+                "additionalProperties": false
+            }
         }
-    },
+    }
 }

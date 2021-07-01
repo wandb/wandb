@@ -34,4 +34,4 @@ def load_yaml_from_docstring(docstring):
         return None
 
     yaml_string = "\n".join(split_lines[cut_from:])
-    return yaml.load(yaml_string, Loader=yaml.BaseLoader)
+    return yaml.load(yaml_string, Loader=yaml.SafeLoader)
