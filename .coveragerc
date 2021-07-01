@@ -6,8 +6,3 @@ branch = True
 exclude_lines =
     pragma: no cover
     if TYPE_CHECKING:
-
-[paths]
-source =
-    wandb/
-    .tox/standalone-py*/lib/python*/site-packages/wandb/
