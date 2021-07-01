@@ -91,33 +91,32 @@ workflows:
 #         name: "Python 3.5"
 #         image: "python:3.5"
 #         toxenv: "py35"
-# TODO: put these back
-#      - test:
-#         name: "Python 3.6"
-#         image: "python:3.6"
-#         toxenv: "py36,covercircle"
-#      - test:
-#         name: "Python 3.7"
-#         image: "python:3.7"
-#         toxenv: "py37"
-#      - test:
-#         name: "Python 3.8"
-#         image: "python:3.8"
-#         toxenv: "py38"
-#      - test:
-#         name: "Python 3.9"
-#         image: "python:3.9"
-#         toxenv: "py39"
-#      - win:
-#         name: "Windows (Python 3.7)"
-#         toxenv: "py37,wincovercircle"
-#      - mac:
-#         name: "MacOS (Python 3.7)"
-#         toxenv: "py37"
+      - test:
+         name: "Python 3.6"
+         image: "python:3.6"
+         toxenv: "py36,covercircle"
       - test:
          name: "Python 3.7"
          image: "python:3.7"
+         toxenv: "py37"
+      - test:
+         name: "Python 3.8"
+         image: "python:3.8"
+         toxenv: "py38"
+      - test:
+         name: "Python 3.9"
+         image: "python:3.9"
+         toxenv: "py39"
+      - test:
+         name: "Standalone 3.7"
+         image: "python:3.7"
          toxenv: "standalone-py37,standalone-covercircle"
+      - win:
+         name: "Windows (Python 3.7)"
+         toxenv: "py37,wincovercircle"
+      - mac:
+         name: "MacOS (Python 3.7)"
+         toxenv: "py37"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
