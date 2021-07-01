@@ -1,5 +1,5 @@
-import logging
 import getpass
+import logging
 import os
 import platform
 import posixpath
@@ -88,9 +88,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_env(project)
         validate_docker_installation()
         image = build_docker_image(
-            project=project,
-            base_image=project.docker_env.get("image"),
-            api=self._api,
+            project=project, base_image=project.docker_env.get("image"), api=self._api,
         )
         command_args += get_docker_command(
             image=image,
@@ -116,14 +114,12 @@ class LocalRunner(AbstractRunner):
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess
-        return (
-            _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
-                work_dir=project.dir,
-                entry_point=entry_point,
-                parameters=project.parameters,
-                docker_args=docker_args,
-                storage_dir=storage_dir,
-            )
+        return _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
+            work_dir=project.dir,
+            entry_point=entry_point,
+            parameters=project.parameters,
+            docker_args=docker_args,
+            storage_dir=storage_dir,
         )
 
 
@@ -164,21 +160,14 @@ def _run_entry_point(command, work_dir):
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            cwd=work_dir,
-            env=env,
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
         )
 
     return LocalSubmittedRun(process)
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir,
-    entry_point,
-    parameters,
-    docker_args,
-    storage_dir,
+    work_dir, entry_point, parameters, docker_args, storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning

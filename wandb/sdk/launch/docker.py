@@ -117,13 +117,11 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         "ENV WANDB_RUN_ID={run_id}\n"
     ).format(
         imagename=base_image,
-        build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
         base_url=base_url,
         api_key=api.api_key,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
-        user_id=project.user_id,
         config_path=project.config_path,
         run_id=project.run_id or None,
     )
