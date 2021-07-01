@@ -1,0 +1,24 @@
+[run]
+parallel = True
+# TODO(jhr): enable this in the future
+# branch = True
+concurrency = multiprocessing,thread
+
+omit =
+    */wandb/vendor/*
+    wandb/vendor/*
+    .tox/*
+
+[paths]
+toxcode =
+    wandb/
+    .tox/standalone-py*/lib/python*/site-packages/wandb/
+
+source =
+    wandb/sdk/
+    wandb/sdk_py27/
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:

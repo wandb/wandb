@@ -13,6 +13,8 @@ exclude = '''
 | tests/wandb_tensorflow_summary.pb
 | tests/logs/cleanup.sh
 | tests/notebooks/
+| tests/standalone/.coveragerc
+| tests/standalone/testlib/schema-wandb-testlib.json
 '''
 include = '''
   wandb/

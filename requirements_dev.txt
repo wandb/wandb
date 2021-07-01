@@ -1,6 +1,6 @@
 pytest
 coverage
-tox==3.7
+tox==3.15.2
 pip
 Pillow
 pandas
