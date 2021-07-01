@@ -340,9 +340,7 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog(
-            "Which team should we use?",
-        )
+        wandb.termlog("Which team should we use?",)
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -1106,7 +1104,7 @@ def launch_add(
     param_list=None,
 ):
     api = _get_cling_api()
-    _, _, src_run_id = set_project_entity_defaults(uri, project, entity, api)
+    src_project, _, src_run_id = set_project_entity_defaults(uri, project, entity, api)
 
     run_spec = {}
     if config is not None:
@@ -1122,7 +1120,7 @@ def launch_add(
     if experiment_name is not None:
         run_spec["name"] = experiment_name
     else:
-        run_spec["name"] = "{}_{}".format(project, src_run_id)
+        run_spec["name"] = "{}_{}_launch".format(src_project, src_run_id)
 
     if run_spec.get("overrides") is None:
         run_spec["overrides"] = {}
@@ -1532,9 +1530,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(
-            path=artifact_path,
-        ),
+        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
         prefix=False,
     )
 
