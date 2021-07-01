@@ -1106,29 +1106,32 @@ def launch_add(
     param_list=None,
 ):
     api = _get_cling_api()
-    project, entity, run_id = set_project_entity_defaults(uri, project, entity, api)
+    src_project, _, src_run_id = set_project_entity_defaults(uri, project, entity, api)
 
     run_spec = {}
     if config is not None:
         with open(config, "r") as f:
             run_spec = json.load(f)
     # current behavior we override anything in supplied config with cli args if passed
-    run_spec["run_id"] = run_id
-    run_spec["entry_point"] = entry_point
-    run_spec["project"] = project
-    run_spec["entity"] = entity
-    run_spec["overrides"] = {}
+    if project:
+        run_spec["project"] = project
+    if entity:
+        run_spec["entity"] = entity
     if resource is not None:
         run_spec["resource"] = resource
-    if version is not None:
-        run_spec["version"] = version
-    if param_list is not None:
-        run_spec["overrides"]["args"] = _user_args_to_dict(param_list)
-
     if experiment_name is not None:
         run_spec["name"] = experiment_name
     else:
-        run_spec["name"] = "{}_{}".format(project, run_id)
+        run_spec["name"] = "{}_{}_launch".format(src_project, src_run_id)
+
+    if run_spec.get("overrides") is None:
+        run_spec["overrides"] = {}
+    if version is not None:
+        if run_spec["overrides"].get("git") is None:
+            run_spec["git"] = {}
+        run_spec["overrides"]["git"]["version"] = version
+    if param_list is not None:
+        run_spec["overrides"]["args"] = param_list
 
     try:
         res = wandb_launch.push_to_queue(api, queue, run_spec)
