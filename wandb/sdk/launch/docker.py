@@ -117,7 +117,6 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         "ENV WANDB_LAUNCH=True\n"
         "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
         "ENV WANDB_RUN_ID={run_id}\n"
-        "USER jovyan\n"
     ).format(
         imagename=base_image,
         build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
