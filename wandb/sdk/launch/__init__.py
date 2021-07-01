@@ -122,8 +122,7 @@ def run(
     :param parameters: Parameters (dictionary) for the entry point command.
     :param docker_args: Arguments (dictionary) for the docker command.
     :param experiment_name: Name of experiment under which to launch the run.
-    :param backend: Execution backend for the run: W&B provides built-in support for "local",
-                    and "ngc" (experimental) backends.
+    :param backend: Execution backend for the run: W&B provides built-in support for "local" backend
     :param backend_config: A dictionary which will be passed as config to the backend. The exact content
                            which should be provided is different for each execution backend
     :param synchronous: Whether to block while waiting for a run to complete. Defaults to True.
