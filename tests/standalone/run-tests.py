@@ -76,19 +76,7 @@ class Test:
         print("RUN:", tname)
         cmd = "./{}".format(tname)
         # cmd_list = [cmd]
-        if self._args.base:
-            base = "{}/wandb/".format(self._args.base)
-            cmd_list = [
-                "coverage",
-                "run",
-                "--branch",
-                "--source",
-                base,
-                "--parallel-mode",
-                cmd,
-            ]
-        else:
-            cmd_list = ["coverage", "run", "--parallel-mode", cmd]
+        cmd_list = ["coverage", "run", cmd]
         print("RUNNING", cmd_list)
         p = subprocess.Popen(cmd_list)
         try:
@@ -204,7 +192,7 @@ class Backend:
         server.base_url = "http://localhost:%i" % server._port
         self._server = server
         started = False
-        for i in range(10):
+        for i in range(30):
             try:
                 res = requests.get("%s/ctx" % server.base_url, timeout=5)
                 if res.status_code == 200:
@@ -240,7 +228,6 @@ class Backend:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dryrun", action="store_true")
-    parser.add_argument("--base", default="")
     args = parser.parse_args()
 
     backend = Backend()
