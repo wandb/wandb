@@ -167,11 +167,11 @@ def run(
         ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
     if _is_wandb_local_uri(uri):
-        if sys.platform() == "win32":
+        if sys.platform == "win32":
             docker_args["net"] = "host"
         else:
             docker_args["network"] = "host"
-        if sys.platform() == "linux" or sys.platform() == "linux2":
+        if sys.platform == "linux" or sys.platform == "linux2":
             docker_args["add-host"] = "host.docker.internal:host-gateway"
 
     if config is None:

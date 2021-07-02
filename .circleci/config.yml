@@ -217,7 +217,7 @@ jobs:
         toxenv:
           type: string
       machine:
-         image: ubuntu-2004:202010-01
+         image: ubuntu-2004:202104-01
       resource_class: large
       steps:
         - attach_workspace:

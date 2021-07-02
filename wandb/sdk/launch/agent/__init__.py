@@ -148,11 +148,11 @@ class LaunchAgent(object):
         )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         if _is_wandb_local_uri(uri):
-            if sys.platform() == "win32":
+            if sys.platform == "win32":
                 backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
             else:
                 backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
-            if sys.platform() == "linux" or sys.platform() == "linux2":
+            if sys.platform == "linux" or sys.platform == "linux2":
                 backend_config[PROJECT_DOCKER_ARGS][
                     "add-host"
                 ] = "host.docker.internal:host-gateway"
