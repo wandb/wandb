@@ -33,7 +33,7 @@ class _Requires(object):
         for feature_item in self._features:
             full_feature = feature_item.split("@", 2)[0]
             feature = full_feature.split(":", 2)[0]
-            func_str = "feature_{}".format(feature.replace("-", "_"))
+            func_str = "require_{}".format(feature.replace("-", "_"))
             func = getattr(self, func_str, None)
             if not func:
                 last_message = "require() unsupported requirement: {}".format(feature)

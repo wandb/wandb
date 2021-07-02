@@ -6,6 +6,14 @@ import pytest
 import wandb
 
 
+# TODO(require): Remove below fixture when we are ready to ship
+@pytest.fixture(autouse=True)
+def require_feature():
+    wandb.require = wandb._require
+    yield
+    wandb.__dict__.pop("require", None)
+
+
 @pytest.fixture
 def require_mock(mocker):
     cleanup = []
@@ -13,57 +21,44 @@ def require_mock(mocker):
     def fn(require, func):
         cleanup.append(require)
         mocker.patch.object(
-            wandb.wandb_sdk.wandb_require._Enables,
+            wandb.wandb_sdk.wandb_require._Requires,
             "require_" + require,
             func,
             create=True,
         )
 
-    # TODO(require): Remove below when we are ready to ship
-    wandb.require = wandb._require
-
     yield fn
     for require in cleanup:
         wandb.__dict__.pop("require_" + require, None)
 
-    # TODO(require): Remove below when we are ready to ship
-    wandb.__dict__.pop("require", None)
 
-
-def test_require_single(user_test, capsys):
+def test_require_single(require_feature, user_test, capsys):
     with pytest.raises(wandb.errors.RequireError):
         wandb.require("something")
     captured = capsys.readouterr()
-    assert "unsupported require: something" in captured.err
+    assert "unsupported requirement: something" in captured.err
 
 
 def test_require_list(user_test, capsys):
     with pytest.raises(wandb.errors.RequireError):
-        wandb.require("something,another")
+        wandb.require(["something", "another"])
     captured = capsys.readouterr()
-    assert "unsupported require: something" in captured.err
-    assert "unsupported require: another" in captured.err
+    assert "unsupported requirement: something" in captured.err
+    assert "unsupported requirement: another" in captured.err
 
 
 def test_require_version(user_test, capsys):
     with pytest.raises(wandb.errors.RequireError):
-        wandb.require("something:beta")
+        wandb.require("something@beta")
     captured = capsys.readouterr()
-    assert "unsupported require: something" in captured.err
+    assert "unsupported requirement: something" in captured.err
 
 
-def test_require_extra_args(user_test, capsys):
+def test_require_param(user_test, capsys):
     with pytest.raises(wandb.errors.RequireError):
-        wandb.require("something:beta", "unsupported")
+        wandb.require("something:param@beta")
     captured = capsys.readouterr()
-    assert "ignoring unsupported parameter: unsupported" in captured.err
-
-
-def test_require_extra_kwargs(user_test, capsys):
-    with pytest.raises(wandb.errors.RequireError):
-        wandb.require("something:beta", junk="unsupported")
-    captured = capsys.readouterr()
-    assert "ignoring unsupported named parameter: junk" in captured.err
+    assert "unsupported requirement: something" in captured.err
 
 
 def test_require_good(user_test, require_mock):
