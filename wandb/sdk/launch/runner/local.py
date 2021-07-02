@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 
+import wandb
 
 from .abstract import AbstractRun, AbstractRunner
 from ..docker import (
@@ -111,6 +112,9 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             print("Launching run in docker with command: {}".format(command_str))
+            wandb.termlog(
+                "Launching run in docker with command: {}".format(command_str)
+            )
             run = _run_entry_point(command_str, project.dir)
             run.wait()
             return run

@@ -56,15 +56,11 @@ def test_launch_agent_base(
 
 
 def test_launch_no_docker_exec(
-    runner,
-    monkeypatch,
-    mocked_fetchable_git_repo,
-    test_settings,
+    runner, monkeypatch, mocked_fetchable_git_repo, test_settings,
 ):
     monkeypatch.setattr(wandb.sdk.launch.docker, "find_executable", lambda name: False)
     result = runner.invoke(
-        cli.launch,
-        ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
+        cli.launch, ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
     )
     assert result.exit_code == 1
     assert "Could not find Docker executable" in str(result.exception)

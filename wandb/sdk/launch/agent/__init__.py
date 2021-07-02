@@ -147,7 +147,7 @@ class LaunchAgent(object):
             run_config,
         )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
-        if _is_wandb_local_uri(uri):
+        if _is_wandb_local_uri(self._base_url):
             if sys.platform == "win32":
                 backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
             else:

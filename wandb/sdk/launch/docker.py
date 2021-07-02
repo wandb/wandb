@@ -4,6 +4,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Sequence
 
@@ -94,7 +95,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     """
     import docker  # type: ignore
 
-    if _is_wandb_local_uri(api.settings("base_url")):
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
