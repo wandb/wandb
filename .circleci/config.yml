@@ -216,8 +216,11 @@ jobs:
       parameters:
         toxenv:
           type: string
-      machine: true
+      machine:
+         image: ubuntu-1604:202004-01
       steps:
+        - attach_workspace:
+                  at: .
         - checkout
         - run:
             name: Install python dependencies
