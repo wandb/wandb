@@ -1914,10 +1914,13 @@ class Api(object):
         """
         )
         response = self.gql(query, variable_values={"clientID": client_id,},)
-
-        server_id = response.get("clientIDMapping", {}).get("serverID", None)
-        if server_id is not None:
-            self._client_id_mapping[client_id] = server_id
+        server_id = None
+        if response is not None:
+            client_id_mapping = response.get("clientIDMapping")
+            if client_id_mapping is not None:
+                server_id = client_id_mapping.get("serverID")
+                if server_id is not None:
+                    self._client_id_mapping[client_id] = server_id
         return server_id
 
     @normalize_exceptions

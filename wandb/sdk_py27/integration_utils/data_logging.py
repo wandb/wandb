@@ -183,7 +183,6 @@ class ValidationDataLogger(object):
             table_name (str, optional): name of the prediction table. Defaults to "validation_predictions".
             commit (bool, optional): determines if commit should be called on the logged data. Defaults to False.
         """
-
         pred_table = wandb.Table(columns=[], data=[])
         pred_table.add_column(val_ndx_col_name, self.validation_indexes)
         if isinstance(predictions, dict):
