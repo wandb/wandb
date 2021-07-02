@@ -72,6 +72,8 @@ commands:
                 path: test-results
             - store_artifacts:
                 path: mypy-results
+            - store_artifacts:
+                path: cover-results
 
 workflows:
   main:
