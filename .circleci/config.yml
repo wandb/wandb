@@ -230,6 +230,10 @@ jobs:
                 pip3 install tox
         - restore-tox-cache
         - run:
+            name: Build r2d image
+            command: |
+                jupyter-repo2docker tests/fixtures/
+        - run:
             name: Run tests
             command: |
                 python3 -m tox -vv -e << parameters.toxenv >>
