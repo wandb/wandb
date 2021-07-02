@@ -37,7 +37,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout.
-@pytest.mark.timeout(500)
+@pytest.mark.timeout(300)
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):

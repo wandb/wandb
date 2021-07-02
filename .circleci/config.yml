@@ -219,7 +219,6 @@ jobs:
       machine:
          image: ubuntu-2004:202010-01
       resource_class: large
-      working_directory: /mnt/ramdisk
       steps:
         - attach_workspace:
                   at: .
