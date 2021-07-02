@@ -1,8 +1,6 @@
 import logging
 import sys
 
-import docker
-
 from wandb import util
 from wandb.errors import ExecutionException
 
