@@ -129,7 +129,9 @@ class LaunchAgent(object):
             entry_point = run_spec["overrides"].get("entrypoint")
             args_dict = _collect_args(run_spec["overrides"].get("args", {}))
             run_config = run_spec["overrides"].get("run_config")
+
         user_id = None
+        docker_image = None
         docker = run_spec.get("docker")
         if docker:
             user_id = docker.get("user_id")

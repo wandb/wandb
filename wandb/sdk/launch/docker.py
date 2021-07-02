@@ -100,7 +100,6 @@ def pull_docker_image(docker_image: str):
             image = client.images.pull(info[0], tag=info[1])
     except docker.errors.APIError as e:
         raise LaunchException("Docker server returned error: {}".format(e))
-    return image
 
 
 def build_docker_image(project: _project_spec.Project, base_image, api):
