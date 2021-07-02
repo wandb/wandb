@@ -84,13 +84,13 @@ class LocalRunner(AbstractRunner):
         validate_docker_env(project)
         validate_docker_installation()
         image = build_docker_image(
-            project=project, base_image=project.docker_env.get("image"), api=self._api,
+            project=project,
+            base_image=project.docker_env.get("image"),
+            api=self._api,
         )
         command_args += get_docker_command(
             image=image,
             docker_args=docker_args,
-            volumes=project.docker_env.get("volumes"),
-            user_env_vars=project.docker_env.get("environment"),
         )
         if backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(
@@ -150,7 +150,10 @@ def _run_entry_point(command, work_dir):
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
