@@ -69,3 +69,19 @@ def test_require_good(user_test, require_mock):
     wandb.require("test")
 
     assert wandb.require_test(2) == 4
+
+
+# TODO(require): Remove below when we are ready to ship
+def test_require_require(user_test, require_mock):
+    def mock_require_test(self):
+        wandb.require_test = lambda x: x + 2
+
+    require_mock("test", mock_require_test)
+
+    # remove autofixture
+    wandb.__dict__.pop("require", None)
+
+    wandb._require("require")
+    wandb.require("test")
+
+    assert wandb.require_test(2) == 4

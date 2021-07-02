@@ -27,6 +27,9 @@ class _Requires(object):
             tuple([features]) if isinstance(features, str) else tuple(features)
         )
 
+    def require_require(self) -> None:
+        wandb.require = wandb._require  # type: ignore
+
     def apply(self) -> None:
         """Call require_* method for supported features."""
         last_message: str = ""
