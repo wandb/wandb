@@ -936,8 +936,8 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "-r",
     metavar="BACKEND",
     default="local",
-    help="Execution resource to use for run. Supported values: 'local', 'ngc'"
-    "(experimental). Defaults to 'local'.",
+    help="Execution resource to use for run. Supported values: 'local'."
+    " Defaults to 'local'.",
 )
 @click.option(
     "--docker-image",
@@ -954,13 +954,6 @@ def _user_args_to_dict(arguments, argument_type="P"):
     "as config to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
-@click.option(
-    "--storage-dir",
-    envvar="WANDB_TMP_DIR",
-    help="Only valid when ``backend`` is local. "
-    "W&B downloads artifacts from distributed URIs passed to parameters of "
-    "type 'path' to subdirectories of storage_dir.",
-)
 def launch(
     uri,
     entry_point,
@@ -973,7 +966,6 @@ def launch(
     project,
     docker_image,
     config,
-    storage_dir,
 ):
     """
     Run an W&B project from the given URI.
@@ -1016,7 +1008,6 @@ def launch(
             docker_args=args_dict,
             resource=resource,
             config=config,
-            storage_dir=storage_dir,
             synchronous=resource in ("local")
             or resource is None,  # todo currently always true
             api=api,

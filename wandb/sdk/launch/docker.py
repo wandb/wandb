@@ -9,6 +9,7 @@ from typing import Sequence
 
 import docker
 from dockerpycreds.utils import find_executable  # type: ignore
+from six.moves import shlex_quote
 import wandb
 from wandb.errors import ExecutionException
 
@@ -100,19 +101,14 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
 
     dockerfile = (
         "FROM {imagename}\n"
-        "COPY {build_context_path}/ {workdir}\n"
-        "WORKDIR {workdir}\n"
         "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
-        "USER root\n"  # todo: very bad idea, just to get it working
     ).format(
         imagename=base_image,
-        build_context_path=_PROJECT_TAR_ARCHIVE_NAME,
-        workdir=WANDB_DOCKER_WORKDIR_PATH,
         base_url=base_url,
         api_key=api.api_key,
         wandb_project=wandb_project,
@@ -146,22 +142,43 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
     return image
 
 
-def _get_docker_image_uri(repository_uri, work_dir):
+def get_docker_command(image, docker_args=None):
+    docker_path = "docker"
+    cmd = [docker_path, "run", "--rm"]
+
+    if docker_args:
+        for name, value in docker_args.items():
+            # Passed just the name as boolean flag
+            if isinstance(value, bool) and value:
+                if len(name) == 1:
+                    cmd += ["-" + name]
+                else:
+                    cmd += ["--" + name]
+            else:
+                # Passed name=value
+                if len(name) == 1:
+                    cmd += ["-" + name, value]
+                else:
+                    cmd += ["--" + name, value]
+
+    cmd += [image.tags[0]]
+    return [shlex_quote(c) for c in cmd]
+
+
+def _get_docker_image_uri(name, work_dir):
     """
     Returns an appropriate Docker image URI for a project based on the git hash of the specified
     working directory.
-    :param repository_uri: The URI of the Docker repository with which to tag the image. The
+    :param name: The URI of the Docker repository with which to tag the image. The
                            repository URI is used as the prefix of the image URI.
     :param work_dir: Path to the working directory in which to search for a git commit hash
     """
-    repository_uri = (
-        repository_uri.replace(" ", "-") if repository_uri else "docker-project"
-    )
+    name = name.replace(" ", "-") if name else "docker-project"
     # Optionally include first 7 digits of git SHA in tag name, if available.
 
     git_commit = GitRepo(work_dir).last_commit
     version_string = ":" + git_commit[:7] if git_commit else ""
-    return repository_uri + version_string
+    return name + version_string
 
 
 def _create_docker_build_ctx(work_dir, dockerfile_contents):
@@ -183,11 +200,3 @@ def _create_docker_build_ctx(work_dir, dockerfile_contents):
     finally:
         shutil.rmtree(directory)
     return result_path
-
-
-def get_docker_tracking_cmd_and_envs(tracking_uri):
-    cmds = []
-    env_vars = dict()
-
-    # TODO: maybe add our sweet env vars here?
-    return cmds, env_vars

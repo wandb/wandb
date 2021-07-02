@@ -1,12 +1,11 @@
 import getpass
 import logging
 import os
-import platform
-import posixpath
 import signal
 import subprocess
 import sys
 
+from wandb.errors import LaunchException
 
 from .abstract import AbstractRun, AbstractRunner
 from ..docker import (
@@ -20,7 +19,6 @@ from ..docker import (
 from ..utils import (
     get_entry_point_command,
     PROJECT_DOCKER_ARGS,
-    PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
 )
 
@@ -77,7 +75,6 @@ class LocalRunner(AbstractRunner):
     def run(self, project, backend_config):
         synchronous = backend_config[PROJECT_SYNCHRONOUS]
         docker_args = backend_config[PROJECT_DOCKER_ARGS]
-        storage_dir = backend_config[PROJECT_STORAGE_DIR]
 
         entry_point = project.get_single_entry_point()
 
@@ -97,12 +94,7 @@ class LocalRunner(AbstractRunner):
             base_image=project.docker_env.get("image"),
             api=self._api,
         )
-        command_args += get_docker_command(
-            image=image,
-            docker_args=docker_args,
-            volumes=project.docker_env.get("volumes"),
-            user_env_vars=project.docker_env.get("environment"),
-        )
+        command_args += get_docker_command(image=image, docker_args=docker_args,)
         if backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(
                 backend_config["runQueueItemId"], project.run_id
@@ -112,7 +104,7 @@ class LocalRunner(AbstractRunner):
         # persisted to the tracking server if interrupted
         if synchronous:
             command_args += get_entry_point_command(
-                project, entry_point, project.parameters, storage_dir
+                project, entry_point, project.parameters
             )
             command_str = command_separator.join(command_args)
 
@@ -121,15 +113,7 @@ class LocalRunner(AbstractRunner):
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess
-        return (
-            _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
-                work_dir=project.dir,
-                entry_point=entry_point,
-                parameters=project.parameters,
-                docker_args=docker_args,
-                storage_dir=storage_dir,
-            )
-        )
+        raise LaunchException("asynchrnous mode not yet available")
 
 
 def _run_launch_cmd(cmd):
@@ -176,6 +160,7 @@ def _run_entry_point(command, work_dir):
         )
 
     return LocalSubmittedRun(process)
+<<<<<<< HEAD
 
 
 def _invoke_wandb_run_subprocess(
@@ -286,3 +271,5 @@ def _get_docker_artifact_storage_cmd_and_envs(artifact_uri):
         return _get_azure_blob_artifact_cmd_and_envs()
     else:
         return _get_local_artifact_cmd_and_envs()
+=======
+>>>>>>> feature/wandb-launch
