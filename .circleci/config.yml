@@ -217,7 +217,8 @@ jobs:
         toxenv:
           type: string
       machine:
-         image: ubuntu-2004:202104-01
+          image: ubuntu-2004:202104-01
+          docker_layer_caching: true
       resource_class: large
       steps:
         - attach_workspace:
