@@ -1,3 +1,4 @@
+import getpass
 import logging
 import os
 import posixpath
@@ -95,14 +96,14 @@ def pull_docker_image(docker_image: str):
     client = docker.from_env()
     try:
         if len(info) == 1:
-            image = client.images.pull(info[0])
+            client.images.pull(info[0])
         else:
-            image = client.images.pull(info[0], tag=info[1])
+            client.images.pull(info[0], tag=info[1])
     except docker.errors.APIError as e:
         raise LaunchException("Docker server returned error: {}".format(e))
 
 
-def build_docker_image(project: _project_spec.Project, base_image, api):
+def build_docker_image(project: _project_spec.Project, base_image, api, copy_code):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
@@ -116,11 +117,18 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     else:
         base_url = api.settings("base_url")
     image_uri = _get_docker_image_uri(name=project.name, work_dir=project.dir)
-
+    copy_code_line = ""
+    workdir_line = ""
+    if copy_code:
+        workdir = os.path.join("/home/", getpass.getuser())
+        copy_code_line = "COPY {}/ {}\n".format(_PROJECT_TAR_ARCHIVE_NAME, workdir)
+        workdir_line = "WORKDIR {}\n".format(workdir)
     wandb_project = project.target_project
     wandb_entity = project.target_entity
     dockerfile = (
         "FROM {imagename}\n"
+        "{copy_code_line}"
+        "{workdir_line}"
         "ENV WANDB_BASE_URL={base_url}\n"
         "ENV WANDB_API_KEY={api_key}\n"
         "ENV WANDB_PROJECT={wandb_project}\n"
@@ -131,6 +139,8 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
         "ENV WANDB_RUN_ID={run_id}\n"
     ).format(
         imagename=base_image,
+        copy_code_line=copy_code_line,
+        workdir_line=workdir_line,
         base_url=base_url,
         api_key=api.api_key,
         wandb_project=wandb_project,

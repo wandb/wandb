@@ -1,4 +1,3 @@
-import getpass
 import logging
 import os
 import signal
@@ -79,9 +78,10 @@ class LocalRunner(AbstractRunner):
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-
+        copy_code = False
         if project.docker_env.get("image"):
             pull_docker_image(project.docker_env["image"])
+            copy_code = True
         else:
             project.docker_env["image"] = generate_docker_image(project, entry_cmd)
 
@@ -90,7 +90,10 @@ class LocalRunner(AbstractRunner):
         validate_docker_env(project)
         validate_docker_installation()
         image = build_docker_image(
-            project=project, base_image=project.docker_env.get("image"), api=self._api,
+            project=project,
+            base_image=project.docker_env.get("image"),
+            api=self._api,
+            copy_code=copy_code,
         )
         command_args += get_docker_command(image=image, docker_args=docker_args,)
         if backend_config.get("runQueueItemId"):

@@ -5,7 +5,6 @@ import logging
 import os
 from shlex import quote
 import tempfile
-from wandb.sdk.launch import docker
 
 import six
 import wandb
