@@ -112,26 +112,32 @@ class LaunchAgent(object):
 
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
-        wandb_entity = run_spec["entity"]
-        wandb_project = run_spec["project"]
-        resource = run_spec["resource"]
 
+        wandb_entity = run_spec.get("entity")
+        wandb_project = run_spec.get("project")
+        resource = run_spec.get("resource") or "local"
+        name = run_spec.get("name")
         uri = run_spec["uri"]
+
         self._backend = load_backend(resource, self._api)
         self.verify()
 
         run_config = {}
         args_dict = {}
         entry_point = None
-        name = None
+
         if run_spec.get("overrides"):
             entry_point = run_spec["overrides"].get("entrypoint")
-            name = run_spec["overrides"].get("name")
             args_dict = _collect_args(run_spec["overrides"].get("args", {}))
             run_config = run_spec["overrides"].get("run_config")
         user_id = None
         if run_spec.get("docker") and run_spec["docker"].get("user_id"):
             user_id = run_spec["docker"]["user_id"]
+
+        git = run_spec.get("git")
+        version = None
+        if git:
+            version = git.get("version")
 
         project = fetch_and_validate_project(
             uri,
@@ -139,7 +145,7 @@ class LaunchAgent(object):
             wandb_project,
             name,
             self._api,
-            run_spec.get("version", None),
+            version,
             entry_point,
             args_dict,
             user_id,

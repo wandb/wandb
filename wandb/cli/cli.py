@@ -1106,8 +1106,7 @@ def launch_add(
         run_spec["project"] = project
     if entity:
         run_spec["entity"] = entity
-    if resource is not None:
-        run_spec["resource"] = resource
+    run_spec["resource"] = resource or "local"
     if experiment_name is not None:
         run_spec["name"] = experiment_name
     else:
@@ -1116,9 +1115,9 @@ def launch_add(
     if run_spec.get("overrides") is None:
         run_spec["overrides"] = {}
     if version is not None:
-        if run_spec["overrides"].get("git") is None:
+        if run_spec.get("git") is None:
             run_spec["git"] = {}
-        run_spec["overrides"]["git"]["version"] = version
+        run_spec["git"]["version"] = version
     if param_list is not None:
         run_spec["overrides"]["args"] = param_list
 

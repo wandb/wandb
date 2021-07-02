@@ -23,7 +23,6 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
-WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
