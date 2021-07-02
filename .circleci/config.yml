@@ -227,7 +227,8 @@ jobs:
         - run:
           name: Run tests
           command: |
-           python3 -m tox -vv -e << parameters.toxenv >>
+              python3 -m tox -vv -e << parameters.toxenv >>
+          no_output_timeout: 10m
         - save-tox-cache
         - save-test-results
             
