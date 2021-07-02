@@ -237,7 +237,9 @@ def test_push_to_runqueue(live_mock_server, test_settings):
     assert len(ctx["run_queues"]["1"]) == 1
 
 
-@pytest.mark.timeout(500)
+# this test includes building a docker container which can take some time.
+# hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.timeout(240)
 def test_launch_agent(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
