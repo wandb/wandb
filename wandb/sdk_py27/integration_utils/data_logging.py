@@ -102,17 +102,18 @@ class ValidationDataLogger(object):
         if indexes is None:
             assert targets is not None
             local_validation_table = wandb.Table(columns=[], data=[])
-            if isinstance(inputs, dict):
-                for col_name in inputs:
-                    local_validation_table.add_column(col_name, inputs[col_name])
-            else:
-                local_validation_table.add_column(input_col_name, inputs)
 
             if isinstance(targets, dict):
                 for col_name in targets:
                     local_validation_table.add_column(col_name, targets[col_name])
             else:
                 local_validation_table.add_column(target_col_name, targets)
+
+            if isinstance(inputs, dict):
+                for col_name in inputs:
+                    local_validation_table.add_column(col_name, inputs[col_name])
+            else:
+                local_validation_table.add_column(input_col_name, inputs)
 
             if validation_row_processor is None and infer_missing_processors:
                 example_input = _make_example(inputs)
@@ -187,12 +188,12 @@ class ValidationDataLogger(object):
             self.local_validation_artifact.wait()
 
         pred_table = wandb.Table(columns=[], data=[])
-        pred_table.add_column(val_ndx_col_name, self.validation_indexes)
         if isinstance(predictions, dict):
             for col_name in predictions:
                 pred_table.add_column(col_name, predictions[col_name])
         else:
             pred_table.add_column(prediction_col_name, predictions)
+        pred_table.add_column(val_ndx_col_name, self.validation_indexes)
 
         if self.prediction_row_processor is None and self.infer_missing_processors:
             example_prediction = _make_example(predictions)
@@ -232,7 +233,7 @@ def _make_example(data):
 def _get_example_shape(example):
     """Gets the shape of an object if applicable."""
     shape = []
-    if hasattr(example, "__len__"):
+    if type(example) is not str and hasattr(example, "__len__"):
         length = len(example)
         shape = [length]
         if length > 0:
@@ -274,6 +275,7 @@ def _infer_single_example_keyed_processor(
         )
         # Assume these are logits
         class_names = class_labels_table.get_column("label")
+
         processors["max_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
             np.argmax(d)
         )
@@ -281,9 +283,13 @@ def _infer_single_example_keyed_processor(
         # processors["min_class"] = lambda n, d, p: class_labels_table.index_ref(  # type: ignore
         #     np.argmin(d)
         # )
-        processors["score"] = lambda n, d, p: {
-            class_names[i]: d[i] for i in range(shape[0])
-        }
+
+        values = np.unique(example)
+        is_one_hot = len(values) == 2 and set(values) == set([0, 1])
+        if not is_one_hot:
+            processors["score"] = lambda n, d, p: {
+                class_names[i]: d[i] for i in range(shape[0])
+            }
     elif (
         len(shape) == 1
         and shape[0] == 1
@@ -297,7 +303,7 @@ def _infer_single_example_keyed_processor(
             processors["class"] = lambda n, d, p: class_labels_table.index_ref(d[0]) if d[0] < len(class_labels_table.data) else d[0]  # type: ignore
         else:
             processors["val"] = lambda n, d, p: d[0]
-    elif len(shape) == 1 and shape[0] <= 10:
+    elif len(shape) == 1:
         np = wandb.util.get_module(
             "numpy", required="Infering processors require numpy",
         )
@@ -311,7 +317,11 @@ def _infer_single_example_keyed_processor(
             ]
         # just report the argmax and argmin
         processors["argmax"] = lambda n, d, p: np.argmax(d)
-        processors["argmin"] = lambda n, d, p: np.argmin(d)
+
+        values = np.unique(example)
+        is_one_hot = len(values) == 2 and set(values) == set([0, 1])
+        if not is_one_hot:
+            processors["argmin"] = lambda n, d, p: np.argmin(d)
     elif len(shape) == 2 and CAN_INFER_IMAGE_AND_VIDEO:
         if (
             class_labels_table is not None
