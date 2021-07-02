@@ -1350,7 +1350,6 @@ class Run(Attrs):
                 artifact_collection_name,
                 artifact.digest,
                 aliases=aliases,
-                client_id=artifact._client_id,
                 sequence_client_id=artifact._sequence_client_id,
             )
             return artifact
