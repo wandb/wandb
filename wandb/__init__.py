@@ -52,7 +52,8 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
-use_feature = wandb_sdk.use_feature
+# TODO(require): Remove underscore when we are ready to ship
+_require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
@@ -216,5 +217,5 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
-    "use_feature",
+    "_enable",
 ]

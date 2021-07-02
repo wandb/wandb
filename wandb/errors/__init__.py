@@ -37,8 +37,8 @@ class LogMultiprocessError(LogError):
     pass
 
 
-class UseFeatureError(Error):
-    """Raised when wandb.use_feature() fails"""
+class RequireError(Error):
+    """Raised when wandb.require() fails"""
 
     pass
 
@@ -49,5 +49,5 @@ __all__ = [
     "CommError",
     "LogError",
     "LogMultiprocessError",
-    "UseFeatureError",
+    "RequireError",
 ]
