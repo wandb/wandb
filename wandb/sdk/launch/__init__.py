@@ -13,7 +13,6 @@ from .utils import (
     fetch_and_validate_project,
     merge_parameters,
     PROJECT_DOCKER_ARGS,
-    PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
 )
 
@@ -45,7 +44,6 @@ def _run(
     docker_args,
     runner_name,
     launch_config,
-    storage_dir,
     synchronous,
     api=None,
 ):
@@ -90,7 +88,6 @@ def _run(
     runner_config = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
-    runner_config[PROJECT_STORAGE_DIR] = storage_dir
 
     backend = loader.load_backend(runner_name, api)
     if backend:
@@ -115,7 +112,6 @@ def run(
     wandb_project=None,
     wandb_entity=None,
     config=None,
-    storage_dir=None,
     synchronous=True,
     api=None,
 ):
@@ -139,13 +135,9 @@ def run(
     :param parameters: Parameters (dictionary) for the entry point command.
     :param docker_args: Arguments (dictionary) for the docker command.
     :param experiment_name: Name of experiment under which to launch the run.
-    :param backend: Execution backend for the run: W&B provides built-in support for "local",
-                    and "ngc" (experimental) backends.
+    :param backend: Execution backend for the run: W&B provides built-in support for "local" backend
     :param backend_config: A dictionary which will be passed as config to the backend. The exact content
                            which should be provided is different for each execution backend
-    :param storage_dir: Used only if ``backend`` is "local". W&B downloads artifacts from
-                        distributed URIs passed to parameters of type ``path`` to subdirectories of
-                        ``storage_dir``.
     :param synchronous: Whether to block while waiting for a run to complete. Defaults to True.
                         Note that if ``synchronous`` is False and ``backend`` is "local", this
                         method will return, but the current process will block when exiting until
@@ -197,7 +189,6 @@ def run(
         docker_args=docker_args,
         runner_name=resource,
         launch_config=config,
-        storage_dir=storage_dir,
         synchronous=synchronous,
         api=api,
     )

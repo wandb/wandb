@@ -12,7 +12,6 @@ import wandb.sdk.launch as launch
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
     PROJECT_DOCKER_ARGS,
-    PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
 )
 
@@ -83,7 +82,7 @@ def check_project_spec(
 
 def check_backend_config(config, expected_backend_config):
     for key, item in config.items():
-        if key not in [PROJECT_DOCKER_ARGS, PROJECT_STORAGE_DIR, PROJECT_SYNCHRONOUS]:
+        if key not in [PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS]:
             assert item == expected_backend_config[key]
 
 

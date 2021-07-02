@@ -149,7 +149,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api):
     return image
 
 
-def get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None):
+def get_docker_command(image, docker_args=None):
     docker_path = "docker"
     cmd = [docker_path, "run", "--rm"]
 
@@ -168,30 +168,6 @@ def get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None
                 else:
                     cmd += ["--" + name, value]
 
-    env_vars = {}  # TODO: get these from elsewhere?
-    if user_env_vars is not None:
-        for user_entry in user_env_vars:
-            if isinstance(user_entry, list):
-                # User has defined a new environment variable for the docker environment
-                env_vars[user_entry[0]] = user_entry[1]
-            else:
-                # User wants to copy an environment variable from system environment
-                system_var = os.environ.get(user_entry)
-                if system_var is None:
-                    raise ExecutionException(
-                        "This project expects the %s environment variables to "
-                        "be set on the machine running the project, but %s was "
-                        "not set. Please ensure all expected environment variables "
-                        "are set" % (", ".join(user_env_vars), user_entry)
-                    )
-                env_vars[user_entry] = system_var
-
-    if volumes is not None:
-        for v in volumes:
-            cmd += ["-v", v]
-
-    for key, value in env_vars.items():
-        cmd += ["-e", "{key}={value}".format(key=key, value=value)]
     cmd += [image.tags[0]]
     return [shlex_quote(c) for c in cmd]
 
@@ -231,11 +207,3 @@ def _create_docker_build_ctx(work_dir, dockerfile_contents):
     finally:
         shutil.rmtree(directory)
     return result_path
-
-
-def get_docker_tracking_cmd_and_envs(tracking_uri):
-    cmds = []
-    env_vars = dict()
-
-    # TODO: maybe add our sweet env vars here?
-    return cmds, env_vars
