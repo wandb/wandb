@@ -224,7 +224,7 @@ jobs:
             command: |
                 pip3 install tox
         - restore-tox-cache
-        -run:
+        - run:
           name: Run tests
           command: |
            python3 -m tox -vv -e << parameters.toxenv >>
