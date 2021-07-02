@@ -14,6 +14,7 @@ from ..utils import (
     _is_wandb_local_uri,
     fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
+    set_project_entity_defaults,
 )
 from ...internal.internal_api import Api
 
@@ -112,11 +113,16 @@ class LaunchAgent(object):
 
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
-        wandb_entity = run_spec["entity"]
-        wandb_project = run_spec["project"]
-        resource = run_spec["resource"]
+
+        launch_config_entity = run_spec.get("entity")
+        launch_config_project = run_spec.get("project")
+        resource = run_spec.get("resource") or "local"
 
         uri = run_spec["uri"]
+
+        wandb_project, wandb_entity, _ = set_project_entity_defaults(
+            uri, launch_config_project, launch_config_entity, self._api
+        )
         self._backend = load_backend(resource, self._api)
         self.verify()
 
@@ -133,13 +139,18 @@ class LaunchAgent(object):
         if run_spec.get("docker") and run_spec["docker"].get("user_id"):
             user_id = run_spec["docker"]["user_id"]
 
+        git = run_spec.get("git")
+        version = None
+        if git:
+            version = git.get("version")
+
         project = fetch_and_validate_project(
             uri,
             wandb_entity,
             wandb_project,
             name,
             self._api,
-            run_spec.get("version", None),
+            version,
             entry_point,
             args_dict,
             user_id,

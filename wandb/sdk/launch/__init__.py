@@ -65,6 +65,11 @@ def _run(
     if launch_config.get("docker") and launch_config["docker"].get("user_id"):
         user_id = launch_config["docker"]["user_id"]
 
+    if version is None:
+        git = launch_config.get("git")
+        if git:
+            version = git.get("version")
+
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
