@@ -1445,6 +1445,7 @@ class Sweep(Attrs):
                         hasNextPage
                     }
                 }
+                state
             }
         }
     }
