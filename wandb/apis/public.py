@@ -1422,6 +1422,7 @@ class Sweep(Attrs):
         id: (str) sweep id
         project: (str) name of project
         config: (str) dictionary of sweep configuration
+        state: (str) the state of the sweep
     """
 
     QUERY = gql(
