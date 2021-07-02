@@ -228,6 +228,7 @@ jobs:
             name: Install python dependencies
             command: |
                 pip3 install tox
+                pip3 install jupyter-repo2docker
         - restore-tox-cache
         - run:
             name: Build r2d image
