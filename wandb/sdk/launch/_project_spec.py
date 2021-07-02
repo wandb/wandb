@@ -68,6 +68,13 @@ class Project(object):
         # generate id for run to ack with in agent
         self.run_id = generate_id()
         self.user_id = user_id or 1000
+        self.clear_parameter_run_config_collisions()
+
+    def clear_parameter_run_config_collisions(self):
+        keys = [key for key in self.run_config.keys()]
+        for key in keys:
+            if self.parameters.get(key):
+                del self.run_config[key]
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out

@@ -55,7 +55,13 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec, api, uri, wandb_project=None, wandb_entity=None, config=None
+    project_spec,
+    api,
+    uri,
+    wandb_project=None,
+    wandb_entity=None,
+    config=None,
+    parameters=None,
 ):
     assert project_spec.uri == uri
     expected_project = wandb_project or uri.split("/")[4]
@@ -122,7 +128,10 @@ def test_launch_base_case(
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -187,13 +196,18 @@ def test_launch_args_supersede_config_vals(
         "wandb_entity": "mock_server_entity",
         "config": {
             "project": "not-this-project",
-            "overrides": {"run_config": {"epochs": 3}},
+            "overrides": {"run_config": {"epochs": 3}, "args": ["--epochs", "2"]},
         },
+        "parameters": {"epochs": 5},
     }
-
-    expected_runner_config = {}
+    input_kwargs = kwargs.copy()
+    input_kwargs["parameters"] = ["epochs", 5]
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
+    for arg in mock_with_run_info.args:
+        if isinstance(arg, _project_spec.Project):
+            assert arg.parameters["epochs"] == 5
+            assert arg.run_config.get("epochs") is None
+            assert arg.target_project == "new_test_project"
 
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
