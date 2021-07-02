@@ -64,6 +64,7 @@ def test_launch_agent_base(
         assert "Shutting down, active jobs" in result.output
 
 
+@pytest.mark.timeout(300)
 def test_launch_cli_with_config_file_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -98,6 +99,7 @@ def test_launch_cli_with_config_file_and_params(
         )
 
 
+@pytest.mark.timeout(300)
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):

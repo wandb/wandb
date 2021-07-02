@@ -164,7 +164,7 @@ class Project(object):
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
 
-            args = utils._collect_args(run_info["args"])
+            args = util._user_args_to_dict(run_info["args"])
             self.parameters = utils.merge_parameters(self.parameters, args)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (

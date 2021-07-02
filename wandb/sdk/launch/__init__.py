@@ -1,12 +1,12 @@
 import logging
 import sys
 
+from wandb import util
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
-    _collect_args,
     _is_wandb_local_uri,
     fetch_and_validate_project,
     merge_parameters,
@@ -59,7 +59,7 @@ def _run(
         run_config = overrides.get("run_config")
         args = overrides.get("args")
         if args:
-            args = _collect_args(args)
+            args = util._user_args_to_dict(args)
             parameters = merge_parameters(parameters, args)
 
     user_id = None

@@ -3,14 +3,13 @@ import sys
 import time
 
 import wandb
-from wandb import Settings
+from wandb import Settings, util
 from wandb.errors import LaunchException
 
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 from ..utils import (
-    _collect_args,
     _convert_access,
     _is_wandb_local_uri,
     fetch_and_validate_project,
@@ -128,7 +127,7 @@ class LaunchAgent(object):
         if run_spec.get("overrides"):
             entry_point = run_spec["overrides"].get("entrypoint")
             name = run_spec["overrides"].get("name")
-            args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+            args_dict = util._user_arg_to_dict(run_spec["overrides"].get("args", {}))
             run_config = run_spec["overrides"].get("run_config")
         user_id = None
         if run_spec.get("docker") and run_spec["docker"].get("user_id"):

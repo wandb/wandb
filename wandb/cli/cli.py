@@ -851,30 +851,6 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
-def _user_args_to_dict(arguments, argument_type="P"):
-    user_dict = {}
-    for arg in arguments:
-        split = arg.split("=", maxsplit=1)
-        # Docker arguments such as `t` don't require a value -> set to True if specified
-        if len(split) == 1 and argument_type == "A":
-            name = split[0]
-            value = True
-        elif len(split) == 2:
-            name = split[0]
-            value = split[1]
-        else:
-            wandb.termerror(
-                "Invalid format for -%s parameter: '%s'. "
-                "Use -%s name=value." % (argument_type, arg, argument_type)
-            )
-            sys.exit(1)
-        if name in user_dict:
-            wandb.termerror("Repeated parameter: '%s'" % name)
-            sys.exit(1)
-        user_dict[name] = value
-    return user_dict
-
-
 @cli.command(help="Launch a job on a specified resource")
 @click.argument("uri")
 @click.option(
@@ -979,8 +955,8 @@ def launch(
     api = _get_cling_api()
     project, entity, _ = set_project_entity_defaults(uri, project, entity, api)
 
-    param_dict = _user_args_to_dict(param_list)
-    args_dict = _user_args_to_dict(docker_args, argument_type="A")
+    param_dict = util._user_args_to_dict(param_list)
+    docker_args_dict = util._user_args_to_dict(docker_args)
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
             with open(config, "r") as f:
@@ -1004,7 +980,7 @@ def launch(
             wandb_entity=entity,
             experiment_name=experiment_name,
             parameters=param_dict,
-            docker_args=args_dict,
+            docker_args=docker_args_dict,
             resource=resource,
             config=config,
             storage_dir=storage_dir,

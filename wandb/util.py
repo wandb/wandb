@@ -359,6 +359,24 @@ def make_tarfile(output_filename, source_dir, archive_name, custom_filter=None):
         os.remove(unzipped_filename)
 
 
+def _user_args_to_dict(arguments, argument_type="P"):
+    user_dict = {}
+    for arg in arguments:
+        split = arg.split("=", maxsplit=1)
+        # Docker arguments such as `t` don't require a value -> set to True if specified
+        if len(split) == 1:
+            name = split[0]
+            value = True
+        elif len(split) == 2:
+            name = split[0]
+            value = split[1]
+        if name in user_dict:
+            wandb.termerror("Repeated parameter: '%s'" % name)
+            sys.exit(1)
+        user_dict[name] = value
+    return user_dict
+
+
 def exec_cmd(
     cmd,
     throw_on_error=True,
