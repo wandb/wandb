@@ -168,7 +168,7 @@ def run(
     """
     if _is_wandb_local_uri(uri):
         docker_args["network"] = "host"
-        if sys.platform == "linux":
+        if sys.platform() == "linux" or sys.platform() == "linux2":
             docker_args["add-host"] = "host.docker.internal:host-gateway"
 
     if config is None:
