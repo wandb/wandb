@@ -14,7 +14,6 @@ from ..utils import (
     _is_wandb_local_uri,
     fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
-    set_project_entity_defaults,
 )
 from ...internal.internal_api import Api
 
