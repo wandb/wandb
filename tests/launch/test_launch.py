@@ -223,7 +223,7 @@ def test_push_to_runqueue(live_mock_server, test_settings):
     assert len(ctx["run_queues"]["1"]) == 1
 
 
-@pytest.mark.timeout(120)
+@pytest.mark.timeout(200)
 def test_launch_agent(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
