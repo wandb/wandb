@@ -69,6 +69,11 @@ def _run(
         if git:
             version = git.get("version")
 
+    if docker_image is None:
+        docker = launch_config.get("docker")
+        if docker:
+            docker_image = docker.get("docker_image")
+
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -79,6 +84,7 @@ def _run(
         entry_point,
         parameters,
         user_id,
+        docker_image,
         run_config,
     )
 
@@ -86,8 +92,6 @@ def _run(
     runner_config = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
-    if docker_image:
-        runner_config["DOCKER_IMAGE"] = docker_image
 
     backend = loader.load_backend(runner_name, api)
     if backend:

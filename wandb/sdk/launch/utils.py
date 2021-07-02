@@ -82,6 +82,7 @@ def fetch_and_validate_project(
     entry_point,
     parameters,
     user_id,
+    docker_image,
     run_config,
 ):
     parameters = parameters or {}
@@ -95,6 +96,7 @@ def fetch_and_validate_project(
         [entry_point],
         parameters,
         user_id,
+        docker_image,
         run_config,
     )
     # todo: we maybe don't always want to dl project to local

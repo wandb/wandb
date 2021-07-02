@@ -130,8 +130,10 @@ class LaunchAgent(object):
             args_dict = _collect_args(run_spec["overrides"].get("args", {}))
             run_config = run_spec["overrides"].get("run_config")
         user_id = None
-        if run_spec.get("docker") and run_spec["docker"].get("user_id"):
-            user_id = run_spec["docker"]["user_id"]
+        docker = run_spec.get("docker")
+        if docker:
+            user_id = docker.get("user_id")
+            docker_image = docker.get("docker_image")
 
         git = run_spec.get("git")
         version = None
@@ -148,14 +150,14 @@ class LaunchAgent(object):
             entry_point,
             args_dict,
             user_id,
+            docker_image,
             run_config,
         )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={})
+
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
 
-        if run_spec.get("docker_image"):
-            backend_config["DOCKER_IMAGE"] = run_spec.get("docker_image")
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run

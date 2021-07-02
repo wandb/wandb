@@ -7,11 +7,10 @@ import subprocess
 import tempfile
 from typing import Sequence
 
-import docker
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 import wandb
-from wandb.errors import ExecutionException
+from wandb.errors import ExecutionException, LaunchException
 
 from . import _project_spec
 from .utils import _is_wandb_dev_uri, _is_wandb_local_uri
@@ -43,11 +42,24 @@ def validate_docker_env(project: _project_spec.Project):
         )
 
 
+def get_r2d_err_string(process):
+    err_string = ""
+    for line in process.stdout:
+        err_string += line.decode("utf-8")
+    for line in process.stderr:
+        err_string += line.decode("utf-8")
+    return err_string
+
+
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
+    # this check will always pass since the dir attribute will always be populated
+    # by _fetch_project_local
+    assert isinstance(path, str)
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
+        "--user-id={}".format(project.user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -55,18 +67,29 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     _logger.info(
         "Generating docker image from git repo or finding image if it already exists.........."
     )
-    stderr = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ).stderr.decode("utf-8")
+    wandb.termlog("Generating docker image, this may take a few minutes")
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stderr = ""
+    # this will always pass, repo2docker writes to stderr.
+    assert process.stderr
+    for line in process.stderr:
+        decoded_line = line.decode("utf-8")
+        if decoded_line.endswith("\n"):
+            decoded_line = decoded_line.rstrip("\n")
+        wandb.termlog(decoded_line)
+        stderr = stderr + decoded_line
+    process.wait()
     image_id = re.findall(r"Successfully tagged (.+):latest", stderr)
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise Exception("error running repo2docker")
+        err_string = get_r2d_err_string(process)
+        raise LaunchException("error running repo2docker: {}".format(err_string))
     return image_id[0]
 
 
 def pull_docker_image(docker_image: str):
+    import docker  # type: ignore
 
     info = docker_image.split(":")
     client = docker.from_env()
@@ -75,18 +98,17 @@ def pull_docker_image(docker_image: str):
             image = client.images.pull(info[0])
         else:
             image = client.images.pull(info[0], tag=info[1])
-    except docker.errors.APIError:
-        raise ("Docker server returned error: {}")
+    except docker.errors.APIError as e:
+        raise LaunchException("Docker server returned error: {}".format(e))
     return image
 
 
-def build_docker_image(project: _project_spec.Project, name, base_image, api):
+def build_docker_image(project: _project_spec.Project, base_image, api):
     """
     Build a docker image containing the project in `work_dir`, using the base image.
     """
     import docker  # type: ignore
 
-    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
     if _is_wandb_local_uri(api.settings("base_url")):
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
@@ -94,19 +116,20 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    image_uri = _get_docker_image_uri(repository_uri=name, work_dir=project.dir)
+    image_uri = _get_docker_image_uri(name=project.name, work_dir=project.dir)
 
     wandb_project = project.target_project
     wandb_entity = project.target_entity
-
     dockerfile = (
         "FROM {imagename}\n"
-        "ENV WANDB_BASE_URL={base_url}\n"  # todo this is also currently passed in via r2d
-        "ENV WANDB_API_KEY={api_key}\n"  # todo this is also currently passed in via r2d
+        "ENV WANDB_BASE_URL={base_url}\n"
+        "ENV WANDB_API_KEY={api_key}\n"
         "ENV WANDB_PROJECT={wandb_project}\n"
         "ENV WANDB_ENTITY={wandb_entity}\n"
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
+        "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
+        "ENV WANDB_RUN_ID={run_id}\n"
     ).format(
         imagename=base_image,
         base_url=base_url,
@@ -114,6 +137,8 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
         wandb_name=project.name,
+        config_path=project.config_path,
+        run_id=project.run_id or None,
     )
     build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
@@ -125,14 +150,20 @@ def build_docker_image(project: _project_spec.Project, name, base_image, api):
         # TODO: remove the dependency on docker / potentially just do the append builder
         # found at: https://github.com/google/containerregistry/blob/master/client/v2_2/append_.py
         client = docker.from_env()
-        image, _ = client.images.build(
-            tag=image_uri,
-            forcerm=True,
-            dockerfile=dockerfile,
-            fileobj=docker_build_ctx,
-            custom_context=True,
-            encoding="gzip",
-        )
+        try:
+            image, _ = client.images.build(
+                tag=image_uri,
+                forcerm=True,
+                dockerfile=dockerfile,
+                fileobj=docker_build_ctx,
+                custom_context=True,
+                encoding="gzip",
+            )
+        except ConnectionError as e:
+            raise LaunchException(
+                "Error communicating with docker client: {}".format(e)
+            )
+
     try:
         os.remove(build_ctx_path)
     except Exception:
