@@ -216,8 +216,7 @@ jobs:
       parameters:
         toxenv:
           type: string
-      machine:
-         image: ubuntu-1604:202004-01
+      machine: true
       steps:
         - attach_workspace:
                   at: .
