@@ -43,13 +43,9 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
-    from wandb.sdk.launch.utils import parse_wandb_uri
+    from wandb.sdk.launch.utils import set_project_entity_defaults
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
-    from wandb.sdk_py27 import launch as wandb_launch
-
-    # todo: codemod to bring into py27?
-    # from wandb.sdk.launch.utils import parse_wandb_uri
 
 
 # TODO: turn this on in a cleaner way
@@ -634,9 +630,9 @@ def sync(
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=False, help="Set sweep name")
-@click.option("--program", default=False, help="Set sweep program")
-@click.option("--settings", default=False, help="Set sweep settings", hidden=True)
+@click.option("--name", default=None, help="Set sweep name")
+@click.option("--program", default=None, help="Set sweep program")
+@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
     "--stop",
@@ -956,7 +952,7 @@ def _user_args_to_dict(arguments, argument_type="P"):
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
     "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend.",
+    "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @click.option(
     "--storage-dir",
@@ -988,6 +984,9 @@ def launch(
     By default, Git projects run in a new working directory with the given parameters, while
     local projects run from the project's root directory.
     """
+    api = _get_cling_api()
+    project, entity, _ = set_project_entity_defaults(uri, project, entity, api)
+
     param_dict = _user_args_to_dict(param_list)
     args_dict = _user_args_to_dict(docker_args, argument_type="A")
     if config is not None:
@@ -1003,14 +1002,6 @@ def launch(
                 raise
     else:
         config = {}
-
-    if resource == "ngc":
-        # TODO: add queue support?
-        if config is None:
-            wandb.termerror("Specify 'backend_config' when using ngc mode.")
-            sys.exit(1)
-
-    api = _get_cling_api()
 
     try:
         wandb_launch.run(
@@ -1037,14 +1028,16 @@ def launch(
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
 @click.pass_context
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
+@click.argument("project", nargs=1)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
-@click.argument("agent_spec", nargs=-1)
 @display_error
-def launch_agent(
-    ctx, project=None, entity=None, max=4, agent=None, agent_spec=None, queues=None
-):
+def launch_agent(ctx, project=None, entity=None, queues=None):
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1052,12 +1045,11 @@ def launch_agent(
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
 
-    if agent_spec is None or agent_spec == ():
-        project = project or "uncategorized"
-        entity = entity or api.default_entity
-        agent_spec = ["{}/{}".format(entity, project)]
-    wandb.termlog("Starting {} agent ✨".format(launch_agent))
-    wandb_launch.run_agent(agent_spec, queues=queues)
+    if entity is None:
+        entity = api.default_entity
+
+    wandb.termlog("Starting launch agent ✨")
+    wandb_launch.run_agent(entity, project, queues=queues)
 
 
 @cli.command(help="Add a job onto the run queue for a specified resource")
@@ -1121,35 +1113,31 @@ def launch_add(
     param_list=None,
 ):
     api = _get_cling_api()
-
-    uri_stripped = uri.split("?")[0]  # remove any possible query params (eg workspace)
-    uri_entity, uri_project, run_id = parse_wandb_uri(uri_stripped)
-
-    # if entity and project for queue aren't specified, default to same as in wandb uri
-    project = project if project is not None else uri_project
-    entity = entity if entity is not None else uri_entity
+    src_project, _, src_run_id = set_project_entity_defaults(uri, project, entity, api)
 
     run_spec = {}
     if config is not None:
         with open(config, "r") as f:
             run_spec = json.load(f)
     # current behavior we override anything in supplied config with cli args if passed
-    run_spec["run_id"] = run_id
-    run_spec["entry_point"] = entry_point
-    run_spec["project"] = project
-    run_spec["entity"] = entity
-    run_spec["overrides"] = {}
-    if resource is not None:
-        run_spec["resource"] = resource
-    if version is not None:
-        run_spec["version"] = version
-    if param_list is not None:
-        run_spec["overrides"]["args"] = _user_args_to_dict(param_list)
-
+    if project:
+        run_spec["project"] = project
+    if entity:
+        run_spec["entity"] = entity
+    run_spec["resource"] = resource or "local"
     if experiment_name is not None:
         run_spec["name"] = experiment_name
     else:
-        run_spec["name"] = "{}_{}".format(project, run_id)
+        run_spec["name"] = "{}_{}_launch".format(src_project, src_run_id)
+
+    if run_spec.get("overrides") is None:
+        run_spec["overrides"] = {}
+    if version is not None:
+        if run_spec.get("git") is None:
+            run_spec["git"] = {}
+        run_spec["git"]["version"] = version
+    if param_list is not None:
+        run_spec["overrides"]["args"] = param_list
 
     try:
         res = wandb_launch.push_to_queue(api, queue, run_spec)

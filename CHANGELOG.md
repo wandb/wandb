@@ -1,3 +1,20 @@
+## 0.10.33 (June 28, 2021)
+
+#### :bug: Bug Fix
+
+- Fix issue where wandb restore 404ed if the run did not have a diff.patch file
+- Fix issue where wandb.log raised an Exception after trying to log a pandas dataframe
+- Fix issue where runs could be marked finished before files were finished uploading
+
+#### :nail_care: Enhancement
+
+- Disable reloading of run metadata (such as command) in resumed runs
+- Allow logging of pandas dataframes by automatically converting them to W&B tables
+- Fix up `log_code()` exclude fn to handle .wandb dir
+- Improve handling of PyTorch model topology
+- Increase config debounce interval to 30s to reduce load on WB/backend
+- Improve reliability of CLI in generating sweeps with names, programs, and settings
+
 ## 0.10.32 (June 10, 2021)
 
 #### :bug: Bug Fix

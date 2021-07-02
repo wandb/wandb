@@ -2,10 +2,11 @@
 import logging
 import os
 import re
+import subprocess
 import tempfile
 
-from wandb.errors import ExecutionException
-import yaml
+import wandb
+from wandb.errors import CommError, ExecutionException, LaunchException
 
 from . import _project_spec
 
@@ -25,27 +26,15 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
-WANDB_DOCKER_WORKDIR_PATH = "/wandb/projects/code/"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
 PROJECT_STORAGE_DIR = "STORAGE_DIR"
 
+UNCATEGORIZED_PROJECT = "uncategorized"
+
 
 _logger = logging.getLogger(__name__)
-
-
-def _parse_subdirectory(uri):
-    # Parses a uri and returns the uri and subdirectory as separate values.
-    # Uses '#' as a delimiter.
-    subdirectory = ""
-    parsed_uri = uri
-    if "#" in uri:
-        subdirectory = uri[uri.find("#") + 1 :]
-        parsed_uri = uri[: uri.find("#")]
-    if subdirectory and "." in subdirectory:
-        raise ExecutionException("'.' is not allowed in project subdirectory paths.")
-    return parsed_uri, subdirectory
 
 
 def _get_storage_dir(storage_dir):
@@ -133,11 +122,18 @@ def _collect_args(args):
         arg = args[i]
         if "=" in arg:
             name, vals = arg.split("=")
-            dict_args[name.replace("-", "")] = vals
+            dict_args[name.lstrip("-")] = vals
             i += 1
-        else:
-            dict_args[arg.replace("-", "")] = args[i + 1]
+        elif (
+            arg.startswith("-")
+            and i < len(args) - 1
+            and not args[i + 1].startswith("-")
+        ):
+            dict_args[arg.lstrip("-")] = args[i + 1]
             i += 2
+        else:
+            dict_args[arg.lstrip("-")] = None
+            i += 1
     return dict_args
 
 
@@ -150,6 +146,8 @@ def fetch_and_validate_project(
     version,
     entry_point,
     parameters,
+    user_id,
+    run_config,
 ):
     parameters = parameters or {}
     experiment_name = experiment_name
@@ -161,15 +159,19 @@ def fetch_and_validate_project(
         version,
         [entry_point],
         parameters,
+        user_id,
+        run_config,
     )
     # todo: we maybe don't always want to dl project to local
     project._fetch_project_local(api=api, version=version)
+    project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(parameters)
     return project
 
 
 def parse_wandb_uri(uri):
+    uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
     stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
     stripped_uri = re.sub(
         _WANDB_DEV_URI_REGEX, "", stripped_uri
@@ -187,23 +189,48 @@ def parse_wandb_uri(uri):
 def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
+    if result is None:
+        raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     return result
 
 
-def _create_ml_project_file_from_run_info(dst_dir, run_info):
-    path = os.path.join(dst_dir, _project_spec.MLPROJECT_FILE_NAME)
-    spec_keys_map = {
-        "args": run_info["args"],
-        "entrypoint": run_info["program"],
-        "git": {
-            "remote": run_info["git"]["remote"],
-            "commit": run_info["git"]["commit"],
-        },
-        "python": run_info["python"],
-        "os": run_info["os"],
-    }
-    with open(path, "w") as fp:
-        yaml.dump(spec_keys_map, fp)
+def fetch_project_diff(uri, api=None):
+    patch = None
+    try:
+        entity, project, name = parse_wandb_uri(uri)
+        (_, _, patch, _) = api.run_config(project, name, entity)
+    except CommError:
+        pass
+    return patch
+
+
+def set_project_entity_defaults(uri, project, entity, api):
+    if not _is_wandb_uri(uri):
+        raise LaunchException("Non-wandb URLs not yet supported in this feature")
+    _, uri_project, run_id = parse_wandb_uri(uri)
+    if project is None:
+        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if entity is None:
+        entity = api.default_entity
+    return project, entity, run_id
+
+
+def apply_patch(patch_string, dst_dir):
+    with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
+        fp.write(patch_string)
+    try:
+        subprocess.check_call(
+            [
+                "patch",
+                "-s",
+                "--directory={}".format(dst_dir),
+                "-p1",
+                "-i",
+                "diff.patch",
+            ]
+        )
+    except subprocess.CalledProcessError:
+        raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
 def _unzip_repo(zip_file, dst_dir):
@@ -280,3 +307,10 @@ def _convert_access(access):
         access == "PROJECT" or access == "USER"
     ), "Queue access must be either project or user"
     return access
+
+
+def merge_parameters(higher_priority_params, lower_priority_params):
+    for key in lower_priority_params.keys():
+        if higher_priority_params.get(key) is None:
+            higher_priority_params[key] = lower_priority_params[key]
+    return higher_priority_params

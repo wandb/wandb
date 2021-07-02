@@ -10,14 +10,13 @@ from wandb import Settings
 
 _logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:
-    from typing import Dict
-
 
 # TODO: is this ok?
 if wandb.TYPE_CHECKING:
+    from typing import Dict
+
     try:
-        from typing import Literal
+        from typing import Literal  # type: ignore
     except ImportError:
         from typing_extensions import Literal  # type: ignore
 
@@ -25,7 +24,7 @@ if wandb.TYPE_CHECKING:
 
 
 class Status(object):
-    def __init__(self, state: State = "unknown", data=None):
+    def __init__(self, state: State = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
 
@@ -44,7 +43,7 @@ class AbstractRun(ABC):
     run.
     """
 
-    STATE_MAP: Dict[str, State] = {}
+    STATE_MAP: Dict[str, State] = {}  # type: ignore
 
     def __init__(self):
         self._status = Status()
@@ -140,17 +139,10 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(self, project, backend_config):
+    def run(self, project):
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution
-        :param project_uri: URI of the project to execute, e.g. a local filesystem path
-               or a Git repository URI like https://github.com/wandb/examples
-        :param entry_point: Entry point to run within the project.
-        :param params: Dict of parameters to pass to the entry point
-        :param version: For git-based projects, either a commit hash or a branch name.
-        :param backend_config: A dictionary, or a path to a JSON file (must end in '.json'), which
-                               will be passed as config to the backend. The exact content which
-                               should be provided is different for each execution backend.
+        :param project: Object of _project_spec.Project class representing a wandb launch project
         :return: A :py:class:`wandb.sdk.launch.runners.SubmittedRun`. This function is expected to run
                  the project asynchronously, i.e. it should trigger project execution and then
                  immediately return a `SubmittedRun` to track execution status.

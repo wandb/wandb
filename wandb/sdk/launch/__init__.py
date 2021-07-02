@@ -1,7 +1,5 @@
 import logging
-import sys
 
-import wandb
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
@@ -9,16 +7,14 @@ from .runner import loader
 from .utils import (
     _collect_args,
     _is_wandb_local_uri,
-    _is_wandb_uri,
     fetch_and_validate_project,
-    parse_wandb_uri,
+    merge_parameters,
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
 )
 
 _logger = logging.getLogger(__name__)
-UNCATEGORIZED_PROJECT = "uncategorized"
 
 
 def push_to_queue(api, queue, run_spec):
@@ -30,13 +26,7 @@ def push_to_queue(api, queue, run_spec):
     return res
 
 
-def run_agent(spec, queues=None):
-    if not spec or len(spec) != 1 or len(spec[0].split("/")) != 2:
-        wandb.termerror("Specify agent spec in the form: 'entity/project'")
-        sys.exit(1)
-    spec = spec[0]
-    entity, project = spec.split("/")
-
+def run_agent(entity, project, queues=None):
     agent = LaunchAgent(entity, project, queues)
     agent.loop()
 
@@ -62,19 +52,25 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
 
-    src_project = UNCATEGORIZED_PROJECT
-    if launch_config is None:
-        launch_config = {}
-    if _is_wandb_uri(uri):
-        src_project, _, _ = parse_wandb_uri(uri)
-    if wandb_project is None:
-        wandb_project = (
-            launch_config.get("project") or api.settings("project") or src_project
-        )
-    if wandb_entity is None:
-        wandb_entity = launch_config.get("entity") or api.settings("entity")
-
     experiment_name = experiment_name or launch_config.get("name")
+    overrides = launch_config.get("overrides")
+    run_config = None
+    if overrides:
+        run_config = overrides.get("run_config")
+        args = overrides.get("args")
+        if args:
+            args = _collect_args(args)
+            parameters = merge_parameters(parameters, args)
+
+    user_id = None
+    if launch_config.get("docker") and launch_config["docker"].get("user_id"):
+        user_id = launch_config["docker"]["user_id"]
+
+    if version is None:
+        git = launch_config.get("git")
+        if git:
+            version = git.get("version")
+
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -84,23 +80,21 @@ def _run(
         version,
         entry_point,
         parameters,
+        user_id,
+        run_config,
     )
-    overrides = launch_config.get("overrides")
-    if overrides:
-        args = overrides.get("args")
-        if args:
-            args = _collect_args(args)
-            project._merge_parameters(args)
 
-    launch_config[PROJECT_SYNCHRONOUS] = synchronous
-    launch_config[PROJECT_DOCKER_ARGS] = docker_args
-    launch_config[PROJECT_STORAGE_DIR] = storage_dir
+    # construct runner config.
+    runner_config = {}
+    runner_config[PROJECT_SYNCHRONOUS] = synchronous
+    runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    runner_config[PROJECT_STORAGE_DIR] = storage_dir
     if docker_image:
-        launch_config["DOCKER_IMAGE"] = docker_image
+        runner_config["DOCKER_IMAGE"] = docker_image
 
     backend = loader.load_backend(runner_name, api)
     if backend:
-        submitted_run = backend.run(project, launch_config)
+        submitted_run = backend.run(project, runner_config)
         return submitted_run
     else:
         raise ExecutionException(
@@ -182,6 +176,9 @@ def run(
     """
     if _is_wandb_local_uri(uri):
         docker_args["network"] = "host"
+
+    if config is None:
+        config = {}
 
     submitted_run_obj = _run(
         uri=uri,

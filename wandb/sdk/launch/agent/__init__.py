@@ -3,6 +3,7 @@ import time
 
 import wandb
 from wandb import Settings
+from wandb.errors import LaunchException
 
 
 from ..runner.abstract import AbstractRun, State
@@ -54,22 +55,20 @@ class LaunchAgent(object):
                 if queue["name"] == "default":
                     self._queues = ["default"]
                     return
-            res = self._api.create_run_queue(
-                self._entity, self._project, "default", self._access
+            raise LaunchException(
+                "Error launching launch-agent: Requested default queue for {}/{} but default queue does not exist.".format(
+                    self._entity, self._project
+                )
             )
-            success = res["success"]
-            self._queues = ["default"]
         else:
             for queue in queues:
-                success = True
                 if queue not in existing_run_queue_names:
-                    success = False
-                    res = self._api.create_run_queue(
-                        self._entity, self._project, queue, self._access
+                    raise LaunchException(
+                        "Error launching launch-agent: {} does not exist for {}/{}".format(
+                            queue, self._entity, self._project
+                        )
                     )
-                    success = res["success"]
-                if success:
-                    self._queues.append(queue)
+                self._queues.append(queue)
 
     @property
     def job_ids(self):
@@ -112,35 +111,55 @@ class LaunchAgent(object):
         # parse job
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
-        wandb_entity = run_spec["entity"]
-        wandb_project = run_spec["project"]
-        resource = run_spec["resource"]
-        entry_point = run_spec["overrides"].get("entrypoint")
+
+        wandb_entity = run_spec.get("entity")
+        wandb_project = run_spec.get("project")
+        resource = run_spec.get("resource") or "local"
+        name = run_spec.get("name")
         uri = run_spec["uri"]
+
         self._backend = load_backend(resource, self._api)
         self.verify()
-        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
-        args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+
+        run_config = {}
+        args_dict = {}
+        entry_point = None
+
+        if run_spec.get("overrides"):
+            entry_point = run_spec["overrides"].get("entrypoint")
+            args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+            run_config = run_spec["overrides"].get("run_config")
+        user_id = None
+        if run_spec.get("docker") and run_spec["docker"].get("user_id"):
+            user_id = run_spec["docker"]["user_id"]
+
+        git = run_spec.get("git")
+        version = None
+        if git:
+            version = git.get("version")
+
         project = fetch_and_validate_project(
             uri,
             wandb_entity,
             wandb_project,
-            run_spec["overrides"].get("name"),
+            name,
             self._api,
-            run_spec.get("version", None),
+            version,
             entry_point,
             args_dict,
+            user_id,
+            run_config,
         )
-
+        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
 
         if run_spec.get("docker_image"):
             backend_config["DOCKER_IMAGE"] = run_spec.get("docker_image")
+        backend_config["runQueueItemId"] = job["runQueueItemId"]
         run = self._backend.run(project, backend_config)
         self._jobs[run.id] = run
         self._running += 1
-        self._api.ack_run_queue_item(job["runQueueItemId"], run.id)
 
     def loop(self):
         wandb.termlog(

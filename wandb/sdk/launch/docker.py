@@ -13,7 +13,7 @@ import wandb
 from wandb.errors import ExecutionException
 
 from . import _project_spec
-from .utils import _is_wandb_dev_uri, _is_wandb_local_uri, WANDB_DOCKER_WORKDIR_PATH
+from .utils import _is_wandb_dev_uri, _is_wandb_local_uri
 from ..lib.git import GitRepo
 
 _logger = logging.getLogger(__name__)

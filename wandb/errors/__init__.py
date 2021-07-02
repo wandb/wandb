@@ -49,6 +49,10 @@ class ExecutionException(Error):
     pass
 
 
+class LaunchException(Error):
+    """Raised when a known error occurs in wandb launch """
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -57,4 +61,5 @@ __all__ = [
     "LogMultiprocessError",
     "ShellCommandException",
     "ExecutionException",
+    "LaunchException",
 ]

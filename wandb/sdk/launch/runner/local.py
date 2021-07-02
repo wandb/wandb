@@ -1,3 +1,4 @@
+import getpass
 import logging
 import os
 import platform
@@ -6,12 +7,12 @@ import signal
 import subprocess
 import sys
 
-from wandb.errors import ExecutionException
 
 from .abstract import AbstractRun, AbstractRunner
 from ..docker import (
     build_docker_image,
     generate_docker_image,
+    get_docker_command,
     pull_docker_image,
     validate_docker_env,
     validate_docker_installation,
@@ -21,7 +22,6 @@ from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_STORAGE_DIR,
     PROJECT_SYNCHRONOUS,
-    WANDB_DOCKER_WORKDIR_PATH,
 )
 
 
@@ -90,22 +90,23 @@ class LocalRunner(AbstractRunner):
 
         command_args = []
         command_separator = " "
-
         validate_docker_env(project)
         validate_docker_installation()
         image = build_docker_image(
             project=project,
-            name=project.name,  # todo: not sure why this is passed here we should figure out this interface
             base_image=project.docker_env.get("image"),
             api=self._api,
         )
-        command_args += _get_docker_command(
+        command_args += get_docker_command(
             image=image,
             docker_args=docker_args,
             volumes=project.docker_env.get("volumes"),
             user_env_vars=project.docker_env.get("environment"),
         )
-
+        if backend_config.get("runQueueItemId"):
+            self._api.ack_run_queue_item(
+                backend_config["runQueueItemId"], project.run_id
+            )
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
@@ -116,14 +117,18 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             print("Launching run in docker with command: {}".format(command_str))
-            return _run_entry_point(command_str, project.dir)
+            run = _run_entry_point(command_str, project.dir)
+            run.wait()
+            return run
         # Otherwise, invoke `wandb launch` in a subprocess
-        return _invoke_wandb_run_subprocess(  # todo: async mode is untested
-            work_dir=project.dir,
-            entry_point=entry_point,
-            parameters=project.parameters,
-            docker_args=docker_args,
-            storage_dir=storage_dir,
+        return (
+            _invoke_wandb_run_subprocess(  # todo: async mode is untested/inaccessible
+                work_dir=project.dir,
+                entry_point=entry_point,
+                parameters=project.parameters,
+                docker_args=docker_args,
+                storage_dir=storage_dir,
+            )
         )
 
 
@@ -164,19 +169,27 @@ def _run_entry_point(command, work_dir):
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
+
     return LocalSubmittedRun(process)
 
 
 def _invoke_wandb_run_subprocess(
-    work_dir, entry_point, parameters, docker_args, storage_dir,
+    work_dir,
+    entry_point,
+    parameters,
+    docker_args,
+    storage_dir,
 ):
     """
     Run an W&B project asynchronously by invoking ``wandb launch`` in a subprocess, returning
     a SubmittedRun that can be used to query run status.
     """
-    # todo: this is untested and probably doesn't work
+    # todo: this is untested/inaccessible and probably doesn't work
     _logger.info("=== Asynchronously launching W&B run ===")
     wandb_run_arr = _build_wandb_run_cmd(
         uri=work_dir,
@@ -207,58 +220,13 @@ def _build_wandb_run_cmd(uri, entry_point, docker_args, storage_dir, parameters)
     return wandb_run_arr
 
 
-def _get_docker_command(image, docker_args=None, volumes=None, user_env_vars=None):
-    docker_path = "docker"
-    cmd = [docker_path, "run", "--rm"]
-
-    if docker_args:
-        for name, value in docker_args.items():
-            # Passed just the name as boolean flag
-            if isinstance(value, bool) and value:
-                if len(name) == 1:
-                    cmd += ["-" + name]
-                else:
-                    cmd += ["--" + name]
-            else:
-                # Passed name=value
-                if len(name) == 1:
-                    cmd += ["-" + name, value]
-                else:
-                    cmd += ["--" + name, value]
-
-    env_vars = {}  # TODO: get these from elsewhere?
-    if user_env_vars is not None:
-        for user_entry in user_env_vars:
-            if isinstance(user_entry, list):
-                # User has defined a new environment variable for the docker environment
-                env_vars[user_entry[0]] = user_entry[1]
-            else:
-                # User wants to copy an environment variable from system environment
-                system_var = os.environ.get(user_entry)
-                if system_var is None:
-                    raise ExecutionException(
-                        "This project expects the %s environment variables to "
-                        "be set on the machine running the project, but %s was "
-                        "not set. Please ensure all expected environment variables "
-                        "are set" % (", ".join(user_env_vars), user_entry)
-                    )
-                env_vars[user_entry] = system_var
-
-    if volumes is not None:
-        for v in volumes:
-            cmd += ["-v", v]
-
-    for key, value in env_vars.items():
-        cmd += ["-e", "{key}={value}".format(key=key, value=value)]
-    cmd += [image.tags[0]]
-    return cmd
-
-
 def _get_local_artifact_cmd_and_envs(uri):
     artifact_dir = os.path.dirname(uri)
     container_path = artifact_dir
     if not os.path.isabs(container_path):
-        container_path = os.path.join(WANDB_DOCKER_WORKDIR_PATH, container_path)
+        container_path = os.path.join(
+            "/home/{}".format(getpass.getuser()), container_path
+        )
         container_path = os.path.normpath(container_path)
     abs_artifact_dir = os.path.abspath(artifact_dir)
     return ["-v", "%s:%s" % (abs_artifact_dir, container_path)], {}
