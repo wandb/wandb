@@ -1,6 +1,8 @@
 import logging
 import sys
 
+import docker
+
 from wandb import util
 from wandb.errors import ExecutionException
 
@@ -166,7 +168,9 @@ def run(
         R2: 0.19729662005412607
         ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
-    if _is_wandb_local_uri(uri):
+    if docker_args is None:
+        docker_args = {}
+    if _is_wandb_local_uri(api.settings("base_url")):
         if sys.platform == "win32":
             docker_args["net"] = "host"
         else:
