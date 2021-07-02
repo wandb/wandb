@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 import wandb
@@ -148,6 +149,8 @@ class LaunchAgent(object):
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         if _is_wandb_local_uri(uri):
             backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
+            if sys.platform == "linux":
+                docker_args["add-host"] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         run = self._backend.run(project, backend_config)

@@ -1,4 +1,5 @@
 import logging
+import sys
 
 from wandb.errors import ExecutionException
 
@@ -167,6 +168,8 @@ def run(
     """
     if _is_wandb_local_uri(uri):
         docker_args["network"] = "host"
+        if sys.platform == "linux":
+            docker_args["add-host"] = "host.docker.internal:host-gateway"
 
     if config is None:
         config = {}
