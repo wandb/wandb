@@ -43,15 +43,6 @@ def validate_docker_env(project: _project_spec.Project):
         )
 
 
-def get_r2d_err_string(process):
-    err_string = ""
-    for line in process.stdout:
-        err_string += line.decode("utf-8")
-    for line in process.stderr:
-        err_string += line.decode("utf-8")
-    return err_string
-
-
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
     # this check will always pass since the dir attribute will always be populated
@@ -60,7 +51,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        "--user-id={}".format(project.user_id),
+        # "--user-id={}".format(project.user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -84,8 +75,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        err_string = get_r2d_err_string(process)
-        raise LaunchException("error running repo2docker: {}".format(err_string))
+        raise LaunchException("error running repo2docker: {}".format(stderr))
     return image_id[0]
 
 
