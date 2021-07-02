@@ -233,7 +233,7 @@ jobs:
         - run:
             name: Build r2d image
             command: |
-                jupyter-repo2docker tests/fixtures/
+                jupyter-repo2docker --no-run tests/fixtures/
         - run:
             name: Run tests
             command: |
