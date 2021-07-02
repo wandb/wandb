@@ -128,10 +128,7 @@ def test_launch_base_case(
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server,
-    test_settings,
-    mocked_fetchable_git_repo,
-    mock_load_backend,
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -196,7 +193,10 @@ def test_launch_args_supersede_config_vals(
         "wandb_entity": "mock_server_entity",
         "config": {
             "project": "not-this-project",
-            "overrides": {"run_config": {"epochs": 3}, "args": ["--epochs", "2"]},
+            "overrides": {
+                "run_config": {"epochs": 3},
+                "args": ["--epochs=2", "--heavy"],
+            },
         },
         "parameters": {"epochs": 5},
     }
@@ -243,7 +243,7 @@ def test_launch_agent(
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
-        lambda c, queue: try_this_out(c, queue),
+        lambda c, queue: patched_pop_from_queue(c, queue),
     )
     wandb.sdk.launch.run_agent("mock_server_entity", "test_project")
     ctx = live_mock_server.get_ctx()
@@ -251,16 +251,10 @@ def test_launch_agent(
     assert ctx["num_acked"] == 1
 
 
-def try_this_out(self, queue):
-    try:
-        ups = self._api.pop_from_run_queue(
-            queue, entity=self._entity, project=self._project
-        )
-        wandb.termlog("UPS {}".format(ups))
-        if ups is None:
-            wandb.termlog("UPS IS NONE {}".format(ups))
-            raise KeyboardInterrupt
-    except Exception as e:
-        print("Exception:", e)
-        return None
+def patched_pop_from_queue(self, queue):
+    ups = self._api.pop_from_run_queue(
+        queue, entity=self._entity, project=self._project
+    )
+    if ups is None:
+        raise KeyboardInterrupt
     return ups

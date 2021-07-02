@@ -71,6 +71,8 @@ class Project(object):
         self.clear_parameter_run_config_collisions()
 
     def clear_parameter_run_config_collisions(self):
+        if not self.run_config:
+            return
         keys = [key for key in self.run_config.keys()]
         for key in keys:
             if self.parameters.get(key):
