@@ -64,7 +64,7 @@ def test_launch_agent_base(
         assert "Shutting down, active jobs" in result.output
 
 
-@pytest.mark.timeout(500)
+@pytest.mark.timeout(300)
 def test_launch_cli_with_config_file_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -93,13 +93,11 @@ def test_launch_cli_with_config_file_and_params(
         )
         print(result.output)
         assert result.exit_code == 0
-        assert (
-            "docker run --rm test_project_1_launch:latest python train.py --epochs 1"
-            in result.output
-        )
+        assert "Launching run in docker with command: docker run" in result.output
+        assert "python train.py --epochs 1" in result.output
 
 
-@pytest.mark.timeout(500)
+@pytest.mark.timeout(300)
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -123,10 +121,8 @@ def test_launch_cli_with_config_and_params(
         )
         print(result.output)
         assert result.exit_code == 0
-        assert (
-            "docker run --rm test_project_1_launch:latest python train.py --epochs 1"
-            in result.output
-        )
+        assert "Launching run in docker with command: docker run" in result.output
+        assert "python train.py --epochs 1" in result.output
 
 
 def test_launch_no_docker_exec(
