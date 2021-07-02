@@ -13,8 +13,6 @@ import sys
 import os
 from tests import utils
 
-from .test_launch import mocked_fetchable_git_repo
-
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
