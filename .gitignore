@@ -4,6 +4,7 @@ htmlcov/
 .tox/
 .mypy_cache/
 .pytest_cache/
+.circle_cache/
 build/
 dist/
 *.pyc

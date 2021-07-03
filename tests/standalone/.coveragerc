@@ -9,6 +9,10 @@ omit =
     wandb/vendor/*
     .tox/*
 
+source =
+    wandb/
+    tests/
+
 [paths]
 toxcode =
     wandb/
