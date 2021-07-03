@@ -412,6 +412,9 @@ class TorchGraph(wandb.data_types.Graph):
                 wandb.run.history.torch._hook_handles[
                     "topology/" + str(id(graph_hook))
                 ] = graph_hook
+                if not hasattr(parent, "_wandb_hook_names"):
+                    # should never happen but let's be extra safe
+                    parent._wandb_hook_names = []
                 parent._wandb_hook_names.append("topology/" + str(id(graph_hook)))
 
     @classmethod
