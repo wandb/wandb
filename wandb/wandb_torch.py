@@ -79,6 +79,7 @@ class TorchHistory(object):
         self._num_bins = 64
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
+        self.hook_torch = TorchGraph.hook_torch
 
     def add_log_hooks_to_pytorch_module(
         self,

@@ -91,7 +91,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
             jupyter_run=wandb.run if in_jupyter else None,
         )
 
-        graph = wandb.wandb_torch.TorchGraph.hook_torch(
+        graph = wandb.run.history.torch.hook_torch(
             model, criterion, graph_idx=global_idx
         )
         graphs.append(graph)
