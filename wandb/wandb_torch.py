@@ -310,6 +310,7 @@ class TorchGraph(wandb.data_types.Graph):
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
+        print("wandb: logging graph, to disable use `wandb.watch(log_graph=False)`")
         graph = TorchGraph()
         graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph

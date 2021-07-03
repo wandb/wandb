@@ -77,11 +77,6 @@ def watch(
     graphs = []
     prefix = ""
 
-    if log_graph:
-        logger.warning(
-            "wandb: logging graph, to disable use `wandb.watch(log_graph=False)`"
-        )
-
     if idx is None:
         idx = _global_watch_idx
     for local_idx, model in enumerate(models):
