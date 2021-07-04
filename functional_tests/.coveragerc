@@ -5,16 +5,16 @@ parallel = True
 concurrency = multiprocessing,thread
 
 source =
-    ../..
+    ..
 
 omit =
-    ../../.tox/*
-    ../../.tox/py*
-    ../../codemod/*
-    ../../setup.py
-    ../../tests/*
-    ../../wandb/sweeps/*
-    ../../wandb/vendor/*
+    ../.tox/*
+    ../.tox/py*
+    ../codemod/*
+    ../setup.py
+    ../tests/*
+    ../wandb/sweeps/*
+    ../wandb/vendor/*
 
 [report]
 exclude_lines =

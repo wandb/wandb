@@ -1,22 +1,23 @@
 #!/usr/bin/env python
 
-import time
 import argparse
 import glob
-import subprocess
-import socket
-import sys
-import shutil
-import yaml
 import os
+import shutil
+import socket
+import subprocess
+import sys
+import time
+
 import requests
-
 # Allow this script to load wandb and tests modules
-client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 sys.path.insert(1, client_dir)
+from tests.testlib import testcfg, testspec  # noqa: E402
+from tests.utils.mock_server import ParseCTX  # noqa: E402
 
-from tests.utils.mock_server import ParseCTX
-from tests.standalone.testlib import testspec, testcfg
+
+DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 
 
 def wandb_dir_safe_cleanup(base_dir=None):
@@ -26,7 +27,6 @@ def wandb_dir_safe_cleanup(base_dir=None):
     fnames = glob.glob("{}*".format(prefix))
     if not fnames:
         return
-    filtered = []
     allowed = {"latest-run", "debug-internal.log", "debug.log"}
     for f in fnames:
         # print("CHECK:", f)
@@ -201,7 +201,7 @@ class Backend:
             return
         # TODO: consolidate with github.com/wandb/client:tests/conftest.py
         port = self._free_port()
-        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
         path = os.path.join(root, "tests", "utils", "mock_server.py")
         command = [sys.executable, "-u", path]
         env = os.environ
@@ -241,7 +241,7 @@ class Backend:
         server.base_url = "http://localhost:%i" % server._port
         self._server = server
         started = False
-        for i in range(30):
+        for _ in range(30):
             try:
                 res = requests.get("%s/ctx" % server.base_url, timeout=5)
                 if res.status_code == 200:
@@ -266,7 +266,6 @@ class Backend:
             raise Exception("problem")
 
         os.environ["WANDB_BASE_URL"] = "http://127.0.0.1:{}".format(port)
-        DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
         os.environ["WANDB_API_KEY"] = DUMMY_API_KEY
 
     def reset(self):
