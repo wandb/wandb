@@ -10,14 +10,15 @@ concurrency = multiprocessing,thread
 
 source =
    ./
-   tests/
 
 omit =
-    wandb/vendor/*,
-    .tox/*,
-    .tox/py*,
-    codemod/*,
+    .tox/*
+    .tox/py*
+    codemod/*
     setup.py
+    tests/*
+    wandb/sweeps/*
+    wandb/vendor/*
 
 [report]
 exclude_lines =

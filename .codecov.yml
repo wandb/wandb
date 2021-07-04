@@ -37,17 +37,6 @@ coverage:
           - "!wandb/sdk/"
           - "!wandb/apis/"
           - wandb/
-      tests:
-        target: 100%
-        paths:
-          - "!tests/utils/"
-          - "!tests/conftest.py"
-          - tests/
-      tests-util:
-        informational: true
-        paths:
-          - tests/utils/
-          - tests/conftest.py
 
 parsers:
   gcov:
