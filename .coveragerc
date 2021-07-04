@@ -1,0 +1,25 @@
+[paths]
+sdksource =
+    wandb/sdk/
+    wandb/sdk_py27/
+
+[run]
+# TODO(jhr): enable this in the future
+# branch = True
+# concurrency = multiprocessing,thread
+
+source =
+   ./
+   tests/
+
+omit =
+    wandb/vendor/*,
+    .tox/*,
+    .tox/py*,
+    codemod/*,
+    setup.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
