@@ -1,5 +1,28 @@
 #!/usr/bin/env python
-"""Trigger CircleCI runs using API key."""
+"""Tool to interract with CircleCI jobs using API key.
+
+Get the current status of a circleci pipeline based on branch/commit
+    ```
+    $ ./circleci-tool status
+    $ ./circleci-tool status --wait
+    ```
+
+Trigger (re)execution of a branch
+    ```
+    $ ./circleci-tool trigger
+    $ ./circleci-tool trigger --wait
+    $ ./circleci-tool trigger --platform mac
+    $ ./circleci-tool trigger --platform mac --test-name tests/test.py
+    $ ./circleci-tool trigger --platform win --test-name tests/test.py --test-repeat 4
+    $ ./circleci-tool trigger --toxenv py36,py37 --loop 3
+    ```
+
+Download artifacts from an executed workflow
+    ```
+    $ ./circleci-tool download
+    ```
+
+"""
 
 import argparse
 import os
@@ -11,50 +34,26 @@ import requests
 
 CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--platform", help="comma separated platform (linux,mac,win)")
-parser.add_argument("--toxenv", help="single toxenv (py27,py36,py37,py38,py39)")
-parser.add_argument("--test-file", help="test file (ex: tests/test.py)")
-parser.add_argument("--test-name", help="test name (ex: test_dummy)")
-parser.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
-parser.add_argument("--branch", help="git branch (autodetected)")
-parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
-parser.add_argument("--wait", action="store_true", help="Wait for finish or error")
-parser.add_argument("--loop", type=int, help="Outer loop (implies wait)")
-parser.add_argument("--wait-workflow", help="Wait for workflow")
-parser.add_argument("--trigger", action='store_true', help="Trigger workflow")
-parser.add_argument("--download", action='store_true', help="Download coverage")
-parser.add_argument("--status", action='store_true', help="Look for pipeline")
-args = parser.parse_args()
-
 platforms_dict = dict(linux="test", mac="mac", win="win")
 py_name_dict = dict(py27="Python 2.7", py36="Python 3.6", py37="Python 3.7", py38="Python 3.8", py39="Python 3.9")
 py_image_dict = dict(py27="python:2.7", py36="python:3.6", py37="python:3.7", py38="python:3.8", py39="python:3.9")
 
-api_token = os.environ.get(CIRCLECI_API_TOKEN)
-assert api_token, "Set environment variable: {}".format(CIRCLECI_API_TOKEN)
 
-branch = args.branch
-if not branch:
-    code, branch = subprocess.getstatusoutput("git branch --show-current")
-    assert code == 0, "failed git command"
-
-
-def poll(pipeline_id=None, workflow_ids=None):
+def poll(args, pipeline_id=None, workflow_ids=None):
     print("Waiting for pipeline to complete...")
     while True:
         num = 0
         done = 0
         if pipeline_id:
             url = "https://circleci.com/api/v2/pipeline/{}/workflow".format(pipeline_id)
-            r = requests.get(url, auth=(api_token, ""))
+            r = requests.get(url, auth=(args.api_token, ""))
             assert r.status_code == 200, "Error making api request: {}".format(r)
             d = r.json()
             workflow_ids = [item["id"] for item in d["items"]]
         num = len(workflow_ids)
         for work_id in workflow_ids:
             work_status_url = "https://circleci.com/api/v2/workflow/{}".format(work_id)
-            r = requests.get(work_status_url, auth=(api_token, ""))
+            r = requests.get(work_status_url, auth=(args.api_token, ""))
             # print("STATUS", work_status_url)
             assert r.status_code == 200, "Error making api work request: {}".format(r)
             w = r.json()
@@ -68,10 +67,10 @@ def poll(pipeline_id=None, workflow_ids=None):
         time.sleep(20)
 
 
-def req():
+def trigger(args):
     url = "https://circleci.com/api/v2/project/gh/wandb/client/pipeline"
     payload = {
-        "branch": branch,
+        "branch": args.branch,
     }
     manual: bool = any([args.platform, args.toxenv, args.test_file, args.test_name, args.test_repeat])
     if manual:
@@ -104,7 +103,7 @@ def req():
     print("Sending to CircleCI:", payload)
     if args.dryrun:
         return
-    r = requests.post(url, json=payload, auth=(api_token, ""))
+    r = requests.post(url, json=payload, auth=(args.api_token, ""))
     assert r.status_code == 201, "Error making api requeest"
     d = r.json()
     uuid = d["id"]
@@ -113,13 +112,14 @@ def req():
         poll(uuid)
 
 
-def get_ci_builds(bname="coverage/store-artifactsw", completed=True):
+def get_ci_builds(args, completed=True):
+    bname = args.branch
     # TODO: extend pagination if not done
     url = "https://circleci.com/api/v1.1/project/gh/wandb/client?shallow=true&limit=100"
     if completed:
         url = url + "&filter=completed"
     # print("SEND", url)
-    r = requests.get(url, auth=(api_token, ""))
+    r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, "Error making api request: {}".format(r)
     lst = r.json()
     cfirst = None
@@ -144,7 +144,7 @@ def get_ci_builds(bname="coverage/store-artifactsw", completed=True):
     return ret
 
 
-def grab(vhash, bnum):
+def grab(args, vhash, bnum):
     # curl -H "Circle-Token: $CIRCLECI_TOKEN" https://circleci.com/api/v1.1/project/github/wandb/client/61238/artifacts
     # curl -L  -o out.dat -H "Circle-Token: $CIRCLECI_TOKEN" https://61238-86031674-gh.circle-artifacts.com/0/cover-results/.coverage
     cachedir = ".circle_cache"
@@ -155,7 +155,7 @@ def grab(vhash, bnum):
     if os.path.exists(cfname):
         return
     url = "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(bnum)
-    r = requests.get(url, auth=(api_token, ""))
+    r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, "Error making api request: {}".format(r)
     lst = r.json()
     if not lst:
@@ -168,45 +168,85 @@ def grab(vhash, bnum):
             continue
         # print("GRAB", p, u)
         # TODO: use tempfile
-        s, o = subprocess.getstatusoutput('curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(api_token, u))
+        s, o = subprocess.getstatusoutput('curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(args.api_token, u))
         assert s == 0
         os.rename("out.dat", cfname)
 
 
-def status():
+def status(args):
     # TODO: check for current git hash only
-    got = get_ci_builds(bname=branch, completed=False)
+    got = get_ci_builds(args, completed=False)
     if not got:
         print("ERROR: couldnt find job, maybe we should poll?")
         sys.exit(1)
     work_ids = [workid for _, _, _, workid in got]
-    poll(workflow_ids=[work_ids[0]])
+    poll(args, workflow_ids=[work_ids[0]])
 
 
-def download():
-    got = get_ci_builds()
+def download(args):
+    got = get_ci_builds(args)
     assert got
     for v, n, _, _ in got:
-        grab(v, n)
+        grab(args, v, n)
+
+
+def process_args():
+    parser = argparse.ArgumentParser()
+
+    subparsers = parser.add_subparsers(dest="action", title="action", description="Action to perform")
+    parser.add_argument("--api_token", help=argparse.SUPPRESS)
+    parser.add_argument("--branch", help="git branch (autodetected)")
+    parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
+
+    parse_trigger = subparsers.add_parser("trigger")
+    parse_trigger.add_argument("--platform", help="comma separated platform (linux,mac,win)")
+    parse_trigger.add_argument("--toxenv", help="single toxenv (py27,py36,py37,py38,py39)")
+    parse_trigger.add_argument("--test-file", help="test file (ex: tests/test.py)")
+    parse_trigger.add_argument("--test-name", help="test name (ex: test_dummy)")
+    parse_trigger.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
+    parse_trigger.add_argument("--loop", type=int, help="Outer loop (implies wait)")
+    parse_trigger.add_argument("--wait", action="store_true", help="Wait for finish or error")
+
+    parse_status = subparsers.add_parser("status")
+    parse_status.add_argument("--wait", action="store_true", help="Wait for finish or error")
+
+    parse_download = subparsers.add_parser("download")
+
+    args = parser.parse_args()
+    return parser, args
+
+
+def process_environment(args):
+    api_token = os.environ.get(CIRCLECI_API_TOKEN)
+    assert api_token, "Set environment variable: {}".format(CIRCLECI_API_TOKEN)
+    args.api_token = api_token
+
+
+def process_workspace(args):
+    branch = args.branch
+    if not branch:
+        code, branch = subprocess.getstatusoutput("git branch --show-current")
+        assert code == 0, "failed git command"
+        args.branch = branch
 
 
 def main():
-    if args.wait_workflow:
-        poll(args.wait_workflow)
-        return
+    parser, args = process_args()
+    process_environment(args)
+    process_workspace(args)
 
-    if args.trigger:
+    if args.action == "trigger":
         for i in range(args.loop or 1):
             if args.loop:
                 print("Loop: {} of {}".format(i + 1, args.loop))
-            req()
-
-    if args.status:
+            trigger(args)
+    elif args.action == "status":
         # find my workflow report status, wait on it (if specified)
-        status()
-
-    if args.download:
-        download()
+        status(args)
+    elif args.action == "download":
+        download(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
