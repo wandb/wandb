@@ -53,7 +53,7 @@ py_image_dict = dict(
 
 
 def poll(args, pipeline_id=None, workflow_ids=None):
-    print("Waiting for pipeline to complete...")
+    print("Waiting for pipeline to complete (Branch: {})...".format(args.branch))
     while True:
         num = 0
         done = 0
@@ -185,6 +185,7 @@ def grab(args, vhash, bnum):
             continue
         # print("GRAB", p, u)
         # TODO: use tempfile
+        print("Downloading circle artifacts...")
         s, o = subprocess.getstatusoutput(
             'curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(args.api_token, u)
         )
@@ -203,6 +204,7 @@ def status(args):
 
 
 def download(args):
+    print("Checking for circle artifacts (Branch: {})...".format(args.branch))
     got = get_ci_builds(args)
     assert got
     for v, n, _, _ in got:
@@ -240,6 +242,9 @@ def process_args():
     )
 
     parse_download = subparsers.add_parser("download")
+    parse_download.add_argument(
+        "--wait", action="store_true", help="Wait for finish or error"
+    )
 
     args = parser.parse_args()
     return parser, args
