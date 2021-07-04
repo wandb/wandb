@@ -110,9 +110,9 @@ workflows:
          image: "python:3.9"
          toxenv: "py39"
       - test:
-         name: "Standalone (Linux - Python 3.7)"
+         name: "Functional linux-py37"
          image: "python:3.7"
-         toxenv: "standalone-py37,standalone-covercircle"
+         toxenv: "func-py37,func-covercircle"
       - win:
          name: "Windows (Python 3.7)"
          toxenv: "py37,wincovercircle"

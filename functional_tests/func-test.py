@@ -12,11 +12,11 @@ import os
 import requests
 
 # Allow this script to load wandb and tests modules
-client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+client_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
 sys.path.insert(1, client_dir)
 
 from tests.utils.mock_server import ParseCTX
-from tests.standalone.testlib import testspec, testcfg
+from tests.testlib import testspec, testcfg
 
 
 def wandb_dir_safe_cleanup(base_dir=None):
@@ -201,7 +201,7 @@ class Backend:
             return
         # TODO: consolidate with github.com/wandb/client:tests/conftest.py
         port = self._free_port()
-        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
         path = os.path.join(root, "tests", "utils", "mock_server.py")
         command = [sys.executable, "-u", path]
         env = os.environ
