@@ -585,6 +585,7 @@ def init(
     sync_tensorboard=None,
     monitor_gym=None,
     save_code=None,
+    rewind_step=None,
     id=None,
     settings = None,
 ):

@@ -246,6 +246,7 @@ class Settings(object):
     # resume: str
     strict = None
     label_disable = None
+    rewind_step = None
 
     # Public attributes
     entity = None
@@ -305,6 +306,7 @@ class Settings(object):
         run_name = None,
         run_notes = None,
         resume = None,
+        rewind_step = None,
         magic = False,
         run_tags = None,
         sweep_id = None,
