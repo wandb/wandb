@@ -52,7 +52,7 @@ setup(
     license="MIT license",
     zip_safe=False,
     # keywords='wandb',
-    python_requires='>=2.5',
+    python_requires='>=3.5',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
