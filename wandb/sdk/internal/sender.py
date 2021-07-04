@@ -462,7 +462,10 @@ class SendManager(object):
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
         self._resume_state["runtime"] = max(events_rt, history_rt)
-        self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
+        if self._settings.rewind_step is None:
+            self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
+        else:
+            self._resume_state["step"] = self._settings.rewind_step
         self._resume_state["history"] = resume_status["historyLineCount"]
         self._resume_state["events"] = resume_status["eventsLineCount"]
         self._resume_state["output"] = resume_status["logLineCount"]
@@ -617,12 +620,13 @@ class SendManager(object):
         else:
             logger.info("updated run: %s", self._run.run_id)
 
-    def _init_run(self, run, config_dict):
+    def _init_run(self, run: wandb_internal_pb2.RunRecord, config_dict):
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state["runtime"]
         repo = GitRepo(remote=self._settings.git_remote)
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
+
         server_run, inserted = self._api.upsert_run(
             name=run.run_id,
             entity=run.entity or None,
@@ -638,10 +642,13 @@ class SendManager(object):
             program_path=self._settings.program or None,
             repo=repo.remote_url,
             commit=repo.last_commit,
+            rewind_step=self._settings.rewind_step or None,
         )
+
         self._run = run
         if self._resume_state.get("resumed"):
             self._run.resumed = True
+
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))

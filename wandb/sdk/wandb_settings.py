@@ -246,6 +246,7 @@ class Settings(object):
     resume: str
     strict: Optional[str] = None
     label_disable: Optional[bool] = None
+    rewind_step: Optional[int] = None
 
     # Public attributes
     entity: Optional[str] = None
@@ -305,6 +306,7 @@ class Settings(object):
         run_name: str = None,
         run_notes: str = None,
         resume: str = None,
+        rewind_step: int = None,
         magic: Union[Dict, str, bool] = False,
         run_tags: Sequence = None,
         sweep_id: str = None,
