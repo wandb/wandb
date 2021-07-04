@@ -15,8 +15,13 @@ exclude = '''
 | tests/notebooks/
 | tests/standalone/.coveragerc
 | tests/standalone/testlib/schema-wandb-testlib.json
+| tools/diff_cli_files.sh
+| tools/strip_type_annotations.sh
+| tools/setup_dev_environment.sh
+| tools/loop.sh
 '''
 include = '''
   wandb/
 | tests/
+| tools/
 '''

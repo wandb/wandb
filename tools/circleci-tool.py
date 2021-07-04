@@ -24,6 +24,7 @@ Download artifacts from an executed workflow
 
 """
 
+
 import argparse
 import os
 import subprocess
@@ -35,8 +36,20 @@ import requests
 CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 
 platforms_dict = dict(linux="test", mac="mac", win="win")
-py_name_dict = dict(py27="Python 2.7", py36="Python 3.6", py37="Python 3.7", py38="Python 3.8", py39="Python 3.9")
-py_image_dict = dict(py27="python:2.7", py36="python:3.6", py37="python:3.7", py38="python:3.8", py39="python:3.9")
+py_name_dict = dict(
+    py27="Python 2.7",
+    py36="Python 3.6",
+    py37="Python 3.7",
+    py38="Python 3.8",
+    py39="Python 3.9",
+)
+py_image_dict = dict(
+    py27="python:2.7",
+    py36="python:3.6",
+    py37="python:3.7",
+    py38="python:3.8",
+    py39="python:3.9",
+)
 
 
 def poll(args, pipeline_id=None, workflow_ids=None):
@@ -72,7 +85,9 @@ def trigger(args):
     payload = {
         "branch": args.branch,
     }
-    manual: bool = any([args.platform, args.toxenv, args.test_file, args.test_name, args.test_repeat])
+    manual: bool = any(
+        [args.platform, args.toxenv, args.test_file, args.test_name, args.test_repeat]
+    )
     if manual:
         parameters = {"manual": True}
         platforms = args.platform.split(",") if args.platform else ["linux"]
@@ -154,7 +169,9 @@ def grab(args, vhash, bnum):
         os.mkdir(cachedir)
     if os.path.exists(cfname):
         return
-    url = "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(bnum)
+    url = "https://circleci.com/api/v1.1/project/github/wandb/client/{}/artifacts".format(
+        bnum
+    )
     r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, "Error making api request: {}".format(r)
     lst = r.json()
@@ -168,7 +185,9 @@ def grab(args, vhash, bnum):
             continue
         # print("GRAB", p, u)
         # TODO: use tempfile
-        s, o = subprocess.getstatusoutput('curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(args.api_token, u))
+        s, o = subprocess.getstatusoutput(
+            'curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(args.api_token, u)
+        )
         assert s == 0
         os.rename("out.dat", cfname)
 
@@ -193,22 +212,32 @@ def download(args):
 def process_args():
     parser = argparse.ArgumentParser()
 
-    subparsers = parser.add_subparsers(dest="action", title="action", description="Action to perform")
+    subparsers = parser.add_subparsers(
+        dest="action", title="action", description="Action to perform"
+    )
     parser.add_argument("--api_token", help=argparse.SUPPRESS)
     parser.add_argument("--branch", help="git branch (autodetected)")
     parser.add_argument("--dryrun", action="store_true", help="Dont do anything")
 
     parse_trigger = subparsers.add_parser("trigger")
-    parse_trigger.add_argument("--platform", help="comma separated platform (linux,mac,win)")
-    parse_trigger.add_argument("--toxenv", help="single toxenv (py27,py36,py37,py38,py39)")
+    parse_trigger.add_argument(
+        "--platform", help="comma separated platform (linux,mac,win)"
+    )
+    parse_trigger.add_argument(
+        "--toxenv", help="single toxenv (py27,py36,py37,py38,py39)"
+    )
     parse_trigger.add_argument("--test-file", help="test file (ex: tests/test.py)")
     parse_trigger.add_argument("--test-name", help="test name (ex: test_dummy)")
     parse_trigger.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
     parse_trigger.add_argument("--loop", type=int, help="Outer loop (implies wait)")
-    parse_trigger.add_argument("--wait", action="store_true", help="Wait for finish or error")
+    parse_trigger.add_argument(
+        "--wait", action="store_true", help="Wait for finish or error"
+    )
 
     parse_status = subparsers.add_parser("status")
-    parse_status.add_argument("--wait", action="store_true", help="Wait for finish or error")
+    parse_status.add_argument(
+        "--wait", action="store_true", help="Wait for finish or error"
+    )
 
     parse_download = subparsers.add_parser("download")
 
