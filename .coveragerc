@@ -6,7 +6,7 @@ sdksource =
 [run]
 # TODO(jhr): enable this in the future
 # branch = True
-# concurrency = multiprocessing,thread
+concurrency = multiprocessing,thread
 
 source =
    ./
