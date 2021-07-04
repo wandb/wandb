@@ -17,6 +17,7 @@ omit =
     codemod/*
     setup.py
     tests/*
+    */tests/logs/*
     wandb/sweeps/*
     wandb/vendor/*
 
