@@ -4,19 +4,17 @@ parallel = True
 # branch = True
 concurrency = multiprocessing,thread
 
-omit =
-    */wandb/vendor/*
-    wandb/vendor/*
-    .tox/*
-
-[paths]
-toxcode =
-    wandb/
-    .tox/standalone-py*/lib/python*/site-packages/wandb/
-
 source =
-    wandb/sdk/
-    wandb/sdk_py27/
+    ..
+
+omit =
+    ../.tox/*
+    ../.tox/py*
+    ../codemod/*
+    ../setup.py
+    ../tests/*
+    ../wandb/sweeps/*
+    ../wandb/vendor/*
 
 [report]
 exclude_lines =
