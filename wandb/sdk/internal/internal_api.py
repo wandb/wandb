@@ -825,8 +825,8 @@ class Api(object):
             summary_metrics (str, optional): The JSON summary metrics
             rewind_step (int, optional): The step to rewind the run to
         """
-        mutation = gql(
-            """
+
+        mutation_string = """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -846,8 +846,7 @@ class Api(object):
             $state: String,
             $sweep: String,
             $tags: [String!],
-            $summaryMetrics: JSONString,
-            $rewindStep: Int,
+            $summaryMetrics: JSONString__replace_rewind_1__
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -868,8 +867,7 @@ class Api(object):
                 state: $state,
                 sweep: $sweep,
                 tags: $tags,
-                summaryMetrics: $summaryMetrics,
-                rewindStep: $rewindStep
+                summaryMetrics: $summaryMetrics__replace_rewind_2__
             }) {
                 bucket {
                     id
@@ -891,50 +889,74 @@ class Api(object):
             }
         }
         """
-        )
-        if config is not None:
-            config = json.dumps(config)
-        if not description or description.isspace():
-            description = None
 
-        kwargs = {}
-        if num_retries is not None:
-            kwargs["num_retries"] = num_retries
+        replace_1 = [",\n            $rewindStep: Int", ""]
+        replace_2 = [",\n                rewindStep: $rewindStep", ""]
 
-        variable_values = {
-            "id": id,
-            "entity": entity or self.settings("entity"),
-            "name": name,
-            "project": project or util.auto_project_name(program_path),
-            "groupName": group,
-            "tags": tags,
-            "description": description,
-            "config": config,
-            "commit": commit,
-            "displayName": display_name,
-            "notes": notes,
-            "host": None if self.settings().get("anonymous") == "true" else host,
-            "debug": env.is_debug(env=self._environ),
-            "repo": repo,
-            "program": program_path,
-            "jobType": job_type,
-            "state": state,
-            "sweep": sweep_name,
-            "summaryMetrics": summary_metrics,
-            "rewindStep": rewind_step,
-        }
+        for i, (r1, r2) in enumerate(zip(replace_1, replace_2)):
+            mutation_filled = mutation_string.replace(
+                "__rewind_replace_1__", r1
+            ).replace("__rewind_replace_2__", r2)
+            mutation = gql(mutation_filled)
 
-        response = self.gql(mutation, variable_values=variable_values, **kwargs)
+            if config is not None:
+                config = json.dumps(config)
+            if not description or description.isspace():
+                description = None
 
-        run = response["upsertBucket"]["bucket"]
-        project = run.get("project")
-        if project:
-            self.set_setting("project", project["name"])
-            entity = project.get("entity")
-            if entity:
-                self.set_setting("entity", entity["name"])
+            kwargs = {}
+            if num_retries is not None:
+                kwargs["num_retries"] = num_retries
 
-        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+            variable_values = {
+                "id": id,
+                "entity": entity or self.settings("entity"),
+                "name": name,
+                "project": project or util.auto_project_name(program_path),
+                "groupName": group,
+                "tags": tags,
+                "description": description,
+                "config": config,
+                "commit": commit,
+                "displayName": display_name,
+                "notes": notes,
+                "host": None if self.settings().get("anonymous") == "true" else host,
+                "debug": env.is_debug(env=self._environ),
+                "repo": repo,
+                "program": program_path,
+                "jobType": job_type,
+                "state": state,
+                "sweep": sweep_name,
+                "summaryMetrics": summary_metrics,
+            }
+
+            if i == 0:
+                variable_values["rewindStep"] = rewind_step
+
+            try:
+                response = self.gql(mutation, variable_values=variable_values, **kwargs)
+            except CommError as e:
+                if "rewind" in e.args[0].lower():
+                    if rewind_step is not None:
+                        raise CommError(
+                            "Run rewinding is not supported on this version of the "
+                            "wandb backend. Please retry your request without rewinding."
+                        )
+                    continue
+                raise
+
+            run = response["upsertBucket"]["bucket"]
+            project = run.get("project")
+            if project:
+                self.set_setting("project", project["name"])
+                entity = project.get("entity")
+                if entity:
+                    self.set_setting("entity", entity["name"])
+
+            return (
+                response["upsertBucket"]["bucket"],
+                response["upsertBucket"]["inserted"],
+            )
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
