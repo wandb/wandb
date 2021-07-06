@@ -9,7 +9,7 @@ import time
 import gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
 from wandb.integration.sb3 import WandbCallback
 import wandb
 
@@ -27,10 +27,10 @@ wandb.init(
 def make_env():
     env = gym.make("CartPole-v1")
     env = Monitor(env)  # record stats such as returns
-    env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True) # record videos
-    # note the Monitors above are for different purposes
     return env
 env = DummyVecEnv([make_env])
+env = VecVideoRecorder(env, "videos",
+    record_video_trigger=lambda x: x % 2000 == 0, video_length=200)  # record videos
 model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}")
 model.learn(
     total_timesteps=config["total_timesteps"],
