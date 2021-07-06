@@ -5,47 +5,41 @@ Really simple callback to get logging for each tree
 Example usage:
 
 ```python
-import gym
 import time
+import gym
 from stable_baselines3 import PPO
+from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from wandb.integration.sb3 import WandbCallback
 import wandb
 
-# initialize the experiment
-# note that you have to call `wandb.init(...)` before using WandbCallback
-config = {
-    "policy_type": "MlpPolicy",
-    "total_timesteps": 25000
-}
+config = {"policy_type": "MlpPolicy", "total_timesteps": 25000}
 experiment_name = f"PPO_{int(time.time())}"
 wandb.init(
     name=experiment_name,
     project="sb3",
     config=config,
-    allow_val_change=True, # auto-populate config with the model's hyperparams
-    sync_tensorboard=True, # auto-upload metrics
+    sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
     monitor_gym=True,  # auto-upload the videos of agents playing the game
     save_code=True,  # optional
 )
 
-# initialize the run
 def make_env():
     env = gym.make("CartPole-v1")
+    env = Monitor(env)  # record stats such as returns
     env = gym.wrappers.Monitor(env, f"videos/{experiment_name}", force=True) # record videos
-    env = gym.wrappers.RecordEpisodeStatistics(env) # record stats such as returns
+    # note the Monitors above are for different purposes
     return env
 env = DummyVecEnv([make_env])
-
-# initialize the model
-# note `tensorboard_log` needs to be toggled so that the WandbCallback can pick up its log files
 model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}")
-model.learn(total_timesteps=config["total_timesteps"],
+model.learn(
+    total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
-        gradient_save_freq=1000, # 1000 is a good frequency for both gradient logging
-        model_save_freq=1000,    # and model saving
+        gradient_save_freq=100,
+        model_save_freq=1000,
         model_save_path=f"models/{experiment_name}",
-))
+    ),
+)
 ```
 """
 
