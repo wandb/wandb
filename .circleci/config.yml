@@ -72,6 +72,8 @@ commands:
                 path: test-results
             - store_artifacts:
                 path: mypy-results
+            - store_artifacts:
+                path: cover-results
 
 workflows:
   main:
@@ -81,10 +83,11 @@ workflows:
          name: "Linters"
          image: "python:3.6"
          toxenv: "codemodcheck,protocheck,mypy,black,flake8,flake8-docstrings"
-      - test:
-         name: "Python 2.7"
-         image: "python:2.7"
-         toxenv: "py27,covercircle"
+# Disable python2.7 for good?
+#      - test:
+#         name: "Python 2.7"
+#         image: "python:2.7"
+#         toxenv: "py27"
 # Disable python3.5 for now
 #      - test:
 #         name: "Python 3.5"
@@ -107,9 +110,9 @@ workflows:
          image: "python:3.9"
          toxenv: "py39"
       - test:
-         name: "Standalone (Linux - Python 3.7)"
+         name: "Functional linux-py37"
          image: "python:3.7"
-         toxenv: "standalone-py37,standalone-covercircle"
+         toxenv: "func-py37,func-covercircle"
       - win:
          name: "Windows (Python 3.7)"
          toxenv: "py37,wincovercircle"
