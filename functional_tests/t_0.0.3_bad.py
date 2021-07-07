@@ -2,12 +2,14 @@
 """Error case - main process init/finish.
 
 ---
-run:
-  - exit: 1
-    config: {}
-    summary:
-      m1: 1
-      m2: 2
+id: 0.0.3
+check-ext-wandb:
+  run:
+    - exit: 1
+      config: {}
+      summary:
+        m1: 1
+        m2: 2
 """
 
 import wandb
