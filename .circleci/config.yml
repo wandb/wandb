@@ -189,7 +189,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
@@ -213,7 +213,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 4096
-                      CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
