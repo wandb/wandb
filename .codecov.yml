@@ -2,7 +2,7 @@ codecov:
   require_ci_to_pass: no
   notify:
     # after_n_builds calculation
-    # 5 = 1 (lin-py36) + 4 (win-py37) + 1(func-lin-py37)
+    # 6 = 1 (lin-py36) + 4 (win-py37) + 1 (func-lin-py37)
     # also change comment section
     after_n_builds: 6
     wait_for_ci: no
