@@ -109,7 +109,6 @@ class LaunchAgent(object):
         # TODO: logger
         print("agent: got job", job)
         # parse job
-
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
 
@@ -131,9 +130,13 @@ class LaunchAgent(object):
             args_dict = util._user_arg_to_dict(run_spec["overrides"].get("args", {}))
 
             run_config = run_spec["overrides"].get("run_config")
+
         user_id = None
-        if run_spec.get("docker") and run_spec["docker"].get("user_id"):
-            user_id = run_spec["docker"]["user_id"]
+        docker_image = None
+        docker = run_spec.get("docker")
+        if docker:
+            user_id = docker.get("user_id")
+            docker_image = docker.get("docker_image")
 
         git = run_spec.get("git")
         version = None
@@ -150,6 +153,7 @@ class LaunchAgent(object):
             entry_point,
             args_dict,
             user_id,
+            docker_image,
             run_config,
         )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)

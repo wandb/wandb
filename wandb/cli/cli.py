@@ -916,6 +916,13 @@ def sweep(
     " Defaults to 'local'.",
 )
 @click.option(
+    "--docker-image",
+    "-d",
+    default=None,
+    metavar="DOCKER IMAGE",
+    help="Specific docker image you'd like to use. In the form name:tag.",
+)
+@click.option(
     "--config",
     "-c",
     metavar="FILE",
@@ -933,6 +940,7 @@ def launch(
     resource,
     entity,
     project,
+    docker_image,
     config,
 ):
     """
@@ -970,6 +978,7 @@ def launch(
             version,
             wandb_project=project,
             wandb_entity=entity,
+            docker_image=docker_image,
             experiment_name=experiment_name,
             parameters=param_dict,
             docker_args=docker_args_dict,

@@ -36,6 +36,7 @@ def _run(
     experiment_name,
     wandb_project,
     wandb_entity,
+    docker_image,
     entry_point,
     version,
     parameters,
@@ -69,6 +70,11 @@ def _run(
         if git:
             version = git.get("version")
 
+    if docker_image is None:
+        docker = launch_config.get("docker")
+        if docker:
+            docker_image = docker.get("docker_image")
+
     project = fetch_and_validate_project(
         uri,
         wandb_entity,
@@ -79,6 +85,7 @@ def _run(
         entry_point,
         parameters,
         user_id,
+        docker_image,
         run_config,
     )
 
@@ -109,6 +116,7 @@ def run(
     resource="local",
     wandb_project=None,
     wandb_entity=None,
+    docker_image=None,
     config=None,
     synchronous=True,
     api=None,
@@ -181,6 +189,7 @@ def run(
         experiment_name=experiment_name,
         wandb_project=wandb_project,
         wandb_entity=wandb_entity,
+        docker_image=docker_image,
         entry_point=entry_point,
         version=version,
         parameters=parameters,
