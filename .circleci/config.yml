@@ -200,7 +200,7 @@ jobs:
               type: string
         macos:
             xcode: 11.4.1
-        parallelism: 3
+        parallelism: 4
         steps:
             - checkout
             - run:
