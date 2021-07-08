@@ -39,6 +39,7 @@ MODE = "WANDB_MODE"
 START_METHOD = "WANDB_START_METHOD"
 RESUME = "WANDB_RESUME"
 RUN_ID = "WANDB_RUN_ID"
+RUNQUEUE_ITEM_ID = "WANDB_RUNQUEUE_ITEM_ID"
 RUN_STORAGE_ID = "WANDB_RUN_STORAGE_ID"
 RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
@@ -139,6 +140,12 @@ def get_run(default=None, env=None):
         env = os.environ
 
     return env.get(RUN_ID, default)
+
+
+def get_runqueue_item(default=None, env=None):
+    if env is None:
+        env = os.environ
+    return env.get(RUNQUEUE_ITEM_ID, default)
 
 
 def get_args(default=None, env=None):

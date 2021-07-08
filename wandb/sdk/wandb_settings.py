@@ -92,6 +92,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     config_paths=None,
     sweep_param_path=None,
     run_id=None,
+    runqueue_item_id=None,
     notebook_name=None,
     host=None,
     username=None,
@@ -216,6 +217,7 @@ class Settings(object):
     disabled: bool = False
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
+    runqueue_item_id: Optional[str] = None
     sweep_id: Optional[str] = None
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
@@ -302,6 +304,7 @@ class Settings(object):
         run_group: str = None,
         run_job_type: str = None,
         run_id: str = None,
+        runqueue_item_id: str = None,
         run_name: str = None,
         run_notes: str = None,
         resume: str = None,

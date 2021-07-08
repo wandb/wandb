@@ -92,6 +92,7 @@ env_settings = dict(
     config_paths=None,
     sweep_param_path=None,
     run_id=None,
+    runqueue_item_id=None,
     notebook_name=None,
     host=None,
     username=None,
@@ -216,6 +217,7 @@ class Settings(object):
     disabled = False
     run_tags = None
     run_id = None
+    runqueue_item_id = None
     sweep_id = None
     resume_fname_spec = None
     root_dir = None
@@ -302,6 +304,7 @@ class Settings(object):
         run_group = None,
         run_job_type = None,
         run_id = None,
+        runqueue_item_id = None,
         run_name = None,
         run_notes = None,
         resume = None,
