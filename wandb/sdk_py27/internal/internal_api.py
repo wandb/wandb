@@ -805,6 +805,7 @@ class Api(object):
         sweep_name=None,
         summary_metrics=None,
         num_retries=None,
+        runqueue_item_id=None,
     ):
         """Update a run
 
@@ -822,9 +823,9 @@ class Api(object):
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
+            runqueue_item_id (str, optional): The graphql id of the run queue item to acknowledge
         """
-        mutation = gql(
-            """
+        mutation_str = """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -887,7 +888,18 @@ class Api(object):
             }
         }
         """
+
+        replace_string_1 = "$summaryMetrics: JSONString"
+        replace_string_2 = "summaryMetrics: $summaryMetrics"
+        mutation_11_0 = mutation_str.replace(
+            replace_string_1, replace_string_1 + "\n            $runQueueItemId: String"
+        ).replace(
+            replace_string_2,
+            replace_string_2 + "\n                runQueueItemId: $runQueueItemId",
         )
+
+        mutation_pre_11_0 = mutation_str
+
         if config is not None:
             config = json.dumps(config)
         if not description or description.isspace():
@@ -919,17 +931,29 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
-        response = self.gql(mutation, variable_values=variable_values, **kwargs)
+        for i, mutation_str in enumerate([mutation_11_0, mutation_pre_11_0]):
+            mutation = gql(mutation_str)
 
-        run = response["upsertBucket"]["bucket"]
-        project = run.get("project")
-        if project:
-            self.set_setting("project", project["name"])
-            entity = project.get("entity")
-            if entity:
-                self.set_setting("entity", entity["name"])
+            if i == 0:
+                v = variable_values.copy()
+                v["runQueueItemId"] = runqueue_item_id
+            else:
+                v = variable_values
 
-        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+            response = self.gql(mutation, variable_values=variable_values, **kwargs)
+
+            run = response["upsertBucket"]["bucket"]
+            project = run.get("project")
+            if project:
+                self.set_setting("project", project["name"])
+                entity = project.get("entity")
+                if entity:
+                    self.set_setting("entity", entity["name"])
+
+            return (
+                response["upsertBucket"]["bucket"],
+                response["upsertBucket"]["inserted"],
+            )
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
