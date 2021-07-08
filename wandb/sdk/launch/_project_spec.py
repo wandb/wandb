@@ -39,6 +39,7 @@ class Project(object):
         entry_points: List[str],
         parameters: Dict[str, Any],
         user_id: Optional[int],
+        docker_image: Optional[str],
         run_config: Dict[str, Any],
     ):
 
@@ -62,6 +63,8 @@ class Project(object):
         self.config_path = DEFAULT_CONFIG_PATH
         # todo: better way of storing docker/anyscale/etc tracking info
         self.docker_env: Dict[str, str] = {}
+        if docker_image:
+            self.docker_env["image"] = docker_image
         # generate id for run to ack with in agent
         self.run_id = generate_id()
         self.user_id = user_id or 1000
