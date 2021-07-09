@@ -1349,8 +1349,7 @@ class Run(Attrs):
                 artifact.type,
                 artifact_collection_name,
                 artifact.digest,
-                aliases=aliases,
-                sequence_client_id=artifact._sequence_client_id,
+                aliases=aliases
             )
             return artifact
         elif isinstance(artifact, wandb.Artifact):
