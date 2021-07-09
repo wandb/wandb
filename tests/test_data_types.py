@@ -941,3 +941,31 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     )
     run.finish()
     assert True
+
+
+def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
+    run.finish()
+    assert True
+
+
+def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log(
+        {
+            "logged_table": wandb.JoinedTable(
+                wandb.Table(
+                    columns=["id", "a"],
+                    data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+                ),
+                wandb.Table(
+                    columns=["id", "a"],
+                    data=[[2, wandb.Image(np.ones(shape=(32, 32)))]],
+                ),
+                "id",
+            )
+        }
+    )
+    run.finish()
+    assert True
