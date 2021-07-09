@@ -348,7 +348,7 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        for fs in file_stream_utils.split_files(files, max_size=util.MAX_LINE_BYTES):
+        for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
             self._handle_response(
                 request_with_retry(
                     self._client.post,
