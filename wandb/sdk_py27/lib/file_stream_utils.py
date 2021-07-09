@@ -15,7 +15,7 @@ def split_files(
 
     Arguments:
     files (dict): `dict` of form {file_name: {'content': ".....", 'offset': 0}}
-    `max_size`: max size for chunk in bytes
+    `max_bytes`: max size for chunk in bytes
     """
     current_volume = {}
     current_size = 0
