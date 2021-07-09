@@ -35,6 +35,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "item_acked": False,
     }
 
 
@@ -516,6 +517,7 @@ def create_app(user_ctx=None):
                                         "type": "run",
                                         "run_id": "mocker-sweep-run-x9",
                                         "args": {"learning_rate": {"value": 0.99124}},
+                                        "runqueue_item_id": "1jfskn2z",
                                     }
                                 ]
                             ),
@@ -544,6 +546,8 @@ def create_app(user_ctx=None):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
+            if body["variables"].get("runQueueItemId") == "1jfskn2z":
+                ctx["item_acked"] = True
             return json.dumps(response)
         if "mutation DeleteRun(" in body["query"]:
             return json.dumps({"data": {}})
@@ -1236,6 +1240,10 @@ class ParseCTX(object):
     @property
     def manifests_created_ids(self):
         return [m["id"] for m in self.manifests_created]
+
+    @property
+    def item_acked(self):
+        return self._ctx.get("item_acked")
 
 
 if __name__ == "__main__":

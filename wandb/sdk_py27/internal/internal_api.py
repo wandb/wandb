@@ -889,8 +889,8 @@ class Api(object):
         }
         """
 
-        replace_string_1 = "$summaryMetrics: JSONString"
-        replace_string_2 = "summaryMetrics: $summaryMetrics"
+        replace_string_1 = "$summaryMetrics: JSONString,"
+        replace_string_2 = "summaryMetrics: $summaryMetrics,"
         mutation_11_0 = mutation_str.replace(
             replace_string_1, replace_string_1 + "\n            $runQueueItemId: String"
         ).replace(
@@ -931,6 +931,8 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
+        response = None
+        mutation_names = ["mutation_11_0", "mutation_pre_11_0"]
         for i, mutation_str in enumerate([mutation_11_0, mutation_pre_11_0]):
             mutation = gql(mutation_str)
 
@@ -940,20 +942,36 @@ class Api(object):
             else:
                 v = variable_values
 
-            response = self.gql(mutation, variable_values=variable_values, **kwargs)
+            try:
+                response = self.gql(mutation, variable_values=v, **kwargs)
+            except Exception as e:
+                logger.debug(
+                    "Bad response from backend for upsert_run version %s: %s. Retrying with earlier version..."
+                    % (mutation_names[i], e.args[0])
+                )
+                continue
 
-            run = response["upsertBucket"]["bucket"]
-            project = run.get("project")
-            if project:
-                self.set_setting("project", project["name"])
-                entity = project.get("entity")
-                if entity:
-                    self.set_setting("entity", entity["name"])
-
-            return (
-                response["upsertBucket"]["bucket"],
-                response["upsertBucket"]["inserted"],
+        if response is None:
+            logger.debug(
+                "Could not execute any version of upsert run. Versions tried: %s"
+                % mutation_names
             )
+            raise CommError(
+                "Error executing upsert_run. Check debug-internal.log for more information."
+            )
+
+        run = response["upsertBucket"]["bucket"]
+        project = run.get("project")
+        if project:
+            self.set_setting("project", project["name"])
+            entity = project.get("entity")
+            if entity:
+                self.set_setting("entity", entity["name"])
+
+        return (
+            response["upsertBucket"]["bucket"],
+            response["upsertBucket"]["inserted"],
+        )
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
