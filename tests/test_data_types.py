@@ -943,6 +943,15 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     assert True
 
 
+def test_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    run.log({"logged_table": t})
+    run.log({"logged_table": t})
+    run.finish()
+    assert True
+
+
 def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, api):
     run = wandb.init(settings=test_settings)
     run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
