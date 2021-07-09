@@ -3,6 +3,10 @@ import sys
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+
+if sys.version_info < (3, 6):
+    pytest.skip("flaky with python2.7", allow_module_level=True)
+
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
