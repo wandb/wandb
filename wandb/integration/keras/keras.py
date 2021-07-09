@@ -459,7 +459,7 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             self._build_grad_accumulator_model()
 
-    def _attempt_evaluation_log(self):
+    def _attempt_evaluation_log(self, commit=True):
         if self.log_evaluation and self._validation_data_logger:
             try:
                 if not self.model:
@@ -468,7 +468,8 @@ class WandbCallback(keras.callbacks.Callback):
                     self._validation_data_logger.log_predictions(
                         predictions=self._validation_data_logger.make_predictions(
                             self.model.predict
-                        )
+                        ),
+                        commit=commit,
                     )
                     self._model_trained_since_last_eval = False
             except Exception as e:
@@ -502,7 +503,7 @@ class WandbCallback(keras.callbacks.Callback):
             self._log_evaluation_frequency > 0
             and epoch % self._log_evaluation_frequency == 0
         ):
-            self._attempt_evaluation_log()
+            self._attempt_evaluation_log(commit=False)
 
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)

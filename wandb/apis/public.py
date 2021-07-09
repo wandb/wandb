@@ -1349,7 +1349,7 @@ class Run(Attrs):
                 artifact.type,
                 artifact_collection_name,
                 artifact.digest,
-                aliases=aliases
+                aliases=aliases,
             )
             return artifact
         elif isinstance(artifact, wandb.Artifact):

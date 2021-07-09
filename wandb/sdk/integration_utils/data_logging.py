@@ -167,7 +167,7 @@ class ValidationDataLogger(object):
         prediction_col_name: str = "output",
         val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
-        commit: bool = False,
+        commit: bool = True,
     ) -> wandb.data_types.Table:
         """Logs a set of predictions.
 

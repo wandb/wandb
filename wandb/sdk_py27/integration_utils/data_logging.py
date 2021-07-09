@@ -167,7 +167,7 @@ class ValidationDataLogger(object):
         prediction_col_name = "output",
         val_ndx_col_name = "val_row",
         table_name = "validation_predictions",
-        commit = False,
+        commit = True,
     ):
         """Logs a set of predictions.
 
