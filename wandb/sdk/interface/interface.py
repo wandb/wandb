@@ -148,9 +148,6 @@ class MessageRouter(object):
 
 
 class BackendSender(object):
-    class ExceptionTimeout(Exception):
-        pass
-
     record_q: Optional["Queue[pb.Record]"]
     result_q: Optional["Queue[pb.Result]"]
     process: Optional[Process]
