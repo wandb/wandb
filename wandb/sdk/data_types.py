@@ -74,25 +74,30 @@ def _get_max_cli_version() -> Union[str, None]:
     return str(max_cli_version) if max_cli_version is not None else None
 
 
-def _server_accepts_client_ids() -> bool:
-    # First, if we are offline, assume the backend server can
-    # accept client IDs. Even though older versions of the server
-    # cannot accept client IDs, this is not a regression in functionality.
-    # Since prior to 0.10.34, the python client would block on server comms,
-    # therefore stalling the user process in offline mode. In the worst case
-    # (server is older and we are offline mode), then the runs which used client
-    # ids cannot be synced until the customer backend up upgraded.
-    is_offline = (
+def _is_offline() -> bool:
+    return (
         wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
-    ) or wandb.setup().settings.mode == "offline"
-    if is_offline:
-        return True
+    ) or str(wandb.setup().settings.mode) == "offline"
+
+
+def _server_accepts_client_ids() -> bool:
+    # First, if we are offline, assume the backend server cannot
+    # accept client IDs. Unfortunately, this is the best we can do
+    # until we are sure that all local versions are > "0.10.34" max_cli_version.
+    # The practical implication is that tables logged in offline mode
+    # will not show up in the workspace (but will still show up in artifacts). This
+    # means we never lose data, and we can still view using weave. If we decided
+    # to use client ids in offline mode, then the manifests and artifact data
+    # would never be resolvable and would lead to failed uploads. Our position
+    # is to never lose data - and instead take the tradeoff in the UI.
+    if _is_offline():
+        return False
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
     max_cli_version = _get_max_cli_version()
     if max_cli_version is None:
-        return True
+        return False
     return parse_version("0.10.34") <= parse_version(max_cli_version)
 
 
@@ -267,24 +272,24 @@ class WBValue(object):
             )
             return str(ref_entry.ref_url())
         # Else, if the object is destined for another artifact and we support client IDs
-        elif (
-            _server_accepts_client_ids()
-            and self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._client_id is not None
-            and self._artifact_target.artifact._final
-        ):
-            return "wandb-client-artifact://{}/{}".format(
-                self._artifact_target.artifact._client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
-        # Else if we do not support client IDs, then block on upload
+        elif _server_accepts_client_ids():
+            if (
+                self._artifact_target
+                and self._artifact_target.name
+                and self._artifact_target.artifact._client_id is not None
+                and self._artifact_target.artifact._final
+            ):
+                return "wandb-client-artifact://{}/{}".format(
+                    self._artifact_target.artifact._client_id,
+                    type(self).with_suffix(self._artifact_target.name),
+                )
+        # Else if we do not support client IDs, but online, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
         elif (
-            not _server_accepts_client_ids()
+            not _is_offline()
             and self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
@@ -297,24 +302,24 @@ class WBValue(object):
         return None
 
     def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
-        if (
-            _server_accepts_client_ids()
-            and self._artifact_target
-            and self._artifact_target.name
-            and self._artifact_target.artifact._sequence_client_id is not None
-            and self._artifact_target.artifact._final
-        ):
-            return "wandb-client-artifact://{}:latest/{}".format(
-                self._artifact_target.artifact._sequence_client_id,
-                type(self).with_suffix(self._artifact_target.name),
-            )
+        if _server_accepts_client_ids():
+            if (
+                self._artifact_target
+                and self._artifact_target.name
+                and self._artifact_target.artifact._client_id is not None
+                and self._artifact_target.artifact._final
+            ):
+                return "wandb-client-artifact://{}:latest/{}".format(
+                    self._artifact_target.artifact._sequence_client_id,
+                    type(self).with_suffix(self._artifact_target.name),
+                )
         # Else if we do not support client IDs, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
         elif (
-            not _server_accepts_client_ids()
+            not _is_offline()
             and self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
