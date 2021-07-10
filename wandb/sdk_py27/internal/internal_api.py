@@ -5,6 +5,7 @@ from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import ast
 import os
+from pkg_resources import parse_version  # type: ignore
 import json
 import yaml
 import re
@@ -1643,6 +1644,15 @@ class Api(object):
         distributed_id=None,
         is_user_created=False,
     ):
+        # TODO: Ignore clientID and sequenceClientID if server can't handle it
+        _, server_info = self.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        can_handle_client_id = parse_version("0.10.34") <= parse_version(
+            _get_max_cli_version()
+        )
+
         mutation = gql(
             """
         mutation CreateArtifact(
@@ -1656,8 +1666,8 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $clientID: ID!
-            $sequenceClientID: ID!
+            %s
+            %s
             %s
         ) {
             createArtifact(input: {
@@ -1672,8 +1682,8 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                clientID: $clientID,
-                sequenceClientID: $sequenceClientID,
+                %s
+                %s
                 %s
             }) {
                 artifact {
@@ -1699,8 +1709,12 @@ class Api(object):
             # For backwards compatibility with older backends that don't support
             # distributed writers.
             (
-                "$distributedID: String" if distributed_id else "",
-                "distributedID: $distributedID" if distributed_id else "",
+                "$distributedID: String," if distributed_id else "",
+                "$clientID: ID!," if can_handle_client_id else "",
+                "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "distributedID: $distributedID," if distributed_id else "",
+                "clientID: $clientID," if can_handle_client_id else "",
+                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
             )
         )
 
