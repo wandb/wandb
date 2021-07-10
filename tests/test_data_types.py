@@ -961,20 +961,18 @@ def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, 
 
 def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
     run = wandb.init(settings=test_settings)
-    run.log(
-        {
-            "logged_table": wandb.JoinedTable(
-                wandb.Table(
-                    columns=["id", "a"],
-                    data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
-                ),
-                wandb.Table(
-                    columns=["id", "a"],
-                    data=[[2, wandb.Image(np.ones(shape=(32, 32)))]],
-                ),
-                "id",
-            )
-        }
+    art = wandb.Artifact("A", "dataset")
+    t1 = wandb.Table(
+        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
     )
+    t2 = wandb.Table(
+        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+    )
+    art.add(t1, "t1")
+    art.add(t2, "t2")
+    jt = wandb.JoinedTable(t1, t2, "id")
+    art.add(jt, "jt")
+    run.log_artifact(art)
+    run.log({"logged_table": jt})
     run.finish()
     assert True

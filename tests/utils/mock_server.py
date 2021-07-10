@@ -909,6 +909,30 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
+            elif _id == "e6954815d2beb5841b3dabf7cf455c30":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.partitioned-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "0eec13efd400546f58a4530de62ed07a":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "jt.joined-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
             elif _id in [
                 "2d9a7e0aa8407f0730e19e5bc55c3a45",
                 "c541de19b18331a4a33b282fc9d42510",
