@@ -35,6 +35,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "max_cli_version": "0.10.33",
     }
 
 
@@ -453,7 +454,12 @@ def create_app(user_ctx=None):
                             "teams": {
                                 "edges": []  # TODO make configurable for cli_test
                             },
-                        }
+                        },
+                        "serverInfo": {
+                            "cliVersionInfo": {
+                                "max_cli_version": ctx.get("max_cli_version")
+                            }
+                        },
                     }
                 }
             )
