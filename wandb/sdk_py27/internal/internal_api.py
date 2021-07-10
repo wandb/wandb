@@ -1649,9 +1649,9 @@ class Api(object):
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
-        can_handle_client_id = parse_version("0.10.34") <= parse_version(
-            _get_max_cli_version()
-        )
+        can_handle_client_id = max_cli_version is None or parse_version(
+            "0.10.34"
+        ) <= parse_version(max_cli_version)
 
         mutation = gql(
             """
