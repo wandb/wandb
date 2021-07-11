@@ -32,6 +32,7 @@ import yaml
 from datetime import date, datetime
 import platform
 from six.moves.urllib.parse import urlparse
+from dockerpycreds.utils import find_executable
 
 import click
 import requests
@@ -171,6 +172,16 @@ def vendor_import(name):
     module = import_module(name)
     reset_path()
     return module
+
+
+def inlets_path():
+    if find_executable("inlets") is None:
+        if platform.system() == "Darwin":
+            cmd = "brew install inlets"
+        else:
+            cmd = "curl -sLS https://get.inlets.dev | sudo sh"
+        raise ValueError("inlets required for tunneling, install with: " + cmd)
+    return "inlets"
 
 
 def get_module(name, required=None):
@@ -578,6 +589,15 @@ def launch_browser(attempt_launch_browser=True):
             launch_browser = False
 
     return launch_browser
+
+
+def free_port():
+    """Get a free port on the current host"""
+    sock = socket.socket()
+    sock.bind(("", 0))
+
+    _, port = sock.getsockname()
+    return port
 
 
 def generate_id():
