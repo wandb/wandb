@@ -334,7 +334,6 @@ def create_app(user_ctx=None):
                 return json.dumps({"error": "rate limit exceeded"}), 429
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
-        app.logger.info("KYLE {}".format(body))
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
         if "mutation UpsertBucket(" in body["query"]:
