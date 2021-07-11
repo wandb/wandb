@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""Base case - main process init/finish.
+"""Error case - main process init/finish.
 
----
-id: 0.0.1
+--- !<tag:wandb.ai,2021:yea>
+id: 0.0.3
 check-ext-wandb:
   run:
-    - exit: 0
+    - exit: 1
       config: {}
       summary:
         m1: 1
@@ -17,3 +17,4 @@ import wandb
 wandb.init()
 wandb.log(dict(m1=1))
 wandb.log(dict(m2=2))
+print(1 / 0)

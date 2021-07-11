@@ -6,6 +6,7 @@ coverage.xml
 .mypy_cache/
 .pytest_cache/
 .circle_cache/
+.yea_cache/
 build/
 dist/
 *.pyc
