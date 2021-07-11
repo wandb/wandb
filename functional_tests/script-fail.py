@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Error case - main process init/finish.
 
---- !<tag:wandb.ai,2021:yea>
+---
 id: 0.0.3
 check-ext-wandb:
   run:

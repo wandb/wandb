@@ -1,4 +1,4 @@
---- !<tag:wandb.ai,2021:yea>
+---
 id: 0.0.1
 check-ext-wandb:
   run:
