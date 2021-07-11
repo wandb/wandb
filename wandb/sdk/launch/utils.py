@@ -50,28 +50,6 @@ def _is_wandb_local_uri(uri: str):
     return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
 
 
-def _collect_args(args):
-    dict_args = {}
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if "=" in arg:
-            name, vals = arg.split("=")
-            dict_args[name.lstrip("-")] = vals
-            i += 1
-        elif (
-            arg.startswith("-")
-            and i < len(args) - 1
-            and not args[i + 1].startswith("-")
-        ):
-            dict_args[arg.lstrip("-")] = args[i + 1]
-            i += 2
-        else:
-            dict_args[arg.lstrip("-")] = None
-            i += 1
-    return dict_args
-
-
 def fetch_and_validate_project(
     uri,
     target_entity,

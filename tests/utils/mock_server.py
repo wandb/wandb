@@ -36,6 +36,9 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "run_queues": {"1": []},
+        "num_popped": 0,
+        "num_acked": 0,
     }
 
 
@@ -320,6 +323,7 @@ def create_app(user_ctx=None):
         if test_name:
             app.logger.info("Test request from: %s", test_name)
         app.logger.info("graphql post")
+
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
@@ -814,7 +818,25 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-
+        if "mutation popFromRunQueue" in body["query"]:
+            if ctx["num_popped"] != 0:
+                return json.dumps({"data": {"popFromRunQueue": None}})
+            ctx["num_popped"] += 1
+            return json.dumps(
+                {
+                    "data": {
+                        "popFromRunQueue": {
+                            "runQueueItemId": 1,
+                            "runSpec": {
+                                "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                "project": "test_project",
+                                "entity": "mock_server_entity",
+                                "resource": "local",
+                            },
+                        }
+                    }
+                }
+            )
         if "mutation pushToRunQueue" in body["query"]:
             if ctx["run_queues"].get(body["variables"]["queueID"]):
                 ctx["run_queues"][body["variables"]["queueID"]].append(
@@ -825,6 +847,9 @@ def create_app(user_ctx=None):
                     body["variables"]["queueID"]
                 ]
             return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+        if "mutation ackRunQueueItem" in body["query"]:
+            ctx["num_acked"] += 1
+            return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "stopped" in body["query"]:
             return json.dumps(
                 {

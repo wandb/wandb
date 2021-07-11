@@ -15,7 +15,7 @@ from wandb.sdk.launch.utils import (
     PROJECT_SYNCHRONOUS,
 )
 
-from .utils import fixture_open
+from ..utils import fixture_open
 
 import pytest
 
@@ -54,7 +54,13 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec, api, uri, wandb_project=None, wandb_entity=None, config=None
+    project_spec,
+    api,
+    uri,
+    wandb_project=None,
+    wandb_entity=None,
+    config=None,
+    parameters=None,
 ):
     assert project_spec.uri == uri
     expected_project = wandb_project or uri.split("/")[4]
@@ -186,13 +192,21 @@ def test_launch_args_supersede_config_vals(
         "wandb_entity": "mock_server_entity",
         "config": {
             "project": "not-this-project",
-            "overrides": {"run_config": {"epochs": 3}},
+            "overrides": {
+                "run_config": {"epochs": 3},
+                "args": ["--epochs=2", "--heavy"],
+            },
         },
+        "parameters": {"epochs": 5},
     }
-
-    expected_runner_config = {}
+    input_kwargs = kwargs.copy()
+    input_kwargs["parameters"] = ["epochs", 5]
     mock_with_run_info = launch.run(**kwargs)
-    check_mock_run_info(mock_with_run_info, expected_runner_config, kwargs)
+    for arg in mock_with_run_info.args:
+        if isinstance(arg, _project_spec.Project):
+            assert arg.parameters["epochs"] == 5
+            assert arg.run_config.get("epochs") is None
+            assert arg.target_project == "new_test_project"
 
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
@@ -206,3 +220,42 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
+
+
+def test_push_to_runqueue(live_mock_server, test_settings):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    run_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    api.push_to_run_queue("default", run_spec)
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["run_queues"]["1"]) == 1
+
+
+# this test includes building a docker container which can take some time.
+# hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.timeout(240)
+def test_launch_agent(
+    test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
+):
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: patched_pop_from_queue(c, queue),
+    )
+    wandb.sdk.launch.run_agent("mock_server_entity", "test_project")
+    ctx = live_mock_server.get_ctx()
+    assert ctx["num_popped"] == 1
+    assert ctx["num_acked"] == 1
+
+
+def patched_pop_from_queue(self, queue):
+    ups = self._api.pop_from_run_queue(
+        queue, entity=self._entity, project=self._project
+    )
+    if ups is None:
+        raise KeyboardInterrupt
+    return ups

@@ -5,6 +5,7 @@ import posixpath
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from typing import Sequence
 
@@ -43,15 +44,6 @@ def validate_docker_env(project: _project_spec.Project):
         )
 
 
-def get_r2d_err_string(process):
-    err_string = ""
-    for line in process.stdout:
-        err_string += line.decode("utf-8")
-    for line in process.stderr:
-        err_string += line.decode("utf-8")
-    return err_string
-
-
 def generate_docker_image(project: _project_spec.Project, entry_cmd):
     path = project.dir
     # this check will always pass since the dir attribute will always be populated
@@ -84,8 +76,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        err_string = get_r2d_err_string(process)
-        raise LaunchException("error running repo2docker: {}".format(err_string))
+        raise LaunchException("error running repo2docker: {}".format(stderr))
     return image_id[0]
 
 
@@ -109,7 +100,7 @@ def build_docker_image(project: _project_spec.Project, base_image, api, copy_cod
     """
     import docker  # type: ignore
 
-    if _is_wandb_local_uri(api.settings("base_url")):
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):

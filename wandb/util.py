@@ -359,6 +359,35 @@ def make_tarfile(output_filename, source_dir, archive_name, custom_filter=None):
         os.remove(unzipped_filename)
 
 
+def _user_args_to_dict(arguments):
+    user_dict = {}
+    i = 0
+    while i < len(arguments):
+        arg = arguments[i]
+        split = arg.split("=", maxsplit=1)
+        # flag arguments don't require a value -> set to True if specified
+        if len(split) == 1 and (
+            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
+        ):
+            name = split[0].lstrip("-")
+            value = True
+            i += 1
+        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
+            name = split[0].lstrip("-")
+            value = arguments[i + 1]
+            i += 2
+        elif len(split) == 2:
+            name = split[0].lstrip("-")
+            value = split[1]
+            i += 1
+        if name in user_dict:
+            wandb.termerror("Repeated parameter: '%s'" % name)
+            sys.exit(1)
+        user_dict[name] = value
+    print(user_dict)
+    return user_dict
+
+
 def exec_cmd(
     cmd,
     throw_on_error=True,

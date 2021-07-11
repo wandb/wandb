@@ -1,11 +1,12 @@
 import logging
+import sys
 
+from wandb import util
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
-    _collect_args,
     _is_wandb_local_uri,
     fetch_and_validate_project,
     merge_parameters,
@@ -57,7 +58,7 @@ def _run(
         run_config = overrides.get("run_config")
         args = overrides.get("args")
         if args:
-            args = _collect_args(args)
+            args = util._user_args_to_dict(args)
             parameters = merge_parameters(parameters, args)
 
     user_id = None
@@ -170,8 +171,15 @@ def run(
         R2: 0.19729662005412607
         ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
     """
-    if _is_wandb_local_uri(uri):
-        docker_args["network"] = "host"
+    if docker_args is None:
+        docker_args = {}
+    if _is_wandb_local_uri(api.settings("base_url")):
+        if sys.platform == "win32":
+            docker_args["net"] = "host"
+        else:
+            docker_args["network"] = "host"
+        if sys.platform == "linux" or sys.platform == "linux2":
+            docker_args["add-host"] = "host.docker.internal:host-gateway"
 
     if config is None:
         config = {}

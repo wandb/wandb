@@ -1,15 +1,15 @@
 import os
+import sys
 import time
 
 import wandb
-from wandb import Settings
+from wandb import Settings, util
 from wandb.errors import LaunchException
 
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 from ..utils import (
-    _collect_args,
     _convert_access,
     _is_wandb_local_uri,
     fetch_and_validate_project,
@@ -127,7 +127,8 @@ class LaunchAgent(object):
 
         if run_spec.get("overrides"):
             entry_point = run_spec["overrides"].get("entrypoint")
-            args_dict = _collect_args(run_spec["overrides"].get("args", {}))
+            args_dict = util._user_arg_to_dict(run_spec["overrides"].get("args", {}))
+
             run_config = run_spec["overrides"].get("run_config")
 
         user_id = None
@@ -155,10 +156,16 @@ class LaunchAgent(object):
             docker_image,
             run_config,
         )
-        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={})
-
-        if _is_wandb_local_uri(uri):
-            backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
+        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
+        if _is_wandb_local_uri(self._base_url):
+            if sys.platform == "win32":
+                backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
+            else:
+                backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
+            if sys.platform == "linux" or sys.platform == "linux2":
+                backend_config[PROJECT_DOCKER_ARGS][
+                    "add-host"
+                ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         run = self._backend.run(project, backend_config)

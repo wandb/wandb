@@ -8,6 +8,7 @@ import tempfile
 
 import six
 import wandb
+from wandb import util
 from wandb.errors import Error as ExecutionException
 from wandb.sdk.lib.runid import generate_id
 
@@ -68,6 +69,15 @@ class Project(object):
         # generate id for run to ack with in agent
         self.run_id = generate_id()
         self.user_id = user_id or 1000
+        self.clear_parameter_run_config_collisions()
+
+    def clear_parameter_run_config_collisions(self):
+        if not self.run_config:
+            return
+        keys = [key for key in self.run_config.keys()]
+        for key in keys:
+            if self.parameters.get(key):
+                del self.run_config[key]
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
@@ -124,7 +134,7 @@ class Project(object):
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
 
-            args = utils._collect_args(run_info["args"])
+            args = util._user_args_to_dict(run_info["args"])
             self.parameters = utils.merge_parameters(self.parameters, args)
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
