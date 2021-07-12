@@ -202,7 +202,7 @@ def test_image_seq_to_json(mocked_run):
     assert utils.subdict(meta, meta_expected) == meta_expected
 
 
-def test_max_images(caplog, mocked_run, live_mock_server):
+def test_max_images(caplog, mocked_run, live_mock_server, test_settings):
     live_mock_server.set_ctx({"max_cli_version": "0.10.34"})
     large_image = np.random.randint(255, size=(10, 10))
     large_list = [wandb.Image(large_image)] * 200
