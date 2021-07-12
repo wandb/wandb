@@ -512,7 +512,8 @@ def test_data_logger_val_inferred_proc(test_settings, live_mock_server):
             targets={
                 "simple": np.random.randint(5, size=(10)),
                 "wrapped": np.random.randint(5, size=(10, 1)),
-                "logits": np.random.randint(5, size=(10, 5)),
+                "logits": np.random.randint(5, size=(10, 5))
+                + 2,  # +2 avoids only having 0s and 1s
                 "nodes": np.random.randint(5, size=(10, 10)),
                 "2dimages": np.random.randint(255, size=(10, 5, 5)),
                 "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -595,7 +596,8 @@ def test_data_logger_val_inferred_proc_no_class(test_settings, live_mock_server)
             targets={
                 "simple": np.random.randint(5, size=(10)),
                 "wrapped": np.random.randint(5, size=(10, 1)),
-                "logits": np.random.randint(5, size=(10, 5)),
+                "logits": np.random.randint(5, size=(10, 5))
+                + 2,  # +2 avoids only having 0s and 1s
                 "nodes": np.random.randint(5, size=(10, 10)),
                 "2dimages": np.random.randint(255, size=(10, 5, 5)),
                 "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -726,7 +728,8 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
                 lambda inputs: {
                     "simple": np.random.randint(5, size=(10)),
                     "wrapped": np.random.randint(5, size=(10, 1)),
-                    "logits": np.random.randint(5, size=(10, 5)),
+                    "logits": np.random.randint(5, size=(10, 5))
+                    + 2,  # +2 avoids only having 0s and 1s
                     "nodes": np.random.randint(5, size=(10, 10)),
                     "2dimages": np.random.randint(255, size=(10, 5, 5)),
                     "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -808,7 +811,8 @@ def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_serv
                 lambda inputs: {
                     "simple": np.random.randint(5, size=(10)),
                     "wrapped": np.random.randint(5, size=(10, 1)),
-                    "logits": np.random.randint(5, size=(10, 5)),
+                    "logits": np.random.randint(5, size=(10, 5))
+                    + 2,  # +2 avoids only having 0s and 1s
                     "nodes": np.random.randint(5, size=(10, 10)),
                     "2dimages": np.random.randint(255, size=(10, 5, 5)),
                     "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
