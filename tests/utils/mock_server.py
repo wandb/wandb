@@ -457,7 +457,9 @@ def create_app(user_ctx=None):
                         },
                         "serverInfo": {
                             "cliVersionInfo": {
-                                "max_cli_version": ctx.get("max_cli_version")
+                                "max_cli_version": str(
+                                    ctx.get("max_cli_version", "0.10.33")
+                                )
                             }
                         },
                     }

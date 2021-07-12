@@ -81,7 +81,6 @@ def _is_offline() -> bool:
 
 
 def _server_accepts_client_ids() -> bool:
-    print("JHER")
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
     # until we are sure that all local versions are > "0.10.34" max_cli_version.
