@@ -34,7 +34,7 @@ def test_print_status(mock_server, capsys):
     assert stdout == "Sweep: fun-sweep-10 (unknown) | Runs: 1 (Running: 1)\n"
     # For some reason, the windows and mac tests are failing in CI
     # as there are write permissions warnings.
-    if platform.system() != "Windows" or platform.system() != "Darwin":
+    if platform.system() != "Windows" and platform.system() != "Darwin":
         assert stderr == ""
 
 
