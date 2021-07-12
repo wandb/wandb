@@ -2,9 +2,10 @@ from typing import Callable, Union
 
 from six.moves import urllib
 from wandb import env
-from . import wandb_login
 from wandb.apis import InternalApi
 from wandb.util import handle_sweep_config_violations
+
+from . import wandb_login
 
 
 def _get_sweep_url(api, sweep_id):

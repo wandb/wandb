@@ -253,7 +253,7 @@ class _WandbController:
         if self._started:
             raise ControllerError("Can not configure after sweep has been started.")
 
-    def create(self, from_dict: bool=False) -> str:
+    def create(self, from_dict: bool = False) -> str:
         if self._started:
             raise ControllerError("Can not create after sweep has been started.")
         if not self._defer_sweep_creation and not from_dict:

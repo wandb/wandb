@@ -3,6 +3,7 @@
 """wandb setup."""
 
 import warnings
+
 from setuptools import setup
 
 
@@ -20,7 +21,6 @@ except FileNotFoundError:
                   "extra requirements for sweeps. Will not be able to build "
                   "sweeps extras locally.")
     sweeps_requirements = []
-    
 
 test_requirements = [
     'mock>=2.0.0',
