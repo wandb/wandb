@@ -202,8 +202,8 @@ def test_image_seq_to_json(mocked_run):
     assert utils.subdict(meta, meta_expected) == meta_expected
 
 
-def test_max_images(caplog, mocked_run, live_mock_server, test_settings):
-    wandb.setup(settings=test_settings)
+def test_max_images(caplog, mocked_run, live_mock_server, test_settings, api):
+    _ = wandb.init(settings=test_settings)
     large_image = np.random.randint(255, size=(10, 10))
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
