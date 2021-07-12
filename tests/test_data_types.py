@@ -968,6 +968,18 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     run.finish()
     assert True
 
+# TODO: In another location: need to manually test the internal/backend
+# artifact sender with an artifact that has a reference to be resolved - i
+# think this will get the most coverage
+def test_table_reference(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact("dummy:v0")
+        table = artifact.get("parts/1")
+        run.log({"table": table})
+        run.finish()
+    assert True
+
 
 def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, api):
     run = wandb.init(settings=test_settings)

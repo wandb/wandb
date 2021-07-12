@@ -755,7 +755,7 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=base_url)
+            art = artifact(ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4")
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
@@ -1035,7 +1035,7 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
-        if entity == "entity":
+        if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
             ):  # "dataset.partitioned-table.json"
