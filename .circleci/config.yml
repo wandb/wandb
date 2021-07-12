@@ -155,7 +155,7 @@ jobs:
             - run:
                 name: get sweeps submodule
                 command: |
-                  git submodule update --init --remote
+                  git submodule update --init --remote && git submodule update
             - run:
                   name: Install system deps
                   command: apt-get update && apt-get install -y libsndfile1 ffmpeg
@@ -182,7 +182,7 @@ jobs:
             - run:
                 name: get sweeps submodule
                 command: |
-                  git submodule update --init --remote            
+                  git submodule update --init --remote && git submodule update
             - run:
                   name: Install python dependencies
                   command: |
@@ -214,7 +214,7 @@ jobs:
             - run:
                 name: get sweeps submodule
                 command: |
-                  git submodule update --init --remote            
+                  git submodule update --init --remote && git submodule update
             - run:
                   name: Install python dependencies
                   command: |
