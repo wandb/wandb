@@ -29,7 +29,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib import retry
-from ..lib.filenames import DIFF_FNAME
+from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 
 from .progress import Progress
@@ -571,12 +571,22 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!) {
+        query Model(
+            $name: String!,
+            $entity: String!,
+            $run: String!,
+            $pattern: String!,
+            $includeConfig: Boolean!,
+        ) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
-                    config
-                    commit
-                    files(names: ["wandb-metadata.json", "diff.patch"]) {
+                    config @include(if: $includeConfig)
+                    commit @include(if: $includeConfig)
+                    files(pattern: $pattern) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
                         edges {
                             node {
                                 name
@@ -590,26 +600,49 @@ class Api(object):
         """
         )
 
-        response = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity}
-        )
-        if response["model"] == None:
-            raise CommError("Run {}/{}/{} not found".format(entity, project, run))
-        run = response["model"]["bucket"]
-        commit = run["commit"]
-        config = json.loads(run["config"] or "{}")
+        variable_values = {
+            "name": project,
+            "run": run,
+            "entity": entity,
+            "includeConfig": True,
+        }
+
+        commit = ""
+        config = {}
         patch = None
         metadata = {}
-        if len(run["files"]["edges"]) > 0:
-            for file_edge in run["files"]["edges"]:
-                name = file_edge["node"]["name"]
-                url = file_edge["node"]["directUrl"]
-                res = requests.get(url)
-                res.raise_for_status()
-                if name == "wandb-metadata.json":
-                    metadata = res.json()
-                elif name == "diff.patch":
-                    patch = res.text
+
+        # If we use the `names` paramter on the `files` node, then the server
+        # will helpfully give us and 'open' file handle to the files that don't
+        # exist. This is so that we can upload data to it. However, in this
+        # case, we just want to download that file and not upload to it, so
+        # let's instead query for the files that do exist using `pattern`
+        # (with no wildcards).
+        #
+        # Unfortunately we're unable to construct a single pattern that matches
+        # our 2 files, we would need something like regex for that.
+        for filename in [DIFF_FNAME, METADATA_FNAME]:
+            variable_values["pattern"] = filename
+            response = self.gql(query, variable_values=variable_values)
+            if response["model"] == None:
+                raise CommError("Run {}/{}/{} not found".format(entity, project, run))
+            run = response["model"]["bucket"]
+            # we only need to fetch this config once
+            if variable_values["includeConfig"]:
+                commit = run["commit"]
+                config = json.loads(run["config"] or "{}")
+                variable_values["includeConfig"] = False
+            if run["files"] is not None:
+                for file_edge in run["files"]["edges"]:
+                    name = file_edge["node"]["name"]
+                    url = file_edge["node"]["directUrl"]
+                    res = requests.get(url)
+                    res.raise_for_status()
+                    if name == METADATA_FNAME:
+                        metadata = res.json()
+                    elif name == DIFF_FNAME:
+                        patch = res.text
+
         return (commit, config, patch, metadata)
 
     @normalize_exceptions

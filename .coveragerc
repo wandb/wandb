@@ -1,8 +1,30 @@
-# .coveragerc to control coverage.py
+[paths]
+canonicalsrc =
+    wandb/
+    .tox/func-py37/lib/python3.6/site-packages/wandb/
+    .tox/func-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-py37/lib/python3.8/site-packages/wandb/
+    .tox/func-py37/lib/python3.9/site-packages/wandb/
+
 [run]
-branch = True
+# TODO(jhr): enable this in the future
+# branch = True
+concurrency = multiprocessing,thread
+
+source =
+    wandb/
+
+omit =
+    wandb/sdk_py27/*
+    wandb/sweeps/*
+    wandb/vendor/*
 
 [report]
 exclude_lines =
     pragma: no cover
     if TYPE_CHECKING:
+
+omit =
+    wandb/sdk_py27/*
+    wandb/sweeps/*
+    wandb/vendor/*
