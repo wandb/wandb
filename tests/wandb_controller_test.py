@@ -26,12 +26,13 @@ def test_run_from_dict():
     assert run.summaryMetrics == {}
 
 
-def test_print_status(mock_server, capsys):
-    c = wc.controller("test", entity="test", project="test")
-    c.print_status()
-    stdout, stderr = capsys.readouterr()
-    assert stdout == "Sweep: fun-sweep-10 (unknown) | Runs: 1 (Running: 1)\n"
-    assert stderr == ""
+def test_print_status(live_mock_server, capsys, runner):
+    with runner.isolated_filesystem():
+        c = wc.controller("test", entity="test", project="test")
+        c.print_status()
+        stdout, stderr = capsys.readouterr()
+        assert stdout == "Sweep: fun-sweep-10 (unknown) | Runs: 1 (Running: 1)\n"
+        assert stderr == ""
 
 
 def test_controller_existing(mock_server):
