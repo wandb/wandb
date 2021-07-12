@@ -27,6 +27,9 @@ def test_run_from_dict():
 
 
 def test_print_status(mock_server, capsys):
+    import pdb
+
+    pdb.set_trace()
     c = wc.controller("test", entity="test", project="test")
     c.print_status()
     stdout, stderr = capsys.readouterr()
