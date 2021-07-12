@@ -47,3 +47,6 @@ per-file-ignores =
    wandb/cli/cli.py:C901,I202
    wandb/wandb_controller.py:N803,N806
    wandb/apis/public.py:B006
+   wandb/docker/auth.py:N818
+   wandb/sdk/interface/interface.py:N818
+   wandb/sdk/lib/retry.py:N818
