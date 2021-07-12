@@ -9,15 +9,15 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_run_from_dict():
-    run = wc.wandb_sweeps.SweepRun(
+    run = wc.sweeps.SweepRun(
         **{
             "name": "test",
             "state": "running",
-            "config": "{}",
+            "config": {},
             "stopped": False,
             "shouldStop": False,
             "sampledHistory": [{}],
-            "summaryMetrics": "{}",
+            "summaryMetrics": {},
         }
     )
     assert run.name == "test"
@@ -49,10 +49,10 @@ def test_controller_new(mock_server):
                 "param1": {"values": [1, 2, 3]},
                 "param2": {"values": [1, 2, 3]},
             },
-            "controller": "local",
+            "controller": {"type": "local"},
         }
     )
-    tuner.create()
+    # tuner.create()
     assert tuner._create == {
         "controller": {"type": "local"},
         "method": "random",

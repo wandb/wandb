@@ -196,11 +196,11 @@ class _WandbController:
             for config_key, controller_attr in zip(
                 ["method", "early_terminate"], ["_custom_search", "_custom_stopping"]
             ):
-                if callable(self._create[config_key]):
+                if callable(config_key in self._create and self._create[config_key]):
                     setattr(self, controller_attr, self._create[config_key])
                     self._create[config_key] = "custom"
 
-            self._sweep_id = self.create()
+            self._sweep_id = self.create(from_dict=True)
         elif sweep_id_or_config is None:
             self._defer_sweep_creation = True
             return
@@ -253,10 +253,10 @@ class _WandbController:
         if self._started:
             raise ControllerError("Can not configure after sweep has been started.")
 
-    def create(self) -> str:
+    def create(self, from_dict: bool=False) -> str:
         if self._started:
             raise ControllerError("Can not create after sweep has been started.")
-        if not self._defer_sweep_creation:
+        if not self._defer_sweep_creation and not from_dict:
             raise ControllerError("Can not use create on already created sweep.")
         if not self._create:
             raise ControllerError("Must configure sweep before create.")
