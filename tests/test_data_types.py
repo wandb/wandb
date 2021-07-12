@@ -968,6 +968,7 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
     run.finish()
     assert True
 
+
 # TODO: In another location: need to manually test the internal/backend
 # artifact sender with an artifact that has a reference to be resolved - i
 # think this will get the most coverage
