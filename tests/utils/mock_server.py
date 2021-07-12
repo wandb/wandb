@@ -790,6 +790,8 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ClientIDMapping(" in body["query"]:
+            return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
             return json.dumps(
                 {

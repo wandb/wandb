@@ -1009,7 +1009,7 @@ def test_artifact_references_internal(
     run.log_artifact(art)
     run.finish()
 
-    art = wandb.Artifact("A", "dataset")
+    art = wandb.Artifact("A_PENDING", "dataset")
     art.add(t1, "t1")
     start_backend()
 
