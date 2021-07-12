@@ -98,19 +98,19 @@ def run(ctx):
         "name": "test",
         "displayName": "beast-bug-33",
         "state": "running",
-        "config": {"epochs": {"value": 10}},
+        "config": '{"epochs": {"value": 10}}',
         "group": "A",
         "jobType": "test",
         "description": "",
-        "systemMetrics": {"cpu": 100},
-        "summaryMetrics": {"acc": 100, "loss": 0},
+        "systemMetrics": '{"cpu": 100}',
+        "summaryMetrics": '{"acc": 100, "loss": 0}',
         "fileCount": 1,
         "history": [
-            {"acc": 10, "loss": 90},
-            {"acc": 20, "loss": 80},
-            {"acc": 30, "loss": 70},
+            '{"acc": 10, "loss": 90}',
+            '{"acc": 20, "loss": 80}',
+            '{"acc": 30, "loss": 70}',
         ],
-        "events": [{"cpu": 10}, {"cpu": 20}, {"cpu": 30}],
+        "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
             "edges": [{"node": fileNode,}]

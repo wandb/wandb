@@ -309,7 +309,18 @@ class _WandbController:
         self._sweep_obj = sweep_obj
         self._sweep_config = yaml.safe_load(sweep_obj["config"])
         self._sweep_metric = self._sweep_config.get("metric", {}).get("name")
-        self._sweep_runs = [sweeps.SweepRun(**r) for r in sweep_obj["runs"]]
+
+        _sweep_runs: List[sweeps.SweepRun] = []
+        for r in sweep_obj["runs"]:
+            rr = r.copy()
+            if rr["summaryMetrics"]:
+                rr["summaryMetrics"] = json.loads(rr["summaryMetrics"])
+            rr["config"] = json.loads(rr["config"])
+            if rr["history"]:
+                rr["history"] = [json.loads(d) for d in rr["history"]]
+            _sweep_runs.append(sweeps.SweepRun(**rr))
+
+        self._sweep_runs = _sweep_runs
         self._sweep_runs_map = {r.name: r for r in self._sweep_runs}
 
         self._controller = json.loads(sweep_obj.get("controller") or "{}")
