@@ -53,6 +53,7 @@ join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
 sweep = wandb_sdk.sweep
+controller = wandb_sdk.controller
 # TODO(require): Remove underscore when we are ready to ship
 _require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
@@ -180,9 +181,6 @@ lightgbm = _lazyloader.LazyLoader(
 docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
-controller = _lazyloader.LazyLoader(
-    "wandb.controller", globals(), "wandb.wandb_controller.controller"
-)
 
 
 def ensure_configured():

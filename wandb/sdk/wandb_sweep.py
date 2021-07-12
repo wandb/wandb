@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Callable, Dict, Union
 
 from six.moves import urllib
 from wandb import env
@@ -92,3 +92,25 @@ def sweep(
     if sweep_url:
         print("Sweep URL:", sweep_url)
     return sweep_id
+
+
+def controller(
+    sweep_id_or_config: Union[str, Dict], entity: str = None, project: str = None
+):
+    """Public sweep controller constructor.
+
+    Usage:
+        import wandb
+        tuner = wandb.controller(...)
+        print(tuner.sweep_config)
+        print(tuner.sweep_id)
+        tuner.configure_search(...)
+        tuner.configure_stopping(...)
+
+    """
+    from ..wandb_controller import _WandbController
+
+    c = _WandbController(
+        sweep_id_or_config=sweep_id_or_config, entity=entity, project=project
+    )
+    return c

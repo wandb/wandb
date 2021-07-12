@@ -498,26 +498,6 @@ class _WandbController:
         self._warn("Method not implemented yet.")
 
 
-def controller(
-    sweep_id_or_config: Union[str, Dict], entity: str = None, project: str = None
-) -> _WandbController:
-    """Public sweep controller constructor.
-
-    Usage:
-        import wandb
-        tuner = wandb.controller(...)
-        print(tuner.sweep_config)
-        print(tuner.sweep_id)
-        tuner.configure_search(...)
-        tuner.configure_stopping(...)
-
-    """
-    c = _WandbController(
-        sweep_id_or_config=sweep_id_or_config, entity=entity, project=project
-    )
-    return c
-
-
 def _get_run_counts(runs):
     metrics = {}
     categories = ("running", "finished", "crashed", "failed")
