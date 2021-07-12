@@ -156,6 +156,7 @@ jobs:
                 name: get sweeps submodule
                 command: |
                   git submodule update --init --remote
+            - run:
                 name: checkout pinned commit of sweeps submodule
                 command: |
                   git submodule update
@@ -186,6 +187,7 @@ jobs:
                 name: get sweeps submodule
                 command: |
                   git submodule update --init --remote
+            - run:
                 name: checkout pinned commit of sweeps submodule
                 command: |
                   git submodule update                  
@@ -221,6 +223,7 @@ jobs:
                 name: get sweeps submodule
                 command: |
                   git submodule update --init --remote
+            - run:
                 name: checkout pinned commit of sweeps submodule
                 command: |
                   git submodule update
