@@ -991,6 +991,47 @@ def test_local_references(runner, live_mock_server, test_settings):
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
 
+def test_artifact_references_internal(
+    mocked_run,
+    mock_server,
+    internal_sender,
+    internal_sm,
+    start_backend,
+    stop_backend,
+    parse_ctx,
+    test_settings,
+):
+    mock_server.set_context("max_cli_version", "0.10.34")
+    run = wandb.init(settings=test_settings)
+    t1 = wandb.Table(columns=[], data=[])
+    art = wandb.Artifact("A", "dataset")
+    art.add(t1, "t1")
+    run.log_artifact(art)
+    run.finish()
+
+    art = wandb.Artifact("A", "dataset")
+    art.add(t1, "t1")
+    start_backend()
+
+    proto_run = internal_sender._make_run(mocked_run)
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(art)
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+
+    art = internal_sm.send_artifact(log_artifact)
+    stop_backend()
+
+
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
