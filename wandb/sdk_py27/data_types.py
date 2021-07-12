@@ -272,27 +272,28 @@ class WBValue(object):
             )
             return str(ref_entry.ref_url())
         # Else, if the object is destined for another artifact and we support client IDs
-        elif _server_accepts_client_ids():
-            if (
-                self._artifact_target
-                and self._artifact_target.name
-                and self._artifact_target.artifact._client_id is not None
-                and self._artifact_target.artifact._final
-            ):
-                return "wandb-client-artifact://{}/{}".format(
-                    self._artifact_target.artifact._client_id,
-                    type(self).with_suffix(self._artifact_target.name),
-                )
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}/{}".format(
+                self._artifact_target.artifact._client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
         # Else if we do not support client IDs, but online, then block on upload
         # Note: this is old behavior just to stay backwards compatible
         # with older server versions. This code path should be removed
         # once those versions are no longer supported. This path uses a .wait
         # which blocks the user process on artifact upload.
         elif (
-            not _is_offline()
-            and self._artifact_target
+            self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_path(
