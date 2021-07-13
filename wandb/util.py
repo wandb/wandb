@@ -580,10 +580,10 @@ def launch_browser(attempt_launch_browser=True):
     return launch_browser
 
 
-def generate_id():
+def generate_id(length=8):
     # ~3t run ids (36**8)
     run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
+    return run_gen.random(length)
 
 
 def parse_tfjob_config():

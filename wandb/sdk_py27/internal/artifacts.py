@@ -5,6 +5,7 @@ import tempfile
 import threading
 
 import wandb
+from wandb import util
 import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
@@ -73,6 +74,8 @@ class ArtifactSaver(object):
         self,
         type,
         name,
+        client_id,
+        sequence_client_id,
         distributed_id = None,
         finalize = True,
         metadata = None,
@@ -110,6 +113,8 @@ class ArtifactSaver(object):
             description=description,
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,
+            client_id=client_id,
+            sequence_client_id=sequence_client_id,
         )
 
         # TODO(artifacts):
@@ -173,6 +178,7 @@ class ArtifactSaver(object):
         commit_event = threading.Event()
 
         def before_commit():
+            self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
@@ -226,3 +232,19 @@ class ArtifactSaver(object):
             commit_event.wait()
 
         return self._server_artifact
+
+    def _resolve_client_id_manifest_references(self):
+        for entry_path in self._manifest.entries:
+            entry = self._manifest.entries[entry_path]
+            if entry.ref is not None:
+                if entry.ref.startswith("wandb-client-artifact:"):
+                    client_id = util.host_from_path(entry.ref)
+                    artifact_file_path = util.uri_from_path(entry.ref)
+                    artifact_id = self._api._resolve_client_id(client_id)
+                    if artifact_id is None:
+                        raise RuntimeError(
+                            "Could not resolve client id {}".format(client_id)
+                        )
+                    entry.ref = "wandb-artifact://{}/{}".format(
+                        util.b64_to_hex_id(artifact_id), artifact_file_path
+                    )

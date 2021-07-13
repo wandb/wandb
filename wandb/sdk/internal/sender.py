@@ -909,6 +909,8 @@ class SendManager(object):
         return saver.save(
             type=artifact.type,
             name=artifact.name,
+            client_id=artifact.client_id,
+            sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
             description=artifact.description,
             aliases=artifact.aliases,

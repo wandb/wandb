@@ -35,6 +35,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "max_cli_version": "0.10.33",
     }
 
 
@@ -453,7 +454,14 @@ def create_app(user_ctx=None):
                             "teams": {
                                 "edges": []  # TODO make configurable for cli_test
                             },
-                        }
+                        },
+                        "serverInfo": {
+                            "cliVersionInfo": {
+                                "max_cli_version": str(
+                                    ctx.get("max_cli_version", "0.10.33")
+                                )
+                            }
+                        },
                     }
                 }
             )
@@ -749,7 +757,9 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=base_url)
+            art = artifact(
+                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
+            )
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
@@ -782,6 +792,8 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ClientIDMapping(" in body["query"]:
+            return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -909,6 +921,30 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
+            elif _id == "e6954815d2beb5841b3dabf7cf455c30":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.partitioned-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "0eec13efd400546f58a4530de62ed07a":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "jt.joined-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
             elif _id in [
                 "2d9a7e0aa8407f0730e19e5bc55c3a45",
                 "c541de19b18331a4a33b282fc9d42510",
@@ -1005,7 +1041,7 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
-        if entity == "entity":
+        if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
             ):  # "dataset.partitioned-table.json"
