@@ -19,6 +19,7 @@ if os.name == "posix" and sys.version_info[0] < 3:
 else:
     import subprocess  # type: ignore[no-redef]
 
+from copy import deepcopy
 import six
 from six import BytesIO
 import wandb
@@ -1275,6 +1276,40 @@ class Api(object):
         else:
             return json.loads(response["agentHeartbeat"]["commands"])
 
+    @staticmethod
+    def _validate_config_and_fill_distribution(config):
+        # verify that parameters are well specified.
+        # TODO(dag): deprecate this in favor of jsonschema validation once
+        # apiVersion 2 is released and local controller is integrated with
+        # wandb/client.
+
+        # avoid modifying the original config dict in
+        # case it is reused outside the calling func
+        config = deepcopy(config)
+
+        if "parameters" not in config:
+            raise ValueError("sweep config must have a parameters section")
+
+        for parameter_name in config["parameters"]:
+            parameter = config["parameters"][parameter_name]
+            if "min" in parameter and "max" in parameter:
+                if "distribution" not in parameter:
+                    if isinstance(parameter["min"], int) and isinstance(
+                        parameter["max"], int
+                    ):
+                        parameter["distribution"] = "int_uniform"
+                    elif isinstance(parameter["min"], float) and isinstance(
+                        parameter["max"], float
+                    ):
+                        parameter["distribution"] = "uniform"
+                    else:
+                        raise ValueError(
+                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
+                            % parameter_name
+                        )
+        return config
+
     @normalize_exceptions
     def upsert_sweep(
         self,
@@ -1289,7 +1324,7 @@ class Api(object):
         """Upsert a sweep object.
 
         Arguments:
-            config (str): sweep config (will be converted to yaml)
+            config (dict): sweep config (will be converted to yaml)
         """
         project_query = """
                     project {
@@ -1361,6 +1396,8 @@ class Api(object):
 
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_3, mutation_2, mutation_1]
+
+        config = self._validate_config_and_fill_distribution(config)
 
         for mutation in mutations:
             try:
