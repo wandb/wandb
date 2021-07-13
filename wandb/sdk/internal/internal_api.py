@@ -18,6 +18,7 @@ if os.name == "posix" and sys.version_info[0] < 3:
 else:
     import subprocess  # type: ignore[no-redef]
 
+from copy import deepcopy
 import six
 from six import BytesIO
 import wandb
@@ -29,7 +30,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib import retry
-from ..lib.filenames import DIFF_FNAME
+from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.git import GitRepo
 
 from .progress import Progress
@@ -571,12 +572,22 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!) {
+        query Model(
+            $name: String!,
+            $entity: String!,
+            $run: String!,
+            $pattern: String!,
+            $includeConfig: Boolean!,
+        ) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
-                    config
-                    commit
-                    files(names: ["wandb-metadata.json", "diff.patch"]) {
+                    config @include(if: $includeConfig)
+                    commit @include(if: $includeConfig)
+                    files(pattern: $pattern) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
                         edges {
                             node {
                                 name
@@ -590,26 +601,49 @@ class Api(object):
         """
         )
 
-        response = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity}
-        )
-        if response["model"] == None:
-            raise CommError("Run {}/{}/{} not found".format(entity, project, run))
-        run = response["model"]["bucket"]
-        commit = run["commit"]
-        config = json.loads(run["config"] or "{}")
+        variable_values = {
+            "name": project,
+            "run": run,
+            "entity": entity,
+            "includeConfig": True,
+        }
+
+        commit = ""
+        config = {}
         patch = None
         metadata = {}
-        if len(run["files"]["edges"]) > 0:
-            for file_edge in run["files"]["edges"]:
-                name = file_edge["node"]["name"]
-                url = file_edge["node"]["directUrl"]
-                res = requests.get(url)
-                res.raise_for_status()
-                if name == "wandb-metadata.json":
-                    metadata = res.json()
-                elif name == "diff.patch":
-                    patch = res.text
+
+        # If we use the `names` paramter on the `files` node, then the server
+        # will helpfully give us and 'open' file handle to the files that don't
+        # exist. This is so that we can upload data to it. However, in this
+        # case, we just want to download that file and not upload to it, so
+        # let's instead query for the files that do exist using `pattern`
+        # (with no wildcards).
+        #
+        # Unfortunately we're unable to construct a single pattern that matches
+        # our 2 files, we would need something like regex for that.
+        for filename in [DIFF_FNAME, METADATA_FNAME]:
+            variable_values["pattern"] = filename
+            response = self.gql(query, variable_values=variable_values)
+            if response["model"] == None:
+                raise CommError("Run {}/{}/{} not found".format(entity, project, run))
+            run = response["model"]["bucket"]
+            # we only need to fetch this config once
+            if variable_values["includeConfig"]:
+                commit = run["commit"]
+                config = json.loads(run["config"] or "{}")
+                variable_values["includeConfig"] = False
+            if run["files"] is not None:
+                for file_edge in run["files"]["edges"]:
+                    name = file_edge["node"]["name"]
+                    url = file_edge["node"]["directUrl"]
+                    res = requests.get(url)
+                    res.raise_for_status()
+                    if name == METADATA_FNAME:
+                        metadata = res.json()
+                    elif name == DIFF_FNAME:
+                        patch = res.text
+
         return (commit, config, patch, metadata)
 
     @normalize_exceptions
@@ -1240,6 +1274,40 @@ class Api(object):
         else:
             return json.loads(response["agentHeartbeat"]["commands"])
 
+    @staticmethod
+    def _validate_config_and_fill_distribution(config):
+        # verify that parameters are well specified.
+        # TODO(dag): deprecate this in favor of jsonschema validation once
+        # apiVersion 2 is released and local controller is integrated with
+        # wandb/client.
+
+        # avoid modifying the original config dict in
+        # case it is reused outside the calling func
+        config = deepcopy(config)
+
+        if "parameters" not in config:
+            raise ValueError("sweep config must have a parameters section")
+
+        for parameter_name in config["parameters"]:
+            parameter = config["parameters"][parameter_name]
+            if "min" in parameter and "max" in parameter:
+                if "distribution" not in parameter:
+                    if isinstance(parameter["min"], int) and isinstance(
+                        parameter["max"], int
+                    ):
+                        parameter["distribution"] = "int_uniform"
+                    elif isinstance(parameter["min"], float) and isinstance(
+                        parameter["max"], float
+                    ):
+                        parameter["distribution"] = "uniform"
+                    else:
+                        raise ValueError(
+                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
+                            % parameter_name
+                        )
+        return config
+
     @normalize_exceptions
     def upsert_sweep(
         self,
@@ -1254,7 +1322,7 @@ class Api(object):
         """Upsert a sweep object.
 
         Arguments:
-            config (str): sweep config (will be converted to yaml)
+            config (dict): sweep config (will be converted to yaml)
         """
         project_query = """
                     project {
@@ -1326,6 +1394,8 @@ class Api(object):
 
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_3, mutation_2, mutation_1]
+
+        config = self._validate_config_and_fill_distribution(config)
 
         for mutation in mutations:
             try:

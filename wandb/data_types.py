@@ -434,16 +434,20 @@ class Table(Media):
             )
         return result_type
 
-    def _to_table_json(self, max_rows=None):
+    def _to_table_json(self, max_rows=None, warn=True):
         # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
-        if len(self.data) > max_rows:
+        if len(self.data) > max_rows and warn:
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
-        data = self._to_table_json()
+        # We set `warn=False` since Tables will now always be logged to both
+        # files and artifacts. The file limit will never practically matter and
+        # this code path will be ultimately removed. The 10k limit warning confuses
+        # users given that we publically say 200k is the limit.
+        data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
@@ -1138,7 +1142,7 @@ class JoinedTable(Media):
             # Give the new object a unique, yet deterministic name
             name = binascii.hexlify(
                 base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:8]
+            ).decode("ascii")[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]

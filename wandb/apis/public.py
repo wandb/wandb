@@ -1422,6 +1422,7 @@ class Sweep(Attrs):
         id: (str) sweep id
         project: (str) name of project
         config: (str) dictionary of sweep configuration
+        state: (str) the state of the sweep
     """
 
     QUERY = gql(
@@ -1445,6 +1446,7 @@ class Sweep(Attrs):
                         hasNextPage
                     }
                 }
+                state
             }
         }
     }
@@ -2399,7 +2401,9 @@ class RunArtifacts(Paginator):
                 self.client,
                 self.run.entity,
                 self.run.project,
-                r["node"]["digest"],
+                "{}:v{}".format(
+                    r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
+                ),
                 r["node"],
             )
             for r in self.last_response["project"]["run"][self.run_key]["edges"]

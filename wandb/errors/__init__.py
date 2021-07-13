@@ -37,10 +37,17 @@ class LogMultiprocessError(LogError):
     pass
 
 
+class RequireError(Error):
+    """Raised when wandb.require() fails"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
     "CommError",
     "LogError",
     "LogMultiprocessError",
+    "RequireError",
 ]

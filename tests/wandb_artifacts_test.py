@@ -515,6 +515,7 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
+@pytest.mark.timeout(120)
 def test_artifact_log_with_network_error(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     artifact = wandb.Artifact("table-example", "dataset")
@@ -550,19 +551,19 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
+        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
-                "size": 293,
+                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
+                "size": 305,
             },
         }
 
@@ -576,19 +577,19 @@ def test_add_obj_using_brackets(runner):
         artifact["my-image"] = wb_image
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
+        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
-                "size": 293,
+                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
+                "size": 305,
             },
         }
 
@@ -688,13 +689,13 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
-                "size": 293,
+                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
+                "size": 305,
             },
         }
 
@@ -715,13 +716,13 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "3lTCGIlHAbNJlwIp2ALaTQ==",
-                "size": 294,
+                "digest": "4IA8mYMQrmtyGGPj/Azdpg==",
+                "size": 306,
             },
         }
 
@@ -767,11 +768,11 @@ def test_add_obj_wbtable_images(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "dQsR9hmEpOiRckgfFbiO1g==", "size": 1011},
+            "my-table.table.json": {"digest": "8zWFSUyPI7j8c3+Wo0/EXQ==", "size": 1035},
         }
 
 
@@ -795,15 +796,15 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/images/641e917f/img.png": {
+            "media/images/641e917f31888a48f546/img.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "media/images/cf37c38f/img.png": {
+            "media/images/cf37c38fd1dca3aaba6e/img.png": {
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "Ts96ecO6RcC9J0aOABjflw==", "size": 797},
+            "my-table.table.json": {"digest": "hT/A7Ugr75OmC+V1ru4zoA==", "size": 821},
         }
 
 

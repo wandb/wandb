@@ -63,13 +63,12 @@ def test_wb_value(live_mock_server, test_settings):
     assert wbvalue != data_types.WBValue()
 
 
-@pytest.mark.skipif(sys.version_info < (3, 6), reason="fastparqet not for py2")
-@pytest.mark.skipif(sys.version_info >= (3, 9), reason="numpy not in py3.9 yet")
-def test_wb_summary_df(live_mock_server, test_settings):
+def test_log_dataframe(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
-    data_frame = pd.DataFrame(data=np.random.rand(1000), columns=["col"])
-    with pytest.raises(ValueError):
-        run.summary.update({"data-frame-summary": data_frame})
+    cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
+    run.log({"results_df": cv_results})
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["artifacts"]) == 1
 
 
 def test_raw_data():
