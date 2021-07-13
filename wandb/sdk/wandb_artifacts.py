@@ -168,8 +168,8 @@ class Artifact(ArtifactInterface):
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
-        self._client_id = util.generate_id(64)
-        self._sequence_client_id = util.generate_id(64)
+        self._client_id = util.generate_id(128)
+        self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
 
         if incremental:
@@ -1735,7 +1735,7 @@ class WBArtifactHandler(StorageHandler):
 
     _client: Optional[PublicApi]
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self) -> None:
         self._scheme = "wandb-artifact"
         self._cache = get_artifacts_cache()
         self._client = None
@@ -1849,7 +1849,7 @@ class WBLocalArtifactHandler(StorageHandler):
 
     _client: Optional[PublicApi]
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self) -> None:
         self._scheme = "wandb-client-artifact"
         self._cache = get_artifacts_cache()
 
