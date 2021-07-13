@@ -313,11 +313,17 @@ class _WandbController:
         _sweep_runs: List[sweeps.SweepRun] = []
         for r in sweep_obj["runs"]:
             rr = r.copy()
-            if rr["summaryMetrics"]:
-                rr["summaryMetrics"] = json.loads(rr["summaryMetrics"])
+            if "summaryMetrics" in rr:
+                if rr["summaryMetrics"]:
+                    rr["summaryMetrics"] = json.loads(rr["summaryMetrics"])
+            if "config" not in rr:
+                raise ValueError("sweep object is missing config")
             rr["config"] = json.loads(rr["config"])
-            if rr["history"]:
-                rr["history"] = [json.loads(d) for d in rr["history"]]
+            if "history" in rr:
+                if isinstance(rr["history"], list):
+                    rr["history"] = [json.loads(d) for d in rr["history"]]
+                else:
+                     raise ValueError('Invalid history value: expected list of json strings: %s' % rr["history"])
             _sweep_runs.append(sweeps.SweepRun(**rr))
 
         self._sweep_runs = _sweep_runs
@@ -498,9 +504,9 @@ class _WandbController:
         self._warn("Method not implemented yet.")
 
 
-def _get_run_counts(runs):
+def _get_run_counts(runs: List[sweeps.SweepRun]) -> Dict[str, int]:
     metrics = {}
-    categories = ("running", "finished", "crashed", "failed")
+    categories = [name for name, _ in sweeps.RunState.__members__.items()] + ['unknown']
     for r in runs:
         state = r.state
         found = "unknown"
@@ -514,7 +520,7 @@ def _get_run_counts(runs):
 
 
 def _get_runs_status(metrics):
-    categories = ("finished", "crashed", "failed", "unknown", "running")
+    categories = [name for name, _ in sweeps.RunState.__members__.items()] + ['unknown']
     mlist = []
     for c in categories:
         if not metrics.get(c):
