@@ -1085,6 +1085,8 @@ def launch_add(
     if config is not None:
         with open(config, "r") as f:
             launch_config = json.load(f)
+    else:
+        launch_config = {}
     
     run_spec = construct_run_spec(
         uri,

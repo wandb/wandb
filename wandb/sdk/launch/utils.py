@@ -93,7 +93,8 @@ def construct_run_spec(
     if "overrides" not in run_spec:
         run_spec["overrides"] = {}
     if parameters:
-        run_spec["overrides"]["args"] = merge_parameters(parameters, run_spec["overrides"].get("args", {}))
+        base_args = util._user_args_to_dict(run_spec["overrides"].get("args", []))
+        run_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
     if entry_point:
         run_spec["overrides"]["entry_point"] = entry_point
 
@@ -146,7 +147,7 @@ def parse_wandb_uri(uri):
 def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
-    if result.get("args"):
+    if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))

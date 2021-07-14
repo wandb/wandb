@@ -204,8 +204,8 @@ def test_launch_args_supersede_config_vals(
     mock_with_run_info = launch.run(**kwargs)
     for arg in mock_with_run_info.args:
         if isinstance(arg, _project_spec.Project):
-            assert arg.parameters["epochs"] == 5
-            assert arg.run_config.get("epochs") is None
+            assert arg.override_args["epochs"] == 5
+            assert arg.override_config.get("epochs") is None
             assert arg.target_project == "new_test_project"
 
 
