@@ -1058,6 +1058,13 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
+    "--docker-image",
+    "-d",
+    default=None,
+    metavar="DOCKER IMAGE",
+    help="Specific docker image you'd like to use. In the form name:tag.",
+)
+@click.option(
     "--param-list",
     "-P",
     metavar="NAME=VALUE",
@@ -1076,6 +1083,7 @@ def launch_add(
     entry_point=None,
     experiment_name=None,
     version=None,
+    docker_image=None,
     param_list=None,
 ):
     api = _get_cling_api()
@@ -1087,13 +1095,13 @@ def launch_add(
             launch_config = json.load(f)
     else:
         launch_config = {}
-    
+
     run_spec = construct_run_spec(
         uri,
         experiment_name,
         project,
         entity,
-        None,
+        docker_image,
         entry_point,
         version,
         param_dict,

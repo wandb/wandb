@@ -3,7 +3,7 @@ import sys
 import time
 
 import wandb
-from wandb import Settings, util
+from wandb import Settings
 from wandb.errors import LaunchException
 
 
@@ -47,7 +47,7 @@ class LaunchAgent(object):
         self._access = _convert_access("project")
         self._queues: Iterable[Dict[str, str]] = []
         self._backend = (
-            None  # todo: probably rename to runner to avoid confusion w cli backend
+            None
         )
         self.setup_run_queues(queues)
 

@@ -5,8 +5,8 @@ import re
 import subprocess
 
 import wandb
-from wandb.errors import CommError, ExecutionException, LaunchException
 from wandb import util
+from wandb.errors import CommError, ExecutionException, LaunchException
 
 from . import _project_spec
 
@@ -107,7 +107,7 @@ def create_project_from_spec(run_spec, api):
     if run_spec.get("name"):
         name = run_spec["name"]
     else:
-        name = "{}_{}_launch".format(project, run_id)   # default naming scheme    
+        name = "{}_{}_launch".format(project, run_id)   # default naming scheme
 
     return _project_spec.Project(
         uri,
@@ -124,7 +124,7 @@ def fetch_and_validate_project(project, api):
     project._fetch_project_local(api=api)
     project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
-    project.get_entry_point(first_entry_point)._validate_parameters(project.override_args)     # todo:steph useless validation
+    project.get_entry_point(first_entry_point)._validate_parameters(project.override_args)
     return project
 
 
@@ -147,10 +147,10 @@ def parse_wandb_uri(uri):
 def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
-    if result.get("args") is not None:
-        result["args"] = util._user_args_to_dict(result["args"])
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
+    if result.get("args") is not None:
+        result["args"] = util._user_args_to_dict(result["args"])
     return result
 
 

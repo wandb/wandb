@@ -1,16 +1,15 @@
 import logging
 import sys
 
-from wandb import util
 from wandb.errors import ExecutionException
 
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
     _is_wandb_local_uri,
+    construct_run_spec,
     create_project_from_spec,
     fetch_and_validate_project,
-    construct_run_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )

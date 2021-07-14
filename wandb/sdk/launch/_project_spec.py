@@ -14,7 +14,7 @@ from wandb.sdk.lib.runid import generate_id
 from . import utils
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, Optional
 
 
 _logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class Project(object):
         self.git_repo = git_info.get("repo")
         self.override_args = overrides.get("args", {})
         self.override_config = overrides.get("run_config", {})
-        self._entry_points: Dict[str, EntryPoint] = {}  # todo: multiple entrypoint support?
+        self._entry_points: Dict[str, EntryPoint] = {}  # todo: keep multiple entrypoint support?
         if "entry_point" in overrides:
             self.add_entry_point(overrides["entry_point"])
 

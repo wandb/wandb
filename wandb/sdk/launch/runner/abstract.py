@@ -10,8 +10,6 @@ from wandb import Settings
 
 _logger = logging.getLogger(__name__)
 
-
-# TODO: is this ok?
 if wandb.TYPE_CHECKING:
     from typing import Dict
 
@@ -111,7 +109,6 @@ class AbstractRunner(ABC):
     """
 
     def __init__(self, api):  # TODO: maybe don't want to pass api_key here...
-        # self._config = config  #TODO:
         self._settings = Settings()
         self._api = api
         self._cwd = os.getcwd()
