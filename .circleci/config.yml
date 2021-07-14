@@ -30,13 +30,13 @@ parameters:
     default: "py37"
   manual_test_name:
     type: string
-    default: "Python 3.7 [MANUAL]"
+    default: "man-lin-py37"
   manual_win_name:
     type: string
-    default: "Windows (Python 3.7) [MANUAL]"
+    default: "man-lin-py37"
   manual_mac_name:
     type: string
-    default: "MacOS (Python 3.7) [MANUAL]"
+    default: "man-mac-py37"
 
 commands:
   save-tox-cache:
@@ -80,7 +80,7 @@ workflows:
     unless: << pipeline.parameters.manual >>
     jobs:
       - test:
-         name: "Linters"
+         name: "code-check"
          image: "python:3.6"
          toxenv: "codemodcheck,protocheck,mypy,black,flake8,flake8-docstrings"
 # Disable python2.7 for good?
@@ -94,30 +94,30 @@ workflows:
 #         image: "python:3.5"
 #         toxenv: "py35"
       - test:
-         name: "Python 3.6"
+         name: "lin-py36"
          image: "python:3.6"
          toxenv: "py36,covercircle"
       - test:
-         name: "Python 3.7"
+         name: "lin-py37"
          image: "python:3.7"
          toxenv: "py37"
       - test:
-         name: "Python 3.8"
+         name: "lin-py38"
          image: "python:3.8"
          toxenv: "py38"
       - test:
-         name: "Python 3.9"
+         name: "lin-py39"
          image: "python:3.9"
          toxenv: "py39"
       - test:
-         name: "Functional linux-py37"
+         name: "func-lin-py37"
          image: "python:3.7"
          toxenv: "func-py37,func-covercircle"
       - win:
-         name: "Windows (Python 3.7)"
+         name: "win-py37"
          toxenv: "py37,wincovercircle"
       - mac:
-         name: "MacOS (Python 3.7)"
+         name: "mac-py37"
          toxenv: "py37"
   manual_test:
     when: << pipeline.parameters.manual_test >>

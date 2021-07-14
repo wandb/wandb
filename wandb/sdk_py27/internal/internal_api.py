@@ -5,6 +5,7 @@ from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import ast
 import os
+from pkg_resources import parse_version  # type: ignore
 import json
 import yaml
 import re
@@ -18,6 +19,7 @@ if os.name == "posix" and sys.version_info[0] < 3:
 else:
     import subprocess  # type: ignore[no-redef]
 
+from copy import deepcopy
 import six
 from six import BytesIO
 import wandb
@@ -112,6 +114,7 @@ class Api(object):
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
+        self._client_id_mapping = {}
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -1159,7 +1162,7 @@ class Api(object):
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                util.sentry_reraise(retry.TransientException(exc=e))
+                util.sentry_reraise(retry.TransientError(exc=e))
             else:
                 util.sentry_reraise(e)
 
@@ -1273,6 +1276,40 @@ class Api(object):
         else:
             return json.loads(response["agentHeartbeat"]["commands"])
 
+    @staticmethod
+    def _validate_config_and_fill_distribution(config):
+        # verify that parameters are well specified.
+        # TODO(dag): deprecate this in favor of jsonschema validation once
+        # apiVersion 2 is released and local controller is integrated with
+        # wandb/client.
+
+        # avoid modifying the original config dict in
+        # case it is reused outside the calling func
+        config = deepcopy(config)
+
+        if "parameters" not in config:
+            raise ValueError("sweep config must have a parameters section")
+
+        for parameter_name in config["parameters"]:
+            parameter = config["parameters"][parameter_name]
+            if "min" in parameter and "max" in parameter:
+                if "distribution" not in parameter:
+                    if isinstance(parameter["min"], int) and isinstance(
+                        parameter["max"], int
+                    ):
+                        parameter["distribution"] = "int_uniform"
+                    elif isinstance(parameter["min"], float) and isinstance(
+                        parameter["max"], float
+                    ):
+                        parameter["distribution"] = "uniform"
+                    else:
+                        raise ValueError(
+                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution)."
+                            % parameter_name
+                        )
+        return config
+
     @normalize_exceptions
     def upsert_sweep(
         self,
@@ -1287,7 +1324,7 @@ class Api(object):
         """Upsert a sweep object.
 
         Arguments:
-            config (str): sweep config (will be converted to yaml)
+            config (dict): sweep config (will be converted to yaml)
         """
         project_query = """
                     project {
@@ -1359,6 +1396,8 @@ class Api(object):
 
         # TODO(dag): replace this with a query for protocol versioning
         mutations = [mutation_3, mutation_2, mutation_1]
+
+        config = self._validate_config_and_fill_distribution(config)
 
         for mutation in mutations:
             try:
@@ -1630,6 +1669,8 @@ class Api(object):
         artifact_type_name,
         artifact_collection_name,
         digest,
+        client_id=None,
+        sequence_client_id=None,
         entity_name=None,
         project_name=None,
         run_name=None,
@@ -1640,6 +1681,15 @@ class Api(object):
         distributed_id=None,
         is_user_created=False,
     ):
+        # TODO: Ignore clientID and sequenceClientID if server can't handle it
+        _, server_info = self.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        can_handle_client_id = max_cli_version is None or parse_version(
+            "0.10.34"
+        ) <= parse_version(max_cli_version)
+
         mutation = gql(
             """
         mutation CreateArtifact(
@@ -1654,6 +1704,8 @@ class Api(object):
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
             %s
+            %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -1667,6 +1719,8 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
+                %s
                 %s
             }) {
                 artifact {
@@ -1692,8 +1746,12 @@ class Api(object):
             # For backwards compatibility with older backends that don't support
             # distributed writers.
             (
-                "$distributedID: String" if distributed_id else "",
-                "distributedID: $distributedID" if distributed_id else "",
+                "$distributedID: String," if distributed_id else "",
+                "$clientID: ID!," if can_handle_client_id else "",
+                "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "distributedID: $distributedID," if distributed_id else "",
+                "clientID: $clientID," if can_handle_client_id else "",
+                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
             )
         )
 
@@ -1712,6 +1770,8 @@ class Api(object):
                 "runName": run_name,
                 "artifactTypeName": artifact_type_name,
                 "artifactCollectionNames": [artifact_collection_name],
+                "clientID": client_id,
+                "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
@@ -1887,6 +1947,32 @@ class Api(object):
             response["updateArtifactManifest"]["artifactManifest"]["id"],
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
+
+    def _resolve_client_id(
+        self, client_id,
+    ):
+
+        if client_id in self._client_id_mapping:
+            return self._client_id_mapping[client_id]
+
+        query = gql(
+            """
+            query ClientIDMapping($clientID: ID!) {
+                clientIDMapping(clientID: $clientID) {
+                    serverID
+                }
+            }
+        """
+        )
+        response = self.gql(query, variable_values={"clientID": client_id,},)
+        server_id = None
+        if response is not None:
+            client_id_mapping = response.get("clientIDMapping")
+            if client_id_mapping is not None:
+                server_id = client_id_mapping.get("serverID")
+                if server_id is not None:
+                    self._client_id_mapping[client_id] = server_id
+        return server_id
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):
