@@ -1207,7 +1207,7 @@ class ParseCTX(object):
 
     def get_filestream_file_updates(self):
         data = {}
-        file_stream_updates = self._ctx["file_stream"]
+        file_stream_updates = self._ctx.get("file_stream", [])
         for update in file_stream_updates:
             files = update.get("files")
             if not files:
@@ -1238,15 +1238,19 @@ class ParseCTX(object):
         return data
 
     @property
+    def dropped_chunks(self):
+        return self._ctx.get("file_stream", [{"dropped": 0}])[-1]["dropped"]
+
+    @property
     def summary(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files["wandb-summary.json"][-1]
+        summary = fs_files.get("wandb-summary.json", [])[-1]
         return summary
 
     @property
     def history(self):
         fs_files = self.get_filestream_file_items()
-        history = fs_files["wandb-history.jsonl"]
+        history = fs_files.get("wandb-history.jsonl")
         return history
 
     @property
