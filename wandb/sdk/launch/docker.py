@@ -37,10 +37,10 @@ def validate_docker_installation():
 
 
 def validate_docker_env(project: _project_spec.Project):
-    if not project.docker_env.get("image"):
+    if not project.docker_image:
         raise ExecutionException(
             "Project with docker environment must specify the docker image "
-            "to use via an 'image' field under the 'docker_env' field."
+            "to use via 'docker_image' field."
         )
 
 
@@ -52,7 +52,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd):
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        "--user-id={}".format(project.user_id),
+        "--user-id={}".format(project.docker_user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]

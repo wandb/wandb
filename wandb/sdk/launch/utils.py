@@ -6,6 +6,7 @@ import subprocess
 
 import wandb
 from wandb.errors import CommError, ExecutionException, LaunchException
+from wandb import util
 
 from . import _project_spec
 
@@ -50,38 +51,79 @@ def _is_wandb_local_uri(uri: str):
     return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
 
 
-def fetch_and_validate_project(
+def set_project_entity_defaults(uri, project, entity, api):
+    # set the target project and entity if not provided
+    if not _is_wandb_uri(uri):
+        wandb.termlog("Non-wandb path detected")
+    _, uri_project, run_id = parse_wandb_uri(uri)
+    if project is None:
+        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if entity is None:
+        entity = api.default_entity
+    return project, entity, run_id
+
+
+def construct_run_spec(
     uri,
-    target_entity,
-    target_project,
     experiment_name,
-    api,
-    version,
-    entry_point,
-    parameters,
-    user_id,
+    wandb_project,
+    wandb_entity,
     docker_image,
-    run_config,
+    entry_point,
+    version,
+    parameters,
+    launch_config,
 ):
-    parameters = parameters or {}
-    experiment_name = experiment_name
-    project = _project_spec.Project(
+    # override base config (if supplied) with supplied args
+    run_spec = launch_config if launch_config is not None else {}
+    run_spec["uri"] = uri
+    run_spec["entity"] = wandb_entity
+    run_spec["project"] = wandb_project
+    run_spec["name"] = experiment_name
+    if "docker" not in run_spec:
+        run_spec["docker"] = {}
+    if docker_image:
+        run_spec["docker"]["docker_image"] = docker_image
+
+    if "git" not in run_spec:
+        run_spec["git"] = {}
+    if version:
+        run_spec["git"]["version"] = version
+
+    if "overrides" not in run_spec:
+        run_spec["overrides"] = {}
+    if parameters:
+        run_spec["overrides"]["args"] = merge_parameters(parameters, run_spec["overrides"].get("args", {}))
+    if entry_point:
+        run_spec["overrides"]["entry_point"] = entry_point
+
+    return run_spec
+
+
+def create_project_from_spec(run_spec, api):
+    uri = run_spec["uri"]
+    project, entity, run_id = set_project_entity_defaults(uri, run_spec.get("project"), run_spec.get("entity"), api)
+    if run_spec.get("name"):
+        name = run_spec["name"]
+    else:
+        name = "{}_{}_launch".format(project, run_id)   # default naming scheme    
+
+    return _project_spec.Project(
         uri,
-        target_entity,
-        target_project,
-        experiment_name,
-        version,
-        [entry_point],
-        parameters,
-        user_id,
-        docker_image,
-        run_config,
+        entity,
+        project,
+        name,
+        run_spec.get("docker", {}),
+        run_spec.get("git", {}),
+        run_spec.get("overrides", {}),
     )
-    # todo: we maybe don't always want to dl project to local
-    project._fetch_project_local(api=api, version=version)
+
+
+def fetch_and_validate_project(project, api):
+    project._fetch_project_local(api=api)
     project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
-    project.get_entry_point(first_entry_point)._validate_parameters(parameters)
+    project.get_entry_point(first_entry_point)._validate_parameters(project.override_args)     # todo:steph useless validation
     return project
 
 
@@ -104,6 +146,8 @@ def parse_wandb_uri(uri):
 def fetch_wandb_project_run_info(uri, api=None):
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
+    if result.get("args"):
+        result["args"] = util._user_args_to_dict(result["args"])
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     return result
@@ -117,17 +161,6 @@ def fetch_project_diff(uri, api=None):
     except CommError:
         pass
     return patch
-
-
-def set_project_entity_defaults(uri, project, entity, api):
-    if not _is_wandb_uri(uri):
-        raise LaunchException("Non-wandb URLs not yet supported in this feature")
-    _, uri_project, run_id = parse_wandb_uri(uri)
-    if project is None:
-        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
-    if entity is None:
-        entity = api.default_entity
-    return project, entity, run_id
 
 
 def apply_patch(patch_string, dst_dir):
@@ -187,14 +220,6 @@ def get_entry_point_command(project, entry_point, parameters):
     commands = []
     commands.append(entry_point.compute_command(parameters))
     return commands
-
-
-def _convert_access(access):
-    access = access.upper()
-    assert (
-        access == "PROJECT" or access == "USER"
-    ), "Queue access must be either project or user"
-    return access
 
 
 def merge_parameters(higher_priority_params, lower_priority_params):

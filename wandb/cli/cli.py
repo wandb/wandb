@@ -43,7 +43,7 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk import launch as wandb_launch
-    from wandb.sdk.launch.utils import set_project_entity_defaults
+    from wandb.sdk.launch.utils import construct_run_spec
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
@@ -878,7 +878,7 @@ def sweep(
     "are not in the list of parameters for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
-@click.option(
+@click.option(  # todo: maybe take these out it's confusing with the docker image stuff
     "--docker-args",
     "-A",
     metavar="NAME=VALUE",
@@ -953,7 +953,6 @@ def launch(
     local projects run from the project's root directory.
     """
     api = _get_cling_api()
-    project, entity, _ = set_project_entity_defaults(uri, project, entity, api)
 
     param_dict = util._user_args_to_dict(param_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
@@ -1080,31 +1079,24 @@ def launch_add(
     param_list=None,
 ):
     api = _get_cling_api()
-    src_project, _, src_run_id = set_project_entity_defaults(uri, project, entity, api)
 
-    run_spec = {}
+    param_dict = util._user_args_to_dict(param_list)
+    resource = resource or "local"
     if config is not None:
         with open(config, "r") as f:
-            run_spec = json.load(f)
-    # current behavior we override anything in supplied config with cli args if passed
-    if project:
-        run_spec["project"] = project
-    if entity:
-        run_spec["entity"] = entity
-    run_spec["resource"] = resource or "local"
-    if experiment_name is not None:
-        run_spec["name"] = experiment_name
-    else:
-        run_spec["name"] = "{}_{}_launch".format(src_project, src_run_id)
-
-    if run_spec.get("overrides") is None:
-        run_spec["overrides"] = {}
-    if version is not None:
-        if run_spec.get("git") is None:
-            run_spec["git"] = {}
-        run_spec["git"]["version"] = version
-    if param_list is not None:
-        run_spec["overrides"]["args"] = param_list
+            launch_config = json.load(f)
+    
+    run_spec = construct_run_spec(
+        uri,
+        experiment_name,
+        project,
+        entity,
+        None,
+        entry_point,
+        version,
+        param_dict,
+        launch_config,
+    )
 
     try:
         res = wandb_launch.push_to_queue(api, queue, run_spec)

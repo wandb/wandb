@@ -8,8 +8,9 @@ from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
     _is_wandb_local_uri,
+    create_project_from_spec,
     fetch_and_validate_project,
-    merge_parameters,
+    construct_run_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -41,7 +42,7 @@ def _run(
     version,
     parameters,
     docker_args,
-    runner_name,
+    resource,
     launch_config,
     synchronous,
     api=None,
@@ -51,57 +52,33 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
 
-    experiment_name = experiment_name or launch_config.get("name")
-    overrides = launch_config.get("overrides")
-    run_config = None
-    if overrides:
-        run_config = overrides.get("run_config")
-        args = overrides.get("args")
-        if args:
-            args = util._user_args_to_dict(args)
-            parameters = merge_parameters(parameters, args)
-
-    user_id = None
-    if launch_config.get("docker") and launch_config["docker"].get("user_id"):
-        user_id = launch_config["docker"]["user_id"]
-
-    if version is None:
-        git = launch_config.get("git")
-        if git:
-            version = git.get("version")
-
-    if docker_image is None:
-        docker = launch_config.get("docker")
-        if docker:
-            docker_image = docker.get("docker_image")
-
-    project = fetch_and_validate_project(
+    run_spec = construct_run_spec(
         uri,
-        wandb_entity,
-        wandb_project,
         experiment_name,
-        api,
-        version,
-        entry_point,
-        parameters,
-        user_id,
+        wandb_project,
+        wandb_entity,
         docker_image,
-        run_config,
+        entry_point,
+        version,
+        parameters,
+        launch_config
     )
+    project = create_project_from_spec(run_spec, api)
+    project = fetch_and_validate_project(project, api)
 
     # construct runner config.
     runner_config = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
 
-    backend = loader.load_backend(runner_name, api)
+    backend = loader.load_backend(resource, api)
     if backend:
         submitted_run = backend.run(project, runner_config)
         return submitted_run
     else:
         raise ExecutionException(
             "Unavailable backend {}, available backends: {}".format(
-                runner_name, ", ".join(loader.WANDB_RUNNERS.keys())
+                resource, ", ".join(loader.WANDB_RUNNERS.keys())
             )
         )
 
@@ -194,7 +171,7 @@ def run(
         version=version,
         parameters=parameters,
         docker_args=docker_args,
-        runner_name=resource,
+        resource=resource,
         launch_config=config,
         synchronous=synchronous,
         api=api,

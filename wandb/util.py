@@ -384,7 +384,6 @@ def _user_args_to_dict(arguments):
             wandb.termerror("Repeated parameter: '%s'" % name)
             sys.exit(1)
         user_dict[name] = value
-    print(user_dict)
     return user_dict
 
 

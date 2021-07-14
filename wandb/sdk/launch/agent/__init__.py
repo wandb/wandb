@@ -10,8 +10,8 @@ from wandb.errors import LaunchException
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
 from ..utils import (
-    _convert_access,
     _is_wandb_local_uri,
+    create_project_from_spec,
     fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
 )
@@ -19,6 +19,14 @@ from ...internal.internal_api import Api
 
 if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
+
+
+def _convert_access(access):
+    access = access.upper()
+    assert (
+        access == "PROJECT" or access == "USER"
+    ), "Queue access must be either project or user"
+    return access
 
 
 class LaunchAgent(object):
@@ -111,51 +119,13 @@ class LaunchAgent(object):
         # parse job
         # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
+        project = create_project_from_spec(run_spec, self._api)
+        project = fetch_and_validate_project(project, self._api)
 
-        wandb_entity = run_spec.get("entity")
-        wandb_project = run_spec.get("project")
         resource = run_spec.get("resource") or "local"
-        name = run_spec.get("name")
-        uri = run_spec["uri"]
-
         self._backend = load_backend(resource, self._api)
         self.verify()
 
-        run_config = {}
-        args_dict = {}
-        entry_point = None
-
-        if run_spec.get("overrides"):
-            entry_point = run_spec["overrides"].get("entrypoint")
-            args_dict = util._user_arg_to_dict(run_spec["overrides"].get("args", {}))
-
-            run_config = run_spec["overrides"].get("run_config")
-
-        user_id = None
-        docker_image = None
-        docker = run_spec.get("docker")
-        if docker:
-            user_id = docker.get("user_id")
-            docker_image = docker.get("docker_image")
-
-        git = run_spec.get("git")
-        version = None
-        if git:
-            version = git.get("version")
-
-        project = fetch_and_validate_project(
-            uri,
-            wandb_entity,
-            wandb_project,
-            name,
-            self._api,
-            version,
-            entry_point,
-            args_dict,
-            user_id,
-            docker_image,
-            run_config,
-        )
         backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
         if _is_wandb_local_uri(self._base_url):
             if sys.platform == "win32":
