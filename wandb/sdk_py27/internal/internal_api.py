@@ -5,6 +5,7 @@ from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import ast
 import os
+from pkg_resources import parse_version  # type: ignore
 import json
 import yaml
 import re
@@ -113,6 +114,7 @@ class Api(object):
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
+        self._client_id_mapping = {}
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -1667,6 +1669,8 @@ class Api(object):
         artifact_type_name,
         artifact_collection_name,
         digest,
+        client_id=None,
+        sequence_client_id=None,
         entity_name=None,
         project_name=None,
         run_name=None,
@@ -1677,6 +1681,15 @@ class Api(object):
         distributed_id=None,
         is_user_created=False,
     ):
+        # TODO: Ignore clientID and sequenceClientID if server can't handle it
+        _, server_info = self.viewer_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        can_handle_client_id = max_cli_version is None or parse_version(
+            "0.10.34"
+        ) <= parse_version(max_cli_version)
+
         mutation = gql(
             """
         mutation CreateArtifact(
@@ -1691,6 +1704,8 @@ class Api(object):
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
             %s
+            %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -1704,6 +1719,8 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
+                %s
                 %s
             }) {
                 artifact {
@@ -1729,8 +1746,12 @@ class Api(object):
             # For backwards compatibility with older backends that don't support
             # distributed writers.
             (
-                "$distributedID: String" if distributed_id else "",
-                "distributedID: $distributedID" if distributed_id else "",
+                "$distributedID: String," if distributed_id else "",
+                "$clientID: ID!," if can_handle_client_id else "",
+                "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "distributedID: $distributedID," if distributed_id else "",
+                "clientID: $clientID," if can_handle_client_id else "",
+                "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
             )
         )
 
@@ -1749,6 +1770,8 @@ class Api(object):
                 "runName": run_name,
                 "artifactTypeName": artifact_type_name,
                 "artifactCollectionNames": [artifact_collection_name],
+                "clientID": client_id,
+                "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
@@ -1924,6 +1947,32 @@ class Api(object):
             response["updateArtifactManifest"]["artifactManifest"]["id"],
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
+
+    def _resolve_client_id(
+        self, client_id,
+    ):
+
+        if client_id in self._client_id_mapping:
+            return self._client_id_mapping[client_id]
+
+        query = gql(
+            """
+            query ClientIDMapping($clientID: ID!) {
+                clientIDMapping(clientID: $clientID) {
+                    serverID
+                }
+            }
+        """
+        )
+        response = self.gql(query, variable_values={"clientID": client_id,},)
+        server_id = None
+        if response is not None:
+            client_id_mapping = response.get("clientIDMapping")
+            if client_id_mapping is not None:
+                server_id = client_id_mapping.get("serverID")
+                if server_id is not None:
+                    self._client_id_mapping[client_id] = server_id
+        return server_id
 
     @normalize_exceptions
     def create_artifact_files(self, artifact_files):

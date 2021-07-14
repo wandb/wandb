@@ -167,7 +167,7 @@ class ValidationDataLogger(object):
         prediction_col_name = "output",
         val_ndx_col_name = "val_row",
         table_name = "validation_predictions",
-        commit = False,
+        commit = True,
     ):
         """Logs a set of predictions.
 
@@ -184,9 +184,6 @@ class ValidationDataLogger(object):
             table_name (str, optional): name of the prediction table. Defaults to "validation_predictions".
             commit (bool, optional): determines if commit should be called on the logged data. Defaults to False.
         """
-        if self.local_validation_artifact is not None:
-            self.local_validation_artifact.wait()
-
         pred_table = wandb.Table(columns=[], data=[])
         if isinstance(predictions, dict):
             for col_name in predictions:
@@ -210,7 +207,7 @@ class ValidationDataLogger(object):
         if self.prediction_row_processor is not None:
             pred_table.add_computed_columns(self.prediction_row_processor)
 
-        wandb.log({table_name: pred_table})
+        wandb.log({table_name: pred_table}, commit=commit)
         return pred_table
 
 
