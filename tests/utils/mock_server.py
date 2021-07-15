@@ -828,6 +828,14 @@ def create_app(user_ctx=None):
             return {"data": {"project": {"artifact": art}}}
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
+        if "query LatestArtifactInSequence(" in body["query"]:
+            return {
+                "data": {
+                    "artifactSequence": {
+                        "latestArtifact": {"id": "QXJ0aWZhY3Q6MTQxOTc5MzQ="}
+                    }
+                }
+            }
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -1038,6 +1046,23 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
+            elif (
+                _id == "QXJ0aWZhY3Q6MTQxOTc5MzQ="
+                or _id
+                == "clientidifekrqju0yry2ssbxugz9dzlbwlhgw81tet5ow18ubsmk0u9guvlde3b"
+            ):
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "dataset.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 1,
+                        }
+                    },
+                }
+
             else:
                 return {
                     "version": 1,

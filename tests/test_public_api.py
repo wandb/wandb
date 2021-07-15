@@ -411,7 +411,7 @@ def test_artifact_bracket_accessor(runner, live_mock_server, api):
         art["s"] = wandb.Table(data=[], columns=[])
 
 
-def test_run_summary_table_deserialize(mock_server, api):
+def test_run_summary_table_deserialize(live_mock_server, api):
     run = api.run("test/test/test")
     assert run.summary["direct_table"] == wandb.Table(data=[], columns=[])
     assert run.summary["client_id_table"] == wandb.Table(data=[], columns=[])

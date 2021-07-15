@@ -124,8 +124,22 @@ class SummarySubDict(object):
 
         # Special condition to automatically load and deserialize table entries
         if isinstance(res, wandb.old.summary.SummarySubDict) and res.get("_type") == "table-file" and "artifact_path" in res:
-            api = wandb.Api()
-            return api.artifact(res["artifact_path"]["artifact"]).get(res["artifact_path"]["path"])
+            art_id = None
+            path = None
+            if (res["artifact_path"].startswith("wandb-artifact://")):
+                parts = res["artifact_path"][17:].split("/",1)
+                path = parts[1]
+                art_id = util.hex_to_b64_id(parts[0])
+            elif (res["artifact_path"].startswith("wandb-client-artifact://")):
+                parts = res["artifact_path"][24:].split("/",1)
+                path = parts[1]
+                art_id = parts[0]
+            if art_id is not None and path is not None:
+                from wandb.apis.public import Artifact
+                api = wandb.Api()
+                art = Artifact.from_id(art_id, api.client)
+                tab = art.get(path)
+                return tab
         return res
 
     def __contains__(self, k):

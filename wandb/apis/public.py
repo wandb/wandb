@@ -2711,11 +2711,51 @@ class Artifact(artifacts.Artifact):
         % ARTIFACT_FRAGMENT
     )
 
+    SEQ_QUERY = gql(
+        """
+        query LatestArtifactInSequence($sequenceId: ID!) {
+            artifactSequence(id: $sequenceId) {
+                latestArtifact {
+                    id
+                }
+            }
+        }
+        %s
+    """
+        % ARTIFACT_FRAGMENT
+    )
+
     @classmethod
     def from_id(cls, artifact_id, client):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
+
+        if ":" in artifact_id:
+            parts = artifact_id.split(":", 1)
+            if parts[1] != "latest":
+                raise ValueError(
+                    "Only supports SEQ_CLIENT_ID:latest (latest) alias is currently supported"
+                )
+            res = client.execute(
+                Artifact.SEQ_QUERY, variable_values={"sequenceId": parts[0]}
+            )
+            res_id = (
+                res.get("artifactSequence", {})
+                .get("latestArtifact", {})
+                .get("id", None)
+            )
+            if res_id is None:
+                import pdb
+
+                pdb.set_trace()
+                raise ValueError(
+                    "Could not resolve latest artifact for sequence {}".format(
+                        artifact_id
+                    )
+                )
+            artifact_id = res_id
+
         response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
 
         name = None
