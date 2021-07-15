@@ -1681,15 +1681,7 @@ class Api(object):
         distributed_id=None,
         is_user_created=False,
     ):
-        # TODO: Ignore clientID and sequenceClientID if server can't handle it
-        _, server_info = self.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
-        can_handle_client_id = max_cli_version is None or parse_version(
-            "0.10.34"
-        ) <= parse_version(max_cli_version)
-
+        can_handle_client_id = util._server_supports_client_ids()
         mutation = gql(
             """
         mutation CreateArtifact(

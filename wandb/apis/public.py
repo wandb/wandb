@@ -2720,9 +2720,7 @@ class Artifact(artifacts.Artifact):
                 }
             }
         }
-        %s
-    """
-        % ARTIFACT_FRAGMENT
+        """
     )
 
     @classmethod
@@ -2732,6 +2730,10 @@ class Artifact(artifacts.Artifact):
             return artifact
 
         if ":" in artifact_id:
+            if not util._server_supports_client_ids():
+                raise ValueError(
+                    "This W&B server doesn't support instantiating Artifact from SEQ_CLIENT_ID:ALIAS, have your administrator upgrade your local instance"
+                )
             parts = artifact_id.split(":", 1)
             if parts[1] != "latest":
                 raise ValueError(

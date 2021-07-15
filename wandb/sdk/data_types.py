@@ -8,7 +8,6 @@ import re
 import shutil
 import sys
 
-from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
 import wandb
@@ -83,7 +82,7 @@ def _is_offline() -> bool:
 def _server_accepts_client_ids() -> bool:
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
-    # until we are sure that all local versions are > "0.10.34" max_cli_version.
+    # until we are sure that all local versions support client ids.
     # The practical implication is that tables logged in offline mode
     # will not show up in the workspace (but will still show up in artifacts). This
     # means we never lose data, and we can still view using weave. If we decided
@@ -95,10 +94,7 @@ def _server_accepts_client_ids() -> bool:
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
-    max_cli_version = _get_max_cli_version()
-    if max_cli_version is None:
-        return False
-    return parse_version("0.10.34") <= parse_version(max_cli_version)
+    return bool(util._server_supports_client_ids())
 
 
 class _WBValueArtifactSource(object):

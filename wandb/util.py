@@ -47,6 +47,7 @@ from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
 from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
+from pkg_resources import parse_version
 
 import wandb
 from wandb.errors import CommError, term
@@ -1297,3 +1298,16 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def _get_server_max_cli_version():
+    _, server_info = wandb.api.viewer_server_info()
+    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    return str(max_cli_version) if max_cli_version is not None else None
+
+
+def _server_supports_client_ids():
+    max_cli_version = _get_server_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.11.0") <= parse_version(max_cli_version)
