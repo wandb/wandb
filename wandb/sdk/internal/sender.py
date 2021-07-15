@@ -160,6 +160,9 @@ class SendManager(object):
             interface=publish_interface,
         )
 
+    def __len__(self):
+        return self._record_q.qsize()
+
     def retry_callback(self, status, response_text):
         response = wandb_internal_pb2.HttpResponse()
         response.http_status_code = status
@@ -300,44 +303,56 @@ class SendManager(object):
         state = defer.state
         logger.info("handle sender defer: {}".format(state))
 
+        def transition_state():
+            state = defer.state + 1
+            logger.info("send defer: {}".format(state))
+            self._interface.publish_defer(state)
+
         done = False
         if state == defer.BEGIN:
-            pass
+            transition_state()
         elif state == defer.FLUSH_STATS:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_TB:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_DEBOUNCER:
             self.debounce()
+            transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
                 self._dir_watcher = None
+            transition_state()
         elif state == defer.FLUSH_FP:
             if self._pusher:
-                self._pusher.finish()
+                # FilePusher generates some events for FileStreamApi, so we
+                # need to wait for pusher to finish before going to the next
+                # state to ensure that filestream gets all the events that we
+                # want before telling it to finish up
+                self._pusher.finish(transition_state)
+            else:
+                transition_state()
         elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
+            transition_state()
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
             self._interface.publish_footer()
+            transition_state()
         elif state == defer.END:
             done = True
         else:
             raise AssertionError("unknown state")
 
         if not done:
-            state += 1
-            logger.info("send defer: {}".format(state))
-            self._interface.publish_defer(state)
             return
 
         exit_result = wandb_internal_pb2.RunExitResult()
@@ -535,7 +550,7 @@ class SendManager(object):
         except requests.RequestException:
             return False
 
-    def send_run(self, data) -> None:
+    def send_run(self, data, file_dir=None) -> None:
         run = data.run
         error = None
         is_wandb_init = self._run is None
@@ -598,7 +613,7 @@ class SendManager(object):
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
-            self._start_run_threads()
+            self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
 
@@ -666,7 +681,7 @@ class SendManager(object):
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self):
+    def _start_run_threads(self, file_dir=None):
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
@@ -694,8 +709,10 @@ class SendManager(object):
             email=self._settings.email,
         )
         self._fs.start()
-        self._pusher = FilePusher(self._api, silent=self._settings.silent)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
+        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
+        self._dir_watcher = DirWatcher(
+            self._settings, self._api, self._pusher, file_dir
+        )
         logger.info(
             "run started: %s with start time %s",
             self._run.run_id,
@@ -892,6 +909,8 @@ class SendManager(object):
         return saver.save(
             type=artifact.type,
             name=artifact.name,
+            client_id=artifact.client_id,
+            sequence_client_id=artifact.sequence_client_id,
             metadata=metadata,
             description=artifact.description,
             aliases=artifact.aliases,
@@ -945,3 +964,8 @@ class SendManager(object):
             "max_cli_version", None
         )
         return max_cli_version
+
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    next = __next__

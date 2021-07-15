@@ -1,8 +1,14 @@
 codecov:
   require_ci_to_pass: no
   notify:
-    after_n_builds: 2
+    # after_n_builds calculation
+    # 6 = 1 (lin-py36) + 4 (win-py37) + 1 (func-lin-py37)
+    # also change comment section
+    after_n_builds: 6
     wait_for_ci: no
+
+ignore:
+  - "wandb/vendor"
 
 coverage:
   precision: 2
@@ -34,17 +40,6 @@ coverage:
           - "!wandb/sdk/"
           - "!wandb/apis/"
           - wandb/
-      tests:
-        target: 100%
-        paths:
-          - "!tests/utils/"
-          - "!tests/conftest.py"
-          - tests/
-      tests-util:
-        informational: true
-        paths:
-          - tests/utils/
-          - tests/conftest.py
 
 parsers:
   gcov:
@@ -55,10 +50,10 @@ parsers:
       macro: no
 
 comment:
-  layout: "reach,diff,flags,files,footer"
+  layout: "reach, diff, flags, files"
   behavior: default
   require_changes: no
-  after_n_builds: 2
+  after_n_builds: 6
  
 github_checks:
   annotations: true

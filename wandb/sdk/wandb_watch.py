@@ -1,7 +1,5 @@
 #
-"""
-watch.
-"""
+"""watch."""
 
 import logging
 import os
@@ -16,9 +14,10 @@ logger = logging.getLogger("wandb")
 _global_watch_idx = 0
 
 
-def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
-    """
-    Hooks into the torch model to collect gradients and the topology.
+def watch(
+    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=True
+):
+    """Hooks into the torch model to collect gradients and the topology.
 
     Should be extended to accept arbitrary ML models.
 
@@ -28,9 +27,13 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
         log: (str) One of "gradients", "parameters", "all", or None
         log_freq: (int) log gradients and parameters every N batches
         idx: (int) an index to be used when calling wandb.watch on multiple models
+        log_graph: (boolean) log graph topology
 
     Returns:
         `wandb.Graph` The graph object that will populate after the first backward pass
+
+    Raises:
+        ValueError: If called before `wandb.init` or if any of models is not a torch.nn.Module.
     """
     global _global_watch_idx
 
@@ -73,6 +76,7 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
 
     graphs = []
     prefix = ""
+
     if idx is None:
         idx = _global_watch_idx
     for local_idx, model in enumerate(models):
@@ -91,16 +95,17 @@ def watch(models, criterion=None, log="gradients", log_freq=1000, idx=None):
             jupyter_run=wandb.run if in_jupyter else None,
         )
 
-        graph = wandb.wandb_torch.TorchGraph.hook_torch(
-            model, criterion, graph_idx=global_idx
-        )
-        graphs.append(graph)
-        # NOTE: the graph is set in run.summary by hook_torch on the backward pass
+        if log_graph:
+            graph = wandb.run.history.torch.hook_torch(
+                model, criterion, graph_idx=global_idx
+            )
+            graphs.append(graph)
+            # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
 
 
 def unwatch(models=None):
-    """Remove pytorch gradient and parameter hooks.
+    """Remove pytorch model topology, gradient and parameter hooks.
 
     Args:
         models: (list) Optional list of pytorch models that have had watch called on them
@@ -114,5 +119,8 @@ def unwatch(models=None):
             else:
                 for name in model._wandb_hook_names:
                     wandb.run.history.torch.unhook(name)
+                delattr(model, "_wandb_hook_names")
+                # TODO: we should also remove recursively model._wandb_watch_called
+
     else:
         wandb.run.history.torch.unhook_all()

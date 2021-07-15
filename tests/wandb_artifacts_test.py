@@ -515,6 +515,16 @@ def test_add_table_from_dataframe(live_mock_server, test_settings):
     run.finish()
 
 
+@pytest.mark.timeout(120)
+def test_artifact_log_with_network_error(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("table-example", "dataset")
+    live_mock_server.set_ctx({"fail_graphql_times": 15})
+    run.log_artifact(artifact)
+    live_mock_server.set_ctx({"fail_graphql_times": 0})
+    run.finish()
+
+
 def test_add_obj_wbimage_no_classes(runner):
     test_folder = os.path.dirname(os.path.realpath(__file__))
     im_path = os.path.join(test_folder, "..", "assets", "2x2.png")
@@ -541,19 +551,19 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
+        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
-                "size": 293,
+                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
+                "size": 305,
             },
         }
 
@@ -567,19 +577,19 @@ def test_add_obj_using_brackets(runner):
         artifact["my-image"] = wb_image
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "88c32e731a1ddb3117249140b7bf0d27"
+        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
         assert manifest["contents"] == {
             "media/cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
-                "size": 293,
+                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
+                "size": 305,
             },
         }
 
@@ -679,13 +689,13 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "A8NTF/lXHjyjy9NVTnH8vw==",
-                "size": 293,
+                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
+                "size": 305,
             },
         }
 
@@ -706,13 +716,13 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "3lTCGIlHAbNJlwIp2ALaTQ==",
-                "size": 294,
+                "digest": "4IA8mYMQrmtyGGPj/Azdpg==",
+                "size": 306,
             },
         }
 
@@ -758,11 +768,11 @@ def test_add_obj_wbtable_images(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
-            "media/images/641e917f/2x2.png": {
+            "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "dQsR9hmEpOiRckgfFbiO1g==", "size": 1011},
+            "my-table.table.json": {"digest": "8zWFSUyPI7j8c3+Wo0/EXQ==", "size": 1035},
         }
 
 
@@ -786,15 +796,15 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/images/641e917f/img.png": {
+            "media/images/641e917f31888a48f546/img.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "media/images/cf37c38f/img.png": {
+            "media/images/cf37c38fd1dca3aaba6e/img.png": {
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "Ts96ecO6RcC9J0aOABjflw==", "size": 797},
+            "my-table.table.json": {"digest": "hT/A7Ugr75OmC+V1ru4zoA==", "size": 821},
         }
 
 
@@ -981,6 +991,47 @@ def test_local_references(runner, live_mock_server, test_settings):
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
 
+def test_artifact_references_internal(
+    mocked_run,
+    mock_server,
+    internal_sender,
+    internal_sm,
+    start_backend,
+    stop_backend,
+    parse_ctx,
+    test_settings,
+):
+    mock_server.set_context("max_cli_version", "0.10.34")
+    run = wandb.init(settings=test_settings)
+    t1 = wandb.Table(columns=[], data=[])
+    art = wandb.Artifact("A", "dataset")
+    art.add(t1, "t1")
+    run.log_artifact(art)
+    run.finish()
+
+    art = wandb.Artifact("A_PENDING", "dataset")
+    art.add(t1, "t1")
+    start_backend()
+
+    proto_run = internal_sender._make_run(mocked_run)
+    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+
+    proto_artifact = internal_sender._make_artifact(art)
+    proto_artifact.run_id = proto_run.run_id
+    proto_artifact.project = proto_run.project
+    proto_artifact.entity = proto_run.entity
+    proto_artifact.user_created = False
+    proto_artifact.use_after_commit = False
+    proto_artifact.finalize = True
+    for alias in ["latest"]:
+        proto_artifact.aliases.append(alias)
+    log_artifact = pb.LogArtifactRequest()
+    log_artifact.artifact.CopyFrom(proto_artifact)
+
+    art = internal_sm.send_artifact(log_artifact)
+    stop_backend()
+
+
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
@@ -1133,28 +1184,11 @@ def test_reference_download(runner, live_mock_server, test_settings):
         entry.download()
         with pytest.raises(ValueError):
             assert entry.ref_target()
+        run.finish()
 
 
-def test_communicate_artifact(
-    mocked_run, mock_server, internal_sender, internal_sm, start_backend, stop_backend
-):
+def test_communicate_artifact(publish_util, mocked_run):
     artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-    start_backend()
-
-    proto_run = internal_sender._make_run(mocked_run)
-    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
-
-    proto_artifact = internal_sender._make_artifact(artifact)
-    proto_artifact.run_id = proto_run.run_id
-    proto_artifact.project = proto_run.project
-    proto_artifact.entity = proto_run.entity
-    proto_artifact.user_created = False
-    proto_artifact.use_after_commit = False
-    proto_artifact.finalize = True
-    for alias in ["latest"]:
-        proto_artifact.aliases.append(alias)
-    log_artifact = pb.LogArtifactRequest()
-    log_artifact.artifact.CopyFrom(proto_artifact)
-
-    art = internal_sm.send_artifact(log_artifact)
-    stop_backend()
+    artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
+    ctx_util = publish_util(artifacts=[artifact_publish])
+    assert len(set(ctx_util.manifests_created_ids)) == 1

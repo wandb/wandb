@@ -30,13 +30,13 @@ parameters:
     default: "py37"
   manual_test_name:
     type: string
-    default: "Python 3.7 [MANUAL]"
+    default: "man-lin-py37"
   manual_win_name:
     type: string
-    default: "Windows (Python 3.7) [MANUAL]"
+    default: "man-lin-py37"
   manual_mac_name:
     type: string
-    default: "MacOS (Python 3.7) [MANUAL]"
+    default: "man-mac-py37"
 
 commands:
   save-tox-cache:
@@ -72,45 +72,52 @@ commands:
                 path: test-results
             - store_artifacts:
                 path: mypy-results
+            - store_artifacts:
+                path: cover-results
 
 workflows:
   main:
     unless: << pipeline.parameters.manual >>
     jobs:
       - test:
-         name: "Linters"
+         name: "code-check"
          image: "python:3.6"
-         toxenv: "codemodcheck,protocheck,mypy,black,flake8"
-      - test:
-         name: "Python 2.7"
-         image: "python:2.7"
-         toxenv: "py27,covercircle"
+         toxenv: "codemodcheck,protocheck,mypy,black,flake8,flake8-docstrings"
+# Disable python2.7 for good?
+#      - test:
+#         name: "Python 2.7"
+#         image: "python:2.7"
+#         toxenv: "py27"
 # Disable python3.5 for now
 #      - test:
 #         name: "Python 3.5"
 #         image: "python:3.5"
 #         toxenv: "py35"
       - test:
-         name: "Python 3.6"
+         name: "lin-py36"
          image: "python:3.6"
          toxenv: "py36,covercircle"
       - test:
-         name: "Python 3.7"
+         name: "lin-py37"
          image: "python:3.7"
          toxenv: "py37"
       - test:
-         name: "Python 3.8"
+         name: "lin-py38"
          image: "python:3.8"
          toxenv: "py38"
       - test:
-         name: "Python 3.9"
+         name: "lin-py39"
          image: "python:3.9"
          toxenv: "py39"
+      - test:
+         name: "func-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-py37,func-covercircle"
       - win:
-         name: "Windows (Python 3.7)"
-         toxenv: "py37"
+         name: "win-py37"
+         toxenv: "py37,wincovercircle"
       - mac:
-         name: "MacOS (Python 3.7)"
+         name: "mac-py37"
          toxenv: "py37"
   manual_test:
     when: << pipeline.parameters.manual_test >>
@@ -134,7 +141,7 @@ workflows:
 
 jobs:
     test:
-        resource_class: large
+        resource_class: xlarge
         parameters:
             image:
               type: string
@@ -156,7 +163,7 @@ jobs:
             - run:
                   name: Run tests
                   command: |
-                      tox -vv -e << parameters.toxenv >>
+                      tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
@@ -165,6 +172,7 @@ jobs:
             toxenv:
               type: string
         executor: win/default
+        parallelism: 4
         steps:
             - checkout
             - run:
@@ -181,7 +189,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -vv -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
@@ -192,6 +200,7 @@ jobs:
               type: string
         macos:
             xcode: 11.4.1
+        parallelism: 4
         steps:
             - checkout
             - run:
@@ -204,7 +213,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 4096
-                      python3 -m tox -vv -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results

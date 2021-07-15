@@ -21,6 +21,7 @@ import sys
 import warnings
 
 import six
+import wandb
 from wandb import util
 from wandb.compat import tempfile
 
@@ -82,19 +83,6 @@ __all__ = [
     "history_dict_to_json",
     "val_to_json",
 ]
-
-
-def _safe_sdk_import():
-    """Safely imports sdks respecting python version"""
-
-    if _PY3:
-        from wandb.sdk import wandb_run
-        from wandb.sdk import wandb_artifacts
-    else:
-        from wandb.sdk_py27 import wandb_run
-        from wandb.sdk_py27 import wandb_artifacts
-
-    return wandb_run, wandb_artifacts
 
 
 # Get rid of cleanup warnings in Python 2.7.
@@ -442,16 +430,20 @@ class Table(Media):
             )
         return result_type
 
-    def _to_table_json(self, max_rows=None):
+    def _to_table_json(self, max_rows=None, warn=True):
         # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
-        if len(self.data) > max_rows:
+        if len(self.data) > max_rows and warn:
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
-        data = self._to_table_json()
+        # We set `warn=False` since Tables will now always be logged to both
+        # files and artifacts. The file limit will never practically matter and
+        # this code path will be ultimately removed. The 10k limit warning confuses
+        # users given that we publically say 200k is the limit.
+        data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
@@ -520,9 +512,8 @@ class Table(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
-        wandb_run, wandb_artifacts = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, wandb_run.Run):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict.update(
                 {
                     "_type": "table-file",
@@ -531,7 +522,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, wandb_artifacts.Artifact):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -850,9 +841,19 @@ class PartitionedTable(Media):
         self.parts_path = parts_path
         self._loaded_part_entries = {}
 
-    def to_json(self, artifact):
-        json_obj = super(PartitionedTable, self).to_json(artifact)
-        json_obj["parts_path"] = self.parts_path
+    def to_json(self, artifact_or_run):
+        json_obj = {
+            "_type": PartitionedTable._log_type,
+        }
+        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is None:
+                raise ValueError(
+                    "PartitionedTables must first be added to an Artifact before logging to a Run"
+                )
+            json_obj["artifact_path"] = artifact_entry_url
+        else:
+            json_obj["parts_path"] = self.parts_path
         return json_obj
 
     @classmethod
@@ -902,6 +903,9 @@ class PartitionedTable(Media):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.parts_path == other.parts_path
+
+    def bind_to_run(self, *args, **kwargs):
+        raise ValueError("PartitionedTables cannot be bound to runs")
 
 
 class Audio(BatchableMedia):
@@ -1134,7 +1138,7 @@ class JoinedTable(Media):
             # Give the new object a unique, yet deterministic name
             name = binascii.hexlify(
                 base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:8]
+            ).decode("ascii")[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
@@ -1146,20 +1150,23 @@ class JoinedTable(Media):
 
         return table
 
-    def to_json(self, artifact):
-        json_obj = super(JoinedTable, self).to_json(artifact)
-
-        table1 = self._ensure_table_in_artifact(self._table1, artifact, 1)
-        table2 = self._ensure_table_in_artifact(self._table2, artifact, 2)
-
-        json_obj.update(
-            {
-                "_type": JoinedTable._log_type,
-                "table1": table1,
-                "table2": table2,
-                "join_key": self._join_key,
-            }
-        )
+    def to_json(self, artifact_or_run):
+        json_obj = {
+            "_type": JoinedTable._log_type,
+        }
+        if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is None:
+                raise ValueError(
+                    "JoinedTables must first be added to an Artifact before logging to a Run"
+                )
+            json_obj["artifact_path"] = artifact_entry_url
+        else:
+            table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
+            table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
+            json_obj.update(
+                {"table1": table1, "table2": table2, "join_key": self._join_key,}
+            )
         return json_obj
 
     def __ne__(self, other):
@@ -1180,6 +1187,9 @@ class JoinedTable(Media):
 
     def __eq__(self, other):
         return self._eq_debug(other, False)
+
+    def bind_to_run(self, *args, **kwargs):
+        raise ValueError("JoinedTables cannot be bound to runs")
 
 
 class Bokeh(Media):

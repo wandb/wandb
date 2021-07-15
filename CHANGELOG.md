@@ -1,3 +1,57 @@
+## 0.10.33 (June 28, 2021)
+
+#### :bug: Bug Fix
+
+- Fix issue where wandb restore 404ed if the run did not have a diff.patch file
+- Fix issue where wandb.log raised an Exception after trying to log a pandas dataframe
+- Fix issue where runs could be marked finished before files were finished uploading
+
+#### :nail_care: Enhancement
+
+- Disable reloading of run metadata (such as command) in resumed runs
+- Allow logging of pandas dataframes by automatically converting them to W&B tables
+- Fix up `log_code()` exclude fn to handle .wandb dir
+- Improve handling of PyTorch model topology
+- Increase config debounce interval to 30s to reduce load on WB/backend
+- Improve reliability of CLI in generating sweeps with names, programs, and settings
+
+## 0.10.32 (June 10, 2021)
+
+#### :bug: Bug Fix
+
+- Make `log_artifact()` more resilient to network errors
+- Removed Duplicate Artifact Dependencies
+- Workaround urlib3 issue on windows
+- Fix regression where ipython was hanging
+- Allow logging of numpy high precision floating point values
+- Reduce liklyhood of collisions for file backed media or artifact objects
+- Fix wandb.watch() regression when logging pytorch graphs
+
+#### :nail_care: Enhancement
+
+- Add support for logging joined and partitioned table
+- Handle schema validation warnings for sweep configs
+- Improve wandb sync to handle errors
+- Add ability to label scripts and repositories who use wandb
+
+## 0.10.31 (May 27, 2021)
+
+#### :bug: Bug Fix
+
+- wandb.login() did not properly persist the host parameter
+- Fix issue where step information was not synced properly when syncing tensorboard directories
+- Fix some unicode issues with python2.7
+- Fixed bug in `plot_calibration_curve` for ComplementNB
+- Fall back to not using SendFile on some linux systems
+- Fix console issues where lines were truncated
+- Fix console issues where console logging could block
+
+#### :nail_care: Enhancement
+
+- Add support for preemptible sweeps
+- Add command line for sweep control
+- Add support to load artifact collection properties
+
 ## 0.10.30 (May 7, 2021)
 
 #### :bug: Bug Fix

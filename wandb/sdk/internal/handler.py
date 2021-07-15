@@ -104,6 +104,9 @@ class HandleManager(object):
         self._metric_track = dict()
         self._metric_copy = dict()
 
+    def __len__(self) -> int:
+        return self._record_q.qsize()
+
     def handle(self, record: Record) -> None:
         record_type = record.WhichOneof("record_type")
         assert record_type
@@ -125,7 +128,7 @@ class HandleManager(object):
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
             self._sender_q.put(record)
-        if not record.control.local:
+        if not record.control.local and self._writer_q:
             self._writer_q.put(record)
 
     def debounce(self) -> None:
@@ -310,12 +313,32 @@ class HandleManager(object):
                 if self._update_summary_list(kl=kl[:] + [nk], v=nv, d=d):
                     updated = True
             return updated
+        # If the dict is a media object, update the pointer to the latest alias
+        elif isinstance(v, dict) and handler_util.metric_is_wandb_dict(v):
+            if "_latest_artifact_path" in v and "artifact_path" in v:
+                # TODO: Make non-destructive?
+                v["artifact_path"] = v["_latest_artifact_path"]
         updated = self._update_summary_leaf(kl=kl, v=v, d=d)
         return updated
+
+    def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
+        # For now, non recursive - just top level
+        for nk, nv in six.iteritems(v):
+            if (
+                isinstance(nv, dict)
+                and handler_util.metric_is_wandb_dict(nv)
+                and "_latest_artifact_path" in nv
+                and "artifact_path" in nv
+            ):
+                # TODO: Make non-destructive?
+                nv["artifact_path"] = nv["_latest_artifact_path"]
+                v[nk] = nv
+        return v
 
     def _update_summary(self, history_dict: Dict[str, Any]) -> bool:
         # keep old behavior fast path if no define metrics have been used
         if not self._metric_defines:
+            history_dict = self._update_summary_media_objects(history_dict)
             self._consolidated_summary.update(history_dict)
             return True
         updated = False
@@ -498,7 +521,7 @@ class HandleManager(object):
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
             self._system_stats.start()
 
-        if not self._settings._disable_meta:
+        if not self._settings._disable_meta and not run_start.run.resumed:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface)
             run_meta.probe()
             run_meta.write()
@@ -635,3 +658,8 @@ class HandleManager(object):
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
+
+    def __next__(self) -> Record:
+        return self._record_q.get(block=True)
+
+    next = __next__
