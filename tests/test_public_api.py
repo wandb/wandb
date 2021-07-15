@@ -410,9 +410,12 @@ def test_artifact_bracket_accessor(runner, live_mock_server, api):
     with pytest.raises(ValueError):
         art["s"] = wandb.Table(data=[], columns=[])
 
-def test_run_summary_table(mock_server, api):
+
+def test_run_summary_table_deserialize(mock_server, api):
     run = api.run("test/test/test")
-    assert run.summary["my_table"] == wandb.Table(data=[], columns=[])
+    assert run.summary["direct_table"] == wandb.Table(data=[], columns=[])
+    assert run.summary["client_id_table"] == wandb.Table(data=[], columns=[])
+    assert run.summary["sequence_id_table"] == wandb.Table(data=[], columns=[])
 
 
 def test_artifact_manual_log(runner, mock_server, api):

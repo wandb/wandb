@@ -94,6 +94,36 @@ def run(ctx):
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
+    direct_table = """{
+        "artifact_path": "wandb-artifact://41727469666163743a3134313937393334/dataset.table.json",
+        "path": "",
+        "size": 0,
+        "_type": "table-file",
+        "ncols": 0,
+        "nrows": 0,
+        "sha256": ""
+    }"""
+
+    client_id_table = """{
+        "artifact_path": "wandb-client-artifact://clientidifekrqju0yry2ssbxugz9dzlbwlhgw81tet5ow18ubsmk0u9guvlde3b/dataset.table.json",
+        "path": "",
+        "size": 0,
+        "_type": "table-file",
+        "ncols": 0,
+        "nrows": 0,
+        "sha256": ""
+    }"""
+
+    sequence_id_table = """{
+        "artifact_path": "wandb-client-artifact://sequenceifekrqju0yry2ssbxugz9dzlbwlhgw81tet5ow18ubsmk0u9guvlde3b:latest/dataset.table.json",
+        "path": "",
+        "size": 0,
+        "_type": "table-file",
+        "ncols": 0,
+        "nrows": 0,
+        "sha256": ""
+    }"""
+
     return {
         "id": "test",
         "name": "test",
@@ -104,12 +134,16 @@ def run(ctx):
         "jobType": "test",
         "description": "",
         "systemMetrics": '{"cpu": 100}',
-        "summaryMetrics": '{"acc": 100, "loss": 0}',
+        "summaryMetrics": '{{"acc": 100, "loss": 0, "direct_table":{}, "client_id_table":{}, "sequence_id_table":{}}}'.format(
+            direct_table, client_id_table, sequence_id_table
+        ),
         "fileCount": 1,
         "history": [
-            '{"acc": 10, "loss": 90}',
-            '{"acc": 20, "loss": 80}',
-            '{"acc": 30, "loss": 70}',
+            '{{"acc": 10, "loss": 90, "sequence_id_table":{}}}'.format(
+                sequence_id_table
+            ),
+            '{{"acc": 20, "loss": 80, "client_id_table":{}}}'.format(client_id_table),
+            '{{"acc": 30, "loss": 70, "direct_table":{}}}'.format(direct_table),
         ],
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
