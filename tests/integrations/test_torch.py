@@ -160,7 +160,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 def test_all_logging(wandb_init_run):
     # TODO(jhr): does not work with --flake-finder
     net = ConvNet()
-    wandb.watch(net, log="all", log_freq=1)
+    wandb.watch(net, log="all", log_freq=1, log_graph=True)
     for i in range(3):
         output = net(dummy_torch_tensor((32, 1, 28, 28)))
         grads = torch.ones(32, 10)
