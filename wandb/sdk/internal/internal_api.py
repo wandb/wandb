@@ -1687,7 +1687,7 @@ class Api(object):
             "max_cli_version", None
         )
         can_handle_client_id = max_cli_version is None or parse_version(
-            "0.10.34"
+            "0.11.0"
         ) <= parse_version(max_cli_version)
 
         mutation = gql(

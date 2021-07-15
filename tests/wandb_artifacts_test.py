@@ -1001,7 +1001,7 @@ def test_artifact_references_internal(
     parse_ctx,
     test_settings,
 ):
-    mock_server.set_context("max_cli_version", "0.10.34")
+    mock_server.set_context("max_cli_version", "0.11.0")
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("A", "dataset")

@@ -952,7 +952,7 @@ def test_reference_table_logging(mocked_run, live_mock_server, test_settings, ap
     run.finish()
     assert True
 
-    live_mock_server.set_ctx({"max_cli_version": "0.10.34"})
+    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
     run.log({"logged_table": t})
@@ -962,7 +962,7 @@ def test_reference_table_logging(mocked_run, live_mock_server, test_settings, ap
 
 
 def test_reference_table_artifacts(mocked_run, live_mock_server, test_settings, api):
-    live_mock_server.set_ctx({"max_cli_version": "0.10.34"})
+    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
 
