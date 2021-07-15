@@ -79,6 +79,7 @@ class TorchHistory(object):
         self._num_bins = 64
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
+        self.hook_torch = TorchGraph.hook_torch
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -309,6 +310,7 @@ class TorchGraph(wandb.data_types.Graph):
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
+        wandb.termlog("logging graph, to disable use `wandb.watch(log_graph=False)`")
         graph = TorchGraph()
         graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
@@ -410,6 +412,9 @@ class TorchGraph(wandb.data_types.Graph):
                 wandb.run.history.torch._hook_handles[
                     "topology/" + str(id(graph_hook))
                 ] = graph_hook
+                if not hasattr(parent, "_wandb_hook_names"):
+                    # should never happen but let's be extra safe
+                    parent._wandb_hook_names = []
                 parent._wandb_hook_names.append("topology/" + str(id(graph_hook)))
 
     @classmethod
