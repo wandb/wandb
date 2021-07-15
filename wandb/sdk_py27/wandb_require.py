@@ -28,7 +28,7 @@ class _Requires(object):
         )
 
     def require_require(self):
-        wandb.require = wandb._require  # type: ignore
+        pass
 
     def apply(self):
         """Call require_* method for supported features."""
@@ -45,6 +45,9 @@ class _Requires(object):
             func()
 
         if last_message:
+            wandb.termerror(
+                "Supported wandb.require() features can be found at: http://wandb.me/library-require"
+            )
             raise RequireError(last_message)
 
 
