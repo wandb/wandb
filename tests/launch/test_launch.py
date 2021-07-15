@@ -73,7 +73,9 @@ def check_project_spec(
         and config["config"].get("overrides")
         and config["config"]["overrides"].get("run_config")
     ):
-        assert project_spec.run_config == config["config"]["overrides"]["run_config"]
+        assert (
+            project_spec.override_config == config["config"]["overrides"]["run_config"]
+        )
 
     with open(os.path.join(project_spec.dir, "patch.txt"), "r") as fp:
         contents = fp.read()
@@ -204,8 +206,8 @@ def test_launch_args_supersede_config_vals(
     mock_with_run_info = launch.run(**kwargs)
     for arg in mock_with_run_info.args:
         if isinstance(arg, _project_spec.Project):
-            assert arg.parameters["epochs"] == 5
-            assert arg.run_config.get("epochs") is None
+            assert arg.override_args["epochs"] == 5
+            assert arg.override_config.get("epochs") is None
             assert arg.target_project == "new_test_project"
 
 

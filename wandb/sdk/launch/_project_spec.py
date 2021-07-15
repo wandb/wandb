@@ -8,14 +8,13 @@ import tempfile
 
 import six
 import wandb
-from wandb import util
 from wandb.errors import Error as ExecutionException
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, Optional
 
 
 _logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ DEFAULT_CONFIG_PATH = "launch_override_config.json"
 
 
 class Project(object):
-    """A project specification loaded from an MLproject file in the passed-in directory."""
+    """A launch project specification."""
 
     dir: Optional[str]
     run_id: str
@@ -36,48 +35,40 @@ class Project(object):
         target_entity: str,
         target_project: str,
         name: str,
-        version,
-        entry_points: List[str],
-        parameters: Dict[str, Any],
-        user_id: Optional[int],
-        docker_image: Optional[str],
-        run_config: Dict[str, Any],
+        docker_config: Dict[str, Any],
+        git_info: Dict[str, Any],
+        overrides: Dict[str, Any],
     ):
 
         self.uri = uri
-        self.name = name
-        if self.name is None and utils._is_wandb_uri(uri):
-            # default name is {project}_{runid}
-            _, wandb_project, wandb_name = utils.parse_wandb_uri(uri)
-            self.name = "{}_{}_launch".format(wandb_project, wandb_name)
         self.target_entity = target_entity
         self.target_project = target_project
+        self.name = name
+        self.docker_image = docker_config.get("docker_image")
+        self.docker_user_id = docker_config.get("user_id", 1000)
+        self.git_version = git_info.get("version")
+        self.git_repo = git_info.get("repo")
+        self.override_args = overrides.get("args", {})
+        self.override_config = overrides.get("run_config", {})
+        self._entry_points: Dict[
+            str, EntryPoint
+        ] = {}  # todo: keep multiple entrypoint support?
+        if "entry_point" in overrides:
+            self.add_entry_point(overrides["entry_point"])
 
-        self.version = version
-        self._entry_points: Dict[str, EntryPoint] = {}
-        for ep in entry_points:
-            if ep:
-                self.add_entry_point(ep)
-        self.parameters = parameters
-        self.dir = None
-        self.run_config = run_config
-        self.config_path = DEFAULT_CONFIG_PATH
-        # todo: better way of storing docker/anyscale/etc tracking info
-        self.docker_env: Dict[str, str] = {}
-        if docker_image:
-            self.docker_env["image"] = docker_image
-        # generate id for run to ack with in agent
         self.run_id = generate_id()
-        self.user_id = user_id or 1000
+        self.dir = None
+        self.config_path = DEFAULT_CONFIG_PATH
+
         self.clear_parameter_run_config_collisions()
 
     def clear_parameter_run_config_collisions(self):
-        if not self.run_config:
+        if not self.override_config:
             return
-        keys = [key for key in self.run_config.keys()]
+        keys = [key for key in self.override_config.keys()]
         for key in keys:
-            if self.parameters.get(key):
-                del self.run_config[key]
+            if self.override_args.get(key):
+                del self.override_config[key]
 
     def get_single_entry_point(self):
         # assuming project only has 1 entry point, pull that out
@@ -104,17 +95,12 @@ class Project(object):
             )
         )
 
-    def _merge_parameters(self, run_info_param_dict):
-        for key in run_info_param_dict.keys():
-            if not self.parameters.get(key):
-                self.parameters[key] = run_info_param_dict[key]
-
     def get_entry_point(self, entry_point):
         if entry_point in self._entry_points:
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
-    def _fetch_project_local(self, api, version=None):
+    def _fetch_project_local(self, api):
         """
         Fetch a project into a local directory, returning the path to the local project directory.
         """
@@ -134,24 +120,25 @@ class Project(object):
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
 
-            args = util._user_args_to_dict(run_info["args"])
-            self.parameters = utils.merge_parameters(self.parameters, args)
+            self.override_args = utils.merge_parameters(
+                self.override_args, run_info["args"]
+            )
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-wandb URI %s should be a Git URI" % parsed_uri
             )
-            utils._fetch_git_repo(parsed_uri, version, dst_dir)
+            utils._fetch_git_repo(parsed_uri, self.git_version, dst_dir)
         self.dir = dst_dir
         return self.dir
 
     def _copy_config_local(self):
-        if not self.run_config:
+        if not self.override_config:
             return None
         if not self.dir:
             dst_dir = tempfile.mkdtemp()
             self.dir = dst_dir
         with open(os.path.join(self.dir, DEFAULT_CONFIG_PATH), "w+") as f:
-            json.dump(self.run_config, f)
+            json.dump(self.override_config, f)
         return self.dir
 
 

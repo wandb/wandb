@@ -80,11 +80,11 @@ class LocalRunner(AbstractRunner):
 
         entry_cmd = entry_point.command
         copy_code = False
-        if project.docker_env.get("image"):
-            pull_docker_image(project.docker_env["image"])
+        if project.docker_image:
+            pull_docker_image(project.docker_image)
             copy_code = True
         else:
-            project.docker_env["image"] = generate_docker_image(project, entry_cmd)
+            project.docker_image = generate_docker_image(project, entry_cmd)
 
         command_args = []
         command_separator = " "
@@ -92,7 +92,7 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         image = build_docker_image(
             project=project,
-            base_image=project.docker_env.get("image"),
+            base_image=project.docker_image,
             api=self._api,
             copy_code=copy_code,
         )
@@ -106,11 +106,10 @@ class LocalRunner(AbstractRunner):
         # persisted to the tracking server if interrupted
         if synchronous:
             command_args += get_entry_point_command(
-                project, entry_point, project.parameters
+                project, entry_point, project.override_args
             )
             command_str = command_separator.join(command_args)
 
-            print("Launching run in docker with command: {}".format(command_str))
             wandb.termlog(
                 "Launching run in docker with command: {}".format(command_str)
             )
