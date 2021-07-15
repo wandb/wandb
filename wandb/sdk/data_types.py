@@ -67,12 +67,6 @@ _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
 
-def _get_max_cli_version() -> Union[str, None]:
-    _, server_info = wandb.api.viewer_server_info()
-    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
-    return str(max_cli_version) if max_cli_version is not None else None
-
-
 def _is_offline() -> bool:
     return (
         wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
