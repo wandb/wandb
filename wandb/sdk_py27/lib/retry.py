@@ -18,14 +18,14 @@ def make_printer(msg):
     return printer
 
 
-class TransientException(Exception):
+class TransientError(Exception):
     """Exception type designated for errors that may only be temporary
 
     Can have its own message and/or wrap another exception.
     """
 
     def __init__(self, msg=None, exc=None):
-        super(TransientException, self).__init__(msg)
+        super(TransientError, self).__init__(msg)
         self.message = msg
         self.exception = exc
 
@@ -57,7 +57,7 @@ class Retry(object):
         self._num_retries = num_retries
         self._retryable_exceptions = retryable_exceptions
         if self._retryable_exceptions is None:
-            self._retryable_exceptions = (TransientException,)
+            self._retryable_exceptions = (TransientError,)
         self._index = 0
         self.retry_callback = retry_callback
 

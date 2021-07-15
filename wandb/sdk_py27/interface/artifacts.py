@@ -71,6 +71,7 @@ class ArtifactManifest(object):
         for sub in cls.__subclasses__():
             if sub.version() == version:
                 return sub.from_manifest_json(artifact, manifest_json)
+        raise ValueError("Invalid manifest version.")
 
     @classmethod
     def version(cls):
@@ -833,6 +834,7 @@ class ArtifactsCache(object):
         self._artifacts_by_id = {}
         self._random = random.Random()
         self._random.seed()
+        self._artifacts_by_client_id = {}
 
     def check_md5_obj_path(self, b64_md5, size):
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -856,6 +858,12 @@ class ArtifactsCache(object):
 
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
+
+    def get_client_artifact(self, client_id):
+        return self._artifacts_by_client_id.get(client_id)
+
+    def store_client_artifact(self, artifact):
+        self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size):
         bytes_reclaimed = 0

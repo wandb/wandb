@@ -667,8 +667,7 @@ class Run(object):
         root = ".",
         name = None,
         include_fn = lambda path: path.endswith(".py"),
-        exclude_fn = lambda path: os.sep + "wandb" + os.sep
-        in path,
+        exclude_fn = filenames.exclude_wandb_fn,
     ):
         """
         log_code() saves the current state of your code to a W&B artifact.  By
@@ -2076,8 +2075,8 @@ class Run(object):
         return m
 
     # TODO(jhr): annotate this
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):  # type: ignore
-        wandb.watch(models, criterion, log, log_freq, idx)
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=True):  # type: ignore
+        wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
     def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore

@@ -1,4 +1,5 @@
 """Sweep tests"""
+import pytest
 import wandb
 
 
@@ -11,3 +12,35 @@ def test_create_sweep(live_mock_server, test_settings):
     }
     sweep_id = wandb.sweep(sweep_config)
     assert sweep_id == "test"
+
+
+def test_minmax_validation():
+    api = wandb.apis.InternalApi()
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "random",
+        "parameters": {"parameter1": {"min": 0, "max": 1}},
+    }
+
+    filled = api.api._validate_config_and_fill_distribution(sweep_config)
+    assert "distribution" in filled["parameters"]["parameter1"]
+    assert "int_uniform" == filled["parameters"]["parameter1"]["distribution"]
+
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "random",
+        "parameters": {"parameter1": {"min": 0.0, "max": 1.0}},
+    }
+
+    filled = api.api._validate_config_and_fill_distribution(sweep_config)
+    assert "distribution" in filled["parameters"]["parameter1"]
+    assert "uniform" == filled["parameters"]["parameter1"]["distribution"]
+
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "random",
+        "parameters": {"parameter1": {"min": 0.0, "max": 1}},
+    }
+
+    with pytest.raises(ValueError):
+        api.api._validate_config_and_fill_distribution(sweep_config)
