@@ -93,4 +93,11 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
 
 
+def test_executable_outside_cwd(mock_server, meta):
+    meta._settings.update(program="asdf.py")
+    meta.probe()
+    assert meta.data.get("codePath") is None
+    assert meta.data["program"] == "asdf.py"
+
+
 # TODO: test actual code saving

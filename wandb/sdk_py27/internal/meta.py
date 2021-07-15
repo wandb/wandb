@@ -214,16 +214,14 @@ class Meta(object):
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
-            if self._settings._jupyter:
+            elif self._settings._jupyter:
                 if self._settings.notebook_name:
                     self.data["program"] = self._settings.notebook_name
                 elif self._settings._jupyter_path:
                     if "fileId=" in self._settings._jupyter_path:
                         self.data["colab"] = (
                             "https://colab.research.google.com/drive/"
-                            + self._settings._jupyter_path.split(  # noqa
-                                "fileId="
-                            )[1]
+                            + self._settings._jupyter_path.split("fileId=")[1]  # noqa
                         )
                         self.data["program"] = self._settings._jupyter_name
                     else:
