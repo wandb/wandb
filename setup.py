@@ -25,7 +25,7 @@ sweeps_requirements = ['numpy']
 
 setup(
     name='wandb',
-    version='0.10.34.dev1',
+    version='0.11.0',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
