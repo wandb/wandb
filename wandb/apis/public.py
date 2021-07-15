@@ -2711,7 +2711,7 @@ class Artifact(artifacts.Artifact):
         % ARTIFACT_FRAGMENT
     )
 
-    SEQ_QUERY = gql(
+    _SEQ_QUERY = gql(
         """
         query LatestArtifactInSequence($sequenceId: ID!) {
             artifactSequence(id: $sequenceId) {
@@ -2735,10 +2735,12 @@ class Artifact(artifacts.Artifact):
             parts = artifact_id.split(":", 1)
             if parts[1] != "latest":
                 raise ValueError(
-                    "Only supports SEQ_CLIENT_ID:latest (latest) alias is currently supported"
+                    "Instantiating Artifact from SEQ_CLIENT_ID:ALIAS only supports 'latest' alias, found {}".format(
+                        parts[1]
+                    )
                 )
             res = client.execute(
-                Artifact.SEQ_QUERY, variable_values={"sequenceId": parts[0]}
+                Artifact._SEQ_QUERY, variable_values={"sequenceId": parts[0]}
             )
             res_id = (
                 res.get("artifactSequence", {})
