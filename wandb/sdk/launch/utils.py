@@ -55,6 +55,9 @@ def set_project_entity_defaults(uri, project, entity, api):
     # set the target project and entity if not provided
     if not _is_wandb_uri(uri):
         wandb.termlog("Non-wandb path detected")
+
+    # @@@ support github here
+
     _, uri_project, run_id = parse_wandb_uri(uri)
     if project is None:
         project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
