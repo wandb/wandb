@@ -303,7 +303,7 @@ def test_guess_mode():
 def test_pil():
     pil = PIL.Image.new("L", (28, 28))
     img = wandb.Image(pil)
-    assert img.image == pil
+    assert list(img.image.getdata()) == list(pil.getdata())
 
 
 def test_matplotlib_image():

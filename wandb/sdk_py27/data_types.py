@@ -2123,12 +2123,19 @@ class Image(BatchableMedia):
         if not isinstance(other, Image):
             return False
         else:
+            self_image = self.image
+            other_image = other.image
+            if self_image is not None:
+                self_image = list(self_image.getdata())
+            if other_image is not None:
+                other_image = list(other_image.getdata())
+
             return (
                 self._grouping == other._grouping
                 and self._caption == other._caption
                 and self._width == other._width
                 and self._height == other._height
-                and self.image == other.image
+                and self_image == other_image
                 and self._classes == other._classes
             )
 
@@ -2138,6 +2145,7 @@ class Image(BatchableMedia):
             data = list(self.image.getdata())
             for i in range(self.image.height):
                 res.append(data[i * self.image.width : (i + 1) * self.image.width])
+        self._free_ram()
         return res
 
     def _free_ram(self):
