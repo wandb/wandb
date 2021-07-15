@@ -6,14 +6,6 @@ import pytest
 import wandb
 
 
-# TODO(require): Remove below fixture when we are ready to ship
-@pytest.fixture(autouse=True)
-def require_feature():
-    wandb.require = wandb._require
-    yield
-    wandb.__dict__.pop("require", None)
-
-
 @pytest.fixture
 def require_mock(mocker):
     cleanup = []
@@ -32,7 +24,7 @@ def require_mock(mocker):
         wandb.__dict__.pop("require_" + require, None)
 
 
-def test_require_single(require_feature, user_test, capsys):
+def test_require_single(user_test, capsys):
     with pytest.raises(wandb.errors.RequireError):
         wandb.require("something")
     captured = capsys.readouterr()
@@ -71,17 +63,6 @@ def test_require_good(user_test, require_mock):
     assert wandb.require_test(2) == 4
 
 
-# TODO(require): Remove below when we are ready to ship
 def test_require_require(user_test, require_mock):
-    def mock_require_test(self):
-        wandb.require_test = lambda x: x + 2
-
-    require_mock("test", mock_require_test)
-
-    # remove autofixture
-    wandb.__dict__.pop("require", None)
-
-    wandb._require("require")
-    wandb.require("test")
-
-    assert wandb.require_test(2) == 4
+    # This is a noop now that it is "released"
+    wandb.require("require")

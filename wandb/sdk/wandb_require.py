@@ -28,7 +28,7 @@ class _Requires(object):
         )
 
     def require_require(self) -> None:
-        wandb.require = wandb._require  # type: ignore
+        pass
 
     def apply(self) -> None:
         """Call require_* method for supported features."""
