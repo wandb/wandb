@@ -50,7 +50,9 @@ class Project(object):
         self.git_repo = git_info.get("repo")
         self.override_args = overrides.get("args", {})
         self.override_config = overrides.get("run_config", {})
-        self._entry_points: Dict[str, EntryPoint] = {}  # todo: keep multiple entrypoint support?
+        self._entry_points: Dict[
+            str, EntryPoint
+        ] = {}  # todo: keep multiple entrypoint support?
         if "entry_point" in overrides:
             self.add_entry_point(overrides["entry_point"])
 
@@ -118,7 +120,9 @@ class Project(object):
             if not self._entry_points:
                 self.add_entry_point(run_info["program"])
 
-            self.override_args = utils.merge_parameters(self.override_args, run_info["args"])
+            self.override_args = utils.merge_parameters(
+                self.override_args, run_info["args"]
+            )
         else:
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-wandb URI %s should be a Git URI" % parsed_uri

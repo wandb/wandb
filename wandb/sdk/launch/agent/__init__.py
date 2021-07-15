@@ -46,9 +46,7 @@ class LaunchAgent(object):
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
         self._queues: Iterable[Dict[str, str]] = []
-        self._backend = (
-            None
-        )
+        self._backend = None
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues):

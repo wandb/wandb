@@ -73,7 +73,9 @@ def check_project_spec(
         and config["config"].get("overrides")
         and config["config"]["overrides"].get("run_config")
     ):
-        assert project_spec.override_config == config["config"]["overrides"]["run_config"]
+        assert (
+            project_spec.override_config == config["config"]["overrides"]["run_config"]
+        )
 
     with open(os.path.join(project_spec.dir, "patch.txt"), "r") as fp:
         contents = fp.read()

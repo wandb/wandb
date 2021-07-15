@@ -60,7 +60,7 @@ def _run(
         entry_point,
         version,
         parameters,
-        launch_config
+        launch_config,
     )
     project = create_project_from_spec(run_spec, api)
     project = fetch_and_validate_project(project, api)

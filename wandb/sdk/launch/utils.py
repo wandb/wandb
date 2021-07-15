@@ -77,9 +77,12 @@ def construct_run_spec(
     # override base config (if supplied) with supplied args
     run_spec = launch_config if launch_config is not None else {}
     run_spec["uri"] = uri
-    run_spec["entity"] = wandb_entity
-    run_spec["project"] = wandb_project
-    run_spec["name"] = experiment_name
+    if wandb_entity:
+        run_spec["entity"] = wandb_entity
+    if wandb_project:
+        run_spec["project"] = wandb_project
+    if experiment_name:
+        run_spec["name"] = experiment_name
     if "docker" not in run_spec:
         run_spec["docker"] = {}
     if docker_image:
@@ -103,11 +106,13 @@ def construct_run_spec(
 
 def create_project_from_spec(run_spec, api):
     uri = run_spec["uri"]
-    project, entity, run_id = set_project_entity_defaults(uri, run_spec.get("project"), run_spec.get("entity"), api)
+    project, entity, run_id = set_project_entity_defaults(
+        uri, run_spec.get("project"), run_spec.get("entity"), api
+    )
     if run_spec.get("name"):
         name = run_spec["name"]
     else:
-        name = "{}_{}_launch".format(project, run_id)   # default naming scheme
+        name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
     return _project_spec.Project(
         uri,
@@ -124,7 +129,9 @@ def fetch_and_validate_project(project, api):
     project._fetch_project_local(api=api)
     project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]
-    project.get_entry_point(first_entry_point)._validate_parameters(project.override_args)
+    project.get_entry_point(first_entry_point)._validate_parameters(
+        project.override_args
+    )
     return project
 
 
