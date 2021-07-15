@@ -52,8 +52,7 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
-# TODO(require): Remove underscore when we are ready to ship
-_require = wandb_sdk.require
+require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
