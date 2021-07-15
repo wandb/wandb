@@ -6,6 +6,7 @@ coverage.xml
 .mypy_cache/
 .pytest_cache/
 .circle_cache/
+.yea_cache/
 build/
 dist/
 *.pyc
@@ -24,3 +25,7 @@ mypy-results/
 cover-results/
 wandb/proto_check/
 functional_tests/.coverage.*
+functional_tests/runs/
+functional_tests/videos/
+functional_tests/models/
+.idea/

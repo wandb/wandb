@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 
+from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
 import wandb
@@ -35,7 +36,6 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:  # pragma: no cover
-        from .interface.artifacts import ArtifactEntry
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
@@ -66,6 +66,39 @@ if wandb.TYPE_CHECKING:
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
+
+
+def _get_max_cli_version() -> Union[str, None]:
+    _, server_info = wandb.api.viewer_server_info()
+    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    return str(max_cli_version) if max_cli_version is not None else None
+
+
+def _is_offline() -> bool:
+    return (
+        wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
+    ) or str(wandb.setup().settings.mode) == "offline"
+
+
+def _server_accepts_client_ids() -> bool:
+    # First, if we are offline, assume the backend server cannot
+    # accept client IDs. Unfortunately, this is the best we can do
+    # until we are sure that all local versions are > "0.10.34" max_cli_version.
+    # The practical implication is that tables logged in offline mode
+    # will not show up in the workspace (but will still show up in artifacts). This
+    # means we never lose data, and we can still view using weave. If we decided
+    # to use client ids in offline mode, then the manifests and artifact data
+    # would never be resolvable and would lead to failed uploads. Our position
+    # is to never lose data - and instead take the tradeoff in the UI.
+    if _is_offline():
+        return False
+
+    # If the script is online, request the max_cli_version and ensure the server
+    # is of a high enough version.
+    max_cli_version = _get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.10.34") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -231,26 +264,74 @@ class WBValue(object):
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_reference_entry(self) -> Optional["ArtifactEntry"]:
-        ref_entry = None
+    def _get_artifact_entry_ref_url(self) -> Optional[str]:
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
             ref_entry = self._artifact_source.artifact.get_path(
                 type(self).with_suffix(self._artifact_source.name)
             )
-        # Else, if the object is destined for another artifact
+            return str(ref_entry.ref_url())
+        # Else, if the object is destined for another artifact and we support client IDs
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}/{}".format(
+                self._artifact_target.artifact._client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        # Else if we do not support client IDs, but online, then block on upload
+        # Note: this is old behavior just to stay backwards compatible
+        # with older server versions. This code path should be removed
+        # once those versions are no longer supported. This path uses a .wait
+        # which blocks the user process on artifact upload.
         elif (
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
         ):
-            # Currently, we do not have a way to obtain a reference URL without waiting for the
-            # upstream artifact to be logged. This implies that this only works online as well.
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_path(
                 type(self).with_suffix(self._artifact_target.name)
             )
-        return ref_entry
+            return str(ref_entry.ref_url())
+        return None
+
+    def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
+        if (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}:latest/{}".format(
+                self._artifact_target.artifact._sequence_client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        # Else if we do not support client IDs, then block on upload
+        # Note: this is old behavior just to stay backwards compatible
+        # with older server versions. This code path should be removed
+        # once those versions are no longer supported. This path uses a .wait
+        # which blocks the user process on artifact upload.
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
+        ):
+            self._artifact_target.artifact.wait()
+            ref_entry = self._artifact_target.artifact.get_path(
+                type(self).with_suffix(self._artifact_target.name)
+            )
+            return str(ref_entry.ref_url())
+        return None
 
 
 class Histogram(WBValue):
@@ -487,9 +568,12 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is not None:
-                json_obj["artifact_path"] = artifact_entry.ref_url()
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is not None:
+                json_obj["artifact_path"] = artifact_entry_url
+            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
+            if artifact_entry_latest_url is not None:
+                json_obj["_latest_artifact_path"] = artifact_entry_latest_url
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass

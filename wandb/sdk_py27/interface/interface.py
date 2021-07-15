@@ -150,7 +150,6 @@ class MessageRouter(object):
 
 
 class BackendSenderBase(object):
-
     # _run: Optional["Run"]
 
     def __init__(self):
@@ -432,6 +431,8 @@ class BackendSenderBase(object):
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
+        proto_artifact.client_id = artifact._client_id
+        proto_artifact.sequence_client_id = artifact._sequence_client_id
         proto_artifact.digest = artifact.digest
         if artifact.distributed_id:
             proto_artifact.distributed_id = artifact.distributed_id
