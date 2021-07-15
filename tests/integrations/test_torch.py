@@ -160,7 +160,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 def test_all_logging(wandb_init_run):
     # TODO(jhr): does not work with --flake-finder
     net = ConvNet()
-    wandb.watch(net, log="all", log_freq=1, log_graph=True)
+    wandb.watch(net, log="all", log_freq=1)
     for i in range(3):
         output = net(dummy_torch_tensor((32, 1, 28, 28)))
         grads = torch.ones(32, 10)
@@ -176,7 +176,7 @@ def test_double_log(wandb_init_run):
     net = ConvNet()
     wandb.watch(net, log_graph=True)
     with pytest.raises(ValueError):
-        wandb.watch(net)
+        wandb.watch(net, log_graph=True)
 
 
 def test_embedding_dict_watch(wandb_init_run):
