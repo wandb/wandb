@@ -2130,7 +2130,7 @@ class Run(object):
         return m
 
     # TODO(jhr): annotate this
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=True) -> None:  # type: ignore
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
