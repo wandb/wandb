@@ -53,16 +53,25 @@ def _is_wandb_local_uri(uri: str):
 
 def set_project_entity_defaults(uri, project, entity, api):
     # set the target project and entity if not provided
-    if not _is_wandb_uri(uri):
-        wandb.termlog("Non-wandb path detected")
-
-    # @@@ support github here
-
-    _, uri_project, run_id = parse_wandb_uri(uri)
+    if _is_wandb_uri(uri):
+        _, uri_project, run_id = parse_wandb_uri(uri)
+    else:
+        uri_project = None
+        run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
     if project is None:
         project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+        wandb.termlog(
+            "Target project for this run not specified, defaulting to project {}".format(
+                project
+            )
+        )
     if entity is None:
         entity = api.default_entity
+        wandb.termlog(
+            "Target entity for this run not specified, defaulting to current logged-in user {}".format(
+                entity
+            )
+        )
     return project, entity, run_id
 
 
@@ -117,6 +126,11 @@ def create_project_from_spec(run_spec, api):
     else:
         name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
+    overrides = run_spec.get("overrides", {})
+    if "entry_point" not in overrides:
+        wandb.termlog("Entry point for project not specified, defaulting to main.py")
+        overrides["entry_point"] = "main.py"  # default entry point to look for
+
     return _project_spec.Project(
         uri,
         entity,
@@ -124,7 +138,7 @@ def create_project_from_spec(run_spec, api):
         name,
         run_spec.get("docker", {}),
         run_spec.get("git", {}),
-        run_spec.get("overrides", {}),
+        overrides,
     )
 
 
