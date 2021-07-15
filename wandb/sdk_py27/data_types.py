@@ -1777,7 +1777,8 @@ class Image(BatchableMedia):
                     masks_final[key] = ImageMask(mask_item, key)
             self._masks = masks_final
 
-        self._width, self._height = self._image.size  # type: ignore
+        self._width, self._height = self.image.size  # type: ignore
+        self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage):
         self._grouping = wbimage._grouping
