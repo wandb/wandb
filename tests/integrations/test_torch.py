@@ -174,7 +174,7 @@ def test_all_logging(wandb_init_run):
 
 def test_double_log(wandb_init_run):
     net = ConvNet()
-    wandb.watch(net)
+    wandb.watch(net, log_graph=True)
     with pytest.raises(ValueError):
         wandb.watch(net)
 
