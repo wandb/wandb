@@ -3,7 +3,7 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Optional
+from typing import Any, Dict, List, Optional, Union
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
@@ -14,15 +14,13 @@ from .._project_spec import Project
 
 _logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Union
 
-    if sys.version_info >= (3, 8):
-        from typing import Literal
-    else:
-        from typing_extensions import Literal
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
-    State = Literal["unknown", "starting", "running", "failed", "finished"]
+State = Literal["unknown", "starting", "running", "failed", "finished"]
 
 
 class Status(object):
