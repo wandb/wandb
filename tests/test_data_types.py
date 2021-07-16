@@ -298,19 +298,19 @@ def test_audio_refs():
 def test_guess_mode():
     image = np.random.randint(255, size=(28, 28, 3))
     wbimg = wandb.Image(image)
-    assert wbimg._image.mode == "RGB"
+    assert wbimg.image.mode == "RGB"
 
 
 def test_pil():
     pil = PIL.Image.new("L", (28, 28))
     img = wandb.Image(pil)
-    assert img._image == pil
+    assert list(img.image.getdata()) == list(pil.getdata())
 
 
 def test_matplotlib_image():
     plt.plot([1, 2, 2, 4])
     img = wandb.Image(plt)
-    assert img._image.width == 640
+    assert img.image.width == 640
 
 
 def test_matplotlib_image_with_multiple_axes():
