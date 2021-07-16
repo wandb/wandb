@@ -15,18 +15,18 @@ from .._project_spec import Project
 _logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Union, Type
+    from typing import Any, Dict, List, Union
 
-    try:
+    if sys.version_info >= (3, 8):
         from typing import Literal
-    except ImportError:
-        from typing_extensions import Literal  # type: ignore
+    else:
+        from typing_extensions import Literal
 
     State = Literal["unknown", "starting", "running", "failed", "finished"]
 
 
 class Status(object):
-    def __init__(self, state: State = "unknown", data=None):  # type: ignore
+    def __init__(self, state: "State" = "unknown", data=None):  # type: ignore
         self.state = state
         self.data = data or {}
 
