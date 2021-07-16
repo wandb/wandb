@@ -83,7 +83,7 @@ def _is_offline() -> bool:
 def _server_accepts_client_ids() -> bool:
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
-    # until we are sure that all local versions are > "0.10.34" max_cli_version.
+    # until we are sure that all local versions are > "0.11.0" max_cli_version.
     # The practical implication is that tables logged in offline mode
     # will not show up in the workspace (but will still show up in artifacts). This
     # means we never lose data, and we can still view using weave. If we decided
@@ -98,7 +98,7 @@ def _server_accepts_client_ids() -> bool:
     max_cli_version = _get_max_cli_version()
     if max_cli_version is None:
         return False
-    return parse_version("0.10.34") <= parse_version(max_cli_version)
+    return parse_version("0.11.0") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):

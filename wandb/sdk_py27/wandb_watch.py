@@ -15,7 +15,7 @@ _global_watch_idx = 0
 
 
 def watch(
-    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=True
+    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=False
 ):
     """Hooks into the torch model to collect gradients and the topology.
 
