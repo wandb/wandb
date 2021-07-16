@@ -112,7 +112,7 @@ def test_jupyter_path(meta, mocked_ipython):
     meta._settings.update(_jupyter_path="dummy/path")
     meta.probe()
     assert meta.data["program"] == "dummy/path"
-    assert "wandb/client" in meta.data["root"]
+    assert meta.data.get("root") is not None
 
 
 # TODO: test actual code saving
