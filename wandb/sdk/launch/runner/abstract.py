@@ -15,12 +15,12 @@ from .._project_spec import Project
 _logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, List, Union
+    from typing import Any, Dict, List, Union, Type
 
     try:
-        from typing import Literal  # type: ignore
+        from typing import Literal
     except ImportError:
-        from typing_extensions import Literal
+        from typing_extensions import Literal  # type: ignore
 
     State = Literal["unknown", "starting", "running", "failed", "finished"]
 
