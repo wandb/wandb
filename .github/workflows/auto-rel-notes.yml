@@ -1,0 +1,12 @@
+name: Validate that PR contains release notes
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+jobs:
+  validate_release_notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate release notes
+        uses: wandb/auto-release-notes@main
