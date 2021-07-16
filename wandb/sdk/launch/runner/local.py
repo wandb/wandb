@@ -3,11 +3,13 @@ import os
 import signal
 import subprocess
 import sys
+from typing import Any, Dict, List
 
 import wandb
 from wandb.errors import LaunchException
 
 from .abstract import AbstractRun, AbstractRunner, Status
+from .._project_spec import get_entry_point_command, Project
 from ..docker import (
     build_docker_image,
     generate_docker_image,
@@ -16,13 +18,11 @@ from ..docker import (
     validate_docker_env,
     validate_docker_installation,
 )
-from .._project_spec import get_entry_point_command, Project
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
 
-from typing import Any, Dict, List
 
 _logger = logging.getLogger(__name__)
 
@@ -97,10 +97,7 @@ class LocalRunner(AbstractRunner):
             api=self._api,
             copy_code=copy_code,
         )
-        command_args += get_docker_command(
-            image=image,
-            docker_args=docker_args,
-        )
+        command_args += get_docker_command(image=image, docker_args=docker_args,)
         if self.backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(
                 self.backend_config["runQueueItemId"], project.run_id
@@ -159,10 +156,7 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            cwd=work_dir,
-            env=env,
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
         )
 
     return LocalSubmittedRun(process)

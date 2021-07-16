@@ -8,8 +8,8 @@ import subprocess
 import sys
 import tempfile
 from typing import Any, Dict, List, Sequence, Union
-from docker.models.resource import Model  # type: ignore
 
+from docker.models.resource import Model  # type: ignore
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 import wandb

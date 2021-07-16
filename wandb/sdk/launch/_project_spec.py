@@ -7,7 +7,6 @@ from shlex import quote
 import tempfile
 from typing import Tuple
 
-import six
 import wandb
 from wandb.errors import Error as ExecutionException
 from wandb.sdk.lib.runid import generate_id

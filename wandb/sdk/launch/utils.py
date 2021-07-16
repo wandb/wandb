@@ -3,13 +3,13 @@ import logging
 import os
 import re
 import subprocess
+from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
 from wandb.errors import CommError, ExecutionException, LaunchException
 
-from typing import Any, Dict, Optional, Tuple
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/]*:")

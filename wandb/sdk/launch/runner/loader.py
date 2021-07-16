@@ -1,12 +1,11 @@
 import logging
-from wandb.sdk.launch.runner.abstract import AbstractRunner
-from wandb.apis.internal import Api
+from typing import Any, Dict
 
+from wandb.apis.internal import Api
 from wandb.errors import LaunchException
+from wandb.sdk.launch.runner.abstract import AbstractRunner
 
 from .local import LocalRunner
-
-from typing import Any, Dict
 
 __logger__ = logging.getLogger(__name__)
 
