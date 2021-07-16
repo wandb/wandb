@@ -298,19 +298,19 @@ def test_audio_refs():
 def test_guess_mode():
     image = np.random.randint(255, size=(28, 28, 3))
     wbimg = wandb.Image(image)
-    assert wbimg._image.mode == "RGB"
+    assert wbimg.image.mode == "RGB"
 
 
 def test_pil():
     pil = PIL.Image.new("L", (28, 28))
     img = wandb.Image(pil)
-    assert img._image == pil
+    assert list(img.image.getdata()) == list(pil.getdata())
 
 
 def test_matplotlib_image():
     plt.plot([1, 2, 2, 4])
     img = wandb.Image(plt)
-    assert img._image.width == 640
+    assert img.image.width == 640
 
 
 def test_matplotlib_image_with_multiple_axes():
@@ -952,7 +952,7 @@ def test_reference_table_logging(mocked_run, live_mock_server, test_settings, ap
     run.finish()
     assert True
 
-    live_mock_server.set_ctx({"max_cli_version": "0.10.34"})
+    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
     run.log({"logged_table": t})
@@ -962,7 +962,7 @@ def test_reference_table_logging(mocked_run, live_mock_server, test_settings, ap
 
 
 def test_reference_table_artifacts(mocked_run, live_mock_server, test_settings, api):
-    live_mock_server.set_ctx({"max_cli_version": "0.10.34"})
+    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
     run = wandb.init(settings=test_settings)
     t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
 

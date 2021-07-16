@@ -83,7 +83,7 @@ def _is_offline() -> bool:
 def _server_accepts_client_ids() -> bool:
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
-    # until we are sure that all local versions are > "0.10.34" max_cli_version.
+    # until we are sure that all local versions are > "0.11.0" max_cli_version.
     # The practical implication is that tables logged in offline mode
     # will not show up in the workspace (but will still show up in artifacts). This
     # means we never lose data, and we can still view using weave. If we decided
@@ -98,7 +98,7 @@ def _server_accepts_client_ids() -> bool:
     max_cli_version = _get_max_cli_version()
     if max_cli_version is None:
         return False
-    return parse_version("0.10.34") <= parse_version(max_cli_version)
+    return parse_version("0.11.0") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -1861,7 +1861,8 @@ class Image(BatchableMedia):
                     masks_final[key] = ImageMask(mask_item, key)
             self._masks = masks_final
 
-        self._width, self._height = self._image.size  # type: ignore
+        self._width, self._height = self.image.size  # type: ignore
+        self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
@@ -2109,11 +2110,11 @@ class Image(BatchableMedia):
                 )
 
         num_images_to_log = len(seq)
-        width, height = seq[0]._image.size  # type: ignore
+        width, height = seq[0].image.size  # type: ignore
         format = jsons[0]["format"]
 
         def size_equals_image(image: "Image") -> bool:
-            img_width, img_height = image._image.size  # type: ignore
+            img_width, img_height = image.image.size  # type: ignore
             return img_width == width and img_height == height  # type: ignore
 
         sizes_match = all(size_equals_image(img) for img in seq)
@@ -2206,22 +2207,46 @@ class Image(BatchableMedia):
         if not isinstance(other, Image):
             return False
         else:
+            self_image = self.image
+            other_image = other.image
+            if self_image is not None:
+                self_image = list(self_image.getdata())
+            if other_image is not None:
+                other_image = list(other_image.getdata())
+
             return (
                 self._grouping == other._grouping
                 and self._caption == other._caption
                 and self._width == other._width
                 and self._height == other._height
-                and self._image == other._image
+                and self_image == other_image
                 and self._classes == other._classes
             )
 
     def to_data_array(self) -> List[Any]:
         res = []
-        if self._image is not None:
-            data = list(self._image.getdata())
-            for i in range(self._image.height):
-                res.append(data[i * self._image.width : (i + 1) * self._image.width])
+        if self.image is not None:
+            data = list(self.image.getdata())
+            for i in range(self.image.height):
+                res.append(data[i * self.image.width : (i + 1) * self.image.width])
+        self._free_ram()
         return res
+
+    def _free_ram(self) -> None:
+        if self._path is not None:
+            self._image = None
+
+    @property
+    def image(self) -> Optional["PIL.Image"]:
+        if self._image is None:
+            if self._path is not None:
+                pil_image = util.get_module(
+                    "PIL.Image",
+                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+                )
+                self._image = pil_image.open(self._path)
+                self._image.load()
+        return self._image
 
 
 class Plotly(Media):
