@@ -67,6 +67,7 @@ def test_log_dataframe(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
     run.log({"results_df": cv_results})
+    run.finish()
     ctx = live_mock_server.get_ctx()
     assert len(ctx["artifacts"]) == 1
 
@@ -938,5 +939,78 @@ def test_table_logging(mocked_run, live_mock_server, test_settings, api):
             )
         }
     )
+    run.finish()
+    assert True
+
+
+def test_reference_table_logging(mocked_run, live_mock_server, test_settings, api):
+    live_mock_server.set_ctx({"max_cli_version": "0.10.33"})
+    run = wandb.init(settings=test_settings)
+    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    run.log({"logged_table": t})
+    run.log({"logged_table": t})
+    run.finish()
+    assert True
+
+    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
+    run = wandb.init(settings=test_settings)
+    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+    run.log({"logged_table": t})
+    run.log({"logged_table": t})
+    run.finish()
+    assert True
+
+
+def test_reference_table_artifacts(mocked_run, live_mock_server, test_settings, api):
+    live_mock_server.set_ctx({"max_cli_version": "0.11.0"})
+    run = wandb.init(settings=test_settings)
+    t = wandb.Table(columns=["a"], data=[[wandb.Image(np.ones(shape=(32, 32)))]],)
+
+    art = wandb.Artifact("A", "dataset")
+    art.add(t, "table")
+    run.log_artifact(art)
+    art = wandb.Artifact("A", "dataset")
+    art.add(t, "table")
+    run.log_artifact(art)
+
+    run.finish()
+    assert True
+
+
+# TODO: In another location: need to manually test the internal/backend
+# artifact sender with an artifact that has a reference to be resolved - i
+# think this will get the most coverage
+def test_table_reference(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact("dummy:v0")
+        table = artifact.get("parts/1")
+        run.log({"table": table})
+        run.finish()
+    assert True
+
+
+def test_partitioned_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
+    run.finish()
+    assert True
+
+
+def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
+    run = wandb.init(settings=test_settings)
+    art = wandb.Artifact("A", "dataset")
+    t1 = wandb.Table(
+        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+    )
+    t2 = wandb.Table(
+        columns=["id", "a"], data=[[1, wandb.Image(np.ones(shape=(32, 32)))]],
+    )
+    art.add(t1, "t1")
+    art.add(t2, "t2")
+    jt = wandb.JoinedTable(t1, t2, "id")
+    art.add(jt, "jt")
+    run.log_artifact(art)
+    run.log({"logged_table": jt})
     run.finish()
     assert True

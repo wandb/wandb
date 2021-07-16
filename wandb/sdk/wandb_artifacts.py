@@ -122,6 +122,7 @@ class Artifact(ArtifactInterface):
     _metadata: dict
     _logged_artifact: Optional[ArtifactInterface]
     _incremental: bool
+    _client_id: str
 
     def __init__(
         self,
@@ -167,6 +168,9 @@ class Artifact(ArtifactInterface):
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
+        self._client_id = util.generate_id(128)
+        self._sequence_client_id = util.generate_id(128)
+        self._cache.store_client_artifact(self)
 
         if incremental:
             self._incremental = incremental
@@ -483,7 +487,7 @@ class Artifact(ArtifactInterface):
             return self._added_objs[obj_id].entry
 
         # If the object is coming from another artifact, save it as a reference
-        ref_path = obj._get_artifact_reference_entry()
+        ref_path = obj._get_artifact_entry_ref_url()
         if ref_path is not None:
             return self.add_reference(ref_path, type(obj).with_suffix(name))[0]
 
@@ -603,18 +607,6 @@ class Artifact(ArtifactInterface):
                         with wandb_lib.telemetry.context(run=run) as tel:
                             tel.feature.artifact_incremental = True
                     run.log_artifact(self)
-                    project_url = run._get_project_url()
-                    # Calling "wait" here is OK, since we have to wait
-                    # for the run to finish anyway.
-                    self.wait()
-                commit_hash = ""
-                if self._logged_artifact is not None:
-                    commit_hash = self._logged_artifact.commit_hash
-                termlog(
-                    "View artifact at {}/artifacts/{}/{}/{}".format(
-                        project_url, self._type, self._name, commit_hash,
-                    )
-                )
             else:
                 wandb.run.log_artifact(self)  # type: ignore
 
@@ -855,11 +847,12 @@ class WandbStoragePolicy(StoragePolicy):
         http = HTTPHandler(self._session)
         https = HTTPHandler(self._session, scheme="https")
         artifact = WBArtifactHandler()
+        local_artifact = WBLocalArtifactHandler()
         file_handler = LocalFileHandler()
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, http, https, artifact, file_handler,],
+            handlers=[s3, gcs, http, https, artifact, local_artifact, file_handler,],
             default_handler=TrackingHandler(),
         )
 
@@ -1742,8 +1735,8 @@ class WBArtifactHandler(StorageHandler):
 
     _client: Optional[PublicApi]
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
-        self._scheme = scheme or "wandb-artifact"
+    def __init__(self) -> None:
+        self._scheme = "wandb-artifact"
         self._cache = get_artifacts_cache()
         self._client = None
 
@@ -1839,13 +1832,80 @@ class WBArtifactHandler(StorageHandler):
             path = entry.ref
 
         # Create the path reference
-        path = "wandb-artifact://{}/{}".format(
-            util.b64_to_hex_id(target_artifact.id), artifact_file_path
+        path = "{}://{}/{}".format(
+            self._scheme, util.b64_to_hex_id(target_artifact.id), artifact_file_path
         )
 
         # Return the new entry
         return [
             ArtifactManifestEntry(
                 name or os.path.basename(path), path, size=0, digest=entry.digest,
+            )
+        ]
+
+
+class WBLocalArtifactHandler(StorageHandler):
+    """Handles loading and storing Artifact reference-type files"""
+
+    _client: Optional[PublicApi]
+
+    def __init__(self) -> None:
+        self._scheme = "wandb-client-artifact"
+        self._cache = get_artifacts_cache()
+
+    @property
+    def scheme(self) -> str:
+        """overrides parent scheme
+
+        Returns:
+            (str): The scheme to which this handler applies.
+        """
+        return self._scheme
+
+    def load_path(
+        self,
+        artifact: ArtifactInterface,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
+    ) -> str:
+        raise NotImplementedError(
+            "Should not be loading a path for an artifact entry with unresolved client id."
+        )
+
+    def store_path(
+        self,
+        artifact: Artifact,
+        path: str,
+        name: Optional[str] = None,
+        checksum: bool = True,
+        max_objects: Optional[int] = None,
+    ) -> Sequence[ArtifactEntry]:
+        """
+        Stores the file or directory at the given path within the specified artifact.
+
+        Arguments:
+            artifact: The artifact doing the storing
+            path (str): The path to store
+            name (str): If specified, the logical name that should map to `path`
+
+        Returns:
+            (list[ArtifactManifestEntry]): A list of manifest entries to store within the artifact
+        """
+        client_id = util.host_from_path(path)
+        target_path = util.uri_from_path(path)
+        target_artifact = self._cache.get_client_artifact(client_id)
+        if target_artifact is None:
+            raise RuntimeError("Local Artifact not found - invalid reference")
+        target_entry = target_artifact._manifest.entries[target_path]
+        if target_entry is None:
+            raise RuntimeError("Local entry not found - invalid reference")
+
+        # Return the new entry
+        return [
+            ArtifactManifestEntry(
+                name or os.path.basename(path),
+                path,
+                size=0,
+                digest=target_entry.digest,
             )
         ]
