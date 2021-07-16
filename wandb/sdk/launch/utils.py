@@ -126,11 +126,6 @@ def create_project_from_spec(run_spec, api):
     else:
         name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
-    overrides = run_spec.get("overrides", {})
-    if "entry_point" not in overrides:
-        wandb.termlog("Entry point for project not specified, defaulting to main.py")
-        overrides["entry_point"] = "main.py"  # default entry point to look for
-
     return _project_spec.Project(
         uri,
         entity,
@@ -138,7 +133,7 @@ def create_project_from_spec(run_spec, api):
         name,
         run_spec.get("docker", {}),
         run_spec.get("git", {}),
-        overrides,
+        run_spec.get("overrides", {}),
     )
 
 

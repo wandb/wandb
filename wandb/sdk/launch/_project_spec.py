@@ -118,7 +118,7 @@ class Project(object):
                 utils.apply_patch(patch, dst_dir)
 
             if not self._entry_points:
-                self.add_entry_point(run_info["program"])
+                self.add_entry_point(run_info["program"])  # @@@
 
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
@@ -127,6 +127,13 @@ class Project(object):
             assert utils._GIT_URI_REGEX.match(parsed_uri), (
                 "Non-wandb URI %s should be a Git URI" % parsed_uri
             )
+
+            if not self._entry_points:
+                wandb.termlog(
+                    "Entry point for repo not specified, defaulting to main.py"
+                )
+                self.add_entry_point("main.py")
+
             utils._fetch_git_repo(parsed_uri, self.git_version, dst_dir)
         self.dir = dst_dir
         return self.dir

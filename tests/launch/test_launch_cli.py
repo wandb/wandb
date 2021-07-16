@@ -136,23 +136,8 @@ def test_launch_no_docker_exec(
     assert "Could not find Docker executable" in str(result.exception)
 
 
-def test_launch_github_url(runner, mocked_fetchable_git_repo):
-    config = {
-        "project": "test_project",
-        "entity": "mock_server_entity",
-        "resource": "local",
-        "overrides": {"entry_point": "examples/scikit/scikit-iris/train.py"},
-    }
-
+def test_launch_github_url(runner):
     with runner.isolated_filesystem():
-        # result = runner.invoke(
-        #     cli.launch,
-        #     [
-        #         '-c,',
-        #         json.dumps(config),
-        #         'https://github.com/wandb/examples',
-        #     ]
-        # )
         result = runner.invoke(cli.launch, ["https://github.com/wandb/examples"])
     print(result.output)
     assert result.exit_code == 0
