@@ -15,6 +15,39 @@ import wandb
 from wandb import Api
 from tests import utils
 
+# Designed to march the default one in mock_server.py
+summary_metrics = {
+    "acc": 100,
+    "loss": 0,
+    "direct_table": {
+        "artifact_path": "wandb-artifact://41727469666163743a3134313937393334/dataset.table.json",
+        "path": "",
+        "size": 0,
+        "_type": "table-file",
+        "ncols": 0,
+        "nrows": 0,
+        "sha256": "",
+    },
+    "client_id_table": {
+        "artifact_path": "wandb-client-artifact://clientidifekrqju0yry2ssbxugz9dzlbwlhgw81tet5ow18ubsmk0u9guvlde3b/dataset.table.json",
+        "path": "",
+        "size": 0,
+        "_type": "table-file",
+        "ncols": 0,
+        "nrows": 0,
+        "sha256": "",
+    },
+    "sequence_id_table": {
+        "artifact_path": "wandb-client-artifact://sequenceifekrqju0yry2ssbxugz9dzlbwlhgw81tet5ow18ubsmk0u9guvlde3b:latest/dataset.table.json",
+        "path": "",
+        "size": 0,
+        "_type": "table-file",
+        "ncols": 0,
+        "nrows": 0,
+        "sha256": "",
+    },
+}
+
 
 @pytest.fixture
 def api(runner):
@@ -89,7 +122,7 @@ def test_parse_path_proj(mock_server, api):
 
 def test_run_from_path(mock_server, api):
     run = api.run("test/test/test")
-    assert run.summary_metrics == {"acc": 100, "loss": 0}
+    assert run.summary_metrics == summary_metrics
     assert run.url == "https://wandb.ai/test/test/runs/test"
 
 
@@ -111,12 +144,24 @@ def test_run_from_tensorboard(runner, mock_server, api):
 def test_run_retry(mock_server, api):
     mock_server.set_context("fail_graphql_times", 2)
     run = api.run("test/test/test")
-    assert run.summary_metrics == {"acc": 100, "loss": 0}
+    assert run.summary_metrics == summary_metrics
 
 
 def test_run_history(mock_server, api):
     run = api.run("test/test/test")
-    assert run.history(pandas=False)[0] == {"acc": 10, "loss": 90}
+    assert run.history(pandas=False)[0] == {
+        "acc": 10,
+        "loss": 90,
+        "sequence_id_table": {
+            "artifact_path": "wandb-client-artifact://sequenceifekrqju0yry2ssbxugz9dzlbwlhgw81tet5ow18ubsmk0u9guvlde3b:latest/dataset.table.json",
+            "path": "",
+            "size": 0,
+            "_type": "table-file",
+            "ncols": 0,
+            "nrows": 0,
+            "sha256": "",
+        },
+    }
 
 
 def test_run_history_keys(mock_server, api):
@@ -164,7 +209,9 @@ def test_run_summary(mock_server, api):
     run = api.run("test/test/test")
     run.summary.update({"cool": 1000})
     res = json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"])
-    assert {"acc": 100, "loss": 0, "cool": 1000} == res
+    metrics = {"cool": 1000}
+    metrics.update(summary_metrics)
+    assert metrics == res
 
 
 def test_run_create(mock_server, api):
@@ -179,7 +226,7 @@ def test_run_update(mock_server, api):
     run.config["foo"] = "bar"
     run.update()
     res = json.loads(mock_server.ctx["graphql"][-1]["variables"]["summaryMetrics"])
-    assert {"acc": 100, "loss": 0} == res
+    assert summary_metrics == res
     assert mock_server.ctx["graphql"][-2]["variables"]["entity"] == "test"
 
 
@@ -263,7 +310,7 @@ def test_runs_from_path(mock_server, api):
     assert len(runs) == 4
     list(runs)
     assert len(runs.objects) == 2
-    assert runs[0].summary_metrics == {"acc": 100, "loss": 0}
+    assert runs[0].summary_metrics == summary_metrics
     assert runs[0].group == "A"
     assert runs[0].job_type == "test"
 

@@ -35,7 +35,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
-        "max_cli_version": "0.10.33",
+        "max_cli_version": "0.11.0",
     }
 
 
@@ -124,6 +124,10 @@ def run(ctx):
         "sha256": ""
     }"""
 
+    summary_metrics = '{{"acc": 100, "loss": 0, "direct_table":{}, "client_id_table":{}, "sequence_id_table":{}}}'.format(
+        direct_table, client_id_table, sequence_id_table
+    )
+
     return {
         "id": "test",
         "name": "test",
@@ -134,9 +138,7 @@ def run(ctx):
         "jobType": "test",
         "description": "",
         "systemMetrics": '{"cpu": 100}',
-        "summaryMetrics": '{{"acc": 100, "loss": 0, "direct_table":{}, "client_id_table":{}, "sequence_id_table":{}}}'.format(
-            direct_table, client_id_table, sequence_id_table
-        ),
+        "summaryMetrics": summary_metrics,
         "fileCount": 1,
         "history": [
             '{{"acc": 10, "loss": 90, "sequence_id_table":{}}}'.format(
