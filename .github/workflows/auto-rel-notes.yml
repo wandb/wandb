@@ -9,4 +9,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate release notes
-        uses: wandb/auto-release-notes@8264e54d996151cdd083dfd6914a757e8001f226
+        uses: wandb/auto-release-notes@main
