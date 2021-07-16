@@ -92,7 +92,7 @@ def get_label_image_path(ndx):
 
 def get_dominant_id_ndx(np_image):
     if isinstance(np_image, wandb.Image):
-        np_image = np.array(np_image._image)
+        np_image = np.array(np_image.image)
     return BDD_ID_MAP[np.argmax(np.bincount(np_image.astype(int).flatten()))]
 
 def clean_artifacts_dir():
@@ -101,7 +101,7 @@ def clean_artifacts_dir():
         
 def mask_to_bounding(np_image):
     if isinstance(np_image, wandb.Image):
-        np_image = np.array(np_image._image)
+        np_image = np.array(np_image.image)
     
     data = []
     for id_num in BDD_IDS:
@@ -183,11 +183,11 @@ def score_model(model, x_data, mask_data, n_classes):
 def make_datasets(data_table, n_classes):
     n_samples = len(data_table.data)
     n_classes = len(BDD_CLASSES)
-    height = data_table.data[0][1]._image.height
-    width = data_table.data[0][1]._image.width
+    height = data_table.data[0][1].image.height
+    width = data_table.data[0][1].image.width
 
-    train_data = np.array([np.array(data_table.data[i][1]._image).reshape(height, width, 3) for i in range(n_samples)])
-    mask_data = np.array([np.array(data_table.data[i][3]._image).reshape(height, width) for i in range(n_samples)])
+    train_data = np.array([np.array(data_table.data[i][1].image).reshape(height, width, 3) for i in range(n_samples)])
+    mask_data = np.array([np.array(data_table.data[i][3].image).reshape(height, width) for i in range(n_samples)])
     return train_data, mask_data
 
 def main():
