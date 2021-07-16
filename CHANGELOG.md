@@ -13,7 +13,7 @@
 #### :nail_care: Enhancement
 
 - Improve performance of artifact logging by making it non-blocking
-- Add wandb integration for Stable-benchmarks-3
+- Add wandb integration for Stable-Baselines3
 - Improve keras callback validation logging inference logic
 - Expose sweep state via the public API
 - Improve performance of sweep run fetches via the API
