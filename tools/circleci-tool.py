@@ -12,8 +12,9 @@ Trigger (re)execution of a branch
     $ ./circleci-tool trigger
     $ ./circleci-tool trigger --wait
     $ ./circleci-tool trigger --platform mac
-    $ ./circleci-tool trigger --platform mac --test-name tests/test.py
-    $ ./circleci-tool trigger --platform win --test-name tests/test.py --test-repeat 4
+    $ ./circleci-tool trigger --platform mac --test-file tests/test.py
+    $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this
+    $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this --test-repeat 4
     $ ./circleci-tool trigger --toxenv py36,py37 --loop 3
     ```
 
@@ -35,14 +36,9 @@ import requests
 
 CIRCLECI_API_TOKEN = "CIRCLECI_TOKEN"
 
-platforms_dict = dict(linux="test", mac="mac", win="win")
-py_name_dict = dict(
-    py27="Python 2.7",
-    py36="Python 3.6",
-    py37="Python 3.7",
-    py38="Python 3.8",
-    py39="Python 3.9",
-)
+platforms_dict = dict(linux="test", lin="test", mac="mac", win="win")
+platforms_short_dict = dict(linux="lin", lin="lin", mac="mac", win="win")
+py_name_dict = dict(py27="py27", py36="py36", py37="py37", py38="py38", py39="py39",)
 py_image_dict = dict(
     py27="python:2.7",
     py36="python:3.6",
@@ -109,8 +105,10 @@ def trigger(args):
         for p in platforms:
             job = platforms_dict.get(p)
             assert job, "unknown platform: {}".format(p)
+            pshort = platforms_short_dict.get(p)
+            jobname = "{}-{}".format(pshort, pyname)
             parameters["manual_" + job] = True
-            parameters["manual_" + job + "_name"] = pyname
+            parameters["manual_" + job + "_name"] = jobname
             if job == "test":
                 parameters["manual_" + job + "_image"] = pyimage
             parameters["manual_" + job + "_toxenv"] = toxcmd
@@ -124,7 +122,7 @@ def trigger(args):
     uuid = d["id"]
     print("CircleCI workflow started:", uuid)
     if args.wait or args.loop:
-        poll(uuid)
+        poll(args, pipeline_id=uuid)
 
 
 def get_ci_builds(args, completed=True):
