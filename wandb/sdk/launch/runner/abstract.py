@@ -18,9 +18,9 @@ if wandb.TYPE_CHECKING:
     from typing import Any, Dict, List, Union
 
     try:
-        from typing import Literal
+        from typing import Literal  # type: ignore
     except ImportError:
-        from typing_extensions import Literal  # type: ignore
+        from typing_extensions import Literal
 
     State = Literal["unknown", "starting", "running", "failed", "finished"]
 
@@ -30,7 +30,7 @@ class Status(object):
         self.state = state
         self.data = data or {}
 
-    def __repr__(self) -> State:
+    def __repr__(self) -> "State":
         return self.state
 
 
@@ -45,7 +45,7 @@ class AbstractRun(ABC):
     run.
     """
 
-    STATE_MAP: Dict[str, State] = {}
+    STATE_MAP: Dict[str, "State"] = {}
 
     def __init__(self) -> None:
         self._status = Status()
