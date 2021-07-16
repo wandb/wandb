@@ -3,18 +3,22 @@ import logging
 import os
 import subprocess
 import sys
+from typing import Optional
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import wandb
 from wandb import Settings
+from wandb.apis.internal import Api
+
+from .._project_spec import Project
 
 _logger = logging.getLogger(__name__)
 
 if wandb.TYPE_CHECKING:
-    from typing import Dict
+    from typing import Any, Dict, List, Union
 
     try:
-        from typing import Literal  # type: ignore
+        from typing import Literal
     except ImportError:
         from typing_extensions import Literal  # type: ignore
 
@@ -26,7 +30,7 @@ class Status(object):
         self.state = state
         self.data = data or {}
 
-    def __repr__(self):
+    def __repr__(self) -> State:
         return self.state
 
 
@@ -41,16 +45,18 @@ class AbstractRun(ABC):
     run.
     """
 
-    STATE_MAP: Dict[str, State] = {}  # type: ignore
+    STATE_MAP: Dict[str, State] = {}
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._status = Status()
 
     @property
-    def status(self):
+    def status(self) -> Status:
         return self._status
 
-    def _run_cmd(self, cmd, output_only=False):
+    def _run_cmd(
+        self, cmd: List[str], output_only: Optional[bool] = False
+    ) -> Optional[Union[subprocess.Popen[bytes], bytes]]:
         """Runs the command and returns a popen object or the stdout of the command
 
         Arguments:
@@ -63,14 +69,15 @@ class AbstractRun(ABC):
             popen = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE)
             if output_only:
                 popen.wait()
-                return popen.stdout.read()
+                if popen.stdout is not None:
+                    return popen.stdout.read()
             return popen
         except subprocess.CalledProcessError as e:
             wandb.termerror("Command failed: {}".format(e))
             return None
 
     @abstractmethod
-    def wait(self):
+    def wait(self) -> bool:
         """
         Wait for the run to finish, returning True if the run succeeded and false otherwise. Note
         that in some cases, we may wait until the remote job
@@ -79,14 +86,14 @@ class AbstractRun(ABC):
         pass
 
     @abstractmethod
-    def get_status(self):
+    def get_status(self) -> Status:
         """
         Get status of the run.
         """
         pass
 
     @abstractmethod
-    def cancel(self):
+    def cancel(self) -> None:
         """
         Cancel the run (interrupts the command subprocess, cancels the run, etc) and
         waits for it to terminate. The W&B run status may not be set correctly
@@ -96,7 +103,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self):
+    def id(self) -> int:
         pass
 
 
@@ -108,21 +115,24 @@ class AbstractRunner(ABC):
     in-house cluster or job scheduler).
     """
 
-    def __init__(self, api):  # TODO: maybe don't want to pass api_key here...
+    def __init__(self, api: Api, backend_config: Dict[str, Any]) -> None:
         self._settings = Settings()
         self._api = api
+        self.backend_config = backend_config
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
 
-    def find_executable(self, cmd):
+    def find_executable(
+        self, cmd: str
+    ) -> Any:  # should return a string, but mypy doesn't trust find_executable
         """Cross platform utility for checking if a program is available"""
         return find_executable(cmd)
 
     @property
-    def api_key(self):
+    def api_key(self) -> Any:
         return self._api.api_key
 
-    def verify(self):
+    def verify(self) -> bool:
         """This is called on first boot to verify the needed commands,
         and permissions are available.
 
@@ -136,7 +146,7 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(self, project):
+    def run(self, project: Project) -> AbstractRun:
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution
         :param project: Object of _project_spec.Project class representing a wandb launch project

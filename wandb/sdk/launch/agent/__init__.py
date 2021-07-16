@@ -5,23 +5,22 @@ import time
 import wandb
 from wandb import Settings
 from wandb.errors import LaunchException
+from wandb.apis.internal import Api
 
 
 from ..runner.abstract import AbstractRun, State
 from ..runner.loader import load_backend
+from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..utils import (
+    PROJECT_SYNCHRONOUS,
     _is_wandb_local_uri,
-    create_project_from_spec,
-    fetch_and_validate_project,
     PROJECT_DOCKER_ARGS,
 )
-from ...internal.internal_api import Api
 
-if wandb.TYPE_CHECKING:
-    from typing import Dict, Iterable
+from typing import Any, Dict, Iterable, List, Optional
 
 
-def _convert_access(access):
+def _convert_access(access: str) -> str:
     access = access.upper()
     assert (
         access == "PROJECT" or access == "USER"
@@ -35,21 +34,19 @@ class LaunchAgent(object):
     def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
         self._entity = entity
         self._project = project
-        self._max = max
         self._api = Api()
         self._settings = Settings()
         self._base_url = self._api.settings().get("base_url")
-        self._jobs: Dict[str, AbstractRun] = {}
+        self._jobs: Dict[int, AbstractRun] = {}
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._queues: Iterable[Dict[str, str]] = []
-        self._backend = None
+        self._queues: List[str] = []
         self.setup_run_queues(queues)
 
-    def setup_run_queues(self, queues):
+    def setup_run_queues(self, queues: Optional[Iterable[str]]) -> None:
         project_run_queues = self._api.get_project_run_queues(
             self._entity, self._project
         )
@@ -77,13 +74,10 @@ class LaunchAgent(object):
                 self._queues.append(queue)
 
     @property
-    def job_ids(self):
+    def job_ids(self) -> List[int]:
         return list(self._jobs.keys())
 
-    def verify(self):
-        return self._backend.verify()
-
-    def pop_from_queue(self, queue):
+    def pop_from_queue(self, queue: str) -> Any:
         try:
             ups = self._api.pop_from_run_queue(
                 queue, entity=self._entity, project=self._project
@@ -93,38 +87,37 @@ class LaunchAgent(object):
             return None
         return ups
 
-    def print_status(self):
+    def print_status(self) -> None:
         print(
             "polling on project {}, queues {} for jobs".format(
                 self._project, " ".join(self._queues)
             )
         )
 
-    def finish_job_id(self, job_id):
+    def finish_job_id(self, job_id: int) -> None:
         """Removes the job from our list for now"""
         # TODO:  keep logs or something for the finished jobs
         del self._jobs[job_id]
         self._running -= 1
 
-    def _update_finished(self, job_id):
+    def _update_finished(self, job_id: int) -> None:
         """Check our status enum"""
-        if self._jobs[job_id].get_status() in ["failed", "finished"]:
+        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
-    def run_job(self, job):
+    def run_job(self, job: Dict[str, Any]) -> None:
         # TODO: logger
         print("agent: got job", job)
         # parse job
-        # todo: this will only let us launch runs from wandb (not eg github)
         run_spec = job["runSpec"]
         project = create_project_from_spec(run_spec, self._api)
         project = fetch_and_validate_project(project, self._api)
 
         resource = run_spec.get("resource") or "local"
-        self._backend = load_backend(resource, self._api)
-        self.verify()
-
-        backend_config = dict(SYNCHRONOUS=True, DOCKER_ARGS={}, STORAGE_DIR=None)
+        backend_config: Dict[str, Any] = {
+            PROJECT_DOCKER_ARGS: {},
+            PROJECT_SYNCHRONOUS: True,
+        }
         if _is_wandb_local_uri(self._base_url):
             if sys.platform == "win32":
                 backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
@@ -136,11 +129,14 @@ class LaunchAgent(object):
                 ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
-        run = self._backend.run(project, backend_config)
+        backend = load_backend(resource, self._api, backend_config)
+        backend.verify()
+
+        run = backend.run(project)
         self._jobs[run.id] = run
         self._running += 1
 
-    def loop(self):
+    def loop(self) -> None:
         wandb.termlog(
             "launch agent polling project {}/{} on queues: {}".format(
                 self._entity, self._project, ",".join(self._queues)

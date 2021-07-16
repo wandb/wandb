@@ -42,7 +42,7 @@ import yaml
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
-    from wandb.sdk import launch as wandb_launch
+    from wandb.sdk.launch import launch as wandb_launch
     from wandb.sdk.launch.utils import construct_run_spec
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
@@ -340,7 +340,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -973,6 +975,7 @@ def launch(
     try:
         wandb_launch.run(
             uri,
+            api,
             entry_point,
             version,
             wandb_project=project,
@@ -985,7 +988,6 @@ def launch(
             config=config,
             synchronous=resource in ("local")
             or resource is None,  # todo currently always true
-            api=api,
         )
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)
@@ -1507,7 +1509,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
