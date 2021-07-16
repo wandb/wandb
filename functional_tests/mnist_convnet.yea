@@ -1,0 +1,7 @@
+id: 0.0.5
+check-ext-wandb:
+  run:
+    - exit: 0
+      summary:
+        epoch: 1
+      ignore_extra_summary_keys: true
