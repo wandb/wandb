@@ -53,13 +53,25 @@ def _is_wandb_local_uri(uri: str):
 
 def set_project_entity_defaults(uri, project, entity, api):
     # set the target project and entity if not provided
-    if not _is_wandb_uri(uri):
-        wandb.termlog("Non-wandb path detected")
-    _, uri_project, run_id = parse_wandb_uri(uri)
+    if _is_wandb_uri(uri):
+        _, uri_project, run_id = parse_wandb_uri(uri)
+    else:
+        uri_project = None
+        run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
     if project is None:
         project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+        wandb.termlog(
+            "Target project for this run not specified, defaulting to project {}".format(
+                project
+            )
+        )
     if entity is None:
         entity = api.default_entity
+        wandb.termlog(
+            "Target entity for this run not specified, defaulting to current logged-in user {}".format(
+                entity
+            )
+        )
     return project, entity, run_id
 
 
