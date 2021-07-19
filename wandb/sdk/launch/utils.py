@@ -61,20 +61,20 @@ def set_project_entity_defaults(
         uri_project = None
         run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
     if wandb_project is None:
-        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+        wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
             "Target project for this run not specified, defaulting to project {}".format(
-                project
+                wandb_project
             )
         )
     if wandb_entity is None:
-        entity = api.default_entity
+        wandb_entity = api.default_entity
         wandb.termlog(
             "Target entity for this run not specified, defaulting to current logged-in user {}".format(
-                entity
+                wandb_entity
             )
         )
-    return project, entity, run_id
+    return wandb_project, wandb_entity, run_id
 
 
 def construct_run_spec(

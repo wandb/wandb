@@ -8,7 +8,7 @@ except ImportError:  # TODO: this is only for python2
 import sys
 
 import wandb
-import wandb.sdk.launch as launch
+import wandb.sdk.launch.launch as launch
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
     PROJECT_DOCKER_ARGS,
@@ -46,7 +46,7 @@ def mock_load_backend():
         mock_props.kwargs = kwargs
         return mock_props
 
-    with mock.patch("wandb.sdk.launch.loader.load_backend") as mock_load_backend:
+    with mock.patch("wandb.sdk.launch.launch.loader.load_backend") as mock_load_backend:
         m = mock.Mock(side_effect=side_effect)
         m.run = mock.Mock(side_effect=side_effect)
         mock_load_backend.return_value = m
@@ -248,7 +248,7 @@ def test_launch_agent(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
-    wandb.sdk.launch.run_agent("mock_server_entity", "test_project")
+    launch.run_agent("mock_server_entity", "test_project")
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1

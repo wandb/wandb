@@ -33,7 +33,7 @@ class LocalSubmittedRun(AbstractRun):
     command locally.
     """
 
-    def __init__(self, command_proc: subprocess.Popen[bytes]) -> None:
+    def __init__(self, command_proc: "subprocess.Popen[bytes]") -> None:
         super().__init__()
         self.command_proc = command_proc
 
@@ -119,7 +119,7 @@ class LocalRunner(AbstractRunner):
         raise LaunchException("asynchrnous mode not yet available")
 
 
-def _run_launch_cmd(cmd: List[str]) -> subprocess.Popen[str]:
+def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
     """
     Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
     Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.

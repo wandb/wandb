@@ -129,14 +129,11 @@ class Project(object):
                 )
                 self.add_entry_point("main.py")
 
-            utils._fetch_git_repo(parsed_uri, self.git_version, self.dir)
+            utils._fetch_git_repo(self.dir, parsed_uri, self.git_version)
 
     def _copy_config_local(self) -> None:
         if not self.override_config:
             return None
-        if not self.dir:
-            dst_dir = tempfile.mkdtemp()
-            self.dir = dst_dir
         with open(os.path.join(self.dir, DEFAULT_CONFIG_PATH), "w+") as f:
             json.dump(self.override_config, f)
 
