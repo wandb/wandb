@@ -71,7 +71,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd: str) -> str
         decoded_line = line.decode("utf-8")
         if decoded_line.endswith("\n"):
             decoded_line = decoded_line.rstrip("\n")
-        wandb.termlog(decoded_line)
+        print(decoded_line)  # don't spam termlog with all this
         stderr = stderr + decoded_line
     process.wait()
     image_id: List[str] = re.findall(r"Successfully tagged (.+):latest", stderr)

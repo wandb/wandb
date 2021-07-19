@@ -6,7 +6,7 @@ from wandb.apis.internal import InternalApi
 import pytest
 from tests import utils
 
-from .test_launch import mocked_fetchable_git_repo, mock_load_backend
+from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
 
 def test_launch(runner, test_settings, live_mock_server, mocked_fetchable_git_repo):
@@ -93,7 +93,6 @@ def test_launch_cli_with_config_file_and_params(
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
-        print(result.output)
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
         assert "python train.py --epochs 1" in result.output
@@ -121,7 +120,6 @@ def test_launch_cli_with_config_and_params(
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
         )
-        print(result.output)
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
         assert "python train.py --epochs 1" in result.output
@@ -136,3 +134,12 @@ def test_launch_no_docker_exec(
     )
     assert result.exit_code == 1
     assert "Could not find Docker executable" in str(result.exception)
+
+
+def test_launch_github_url(runner):
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, ["https://github.com/wandb/examples"])
+    print(result.output)
+    assert result.exit_code == 0
+    assert "Launching run in docker with command: docker run" in result.output
+    assert "python examples/scikit/scikit-iris/train.py" in result.output
