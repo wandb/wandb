@@ -3,12 +3,12 @@ import logging
 import os
 import re
 import subprocess
+from typing import Any, Dict, Optional, Tuple
 
 import wandb
 from wandb import util
+from wandb.apis.internal import Api
 from wandb.errors import CommError, ExecutionException, LaunchException
-
-from . import _project_spec
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -34,58 +34,60 @@ UNCATEGORIZED_PROJECT = "uncategorized"
 _logger = logging.getLogger(__name__)
 
 
-def _is_wandb_uri(uri: str):
+def _is_wandb_uri(uri: str) -> bool:
     return (
         _WANDB_URI_REGEX.match(uri)
         or _WANDB_DEV_URI_REGEX.match(uri)
         or _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
         or _WANDB_QA_URI_REGEX.match(uri)
-    )
+    ) is not None
 
 
-def _is_wandb_dev_uri(uri: str):
-    return _WANDB_DEV_URI_REGEX.match(uri)
+def _is_wandb_dev_uri(uri: str) -> bool:
+    return _WANDB_DEV_URI_REGEX.match(uri) is not None
 
 
-def _is_wandb_local_uri(uri: str):
-    return _WANDB_LOCAL_DEV_URI_REGEX.match(uri)
+def _is_wandb_local_uri(uri: str) -> bool:
+    return _WANDB_LOCAL_DEV_URI_REGEX.match(uri) is not None
 
 
-def set_project_entity_defaults(uri, project, entity, api):
+def set_project_entity_defaults(
+    uri: str, wandb_project: Optional[str], wandb_entity: Optional[str], api: Api
+) -> Tuple[str, str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
         _, uri_project, run_id = parse_wandb_uri(uri)
     else:
-        uri_project = None
+        uri_project = UNCATEGORIZED_PROJECT
         run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
-    if project is None:
-        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if wandb_project is None:
+        wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
             "Target project for this run not specified, defaulting to project {}".format(
-                project
+                wandb_project
             )
         )
-    if entity is None:
-        entity = api.default_entity
+    if wandb_entity is None:
+        wandb_entity = api.default_entity
         wandb.termlog(
             "Target entity for this run not specified, defaulting to current logged-in user {}".format(
-                entity
+                wandb_entity
             )
         )
-    return project, entity, run_id
+    return wandb_project, wandb_entity, run_id
 
 
 def construct_run_spec(
-    uri,
-    experiment_name,
-    wandb_project,
-    wandb_entity,
-    docker_image,
-    entry_point,
-    version,
-    parameters,
-    launch_config,
-):
+    uri: str,
+    experiment_name: Optional[str],
+    wandb_project: Optional[str],
+    wandb_entity: Optional[str],
+    docker_image: Optional[str],
+    entry_point: Optional[str],
+    version: Optional[str],
+    parameters: Optional[Dict[str, Any]],
+    launch_config: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
     # override base config (if supplied) with supplied args
     run_spec = launch_config if launch_config is not None else {}
     run_spec["uri"] = uri
@@ -116,38 +118,7 @@ def construct_run_spec(
     return run_spec
 
 
-def create_project_from_spec(run_spec, api):
-    uri = run_spec["uri"]
-    project, entity, run_id = set_project_entity_defaults(
-        uri, run_spec.get("project"), run_spec.get("entity"), api
-    )
-    if run_spec.get("name"):
-        name = run_spec["name"]
-    else:
-        name = "{}_{}_launch".format(project, run_id)  # default naming scheme
-
-    return _project_spec.Project(
-        uri,
-        entity,
-        project,
-        name,
-        run_spec.get("docker", {}),
-        run_spec.get("git", {}),
-        run_spec.get("overrides", {}),
-    )
-
-
-def fetch_and_validate_project(project, api):
-    project._fetch_project_local(api=api)
-    project._copy_config_local()
-    first_entry_point = list(project._entry_points.keys())[0]
-    project.get_entry_point(first_entry_point)._validate_parameters(
-        project.override_args
-    )
-    return project
-
-
-def parse_wandb_uri(uri):
+def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
     stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
     stripped_uri = re.sub(
@@ -163,7 +134,7 @@ def parse_wandb_uri(uri):
     return entity, project, name
 
 
-def fetch_wandb_project_run_info(uri, api=None):
+def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
     if result is None:
@@ -173,7 +144,7 @@ def fetch_wandb_project_run_info(uri, api=None):
     return result
 
 
-def fetch_project_diff(uri, api=None):
+def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
     patch = None
     try:
         entity, project, name = parse_wandb_uri(uri)
@@ -183,7 +154,7 @@ def fetch_project_diff(uri, api=None):
     return patch
 
 
-def apply_patch(patch_string, dst_dir):
+def apply_patch(patch_string: str, dst_dir: str) -> None:
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
@@ -201,7 +172,7 @@ def apply_patch(patch_string, dst_dir):
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _fetch_git_repo(uri, version, dst_dir):
+def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     """
     Clone the git repo at ``uri`` into ``dst_dir``, checking out commit ``version`` (or defaulting
     to the head commit of the repository's master branch if version is unspecified).
@@ -230,19 +201,9 @@ def _fetch_git_repo(uri, version, dst_dir):
     repo.submodule_update(init=True, recursive=True)
 
 
-def get_entry_point_command(project, entry_point, parameters):
-    """
-    Returns the shell command to execute in order to run the specified entry point.
-    :param project: Project containing the target entry point
-    :param entry_point: Entry point to run
-    :param parameters: Parameters (dictionary) for the entry point command
-    """
-    commands = []
-    commands.append(entry_point.compute_command(parameters))
-    return commands
-
-
-def merge_parameters(higher_priority_params, lower_priority_params):
+def merge_parameters(
+    higher_priority_params: Dict[str, Any], lower_priority_params: Dict[str, Any]
+) -> Dict[str, Any]:
     for key in lower_priority_params.keys():
         if higher_priority_params.get(key) is None:
             higher_priority_params[key] = lower_priority_params[key]

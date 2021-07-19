@@ -42,7 +42,7 @@ import yaml
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
-    from wandb.sdk import launch as wandb_launch
+    from wandb.sdk.launch import launch as wandb_launch
     from wandb.sdk.launch.utils import construct_run_spec
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
@@ -973,6 +973,7 @@ def launch(
     try:
         wandb_launch.run(
             uri,
+            api,
             entry_point,
             version,
             wandb_project=project,
@@ -985,7 +986,6 @@ def launch(
             config=config,
             synchronous=resource in ("local")
             or resource is None,  # todo currently always true
-            api=api,
         )
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)

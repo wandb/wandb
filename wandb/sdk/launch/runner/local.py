@@ -3,11 +3,13 @@ import os
 import signal
 import subprocess
 import sys
+from typing import Any, Dict, List
 
 import wandb
 from wandb.errors import LaunchException
 
-from .abstract import AbstractRun, AbstractRunner
+from .abstract import AbstractRun, AbstractRunner, Status
+from .._project_spec import get_entry_point_command, Project
 from ..docker import (
     build_docker_image,
     generate_docker_image,
@@ -17,7 +19,6 @@ from ..docker import (
     validate_docker_installation,
 )
 from ..utils import (
-    get_entry_point_command,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -32,18 +33,18 @@ class LocalSubmittedRun(AbstractRun):
     command locally.
     """
 
-    def __init__(self, command_proc):
+    def __init__(self, command_proc: "subprocess.Popen[bytes]") -> None:
         super().__init__()
         self.command_proc = command_proc
 
     @property
-    def id(self):
+    def id(self) -> int:
         return self.command_proc.pid
 
-    def wait(self):
+    def wait(self) -> bool:
         return self.command_proc.wait() == 0
 
-    def cancel(self):
+    def cancel(self) -> None:
         # Interrupt child process if it hasn't already exited
         if self.command_proc.poll() is None:
             # Kill the the process tree rooted at the child if it's the leader of its own process
@@ -62,19 +63,19 @@ class LocalSubmittedRun(AbstractRun):
                 )
             self.command_proc.wait()
 
-    def get_status(self):
+    def get_status(self) -> Status:
         exit_code = self.command_proc.poll()
         if exit_code is None:
-            return "running"
+            return Status("running")
         if exit_code == 0:
-            return "finished"
-        return "failed"
+            return Status("finished")
+        return Status("failed")
 
 
 class LocalRunner(AbstractRunner):
-    def run(self, project, backend_config):
-        synchronous = backend_config[PROJECT_SYNCHRONOUS]
-        docker_args = backend_config[PROJECT_DOCKER_ARGS]
+    def run(self, project: Project) -> AbstractRun:
+        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
+        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
         entry_point = project.get_single_entry_point()
 
@@ -97,17 +98,15 @@ class LocalRunner(AbstractRunner):
             copy_code=copy_code,
         )
         command_args += get_docker_command(image=image, docker_args=docker_args,)
-        if backend_config.get("runQueueItemId"):
+        if self.backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(
-                backend_config["runQueueItemId"], project.run_id
+                self.backend_config["runQueueItemId"], project.run_id
             )
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
-            command_args += get_entry_point_command(
-                project, entry_point, project.override_args
-            )
+            command_args += get_entry_point_command(entry_point, project.override_args)
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
@@ -120,7 +119,7 @@ class LocalRunner(AbstractRunner):
         raise LaunchException("asynchrnous mode not yet available")
 
 
-def _run_launch_cmd(cmd):
+def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
     """
     Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
     Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.
@@ -141,7 +140,7 @@ def _run_launch_cmd(cmd):
         )
 
 
-def _run_entry_point(command, work_dir):
+def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     """
     Run an entry point command in a subprocess, returning a SubmittedRun that can be used to
     query the run's status.
