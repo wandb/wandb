@@ -22,8 +22,6 @@ check-ext-wandb:
 
 """
 
-import time
-
 import gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
@@ -33,9 +31,7 @@ from wandb.integration.sb3 import WandbCallback
 
 
 config = {"policy_type": "MlpPolicy", "total_timesteps": 200}
-experiment_name = f"PPO_{int(time.time())}"
 run = wandb.init(
-    name=experiment_name,
     project="sb3",
     config=config,
     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
@@ -50,15 +46,11 @@ def make_env():
 
 
 env = DummyVecEnv([make_env])
-model = PPO(
-    config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}"
-)
-
+model = PPO(config["policy_type"], env, verbose=1, tensorboard_log="runs")
 model.learn(
     total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
         gradient_save_freq=100,
         model_save_freq=1000,
-        model_save_path=f"models/{experiment_name}",
     ),
 )
