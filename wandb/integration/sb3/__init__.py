@@ -5,18 +5,15 @@ Really simple callback to get logging for each tree
 Example usage:
 
 ```python
-import time
 import gym
+import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
 from wandb.integration.sb3 import WandbCallback
-import wandb
 
 config = {"policy_type": "MlpPolicy", "total_timesteps": 25000}
-experiment_name = f"PPO_{int(time.time())}"
-wandb.init(
-    name=experiment_name,
+run = wandb.init(
     project="sb3",
     config=config,
     sync_tensorboard=True,  # auto-upload sb3's tensorboard metrics
@@ -24,20 +21,21 @@ wandb.init(
     save_code=True,  # optional
 )
 
+
 def make_env():
     env = gym.make("CartPole-v1")
     env = Monitor(env)  # record stats such as returns
     return env
+
+
 env = DummyVecEnv([make_env])
-env = VecVideoRecorder(env, "videos",
-    record_video_trigger=lambda x: x % 2000 == 0, video_length=200)  # record videos
-model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{experiment_name}")
+env = VecVideoRecorder(env, "videos", record_video_trigger=lambda x: x % 2000 == 0, video_length=200)  # record videos
+model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{run.name}")
 model.learn(
     total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
         gradient_save_freq=100,
-        model_save_freq=1000,
-        model_save_path=f"models/{experiment_name}",
+        model_save_path=f"models/{run.name}",
     ),
 )
 ```
@@ -67,7 +65,7 @@ class WandbCallback(BaseCallback):
         self,
         verbose: int = 0,
         model_save_path: str = None,
-        model_save_freq: int = 1000,
+        model_save_freq: int = 0,
         gradient_save_freq: int = 0,
     ):
         super(WandbCallback, self).__init__(verbose)
@@ -83,7 +81,7 @@ class WandbCallback(BaseCallback):
             self.path = os.path.join(self.model_save_path, "model.zip")
 
     def _init_callback(self) -> None:
-        d = {}
+        d = {"algo": type(self.model).__name__}
         for key in self.model.__dict__:
             if key in wandb.config:
                 continue
@@ -96,10 +94,18 @@ class WandbCallback(BaseCallback):
         wandb.config.update(d)
 
     def _on_step(self) -> bool:
-        if self.model_save_path is not None:
-            if self.n_calls % self.model_save_freq == 0:
-                self.model.save(self.path)
-                wandb.save(self.path)
-                if self.verbose > 1:
-                    print("Saving model checkpoint to", self.path)
+        if self.model_save_freq > 0:
+            if self.model_save_path is not None:
+                if self.n_calls % self.model_save_freq == 0:
+                    self.save_model()
         return True
+
+    def _on_training_end(self) -> None:
+        if self.model_save_path is not None:
+            self.save_model()
+
+    def save_model(self) -> None:
+        self.model.save(self.path)
+        wandb.save(self.path, base_path=self.model_save_path)
+        if self.verbose > 1:
+            print("Saving model checkpoint to", self.path)
