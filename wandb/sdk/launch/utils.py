@@ -58,7 +58,7 @@ def set_project_entity_defaults(
     if _is_wandb_uri(uri):
         _, uri_project, run_id = parse_wandb_uri(uri)
     else:
-        uri_project = None
+        uri_project = UNCATEGORIZED_PROJECT
         run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
     if wandb_project is None:
         wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
