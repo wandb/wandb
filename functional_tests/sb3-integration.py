@@ -29,8 +29,11 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 import wandb
 from wandb.integration.sb3 import WandbCallback
 
-
-config = {"policy_type": "MlpPolicy", "total_timesteps": 200}
+config = {
+    "policy_type": "MlpPolicy",
+    "total_timesteps": 200,
+    "env_name": "CartPole-v1",
+}
 run = wandb.init(
     project="sb3",
     config=config,
@@ -40,7 +43,7 @@ run = wandb.init(
 
 
 def make_env():
-    env = gym.make("CartPole-v1")
+    env = gym.make(config["env_name"])
     env = Monitor(env)  # record stats such as returns
     return env
 

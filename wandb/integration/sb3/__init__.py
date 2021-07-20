@@ -6,13 +6,18 @@ Example usage:
 
 ```python
 import gym
-import wandb
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
+import wandb
 from wandb.integration.sb3 import WandbCallback
 
-config = {"policy_type": "MlpPolicy", "total_timesteps": 25000}
+
+config = {
+    "policy_type": "MlpPolicy",
+    "total_timesteps": 25000,
+    "env_name": "CartPole-v1",
+}
 run = wandb.init(
     project="sb3",
     config=config,
@@ -23,19 +28,19 @@ run = wandb.init(
 
 
 def make_env():
-    env = gym.make("CartPole-v1")
+    env = gym.make(config["env_name"])
     env = Monitor(env)  # record stats such as returns
     return env
 
 
 env = DummyVecEnv([make_env])
-env = VecVideoRecorder(env, "videos", record_video_trigger=lambda x: x % 2000 == 0, video_length=200)  # record videos
-model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs/{run.name}")
+env = VecVideoRecorder(env, "videos", record_video_trigger=lambda x: x % 2000 == 0, video_length=200)
+model = PPO(config["policy_type"], env, verbose=1, tensorboard_log=f"runs")
 model.learn(
     total_timesteps=config["total_timesteps"],
     callback=WandbCallback(
         gradient_save_freq=100,
-        model_save_path=f"models/{run.name}",
+        model_save_path=f"models/{run.id}",
     ),
 )
 ```
@@ -79,6 +84,8 @@ class WandbCallback(BaseCallback):
         if self.model_save_path is not None:
             os.makedirs(self.model_save_path, exist_ok=True)
             self.path = os.path.join(self.model_save_path, "model.zip")
+        else:
+            assert self.model_save_freq == 0, "to use the `model_save_freq` you have to set the `model_save_path` parameter"
 
     def _init_callback(self) -> None:
         d = {"algo": type(self.model).__name__}
