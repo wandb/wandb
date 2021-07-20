@@ -1,6 +1,6 @@
 pytest
 coverage
-tox==3.7
+tox==3.23.1
 pip
 Pillow
 pandas
@@ -26,3 +26,6 @@ plotly; python_version < '3.9'
 bokeh
 tqdm
 docker
+stable_baselines3
+tensorboard
+gym

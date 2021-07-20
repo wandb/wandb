@@ -39,6 +39,7 @@ def default_ctx():
         "run_queues": {"1": []},
         "num_popped": 0,
         "num_acked": 0,
+        "max_cli_version": "0.10.33",
     }
 
 
@@ -116,7 +117,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -171,7 +176,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -472,7 +479,14 @@ def create_app(user_ctx=None):
                             "teams": {
                                 "edges": []  # TODO make configurable for cli_test
                             },
-                        }
+                        },
+                        "serverInfo": {
+                            "cliVersionInfo": {
+                                "max_cli_version": str(
+                                    ctx.get("max_cli_version", "0.10.33")
+                                )
+                            }
+                        },
                     }
                 }
             )
@@ -521,14 +535,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -634,7 +658,13 @@ def create_app(user_ctx=None):
                 },
             }
             ctx["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -651,7 +681,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {
@@ -768,7 +804,9 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=base_url)
+            art = artifact(
+                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
+            )
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
@@ -850,6 +888,8 @@ def create_app(user_ctx=None):
         if "mutation ackRunQueueItem" in body["query"]:
             ctx["num_acked"] += 1
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
+        if "query ClientIDMapping(" in body["query"]:
+            return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -977,6 +1017,30 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
+            elif _id == "e6954815d2beb5841b3dabf7cf455c30":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.partitioned-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "0eec13efd400546f58a4530de62ed07a":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "jt.joined-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
             elif _id in [
                 "2d9a7e0aa8407f0730e19e5bc55c3a45",
                 "c541de19b18331a4a33b282fc9d42510",
@@ -1073,7 +1137,7 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
-        if entity == "entity":
+        if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
             ):  # "dataset.partitioned-table.json"
@@ -1239,7 +1303,7 @@ class ParseCTX(object):
 
     def get_filestream_file_updates(self):
         data = {}
-        file_stream_updates = self._ctx["file_stream"]
+        file_stream_updates = self._ctx.get("file_stream", [])
         for update in file_stream_updates:
             files = update.get("files")
             if not files:
@@ -1270,15 +1334,19 @@ class ParseCTX(object):
         return data
 
     @property
+    def dropped_chunks(self):
+        return self._ctx.get("file_stream", [{"dropped": 0}])[-1]["dropped"]
+
+    @property
     def summary(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files["wandb-summary.json"][-1]
+        summary = fs_files.get("wandb-summary.json", [])[-1]
         return summary
 
     @property
     def history(self):
         fs_files = self.get_filestream_file_items()
-        history = fs_files["wandb-history.jsonl"]
+        history = fs_files.get("wandb-history.jsonl")
         return history
 
     @property
