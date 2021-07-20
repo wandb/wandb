@@ -120,8 +120,8 @@ workflows:
          name: "mac-py37"
          toxenv: "py37"
       - launch:
-         name: "wandb launch Python 3.6"
-         toxenv: "py36launch,covercircle"
+         name: "wandb launch tests"
+         toxenv: "pylaunch,covercircle"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
@@ -237,6 +237,7 @@ jobs:
             name: Install python dependencies
             command: |
                 pip3 install tox
+                pip3 install chardet
                 pip3 install jupyter-repo2docker
         - restore-tox-cache
         - run:
