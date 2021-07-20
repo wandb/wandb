@@ -10,7 +10,10 @@ W&B Notes:
  - Source: https://github.com/keras-team/keras-io/blob/master/examples/vision/mnist_convnet.py
  - Added import magic line
  - Added lines to limit training data
+ - Added flake8 noqa
 """
+
+# flake8: noqa
 
 """
 ## Setup
@@ -20,9 +23,7 @@ import numpy as np
 from tensorflow import keras
 from tensorflow.keras import layers
 
-import os
-
-from wandb import magic
+from wandb import magic  # noqa: F401
 
 """
 ## Prepare the data
