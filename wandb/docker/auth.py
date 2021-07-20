@@ -18,7 +18,7 @@ TOKEN_USERNAME = "<token>"
 log = logging.getLogger(__name__)
 
 
-class DockerException(Exception):
+class DockerError(Exception):
     """
     A base class from which all other exceptions inherit.
     If you want to catch all errors that the Docker SDK might raise,
@@ -26,11 +26,11 @@ class DockerException(Exception):
     """
 
 
-class InvalidConfigFile(DockerException):
+class InvalidConfigFileError(DockerError):
     pass
 
 
-class InvalidRepository(DockerException):
+class InvalidRepositoryError(DockerError):
     pass
 
 
@@ -97,13 +97,13 @@ def load_general_config(config_path=None):
 
 def resolve_repository_name(repo_name):
     if "://" in repo_name:
-        raise InvalidRepository(
+        raise InvalidRepositoryError(
             "Repository name cannot contain a scheme ({0})".format(repo_name)
         )
 
     index_name, remote_name = split_repo_name(repo_name)
     if index_name[0] == "-" or index_name[-1] == "-":
-        raise InvalidRepository(
+        raise InvalidRepositoryError(
             "Invalid index name ({0}). Cannot begin or end with a"
             " hyphen.".format(index_name)
         )
@@ -148,7 +148,7 @@ class AuthConfig(dict):
         Arguments:
           entries:        Dict of authentication entries.
           raise_on_error: If set to true, an invalid format will raise
-                          InvalidConfigFile
+                          InvalidConfigFileError
         Returns:
           Authentication registry.
         """
@@ -164,7 +164,7 @@ class AuthConfig(dict):
                 # case, we fail silently and return an empty conf if any of the
                 # keys is not formatted properly.
                 if raise_on_error:
-                    raise InvalidConfigFile(
+                    raise InvalidConfigFileError(
                         "Invalid configuration for registry {0}".format(registry)
                     )
                 return {}
@@ -317,7 +317,7 @@ class AuthConfig(dict):
             log.debug("No entry found")
             return None
         except dockerpycreds.StoreError as e:
-            raise DockerException("Credentials store error: {0}".format(repr(e)))
+            raise DockerError("Credentials store error: {0}".format(repr(e)))
 
     def _get_store_instance(self, name):
         if name not in self._stores:
@@ -374,7 +374,7 @@ def parse_auth(entries, raise_on_error=False):
     Arguments:
       entries:        Dict of authentication entries.
       raise_on_error: If set to true, an invalid format will raise
-                      InvalidConfigFile
+                      InvalidConfigFileError
     Returns:
       Authentication registry.
     """
@@ -395,7 +395,7 @@ def _load_legacy_config(config_file):
                 data.append(line.strip().split(" = ")[1])
             if len(data) < 2:
                 # Not enough data
-                raise InvalidConfigFile("Invalid or empty configuration file!")
+                raise InvalidConfigFileError("Invalid or empty configuration file!")
 
         username, password = decode_auth(data[0])
         return {

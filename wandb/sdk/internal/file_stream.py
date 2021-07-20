@@ -42,9 +42,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
         self._chunk_id += len(chunks)
         chunk_data = []
         for chunk in chunks:
-            if len(chunk.data) > util.MAX_LINE_SIZE:
+            if len(chunk.data) > util.MAX_LINE_BYTES:
                 msg = "Metric data exceeds maximum size of {} ({})".format(
-                    util.to_human_size(util.MAX_LINE_SIZE),
+                    util.to_human_size(util.MAX_LINE_BYTES),
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
@@ -61,9 +61,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
 class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
-        if len(data) > util.MAX_LINE_SIZE:
+        if len(data) > util.MAX_LINE_BYTES:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
-                util.to_human_size(util.MAX_LINE_SIZE)
+                util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)
@@ -138,7 +138,6 @@ class BinaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
-        offset = self._offset
         self._offset += len(data)
         return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
@@ -154,6 +153,7 @@ class FileStreamApi(object):
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
     Preempting = collections.namedtuple("Preempting", ())
+    PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -178,6 +178,7 @@ class FileStreamApi(object):
             }
         )
         self._file_policies = {}
+        self._dropped_chunks = 0
         self._queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
@@ -240,6 +241,7 @@ class FileStreamApi(object):
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
+        uploaded = set()
         finished = None
         while finished is None:
             items = self._read_queue()
@@ -250,8 +252,16 @@ class FileStreamApi(object):
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "preempting": True},
+                        json={
+                            "complete": False,
+                            "preempting": True,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
                     )
+                    uploaded = set()
+                elif isinstance(item, self.PushSuccess):
+                    uploaded.add(item.save_name)
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
@@ -272,14 +282,25 @@ class FileStreamApi(object):
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "failed": False},
+                        json={
+                            "complete": False,
+                            "failed": False,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
                     )
                 )
+                uploaded = set()
         # post the final close message. (item is self.Finish instance now)
         request_with_retry(
             self._client.post,
             self._endpoint,
-            json={"complete": True, "exitcode": int(finished.exitcode)},
+            json={
+                "complete": True,
+                "exitcode": int(finished.exitcode),
+                "dropped": self._dropped_chunks,
+                "uploaded": list(uploaded),
+            },
         )
 
     def _thread_except_body(self):
@@ -301,9 +322,11 @@ class FileStreamApi(object):
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
-            wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
-            logging.error("dropped chunk %s" % response)
-            raise response
+            wandb.termerror(
+                "Dropped streaming file chunk (see wandb/debug-internal.log)"
+            )
+            logging.exception("dropped chunk %s" % response)
+            self._dropped_chunks += 1
         else:
             parsed: dict = None
             try:
@@ -329,12 +352,12 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        for fs in file_stream_utils.split_files(files, max_mb=10):
+        for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
             self._handle_response(
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
-                    json={"files": fs},
+                    json={"files": fs, "dropped": self._dropped_chunks},
                     retry_callback=self._api.retry_callback,
                 )
             )
@@ -356,6 +379,15 @@ class FileStreamApi(object):
             chunk: File data.
         """
         self._queue.put(Chunk(filename, data))
+
+    def push_success(self, artifact_id, save_name):
+        """Notification that a file upload has been successfully completed
+
+        Arguments:
+            artifact_id: ID of artifact
+            save_name: saved name of the uploaded file
+        """
+        self._queue.put(self.PushSuccess(artifact_id, save_name))
 
     def finish(self, exitcode):
         """Cleans up.
