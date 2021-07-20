@@ -27,10 +27,9 @@ from tensorflow.keras import layers
 from wandb import magic  # noqa: F401
 
 # Make sure this is reproducible
-from numpy.random import seed
-seed(1)
-from tensorflow import set_random_seed
-set_random_seed(2)
+np.random.seed(1)
+import tensorflow as tf
+tf.random.set_seed(2)
 
 """
 ## Prepare the data
