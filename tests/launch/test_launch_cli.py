@@ -137,9 +137,17 @@ def test_launch_no_docker_exec(
 
 
 def test_launch_github_url(runner):
+    # technically this run won't complete bc this repo has no requirements.txt and so no deps are downloaded
+    # but it should complete up to running the correct train.py file
     with runner.isolated_filesystem():
-        result = runner.invoke(cli.launch, ["https://github.com/wandb/examples"])
-    print(result.output)
+        result = runner.invoke(
+            cli.launch,
+            [
+                "https://github.com/wandb/examples",
+                "--entry-point",
+                "examples/scikit/scikit-iris/train.py",
+            ],
+        )
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
     # assert "python examples/scikit/scikit-iris/train.py" in result.output
