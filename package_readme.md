@@ -2,11 +2,16 @@
   <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
 </div>
 
-# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![Coverage Status](https://coveralls.io/repos/github/wandb/client/badge.svg)](https://coveralls.io/github/wandb/client)
+# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
 
-Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
 
-[Sign up for a free account →](https://wandb.com)
+- Quickly identify model regressions. Use W&B to visualize results in real time, all in a central dashboard.
+- Focus on the interesting ML. Spend less time manually tracking results in spreadsheets and text files.
+- Capture dataset versions with W&B Artifacts to identify how changing data affects your resulting models.
+- Reproduce any model, with saved code, hyperparameters, launch commands, input data, and resulting model weights.
+
+[Sign up for a free account →](https://wandb.ai/login?signup=true)
 
 ## Features
 

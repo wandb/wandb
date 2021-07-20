@@ -6,6 +6,7 @@ import wandb
 if wandb.TYPE_CHECKING:  # type: ignore
     from typing import Callable
 
+WANDB_DIRS = ("wandb", ".wandb")
 
 CONFIG_FNAME = "config.yaml"
 OUTPUT_FNAME = "output.log"
@@ -16,6 +17,7 @@ REQUIREMENTS_FNAME = "requirements.txt"
 HISTORY_FNAME = "wandb-history.jsonl"
 EVENTS_FNAME = "wandb-events.jsonl"
 JOBSPEC_FNAME = "wandb-jobspec.json"
+CONDA_ENVIRONMENTS_FNAME = "conda-environment.yaml"
 
 
 def is_wandb_file(name):
@@ -26,6 +28,7 @@ def is_wandb_file(name):
         or name == REQUIREMENTS_FNAME
         or name == OUTPUT_FNAME
         or name == DIFF_FNAME
+        or name == CONDA_ENVIRONMENTS_FNAME
     )
 
 
@@ -38,3 +41,7 @@ def filtered_dir(
             file_path = os.path.join(dirpath, fname)
             if include_fn(file_path) and not exclude_fn(file_path):
                 yield file_path
+
+
+def exclude_wandb_fn(path: str) -> bool:
+    return any(os.sep + wandb_dir + os.sep in path for wandb_dir in WANDB_DIRS)

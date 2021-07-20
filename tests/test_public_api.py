@@ -127,6 +127,25 @@ def test_run_history_keys(mock_server, api):
     ]
 
 
+def test_run_history_keys_bad_arg(mock_server, api, capsys):
+    run = api.run("test/test/test")
+    run.history(keys="acc", pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.history(keys=[["acc"]], pandas=False)
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+    run.scan_history(keys="acc")
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys must be specified in a list\n" in captured.err
+
+    run.scan_history(keys=[["acc"]])
+    captured = capsys.readouterr()
+    assert "wandb: ERROR keys argument must be a list of strings\n" in captured.err
+
+
 def test_run_config(mock_server, api):
     run = api.run("test/test/test")
     assert run.config == {"epochs": 10}
@@ -205,7 +224,7 @@ def test_run_file_direct(runner, mock_server, api):
         file = run.file("weights.h5")
         assert (
             file.direct_url
-            == "https://api.wandb.ai//storage?file=weights.h5&direct=true"
+            == "https://api.wandb.ai/storage?file=weights.h5&direct=true"
         )
 
 
@@ -215,7 +234,7 @@ def test_run_upload_file(runner, mock_server, api):
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb")
-        assert file.url == "https://api.wandb.ai//storage?file=new_file.pb"
+        assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
 
 
 def test_run_upload_file_relative(runner, mock_server, api):
@@ -226,7 +245,7 @@ def test_run_upload_file_relative(runner, mock_server, api):
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb", "../")
-        assert file.url == "https://api.wandb.ai//storage?file=foo/new_file.pb"
+        assert file.url == "https://api.wandb.ai/storage?file=foo/new_file.pb"
 
 
 def test_upload_file_retry(runner, mock_server, api):
@@ -236,7 +255,7 @@ def test_upload_file_retry(runner, mock_server, api):
         with open("new_file.pb", "w") as f:
             f.write("TEST")
         file = run.upload_file("new_file.pb")
-        assert file.url == "https://api.wandb.ai//storage?file=new_file.pb"
+        assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
 
 
 def test_runs_from_path(mock_server, api):

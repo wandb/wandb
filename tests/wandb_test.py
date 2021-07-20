@@ -199,6 +199,13 @@ def test_login_key(capsys):
     assert wandb.api.api_key == "A" * 40
 
 
+def test_sagemaker_key(runner):
+    with runner.isolated_filesystem():
+        with open("secrets.env", "w") as f:
+            f.write("WANDB_API_KEY={}".format("S" * 40))
+        assert wandb.api.api_key == "S" * 40
+
+
 @pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")
 def test_login_invalid_key():
     os.environ["WANDB_API_KEY"] = "B" * 40
@@ -213,6 +220,17 @@ def test_login_anonymous(mock_server, local_netrc):
     os.environ["WANDB_API_KEY"] = "B" * 40
     wandb.login(anonymous="must")
     assert wandb.api.api_key == "ANONYMOOSE" * 4
+
+
+def test_login_sets_api_base_url(mock_server):
+    base_url = "https://api.test.host.ai"
+    wandb.login(anonymous="must", host=base_url)
+    api = wandb.Api()
+    assert api.settings["base_url"] == base_url
+    base_url = "https://api.wandb.ai"
+    wandb.login(anonymous="must", host=base_url)
+    api = wandb.Api()
+    assert api.settings["base_url"] == base_url
 
 
 def test_save_policy_symlink(wandb_init_run):

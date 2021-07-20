@@ -797,6 +797,23 @@ def test_restore_no_entity(runner, mock_server, git_repo, docker, monkeypatch):
     assert "Restored config variables" in result.output
 
 
+def test_restore_no_diff(runner, mock_server, git_repo, docker, monkeypatch):
+    # git_repo creates it's own isolated filesystem
+    git_repo.repo.create_remote("origin", "git@fake.git:foo/bar")
+    monkeypatch.setattr(subprocess, "check_call", lambda command: True)
+    mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
+    mock_server.set_context("bucket_config", {"files": ["wandb-metadata.json"]})
+    monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
+    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
+    print(result.output)
+    print(traceback.print_tb(result.exc_info[2]))
+    assert result.exit_code == 0
+    assert "Created branch wandb/abcdef" in result.output
+    # no patching operaations performed, whether successful or not
+    assert "Applied patch" not in result.output
+    assert "Filed to apply patch" not in result.output
+
+
 def test_restore_not_git(runner, mock_server, docker, monkeypatch):
     with runner.isolated_filesystem():
         monkeypatch.setattr(cli, "_api", InternalApi({"project": "test"}))
@@ -842,6 +859,27 @@ def test_gc(runner):
             == 0
         )
         assert not os.path.exists(run1_dir)
+
+
+# TODO Investigate unrelated tests failing on Python 3.9
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="Unrelated tests failing on Python 3.9"
+)
+@pytest.mark.parametrize("stop_method", ["stop", "cancel"])
+def test_sweep_pause(runner, mock_server, test_settings, stop_method):
+    sweep_config = {
+        "name": "My Sweep",
+        "method": "grid",
+        "parameters": {"parameter1": {"values": [1, 2, 3]}},
+    }
+    sweep_id = wandb.sweep(sweep_config)
+    assert sweep_id == "test"
+    assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+    assert runner.invoke(cli.sweep, ["--resume", sweep_id]).exit_code == 0
+    if stop_method == "stop":
+        assert runner.invoke(cli.sweep, ["--stop", sweep_id]).exit_code == 0
+    else:
+        assert runner.invoke(cli.sweep, ["--cancel", sweep_id]).exit_code == 0
 
 
 @pytest.mark.skipif(
@@ -934,6 +972,7 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             len(utils.first_filestream(ctx)["files"]["wandb-events.jsonl"]["content"])
             == 1
         )
+        assert ctx["file_bytes"]["code/standalone_tests/code-toad.py"] > 0
 
         # Check we marked the run as synced
         result = runner.invoke(cli.sync, [run_dir])

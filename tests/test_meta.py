@@ -2,6 +2,7 @@ import os
 import pytest
 import platform
 import sys
+import subprocess
 import threading
 
 from six.moves import queue
@@ -62,8 +63,21 @@ def sm(
     yield sm
 
 
-# @pytest.mark.skipif(platform.system() == "Windows", reason="git stopped working")
-def test_meta_probe(mock_server, meta, sm, record_q, log_debug):
+def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
+    orig_exists = os.path.exists
+    orig_call = subprocess.call
+    monkeypatch.setattr(
+        os.path,
+        "exists",
+        lambda path: True if "conda-meta" in path else orig_exists(path),
+    )
+    monkeypatch.setattr(
+        subprocess,
+        "call",
+        lambda cmd, **kwargs: kwargs["stdout"].write("CONDA YAML")
+        if "conda" in cmd
+        else orig_call(cmd, **kwargs),
+    )
     with open("README", "w") as f:
         f.write("Testing")
     meta.probe()
@@ -73,6 +87,9 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug):
     print(mock_server.ctx)
     assert len(mock_server.ctx["storage?file=wandb-metadata.json"]) == 1
     assert len(mock_server.ctx["storage?file=requirements.txt"]) == 1
+    # py27 doesn't like my patching for conda-environment, just skipping
+    if sys.version_info > (3, 0):
+        assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
 
 

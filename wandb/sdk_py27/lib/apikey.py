@@ -11,11 +11,10 @@ import sys
 import textwrap
 
 import requests
-from six.moves import input
 import wandb
 from wandb.apis import InternalApi
 from wandb.errors import term
-from wandb.util import isatty
+from wandb.util import _is_databricks, isatty, prompt_choices
 
 
 LOGIN_CHOICE_ANON = "Private W&B dashboard, no account required"
@@ -37,13 +36,6 @@ def _fixup_anon_mode(default):
     anon_mode = default or "never"
     mapping = {"true": "allow", "false": "never"}
     return mapping.get(anon_mode, anon_mode)
-
-
-def _prompt_choice():
-    try:
-        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503
-    except ValueError:
-        return -1
 
 
 def prompt_api_key(  # noqa: C901
@@ -88,23 +80,16 @@ def prompt_api_key(  # noqa: C901
     if anon_mode == "must":
         result = LOGIN_CHOICE_ANON
     # If we're not in an interactive environment, default to dry-run.
-    elif not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin)):
+    elif (
+        not jupyter and (not isatty(sys.stdout) or not isatty(sys.stdin))
+    ) or _is_databricks():
         result = LOGIN_CHOICE_NOTTY
     elif local:
         result = LOGIN_CHOICE_EXISTS
     elif len(choices) == 1:
         result = choices[0]
     else:
-        for i, choice in enumerate(choices):
-            wandb.termlog("(%i) %s" % (i + 1, choice))
-
-        idx = -1
-        while idx < 0 or idx > len(choices) - 1:
-            idx = _prompt_choice()
-            if idx < 0 or idx > len(choices) - 1:
-                wandb.termwarn("Invalid choice")
-        result = choices[idx]
-        wandb.termlog("You chose '%s'" % result)
+        result = prompt_choices(choices)
 
     api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
     if result == LOGIN_CHOICE_ANON:

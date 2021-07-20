@@ -11,12 +11,14 @@ import logging
 import numbers
 import os
 import platform
+import re
 import sys
 import threading
 import time
 import traceback
 
 import click
+import requests
 from six import iteritems, string_types
 from six.moves import _thread as thread
 from six.moves.collections_abc import Mapping
@@ -100,6 +102,7 @@ if wandb.TYPE_CHECKING:  # type: ignore
 logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
+RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
 
 class ExitHooks(object):
@@ -113,6 +116,12 @@ class ExitHooks(object):
     def hook(self):
         self._orig_exit = sys.exit
         sys.exit = self.exit
+        self._orig_excepthook = (
+            sys.excepthook
+            if sys.excepthook
+            != sys.__excepthook__  # respect hooks by other libraries like pdb
+            else None
+        )
         sys.excepthook = self.exc_handler
 
     def exit(self, code = 0):
@@ -139,6 +148,8 @@ class ExitHooks(object):
             self.exit_code = 255
 
         traceback.print_exception(exc_type, exc, tb)
+        if self._orig_excepthook:
+            self._orig_excepthook(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -147,42 +158,72 @@ class RunStatusChecker(object):
     For now, we just use this to figure out if the user has requested a stop.
     """
 
-    def __init__(self, interface, polling_interval = 15):
+    def __init__(
+        self,
+        interface,
+        stop_polling_interval = 15,
+        retry_polling_interval = 5,
+    ):
         self._interface = interface
-        self._polling_interval = polling_interval
+        self._stop_polling_interval = stop_polling_interval
+        self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self.check_status)
-        self._thread.daemon = True
-        self._thread.start()
+        self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.daemon = True
+        self._stop_thread.start()
+
+        self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.daemon = True
+        self._retry_thread.start()
+
+    def check_network_status(self):
+        join_requested = False
+        while not join_requested:
+            status_response = self._interface.communicate_network_status()
+            if status_response and status_response.network_responses:
+                for hr in status_response.network_responses:
+                    if (
+                        hr.http_status_code == 200 or hr.http_status_code == 0
+                    ):  # we use 0 for non-http errors (eg wandb errors)
+                        wandb.termlog("{}".format(hr.http_response_text))
+                    else:
+                        wandb.termlog(
+                            "{} encountered ({}), retrying request".format(
+                                hr.http_status_code, hr.http_response_text.rstrip()
+                            )
+                        )
+            join_requested = self._join_event.wait(self._retry_polling_interval)
 
     def check_status(self):
         join_requested = False
         while not join_requested:
-            status_response = self._interface.communicate_status(check_stop_req=True)
+            status_response = self._interface.communicate_stop_status()
             if status_response and status_response.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
                 if not wandb.agents.pyagent.is_running():
                     thread.interrupt_main()
                     return
-            join_requested = self._join_event.wait(self._polling_interval)
+            join_requested = self._join_event.wait(self._stop_polling_interval)
 
     def stop(self):
         self._join_event.set()
 
     def join(self):
         self.stop()
-        self._thread.join()
+        self._stop_thread.join()
+        self._retry_thread.join()
 
 
 class Run(object):
     """
-    The run object corresponds to a single execution of your script,
-    typically this is an ML experiment. Create a run with `wandb.init()`.
+    A unit of computation logged by wandb. Typically this is an ML experiment.
 
-    In distributed training, use `wandb.init()` to create a run for each process,
-    and set the group argument to organize runs into a larger experiment.
+    Create a run with `wandb.init()`.
+
+    In distributed training, use `wandb.init()` to create a run for
+    each process, and set the group argument to organize runs into a larger experiment.
 
     Currently there is a parallel Run object in the wandb.Api. Eventually these
     two objects will be merged.
@@ -626,8 +667,7 @@ class Run(object):
         root = ".",
         name = None,
         include_fn = lambda path: path.endswith(".py"),
-        exclude_fn = lambda path: os.sep + "wandb" + os.sep
-        in path,
+        exclude_fn = filenames.exclude_wandb_fn,
     ):
         """
         log_code() saves the current state of your code to a W&B artifact.  By
@@ -730,6 +770,89 @@ class Run(object):
         """
         return self._entity or ""
 
+    def _label_internal(
+        self, code = None, repo = None, code_version = None
+    ):
+        with telemetry.context(run=self) as tel:
+            if code and RE_LABEL.match(code):
+                tel.label.code_string = code
+            if repo and RE_LABEL.match(repo):
+                tel.label.repo_string = repo
+            if code_version and RE_LABEL.match(code_version):
+                tel.label.code_version = code_version
+
+    def _label(
+        self,
+        code = None,
+        repo = None,
+        code_version = None,
+        **kwargs
+    ):
+        if self._settings.label_disable:
+            return
+        for k, v in (("code", code), ("repo", repo), ("code_version", code_version)):
+            if v and not RE_LABEL.match(v):
+                wandb.termwarn(
+                    "Label added for '{}' with invalid identifier '{}' (ignored).".format(
+                        k, v
+                    ),
+                    repeat=False,
+                )
+        for v in kwargs:
+            wandb.termwarn(
+                "Label added for unsupported key '{}' (ignored).".format(v),
+                repeat=False,
+            )
+
+        self._label_internal(code=code, repo=repo, code_version=code_version)
+
+        # update telemetry in the backend immediately for _label() callers
+        if self._backend:
+            self._backend.interface.publish_telemetry(self._telemetry_obj)
+
+    def _label_probe_lines(self, lines):
+        if not lines:
+            return
+        parsed = telemetry._parse_label_lines(lines)
+        if not parsed:
+            return
+        label_dict = {}
+        code = parsed.get("code") or parsed.get("c")
+        if code:
+            label_dict["code"] = code
+        repo = parsed.get("repo") or parsed.get("r")
+        if repo:
+            label_dict["repo"] = repo
+        code_ver = parsed.get("version") or parsed.get("v")
+        if code_ver:
+            label_dict["code_version"] = code_ver
+        self._label_internal(**label_dict)
+
+    def _label_probe_main(self):
+        m = sys.modules.get("__main__")
+        if not m:
+            return
+        doc = getattr(m, "__doc__", None)
+        if not doc:
+            return
+
+        doclines = doc.splitlines()
+        self._label_probe_lines(doclines)
+
+    # TODO: annotate jupyter Notebook class
+    def _label_probe_notebook(self, notebook):
+        logger.info("probe notebook")
+        lines = None
+        try:
+            data = notebook.probe_ipynb()
+            cell0 = data.get("cells", [])[0]
+            lines = cell0.get("source")
+        except Exception as e:
+            logger.info("Unable to probe notebook: {}".format(e))
+            return
+        if lines:
+            self._label_probe_lines(lines)
+
     def _repr_mimebundle_(
         self, include = None, exclude = None
     ):
@@ -750,6 +873,9 @@ class Run(object):
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
+
+    def _set_config_wandb(self, key, val):
+        self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record):
         if self._backend:
@@ -1062,7 +1188,7 @@ class Run(object):
         base_path = None,
         policy = "live",
     ):
-        """ Ensure all files matching *glob_str* are synced to wandb with the policy specified.
+        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular
@@ -1333,7 +1459,7 @@ class Run(object):
                 "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
             )
             emojis = dict(star="", broom="", rocket="")
-            if platform.system() != "Windows":
+            if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
                 emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
 
             wandb.termlog(
@@ -1374,12 +1500,6 @@ class Run(object):
         # err_redir: redirect.RedirectBase
         if console == self._settings.Console.REDIRECT:
             logger.info("Redirecting console.")
-            # out_cap = redirect.Capture(
-            #     name="stdout", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
-            # err_cap = redirect.Capture(
-            #     name="stderr", cb=self._redirect_cb, output_writer=self._output_writer
-            # )
             out_redir = redirect.Redirect(
                 src="stdout",
                 cbs=[
@@ -1440,27 +1560,6 @@ class Run(object):
             print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
-
-        # TODO(jhr): everything below here is not executed as we only support redir mode
-        #
-        # from wandb.lib import console as lib_console
-        # from wandb.old import io_wrap
-        #
-        # redirect stdout
-        # if platform.system() == "Windows":
-        #     lib_console.win32_redirect(stdout_slave_fd, stderr_slave_fd)
-        # else:
-        #     self._save_stdout = sys.stdout
-        #     self._save_stderr = sys.stderr
-        #     stdout_slave = os.fdopen(stdout_slave_fd, "wb")
-        #     stderr_slave = os.fdopen(stderr_slave_fd, "wb")
-        #     stdout_redirector = io_wrap.FileRedirector(sys.stdout, stdout_slave)
-        #     stderr_redirector = io_wrap.FileRedirector(sys.stderr, stderr_slave)
-        #     stdout_redirector.redirect()
-        #     stderr_redirector.redirect()
-        #     self.stdout_redirector = stdout_redirector
-        #     self.stderr_redirector = stderr_redirector
-        # logger.info("redirect done")
 
     def _restore(self):
         logger.info("restore")
@@ -1976,8 +2075,8 @@ class Run(object):
         return m
 
     # TODO(jhr): annotate this
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None):  # type: ignore
-        wandb.watch(models, criterion, log, log_freq, idx)
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False):  # type: ignore
+        wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
     def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
@@ -2218,13 +2317,19 @@ class Run(object):
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact):  # type: ignore
         if not self._settings._offline:
-            public_api = self._public_api()
-            expected_type = public.Artifact.expected_type(
-                public_api.client,
-                artifact.name,
-                public_api.settings["entity"],
-                public_api.settings["project"],
-            )
+            try:
+                public_api = self._public_api()
+                expected_type = public.Artifact.expected_type(
+                    public_api.client,
+                    artifact.name,
+                    public_api.settings["entity"],
+                    public_api.settings["project"],
+                )
+            except requests.exceptions.RequestException:
+                # Just return early if there is a network error. This is
+                # ok, as this function is intended to help catch an invalid
+                # type early, but not a hard requirement for valid operation.
+                return
             if expected_type is not None and artifact.type != expected_type:
                 raise ValueError(
                     "Expected artifact type {}, got {}".format(
@@ -2317,6 +2422,12 @@ class Run(object):
         exit_code = 0 if exc_type is None else 1
         self.finish(exit_code)
         return exc_type is None
+
+    def mark_preempting(self):
+        """Mark this run as preempting and tell the internal process
+        to immediately report this to the server."""
+        if self._backend:
+            self._backend.interface.publish_preempting()
 
 
 # We define this outside of the run context to support restoring before init
@@ -2430,7 +2541,11 @@ class _LazyArtifact(ArtifactInterface):
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
-        assert isinstance(self._instance, ArtifactInterface)
+        assert isinstance(
+            self._instance, ArtifactInterface
+        ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
+            resp.artifact_id, self._api.client.app_url()
+        )
         return self._instance
 
     @property

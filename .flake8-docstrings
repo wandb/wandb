@@ -1,0 +1,6 @@
+[flake8]
+
+filename =
+    ./wandb/sdk/wandb_watch.py
+    ./wandb/sdk/integration_utils/data_logging.py
+    ./wandb/sdk/wandb_require.py

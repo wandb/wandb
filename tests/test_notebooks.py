@@ -1,9 +1,13 @@
 import os
 import platform
+import subprocess
 import pytest
 import json
 import sys
 import wandb
+import pickle
+
+from wandb.errors import UsageError
 
 pytestmark = pytest.mark.skipif(
     sys.version_info < (3, 5) or platform.system() == "Windows",
@@ -103,3 +107,26 @@ def test_notebook_metadata_kaggle(mocker, mocked_module):
         "path": "kaggle.ipynb",
         "name": "kaggle.ipynb",
     }
+
+
+def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
+    # test for WB-5264
+
+    # make the test think we are running in a databricks notebook
+    dbutils = mocked_module("dbutils")
+    dbutils.shell.sc.appName = "Databricks Shell"
+
+    # when we try to call wandb.login(), should fail with no-tty
+    with pytest.raises(UsageError, match="tty"):
+        wandb.login()
+
+
+def test_notebook_exits(live_mock_server, test_settings):
+
+    script_dirname = os.path.dirname(__file__)
+    script_fname = os.path.join(script_dirname, "notebooks/ipython_exit.py")
+    bindir = os.path.dirname(sys.executable)
+    ipython = os.path.join(bindir, "ipython")
+    cmd = [ipython, script_fname]
+
+    subprocess.check_call(cmd)

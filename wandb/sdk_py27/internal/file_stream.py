@@ -5,6 +5,7 @@ import itertools
 import logging
 import os
 import sys
+import random
 import requests
 import threading
 import time
@@ -13,6 +14,7 @@ import wandb
 from wandb import util
 from wandb import env
 
+import six
 from six.moves import queue
 
 from ..lib import file_stream_utils
@@ -40,9 +42,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
         self._chunk_id += len(chunks)
         chunk_data = []
         for chunk in chunks:
-            if len(chunk.data) > util.MAX_LINE_SIZE:
+            if len(chunk.data) > util.MAX_LINE_BYTES:
                 msg = "Metric data exceeds maximum size of {} ({})".format(
-                    util.to_human_size(util.MAX_LINE_SIZE),
+                    util.to_human_size(util.MAX_LINE_BYTES),
                     util.to_human_size(len(chunk.data)),
                 )
                 wandb.termerror(msg, repeat=False)
@@ -59,9 +61,9 @@ class JsonlFilePolicy(DefaultFilePolicy):
 class SummaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = chunks[-1].data
-        if len(data) > util.MAX_LINE_SIZE:
+        if len(data) > util.MAX_LINE_BYTES:
             msg = "Summary data exceeds maximum size of {}. Dropping it.".format(
-                util.to_human_size(util.MAX_LINE_SIZE)
+                util.to_human_size(util.MAX_LINE_BYTES)
             )
             wandb.termerror(msg, repeat=False)
             util.sentry_message(msg)
@@ -136,7 +138,6 @@ class BinaryFilePolicy(DefaultFilePolicy):
     def process_chunks(self, chunks):
         data = b"".join([c.data for c in chunks])
         enc = base64.b64encode(data).decode("ascii")
-        offset = self._offset
         self._offset += len(data)
         return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
@@ -151,6 +152,8 @@ class FileStreamApi(object):
     """
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
+    Preempting = collections.namedtuple("Preempting", ())
+    PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
@@ -158,6 +161,8 @@ class FileStreamApi(object):
     def __init__(self, api, run_id, start_time, settings=None):
         if settings is None:
             settings = dict()
+        # NOTE: exc_info is set in thread_except_body context and readable by calling threads
+        self._exc_info = None
         self._settings = settings
         self._api = api
         self._run_id = run_id
@@ -173,10 +178,12 @@ class FileStreamApi(object):
             }
         )
         self._file_policies = {}
+        self._dropped_chunks = 0
         self._queue = queue.Queue()
-        self._thread = threading.Thread(target=self._thread_body)
+        self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
+        self._thread.name = "FileStreamThread"
         self._thread.daemon = True
         self._init_endpoint()
 
@@ -235,12 +242,27 @@ class FileStreamApi(object):
         posted_data_time = time.time()
         posted_anything_time = time.time()
         ready_chunks = []
+        uploaded = set()
         finished = None
         while finished is None:
             items = self._read_queue()
             for item in items:
                 if isinstance(item, self.Finish):
                     finished = item
+                elif isinstance(item, self.Preempting):
+                    request_with_retry(
+                        self._client.post,
+                        self._endpoint,
+                        json={
+                            "complete": False,
+                            "preempting": True,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
+                    )
+                    uploaded = set()
+                elif isinstance(item, self.PushSuccess):
+                    uploaded.add(item.save_name)
                 else:
                     # item is Chunk
                     ready_chunks.append(item)
@@ -258,28 +280,59 @@ class FileStreamApi(object):
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
                 self._handle_response(
-                    util.request_with_retry(
+                    request_with_retry(
                         self._client.post,
                         self._endpoint,
-                        json={"complete": False, "failed": False},
+                        json={
+                            "complete": False,
+                            "failed": False,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
                     )
                 )
+                uploaded = set()
         # post the final close message. (item is self.Finish instance now)
-        util.request_with_retry(
+        request_with_retry(
             self._client.post,
             self._endpoint,
-            json={"complete": True, "exitcode": int(finished.exitcode)},
+            json={
+                "complete": True,
+                "exitcode": int(finished.exitcode),
+                "dropped": self._dropped_chunks,
+                "uploaded": list(uploaded),
+            },
         )
+
+    def _thread_except_body(self):
+        # TODO: Consolidate with internal_util.ExceptionThread
+        try:
+            self._thread_body()
+        except Exception as e:
+            exc_info = sys.exc_info()
+            self._exc_info = exc_info
+            logger.exception("generic exception in filestream thread")
+            util.sentry_exc(exc_info, delay=True)
+            raise e
 
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
-            raise response
-            wandb.termerror("Droppped streaming file chunk (see wandb/debug.log)")
-            logging.error("dropped chunk %s" % response)
-        elif response.json().get("limits"):
-            parsed = response.json()
-            self._api.dynamic_settings.update(parsed["limits"])
+            wandb.termerror(
+                "Dropped streaming file chunk (see wandb/debug-internal.log)"
+            )
+            logging.exception("dropped chunk %s" % response)
+            self._dropped_chunks += 1
+        else:
+            parsed = None
+            try:
+                parsed = response.json()
+            except Exception:
+                pass
+            if isinstance(parsed, dict):
+                limits = parsed.get("limits")
+                if isinstance(limits, dict):
+                    self._api.dynamic_settings.update(limits)
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -295,10 +348,13 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-        for fs in file_stream_utils.split_files(files, max_mb=10):
+        for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
             self._handle_response(
-                util.request_with_retry(
-                    self._client.post, self._endpoint, json={"files": fs}
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={"files": fs, "dropped": self._dropped_chunks},
+                    retry_callback=self._api.retry_callback,
                 )
             )
 
@@ -306,6 +362,9 @@ class FileStreamApi(object):
         name = path.split("/")[-1]
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
+
+    def enqueue_preempting(self):
+        self._queue.put(self.Preempting())
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
@@ -317,6 +376,15 @@ class FileStreamApi(object):
         """
         self._queue.put(Chunk(filename, data))
 
+    def push_success(self, artifact_id, save_name):
+        """Notification that a file upload has been successfully completed
+
+        Arguments:
+            artifact_id: ID of artifact
+            save_name: saved name of the uploaded file
+        """
+        self._queue.put(self.PushSuccess(artifact_id, save_name))
+
     def finish(self, exitcode):
         """Cleans up.
 
@@ -326,4 +394,89 @@ class FileStreamApi(object):
             exitcode: The exitcode of the watched process.
         """
         self._queue.put(self.Finish(exitcode))
+        # TODO(jhr): join on a thread which exited with an exception is a noop, clean up this path
         self._thread.join()
+        if self._exc_info:
+            logger.error("FileStream exception", exc_info=self._exc_info)
+            # reraising the original exception, will get recaught in internal.py for the sender thread
+            six.reraise(*self._exc_info)
+
+
+MAX_SLEEP_SECONDS = 60 * 5
+
+
+def request_with_retry(func, *args, **kwargs):
+    """Perform a requests http call, retrying with exponential backoff.
+
+    Arguments:
+        func: An http-requesting function to call, like requests.post
+        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
+        *args: passed through to func
+        **kwargs: passed through to func
+    """
+    max_retries = kwargs.pop("max_retries", 30)
+    retry_callback = kwargs.pop("retry_callback", None)
+    sleep = 2
+    retry_count = 0
+    while True:
+        try:
+            response = func(*args, **kwargs)
+            response.raise_for_status()
+            return response
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.HTTPError,
+            requests.exceptions.Timeout,
+        ) as e:
+            if isinstance(e, requests.exceptions.HTTPError):
+                # Non-retriable HTTP errors.
+                #
+                # We retry 500s just to be cautious, and because the back end
+                # returns them when there are infrastructure issues. If retrying
+                # some request winds up being problematic, we'll change the
+                # back end to indicate that it shouldn't be retried.
+                if e.response is not None and e.response.status_code in {
+                    400,
+                    403,
+                    404,
+                    409,
+                }:
+                    return e
+
+            if retry_count == max_retries:
+                return e
+            retry_count += 1
+            delay = sleep + random.random() * 0.25 * sleep
+            if isinstance(e, requests.exceptions.HTTPError) and (
+                e.response is not None and e.response.status_code == 429
+            ):
+                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
+                    delay
+                )
+                if retry_callback:
+                    retry_callback(e.response.status_code, err_str)
+                logger.info(err_str)
+            else:
+                pass
+                logger.warning(
+                    "requests_with_retry encountered retryable exception: %s. func: %s, args: %s, kwargs: %s",
+                    e,
+                    func,
+                    args,
+                    kwargs,
+                )
+            time.sleep(delay)
+            sleep *= 2
+            if sleep > MAX_SLEEP_SECONDS:
+                sleep = MAX_SLEEP_SECONDS
+        except requests.exceptions.RequestException as e:
+            error_message = "unknown error"
+            try:
+                error_message = response.json()["error"]  # XXX clean this up
+            except Exception:
+                pass
+            logger.error("requests_with_retry error: {}".format(error_message))
+            logger.exception(
+                "requests_with_retry encountered unretryable exception: %s", e
+            )
+            return e

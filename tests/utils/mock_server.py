@@ -1,6 +1,6 @@
 """Mock Server for simple calls the cli and public api make"""
 
-from flask import Flask, request, g
+from flask import Flask, request, g, jsonify
 import os
 import sys
 from datetime import datetime, timedelta
@@ -16,13 +16,14 @@ sys.path[0:0] = save_path
 import logging
 from six.moves import urllib
 import threading
-from tests.utils.mock_requests import RequestsMock
+from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
 
 
 def default_ctx():
     return {
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
         "fail_storage_count": 0,  # used via "fail_storage_times"
+        "rate_limited_count": 0,  # used via "rate_limited_times"
         "page_count": 0,
         "page_times": 2,
         "requested_file": "weights.h5",
@@ -31,6 +32,10 @@ def default_ctx():
         "k8s": False,
         "resume": False,
         "file_bytes": {},
+        "manifests_created": [],
+        "artifacts_by_id": {},
+        "upsert_bucket_count": 0,
+        "max_cli_version": "0.10.33",
     }
 
 
@@ -61,6 +66,7 @@ def run(ctx):
         created_at = datetime.now().isoformat()
 
     stopped = ctx.get("stopped", False)
+    base_url = request.url_root.rstrip("/")
 
     # for wandb_tests::wandb_restore_name_not_found
     # if there is a fileName query, and this query is for nofile.h5
@@ -75,7 +81,7 @@ def run(ctx):
             "name": "nofile.h5",
             "sizeBytes": 0,
             "md5": "0",
-            "url": request.url_root + "/storage?file=nofile.h5",
+            "url": base_url + "/storage?file=nofile.h5",
         }
     else:
         fileNode = {
@@ -83,8 +89,8 @@ def run(ctx):
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
-            "url": request.url_root + "/storage?file=%s" % ctx["requested_file"],
-            "directUrl": request.url_root
+            "url": base_url + "/storage?file=%s" % ctx["requested_file"],
+            "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
 
@@ -216,7 +222,11 @@ def set_ctx(ctx):
     g.ctx.set(ctx)
 
 
-def _bucket_config():
+def _bucket_config(ctx):
+    files = ["wandb-metadata.json", "diff.patch"]
+    if "bucket_config" in ctx and "files" in ctx["bucket_config"]:
+        files = ctx["bucket_config"]["files"]
+    base_url = request.url_root.rstrip("/")
     return {
         "commit": "HEAD",
         "github": "https://github.com/vanpelt",
@@ -225,20 +235,30 @@ def _bucket_config():
             "edges": [
                 {
                     "node": {
-                        "directUrl": request.url_root
-                        + "/storage?file=wandb-metadata.json",
-                        "name": "wandb-metadata.json",
+                        "directUrl": base_url + "/storage?file=" + name,
+                        "name": name,
                     }
-                },
-                {
-                    "node": {
-                        "directUrl": request.url_root + "/storage?file=diff.patch",
-                        "name": "diff.patch",
-                    }
-                },
+                }
+                for name in files
             ]
         },
     }
+
+
+class HttpException(Exception):
+    status_code = 500
+
+    def __init__(self, message, status_code=None, payload=None):
+        Exception.__init__(self)
+        self.message = message
+        if status_code is not None:
+            self.status_code = status_code
+        self.payload = payload
+
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv["error"] = self.message
+        return rv
 
 
 def create_app(user_ctx=None):
@@ -252,6 +272,12 @@ def create_app(user_ctx=None):
     def persist_ctx(exc):
         if "ctx" in g:
             CTX.persist(g.ctx)
+
+    @app.errorhandler(HttpException)
+    def handle_http_exception(error):
+        response = jsonify(error.to_dict())
+        response.status_code = error.status_code
+        return response
 
     @app.route("/ctx", methods=["GET", "PUT", "DELETE"])
     def update_ctx():
@@ -275,6 +301,7 @@ def create_app(user_ctx=None):
     def graphql():
         #  TODO: in tests wandb-username is set to the test name, lets scope ctx to it
         ctx = get_ctx()
+        base_url = request.url_root.rstrip("/")
         test_name = request.headers.get("X-WANDB-USERNAME")
         if test_name:
             app.logger.info("Test request from: %s", test_name)
@@ -283,6 +310,10 @@ def create_app(user_ctx=None):
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
                 return json.dumps({"errors": ["Server down"]}), 500
+        if "rate_limited_times" in ctx:
+            if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
+                ctx["rate_limited_count"] += 1
+                return json.dumps({"error": "rate limit exceeded"}), 429
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
@@ -294,10 +325,12 @@ def create_app(user_ctx=None):
             param_summary = body["variables"].get("summaryMetrics")
             if param_summary:
                 ctx.setdefault("summary", []).append(json.loads(param_summary))
+            ctx["upsert_bucket_count"] += 1
+
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
-            url = request.url_root + "/storage?file={}&run={}".format(
+            url = base_url + "/storage?file={}&run={}".format(
                 urllib.parse.quote(requested_file), ctx["current_run"]
             )
             return json.dumps(
@@ -370,7 +403,7 @@ def create_app(user_ctx=None):
                 project_field_name = "model"
                 run_field_name = "bucket"
             if "commit" in body["query"]:
-                run_config = _bucket_config()
+                run_config = _bucket_config(ctx)
             else:
                 run_config = run(ctx)
             return json.dumps(
@@ -421,7 +454,14 @@ def create_app(user_ctx=None):
                             "teams": {
                                 "edges": []  # TODO make configurable for cli_test
                             },
-                        }
+                        },
+                        "serverInfo": {
+                            "cliVersionInfo": {
+                                "max_cli_version": str(
+                                    ctx.get("max_cli_version", "0.10.33")
+                                )
+                            }
+                        },
                     }
                 }
             )
@@ -462,7 +502,8 @@ def create_app(user_ctx=None):
                                     "name": "test",
                                     "entity": {"id": "1234", "name": "test"},
                                 },
-                            }
+                            },
+                            "configValidationWarnings": [],
                         }
                     }
                 }
@@ -527,7 +568,7 @@ def create_app(user_ctx=None):
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
-                url = request.url_root + "/storage?file=%s" % file_spec["name"]
+                url = base_url + "/storage?file=%s" % file_spec["name"]
                 nodes.append(
                     {
                         "node": {
@@ -548,14 +589,82 @@ def create_app(user_ctx=None):
                 collection_name, []
             )
             ctx["artifacts"][collection_name].append(body["variables"])
+            _id = body.get("variables", {}).get("digest", "")
+            if _id != "":
+                ctx.get("artifacts_by_id")[_id] = body["variables"]
             return {
                 "data": {
                     "createArtifact": {
                         "artifact": artifact(
                             ctx,
                             collection_name,
-                            id_override=body.get("variables", {}).get("digest", ""),
+                            id_override=_id,
+                            state="COMMITTED"
+                            if "PENDING" not in collection_name
+                            else "PENDING",
                         )
+                    }
+                }
+            }
+        if "mutation CreateArtifactManifest(" in body["query"]:
+            manifest = {
+                "id": 1,
+                "type": "INCREMENTAL"
+                if "incremental" in body.get("variables", {}).get("name", "")
+                else "FULL",
+                "file": {
+                    "id": 1,
+                    "directUrl": base_url
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
+                    "uploadUrl": base_url + "/storage?file=wandb_manifest.json",
+                    "uploadHeaders": "",
+                },
+            }
+            ctx["manifests_created"].append(manifest)
+            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+        if "mutation UpdateArtifactManifest(" in body["query"]:
+            manifest = {
+                "id": 1,
+                "type": "INCREMENTAL"
+                if "incremental" in body.get("variables", {}).get("name", "")
+                else "FULL",
+                "file": {
+                    "id": 1,
+                    "directUrl": base_url
+                    + "/storage?file=wandb_manifest.json&name={}".format(
+                        body.get("variables", {}).get("name", "")
+                    ),
+                    "uploadUrl": base_url + "/storage?file=wandb_manifest.json",
+                    "uploadHeaders": "",
+                },
+            }
+            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+        if "mutation CreateArtifactFiles" in body["query"]:
+            return {
+                "data": {
+                    "files": [
+                        {
+                            "node": {
+                                "id": idx,
+                                "name": file["name"],
+                                "uploadUrl": "",
+                                "uploadheaders": [],
+                                "artifact": {"id": file["artifactID"]},
+                            }
+                            for idx, file in enumerate(
+                                body["variables"]["artifactFiles"]
+                            )
+                        }
+                    ],
+                }
+            }
+        if "mutation CommitArtifact(" in body["query"]:
+            return {
+                "data": {
+                    "commitArtifact": {
+                        "artifact": {"id": 1, "digest": "0000===================="}
                     }
                 }
             }
@@ -608,6 +717,21 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query ArtifactCollection(" in body["query"]:
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "artifactSequence": {
+                                "id": "1",
+                                "name": "mnist",
+                                "description": "",
+                                "createdAt": datetime.now().isoformat(),
+                            }
+                        }
+                    }
+                }
+            }
         if "query RunArtifacts(" in body["query"]:
             if "inputArtifacts" in body["query"]:
                 key = "inputArtifacts"
@@ -633,11 +757,13 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=request.url_root)
+            art = artifact(
+                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
+            )
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
-                    request_url_root=request.url_root,
+                    request_url_root=base_url,
                     id_override=body.get("variables", {}).get("id"),
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
@@ -650,6 +776,8 @@ def create_app(user_ctx=None):
                 art["artifactType"] = {"id": 3, "name": "run_table"}
             if "run-" in body["variables"]["name"]:
                 art["artifactType"] = {"id": 4, "name": "run_table"}
+            if "wb_validation_data" in body["variables"]["name"]:
+                art["artifactType"] = {"id": 4, "name": "validation_dataset"}
             return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
@@ -657,13 +785,15 @@ def create_app(user_ctx=None):
                 "id": 1,
                 "file": {
                     "id": 1,
-                    "directUrl": request.url_root
+                    "directUrl": base_url
                     + "/storage?file=wandb_manifest.json&name={}".format(
                         body.get("variables", {}).get("name", "")
                     ),
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ClientIDMapping(" in body["query"]:
+            return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -674,6 +804,7 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
@@ -704,7 +835,57 @@ def create_app(user_ctx=None):
             else:
                 ctx["file_bytes"][file] += request.content_length
         if file == "wandb_manifest.json":
-            if _id == "bb8043da7d78ff168a695cff097897d2":
+            if _id in ctx.get("artifacts_by_id"):
+                art = ctx["artifacts_by_id"][_id]
+                if "-validation_predictions" in art["artifactCollectionNames"][0]:
+                    return {
+                        "version": 1,
+                        "storagePolicy": "wandb-storage-policy-v1",
+                        "storagePolicyConfig": {},
+                        "contents": {
+                            "validation_predictions.table.json": {
+                                "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                                "size": 81299,
+                            }
+                        },
+                    }
+                if "wb_validation_data" in art["artifactCollectionNames"][0]:
+                    return {
+                        "version": 1,
+                        "storagePolicy": "wandb-storage-policy-v1",
+                        "storagePolicyConfig": {},
+                        "contents": {
+                            "validation_data.table.json": {
+                                "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                                "size": 81299,
+                            },
+                            "media/tables/5aac4cea496fd061e813.table.json": {
+                                "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                                "size": 81299,
+                            },
+                        },
+                    }
+            if request.args.get("name") == "my-test_reference_download:latest":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "StarWars3.wav": {
+                            "digest": "a90eb05f7aef652b3bdd957c67b7213a",
+                            "size": 81299,
+                            "ref": "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
+                        },
+                        "file1.txt": {
+                            "digest": "0000====================",
+                            "size": 81299,
+                        },
+                    },
+                }
+            elif (
+                _id == "bb8043da7d78ff168a695cff097897d2"
+                or _id == "ad4d74ac0e4167c6cf4aaad9d59b9b44"
+            ):
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -716,7 +897,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "f006aa8f99aa79d7b68e079c0a200d21":
+            elif _id == "6ddbe1c239de9c9fc6c397fc5591555a":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -740,6 +921,54 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
+            elif _id == "e6954815d2beb5841b3dabf7cf455c30":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.partitioned-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "0eec13efd400546f58a4530de62ed07a":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "jt.joined-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id in [
+                "2d9a7e0aa8407f0730e19e5bc55c3a45",
+                "c541de19b18331a4a33b282fc9d42510",
+                "6f3d6ed5417d2955afbc73bff0ed1609",
+                "7d797e62834a7d72538529e91ed958e2",
+                "03d3e221fd4da6c5fccb1fbd75fe475e",
+                "464aa7e0d7c3f8230e3fe5f10464a2e6",
+                "8ef51aeabcfcd89b719822de64f6a8bf",
+            ]:
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "validation_data.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        },
+                        "media/tables/e14239fe.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        },
+                    },
+                }
             elif (
                 len(ctx.get("graphql", [])) >= 3
                 and ctx["graphql"][2].get("variables", {}).get("name", "") == "dummy:v0"
@@ -760,6 +989,18 @@ def create_app(user_ctx=None):
                         "t.table.json": {
                             "digest": "2aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 123,
+                        },
+                    },
+                }
+            elif _id == "e04169452d5584146eb7ebb405647cc8":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "results_df.table.json": {
+                            "digest": "0aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 363,
                         },
                     },
                 }
@@ -800,7 +1041,7 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
-        if entity == "entity":
+        if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
             ):  # "dataset.partitioned-table.json"
@@ -886,7 +1127,16 @@ index 30d74d2..9a2c773 100644
         ctx = get_ctx()
         ctx["file_stream"] = ctx.get("file_stream", [])
         ctx["file_stream"].append(request.get_json())
-        return json.dumps({"exitcode": None, "limits": {}})
+        response = json.dumps({"exitcode": None, "limits": {}})
+
+        inject = InjectRequestsParse(ctx).find(request=request)
+        if inject:
+            if inject.response:
+                response = inject.response
+            if inject.http_status:
+                # print("INJECT", inject, inject.http_status)
+                raise HttpException("some error", status_code=inject.http_status)
+        return response
 
     @app.route("/api/v1/namespaces/default/pods/test")
     def k8s_pod():
@@ -926,6 +1176,10 @@ index 30d74d2..9a2c773 100644
                     "88.1.2rc12": [],
                     "88.1.2rc3": [],
                     "88.1.2rc4": [],
+                    "0.11.0": [],
+                    "0.10.32": [],
+                    "0.10.31": [],
+                    "0.10.30": [],
                     "0.0.8rc6": [],
                     "0.0.8rc2": [],
                     "0.0.8rc3": [],
@@ -953,7 +1207,7 @@ class ParseCTX(object):
 
     def get_filestream_file_updates(self):
         data = {}
-        file_stream_updates = self._ctx["file_stream"]
+        file_stream_updates = self._ctx.get("file_stream", [])
         for update in file_stream_updates:
             files = update.get("files")
             if not files:
@@ -984,15 +1238,19 @@ class ParseCTX(object):
         return data
 
     @property
+    def dropped_chunks(self):
+        return self._ctx.get("file_stream", [{"dropped": 0}])[-1]["dropped"]
+
+    @property
     def summary(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files["wandb-summary.json"][-1]
+        summary = fs_files.get("wandb-summary.json", [])[-1]
         return summary
 
     @property
     def history(self):
         fs_files = self.get_filestream_file_items()
-        history = fs_files["wandb-history.jsonl"]
+        history = fs_files.get("wandb-history.jsonl")
         return history
 
     @property
@@ -1010,6 +1268,14 @@ class ParseCTX(object):
     @property
     def metrics(self):
         return self.config.get("_wandb", {}).get("value", {}).get("m")
+
+    @property
+    def manifests_created(self):
+        return self._ctx.get("manifests_created") or []
+
+    @property
+    def manifests_created_ids(self):
+        return [m["id"] for m in self.manifests_created]
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.26.dev1"
+__version__ = "0.11.1.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -52,6 +52,7 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
+require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
@@ -148,6 +149,11 @@ log_artifact = _preinit.PreInitCallable(
 define_metric = _preinit.PreInitCallable(
     "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
 )
+
+mark_preempting = _preinit.PreInitCallable(
+    "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting
+)
+
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
@@ -210,4 +216,5 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
+    "_enable",
 ]

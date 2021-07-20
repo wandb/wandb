@@ -65,7 +65,8 @@ def test_resume_allow_success(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
+    platform.system() == "Windows" or sys.version_info < (3, 6),
+    reason="File syncing is somewhat busted in windows and python 2",
 )
 # TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
 def test_parallel_runs(request, live_mock_server, test_settings, test_name):
@@ -127,6 +128,15 @@ def test_resume_auto_failure(live_mock_server, test_settings):
     assert run.id == "resumeme"
     run.join(exit_code=3)
     assert os.path.exists(test_settings.resume_fname)
+
+
+def test_resume_no_metadata(live_mock_server, test_settings):
+    # do not write metadata file if we are resuming
+    live_mock_server.set_ctx({"resume": True})
+    run = wandb.init(resume=True, settings=test_settings)
+    run.join()
+    ctx = live_mock_server.get_ctx()
+    assert "wandb-metadata.json" not in ctx["storage"][run.id]
 
 
 def test_include_exclude_config_keys(live_mock_server, test_settings):
@@ -355,6 +365,45 @@ def test_version_retired(
     run.finish()
     captured = capsys.readouterr()
     assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+
+
+def test_end_to_end_preempting(live_mock_server, test_settings, disable_console):
+    run = wandb.init(settings=test_settings)
+    run.mark_preempting()
+
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        if "file_stream" in ctx:
+            ok = any(
+                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
+            )
+            if ok:
+                break
+        time.sleep(1)
+    assert ok
+
+
+def test_end_to_end_preempting_via_module_func(
+    live_mock_server, test_settings, disable_console
+):
+    wandb.init(settings=test_settings)
+    wandb.log({"a": 1})
+    wandb.mark_preempting()
+
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        if "file_stream" in ctx:
+            ok = any(
+                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
+            )
+            if ok:
+                break
+        time.sleep(1)
+    assert ok
 
 
 @pytest.mark.flaky

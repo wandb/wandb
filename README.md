@@ -4,7 +4,12 @@
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
 
-Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
+
+- Quickly identify model regressions. Use W&B to visualize results in real time, all in a central dashboard.
+- Focus on the interesting ML. Spend less time manually tracking results in spreadsheets and text files.
+- Capture dataset versions with W&B Artifacts to identify how changing data affects your resulting models.
+- Reproduce any model, with saved code, hyperparameters, launch commands, input data, and resulting model weights.
 
 [Sign up for a free account →](https://wandb.com)
 
@@ -172,6 +177,20 @@ learn.fit(..., cbs=WandbCallback())
 - [Docs](https://docs.wandb.com/library/integrations/fastai)
 
 
+## ⚡️ PyTorch Lightning
+Build scalable, structured, high-performance PyTorch models with Lightning and log them with W&B.
+```python
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import Trainer
+
+wandb_logger = WandbLogger(project="gpt-3")
+trainer = Trainer(logger=wandb_logger)
+```
+
+- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch-lightning/Supercharge_your_Training_with_Pytorch_Lightning_%2B_Weights_%26_Biases.ipynb)**
+- [Docs](https://docs.wandb.ai/guides/integrations/lightning)
+
+
 ## 🤗 HuggingFace
 Just run a script using HuggingFace's Trainer in an environment where `wandb` is installed
 and we'll automatically log losses, evaluation metrics, model topology and gradients:
@@ -225,7 +244,7 @@ Parallel coordinates plots map hyperparameter values to model metrics. They're u
 
 <img src="https://i.imgur.com/THYXBN0.png" width="720" alt="Weights & Biases" />
 
-# 📜 Share insights with with Reports
+# 📜 Share insights with Reports
 Reports let you [organize visualizations, describe your findings, and share updates with collaborators](https://www.youtube.com/watch?v=o2dOSIDDr1w&&ab_channel=Weights%26Biases).
 
 ### Common use cases

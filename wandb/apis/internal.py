@@ -14,7 +14,18 @@ class Api(object):
     should likely be moved to PublicApi"""
 
     def __init__(self, *args, **kwargs):
-        self.api = InternalApi(*args, **kwargs)
+        self._api_args = args
+        self._api_kwargs = kwargs
+        self._api = None
+
+    @property
+    def api(self):
+        # This is a property in order ot delay construction of Internal API
+        # for as long as possible. If constructed in constructor, then the
+        # whole InternalAPI is started when simply importing wandb.
+        if self._api is None:
+            self._api = InternalApi(*self._api_args, **self._api_kwargs)
+        return self._api
 
     @property
     def api_key(self):
@@ -87,6 +98,24 @@ class Api(object):
 
     def upsert_sweep(self, *args, **kwargs):
         return self.api.upsert_sweep(*args, **kwargs)
+
+    def set_sweep_state(self, *args, **kwargs):
+        return self.api.set_sweep_state(*args, **kwargs)
+
+    def get_sweep_state(self, *args, **kwargs):
+        return self.api.get_sweep_state(*args, **kwargs)
+
+    def stop_sweep(self, *args, **kwargs):
+        return self.api.stop_sweep(*args, **kwargs)
+
+    def cancel_sweep(self, *args, **kwargs):
+        return self.api.cancel_sweep(*args, **kwargs)
+
+    def pause_sweep(self, *args, **kwargs):
+        return self.api.pause_sweep(*args, **kwargs)
+
+    def resume_sweep(self, *args, **kwargs):
+        return self.api.resume_sweep(*args, **kwargs)
 
     def register_agent(self, *args, **kwargs):
         return self.api.register_agent(*args, **kwargs)
