@@ -11,6 +11,7 @@ W&B Notes:
  - Added import magic line
  - Added lines to limit training data
  - Added flake8 noqa
+ - Added random seed code
 """
 
 # flake8: noqa
@@ -24,6 +25,12 @@ from tensorflow import keras
 from tensorflow.keras import layers
 
 from wandb import magic  # noqa: F401
+
+# Make sure this is reproducible
+from numpy.random import seed
+seed(1)
+from tensorflow import set_random_seed
+set_random_seed(2)
 
 """
 ## Prepare the data

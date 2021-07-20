@@ -15,7 +15,7 @@ assert:
     - 0.0
   - :op:<=:
     - :wandb:runs[0][summary][loss]
-    - 1.0
+    - 10.0
   - :op:>=:
     - :wandb:runs[0][summary][loss]
     - 0.0
