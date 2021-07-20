@@ -23,11 +23,7 @@ from ..lib.filenames import (
 )
 from ..lib.git import GitRepo
 
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore[import]
-else:
-    import subprocess  # type: ignore[no-redef]
-
+import subprocess
 
 logger = logging.getLogger(__name__)
 

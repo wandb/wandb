@@ -8,10 +8,8 @@ shortuuid>=0.5.0
 six>=1.13.0
 psutil>=5.0.0
 sentry-sdk>=0.4.0
-subprocess32>=3.5.3
 docker-pycreds>=0.4.0
 configparser>=3.8.1
 protobuf>=3.12.0
 PyYAML
 pathtools # supports vendored version of watchdog 0.9.0
-urllib3>=1.26.5
