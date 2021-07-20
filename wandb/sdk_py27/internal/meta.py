@@ -10,6 +10,7 @@ import logging
 import multiprocessing
 import os
 from shutil import copyfile
+import subprocess
 import sys
 
 from wandb import util
@@ -22,8 +23,6 @@ from ..lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from ..lib.git import GitRepo
-
-import subprocess
 
 logger = logging.getLogger(__name__)
 
