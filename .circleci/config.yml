@@ -120,8 +120,8 @@ workflows:
          name: "mac-py37"
          toxenv: "py37"
       - launch:
-         name: "wandb launch Python 3.6"
-         toxenv: "launch,covercircle"
+         name: "wandb launch tests"
+         toxenv: "pylaunch,covercircle"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
