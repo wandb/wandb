@@ -759,6 +759,10 @@ def init(
         A `Run` object.
     """
     wandb._assert_is_user_process()
+
+    if resume is True:
+        resume = "auto"  # account for changing resume interface, True and auto should behave the same
+
     kwargs = dict(locals())
     error_seen = None
     except_exit = None

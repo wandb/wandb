@@ -50,7 +50,7 @@ class FilePusher(object):
 
     MAX_UPLOAD_JOBS = 64
 
-    def __init__(self, api, silent=False):
+    def __init__(self, api, file_stream, silent=False):
         self._api = api
 
         self._tempdir = tempfile.TemporaryDirectory("wandb")
@@ -74,6 +74,7 @@ class FilePusher(object):
             self._stats,
             self._event_queue,
             self.MAX_UPLOAD_JOBS,
+            file_stream=file_stream,
             silent=silent,
         )
         self._step_upload.start()
@@ -172,9 +173,9 @@ class FilePusher(object):
         )
         self._incoming_queue.put(event)
 
-    def finish(self):
+    def finish(self, callback=None):
         logger.info("shutting down file pusher")
-        self._incoming_queue.put(step_checksum.RequestFinish())
+        self._incoming_queue.put(step_checksum.RequestFinish(callback))
 
     def join(self):
         # NOTE: must have called finish before join

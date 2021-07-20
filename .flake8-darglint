@@ -1,0 +1,8 @@
+[flake8]
+
+filename =
+    ./wandb/sdk/wandb_watch.py
+    ./wandb/sdk/wandb_require.py
+
+per-file-ignores =
+    ./wandb/sdk/wandb_require.py:DAR402

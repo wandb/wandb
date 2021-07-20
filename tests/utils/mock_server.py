@@ -35,6 +35,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "max_cli_version": "0.10.33",
     }
 
 
@@ -221,7 +222,10 @@ def set_ctx(ctx):
     g.ctx.set(ctx)
 
 
-def _bucket_config():
+def _bucket_config(ctx):
+    files = ["wandb-metadata.json", "diff.patch"]
+    if "bucket_config" in ctx and "files" in ctx["bucket_config"]:
+        files = ctx["bucket_config"]["files"]
     base_url = request.url_root.rstrip("/")
     return {
         "commit": "HEAD",
@@ -231,16 +235,11 @@ def _bucket_config():
             "edges": [
                 {
                     "node": {
-                        "directUrl": base_url + "/storage?file=wandb-metadata.json",
-                        "name": "wandb-metadata.json",
+                        "directUrl": base_url + "/storage?file=" + name,
+                        "name": name,
                     }
-                },
-                {
-                    "node": {
-                        "directUrl": base_url + "/storage?file=diff.patch",
-                        "name": "diff.patch",
-                    }
-                },
+                }
+                for name in files
             ]
         },
     }
@@ -404,7 +403,7 @@ def create_app(user_ctx=None):
                 project_field_name = "model"
                 run_field_name = "bucket"
             if "commit" in body["query"]:
-                run_config = _bucket_config()
+                run_config = _bucket_config(ctx)
             else:
                 run_config = run(ctx)
             return json.dumps(
@@ -455,7 +454,14 @@ def create_app(user_ctx=None):
                             "teams": {
                                 "edges": []  # TODO make configurable for cli_test
                             },
-                        }
+                        },
+                        "serverInfo": {
+                            "cliVersionInfo": {
+                                "max_cli_version": str(
+                                    ctx.get("max_cli_version", "0.10.33")
+                                )
+                            }
+                        },
                     }
                 }
             )
@@ -751,7 +757,9 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=base_url)
+            art = artifact(
+                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
+            )
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
@@ -784,6 +792,8 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ClientIDMapping(" in body["query"]:
+            return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -911,6 +921,30 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
+            elif _id == "e6954815d2beb5841b3dabf7cf455c30":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.partitioned-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "0eec13efd400546f58a4530de62ed07a":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "jt.joined-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
             elif _id in [
                 "2d9a7e0aa8407f0730e19e5bc55c3a45",
                 "c541de19b18331a4a33b282fc9d42510",
@@ -958,6 +992,18 @@ def create_app(user_ctx=None):
                         },
                     },
                 }
+            elif _id == "e04169452d5584146eb7ebb405647cc8":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "results_df.table.json": {
+                            "digest": "0aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 363,
+                        },
+                    },
+                }
             else:
                 return {
                     "version": 1,
@@ -995,7 +1041,7 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
-        if entity == "entity":
+        if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
             ):  # "dataset.partitioned-table.json"
@@ -1161,7 +1207,7 @@ class ParseCTX(object):
 
     def get_filestream_file_updates(self):
         data = {}
-        file_stream_updates = self._ctx["file_stream"]
+        file_stream_updates = self._ctx.get("file_stream", [])
         for update in file_stream_updates:
             files = update.get("files")
             if not files:
@@ -1192,15 +1238,19 @@ class ParseCTX(object):
         return data
 
     @property
+    def dropped_chunks(self):
+        return self._ctx.get("file_stream", [{"dropped": 0}])[-1]["dropped"]
+
+    @property
     def summary(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files["wandb-summary.json"][-1]
+        summary = fs_files.get("wandb-summary.json", [])[-1]
         return summary
 
     @property
     def history(self):
         fs_files = self.get_filestream_file_items()
-        history = fs_files["wandb-history.jsonl"]
+        history = fs_files.get("wandb-history.jsonl")
         return history
 
     @property

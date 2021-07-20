@@ -212,11 +212,18 @@ We currently have 8 categories of test coverage:
 1. project: main coverage numbers, i dont think it can drop by more than a few percent or you will get a failure
 2. patch/tests: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
 3. patch/tests-utils: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
-4. patch/sdk: anything that matches wandb/sdk/*.py (so top level sdk files).   These have lots of ways to test, so it should be high coverage.  currently target is ~80% (but it is dynamic)
+4. patch/sdk: anything that matches `wandb/sdk/*.py` (so top level sdk files).   These have lots of ways to test, so it should be high coverage.  currently target is ~80% (but it is dynamic)
 5. patch/sdk-internal: should be covered very high target is around 80% (also dynamic)
 6. patch/sdk-other: will be a catch all for other stuff in wandb/sdk/ target around 75% (dynamic)
 7. patch/apis: we have no good fixtures for this, so until we do, this will get a waiver
 8. patch/other: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
+
+### Test parallelism
+
+The circleci uses pytest-split to balance unittest load on multiple nodes.  In order to do this efficiently every once in a while the test timing file (`.test_durations`) needs to be updated with:
+```shell
+CI_PYTEST_SPLIT_ARGS="--store-durations" tox -e py37
+```
 
 ### Regression Testing
 

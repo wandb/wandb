@@ -130,6 +130,15 @@ def test_resume_auto_failure(live_mock_server, test_settings):
     assert os.path.exists(test_settings.resume_fname)
 
 
+def test_resume_no_metadata(live_mock_server, test_settings):
+    # do not write metadata file if we are resuming
+    live_mock_server.set_ctx({"resume": True})
+    run = wandb.init(resume=True, settings=test_settings)
+    run.join()
+    ctx = live_mock_server.get_ctx()
+    assert "wandb-metadata.json" not in ctx["storage"][run.id]
+
+
 def test_include_exclude_config_keys(live_mock_server, test_settings):
     config = {
         "foo": 1,

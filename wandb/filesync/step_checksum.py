@@ -27,7 +27,7 @@ RequestStoreManifestFiles = collections.namedtuple(
 RequestCommitArtifact = collections.namedtuple(
     "RequestCommitArtifact", ("artifact_id", "finalize", "before_commit", "on_commit")
 )
-RequestFinish = collections.namedtuple("RequestFinish", ())
+RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
 
 
 class StepChecksum(object):
@@ -113,7 +113,7 @@ class StepChecksum(object):
             else:
                 raise Exception("internal error")
 
-        self._output_queue.put(step_upload.RequestFinish())
+        self._output_queue.put(step_upload.RequestFinish(req.callback))
 
     def start(self):
         self._thread.start()
@@ -122,4 +122,4 @@ class StepChecksum(object):
         return self._thread.is_alive()
 
     def finish(self):
-        self._request_queue.put(RequestFinish())
+        self._request_queue.put(RequestFinish(None))
