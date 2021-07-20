@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 
+from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
 import wandb
@@ -35,7 +36,6 @@ if wandb.TYPE_CHECKING:
     )
 
     if TYPE_CHECKING:  # pragma: no cover
-        from .interface.artifacts import ArtifactEntry
         from .wandb_artifacts import Artifact as LocalArtifact
         from .wandb_run import Run as LocalRun
         from wandb.apis.public import Artifact as PublicArtifact
@@ -68,13 +68,37 @@ _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
 
 
-def _safe_sdk_import():
-    """Safely import due to circular deps"""
+def _get_max_cli_version():
+    _, server_info = wandb.api.viewer_server_info()
+    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    return str(max_cli_version) if max_cli_version is not None else None
 
-    from .wandb_artifacts import Artifact as LocalArtifact
-    from .wandb_run import Run as LocalRun
 
-    return LocalRun, LocalArtifact
+def _is_offline():
+    return (
+        wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
+    ) or str(wandb.setup().settings.mode) == "offline"
+
+
+def _server_accepts_client_ids():
+    # First, if we are offline, assume the backend server cannot
+    # accept client IDs. Unfortunately, this is the best we can do
+    # until we are sure that all local versions are > "0.11.0" max_cli_version.
+    # The practical implication is that tables logged in offline mode
+    # will not show up in the workspace (but will still show up in artifacts). This
+    # means we never lose data, and we can still view using weave. If we decided
+    # to use client ids in offline mode, then the manifests and artifact data
+    # would never be resolvable and would lead to failed uploads. Our position
+    # is to never lose data - and instead take the tradeoff in the UI.
+    if _is_offline():
+        return False
+
+    # If the script is online, request the max_cli_version and ensure the server
+    # is of a high enough version.
+    max_cli_version = _get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.11.0") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -240,26 +264,74 @@ class WBValue(object):
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_reference_entry(self):
-        ref_entry = None
+    def _get_artifact_entry_ref_url(self):
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
             ref_entry = self._artifact_source.artifact.get_path(
                 type(self).with_suffix(self._artifact_source.name)
             )
-        # Else, if the object is destined for another artifact
+            return str(ref_entry.ref_url())
+        # Else, if the object is destined for another artifact and we support client IDs
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}/{}".format(
+                self._artifact_target.artifact._client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        # Else if we do not support client IDs, but online, then block on upload
+        # Note: this is old behavior just to stay backwards compatible
+        # with older server versions. This code path should be removed
+        # once those versions are no longer supported. This path uses a .wait
+        # which blocks the user process on artifact upload.
         elif (
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
         ):
-            # Currently, we do not have a way to obtain a reference URL without waiting for the
-            # upstream artifact to be logged. This implies that this only works online as well.
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_path(
                 type(self).with_suffix(self._artifact_target.name)
             )
-        return ref_entry
+            return str(ref_entry.ref_url())
+        return None
+
+    def _get_artifact_entry_latest_ref_url(self):
+        if (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}:latest/{}".format(
+                self._artifact_target.artifact._sequence_client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        # Else if we do not support client IDs, then block on upload
+        # Note: this is old behavior just to stay backwards compatible
+        # with older server versions. This code path should be removed
+        # once those versions are no longer supported. This path uses a .wait
+        # which blocks the user process on artifact upload.
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
+        ):
+            self._artifact_target.artifact.wait()
+            ref_entry = self._artifact_target.artifact.get_path(
+                type(self).with_suffix(self._artifact_target.name)
+            )
+            return str(ref_entry.ref_url())
+        return None
 
 
 class Histogram(WBValue):
@@ -436,7 +508,7 @@ class Media(WBValue):
             extension = self._extension
 
         if id_ is None:
-            id_ = self._sha256[:8]
+            id_ = self._sha256[:20]
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
@@ -469,8 +541,7 @@ class Media(WBValue):
         from wandb.data_types import Audio
 
         json_obj = {}
-        run_class, artifact_class = _safe_sdk_import()
-        if isinstance(run, run_class):
+        if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
             if not self.is_bound():
                 raise RuntimeError(
                     "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
@@ -497,10 +568,13 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is not None:
-                json_obj["artifact_path"] = artifact_entry.ref_url()
-        elif isinstance(run, artifact_class):
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is not None:
+                json_obj["artifact_path"] = artifact_entry_url
+            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
+            if artifact_entry_latest_url is not None:
+                json_obj["_latest_artifact_path"] = artifact_entry_latest_url
+        elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
@@ -520,7 +594,7 @@ class Media(WBValue):
                         # we end up with a unique path for each.
                         name = os.path.join(
                             self.get_media_subdir(),
-                            self._sha256[:8],
+                            self._sha256[:20],
                             os.path.basename(self._path),
                         )
 
@@ -736,9 +810,7 @@ class Object3D(BatchableMedia):
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        _, artifact_class = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, artifact_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self._path is None or not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"
@@ -1193,34 +1265,85 @@ class JSONMetadata(Media):
 
 class ImageMask(Media):
     """
-    Wandb class for image masks, useful for segmentation tasks
+    Wandb class for image masks or overlays, useful for tasks like semantic segmentation.
+
+    Arguments:
+        val: (dictionary)
+            One of these two keys to represent the image:
+                mask_data : (2D numpy array) The mask containing an integer class label
+                    for each pixel in the image
+                path : (string) The path to a saved image file of the mask
+            class_labels : (dictionary of integers to strings, optional) A mapping of the
+                integer class labels in the mask to readable class names. These will default
+                to class_0, class_1, class_2, etc.
+
+        key: (string)
+            The readable name or id for this mask type (e.g. predictions, ground_truth)
+
+    Examples:
+        Log a mask overlay for a given image
+        ```python
+        predicted_mask = np.array([[1, 2, 2, ... , 3, 2, 1], ...])
+        ground_truth_mask = np.array([[1, 1, 1, ... , 2, 3, 1], ...])
+
+        class_labels = {
+            0: "person",
+            1: "tree",
+            2: "car",
+            3: "road"
+        }
+
+        masked_image = wandb.Image(image, masks={
+            "predictions": {
+                "mask_data": predicted_mask,
+                "class_labels": class_labels
+            },
+            "ground_truth": {
+                "mask_data": ground_truth_mask,
+                "class_labels": class_labels
+            }
+        }
+        wandb.log({"img_with_masks" : masked_image})
+        ```
+
+        Prepare an image mask to be added to a wandb.Table
+        ```python
+        raw_image_path = "sample_image.png"
+        predicted_mask_path = "predicted_mask.png"
+        class_set = wandb.Classes([
+            {"name" : "person", "id" : 0},
+            {"name" : "tree", "id" : 1},
+            {"name" : "car", "id" : 2},
+            {"name" : "road", "id" : 3}
+        ])
+        masked_image = wandb.Image(raw_image_path, classes=class_set,
+            masks={"prediction" : {"path" : predicted_mask_path}})
+        ```
     """
 
     _log_type = "mask"
 
     def __init__(self, val, key):
         """
-        Args:
-            val (dict): dictionary following 1 of two forms:
-            {
-                "mask_data": 2d array of integers corresponding to classes,
-                "class_labels": optional mapping from class ids to strings {id: str}
-            }
+        Arguments:
+            val: (dictionary)
+                One of these two keys to represent the image:
+                    mask_data : (2D numpy array) The mask containing an integer class label
+                        for each pixel in the image
+                    path : (string) The path to a saved image file of the mask
+                class_labels : (dictionary of integers to strings, optional) A mapping of the
+                    integer class labels in the mask to readable class names. These will default
+                    to class_0, class_1, class_2, etc.
 
-            {
-                "path": path to an image file containing integers corresponding to classes,
-                "class_labels": optional mapping from class ids to strings {id: str}
-            }
-            key (str): id for set of masks
+            key: (string)
+                The readable name or id for this mask type (e.g. predictions, ground_truth)
         """
         super(ImageMask, self).__init__()
 
         if "path" in val:
             self._set_file(val["path"])
         else:
-            np = util.get_module(
-                "numpy", required="Semantic Segmentation mask support requires numpy"
-            )
+            np = util.get_module("numpy", required="Image mask support requires numpy")
             # Add default class mapping
             if "class_labels" not in val:
                 classes = np.unique(val["mask_data"]).astype(np.int32).tolist()
@@ -1275,12 +1398,11 @@ class ImageMask(Media):
 
     def to_json(self, run_or_artifact):
         json_dict = super(ImageMask, self).to_json(run_or_artifact)
-        run_class, artifact_class = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, run_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             json_dict["_type"] = self.type_name()
             return json_dict
-        elif isinstance(run_or_artifact, artifact_class):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:
@@ -1291,16 +1413,14 @@ class ImageMask(Media):
         return cls._log_type
 
     def validate(self, val):
-        np = util.get_module(
-            "numpy", required="Semantic Segmentation mask support requires numpy"
-        )
+        np = util.get_module("numpy", required="Image mask support requires numpy")
         # 2D Make this work with all tensor(like) types
         if "mask_data" not in val:
             raise TypeError(
-                'Missing key "mask_data": A mask requires mask data(A 2D array representing the predctions)'
+                'Missing key "mask_data": An image mask requires mask data: a 2D array representing the predictions'
             )
         else:
-            error_str = "mask_data must be a 2d array"
+            error_str = "mask_data must be a 2D array"
             shape = val["mask_data"].shape
             if len(shape) != 2:
                 raise TypeError(error_str)
@@ -1316,14 +1436,115 @@ class ImageMask(Media):
                     not isinstance(v, six.string_types)
                 ):
                     raise TypeError(
-                        "Class labels must be a dictionary of numbers to string"
+                        "Class labels must be a dictionary of numbers to strings"
                     )
         return True
 
 
 class BoundingBoxes2D(JSONMetadata):
     """
-    Wandb class for 2D bounding boxes
+    Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
+
+    Arguments:
+        val: (dictionary) A dictionary of the following form:
+            box_data: (list of dictionaries) One dictionary for each bounding box, containing:
+                position: (dictionary) the position and size of the bounding box, in one of two formats
+                    Note that boxes need not all use the same format.
+                    {"minX", "minY", "maxX", "maxY"}: (dictionary) A set of coordinates defining
+                        the upper and lower bounds of the box (the bottom left and top right corners)
+                    {"middle", "width", "height"}: (dictionary) A set of coordinates defining the
+                        center and dimensions of the box, with "middle" as a list [x, y] for the
+                        center point and "width" and "height" as numbers
+                domain: (string) One of two options for the bounding box coordinate domain
+                    null: By default, or if no argument is passed, the coordinate domain
+                        is assumed to be relative to the original image, expressing this box as a fraction
+                        or percentage of the original image. This means all coordinates and dimensions
+                        passed into the "position" argument are floating point numbers between 0 and 1.
+                    "pixel": (string literal) The coordinate domain is set to the pixel space. This means all
+                        coordinates and dimensions passed into "position" are integers within the bounds
+                        of the image dimensions.
+                class_id: (integer) The class label id for this box
+                scores: (dictionary of string to number, optional) A mapping of named fields
+                        to numerical values (float or int), can be used for filtering boxes in the UI
+                        based on a range of values for the corresponding field
+                box_caption: (string, optional) A string to be displayed as the label text above this
+                        box in the UI, often composed of the class label, class name, and/or scores
+
+            class_labels: (dictionary, optional) A map of integer class labels to their readable class names
+
+        key: (string)
+            The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
+
+    Examples:
+        Log a set of predicted and ground truth bounding boxes for a given image
+        ```python
+        class_labels = {
+            0: "person",
+            1: "car",
+            2: "road",
+            3: "building"
+        }
+        img = wandb.Image(image, boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        # one box expressed in the default relative/fractional domain
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4
+                        },
+                        "class_id" : 1,
+                        "box_caption": class_labels[1],
+                        "scores" : {
+                            "acc": 0.2,
+                            "loss": 1.2
+                        }
+                    },
+                    {
+                        # another box expressed in the pixel domain
+                        "position": {
+                            "middle": [150, 20],
+                            "width": 68,
+                            "height": 112
+                        },
+                        "domain" : "pixel",
+                        "class_id" : 3,
+                        "box_caption": "a building",
+                        "scores" : {
+                            "acc": 0.5,
+                            "loss": 0.7
+                        }
+                    },
+                    ...
+                    # Log as many boxes an as needed
+                ],
+                "class_labels": class_labels
+            },
+            # Log each meaningful group of boxes with a unique key name
+            "ground_truth": {
+            ...
+            }
+        })
+
+        wandb.log({"driving_scene": img})
+        ```
+
+        Prepare an image with bounding boxes to be added to a wandb.Table
+        ```python
+        raw_image_path = "sample_image.png"
+
+        class_set = wandb.Classes([
+            {"name" : "person", "id" : 0},
+            {"name" : "car", "id" : 1},
+            {"name" : "road", "id" : 2},
+            {"name" : "building", "id" : 3}
+        ])
+
+        image_with_boxes = wandb.Image(raw_image_path, classes=class_set,
+            boxes=[...identical to previous example...])
+        ```
     """
 
     _log_type = "bounding-boxes"
@@ -1332,26 +1553,35 @@ class BoundingBoxes2D(JSONMetadata):
 
     def __init__(self, val, key):
         """
-        Args:
-            val (dict): dictionary following the form:
-            {
-                "class_labels": optional mapping from class ids to strings {id: str}
-                "box_data": list of boxes: [
-                    {
-                        "position": {
-                            "minX": float,
-                            "maxX": float,
-                            "minY": float,
-                            "maxY": float,
-                        },
-                        "class_id": 1,
-                        "box_caption": optional str
-                        "scores": optional dict of scores
-                    },
-                    ...
-                ],
-            }
-            key (str): id for set of bounding boxes
+        Arguments:
+            val: (dictionary) A dictionary of the following form:
+                box_data: (list of dictionaries) One dictionary for each bounding box, containing:
+                    position: (dictionary) the position and size of the bounding box, in one of two formats
+                        Note that boxes need not all use the same format.
+                        {"minX", "minY", "maxX", "maxY"}: (dictionary) A set of coordinates defining
+                            the upper and lower bounds of the box (the bottom left and top right corners)
+                        {"middle", "width", "height"}: (dictionary) A set of coordinates defining the
+                            center and dimensions of the box, with "middle" as a list [x, y] for the
+                            center point and "width" and "height" as numbers
+                    domain: (string) One of two options for the bounding box coordinate domain
+                        null: By default, or if no argument is passed, the coordinate domain
+                            is assumed to be relative to the original image, expressing this box as a fraction
+                            or percentage of the original image. This means all coordinates and dimensions
+                            passed into the "position" argument are floating point numbers between 0 and 1.
+                        "pixel": (string literal) The coordinate domain is set to the pixel space. This means all
+                            coordinates and dimensions passed into "position" are integers within the bounds
+                            of the image dimensions.
+                    class_id: (integer) The class label id for this box
+                    scores: (dictionary of string to number, optional) A mapping of named fields
+                            to numerical values (float or int), can be used for filtering boxes in the UI
+                            based on a range of values for the corresponding field
+                    box_caption: (string, optional) A string to be displayed as the label text above this
+                            box in the UI, often composed of the class label, class name, and/or scores
+
+                class_labels: (dictionary, optional) A map of integer class labels to their readable class names
+
+            key: (string)
+                The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
         """
         super(BoundingBoxes2D, self).__init__(val)
         self._val = val["box_data"]
@@ -1359,7 +1589,7 @@ class BoundingBoxes2D(JSONMetadata):
         # Add default class mapping
         if "class_labels" not in val:
             np = util.get_module(
-                "numpy", required="Semantic Segmentation mask support requires numpy"
+                "numpy", required="Bounding box support requires numpy"
             )
             classes = (
                 np.unique(list([box["class_id"] for box in val["box_data"]]))
@@ -1455,11 +1685,10 @@ class BoundingBoxes2D(JSONMetadata):
         return True
 
     def to_json(self, run_or_artifact):
-        run_class, artifact_class = _safe_sdk_import()
 
-        if isinstance(run_or_artifact, run_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             return super(BoundingBoxes2D, self).to_json(run_or_artifact)
-        elif isinstance(run_or_artifact, artifact_class):
+        elif isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't
             # want to mess with the visualizations that are currently available in the UI. This really should output
             # an object with a _type key. Will need to push this change to the UI first to ensure backwards compat
@@ -1632,7 +1861,8 @@ class Image(BatchableMedia):
                     masks_final[key] = ImageMask(mask_item, key)
             self._masks = masks_final
 
-        self._width, self._height = self._image.size  # type: ignore
+        self._width, self._height = self.image.size  # type: ignore
+        self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage):
         self._grouping = wbimage._grouping
@@ -1770,9 +2000,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        run_class, artifact_class = _safe_sdk_import()
-
-        if isinstance(run_or_artifact, artifact_class):
+        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None
@@ -1801,7 +2029,7 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, run_class):
+        elif not isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
@@ -1882,11 +2110,11 @@ class Image(BatchableMedia):
                 )
 
         num_images_to_log = len(seq)
-        width, height = seq[0]._image.size  # type: ignore
+        width, height = seq[0].image.size  # type: ignore
         format = jsons[0]["format"]
 
         def size_equals_image(image):
-            img_width, img_height = image._image.size  # type: ignore
+            img_width, img_height = image.image.size  # type: ignore
             return img_width == width and img_height == height  # type: ignore
 
         sizes_match = all(size_equals_image(img) for img in seq)
@@ -1979,22 +2207,46 @@ class Image(BatchableMedia):
         if not isinstance(other, Image):
             return False
         else:
+            self_image = self.image
+            other_image = other.image
+            if self_image is not None:
+                self_image = list(self_image.getdata())
+            if other_image is not None:
+                other_image = list(other_image.getdata())
+
             return (
                 self._grouping == other._grouping
                 and self._caption == other._caption
                 and self._width == other._width
                 and self._height == other._height
-                and self._image == other._image
+                and self_image == other_image
                 and self._classes == other._classes
             )
 
     def to_data_array(self):
         res = []
-        if self._image is not None:
-            data = list(self._image.getdata())
-            for i in range(self._image.height):
-                res.append(data[i * self._image.width : (i + 1) * self._image.width])
+        if self.image is not None:
+            data = list(self.image.getdata())
+            for i in range(self.image.height):
+                res.append(data[i * self.image.width : (i + 1) * self.image.width])
+        self._free_ram()
         return res
+
+    def _free_ram(self):
+        if self._path is not None:
+            self._image = None
+
+    @property
+    def image(self):
+        if self._image is None:
+            if self._path is not None:
+                pil_image = util.get_module(
+                    "PIL.Image",
+                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+                )
+                self._image = pil_image.open(self._path)
+                self._image.load()
+        return self._image
 
 
 class Plotly(Media):
@@ -2086,11 +2338,8 @@ def val_to_json(
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
-        raise ValueError(
-            "We do not support DataFrames in the Summary or History. Try run.log({{'{}': wandb.Table(dataframe=df)}})".format(
-                key
-            )
-        )
+        val = wandb.Table(dataframe=val)
+
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
         val = Plotly.make_plot_media(val)
     elif isinstance(val, SixSequence) and all(isinstance(v, WBValue) for v in val):
@@ -2124,20 +2373,31 @@ def val_to_json(
     if isinstance(val, WBValue):
         assert run
         if isinstance(val, Media) and not val.is_bound():
-            if hasattr(val, "_log_type") and val._log_type == "table":
+            if hasattr(val, "_log_type") and val._log_type in [
+                "table",
+                "partitioned-table",
+                "joined-table",
+            ]:
+
                 # Special conditional to log tables as artifact entries as well.
                 # I suspect we will generalize this as we transition to storing all
                 # files in an artifact
-                _, artifact_class = _safe_sdk_import()
                 # we sanitize the key to meet the constraints defined in wandb_artifacts.py
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = artifact_class(
+                art = wandb.wandb_sdk.wandb_artifacts.Artifact(
                     "run-{}-{}".format(run.id, sanitized_key), "run_table"
                 )
                 art.add(val, key)
                 run.log_artifact(art)
-            val.bind_to_run(run, key, namespace)
+
+            # Partitioned tables and joined tables do not support being bound to runs.
+            if not (
+                hasattr(val, "_log_type")
+                and val._log_type in ["partitioned-table", "joined-table"]
+            ):
+                val.bind_to_run(run, key, namespace)
+
         return val.to_json(run)
 
     return converted  # type: ignore
