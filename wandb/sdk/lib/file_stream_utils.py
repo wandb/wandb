@@ -5,19 +5,20 @@ if wandb.TYPE_CHECKING:
     from typing import Dict, Iterable
 
 
-def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, Dict]]:
+def split_files(
+    files: Dict[str, Dict], max_bytes: int = 10 * 1024 * 1024
+) -> Iterable[Dict[str, Dict]]:
     """
-    Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_MB` size.
+    Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_BYTES` size.
     This method is used in `FileStreamAPI._send()` to limit the size of post requests sent
     to wandb server.
 
     Arguments:
     files (dict): `dict` of form {file_name: {'content': ".....", 'offset': 0}}
-    `max_mb`: max size for chunk in MBs
+    `max_bytes`: max size for chunk in bytes
     """
     current_volume = {}
     current_size = 0
-    max_size = max_mb * 1024 * 1024
 
     def _str_size(x):
         return len(x) if isinstance(x, bytes) else len(x.encode("utf-8"))
@@ -66,7 +67,7 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
         # - If empty, add first line of file to current volume and push rest onto stack (This volume will exceed MAX_MB).
         # - If not, push file back to stack and yield current volume.
         fsize = _file_size(f)
-        rem = max_size - current_size
+        rem = max_bytes - current_size
         if fsize <= rem:
             current_volume[f["name"]] = {
                 "offset": f["offset"],
@@ -94,7 +95,7 @@ def split_files(files: Dict[str, Dict], max_mb: int = 10) -> Iterable[Dict[str, 
                 current_volume = {}
                 current_size = 0
                 continue
-        if current_size >= max_size:
+        if current_size >= max_bytes:
             yield current_volume
             current_volume = {}
             current_size = 0

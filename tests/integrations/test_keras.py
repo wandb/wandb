@@ -3,6 +3,10 @@ import sys
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+
+if sys.version_info < (3, 6):
+    pytest.skip("flaky with python2.7", allow_module_level=True)
+
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
@@ -380,9 +384,7 @@ def test_data_logger_val_data_lists(test_settings, live_mock_server):
                 for i in range(10)
             ]
         )
-        assert (
-            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
-        )
+        assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
 
 
 def test_data_logger_val_data_dicts(test_settings, live_mock_server):
@@ -420,9 +422,7 @@ def test_data_logger_val_data_dicts(test_settings, live_mock_server):
             ]
         )
 
-        assert (
-            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
-        )
+        assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
 
 
 def test_data_logger_val_indexes(test_settings, live_mock_server):
@@ -501,9 +501,7 @@ def test_data_logger_val_user_proc(test_settings, live_mock_server):
                 for i in range(10)
             ]
         )
-        assert (
-            vd.validation_indexes[0]._table._get_artifact_reference_entry() is not None
-        )
+        assert vd.validation_indexes[0]._table._get_artifact_entry_ref_url() is not None
 
 
 def test_data_logger_val_inferred_proc(test_settings, live_mock_server):
@@ -514,7 +512,8 @@ def test_data_logger_val_inferred_proc(test_settings, live_mock_server):
             targets={
                 "simple": np.random.randint(5, size=(10)),
                 "wrapped": np.random.randint(5, size=(10, 1)),
-                "logits": np.random.randint(5, size=(10, 5)),
+                "logits": np.random.randint(5, size=(10, 5))
+                + 2,  # +2 avoids only having 0s and 1s
                 "nodes": np.random.randint(5, size=(10, 10)),
                 "2dimages": np.random.randint(255, size=(10, 5, 5)),
                 "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -597,7 +596,8 @@ def test_data_logger_val_inferred_proc_no_class(test_settings, live_mock_server)
             targets={
                 "simple": np.random.randint(5, size=(10)),
                 "wrapped": np.random.randint(5, size=(10, 1)),
-                "logits": np.random.randint(5, size=(10, 5)),
+                "logits": np.random.randint(5, size=(10, 5))
+                + 2,  # +2 avoids only having 0s and 1s
                 "nodes": np.random.randint(5, size=(10, 10)),
                 "2dimages": np.random.randint(255, size=(10, 5, 5)),
                 "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -689,7 +689,7 @@ def test_data_logger_pred(test_settings, live_mock_server):
 
         assert set(tcols) == set(cols)
         assert np.all([t.data[i] == [i, i] for i in range(10)])
-        assert t._get_artifact_reference_entry() is not None
+        assert t._get_artifact_entry_ref_url() is not None
 
 
 def test_data_logger_pred_user_proc(test_settings, live_mock_server):
@@ -709,7 +709,7 @@ def test_data_logger_pred_user_proc(test_settings, live_mock_server):
 
         assert set(tcols) == set(cols)
         assert np.all([t.data[i] == [i, i, i + 1] for i in range(10)])
-        assert t._get_artifact_reference_entry() is not None
+        assert t._get_artifact_entry_ref_url() is not None
 
 
 def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
@@ -728,7 +728,8 @@ def test_data_logger_pred_inferred_proc(test_settings, live_mock_server):
                 lambda inputs: {
                     "simple": np.random.randint(5, size=(10)),
                     "wrapped": np.random.randint(5, size=(10, 1)),
-                    "logits": np.random.randint(5, size=(10, 5)),
+                    "logits": np.random.randint(5, size=(10, 5))
+                    + 2,  # +2 avoids only having 0s and 1s
                     "nodes": np.random.randint(5, size=(10, 10)),
                     "2dimages": np.random.randint(255, size=(10, 5, 5)),
                     "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
@@ -810,7 +811,8 @@ def test_data_logger_pred_inferred_proc_no_classes(test_settings, live_mock_serv
                 lambda inputs: {
                     "simple": np.random.randint(5, size=(10)),
                     "wrapped": np.random.randint(5, size=(10, 1)),
-                    "logits": np.random.randint(5, size=(10, 5)),
+                    "logits": np.random.randint(5, size=(10, 5))
+                    + 2,  # +2 avoids only having 0s and 1s
                     "nodes": np.random.randint(5, size=(10, 10)),
                     "2dimages": np.random.randint(255, size=(10, 5, 5)),
                     "3dimages": np.random.randint(255, size=(10, 5, 5, 3)),
