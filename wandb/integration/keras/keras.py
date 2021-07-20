@@ -299,6 +299,8 @@ class WandbCallback(keras.callbacks.Callback):
         infer_missing_processors: (bool) Determines if `validation_row_processor` and `output_row_processor` 
             should be inferred if missing. Defaults to True. If `labels` are provided, we will attempt to infer classification-type
             processors where appropriate.
+        log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
+            Set to 1 to log every epoch, 2 to log every other epoch, and so on. Has no effect when log_evaluation is False.
     """
 
     def __init__(
@@ -328,6 +330,7 @@ class WandbCallback(keras.callbacks.Callback):
         validation_row_processor=None,
         prediction_row_processor=None,
         infer_missing_processors=True,
+        log_evaluation_frequency=0,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -413,11 +416,13 @@ class WandbCallback(keras.callbacks.Callback):
         if previous_best is not None:
             self.best = previous_best
 
-        self.validation_data_logger = None
-        self.validation_indexes = validation_indexes
-        self.validation_row_processor = validation_row_processor
-        self.prediction_row_processor = prediction_row_processor
-        self.infer_missing_processors = infer_missing_processors
+        self._validation_data_logger = None
+        self._validation_indexes = validation_indexes
+        self._validation_row_processor = validation_row_processor
+        self._prediction_row_processor = prediction_row_processor
+        self._infer_missing_processors = infer_missing_processors
+        self._log_evaluation_frequency = log_evaluation_frequency
+        self._model_trained_since_last_eval = False
 
     def _build_grad_accumulator_model(self):
         inputs = self.model.inputs
@@ -454,6 +459,22 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             self._build_grad_accumulator_model()
 
+    def _attempt_evaluation_log(self, commit=True):
+        if self.log_evaluation and self._validation_data_logger:
+            try:
+                if not self.model:
+                    wandb.termwarn("WandbCallback unable to read model from trainer")
+                else:
+                    self._validation_data_logger.log_predictions(
+                        predictions=self._validation_data_logger.make_predictions(
+                            self.model.predict
+                        ),
+                        commit=commit,
+                    )
+                    self._model_trained_since_last_eval = False
+            except Exception as e:
+                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
+
     def on_epoch_end(self, epoch, logs={}):
         if self.log_weights:
             wandb.log(self._log_weights(), commit=False)
@@ -478,18 +499,11 @@ class WandbCallback(keras.callbacks.Callback):
                     commit=False,
                 )
 
-        if self.log_evaluation and self.validation_data_logger:
-            try:
-                if not self.model:
-                    wandb.termwarn("WandbCallback unable to read model from trainer")
-                else:
-                    self.validation_data_logger.log_predictions(
-                        predictions=self.validation_data_logger.make_predictions(
-                            self.model.predict
-                        )
-                    )
-            except Exception as e:
-                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
+        if (
+            self._log_evaluation_frequency > 0
+            and epoch % self._log_evaluation_frequency == 0
+        ):
+            self._attempt_evaluation_log(commit=False)
 
         wandb.log({"epoch": epoch}, commit=False)
         wandb.log(logs, commit=True)
@@ -525,7 +539,7 @@ class WandbCallback(keras.callbacks.Callback):
             wandb.log(logs, commit=True)
 
     def on_train_batch_begin(self, batch, logs=None):
-        pass
+        self._model_trained_since_last_eval = True
 
     def on_train_batch_end(self, batch, logs=None):
         if self.save_graph and not self._graph_rendered:
@@ -577,14 +591,14 @@ class WandbCallback(keras.callbacks.Callback):
                         "WandbCallback is unable to read validation_data from trainer and therefore cannot log validation data. Ensure Keras is properly patched by calling `from wandb.keras import WandbCallback` at the top of your script."
                     )
                 if validation_data:
-                    self.validation_data_logger = ValidationDataLogger(
+                    self._validation_data_logger = ValidationDataLogger(
                         inputs=validation_data[0],
                         targets=validation_data[1],
-                        indexes=self.validation_indexes,
-                        validation_row_processor=self.validation_row_processor,
-                        prediction_row_processor=self.prediction_row_processor,
+                        indexes=self._validation_indexes,
+                        validation_row_processor=self._validation_row_processor,
+                        prediction_row_processor=self._prediction_row_processor,
                         class_labels=self.labels,
-                        infer_missing_processors=self.infer_missing_processors,
+                        infer_missing_processors=self._infer_missing_processors,
                     )
             except Exception as e:
                 wandb.termwarn(
@@ -593,7 +607,8 @@ class WandbCallback(keras.callbacks.Callback):
                 )
 
     def on_train_end(self, logs=None):
-        pass
+        if self._model_trained_since_last_eval:
+            self._attempt_evaluation_log()
 
     def on_test_begin(self, logs=None):
         pass

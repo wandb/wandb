@@ -442,14 +442,14 @@ class TBHistory(object):
         # A single tensorboard step may have too much data
         # we just drop the largest keys in the step if it does.
         # TODO: we could flush the data across multiple steps
-        if self._step_size > util.MAX_LINE_SIZE:
+        if self._step_size > util.MAX_LINE_BYTES:
             metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
             metrics.sort(key=lambda t: t[1], reverse=True)
             bad = 0
             dropped_keys = []
             for k, v in metrics:
                 # TODO: (cvp) Added a buffer of 100KiB, this feels rather brittle.
-                if self._step_size - bad < util.MAX_LINE_SIZE - 100000:
+                if self._step_size - bad < util.MAX_LINE_BYTES - 100000:
                     break
                 else:
                     bad += v
