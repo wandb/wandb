@@ -97,9 +97,7 @@ class Backend(object):
         self.wandb_process = process_class(
             target=wandb_internal,
             kwargs=dict(
-                settings=settings,
-                record_q=self.record_q,
-                result_q=self.result_q,
+                settings=settings, record_q=self.record_q, result_q=self.result_q,
             ),
         )
         self.wandb_process.name = "wandb_internal"
@@ -152,9 +150,7 @@ class Backend(object):
             main_module.__file__ = save_mod_path
 
         self.interface = interface.BackendSender(
-            process=self.wandb_process,
-            record_q=self.record_q,
-            result_q=self.result_q,
+            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
         print("inited backendsender")
 
