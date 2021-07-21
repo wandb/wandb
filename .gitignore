@@ -26,3 +26,7 @@ cover-results/
 wandb/proto_check/
 .idea/
 functional_tests/.coverage.*
+functional_tests/runs/
+functional_tests/videos/
+functional_tests/models/
+.idea/
