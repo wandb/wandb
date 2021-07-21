@@ -323,7 +323,10 @@ class _WandbController:
                 if isinstance(rr["history"], list):
                     rr["history"] = [json.loads(d) for d in rr["history"]]
                 else:
-                     raise ValueError('Invalid history value: expected list of json strings: %s' % rr["history"])
+                    raise ValueError(
+                        "Invalid history value: expected list of json strings: %s"
+                        % rr["history"]
+                    )
             _sweep_runs.append(sweeps.SweepRun(**rr))
 
         self._sweep_runs = _sweep_runs
@@ -421,7 +424,11 @@ class _WandbController:
     def done(self) -> bool:
         self._start_if_not_started()
         state = self._sweep_obj.get("state")
-        if state in ("RUNNING", "PENDING"):
+        if state in [
+            sweeps.RunState.preempting,
+            SWEEP_INITIAL_RUN_STATE,
+            sweeps.RunState.running,
+        ]:
             return False
         return True
 
@@ -506,7 +513,7 @@ class _WandbController:
 
 def _get_run_counts(runs: List[sweeps.SweepRun]) -> Dict[str, int]:
     metrics = {}
-    categories = [name for name, _ in sweeps.RunState.__members__.items()] + ['unknown']
+    categories = [name for name, _ in sweeps.RunState.__members__.items()] + ["unknown"]
     for r in runs:
         state = r.state
         found = "unknown"
@@ -520,7 +527,7 @@ def _get_run_counts(runs: List[sweeps.SweepRun]) -> Dict[str, int]:
 
 
 def _get_runs_status(metrics):
-    categories = [name for name, _ in sweeps.RunState.__members__.items()] + ['unknown']
+    categories = [name for name, _ in sweeps.RunState.__members__.items()] + ["unknown"]
     mlist = []
     for c in categories:
         if not metrics.get(c):

@@ -1,4 +1,5 @@
-from wandb import wandb_controller as wc
+import wandb
+from wandb import sweeps
 import sys
 import pytest
 
@@ -9,7 +10,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_run_from_dict():
-    run = wc.sweeps.SweepRun(
+    run = sweeps.SweepRun(
         **{
             "name": "test",
             "state": "running",
@@ -27,7 +28,7 @@ def test_run_from_dict():
 
 
 def test_print_status(mock_server, capsys):
-    c = wc.controller("test", entity="test", project="test")
+    c = wandb.controller("test", entity="test", project="test")
     c.print_status()
     stdout, stderr = capsys.readouterr()
     assert stdout == "Sweep: fun-sweep-10 (unknown) | Runs: 1 (Running: 1)\n"
@@ -35,13 +36,13 @@ def test_print_status(mock_server, capsys):
 
 
 def test_controller_existing(mock_server):
-    c = wc.controller("test", entity="test", project="test")
+    c = wandb.controller("test", entity="test", project="test")
     assert c.sweep_id == "test"
     assert c.sweep_config == {"metric": {"name": "loss", "value": "minimize"}}
 
 
 def test_controller_new(mock_server):
-    tuner = wc.controller(
+    tuner = wandb.controller(
         {
             "method": "random",
             "program": "train-dummy.py",
