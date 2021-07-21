@@ -74,7 +74,7 @@ sweeps = get_module(
 )
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
-SWEEP_INITIAL_RUN_STATE = sweeps.RunState.proposed
+SWEEP_INITIAL_RUN_STATE = sweeps.RunState.pending
 
 
 def _id_generator(size=10, chars=string.ascii_lowercase + string.digits):
@@ -544,9 +544,12 @@ class _WandbController:
         self._start_if_not_started()
         state = self._sweep_obj.get("state")
         if state in [
-            sweeps.RunState.preempting,
-            SWEEP_INITIAL_RUN_STATE,
-            sweeps.RunState.running,
+            s.upper()
+            for s in (
+                sweeps.RunState.preempting.value,
+                SWEEP_INITIAL_RUN_STATE.value,
+                sweeps.RunState.running.value,
+            )
         ]:
             return False
         return True
@@ -564,6 +567,8 @@ class _WandbController:
         return suggestion
 
     def _stopping(self) -> List[sweeps.SweepRun]:
+        if "early_terminate" not in self.sweep_config:
+            return []
         stopper = self._custom_stopping or sweeps.stop_runs
         stop_runs = stopper(self._sweep_config, self._sweep_runs or [])
 
@@ -590,7 +595,9 @@ class _WandbController:
         if self._controller and self._controller.get("schedule"):
             return
 
-        param_list = ["%s=%s" % (k, v.get("value")) for k, v in sorted(run.config)]
+        param_list = [
+            "%s=%s" % (k, v.get("value")) for k, v in sorted(run.config.items())
+        ]
         self._log_actions.append(("schedule", ",".join(param_list)))
 
         # schedule one run
