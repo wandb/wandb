@@ -50,13 +50,12 @@ Example:
 
 from __future__ import print_function
 
-import copy
 import json
 import os
 import random
 import string
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 from wandb import env
 from wandb.apis import InternalApi
