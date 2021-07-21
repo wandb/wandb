@@ -123,6 +123,7 @@ class Artifact(ArtifactInterface):
     _logged_artifact: Optional[ArtifactInterface]
     _incremental: bool
     _client_id: str
+    _checksum_parallelism: int
 
     def __init__(
         self,
@@ -137,15 +138,11 @@ class Artifact(ArtifactInterface):
                 "Artifact name may only contain alphanumeric characters, dashes, underscores, and dots. "
                 'Invalid name: "%s"' % name
             )
-        # TODO: this shouldn't be a property of the artifact. It's a more like an
-        # argument to log_artifact.
-        storage_layout = StorageLayout.V2
-        if env.get_use_v1_artifacts():
-            storage_layout = StorageLayout.V1
 
+        self._checksum_parallelism = env.get_artifact_checksum_parallelism()
         self._storage_policy = WandbStoragePolicy(
             config={
-                "storageLayout": storage_layout,
+                "storageLayout": StorageLayout.V2,
                 #  TODO: storage region
             }
         )
@@ -409,8 +406,7 @@ class Artifact(ArtifactInterface):
 
         import multiprocessing.dummy  # this uses threads
 
-        num_threads = 8
-        pool = multiprocessing.dummy.Pool(num_threads)
+        pool = multiprocessing.dummy.Pool(self._checksum_parallelism)
         pool.map(add_manifest_file, paths)
         pool.close()
         pool.join()

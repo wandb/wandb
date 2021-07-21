@@ -64,9 +64,7 @@ JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
-
-# For testing, to be removed in future version
-USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
+ARTIFACTS_CHECKSUM_PARALLELISM = "WANDB_ARTIFACTS_CHECKSUM_PARALLELISM"
 
 
 def immutable_keys():
@@ -293,10 +291,10 @@ def get_cache_dir(env=None):
     return val
 
 
-def get_use_v1_artifacts(env=None):
+def get_artifact_checksum_parallelism(env=None):
     if env is None:
         env = os.environ
-    val = env.get(USE_V1_ARTIFACTS, False)
+    val = env.get(ARTIFACTS_CHECKSUM_PARALLELISM, 8)
     return val
 
 
