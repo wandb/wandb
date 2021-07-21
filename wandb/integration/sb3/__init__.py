@@ -46,10 +46,14 @@ model.learn(
 ```
 """
 
+import logging
 import os
 
 from stable_baselines3.common.callbacks import BaseCallback
 import wandb
+
+
+logger = logging.getLogger(__name__)
 
 
 class WandbCallback(BaseCallback):
@@ -74,9 +78,8 @@ class WandbCallback(BaseCallback):
         gradient_save_freq: int = 0,
     ):
         super(WandbCallback, self).__init__(verbose)
-        assert (
-            wandb.run is not None
-        ), "no wandb run detected; use `wandb.init()` to initialize a run"
+        if wandb.run is None:
+            raise wandb.Error("You must call wandb.init() before WandbCallback()")
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq
@@ -117,4 +120,4 @@ class WandbCallback(BaseCallback):
         self.model.save(self.path)
         wandb.save(self.path, base_path=self.model_save_path)
         if self.verbose > 1:
-            print("Saving model checkpoint to", self.path)
+            logger.info("Saving model checkpoint to " + self.path)
