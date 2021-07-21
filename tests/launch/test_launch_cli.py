@@ -137,8 +137,6 @@ def test_launch_no_docker_exec(
 
 
 def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
-    # technically this run won't complete bc this repo has no requirements.txt and so no deps are downloaded
-    # but it should complete up to running the correct train.py file
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch, ["https://github.com/test/", "--entry-point", "train.py",],
