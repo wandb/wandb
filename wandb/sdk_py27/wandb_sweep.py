@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Optional, Union
 
 from six.moves import urllib
 from wandb import env
@@ -95,7 +95,9 @@ def sweep(
 
 
 def controller(
-    sweep_id_or_config, entity = None, project = None
+    sweep_id_or_config = None,
+    entity = None,
+    project = None,
 ):
     """Public sweep controller constructor.
 
