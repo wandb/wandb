@@ -12,8 +12,7 @@ Example:
     #
     # create a sweep controller
     #
-
-    # There are two different ways sweeps can be created:
+    # There are three different ways sweeps can be created:
     # (1) create with sweep id from `wandb sweep` command
     sweep_id = 'xyzxyz2'
     tuner = wandb.controller(sweep_id)
@@ -22,11 +21,17 @@ Example:
     tuner = wandb.controller()
     tuner.configure(sweep_config)
     tuner.create()
-
+    # (3) create by constructing progamatic sweep configuration
+    tuner = wandb.controller()
+    tuner.configure_search('random')
+    tuner.configure_program('train-dummy.py')
+    tuner.configure_parameter('param1', values=[1,2,3])
+    tuner.configure_parameter('param2', values=[1,2,3])
+    tuner.configure_controller(type="local")
+    tuner.create()
     #
     # run the sweep controller
     #
-
     # There are three different ways sweeps can be executed:
     # (1) run to completion
     tuner.run()
@@ -211,16 +216,128 @@ class _WandbController:
             raise ControllerError("Can not find sweep")
         self._sweep_obj = sweep_obj
 
-    def configure(self, key: str, value: Any) -> None:
+    def configure_search(
+        self,
+        search: Union[
+            str,
+            Callable[
+                [Union[dict, sweeps.SweepConfig], List[sweeps.SweepRun]],
+                Optional[sweeps.SweepRun],
+            ],
+        ],
+    ):
         self._configure_check()
-        proposed = copy.deepcopy(self._create)
-        proposed[key] = value
+        if isinstance(search, str):
+            self._create["method"] = search
+        elif callable(search):
+            self._create["method"] = "custom"
+            self._custom_search = search
+        else:
+            raise ControllerError("Unhandled search type.")
 
-        # this will throw an exception if the config is invalid
-        new_config = sweeps.SweepConfig(proposed)
+    def configure_stopping(
+        self,
+        stopping: Union[
+            str,
+            Callable[
+                [Union[dict, sweeps.SweepConfig], List[sweeps.SweepRun]],
+                List[sweeps.SweepRun],
+            ],
+        ],
+        **kwargs,
+    ):
+        self._configure_check()
+        if isinstance(stopping, str):
+            self._create.setdefault("early_terminate", {})
+            self._create["early_terminate"]["type"] = stopping
+            for k, v in kwargs.items():
+                self._create["early_terminate"][k] = v
+        elif callable(stopping):
+            self._custom_stopping = stopping(kwargs)
+            self._create.setdefault("early_terminate", {})
+            self._create["early_terminate"]["type"] = "custom"
+        else:
+            raise ControllerError("Unhandled stopping type.")
 
-        # if no exception is thrown then we overwrite
-        self._create = new_config
+    def configure_metric(self, metric, goal=None):
+        self._configure_check()
+        self._create.setdefault("metric", {})
+        self._create["metric"]["name"] = metric
+        if goal:
+            self._create["metric"]["goal"] = goal
+
+    def configure_program(self, program):
+        self._configure_check()
+        if isinstance(program, str):
+            self._create["program"] = program
+        elif callable(program):
+            self._create["program"] = "__callable__"
+            self._program_function = program
+            raise ControllerError("Program functions are not supported yet")
+        else:
+            raise ControllerError("Unhandled sweep program type")
+
+    def configure_name(self, name):
+        self._configure_check()
+        self._create["name"] = name
+
+    def configure_description(self, description):
+        self._configure_check()
+        self._create["description"] = description
+
+    def configure_parameter(
+        self,
+        name,
+        values=None,
+        value=None,
+        distribution=None,
+        min=None,
+        max=None,
+        mu=None,
+        sigma=None,
+        q=None,
+        a=None,
+        b=None,
+    ):
+        self._configure_check()
+        self._create.setdefault("parameters", {}).setdefault(name, {})
+        if value is not None or (
+            values is None and min is None and max is None and distribution is None
+        ):
+            self._create["parameters"][name]["value"] = value
+        if values is not None:
+            self._create["parameters"][name]["values"] = values
+        if min is not None:
+            self._create["parameters"][name]["min"] = min
+        if max is not None:
+            self._create["parameters"][name]["max"] = max
+        if mu is not None:
+            self._create["parameters"][name]["mu"] = mu
+        if sigma is not None:
+            self._create["parameters"][name]["sigma"] = sigma
+        if q is not None:
+            self._create["parameters"][name]["q"] = q
+        if a is not None:
+            self._create["parameters"][name]["a"] = a
+        if b is not None:
+            self._create["parameters"][name]["b"] = b
+
+    def configure_controller(self, type):
+        """configure controller to local if type == 'local'."""
+        self._configure_check()
+        self._create.setdefault("controller", {})
+        self._create["controller"].setdefault("type", type)
+
+    def configure(self, sweep_dict_or_config):
+        self._configure_check()
+        if self._create:
+            raise ControllerError("Already configured.")
+        if isinstance(sweep_dict_or_config, dict):
+            self._create = sweep_dict_or_config
+        elif isinstance(sweep_dict_or_config, str):
+            self._create = yaml.safe_load(sweep_dict_or_config)
+        else:
+            raise ControllerError("Unhandled sweep controller type")
 
     @property
     def sweep_config(self) -> Union[dict, sweeps.SweepConfig]:
@@ -260,6 +377,9 @@ class _WandbController:
             raise ControllerError("Can not use create on already created sweep.")
         if not self._create:
             raise ControllerError("Must configure sweep before create.")
+
+        # validate sweep config
+        self._create = sweeps.SweepConfig(self._create)
 
         # Create sweep
         sweep_id, warnings = self._api.upsert_sweep(self._create)
