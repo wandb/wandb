@@ -10,6 +10,8 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
+import os
+
 import wandb
 from wandb.errors import RequireError
 
@@ -29,6 +31,9 @@ class _Requires(object):
 
     def require_require(self):
         pass
+
+    def require_multiprocessing(self):
+        os.environ["WANDB_START_METHOD"] = "grpc"
 
     def apply(self):
         """Call require_* method for supported features."""
