@@ -1,5 +1,6 @@
 """Internal utilities for parsing MLproject YAML files."""
 
+import enum
 import json
 import logging
 import os
@@ -22,6 +23,12 @@ _logger = logging.getLogger(__name__)
 
 MLPROJECT_FILE_NAME = "mlproject"
 DEFAULT_CONFIG_PATH = "launch_override_config.json"
+
+
+class LaunchSource(enum.IntEnum):
+    WANDB: int = 1
+    GITHUB: int = 2
+    LOCAL: int = 3
 
 
 class Project(object):
@@ -54,8 +61,20 @@ class Project(object):
         if "entry_point" in overrides:
             self.add_entry_point(overrides["entry_point"])
 
+        if utils._is_wandb_uri(self.uri):
+            self.source = LaunchSource.WANDB
+            self.project_dir = tempfile.mkdtemp()
+        elif utils._is_github_uri(self.uri):
+            self.source = LaunchSource.GITHUB
+            self.project_dir = tempfile.mkdtemp()
+        else:
+            # assume local
+            self.source = LaunchSource.LOCAL
+            self.project_dir = self.uri
+
+        self.aux_dir = tempfile.mkdtemp()
+
         self.run_id = generate_id()
-        self.dir = tempfile.mkdtemp()
         self.config_path = DEFAULT_CONFIG_PATH
 
         self.clear_parameter_run_config_collisions()
@@ -100,20 +119,21 @@ class Project(object):
         """
         Fetch a project into a local directory, returning the path to the local project directory.
         """
+        assert self.source != LaunchSource.LOCAL
         parsed_uri = self.uri
         if utils._is_wandb_uri(self.uri):
             run_info = utils.fetch_wandb_project_run_info(self.uri, api)
             if not run_info["git"]:
                 raise ExecutionException("Run must have git repo associated")
             utils._fetch_git_repo(
-                self.dir, run_info["git"]["remote"], run_info["git"]["commit"]
+                self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
             )
             patch = utils.fetch_project_diff(self.uri, api)
             if patch:
-                utils.apply_patch(patch, self.dir)
+                utils.apply_patch(patch, self.project_dir)
 
             if not self._entry_points:
-                self.add_entry_point(run_info["program"])  # @@@
+                self.add_entry_point(run_info["program"])
 
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
@@ -129,12 +149,12 @@ class Project(object):
                 )
                 self.add_entry_point("main.py")
 
-            utils._fetch_git_repo(self.dir, parsed_uri, self.git_version)
+            utils._fetch_git_repo(self.project_dir, parsed_uri, self.git_version)
 
     def _copy_config_local(self) -> None:
         if not self.override_config:
             return None
-        with open(os.path.join(self.dir, DEFAULT_CONFIG_PATH), "w+") as f:
+        with open(os.path.join(self.aux_dir, DEFAULT_CONFIG_PATH), "w+") as f:
             json.dump(self.override_config, f)
 
 
@@ -248,8 +268,15 @@ def create_project_from_spec(run_spec: Dict[str, Any], api: Api) -> Project:
 
 
 def fetch_and_validate_project(project: Project, api: Api) -> Project:
-    project._fetch_project_local(api=api)
-    project._copy_config_local()
+    if project.source == LaunchSource.LOCAL:
+        if not project._entry_points:
+            wandb.termlog(
+                "Entry point for repo not specified, defaulting to main.py"
+            )
+            project.add_entry_point("main.py")
+    else:
+        project._fetch_project_local(api=api)
+    project._copy_config_local()    # copy config into self.dir even if we're local
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(
         project.override_args

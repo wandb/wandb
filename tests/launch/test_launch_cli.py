@@ -1,4 +1,5 @@
 import json
+import os
 
 import wandb
 from wandb.cli import cli
@@ -150,4 +151,20 @@ def test_launch_github_url(runner):
         )
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
-    # assert "python examples/scikit/scikit-iris/train.py" in result.output
+    assert "python examples/scikit/scikit-iris/train.py" in result.output
+
+
+def test_launch_local_dir(runner):
+    with runner.isolated_filesystem():
+        os.mkdir('repo')
+        with open('repo/main.py', 'w+') as f:
+            f.write('print("ok")\n')
+        result = runner.invoke(
+            cli.launch,
+            ['repo'],
+        )
+    
+    assert result.exit_code == 0
+    assert "Launching run in docker with command: docker run" in result.output
+    assert "main.py" in result.output
+
