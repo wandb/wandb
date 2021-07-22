@@ -73,6 +73,8 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
+    """Runner class, uses a project to create a LocallySubmittedRun"""
+
     def run(self, project: Project) -> AbstractRun:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
@@ -123,6 +125,7 @@ def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
     """
     Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
     Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.
+    :param cmd: List of strings indicating command to run
     """
     final_env = os.environ.copy()
     # Launch `wandb launch` command as the leader of its own process group so that we can do a

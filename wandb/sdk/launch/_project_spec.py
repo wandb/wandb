@@ -20,7 +20,6 @@ if wandb.TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 
-MLPROJECT_FILE_NAME = "mlproject"
 DEFAULT_CONFIG_PATH = "launch_override_config.json"
 
 
@@ -61,6 +60,9 @@ class Project(object):
         self.clear_parameter_run_config_collisions()
 
     def clear_parameter_run_config_collisions(self) -> None:
+        """
+        Clear values from the overide run config values if a matching key exists in the override arguments.
+        """
         if not self.override_config:
             return
         keys = [key for key in self.override_config.keys()]
@@ -69,6 +71,9 @@ class Project(object):
                 del self.override_config[key]
 
     def get_single_entry_point(self) -> "EntryPoint":
+        """
+        Returns the first entrypoint for the project.
+        """
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
         if len(self._entry_points) != 1:
@@ -76,6 +81,9 @@ class Project(object):
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
+        """
+        Adds an entry point to the project.
+        """
         _, file_extension = os.path.splitext(entry_point)
         ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
         if file_extension in ext_to_cmd:
@@ -92,6 +100,9 @@ class Project(object):
         )
 
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
+        """
+        Gets the entrypoint if its set, or adds it and returns the entrypoint
+        """
         if entry_point in self._entry_points:
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
@@ -193,6 +204,9 @@ class EntryPoint(object):
         )
 
     def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> str:
+        """
+        Converts user parameter dictionary to a string
+        """
         params, extra_params = self.compute_parameters(user_parameters)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
@@ -206,6 +220,9 @@ class EntryPoint(object):
 
     @staticmethod
     def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
+        """
+        Sanitizes a dictionary of paramaeters, quoting values, except for keys with None values.
+        """
         return {
             (str(key)): (quote(str(value)) if value is not None else None)
             for key, value in param_dict.items()
@@ -226,13 +243,18 @@ def get_entry_point_command(
     return commands
 
 
-def create_project_from_spec(run_spec: Dict[str, Any], api: Api) -> Project:
-    uri = run_spec["uri"]
+def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> Project:
+    """
+    Constructs a Project instance using a launch spec.
+    :param launch_spec: Dictionary representation of launch spec
+    :parm api: Instance of wandb.apis.internal Api
+    """
+    uri = launch_spec["uri"]
     project, entity, run_id = utils.set_project_entity_defaults(
-        uri, run_spec.get("project"), run_spec.get("entity"), api
+        uri, launch_spec.get("project"), launch_spec.get("entity"), api
     )
-    if run_spec.get("name"):
-        name = run_spec["name"]
+    if launch_spec.get("name"):
+        name = launch_spec["name"]
     else:
         name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
@@ -241,13 +263,19 @@ def create_project_from_spec(run_spec: Dict[str, Any], api: Api) -> Project:
         entity,
         project,
         name,
-        run_spec.get("docker", {}),
-        run_spec.get("git", {}),
-        run_spec.get("overrides", {}),
+        launch_spec.get("docker", {}),
+        launch_spec.get("git", {}),
+        launch_spec.get("overrides", {}),
     )
 
 
 def fetch_and_validate_project(project: Project, api: Api) -> Project:
+    """
+    Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
+    Returns the validated project.
+    :param project: Project to fetch and validate.
+    :param api: Instance of wandb.apis.internal Api
+    """
     project._fetch_project_local(api=api)
     project._copy_config_local()
     first_entry_point = list(project._entry_points.keys())[0]

@@ -39,6 +39,7 @@ def validate_docker_installation() -> None:
 
 
 def validate_docker_env(project: _project_spec.Project) -> None:
+    """Ensure project has a docker image associated with it"""
     if not project.docker_image:
         raise ExecutionException(
             "Project with docker environment must specify the docker image "
@@ -47,6 +48,9 @@ def validate_docker_env(project: _project_spec.Project) -> None:
 
 
 def generate_docker_image(project: _project_spec.Project, entry_cmd: str) -> str:
+    """
+    Uses project and entry point to generate the docker image
+    """
     path = project.dir
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
@@ -83,6 +87,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd: str) -> str
 
 
 def pull_docker_image(docker_image: str) -> None:
+    """Pulls the requested docker image"""
     import docker  # type: ignore
 
     info = docker_image.split(":")
@@ -101,6 +106,10 @@ def build_docker_image(
 ) -> Union[Model, Any]:
     """
     Build a docker image containing the project in `work_dir`, using the base image.
+    :param project: Project class instance
+    :param base_image: base_image to build the docker image off of
+    :param api: instance of wandb.apis.internal Api
+    :param copy_code: boolean indicating if code should be copied into the docker container
     """
     import docker
 
@@ -180,6 +189,11 @@ def build_docker_image(
 def get_docker_command(
     image: Union[Model, Any], docker_args: Dict[str, Any] = None
 ) -> List[str]:
+    """
+    Constructs the docker command using the image and docker args.
+    :param image: Docker image to be run
+    :docker_args: dictionary of additional docker args for the command
+    """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
 

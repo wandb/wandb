@@ -43,7 +43,7 @@ PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
     from wandb.sdk.launch import launch as wandb_launch
-    from wandb.sdk.launch.utils import construct_run_spec
+    from wandb.sdk.launch.utils import construct_launch_spec
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
@@ -861,7 +861,7 @@ def sweep(
     help="Entry point within project. [default: main]. If the entry point is not found, "
     "attempts to run the project file with the specified name as a script, "
     "using 'python' to run .py files and the default shell (specified by "
-    "environment variable $SHELL) to run .sh files",
+    "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
 )
 @click.option(
     "--version",
@@ -891,28 +891,28 @@ def sweep(
     "--experiment-name",
     envvar="WANDB_NAME",
     help="Name of the experiment under which to launch the run. If not "
-    "specified, 'experiment-id' option will be used to launch run.",
+    "specified, 'experiment-id' option will be used to launch run. If passed in, will override the name passed in using a config file.",
 )
 @click.option(
     "--entity",
     "-e",
     metavar="<str>",
     default=None,
-    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder.",
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder. If passed in, will override the entity value passed in using a config file.",
 )
 @click.option(
     "--project",
     "-p",
     metavar="<str>",
     default=None,
-    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder.",
+    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder. If passed in, will override the project value passed in using a config file.",
 )
 @click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
     default="local",
-    help="Execution resource to use for run. Supported values: 'local'."
+    help="Execution resource to use for run. Supported values: 'local'. If passed in, will override the resource value passed in using a config file."
     " Defaults to 'local'.",
 )
 @click.option(
@@ -920,7 +920,7 @@ def sweep(
     "-d",
     default=None,
     metavar="DOCKER IMAGE",
-    help="Specific docker image you'd like to use. In the form name:tag.",
+    help="Specific docker image you'd like to use. In the form name:tag. If passed in, will override the docker image value passed in using a config file.",
 )
 @click.option(
     "--config",
@@ -1096,7 +1096,7 @@ def launch_add(
     else:
         launch_config = {}
 
-    run_spec = construct_run_spec(
+    launch_spec = construct_launch_spec(
         uri,
         experiment_name,
         project,
@@ -1109,7 +1109,7 @@ def launch_add(
     )
 
     try:
-        res = wandb_launch.push_to_queue(api, queue, run_spec)
+        res = wandb_launch.push_to_queue(api, queue, launch_spec)
         if res is None or "runQueueItemId" not in res:
             raise Exception("Error adding run to queue")
         else:
