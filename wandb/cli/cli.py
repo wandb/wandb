@@ -340,7 +340,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -898,21 +900,24 @@ def sweep(
     "-e",
     metavar="<str>",
     default=None,
-    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder. If passed in, will override the entity value passed in using a config file.",
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
+    "If passed in, will override the entity value passed in using a config file.",
 )
 @click.option(
     "--project",
     "-p",
     metavar="<str>",
     default=None,
-    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder. If passed in, will override the project value passed in using a config file.",
+    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder."
+    " If passed in, will override the project value passed in using a config file.",
 )
 @click.option(
     "--resource",
     "-r",
     metavar="BACKEND",
     default="local",
-    help="Execution resource to use for run. Supported values: 'local'. If passed in, will override the resource value passed in using a config file."
+    help="Execution resource to use for run. Supported values: 'local'."
+    " If passed in, will override the resource value passed in using a config file."
     " Defaults to 'local'.",
 )
 @click.option(
@@ -920,7 +925,8 @@ def sweep(
     "-d",
     default=None,
     metavar="DOCKER IMAGE",
-    help="Specific docker image you'd like to use. In the form name:tag. If passed in, will override the docker image value passed in using a config file.",
+    help="Specific docker image you'd like to use. In the form name:tag."
+    " If passed in, will override the docker image value passed in using a config file.",
 )
 @click.option(
     "--config",
@@ -1509,7 +1515,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
