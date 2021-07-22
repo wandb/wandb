@@ -6,7 +6,7 @@ id: 0.0.4
 check-ext-wandb: {}
 assert:
   - :wandb:runs_len: 1
-  - :wandb:runs[0][config][policy_type]: MlpPolicy2
+  - :wandb:runs[0][config][policy_type]: MlpPolicy
   - :wandb:runs[0][config][total_timesteps]: 200
   - :wandb:runs[0][config][policy_class]: "<class 'stable_baselines3.common.policies.ActorCriticPolicy'>"
   - :wandb:runs[0][config][action_space]: "Discrete(2)"
