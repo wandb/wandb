@@ -1,4 +1,7 @@
-"""Internal utilities for parsing MLproject YAML files."""
+"""
+Internal utility for converting arguments from a launch spec or call to wandb launch
+into a runnable wandb launch script
+"""
 
 import json
 import logging
