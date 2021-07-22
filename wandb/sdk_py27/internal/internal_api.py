@@ -833,10 +833,10 @@ class Api(object):
         return self.gql(query, variable_values)["createRunQueue"]
 
     @normalize_exceptions
-    def push_to_run_queue(self, queue_name, run_spec):
+    def push_to_run_queue(self, queue_name, launch_spec):
         # todo: we're adding pushToRunQueueByName to avoid this extra query
         queues_found = self.get_project_run_queues(
-            run_spec["entity"], run_spec["project"]
+            launch_spec["entity"], launch_spec["project"]
         )
         matching_queues = [q for q in queues_found if q["name"] == queue_name]
         if not matching_queues:
@@ -859,7 +859,7 @@ class Api(object):
         }
         """
         )
-        spec_json = json.dumps(run_spec)
+        spec_json = json.dumps(launch_spec)
         response = self.gql(
             mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
         )

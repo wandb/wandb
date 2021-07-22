@@ -129,7 +129,10 @@ def test_launch_base_case(
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -213,7 +216,7 @@ def test_launch_args_supersede_config_vals(
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        path = "./config.json"
+        path = _project_spec.DEFAULT_CONFIG_PATH
         with open(path, "w") as fp:
             json.dump({"epochs": 10}, fp)
         test_settings.launch = True
