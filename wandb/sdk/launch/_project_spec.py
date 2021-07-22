@@ -270,13 +270,11 @@ def create_project_from_spec(run_spec: Dict[str, Any], api: Api) -> Project:
 def fetch_and_validate_project(project: Project, api: Api) -> Project:
     if project.source == LaunchSource.LOCAL:
         if not project._entry_points:
-            wandb.termlog(
-                "Entry point for repo not specified, defaulting to main.py"
-            )
+            wandb.termlog("Entry point for repo not specified, defaulting to main.py")
             project.add_entry_point("main.py")
     else:
         project._fetch_project_local(api=api)
-    project._copy_config_local()    # copy config into self.dir even if we're local
+    project._copy_config_local()  # copy config into self.dir even if we're local
     first_entry_point = list(project._entry_points.keys())[0]
     project.get_entry_point(first_entry_point)._validate_parameters(
         project.override_args

@@ -149,14 +149,11 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
 
 def test_launch_local_dir(runner):
     with runner.isolated_filesystem():
-        os.mkdir('repo')
-        with open('repo/main.py', 'w+') as f:
+        os.mkdir("repo")
+        with open("repo/main.py", "w+") as f:
             f.write('print("ok")\n')
-        result = runner.invoke(
-            cli.launch,
-            ['repo'],
-        )
-    
+        result = runner.invoke(cli.launch, ["repo"],)
+
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
     assert "main.py" in result.output
