@@ -1162,7 +1162,8 @@ class Api(object):
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                util.sentry_reraise(retry.TransientError(exc=e))
+                e = retry.TransientError(exc=e)
+                six.reraise(type(e), e, sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
 
