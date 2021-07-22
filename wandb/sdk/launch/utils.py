@@ -12,7 +12,7 @@ from wandb.errors import CommError, ExecutionException, LaunchException
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
-_GIT_URI_REGEX = re.compile(r"^[^/]*:")
+_GIT_URI_REGEX = re.compile(r"^https://github\.com")
 _WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
@@ -49,6 +49,10 @@ def _is_wandb_dev_uri(uri: str) -> bool:
 
 def _is_wandb_local_uri(uri: str) -> bool:
     return _WANDB_LOCAL_DEV_URI_REGEX.match(uri) is not None
+
+
+def _is_github_uri(uri: str) -> bool:
+    return _GIT_URI_REGEX.match(uri) is not None
 
 
 def set_project_entity_defaults(
