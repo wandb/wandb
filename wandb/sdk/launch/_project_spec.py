@@ -69,13 +69,17 @@ class Project(object):
             self.project_dir = tempfile.mkdtemp()
         else:
             # assume local
+            if not os.path.exists(self.uri):
+                raise Exception(
+                    "Assumed URI supplied is a local path but path is not valid"
+                )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
 
         self.run_id = generate_id()
-        self.config_path = DEFAULT_CONFIG_PATH
+        self.config_path = os.path.join(self.aux_dir, DEFAULT_CONFIG_PATH)
 
         self.clear_parameter_run_config_collisions()
 
@@ -154,7 +158,7 @@ class Project(object):
     def _copy_config_local(self) -> None:
         if not self.override_config:
             return None
-        with open(os.path.join(self.aux_dir, DEFAULT_CONFIG_PATH), "w+") as f:
+        with open(self.config_path, "w+") as f:
             json.dump(self.override_config, f)
 
 
