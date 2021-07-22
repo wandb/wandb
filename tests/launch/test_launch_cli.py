@@ -137,21 +137,14 @@ def test_launch_no_docker_exec(
     assert "Could not find Docker executable" in str(result.exception)
 
 
-def test_launch_github_url(runner):
-    # technically this run won't complete bc this repo has no requirements.txt and so no deps are downloaded
-    # but it should complete up to running the correct train.py file
+def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     with runner.isolated_filesystem():
         result = runner.invoke(
-            cli.launch,
-            [
-                "https://github.com/wandb/examples",
-                "--entry-point",
-                "examples/scikit/scikit-iris/train.py",
-            ],
+            cli.launch, ["https://github.com/test/", "--entry-point", "train.py",],
         )
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
-    assert "python examples/scikit/scikit-iris/train.py" in result.output
+    assert "python train.py" in result.output
 
 
 def test_launch_local_dir(runner):
@@ -167,4 +160,3 @@ def test_launch_local_dir(runner):
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
     assert "main.py" in result.output
-
