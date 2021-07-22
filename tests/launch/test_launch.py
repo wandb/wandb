@@ -77,7 +77,7 @@ def check_project_spec(
             project_spec.override_config == config["config"]["overrides"]["run_config"]
         )
 
-    with open(os.path.join(project_spec.dir, "patch.txt"), "r") as fp:
+    with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
         contents = fp.read()
         assert contents == "testing"
 

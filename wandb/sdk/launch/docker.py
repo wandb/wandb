@@ -51,7 +51,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd: str) -> str
     """
     Uses project and entry point to generate the docker image
     """
-    path = project.dir
+    path = project.project_dir
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
     assert isinstance(path, str)
@@ -120,7 +120,7 @@ def build_docker_image(
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    image_uri = _get_docker_image_uri(name=project.name, work_dir=project.dir)
+    image_uri = _get_docker_image_uri(name=project.name, work_dir=project.project_dir)
     copy_code_line = ""
     workdir_line = ""
     if copy_code:
@@ -153,7 +153,7 @@ def build_docker_image(
         config_path=project.config_path,
         run_id=project.run_id or None,
     )
-    build_ctx_path = _create_docker_build_ctx(project.dir, dockerfile)
+    build_ctx_path = _create_docker_build_ctx(project.project_dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
         #  TODO: replace with shelling out

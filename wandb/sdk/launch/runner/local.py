@@ -114,11 +114,11 @@ class LocalRunner(AbstractRunner):
             wandb.termlog(
                 "Launching run in docker with command: {}".format(command_str)
             )
-            run = _run_entry_point(command_str, project.dir)
+            run = _run_entry_point(command_str, project.project_dir)
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess
-        raise LaunchException("asynchrnous mode not yet available")
+        raise LaunchException("asynchronous mode not yet available")
 
 
 def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
