@@ -448,8 +448,8 @@ class _WandbController:
                     )
             if "sampledHistory" in rr:
                 sampled_history = []
-                for l in rr["sampledHistory"]:
-                    sampled_history += l
+                for historyDictList in rr["sampledHistory"]:
+                    sampled_history += historyDictList
                 rr["sampledHistory"] = sampled_history
             _sweep_runs.append(sweeps.SweepRun(**rr))
 
