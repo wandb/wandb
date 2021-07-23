@@ -145,9 +145,6 @@ class Api(object):
     def get_project_run_queues(self, *args, **kwargs):
         return self.api.get_project_run_queues(*args, **kwargs)
 
-    def create_run_queue(self, *args, **kwargs):
-        return self.api.create_run_queue(*args, **kwargs)
-
     def push_to_run_queue(self, *args, **kwargs):
         return self.api.push_to_run_queue(*args, **kwargs)
 

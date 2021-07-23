@@ -55,11 +55,10 @@ class AbstractRun(ABC):
     def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
     ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
-        """Runs the command and returns a popen object or the stdout of the command
-
-        Arguments:
-            cmd (List[str]): The command to run
-            output_only (Optional(bool)): If true just return the stdout bytes
+        """
+        Runs the command and returns a popen object or the stdout of the command
+        :param cmd: The command to run
+        :param output_only: If true just return the stdout bytes
         """
 
         try:

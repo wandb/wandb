@@ -23,6 +23,7 @@ from ..utils import (
 
 
 def _convert_access(access: str) -> str:
+    """Converts access string to a value accepted by wandb"""
     access = access.upper()
     assert (
         access == "PROJECT" or access == "USER"
@@ -53,6 +54,9 @@ class LaunchAgent(object):
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues: Optional[Iterable[str]]) -> None:
+        """
+        Checks the project to ensure run queues exist then adds them to a list to be watched by the agent
+        """
         project_run_queues = self._api.get_project_run_queues(
             self._entity, self._project
         )
@@ -81,9 +85,11 @@ class LaunchAgent(object):
 
     @property
     def job_ids(self) -> List[int]:
+        """Returns a list of keys running job ids for the agent."""
         return list(self._jobs.keys())
 
     def pop_from_queue(self, queue: str) -> Any:
+        """Pops an item off the runqueue to run as a job"""
         try:
             ups = self._api.pop_from_run_queue(
                 queue, entity=self._entity, project=self._project
@@ -112,14 +118,15 @@ class LaunchAgent(object):
             self.finish_job_id(job_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
+        """Sets up project and runs the job"""
         # TODO: logger
         print("agent: got job", job)
         # parse job
-        run_spec = job["runSpec"]
-        project = create_project_from_spec(run_spec, self._api)
+        launch_spec = job["runSpec"]
+        project = create_project_from_spec(launch_spec, self._api)
         project = fetch_and_validate_project(project, self._api)
 
-        resource = run_spec.get("resource") or "local"
+        resource = launch_spec.get("resource") or "local"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: True,
@@ -143,6 +150,7 @@ class LaunchAgent(object):
         self._running += 1
 
     def loop(self) -> None:
+        """Main loop function for agent"""
         wandb.termlog(
             "launch agent polling project {}/{} on queues: {}".format(
                 self._entity, self._project, ",".join(self._queues)

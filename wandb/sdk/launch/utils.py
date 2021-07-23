@@ -12,7 +12,7 @@ from wandb.errors import CommError, ExecutionException, LaunchException
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
-_GIT_URI_REGEX = re.compile(r"^https://github\.com")
+_GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
 _WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
@@ -44,15 +44,15 @@ def _is_wandb_uri(uri: str) -> bool:
 
 
 def _is_wandb_dev_uri(uri: str) -> bool:
-    return _WANDB_DEV_URI_REGEX.match(uri) is not None
+    return bool(_WANDB_DEV_URI_REGEX.match(uri))
 
 
 def _is_wandb_local_uri(uri: str) -> bool:
-    return _WANDB_LOCAL_DEV_URI_REGEX.match(uri) is not None
+    return bool(_WANDB_LOCAL_DEV_URI_REGEX.match(uri))
 
 
-def _is_github_uri(uri: str) -> bool:
-    return _GIT_URI_REGEX.match(uri) is not None
+def _is_git_uri(uri: str) -> bool:
+    return bool(_GIT_URI_REGEX.match(uri))
 
 
 def set_project_entity_defaults(
@@ -81,7 +81,7 @@ def set_project_entity_defaults(
     return wandb_project, wandb_entity, run_id
 
 
-def construct_run_spec(
+def construct_launch_spec(
     uri: str,
     experiment_name: Optional[str],
     wandb_project: Optional[str],
@@ -93,33 +93,33 @@ def construct_run_spec(
     launch_config: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     # override base config (if supplied) with supplied args
-    run_spec = launch_config if launch_config is not None else {}
-    run_spec["uri"] = uri
+    launch_spec = launch_config if launch_config is not None else {}
+    launch_spec["uri"] = uri
     if wandb_entity:
-        run_spec["entity"] = wandb_entity
+        launch_spec["entity"] = wandb_entity
     if wandb_project:
-        run_spec["project"] = wandb_project
+        launch_spec["project"] = wandb_project
     if experiment_name:
-        run_spec["name"] = experiment_name
-    if "docker" not in run_spec:
-        run_spec["docker"] = {}
+        launch_spec["name"] = experiment_name
+    if "docker" not in launch_spec:
+        launch_spec["docker"] = {}
     if docker_image:
-        run_spec["docker"]["docker_image"] = docker_image
+        launch_spec["docker"]["docker_image"] = docker_image
 
-    if "git" not in run_spec:
-        run_spec["git"] = {}
+    if "git" not in launch_spec:
+        launch_spec["git"] = {}
     if version:
-        run_spec["git"]["version"] = version
+        launch_spec["git"]["version"] = version
 
-    if "overrides" not in run_spec:
-        run_spec["overrides"] = {}
+    if "overrides" not in launch_spec:
+        launch_spec["overrides"] = {}
     if parameters:
-        base_args = util._user_args_to_dict(run_spec["overrides"].get("args", []))
-        run_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
+        base_args = util._user_args_to_dict(launch_spec["overrides"].get("args", []))
+        launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
     if entry_point:
-        run_spec["overrides"]["entry_point"] = entry_point
+        launch_spec["overrides"]["entry_point"] = entry_point
 
-    return run_spec
+    return launch_spec
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
@@ -159,6 +159,9 @@ def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
 
 
 def apply_patch(patch_string: str, dst_dir: str) -> None:
+    """
+    Applies a patch file to a directory.
+    """
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
@@ -208,7 +211,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
 def merge_parameters(
     higher_priority_params: Dict[str, Any], lower_priority_params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    for key in lower_priority_params.keys():
-        if higher_priority_params.get(key) is None:
-            higher_priority_params[key] = lower_priority_params[key]
-    return higher_priority_params
+    """
+    Merge the contents of two dicts, keeping values from higher_priority_params if there are conflicts
+    """
+    return {**lower_priority_params, **higher_priority_params}

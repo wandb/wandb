@@ -213,7 +213,7 @@ def test_launch_args_supersede_config_vals(
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        path = "./config.json"
+        path = _project_spec.DEFAULT_CONFIG_PATH
         with open(path, "w") as fp:
             json.dump({"epochs": 10}, fp)
         test_settings.launch = True
@@ -228,12 +228,12 @@ def test_push_to_runqueue(live_mock_server, test_settings):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    run_spec = {
+    launch_spec = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "entity": "mock_server_entity",
         "project": "test",
     }
-    api.push_to_run_queue("default", run_spec)
+    api.push_to_run_queue("default", launch_spec)
     ctx = live_mock_server.get_ctx()
     assert len(ctx["run_queues"]["1"]) == 1
 

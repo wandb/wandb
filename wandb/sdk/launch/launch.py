@@ -10,7 +10,7 @@ from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
     _is_wandb_local_uri,
-    construct_run_spec,
+    construct_launch_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
@@ -22,9 +22,9 @@ if wandb.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-def push_to_queue(api: Api, queue: str, run_spec: Dict[str, Any]) -> Any:
+def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
     try:
-        res = api.push_to_run_queue(queue, run_spec)
+        res = api.push_to_run_queue(queue, launch_spec)
     except Exception as e:
         print("Exception:", e)
         return None
@@ -56,7 +56,7 @@ def _run(
     Returns a ``SubmittedRun`` corresponding to the project run.
     """
 
-    run_spec = construct_run_spec(
+    launch_spec = construct_launch_spec(
         uri,
         experiment_name,
         wandb_project,
@@ -67,7 +67,7 @@ def _run(
         parameters,
         launch_config,
     )
-    project = create_project_from_spec(run_spec, api)
+    project = create_project_from_spec(launch_spec, api)
     project = fetch_and_validate_project(project, api)
 
     # construct runner config.
@@ -103,23 +103,16 @@ def run(
     synchronous: Optional[bool] = True,
 ) -> AbstractRun:
     """
-    Run a W&B project. The project can be local or stored at a Git URI.
-    W&B provides built-in support for running projects locally or remotely on a Databricks or
-    Kubernetes cluster. You can also run projects against other targets by installing an appropriate
-    third-party plugin. See `Community Plugins <../plugins.html#community-plugins>`_ for more
-    information.
-    For information on using this method in chained workflows, see `Building Multistep Workflows
-    <../projects.html#building-multistep-workflows>`_.
+    Run a W&B launch experiment. The project can be wandb uri or a Git URI.
     :raises: :py:class:`wandb.exceptions.ExecutionException` If a run launched in blocking mode
              is unsuccessful.
-    :param uri: URI of project to run. A local filesystem path
-                or a Git repository URI pointing to a project directory containing an MLproject file.
-    :param entry_point: Entry point to run within the project. If no entry point with the specified
-                        name is found, runs the project file ``entry_point`` as a script,
-                        using "python" to run ``.py`` files and the default shell (specified by
-                        environment variable ``$SHELL``) to run ``.sh`` files.
+    :param uri: URI of experiment to run. A wandb run uri or a Git repository URI.
+    :param api: An instance of a wandb Api from wandb.apis.internal.
+    :param entry_point: Entry point to run within the project. Defaults to using the entry point used
+                        in the original run for wandb URIs, or main.py for git repository URIs.
     :param version: For Git-based projects, either a commit hash or a branch name.
-    :param parameters: Parameters (dictionary) for the entry point command.
+    :param parameters: Parameters (dictionary) for the entry point command. Defaults to using the
+                       the parameters used to run the original run.
     :param docker_args: Arguments (dictionary) for the docker command.
     :param experiment_name: Name of experiment under which to launch the run.
     :param resource: Execution backend for the run: W&B provides built-in support for "local" backend
