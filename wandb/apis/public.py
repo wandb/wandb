@@ -2718,9 +2718,6 @@ class Artifact(artifacts.Artifact):
                 .get("id", None)
             )
             if res_id is None:
-                import pdb
-
-                pdb.set_trace()
                 raise ValueError(
                     "Could not resolve latest artifact for sequence {}".format(
                         artifact_id
