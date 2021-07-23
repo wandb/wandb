@@ -294,7 +294,11 @@ def get_cache_dir(env=None):
 def get_artifact_checksum_parallelism(env=None):
     if env is None:
         env = os.environ
-    val = env.get(ARTIFACTS_CHECKSUM_PARALLELISM, 8)
+    val = env.get(ARTIFACTS_CHECKSUM_PARALLELISM, None)
+    try:
+        val = int(val)
+    except ValueError:
+        val = None
     return val
 
 
