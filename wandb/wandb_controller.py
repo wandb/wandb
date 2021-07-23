@@ -446,6 +446,9 @@ class _WandbController:
                         "Invalid history value: expected list of json strings: %s"
                         % rr["history"]
                     )
+            if "sampledHistory" in rr:
+                rr["sampledHistory"] = rr["sampledHistory"][0]
+
             _sweep_runs.append(sweeps.SweepRun(**rr))
 
         self._sweep_runs = _sweep_runs
@@ -608,8 +611,8 @@ class _WandbController:
         self._sweep_object_sync_to_backend()
 
     def stop_runs(self, runs: List[sweeps.SweepRun]) -> None:
-        earlystop_list = list(set(runs))
-        self._log_actions.append(("stop", ",".join([r.__repr__() for r in runs])))
+        earlystop_list = list(set([run.name for run in runs]))
+        self._log_actions.append(("stop", ",".join(earlystop_list)))
         self._controller["earlystop"] = earlystop_list
         self._sweep_object_sync_to_backend()
 
