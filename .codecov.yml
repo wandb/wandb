@@ -25,10 +25,14 @@ coverage:
       sdk-internal:
         paths:
           - wandb/sdk/internal/
+      sdk-launch:
+        paths:
+          - wandb/sdk/launch/
       sdk-other:
         paths:
           - "!wandb/sdk/*.py"
           - "!wandb/sdk/internal/"
+          - "!wandb/sdk/launch/"
           - wandb/sdk/
       apis:
         informational: true
