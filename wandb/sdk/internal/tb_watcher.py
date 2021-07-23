@@ -339,7 +339,7 @@ class TBEventConsumer(object):
         self._queue = queue
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
-        self.tb_history = TBHistory()
+        self.tb_history = TBHistory(run_proto.start_time)
         self._delay = delay
 
         # This is a bit of a hack to get file saving to work as it does in the user
@@ -430,11 +430,12 @@ class TBHistory(object):
     _data: "HistoryDict"
     _added: "List[HistoryDict]"
 
-    def __init__(self) -> None:
+    def __init__(self, start_time) -> None:
         self._step = 0
         self._step_size = 0
         self._data = dict()
         self._added = []
+        self.start_time = start_time.ToSeconds()
 
     def _flush(self) -> None:
         if not self._data:
@@ -462,6 +463,10 @@ class TBHistory(object):
             )
             print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
+        self._data["_timestamp"] = int(self._data.get("_timestamp", time.time()))
+        self._data["_runtime"] = int(
+            self._data.get("_timestamp", time.time()) - self.start_time
+        )
         self._added.append(self._data)
         self._step += 1
         self._step_size = 0
