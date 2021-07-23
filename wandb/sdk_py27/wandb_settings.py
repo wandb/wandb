@@ -183,7 +183,9 @@ def get_wandb_dir(root_dir):
     return path
 
 
-def _str_as_bool(val):
+def _maybe_str_as_bool(val):
+    if isinstance(val, bool):
+        return val
     ret_val = None
     try:
         ret_val = bool(strtobool(val))
@@ -427,31 +429,31 @@ class Settings(object):
     def _silent(self):
         if not self.silent:
             return None
-        return _str_as_bool(self.silent)
+        return _maybe_str_as_bool(self.silent)
 
     @property
     def _strict(self):
         if not self.strict:
             return None
-        return _str_as_bool(self.strict)
+        return _maybe_str_as_bool(self.strict)
 
     @property
     def _show_info(self):
         if not self.show_info:
             return None
-        return _str_as_bool(self.show_info)
+        return _maybe_str_as_bool(self.show_info)
 
     @property
     def _show_warnings(self):
         if not self.show_warnings:
             return None
-        return _str_as_bool(self.show_warnings)
+        return _maybe_str_as_bool(self.show_warnings)
 
     @property
     def _show_errors(self):
         if not self.show_errors:
             return None
-        return _str_as_bool(self.show_errors)
+        return _maybe_str_as_bool(self.show_errors)
 
     @property
     def _noop(self):
@@ -609,31 +611,31 @@ class Settings(object):
         return _error_choices(value, choices)
 
     def _validate_strict(self, value):
-        val = _str_as_bool(value)
+        val = _maybe_str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
         return None
 
     def _validate_silent(self, value):
-        val = _str_as_bool(value)
+        val = _maybe_str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
         return None
 
     def _validate_show_info(self, value):
-        val = _str_as_bool(value)
+        val = _maybe_str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
         return None
 
     def _validate_show_warnings(self, value):
-        val = _str_as_bool(value)
+        val = _maybe_str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
         return None
 
     def _validate_show_errors(self, value):
-        val = _str_as_bool(value)
+        val = _maybe_str_as_bool(value)
         if val is None:
             return "{} is not a boolean".format(value)
         return None
