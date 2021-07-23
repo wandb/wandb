@@ -463,9 +463,9 @@ class TBHistory(object):
             )
             print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
-        self._data["_timestamp"] = int(self._data.get("_timestamp", time.time()))
+        self._data["_timestamp"] = int(time.time())
         self._data["_runtime"] = int(
-            self._data.get("_timestamp", time.time()) - self.start_time
+            time.time() - self.start_time
         )
         self._added.append(self._data)
         self._step += 1
