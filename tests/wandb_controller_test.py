@@ -62,8 +62,8 @@ def test_controller_new(mock_server):
         "controller": {"type": "local"},
         "method": "random",
         "parameters": {
-            "param1": {"values": [1, 2, 3], 'distribution': 'categorical'},
-            "param2": {"values": [1, 2, 3], 'distribution': 'categorical'},
+            "param1": {"values": [1, 2, 3], "distribution": "categorical"},
+            "param2": {"values": [1, 2, 3], "distribution": "categorical"},
         },
         "program": "train-dummy.py",
     }
