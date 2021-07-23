@@ -350,7 +350,7 @@ class _WandbInit(object):
         drun.disabled = True
         drun.id = shortuuid.uuid()
         drun.name = "dummy-" + drun.id
-        drun.dir = "/"
+        drun.dir = self.settings.files_dir
         module.set_global(
             run=drun,
             config=drun.config,

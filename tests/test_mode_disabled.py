@@ -71,6 +71,12 @@ def test_disabled_ops(test_settings):
     print(bool(run))
 
 
+def test_disabled_dir(test_settings):
+    run = wandb.init(mode="disabled", settings=test_settings)
+    assert run.dir == test_settings.files_dir
+    assert not os.path.exists(test_settings.files_dir)
+
+
 def test_disabled_summary(test_settings):
     run = wandb.init(mode="disabled", settings=test_settings)
     run.summary["cat"] = 2
@@ -79,7 +85,7 @@ def test_disabled_summary(test_settings):
     print(run.summary.cat)
     with pytest.raises(KeyError):
         print(run.summary["dog"])
-    run.summary["nested"]["level"] = 3
+    assert run.summary["nested"]["level"] == 3
 
 
 def test_disabled_can_pickle():
