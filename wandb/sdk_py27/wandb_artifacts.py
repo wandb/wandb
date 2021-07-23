@@ -406,7 +406,9 @@ class Artifact(ArtifactInterface):
 
         import multiprocessing.dummy  # this uses threads
 
-        pool = multiprocessing.dummy.Pool(self._checksum_parallelism or multiprocessing.cpu_count())
+        pool = multiprocessing.dummy.Pool(
+            self._checksum_parallelism or multiprocessing.cpu_count()
+        )
         pool.map(add_manifest_file, paths)
         pool.close()
         pool.join()
