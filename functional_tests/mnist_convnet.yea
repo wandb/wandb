@@ -1,0 +1,22 @@
+id: 0.0.5
+# Below check-ext-wandb is needed for now, remove eventually
+check-ext-wandb: {}
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][summary][epoch]: 1
+  - :op:<=:
+    - :wandb:runs[0][summary][best_epoch]
+    - 1
+  - :op:<=:
+    - :wandb:runs[0][summary][accuracy]
+    - 1.0
+  - :op:>=:
+    - :wandb:runs[0][summary][accuracy]
+    - 0.0
+  - :op:<=:
+    - :wandb:runs[0][summary][loss]
+    - 10.0
+  - :op:>=:
+    - :wandb:runs[0][summary][loss]
+    - 0.0
+  - :wandb:runs[0][exitcode]: 0
