@@ -4,6 +4,8 @@ wandb/internal/update.py test.
 
 import pytest  # type: ignore
 import sys
+from unittest import mock
+
 import wandb
 
 update = wandb.wandb_sdk.internal.update
@@ -81,13 +83,15 @@ def test_pypi_check_avail(mock_server):
     assert mock_server.ctx["json"] is not None
 
 
-@pytest.mark.skipif(sys.version_info[0] != 2, reason="This test is for Python2 only")
-def test_py27_end_of_life(mock_server):
-    wandb.__hack_pypi_latest_version__ = "0.11.0"
-    messages = update.check_available("0.10.31")
-    assert messages["upgrade_message"] is not None
-    assert "requires python3" in messages["upgrade_message"]
-    wandb.__hack_pypi_latest_version__ = "0.10.32"
-    messages = update.check_available("0.10.31")
-    assert messages["upgrade_message"] is not None
-    assert "requires python3" not in messages["upgrade_message"]
+def test_py35_end_of_life(mock_server):
+    # force python 3.5 (since we dont test it and collect codecoverage)
+    v35 = mock.PropertyMock(return_value=(3, 5, 10, "final", 0))
+    with mock.patch.object(sys, "version_info", new_callable=v35):
+        wandb.__hack_pypi_latest_version__ = "0.12.0"
+        messages = update.check_available("0.11.1")
+        assert messages["upgrade_message"] is not None
+        assert "requires python3.6+" in messages["upgrade_message"]
+        wandb.__hack_pypi_latest_version__ = "0.11.2"
+        messages = update.check_available("0.11.1")
+        assert messages["upgrade_message"] is not None
+        assert "requires python3.6+" not in messages["upgrade_message"]
