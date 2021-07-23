@@ -108,9 +108,11 @@ def run(
              is unsuccessful.
     :param uri: URI of experiment to run. A wandb run uri or a Git repository URI.
     :param api: An instance of a wandb Api from wandb.apis.internal.
-    :param entry_point: Entry point to run within the project. Defaults to using the command used to run the original run for wandb URIs, or main.py for git repository URIs.
+    :param entry_point: Entry point to run within the project. Defaults to using the entry point used
+                        in the original run for wandb URIs, or main.py for git repository URIs.
     :param version: For Git-based projects, either a commit hash or a branch name.
-    :param parameters: Parameters (dictionary) for the entry point command.
+    :param parameters: Parameters (dictionary) for the entry point command. Defaults to using the
+                       the parameters used to run the original run.
     :param docker_args: Arguments (dictionary) for the docker command.
     :param experiment_name: Name of experiment under which to launch the run.
     :param resource: Execution backend for the run: W&B provides built-in support for "local" backend

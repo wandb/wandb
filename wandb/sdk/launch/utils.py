@@ -44,11 +44,11 @@ def _is_wandb_uri(uri: str) -> bool:
 
 
 def _is_wandb_dev_uri(uri: str) -> bool:
-    return _WANDB_DEV_URI_REGEX.match(uri) is not None
+    return bool(_WANDB_DEV_URI_REGEX.match(uri))
 
 
 def _is_wandb_local_uri(uri: str) -> bool:
-    return _WANDB_LOCAL_DEV_URI_REGEX.match(uri) is not None
+    return bool(_WANDB_LOCAL_DEV_URI_REGEX.match(uri))
 
 
 def _is_git_uri(uri: str) -> bool:
