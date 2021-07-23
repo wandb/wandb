@@ -67,6 +67,7 @@ def test_controller_new(mock_server):
         },
         "program": "train-dummy.py",
     }
+    tuner.step()
 
 
 # TODO: More controller tests!
