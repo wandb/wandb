@@ -27,6 +27,7 @@ parser.add_argument(
 parser.add_argument("--output-imports", default="map_run_cli_imports.csv")
 parser.add_argument("--output-features", default="map_run_cli_features.csv")
 parser.add_argument("--output-environments", default="map_run_cli_environments.csv")
+parser.add_argument("--output-labels", default="map_run_cli_labels.csv")
 args = parser.parse_args()
 
 
@@ -53,6 +54,9 @@ def main():
 
     env_records = list(tpb.Env.DESCRIPTOR.fields)
     write_csv(record="environment", fields=env_records)
+
+    label_records = list(tpb.Labels.DESCRIPTOR.fields)
+    write_csv(record="label", fields=label_records)
 
 
 if __name__ == "__main__":

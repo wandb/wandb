@@ -61,7 +61,7 @@ _not_importable = set()
 # Boolean, unsigned integer, signed integer, float, complex.
 NUMERIC_KINDS = set("buifc")
 
-MAX_LINE_SIZE = 9 * 1024 * 1024 - 100 * 1024  # imposed by back end
+MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # these match the environments for gorilla
@@ -583,10 +583,10 @@ def launch_browser(attempt_launch_browser=True):
     return launch_browser
 
 
-def generate_id():
+def generate_id(length=8):
     # ~3t run ids (36**8)
     run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
+    return run_gen.random(length)
 
 
 def parse_tfjob_config():

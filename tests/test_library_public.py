@@ -46,8 +46,7 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
-    # TODO(require): Uncomment when we are ready to ship
-    # "require",
+    "require",
 }
 
 # Look into these and see what we can remove / hide

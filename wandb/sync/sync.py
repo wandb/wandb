@@ -379,6 +379,7 @@ def get_runs(
         dirs += filter(lambda d: d.startswith("run-"), all_dirs)
     # find run file in each dir
     fnames = []
+    dirs.sort()
     for d in dirs:
         paths = os.listdir(os.path.join(base, d))
         if exclude_globs:
