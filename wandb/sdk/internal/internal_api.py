@@ -805,36 +805,8 @@ class Api(object):
         return res["project"]["runQueues"]
 
     @normalize_exceptions
-    def create_run_queue(self, entity, project, queue_name, access):
-        query = gql(
-            """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
-            createRunQueue(
-                input: {
-                    entityName: $entity,
-                    projectName: $project,
-                    queueName: $queueName,
-                    access: $access
-                }
-            ) {
-                success
-                queueID
-            }
-            
-        }
-        """
-        )
-        variable_values = {
-            "project": project,
-            "entity": entity,
-            "access": access,
-            "queueName": queue_name,
-        }
-        return self.gql(query, variable_values)["createRunQueue"]
-
-    @normalize_exceptions
     def push_to_run_queue(self, queue_name, launch_spec):
-        # todo: we're adding pushToRunQueueByName to avoid this extra query
+        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
         queues_found = self.get_project_run_queues(
             launch_spec["entity"], launch_spec["project"]
         )

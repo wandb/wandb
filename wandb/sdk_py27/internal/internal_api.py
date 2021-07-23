@@ -691,7 +691,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -803,34 +807,6 @@ class Api(object):
             )
 
         return res["project"]["runQueues"]
-
-    @normalize_exceptions
-    def create_run_queue(self, entity, project, queue_name, access):
-        query = gql(
-            """
-        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
-            createRunQueue(
-                input: {
-                    entityName: $entity,
-                    projectName: $project,
-                    queueName: $queueName,
-                    access: $access
-                }
-            ) {
-                success
-                queueID
-            }
-            
-        }
-        """
-        )
-        variable_values = {
-            "project": project,
-            "entity": entity,
-            "access": access,
-            "queueName": queue_name,
-        }
-        return self.gql(query, variable_values)["createRunQueue"]
 
     @normalize_exceptions
     def push_to_run_queue(self, queue_name, launch_spec):
@@ -1199,7 +1175,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -2110,7 +2091,8 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2125,7 +2107,12 @@ class Api(object):
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")
