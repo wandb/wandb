@@ -3,23 +3,16 @@
 
 ---
 id: 0.0.4
-check-ext-wandb:
-  run:
-    - exit: 0
-      config:
-        policy_type: {desc: null, value: "MlpPolicy"}
-        total_timesteps: {desc: null, value: 200}
-        policy_class: {desc: null, value: "<class 'stable_baselines3.common.policies.ActorCriticPolicy'>"}
-        action_space: {desc: null, value: "Discrete(2)"}
-        batch_size: {desc: null, value: 64}
-        n_epochs: {desc: null, value: 10}
-
-      # we are not checking the summary for now, that is why it is {} with ignore_extra_summary_keys = True
-      summary: {}
-      ignore_extra_config_keys: true
-      ignore_extra_summary_keys: true
-
-
+check-ext-wandb: {}
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config][policy_type]: MlpPolicy
+  - :wandb:runs[0][config][total_timesteps]: 200
+  - :wandb:runs[0][config][policy_class]: "<class 'stable_baselines3.common.policies.ActorCriticPolicy'>"
+  - :wandb:runs[0][config][action_space]: "Discrete(2)"
+  - :wandb:runs[0][config][batch_size]: 64
+  - :wandb:runs[0][config][n_epochs]: 10
+  - :wandb:runs[0][exitcode]: 0
 """
 
 import time
