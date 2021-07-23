@@ -140,7 +140,8 @@ def test_launch_no_docker_exec(
 def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     with runner.isolated_filesystem():
         result = runner.invoke(
-            cli.launch, ["https://github.com/test/", "--entry-point", "train.py",],
+            cli.launch,
+            ["https://github.com/test/repo.git", "--entry-point", "train.py",],
         )
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output

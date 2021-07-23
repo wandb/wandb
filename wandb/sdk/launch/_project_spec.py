@@ -29,7 +29,7 @@ DEFAULT_CONFIG_PATH = "launch_override_config.json"
 
 class LaunchSource(enum.IntEnum):
     WANDB: int = 1
-    GITHUB: int = 2
+    GIT: int = 2
     LOCAL: int = 3
 
 
@@ -66,8 +66,8 @@ class Project(object):
         if utils._is_wandb_uri(self.uri):
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
-        elif utils._is_github_uri(self.uri):
-            self.source = LaunchSource.GITHUB
+        elif utils._is_git_uri(self.uri):
+            self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         else:
             # assume local
