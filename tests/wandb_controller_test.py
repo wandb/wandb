@@ -32,7 +32,7 @@ def test_print_status(mock_server, capsys):
     c = wandb.controller("test", entity="test", project="test")
     c.print_status()
     stdout, stderr = capsys.readouterr()
-    assert stdout == "Sweep: fun-sweep-10 (unknown) | Runs: 1 (Running: 1)\n"
+    assert stdout == "Sweep: fun-sweep-10 (random) | Runs: 1 (Running: 1)\n"
     # For some reason, the windows and mac tests are failing in CI
     # as there are write permissions warnings.
     if platform.system() != "Windows" and platform.system() != "Darwin":
@@ -42,7 +42,15 @@ def test_print_status(mock_server, capsys):
 def test_controller_existing(mock_server):
     c = wandb.controller("test", entity="test", project="test")
     assert c.sweep_id == "test"
-    assert c.sweep_config == {"metric": {"name": "loss", "value": "minimize"}}
+    assert c.sweep_config == {
+        "controller": {"type": "local"},
+        "method": "random",
+        "parameters": {
+            "param1": {"values": [1, 2, 3], "distribution": "categorical"},
+            "param2": {"values": [1, 2, 3], "distribution": "categorical"},
+        },
+        "program": "train-dummy.py",
+    }
 
 
 def test_controller_new(mock_server):
