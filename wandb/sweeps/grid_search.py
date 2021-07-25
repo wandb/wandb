@@ -36,10 +36,15 @@ class GridSearch(Search):
         if self.randomize_order:
             random.shuffle(param_value_set)
 
+        runs = sweep['runs']
+        prior_runs = self._prior_runs_from_config(sweep['config'])
+        if prior_runs:
+            runs = prior_runs + runs
+
         new_value_set = next(
             (value_set for value_set in param_value_set
              # check if parameter set is contained in some run
-                if not self._runs_contains_param_values(sweep['runs'], dict(zip(param_names, value_set))
+                if not self._runs_contains_param_values(runs, dict(zip(param_names, value_set))
                                                         )
              ), None)
 
