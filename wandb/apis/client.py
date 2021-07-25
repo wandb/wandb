@@ -82,10 +82,14 @@ class GQLClient(object):
             }
         # Display a nicer error message for known GQL errors
         if response.status_code >= 400 and len(result.get("errors", [])) > 0:
-            raise requests.HTTPError(
-                result["errors"][0].get("message", "GraphQL API Error"),
-                response=response,
-            )
+            if isinstance(result["errors"][0], dict):
+                message = result["errors"][0].get("message", "GraphQL API Error")
+            else:
+                # TODO(cvp): I think this only happens in our test mocks, but just to
+                # be safe we handle cases where a server returns {"errors": ["message"]}
+                message = result["errors"][0]
+            raise requests.HTTPError(message, response=response)
+        # Generic error when the server doesn't return {"errors":...}
         response.raise_for_status()
         # NOTE: there could be a future scenario where we want access to errors on a 200
         # response.  Currently the API will always return a non-200 response when there
