@@ -3,7 +3,6 @@
 normalize.
 """
 
-import ast
 from functools import wraps
 import sys
 
@@ -14,7 +13,7 @@ from wandb.errors import CommError
 
 
 def normalize_exceptions(func):
-    """Function decorator for catching common errors and re-raising as wandb.Error"""
+    """Function decorator for catching common errors and re-raising as wandb.CommError"""
 
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -22,17 +21,15 @@ def normalize_exceptions(func):
         try:
             return func(*args, **kwargs)
         except requests.HTTPError as err:
-            raise CommError(err.response, err)
+            try:
+                message = err.response.json().get(
+                    "errors", [{"message": "Generic HTTP error"}]
+                )[0]["message"]
+            except ValueError:
+                message = "Generic HTTP error"
+            raise CommError(message, err)
         except Exception as err:
-            # gql raises server errors with dict's as strings...
-            if len(err.args) > 0:
-                payload = err.args[0]
-            else:
-                payload = err
-            if str(payload).startswith("{"):
-                message = ast.literal_eval(str(payload))["message"]
-            else:
-                message = str(err)
+            message = str(err)
             if env.is_debug():
                 six.reraise(*sys.exc_info())
             else:

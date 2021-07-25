@@ -4,14 +4,24 @@ from graphql.language.source import Source
 import requests
 import six
 import wandb
+from wandb.errors import GQLError
 
 
 def gql(request_string):
+    """Converts a request string into a graphql-core Source document
+
+    Returns:
+        data: the dictionary of data queried
+
+    Raises:
+        wandb.errors.GQLError if the source document is invalid
+    """
+
     if isinstance(request_string, six.string_types):
         source = Source(request_string, "GraphQL request")
         return parse(source)
     else:
-        raise Exception('Received incompatible request "{}".'.format(request_string))
+        raise GQLError('Received incompatible request "{}".'.format(request_string))
 
 
 class GQLClient(object):
@@ -41,6 +51,15 @@ class GQLClient(object):
         self.auth = ("key", key)
 
     def execute(self, document, variable_values=None, timeout=None):
+        """Executes a query against the graphql backend.
+
+        Returns:
+            data: the dictionary of data queried
+
+        Raises:
+            requests.RequestsException if the connection fails, the response isn't
+                a 200, or the response doesn't contain valid JSON.
+        """
         query_str = print_ast(document)
         payload = {"query": query_str, "variables": variable_values or {}}
         post_args = {
@@ -49,12 +68,26 @@ class GQLClient(object):
             "timeout": timeout or self.default_timeout,
             "json": payload,
         }
-        request = self._session.post(self.url, **post_args)
-        request.raise_for_status()
-        result = request.json()
-        assert (
-            "errors" in result or "data" in result
-        ), 'Received non-compatible response "{}"'.format(result)
-        if result.get("errors"):
-            raise Exception(str(result.errors[0]))
+        response = self._session.post(self.url, **post_args)
+        try:
+            result = response.json()
+            if not isinstance(result, dict):
+                raise ValueError
+        except ValueError:
+            # Mark the request as 500 to retry cases where a misconfigured proxy returns
+            # HTML with a 200 response code and display a better error message.
+            response.status_code = 500
+            result = {
+                "errors": [{"message": "{} did not return valid JSON".format(self.url)}]
+            }
+        # Display a nicer error message for known GQL errors
+        if response.status_code >= 400 and len(result.get("errors", [])) > 0:
+            raise requests.HTTPError(
+                result["errors"][0].get("message", "GraphQL API Error"),
+                response=response,
+            )
+        response.raise_for_status()
+        # NOTE: there could be a future scenario where we want access to errors on a 200
+        # response.  Currently the API will always return a non-200 response when there
+        # are errors so we just disregard that case for now.
         return result.get("data")
