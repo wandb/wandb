@@ -18,6 +18,7 @@ from six.moves import urllib
 import threading
 
 from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+
 # from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
 
 
@@ -1321,7 +1322,9 @@ class ParseCTX(object):
 
     @property
     def config_user(self):
-        return {k: v["value"] for k, v in self.config_raw.items() if not k.startswith("_")}
+        return {
+            k: v["value"] for k, v in self.config_raw.items() if not k.startswith("_")
+        }
 
     @property
     def config(self):
