@@ -37,15 +37,13 @@ def test_telemetry_imports_hf(live_mock_server, parse_ctx):
 
 
 def test_telemetry_imports_jax(live_mock_server, parse_ctx):
-    run = wandb.init()
-    with mock.patch.dict("sys.modules", {"jax": mock.Mock()}):
-        import jax
-
-        run.finish()
+    import jax
+    wandb.init()
+    wandb.finish()
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     telemetry = ctx_util.telemetry
 
     # jax in finish modules but not in init modules
-    assert telemetry and 12 not in telemetry.get("1", [])
+    assert telemetry and 12 in telemetry.get("1", [])
     assert telemetry and 12 in telemetry.get("2", [])
