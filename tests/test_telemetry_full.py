@@ -38,7 +38,7 @@ def test_telemetry_imports_hf(live_mock_server, parse_ctx):
 
 def test_telemetry_imports_jax(live_mock_server, parse_ctx):
     run = wandb.init()
-    with mock.patch.dict("sys.modules", {"transformers": mock.Mock()}):
+    with mock.patch.dict("sys.modules", {"jax": mock.Mock()}):
         import jax
 
         run.finish()
