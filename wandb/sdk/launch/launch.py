@@ -22,15 +22,6 @@ if wandb.TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
-    try:
-        res = api.push_to_run_queue(queue, launch_spec)
-    except Exception as e:
-        print("Exception:", e)
-        return None
-    return res
-
-
 def run_agent(entity: str, project: str, queues: Optional[List[str]] = None) -> None:
     agent = LaunchAgent(entity, project, queues)
     agent.loop()

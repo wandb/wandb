@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 import tempfile
+from wandb.errors import LaunchException
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
@@ -502,6 +503,13 @@ class Api(object):
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
+    def queued_job(self, path=""):
+        """
+        Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
+        """
+        entity, project, queue, run_queue_item_id = path.split("/")
+        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+
     @normalize_exceptions
     def sweep(self, path=""):
         """
@@ -841,6 +849,70 @@ class Runs(Paginator):
 
     def __repr__(self):
         return "<Runs {}/{}>".format(self.entity, self.project)
+
+
+class QueuedJob(Attrs):
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+        super(QueuedJob, self).__init__(dict(attrs))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._queue = queue
+        self._run_queue_item_id = run_queue_item_id
+        self._run_id = None
+
+    def wait_til_running(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    resultingRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self._queue,
+        }
+
+        while True:
+            res = self.client.execute(query, variable_values)
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self._run_queue_item_id
+                    and item["node"]["resultingRunId"] is not None
+                ):
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    #
+                    try:
+                        Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["resultingRunId"],
+                        )
+                        self._run_id = item["node"]["resultingRunId"]
+                        return
+                    except ValueError as e:
+                        continue
+
+    @property
+    def run(self):
+        if self._run_id is None:
+            raise LaunchException("Tried to fetch run without having run_id")
+        return Run(self.client, self._entity, self.project, self._run_id)
 
 
 class Run(Attrs):
@@ -1297,7 +1369,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def use_artifact(self, artifact):
-        """ Declare an artifact as an input to a run.
+        """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -1324,7 +1396,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def log_artifact(self, artifact, aliases=None):
-        """ Declare an artifact as output of a run.
+        """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -2899,7 +2971,9 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
-        self.client.execute(mutation, variable_values={"id": self.id,})
+        self.client.execute(
+            mutation, variable_values={"id": self.id,},
+        )
         return True
 
     def new_file(self, name, mode=None):
