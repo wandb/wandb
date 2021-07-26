@@ -8,6 +8,7 @@ import time
 from typing import Any, Dict, Iterable, List, Optional
 
 import wandb
+import wandb.util as util
 from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import LaunchException
@@ -123,6 +124,12 @@ class LaunchAgent(object):
         print("agent: got job", job)
         # parse job
         launch_spec = job["runSpec"]
+        if launch_spec.get("overrides") and isinstance(
+            launch_spec["overrides"].get("args"), list
+        ):
+            launch_spec["overrides"]["args"] = util._user_args_to_dict(
+                launch_spec["overrides"].get("args", [])
+            )
         project = create_project_from_spec(launch_spec, self._api)
         project = fetch_and_validate_project(project, self._api)
 

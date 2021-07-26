@@ -113,9 +113,14 @@ def construct_launch_spec(
 
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
+
     if parameters:
         base_args = util._user_args_to_dict(launch_spec["overrides"].get("args", []))
         launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
+    elif isinstance(launch_spec["overrides"].get("args"), list):
+        launch_spec["overrides"]["args"] = util._user_args_to_dict(
+            launch_spec["overrides"].get("args")
+        )
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
 
