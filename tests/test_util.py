@@ -9,6 +9,7 @@ import random
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow
+from jax import numpy as jnp
 
 import plotly
 import matplotlib.pyplot as plt
@@ -164,6 +165,14 @@ def test_tensorflow_json_nd():
 @pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
+
+
+@pytest.mark.parametrize(
+    "array_shape", [(), (1,), (3,), (300,), (300, 300), (1,) * 8, (3,) * 8]
+)
+def test_jax_json(array_shape):
+    orig_data = nested_list(*array_shape)
+    json_friendly_test(orig_data, jnp.asarray(orig_data))
 
 
 def test_image_from_docker_args_simple():
