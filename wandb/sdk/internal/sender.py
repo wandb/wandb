@@ -63,7 +63,11 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self,
+        settings,
+        record_q,
+        result_q,
+        interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -86,6 +90,7 @@ class SendManager(object):
         self._consolidated_config: DictNoValues = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
+        self._config_runtime: Optional[float] = None
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
 
@@ -285,6 +290,9 @@ class SendManager(object):
         exit = data.exit
         self._exit_code = exit.exit_code
         logger.info("handling exit code: %s", exit.exit_code)
+        runtime = exit.runtime
+        self._config_runtime = runtime
+        logger.info("handling runtime: %s", exit.runtime)
 
         # Pass the responsibility to respond to handle_request_defer()
         if data.control.req_resp:
@@ -293,6 +301,8 @@ class SendManager(object):
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
         logger.info("send defer")
+
+        self._update_config()
         self._interface.publish_defer()
 
     def send_final(self, data):
@@ -520,11 +530,20 @@ class SendManager(object):
         config_dict.setdefault(wandb_key, dict())
         config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
+    def _config_runtime_update(self, config_dict: Dict[str, Any]) -> None:
+        """Add default xaxis to config."""
+        if self._config_runtime is not None:
+            return
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        config_dict[wandb_key]["rt"] = self._config_runtime
+
     def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
         """Format dict into value dict with telemetry info."""
         config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
         self._config_telemetry_update(config_dict)
         self._config_metric_update(config_dict)
+        self._config_runtime_update(config_dict)
         config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 
@@ -868,8 +887,10 @@ class SendManager(object):
                 artifact
             ).get("id")
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._result_q.put(result)
