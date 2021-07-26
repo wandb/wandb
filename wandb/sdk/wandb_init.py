@@ -13,6 +13,7 @@ import logging
 import os
 import platform
 import sys
+import tempfile
 import time
 import traceback
 
@@ -350,7 +351,7 @@ class _WandbInit(object):
         drun.disabled = True
         drun.id = shortuuid.uuid()
         drun.name = "dummy-" + drun.id
-        drun.dir = "/"
+        drun.dir = tempfile.gettempdir()
         module.set_global(
             run=drun,
             config=drun.config,
