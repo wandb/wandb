@@ -38,6 +38,7 @@ def test_telemetry_imports_hf(live_mock_server, parse_ctx):
 
 def test_telemetry_imports_jax(live_mock_server, parse_ctx):
     import jax
+
     wandb.init()
     wandb.finish()
 
