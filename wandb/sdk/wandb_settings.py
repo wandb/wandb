@@ -1049,7 +1049,7 @@ class Settings(object):
                         "Ignored wandb.init() arg %s when running a sweep" % key
                     )
         if self.launch:
-            for key in ("project", "entity", "id"):
+            for key in ("project", "entity", "name", "id"):
                 val = args.pop(key, None)
                 if val:
                     wandb.termwarn(
