@@ -95,7 +95,7 @@ class Api(object):
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(requests.RequestException),
+            retryable_exceptions=(requests.RequestException,),
             retry_callback=retry_callback,
         )
         self._current_run_id = None
