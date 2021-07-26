@@ -172,7 +172,9 @@ def test_tensorflow_json_nd_large():
 )
 def test_jax_json(array_shape):
     orig_data = nested_list(*array_shape)
-    json_friendly_test(orig_data, jnp.asarray(orig_data))
+    jax_array = jnp.asarray(orig_data)
+    json_friendly_test(orig_data, jax_array)
+    assert util.is_jax_tensor_typename(util.get_full_typename(jax_array))
 
 
 def test_image_from_docker_args_simple():
