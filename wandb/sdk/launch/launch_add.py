@@ -29,7 +29,7 @@ def launch_add(
     version: str = None,
     docker_image: str = None,
     params: Dict[str, Any] = None,
-):
+) -> "public.QueuedJob":
     api = Api()
     return _launch_add(
         api,
@@ -60,7 +60,7 @@ def _launch_add(
     version: str,
     docker_image: str,
     params: Dict[str, Any],
-):
+) -> "public.QueuedJob":
 
     resource = resource or "local"
     if config is not None:
