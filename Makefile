@@ -11,7 +11,6 @@ webbrowser.open("file://" + pathname2url(os.path.abspath(sys.argv[1])))
 endef
 export BROWSER_PYSCRIPT
 BROWSER := python -c "$$BROWSER_PYSCRIPT"
-SHELL := /bin/bash
 
 
 coverage: ## check code coverage quickly with the default Python
@@ -22,10 +21,8 @@ coverage: ## check code coverage quickly with the default Python
 
 
 submodule-update: ## check if submodule has been initialized, if not, clone from remote, and then checkout the pinned version
-	$(eval MATCH := $(shell git submodule foreach git status | grep sweeps | wc -c))
-	@if [[ $(MATCH) -eq 0 ]] ; \
-	then \
-		git submodule update --init --remote; \
+	@if ! git submodule foreach git status | grep sweeps > /dev/null; then \
+	git submodule update --init --remote; \
 	fi
 	git submodule update
 
