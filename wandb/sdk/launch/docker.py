@@ -40,31 +40,33 @@ def validate_docker_installation() -> None:
         )
 
 
-def validate_docker_env(project: _project_spec.LaunchProject) -> None:
+def validate_docker_env(launch_project: _project_spec.LaunchProject) -> None:
     """Ensure project has a docker image associated with it"""
-    if not project.docker_image:
+    if not launch_project.docker_image:
         raise ExecutionException(
             "LaunchProject with docker environment must specify the docker image "
             "to use via 'docker_image' field."
         )
 
 
-def generate_docker_image(project: _project_spec.LaunchProject, entry_cmd: str) -> str:
+def generate_docker_image(
+    launch_project: _project_spec.LaunchProject, entry_cmd: str
+) -> str:
     """
     Uses project and entry point to generate the docker image
     """
-    path = project.project_dir
+    path = launch_project.project_dir
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
     get_module(
-        "jupyter-repo2docker",
+        "repo2docker",
         required="wandb launch requires additional dependencies, install with pip install wandb[launch]",
     )
     assert isinstance(path, str)
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        "--user-id={}".format(project.docker_user_id),
+        "--user-id={}".format(launch_project.docker_user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -139,33 +141,40 @@ def build_docker_image(
         workdir = os.path.join("/home/", getpass.getuser())
         copy_code_line = "COPY {}/ {}\n".format(_PROJECT_TAR_ARCHIVE_NAME, workdir)
         workdir_line = "WORKDIR {}\n".format(workdir)
+    name_line = ""
+    if launch_project.name:
+        name_line = "ENV WANDB_NAME={wandb_name}\n"
     project = launch_project.target_project
     entity = launch_project.target_entity
+
     dockerfile = (
         "FROM {imagename}\n"
         "{copy_code_line}"
         "{workdir_line}"
+        "{name_line}"
         "ENV WANDB_BASE_URL={base_url}\n"
         "ENV WANDB_API_KEY={api_key}\n"
         "ENV WANDB_PROJECT={project}\n"
         "ENV WANDB_ENTITY={entity}\n"
-        "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
         "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
         "ENV WANDB_RUN_ID={run_id}\n"
+        "ENV WANDB_DOCKER={docker_image}"
     ).format(
         imagename=base_image,
         copy_code_line=copy_code_line,
         workdir_line=workdir_line,
+        name_line=name_line,
         base_url=base_url,
         api_key=api.api_key,
         project=project,
         entity=entity,
-        wandb_name=project.name,
-        config_path=project.config_path,
-        run_id=project.run_id or None,
+        wandb_name=launch_project.name,
+        config_path=launch_project.config_path,
+        run_id=launch_project.run_id or None,
+        docker_image={launch_project.docker_image},
     )
-    build_ctx_path = _create_docker_build_ctx(project.project_dir, dockerfile)
+    build_ctx_path = _create_docker_build_ctx(launch_project.project_dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
         #  TODO: replace with shelling out

@@ -279,6 +279,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     project, entity, run_id = utils.set_project_entity_defaults(
         uri, launch_spec.get("project"), launch_spec.get("entity"), api
     )
+    name = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
 
@@ -293,22 +294,24 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     )
 
 
-def fetch_and_validate_project(project: LaunchProject, api: Api) -> LaunchProject:
+def fetch_and_validate_project(
+    launch_project: LaunchProject, api: Api
+) -> LaunchProject:
     """
     Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
     Returns the validated project.
-    :param project: LaunchProject to fetch and validate.
+    :param launch_project: LaunchProject to fetch and validate.
     :param api: Instance of wandb.apis.internal Api
     """
-    if project.source == LaunchSource.LOCAL:
-        if not project._entry_points:
+    if launch_project.source == LaunchSource.LOCAL:
+        if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
-            project.add_entry_point("main.py")
+            launch_project.add_entry_point("main.py")
     else:
-        project._fetch_project_local(api=api)
-    project._copy_config_local()  # copy config into self.dir even if we're local
-    first_entry_point = list(project._entry_points.keys())[0]
-    project.get_entry_point(first_entry_point)._validate_parameters(
-        project.override_args
+        launch_project._fetch_project_local(api=api)
+    launch_project._copy_config_local()  # copy config into self.dir even if we're local
+    first_entry_point = list(launch_project._entry_points.keys())[0]
+    launch_project.get_entry_point(first_entry_point)._validate_parameters(
+        launch_project.override_args
     )
-    return project
+    return launch_project

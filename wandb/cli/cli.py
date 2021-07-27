@@ -340,9 +340,7 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog(
-            "Which team should we use?",
-        )
+        wandb.termlog("Which team should we use?",)
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -951,7 +949,7 @@ def launch(
     config,
 ):
     """
-    Run an W&B project from the given URI.
+    Run a W&B project from the given URI. Which can either be a wandb URI.
     For local runs, the run will block until it completes.
     Otherwise, the project will run asynchronously.
     If running locally (the default), the URI can be either a Git repository URI or a local path.
@@ -982,8 +980,8 @@ def launch(
             api,
             entry_point,
             version,
-            wandb_project=project,
-            wandb_entity=entity,
+            project=project,
+            entity=entity,
             docker_image=docker_image,
             experiment_name=experiment_name,
             parameters=param_dict,
@@ -1515,9 +1513,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(
-            path=artifact_path,
-        ),
+        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
         prefix=False,
     )
 

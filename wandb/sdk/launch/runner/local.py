@@ -75,49 +75,50 @@ class LocalSubmittedRun(AbstractRun):
 class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun"""
 
-    def run(self, project: LaunchProject) -> AbstractRun:
+    def run(self, launch_project: LaunchProject) -> AbstractRun:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
-        entry_point = project.get_single_entry_point()
+        entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
         copy_code = False
-        if project.docker_image:
-            pull_docker_image(project.docker_image)
+        if launch_project.docker_image:
+            pull_docker_image(launch_project.docker_image)
             copy_code = True
         else:
-            project.docker_image = generate_docker_image(project, entry_cmd)
+            launch_project.docker_image = generate_docker_image(
+                launch_project, entry_cmd
+            )
 
         command_args = []
         command_separator = " "
-        validate_docker_env(project)
+        validate_docker_env(launch_project)
         validate_docker_installation()
         image = build_docker_image(
-            project=project,
-            base_image=project.docker_image,
+            launch_project=launch_project,
+            base_image=launch_project.docker_image,
             api=self._api,
             copy_code=copy_code,
         )
-        command_args += get_docker_command(
-            image=image,
-            docker_args=docker_args,
-        )
+        command_args += get_docker_command(image=image, docker_args=docker_args,)
         if self.backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(
-                self.backend_config["runQueueItemId"], project.run_id
+                self.backend_config["runQueueItemId"], launch_project.run_id
             )
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
-            command_args += get_entry_point_command(entry_point, project.override_args)
+            command_args += get_entry_point_command(
+                entry_point, launch_project.override_args
+            )
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
                 "Launching run in docker with command: {}".format(command_str)
             )
-            run = _run_entry_point(command_str, project.project_dir)
+            run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess
@@ -162,10 +163,7 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            cwd=work_dir,
-            env=env,
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
         )
 
     return LocalSubmittedRun(process)
