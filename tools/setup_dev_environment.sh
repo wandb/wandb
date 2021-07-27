@@ -15,6 +15,9 @@ echo "Setting local pyenv versions to: $full_all"
 pyenv local $full_all
 echo "Installing dependencies: tox..."
 pip install -qq tox==3.7
+echo "Configuring submodules..."
+git submodule update --init --remote
+git submodule update
 echo "Development environment setup!"
 echo ""
 echo "Run all unittests with:"

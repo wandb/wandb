@@ -36,6 +36,16 @@ wandb/integration/keras    - keras integration
 wandb/integration/pytorch  - pytorch integration
 ```
 
+The hyperparameter engine `wandb/sweeps` is a submodule: https://github.com/wandb/sweeps. To update your
+dev environment to use the submodule, do
+
+```
+cd client
+git submodule update --init --remote
+git submodule update
+```
+
+
 ## Setup development environment
 
 In order to run unittests please install pyenv:
