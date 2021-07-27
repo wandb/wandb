@@ -281,8 +281,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     )
     if launch_spec.get("name"):
         name = launch_spec["name"]
-    else:
-        name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
     return LaunchProject(
         uri,
