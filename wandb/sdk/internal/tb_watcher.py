@@ -432,7 +432,7 @@ class TBHistory(object):
 
     def __init__(
             self,
-            start_time: int=0
+            start_time: int = 0
     ) -> None:
         self._step = 0
         self._step_size = 0
@@ -472,16 +472,15 @@ class TBHistory(object):
         # if not a live run, set the start time to first tf_event's walltime
         # self._start_time is only 0 when run_proto is initialized by wandb sync
         if self._start_time == 0:
-            self._start_time = self._data["_timestamp"]
+            self._start_time = int(self._data.get("_timestamp", None))
         # use time.time() if it's a live run to avoid non monotonic reporting due to other wandb.log calls
         # this is a bit of a hack, it will lead to somewhat incorrect time reporting but will ensure
         # monotonic reporting of runtime and timestamps
         if self._live_run:
             self._data["_timestamp"] = time.time()
         self._data["_runtime"] = int(
-            self._data.get("_timestamp") - self._start_time
+            int(self._data.get("_timestamp", None)) - self._start_time
         )
-        logger.info(self._data)
         self._added.append(self._data)
         self._step += 1
         self._step_size = 0
