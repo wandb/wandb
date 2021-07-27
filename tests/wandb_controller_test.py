@@ -11,6 +11,7 @@ pytestmark = pytest.mark.skipif(
 
 def test_run_from_dict():
     from wandb import sweeps_engine
+
     run = sweeps_engine.SweepRun(
         **{
             "name": "test",
