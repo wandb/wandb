@@ -64,8 +64,7 @@ def _launch_add(
 
     resource = resource or "local"
     if config is not None:
-        with open(config, "r") as f:
-            launch_config = json.load(f)
+        launch_config = config
     else:
         launch_config = {}
 
