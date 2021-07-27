@@ -29,7 +29,7 @@ def launch_add(
     version: str = None,
     docker_image: str = None,
     params: Dict[str, Any] = None,
-) -> "public.QueuedJob":
+):
     api = Api()
     return _launch_add(
         api,
@@ -76,6 +76,9 @@ def _launch_add(
         api,
     )
 
+    if queue is None:
+        queue = "default"
+
     launch_spec = construct_launch_spec(
         uri,
         name,
@@ -87,8 +90,9 @@ def _launch_add(
         params,
         launch_config,
     )
-    print(launch_spec)
+
     res = push_to_queue(api, queue, launch_spec)
+
     if res is None or "runQueueItemId" not in res:
         raise Exception("Error adding run to queue")
     wandb.termlog("Added run to queue")

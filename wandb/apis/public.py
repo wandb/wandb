@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 import tempfile
+import time
 from wandb.errors import LaunchException
 
 from dateutil.relativedelta import relativedelta
@@ -861,7 +862,8 @@ class QueuedJob(Attrs):
         self._run_queue_item_id = run_queue_item_id
         self._run_id = None
 
-    def wait_til_running(self):
+    @normalize_exceptions
+    def wait_until_running(self):
         query = gql(
             """
             query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
@@ -895,7 +897,6 @@ class QueuedJob(Attrs):
                     and item["node"]["resultingRunId"] is not None
                 ):
                     # TODO: this should be changed once the ack occurs within the docker container.
-                    #
                     try:
                         Run(
                             self.client,
@@ -907,6 +908,7 @@ class QueuedJob(Attrs):
                         return
                     except ValueError as e:
                         continue
+            time.sleep(5)
 
     @property
     def run(self):
@@ -1101,6 +1103,30 @@ class Run(Attrs):
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
         return self._attrs
+
+    @normalize_exceptions
+    def wait_until_finished(self):
+        query = gql(
+            """
+            query Run($project: String!, $entity: String!, $name: String!) {
+                project(name: $project, entityName: $entity) {
+                    run(name: $name) {
+                        state
+                    }
+                }
+            }
+        """
+        )
+        while True:
+            res = self._exec(query)
+            print(res)
+            state = res["project"]["run"]["state"]
+            if state in ["finished", "crashed", "failed"]:
+                print("Run finished with status : {}".format(state))
+                self._attrs["state"] =  state
+                self.state = state
+                return
+            time.sleep(5)
 
     @normalize_exceptions
     def update(self):
@@ -2756,7 +2782,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -2972,7 +3001,10 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={
+                "id": self.id,
+            },
         )
         return True
 
@@ -3228,7 +3260,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -3397,7 +3432,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -3435,7 +3473,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(
