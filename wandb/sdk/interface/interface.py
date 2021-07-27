@@ -656,9 +656,6 @@ class BackendSenderBase(object):
 
 
 class BackendSender(BackendSenderBase):
-    class ExceptionTimeout(Exception):
-        pass
-
     record_q: Optional["Queue[pb.Record]"]
     result_q: Optional["Queue[pb.Result]"]
     process: Optional[BaseProcess]
