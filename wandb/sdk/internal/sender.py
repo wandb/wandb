@@ -302,7 +302,7 @@ class SendManager(object):
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
         logger.info("send defer")
-
+        self._update_config()
         self._interface.publish_defer()
 
     def send_final(self, data):
