@@ -36,15 +36,8 @@ wandb/integration/keras    - keras integration
 wandb/integration/pytorch  - pytorch integration
 ```
 
-The hyperparameter engine `wandb/sweeps` is a submodule: https://github.com/wandb/sweeps. To update an existing dev 
-setup that was created before the introduction of the submodule, do
-
-```
-cd client
-git submodule update --init --remote
-git submodule update
-```
-
+The hyperparameter engine `wandb/sweeps` is a submodule: https://github.com/wandb/sweeps. For more on managing the sweeps
+submodule for `wandb/client`, see [sweeps submodule management](#sweeps-submodule-management).
 
 ## Setup development environment
 
@@ -411,3 +404,43 @@ A file named `cli.md` in the same folder as the code. The file is the generated 
 **Requirements**
 - python >= 3.8
 - wandb
+
+### sweeps submodule management
+
+To check out the currently pinned version of the sweeps submodule, potentially pulling state from a remote, do:
+
+```
+make submodule-update
+```
+
+If you switch from a commit that has the submodule pinned to a commit that does not have the submodule pinned, you may
+see errors like:
+
+```
+(wandb-3.6) % git checkout old-branch
+error: The following untracked working tree files would be overwritten by checkout:
+	wandb/sweeps/__init__.py
+	wandb/sweeps/bayes_search.py
+	wandb/sweeps/config/__init__.py
+	wandb/sweeps/config/cfg.py
+	wandb/sweeps/examples/sweep-local-bayes.yaml
+	wandb/sweeps/examples/sweep-local-hyperband.yaml
+	wandb/sweeps/examples/train-dummy.py
+	wandb/sweeps/grid_search.py
+	wandb/sweeps/hyperband_stopping.py
+	wandb/sweeps/params.py
+	wandb/sweeps/random_search.py
+Please move or remove them before you switch branches.
+Aborting
+```
+
+To fix this, do
+
+```
+# currently on master, submodule is pinned at wandb/sweeps
+$ git submodule deinit wandb/sweeps
+$ git checkout old-branch  # should proceed without error
+// do stuff on old branch
+$ git checkout master  # this branch has the submodule
+$ make submodule-update  # this will check out the pinned version of the submodule
+```

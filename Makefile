@@ -20,15 +20,13 @@ coverage: ## check code coverage quickly with the default Python
 	$(BROWSER) htmlcov/index.html
 
 
-submodule:
-	@$(eval SUBMOD_CMD := git submodule foreach git status)
-	@$(eval OUTPUT := $(shell $(SUBMOD_CMD) | wc -c))
-	@if git submodule foreach git status | grep sweeps > /dev/null; \
+submodule-update: ## check if submodule has been initialized, if not, clone from remote, and then checkout the pinned version
+	$(eval MATCH := $(shell git submodule foreach git status | grep sweeps | wc -c))
+	@if [[ $(MATCH) -eq 0 ]] ; \
 	then \
-		echo ''; \
-	else \
-		git submodule update --init --remote; git submodule update; \
+		git submodule update --init --remote; \
 	fi
+	git submodule update
 
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*

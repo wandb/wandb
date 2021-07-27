@@ -153,13 +153,9 @@ jobs:
         steps:
             - checkout
             - run:
-                name: get sweeps submodule
+                name: configure sweeps submodule
                 command: |
-                  git submodule update --init --remote
-            - run:
-                name: checkout pinned commit of sweeps submodule
-                command: |
-                  git submodule update
+                  make submodule-update
             - run:
                   name: Install system deps
                   command: apt-get update && apt-get install -y libsndfile1 ffmpeg
@@ -184,13 +180,9 @@ jobs:
         steps:
             - checkout
             - run:
-                name: get sweeps submodule
+                name: configure sweeps submodule
                 command: |
-                  git submodule update --init --remote
-            - run:
-                name: checkout pinned commit of sweeps submodule
-                command: |
-                  git submodule update                  
+                  make submodule-update
             - run:
                   name: Install python dependencies
                   command: |
@@ -220,13 +212,9 @@ jobs:
         steps:
             - checkout
             - run:
-                name: get sweeps submodule
+                name: configure sweeps submodule
                 command: |
-                  git submodule update --init --remote
-            - run:
-                name: checkout pinned commit of sweeps submodule
-                command: |
-                  git submodule update
+                  make submodule-update
             - run:
                   name: Install python dependencies
                   command: |
