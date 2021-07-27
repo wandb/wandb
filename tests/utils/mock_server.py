@@ -475,7 +475,21 @@ def create_app(user_ctx=None):
                                 "state": "running",
                                 "bestLoss": 0.33,
                                 "config": yaml.dump(
-                                    {"metric": {"name": "loss", "value": "minimize"}}
+                                    {
+                                        "controller": {"type": "local"},
+                                        "method": "random",
+                                        "parameters": {
+                                            "param1": {
+                                                "values": [1, 2, 3],
+                                                "distribution": "categorical",
+                                            },
+                                            "param2": {
+                                                "values": [1, 2, 3],
+                                                "distribution": "categorical",
+                                            },
+                                        },
+                                        "program": "train-dummy.py",
+                                    }
                                 ),
                                 "createdAt": datetime.now().isoformat(),
                                 "heartbeatAt": datetime.now().isoformat(),

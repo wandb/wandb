@@ -1278,6 +1278,11 @@ class Api(object):
         # case it is reused outside the calling func
         config = deepcopy(config)
 
+        # explicitly cast to dict in case config was passed as a sweepconfig
+        # sweepconfig does not serialize cleanly to yaml and breaks graphql
+        # but it is a subclass of dict, so this conversion is clean
+        config = dict(config)
+
         if "parameters" not in config:
             raise ValueError("sweep config must have a parameters section")
 

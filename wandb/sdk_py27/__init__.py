@@ -17,4 +17,5 @@ from .wandb_save import save  # noqa: F401
 from .wandb_settings import Settings  # noqa: F401
 from .wandb_setup import setup  # noqa: F401
 from .wandb_summary import Summary  # noqa: F401
+from .wandb_sweep import controller, sweep  # noqa: F401
 from .wandb_watch import unwatch, watch  # noqa: F401
