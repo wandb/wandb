@@ -673,7 +673,10 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            ctx["manifests_created"].append(manifest)
+            run_name = body.get("variables", {}).get("runName", "unknown")
+            run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
+            for c in ctx, run_ctx:
+                c["manifests_created"].append(manifest)
             return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
