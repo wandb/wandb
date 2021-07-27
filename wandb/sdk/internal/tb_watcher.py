@@ -339,7 +339,7 @@ class TBEventConsumer(object):
         self._queue = queue
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
-        self.tb_history = TBHistory(run_proto.start_time)
+        self.tb_history = TBHistory(run_proto.start_time.ToSeconds())
         self._delay = delay
 
         # This is a bit of a hack to get file saving to work as it does in the user
@@ -430,12 +430,18 @@ class TBHistory(object):
     _data: "HistoryDict"
     _added: "List[HistoryDict]"
 
-    def __init__(self, start_time) -> None:
+    def __init__(
+            self,
+            start_time: int=0
+    ) -> None:
         self._step = 0
         self._step_size = 0
         self._data = dict()
         self._added = []
-        self.start_time = start_time.ToSeconds()
+        self._start_time = start_time
+        # if using wandb sync, run_proto start time becomes 0
+        # that ensures that this is not a live run
+        self._live_run = self._start_time != 0
 
     def _flush(self) -> None:
         if not self._data:
@@ -463,10 +469,19 @@ class TBHistory(object):
             )
             print("\t" + ("\n\t".join(dropped_keys)))
         self._data["_step"] = self._step
-        self._data["_timestamp"] = int(time.time())
+        # if not a live run, set the start time to first tf_event's walltime
+        # self._start_time is only 0 when run_proto is initialized by wandb sync
+        if self._start_time == 0:
+            self._start_time = self._data["_timestamp"]
+        # use time.time() if it's a live run to avoid non monotonic reporting due to other wandb.log calls
+        # this is a bit of a hack, it will lead to somewhat incorrect time reporting but will ensure
+        # monotonic reporting of runtime and timestamps
+        if self._live_run:
+            self._data["_timestamp"] = time.time()
         self._data["_runtime"] = int(
-            self._data.get("_timestamp", time.time()) - self.start_time
+            self._data.get("_timestamp") - self._start_time
         )
+        logger.info(self._data)
         self._added.append(self._data)
         self._step += 1
         self._step_size = 0
