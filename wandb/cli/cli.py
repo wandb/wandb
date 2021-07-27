@@ -27,6 +27,7 @@ from wandb import Config
 from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
+from wandb import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
@@ -792,9 +793,7 @@ def sweep(
 
     is_local = config.get("controller", {}).get("type") == "local"
     if is_local:
-        from wandb import controller as wandb_controller
-
-        tuner = wandb_controller()
+        tuner = wandb_controller.controller()
         err = tuner._validate(config)
         if err:
             wandb.termerror("Error in sweep file: %s" % err)
@@ -825,7 +824,7 @@ def sweep(
         )
     )
 
-    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
     if sweep_url:
         wandb.termlog(
             "View sweep at: {}".format(
@@ -854,9 +853,7 @@ def sweep(
     )
     if controller:
         wandb.termlog("Starting wandb controller...")
-        from wandb import controller as wandb_controller
-
-        tuner = wandb_controller(sweep_id)
+        tuner = wandb_controller.controller(sweep_id)
         tuner.run(verbose=verbose)
 
 
@@ -890,9 +887,7 @@ def agent(ctx, project, entity, count, sweep_id):
 @display_error
 def controller(verbose, sweep_id):
     click.echo("Starting wandb controller...")
-    from wandb import controller as wandb_controller
-
-    tuner = wandb_controller(sweep_id)
+    tuner = wandb_controller.controller(sweep_id)
     tuner.run(verbose=verbose)
 
 

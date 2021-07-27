@@ -20,12 +20,6 @@ coverage: ## check code coverage quickly with the default Python
 	$(BROWSER) htmlcov/index.html
 
 
-submodule-update: ## check if submodule has been initialized, if not, clone from remote, and then checkout the pinned version
-	if ! git submodule foreach git status | grep sweeps > /dev/null; then \
-	git submodule update --init --remote; \
-	fi
-	git submodule update
-
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*
 
@@ -94,4 +88,3 @@ bumpversion-to-dev:
 
 bumpversion-from-dev:
 	tox -e bumpversion-from-dev
-

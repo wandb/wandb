@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 """wandb setup."""
 
-import warnings
-
 from setuptools import setup
 
 
@@ -12,15 +10,6 @@ with open('package_readme.md') as readme_file:
 
 with open('requirements.txt') as requirements_file:
     requirements = requirements_file.read().splitlines()
-
-try:
-    with open('wandb/sweeps/requirements.txt') as sweeps_requirements_file:
-        sweeps_requirements = sweeps_requirements_file.read().splitlines()
-except FileNotFoundError:
-    warnings.warn("Sweeps module is not present, unable to determine "
-                  "extra requirements for sweeps. Will not be able to build "
-                  "sweeps extras locally.")
-    sweeps_requirements = []
 
 test_requirements = [
     'mock>=2.0.0',
@@ -32,6 +21,7 @@ aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
+sweeps_requirements = ['numpy']
 
 setup(
     name='wandb',
@@ -49,7 +39,6 @@ setup(
     package_data={
         'wandb': [
             'py.typed',
-            'sweeps/requirements.txt'
         ]
     },
     entry_points={
