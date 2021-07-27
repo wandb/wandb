@@ -17,7 +17,7 @@ from tests import utils
 
 
 @pytest.fixture
-def api(runner):
+def api(runner, mock_server):
     return Api()
 
 
@@ -32,7 +32,7 @@ def test_parse_project_path(api):
     assert p == "proj"
 
 
-def test_parse_project_path_proj(api, mock_server):
+def test_parse_project_path_proj(api):
     e, p = api._parse_project_path("proj")
     assert e == "mock_server_entity"
     assert p == "proj"
