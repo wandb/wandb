@@ -56,6 +56,3 @@ def fuzzy_pause_resume(interface, N):
 
     print(counter)
     return counter
-
-
-# fuzzy_pause_resume(4)
