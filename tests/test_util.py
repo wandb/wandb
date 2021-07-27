@@ -167,6 +167,9 @@ def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
 @pytest.mark.parametrize(
     "array_shape", [(), (1,), (3,), (300,), (300, 300), (1,) * 8, (3,) * 8]
 )

@@ -1,7 +1,9 @@
 """
 telemetry full tests.
 """
+import platform
 
+import pytest
 import wandb
 
 try:
@@ -36,6 +38,9 @@ def test_telemetry_imports_hf(live_mock_server, parse_ctx):
     assert telemetry and 11 in telemetry.get("2", [])
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
 def test_telemetry_imports_jax(live_mock_server, parse_ctx):
     import jax
 
