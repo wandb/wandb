@@ -52,6 +52,8 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
+sweep = wandb_sdk.sweep
+controller = wandb_sdk.controller
 require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
@@ -64,7 +66,6 @@ from wandb.errors import CommError, UsageError
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader
 from wandb import wandb_torch
-from wandb import util
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.data_types import Graph
@@ -83,7 +84,6 @@ from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
-from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
 
@@ -200,6 +200,7 @@ __all__ = [
     "setup",
     "save",
     "sweep",
+    "controller",
     "agent",
     "config",
     "log",
