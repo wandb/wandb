@@ -48,18 +48,18 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.17-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.18-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.17-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.17-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.17-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
-              - v0.17-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.17-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.17-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+              - v0.18-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.18-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.18-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
+              - v0.18-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.18-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.18-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
   save-test-results:
     description: "Save test results"
     steps:
@@ -153,6 +153,10 @@ jobs:
         steps:
             - checkout
             - run:
+                name: configure sweeps submodule
+                command: |
+                  make submodule-update
+            - run:
                   name: Install system deps
                   command: apt-get update && apt-get install -y libsndfile1 ffmpeg
             - run:
@@ -175,6 +179,14 @@ jobs:
         parallelism: 4
         steps:
             - checkout
+            - run:
+                name: checkout sweeps submodule
+                command: |
+                  git submodule update --init --remote
+            - run:
+                name: configure sweeps submodule
+                command: |
+                  git submodule update
             - run:
                   name: Install python dependencies
                   command: |
@@ -203,6 +215,10 @@ jobs:
         parallelism: 4
         steps:
             - checkout
+            - run:
+                name: configure sweeps submodule
+                command: |
+                  make submodule-update
             - run:
                   name: Install python dependencies
                   command: |
