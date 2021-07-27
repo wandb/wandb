@@ -29,6 +29,7 @@ message Imports {
   bool pytorch_lightning = 9;
   bool pytorch_ignite = 10;
   bool transformers_huggingface = 11;
+  bool jax = 12;
 }
 
 message Feature {
