@@ -20,6 +20,16 @@ coverage: ## check code coverage quickly with the default Python
 	$(BROWSER) htmlcov/index.html
 
 
+submodule:
+	@$(eval SUBMOD_CMD := git submodule foreach git status)
+	@$(eval OUTPUT := $(shell $(SUBMOD_CMD) | wc -c))
+	@if git submodule foreach git status | grep sweeps > /dev/null; \
+	then \
+		echo ''; \
+	else \
+		git submodule update --init --remote; git submodule update; \
+	fi
+
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*
 
@@ -88,3 +98,4 @@ bumpversion-to-dev:
 
 bumpversion-from-dev:
 	tox -e bumpversion-from-dev
+
