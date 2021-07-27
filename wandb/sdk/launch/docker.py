@@ -8,12 +8,14 @@ import subprocess
 import sys
 import tempfile
 from typing import Any, Dict, List, Sequence, Union
+from wandb.util import get_module
 
 from docker.models.resource import Model  # type: ignore
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
+from wandb.env import DOCKER
 from wandb.errors import ExecutionException, LaunchException
 
 from . import _project_spec
@@ -38,22 +40,26 @@ def validate_docker_installation() -> None:
         )
 
 
-def validate_docker_env(project: _project_spec.Project) -> None:
+def validate_docker_env(project: _project_spec.LaunchProject) -> None:
     """Ensure project has a docker image associated with it"""
     if not project.docker_image:
         raise ExecutionException(
-            "Project with docker environment must specify the docker image "
+            "LaunchProject with docker environment must specify the docker image "
             "to use via 'docker_image' field."
         )
 
 
-def generate_docker_image(project: _project_spec.Project, entry_cmd: str) -> str:
+def generate_docker_image(project: _project_spec.LaunchProject, entry_cmd: str) -> str:
     """
     Uses project and entry point to generate the docker image
     """
     path = project.project_dir
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
+    get_module(
+        "jupyter-repo2docker",
+        required="wandb launch requires additional dependencies, install with pip install wandb[launch]",
+    )
     assert isinstance(path, str)
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
@@ -83,6 +89,7 @@ def generate_docker_image(project: _project_spec.Project, entry_cmd: str) -> str
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
         raise LaunchException("error running repo2docker: {}".format(stderr))
+    os.environ[DOCKER] = image_id[0]
     return image_id[0]
 
 
@@ -102,11 +109,14 @@ def pull_docker_image(docker_image: str) -> None:
 
 
 def build_docker_image(
-    project: _project_spec.Project, base_image: str, api: Api, copy_code: bool
+    launch_project: _project_spec.LaunchProject,
+    base_image: str,
+    api: Api,
+    copy_code: bool,
 ) -> Union[Model, Any]:
     """
     Build a docker image containing the project in `work_dir`, using the base image.
-    :param project: Project class instance
+    :param launch_project: LaunchProject class instance
     :param base_image: base_image to build the docker image off of
     :param api: instance of wandb.apis.internal Api
     :param copy_code: boolean indicating if code should be copied into the docker container
@@ -120,23 +130,25 @@ def build_docker_image(
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    image_uri = _get_docker_image_uri(name=project.name, work_dir=project.project_dir)
+    image_uri = _get_docker_image_uri(
+        name=launch_project.name, work_dir=launch_project.project_dir
+    )
     copy_code_line = ""
     workdir_line = ""
     if copy_code:
         workdir = os.path.join("/home/", getpass.getuser())
         copy_code_line = "COPY {}/ {}\n".format(_PROJECT_TAR_ARCHIVE_NAME, workdir)
         workdir_line = "WORKDIR {}\n".format(workdir)
-    wandb_project = project.target_project
-    wandb_entity = project.target_entity
+    project = launch_project.target_project
+    entity = launch_project.target_entity
     dockerfile = (
         "FROM {imagename}\n"
         "{copy_code_line}"
         "{workdir_line}"
         "ENV WANDB_BASE_URL={base_url}\n"
         "ENV WANDB_API_KEY={api_key}\n"
-        "ENV WANDB_PROJECT={wandb_project}\n"
-        "ENV WANDB_ENTITY={wandb_entity}\n"
+        "ENV WANDB_PROJECT={project}\n"
+        "ENV WANDB_ENTITY={entity}\n"
         "ENV WANDB_NAME={wandb_name}\n"
         "ENV WANDB_LAUNCH=True\n"
         "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
@@ -147,8 +159,8 @@ def build_docker_image(
         workdir_line=workdir_line,
         base_url=base_url,
         api_key=api.api_key,
-        wandb_project=wandb_project,
-        wandb_entity=wandb_entity,
+        project=project,
+        entity=entity,
         wandb_name=project.name,
         config_path=project.config_path,
         run_id=project.run_id or None,

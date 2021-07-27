@@ -56,7 +56,7 @@ def _is_git_uri(uri: str) -> bool:
 
 
 def set_project_entity_defaults(
-    uri: str, wandb_project: Optional[str], wandb_entity: Optional[str], api: Api
+    uri: str, project: Optional[str], entity: Optional[str], api: Api
 ) -> Tuple[str, str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
@@ -64,28 +64,28 @@ def set_project_entity_defaults(
     else:
         uri_project = UNCATEGORIZED_PROJECT
         run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
-    if wandb_project is None:
-        wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if project is None:
+        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
             "Target project for this run not specified, defaulting to project {}".format(
-                wandb_project
+                project
             )
         )
-    if wandb_entity is None:
-        wandb_entity = api.default_entity
+    if entity is None:
+        entity = api.default_entity
         wandb.termlog(
             "Target entity for this run not specified, defaulting to current logged-in user {}".format(
-                wandb_entity
+                entity
             )
         )
-    return wandb_project, wandb_entity, run_id
+    return project, entity, run_id
 
 
 def construct_launch_spec(
     uri: str,
     experiment_name: Optional[str],
-    wandb_project: Optional[str],
-    wandb_entity: Optional[str],
+    project: Optional[str],
+    entity: Optional[str],
     docker_image: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
@@ -95,10 +95,10 @@ def construct_launch_spec(
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
-    if wandb_entity:
-        launch_spec["entity"] = wandb_entity
-    if wandb_project:
-        launch_spec["project"] = wandb_project
+    if entity:
+        launch_spec["entity"] = entity
+    if project:
+        launch_spec["project"] = project
     if experiment_name:
         launch_spec["name"] = experiment_name
     if "docker" not in launch_spec:

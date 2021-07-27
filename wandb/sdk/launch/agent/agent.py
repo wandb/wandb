@@ -58,6 +58,7 @@ class LaunchAgent(object):
         """
         Checks the project to ensure run queues exist then adds them to a list to be watched by the agent
         """
+        # TODO: add run queue filtering to server
         project_run_queues = self._api.get_project_run_queues(
             self._entity, self._project
         )

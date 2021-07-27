@@ -340,7 +340,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -934,6 +936,7 @@ def sweep(
     "as config to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
+@display_error
 def launch(
     uri,
     entry_point,
@@ -952,7 +955,6 @@ def launch(
     For local runs, the run will block until it completes.
     Otherwise, the project will run asynchronously.
     If running locally (the default), the URI can be either a Git repository URI or a local path.
-    If running on Databricks, the URI must be a Git repository.
     By default, Git projects run in a new working directory with the given parameters, while
     local projects run from the project's root directory.
     """
@@ -1513,7 +1515,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

@@ -33,7 +33,7 @@ class LaunchSource(enum.IntEnum):
     LOCAL: int = 3
 
 
-class Project(object):
+class LaunchProject(object):
     """A launch project specification."""
 
     def __init__(
@@ -103,7 +103,7 @@ class Project(object):
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
         if len(self._entry_points) != 1:
-            raise Exception("Project must have exactly one entry point")
+            raise Exception("LaunchProject must have exactly one entry point")
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
@@ -261,7 +261,6 @@ def get_entry_point_command(
 ) -> List[str]:
     """
     Returns the shell command to execute in order to run the specified entry point.
-    :param project: Project containing the target entry point
     :param entry_point: Entry point to run
     :param parameters: Parameters (dictionary) for the entry point command
     """
@@ -270,9 +269,9 @@ def get_entry_point_command(
     return commands
 
 
-def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> Project:
+def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
     """
-    Constructs a Project instance using a launch spec.
+    Constructs a LaunchProject instance using a launch spec.
     :param launch_spec: Dictionary representation of launch spec
     :parm api: Instance of wandb.apis.internal Api
     """
@@ -285,7 +284,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> Project:
     else:
         name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
-    return Project(
+    return LaunchProject(
         uri,
         entity,
         project,
@@ -296,11 +295,11 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> Project:
     )
 
 
-def fetch_and_validate_project(project: Project, api: Api) -> Project:
+def fetch_and_validate_project(project: LaunchProject, api: Api) -> LaunchProject:
     """
     Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
     Returns the validated project.
-    :param project: Project to fetch and validate.
+    :param project: LaunchProject to fetch and validate.
     :param api: Instance of wandb.apis.internal Api
     """
     if project.source == LaunchSource.LOCAL:

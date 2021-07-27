@@ -9,7 +9,7 @@ import wandb
 from wandb.errors import LaunchException
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, Project
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     build_docker_image,
     generate_docker_image,
@@ -75,7 +75,7 @@ class LocalSubmittedRun(AbstractRun):
 class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun"""
 
-    def run(self, project: Project) -> AbstractRun:
+    def run(self, project: LaunchProject) -> AbstractRun:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
@@ -99,7 +99,10 @@ class LocalRunner(AbstractRunner):
             api=self._api,
             copy_code=copy_code,
         )
-        command_args += get_docker_command(image=image, docker_args=docker_args,)
+        command_args += get_docker_command(
+            image=image,
+            docker_args=docker_args,
+        )
         if self.backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(
                 self.backend_config["runQueueItemId"], project.run_id
@@ -159,7 +162,10 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)

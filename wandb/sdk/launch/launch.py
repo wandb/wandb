@@ -39,8 +39,8 @@ def run_agent(entity: str, project: str, queues: Optional[List[str]] = None) -> 
 def _run(
     uri: str,
     experiment_name: Optional[str],
-    wandb_project: Optional[str],
-    wandb_entity: Optional[str],
+    project: Optional[str],
+    entity: Optional[str],
     docker_image: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
@@ -59,8 +59,8 @@ def _run(
     launch_spec = construct_launch_spec(
         uri,
         experiment_name,
-        wandb_project,
-        wandb_entity,
+        project,
+        entity,
         docker_image,
         entry_point,
         version,
@@ -96,8 +96,8 @@ def run(
     docker_args: Optional[Dict[str, Any]] = None,
     experiment_name: Optional[str] = None,
     resource: str = "local",
-    wandb_project: Optional[str] = None,
-    wandb_entity: Optional[str] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
@@ -116,8 +116,8 @@ def run(
     :param docker_args: Arguments (dictionary) for the docker command.
     :param experiment_name: Name of experiment under which to launch the run.
     :param resource: Execution backend for the run: W&B provides built-in support for "local" backend
-    :param wandb_project: Target project to send launched run to
-    :param wandb_entity: Target entity to send launched run to
+    :param project: Target project to send launched run to
+    :param entity: Target entity to send launched run to
     :param config: A dictionary which will be passed as config to the backend. The exact content
                            which should be provided is different for each execution backend
     :param synchronous: Whether to block while waiting for a run to complete. Defaults to True.
@@ -164,8 +164,8 @@ def run(
     submitted_run_obj = _run(
         uri=uri,
         experiment_name=experiment_name,
-        wandb_project=wandb_project,
-        wandb_entity=wandb_entity,
+        project=project,
+        entity=entity,
         docker_image=docker_image,
         entry_point=entry_point,
         version=version,
