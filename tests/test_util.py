@@ -166,6 +166,21 @@ def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+@pytest.mark.parametrize(
+    "array_shape", [(), (1,), (3,), (300,), (300, 300), (1,) * 8, (3,) * 8]
+)
+def test_jax_json(array_shape):
+    from jax import numpy as jnp
+
+    orig_data = nested_list(*array_shape)
+    jax_array = jnp.asarray(orig_data)
+    json_friendly_test(orig_data, jax_array)
+    assert util.is_jax_tensor_typename(util.get_full_typename(jax_array))
+
+
 def test_image_from_docker_args_simple():
     image = util.image_from_docker_args(
         ["run", "-v", "/foo:/bar", "-e", "NICE=foo", "-it", "wandb/deepo", "/bin/bash"]
