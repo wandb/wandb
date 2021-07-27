@@ -2,3 +2,9 @@ pytorch_lightning
 transformers 
 datasets
 tqdm
+spacy>=3.1
+ml_datasets
+git+https://github.com/optuna/optuna.git
+fastai
+setuptools 
+wheel

@@ -12,6 +12,7 @@ assert:
     - 0.5
   - :wandb:runs[0][exitcode]: 0
 """
+
 import os
 
 os.system("spacy project clone integrations/wandb")
