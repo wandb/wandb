@@ -437,6 +437,8 @@ class Run(object):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
             imp.transformers_huggingface = True
+        if mods.get("jax"):
+            imp.jax = True
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
