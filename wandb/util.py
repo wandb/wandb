@@ -142,11 +142,8 @@ def vendor_setup():
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
-    package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
-    for p in [vendor_dir] + package_dirs:
-        if p not in sys.path:
-            sys.path.insert(1, p)
+    if vendor_dir not in sys.path:
+        sys.path.insert(1, vendor_dir)
 
     return reset_import_path
 
@@ -325,6 +322,16 @@ def is_pytorch_tensor_typename(typename):
     )
 
 
+def is_jax_tensor_typename(typename):
+    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+
+
+def get_jax_tensor(obj):
+    import jax
+
+    return jax.device_get(obj)
+
+
 def is_fastai_tensor_typename(typename):
     return typename.startswith("fastai.") and ("Tensor" in typename)
 
@@ -440,6 +447,8 @@ def json_friendly(obj):
             obj = obj.cpu().detach().numpy()
         else:
             return obj.item(), True
+    elif is_jax_tensor_typename(typename):
+        obj = get_jax_tensor(obj)
 
     if is_numpy_array(obj):
         if obj.size == 1:

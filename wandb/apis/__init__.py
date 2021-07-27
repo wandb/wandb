@@ -7,7 +7,6 @@ import requests
 from urllib3.exceptions import InsecureRequestWarning
 from wandb import env
 from wandb import termwarn
-from wandb import util
 
 if env.ssl_disabled():
     # Because third party libraries may also use requests, we monkey patch it globally
@@ -27,11 +26,7 @@ if env.ssl_disabled():
 
     requests.Session.merge_environment_settings = merge_environment_settings
 
-reset_path = util.vendor_setup()
-
 from .internal import Api as InternalApi  # noqa
 from .public import Api as PublicApi  # noqa
-
-reset_path()
 
 __all__ = ["InternalApi", "PublicApi"]
