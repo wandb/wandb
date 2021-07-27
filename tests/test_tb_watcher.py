@@ -109,8 +109,7 @@ def test_tb_watcher_save_row_custom_chart(mocked_run, tbwatcher_util):
     ]
 
 
-def test_tb_watcher_logdir_not_exists(mocked_run, tbwatcher_util, capsys, caplog):
-    caplog.set_level(logging.DEBUG)
+def test_tb_watcher_logdir_not_exists(mocked_run, tbwatcher_util, capsys):
     # TODO: check caplog for right error text
     pytest.importorskip("tensorboard.summary.v1")
     import tensorboard.summary.v1 as tb_summary

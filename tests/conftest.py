@@ -817,7 +817,7 @@ def publish_util(
 
 @pytest.fixture
 def tbwatcher_util(
-    mocked_run, mock_server, internal_hm, backend_interface, parse_ctx,
+    mocked_run, mock_server, internal_hm, backend_interface, parse_ctx
 ):
     def fn(write_function, logdir="./", save=True, root_dir="./"):
 
