@@ -1,5 +1,4 @@
 import wandb
-from wandb import sweeps
 import sys
 import platform
 import pytest
@@ -11,6 +10,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_run_from_dict():
+    from wandb import sweeps    
     run = sweeps.SweepRun(
         **{
             "name": "test",
