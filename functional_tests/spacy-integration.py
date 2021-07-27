@@ -4,14 +4,13 @@
 id: 0.0.4
 check-ext-wandb: {}
 assert:
-  - :wandb:runs_len: 3
+  - :wandb:runs_len: 1
   - :wandb:runs[0][project]: IMDB_sentiment
   - :wandb:runs[0][config][training.batcher.size.start]: 100
-  - :wandb:runs[0][summary][acc]: 1.0
+  - :op:>=:
+    - :wandb:runs[0][summary][score]
+    - 0.5
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:runs[1][config][test]: 123
-  - :wandb:runs[1][exitcode]: 0
-  - :wandb:runs[2][exitcode]: 0
 """
 import os
 
