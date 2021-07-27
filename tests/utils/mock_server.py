@@ -41,6 +41,7 @@ def default_ctx():
         "max_cli_version": "0.10.33",
         "runs": {},
         "run_ids": [],
+        "file_names": [],
     }
 
 
@@ -672,7 +673,10 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            ctx["manifests_created"].append(manifest)
+            run_name = body.get("variables", {}).get("runName", "unknown")
+            run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
+            for c in ctx, run_ctx:
+                c["manifests_created"].append(manifest)
             return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
@@ -877,6 +881,18 @@ def create_app(user_ctx=None):
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data()
+        run_ctx = ctx["runs"].setdefault(run, default_ctx())
+        for c in ctx, run_ctx:
+            c["file_names"].append(request.args.get("file"))
+
+        inject = InjectRequestsParse(ctx).find(request=request)
+        if inject:
+            if inject.response:
+                response = inject.response
+            if inject.http_status:
+                # print("INJECT", inject, inject.http_status)
+                raise HttpException("some error", status_code=inject.http_status)
+
         if request.method == "PUT":
             curr = ctx["file_bytes"].get(file)
             if curr is None:
@@ -1295,6 +1311,10 @@ class ParseCTX(object):
     @property
     def run_ids(self):
         return self._ctx.get("run_ids", [])
+
+    @property
+    def file_names(self):
+        return self._ctx.get("file_names", [])
 
     @property
     def dropped_chunks(self):
