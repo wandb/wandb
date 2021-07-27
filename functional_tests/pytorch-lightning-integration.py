@@ -7,7 +7,7 @@ https://github.com/PyTorchLightning/pytorch-lightning/blob/master/tests/loggers/
 id: 0.0.4
 check-ext-wandb: {}
 assert:
-  - :wandb:runs_len: 2
+  - :wandb:runs_len: 3
   - :wandb:runs[0][config][project]: integrations_testing
   - :wandb:runs[0][summary][acc]: 1.0
   - :wandb:runs[0][exitcode]: 0

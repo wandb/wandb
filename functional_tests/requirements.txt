@@ -1,1 +1,4 @@
 pytorch_lightning
+transformers 
+datasets
+tqdm
