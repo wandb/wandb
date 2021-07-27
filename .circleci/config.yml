@@ -180,9 +180,13 @@ jobs:
         steps:
             - checkout
             - run:
+                name: checkout sweeps submodule
+                command: |
+                  git submodule update --init --remote
+            - run:
                 name: configure sweeps submodule
                 command: |
-                  make submodule-update
+                  git submodule update
             - run:
                   name: Install python dependencies
                   command: |
