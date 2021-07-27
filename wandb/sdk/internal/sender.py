@@ -249,9 +249,10 @@ class SendManager(object):
     def _debounce_config(self):
         config_value_dict = self._config_format(self._consolidated_config)
         # TODO(jhr): check result of upsert_run?
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
+        if self._run:
+            self._api.upsert_run(
+                name=self._run.run_id, config=config_value_dict, **self._api_settings
+            )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
@@ -302,7 +303,6 @@ class SendManager(object):
         # so use handle_request_defer as a state machine.
         logger.info("send defer")
 
-        self._update_config()
         self._interface.publish_defer()
 
     def send_final(self, data):
@@ -532,7 +532,7 @@ class SendManager(object):
 
     def _config_runtime_update(self, config_dict: Dict[str, Any]) -> None:
         """Add default xaxis to config."""
-        if self._config_runtime is not None:
+        if self._config_runtime is None:
             return
         wandb_key = "_wandb"
         config_dict.setdefault(wandb_key, dict())
