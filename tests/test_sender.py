@@ -37,7 +37,7 @@ def test_parallel_requests(mock_server, backend_interface):
                 assert status_resp is not None
                 assert status_resp.run_should_stop
             elif i % 3 == 2:
-                summary_resp = interface.communicate_summary()
+                summary_resp = interface.communicate_get_summary()
                 assert summary_resp is not None
                 assert hasattr(summary_resp, "item")
             work_queue.task_done()
