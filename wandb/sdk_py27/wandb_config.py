@@ -150,6 +150,8 @@ class Config(object):
     def __getattr__(self, key):
         return self.__getitem__(key)
 
+    __getattribute__ = __getattr__
+
     def __contains__(self, key):
         return key in self._items
 
