@@ -75,6 +75,7 @@ class HandleManager(object):
     _metric_track: Dict[Tuple[str, ...], float]
     _metric_copy: Dict[Tuple[str, ...], Any]
     _track_time: Optional[float]
+    _accumulate_time: float
 
     def __init__(
         self,
