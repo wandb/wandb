@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 def _dict_nested_set(target, key_list, v):
     # recurse down the dictionary structure:
+
     for k in key_list[:-1]:
         target.setdefault(k, {})
         new_target = target.get(k)
@@ -187,6 +188,7 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def _save_summary(self, summary_dict, flush = False):
+        summary_dict.pop("_full_runtime", None)
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
@@ -452,7 +454,6 @@ class HandleManager(object):
 
     def handle_summary(self, record):
         summary = record.summary
-
         for item in summary.update:
             if len(item.nested_key) > 0:
                 # we use either key or nested_key -- not both
