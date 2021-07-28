@@ -691,7 +691,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -805,17 +809,79 @@ class Api(object):
         return res["project"]["runQueues"]
 
     @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+            
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
     def push_to_run_queue(self, queue_name, launch_spec):
         # TODO(kdg): add pushToRunQueueByName to avoid this extra query
-        queues_found = self.get_project_run_queues(
-            launch_spec["entity"], launch_spec["project"]
-        )
-        matching_queues = [q for q in queues_found if q["name"] == queue_name]
+        entity = launch_spec["entity"]
+        project = launch_spec["project"]
+        queues_found = self.get_project_run_queues(entity, project)
+        matching_queues = [
+            q
+            for q in queues_found
+            if q["name"] == queue_name
+            # ensure user has access to queue
+            and (q["access"] == "PROJECT" or q["createdBy"] == self.default_entity)
+        ]
         if not matching_queues:
-            logger.error("Queue with name {} not found".format(queue_name))
+            # in the case of a missing default queue. create it
+            if queue_name == "default":
+                wandb.termwarn(
+                    "No default queue existing for {}/{} creating one.".format(
+                        entity, project
+                    )
+                )
+                res = self.create_run_queue(
+                    launch_spec["entity"],
+                    launch_spec["project"],
+                    queue_name,
+                    access="PROJECT",
+                )
+                if res is None or res.get("queueID") is None:
+                    wandb.termerror(
+                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
+                            entity, project
+                        )
+                    )
+                    return
+                queue_id = res["queueID"]
+
+            else:
+                wandb.termwarn("Unable to push to run queue {}. Queue not found.")
+                return None
         elif len(matching_queues) > 1:
-            logger.error("Multiple queues with name {} found".format(queue_name))
-        queue_id = matching_queues[0]["id"]
+            wandb.termwarn(
+                "Unable to push to run queue {}. More than one queue found with this name."
+            )
+            return None
+        else:
+            queue_id = matching_queues[0]["id"]
 
         mutation = gql(
             """
@@ -1171,7 +1237,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -2082,7 +2153,8 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2097,7 +2169,12 @@ class Api(object):
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")

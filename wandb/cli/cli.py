@@ -906,8 +906,8 @@ def sweep(
     "-p",
     metavar="<str>",
     default=None,
-    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder."
-    " If passed in, will override the project value passed in using a config file.",
+    help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
+    "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
 )
 @click.option(
     "--resource",
@@ -949,12 +949,10 @@ def launch(
     config,
 ):
     """
-    Run a W&B project from the given URI. Which can either be a wandb URI.
-    For local runs, the run will block until it completes.
-    Otherwise, the project will run asynchronously.
-    If running locally (the default), the URI can be either a Git repository URI or a local path.
-    By default, Git projects run in a new working directory with the given parameters, while
-    local projects run from the project's root directory.
+    Run a W&B run from the given URI. Which can either be a wandb URI or a github repo uri.
+    In the case of a wandb URI the arguments used in the original run will be used by default.
+    These arguments can be overridden using the param_list args, or specifying those arguments
+    in the config's 'overrides' key, 'args' field as a list of strings
     """
     api = _get_cling_api()
 
@@ -1117,12 +1115,11 @@ def launch_add(
         if res is None or "runQueueItemId" not in res:
             raise Exception("Error adding run to queue")
         else:
-            print(
-                "internal debug: added with run queue item id {}".format(
-                    res["runQueueItemId"]
+            wandb.termlog(
+                "Added run to {}/{}'s queue {}".format(
+                    launch_spec["entity"], launch_spec["project"], queue
                 )
-            )  # todo: remove
-            wandb.termlog("Added run to queue")
+            )
     except Exception as e:
         print(e)
         sys.exit(1)
