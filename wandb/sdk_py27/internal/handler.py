@@ -74,6 +74,7 @@ class HandleManager(object):
     # _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     # _metric_track: Dict[Tuple[str, ...], float]
     # _metric_copy: Dict[Tuple[str, ...], Any]
+    # _track_time: Optional[float]
 
     def __init__(
         self,
@@ -97,7 +98,7 @@ class HandleManager(object):
         self._system_stats = None
         self._step = 0
 
-        self._track_time = time.time()
+        self._track_time = None
         self._accumulate_time = 0
 
         # keep track of summary from key/val updates
@@ -492,7 +493,8 @@ class HandleManager(object):
         self._save_summary(self._consolidated_summary)
 
     def handle_exit(self, record):
-        self._accumulate_time += time.time() - self._track_time
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
         record.exit.runtime = self._accumulate_time
         self._dispatch_record(record, always_send=True)
 
@@ -549,14 +551,17 @@ class HandleManager(object):
             logger.info("starting system metrics thread")
             self._system_stats.start()
 
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
         self._track_time = time.time()
 
     def handle_request_pause(self, record):
         if self._system_stats is not None:
             logger.info("stopping system metrics thread")
             self._system_stats.shutdown()
-
-        self._accumulate_time += time.time() - self._track_time
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+            self._track_time = None
 
     def handle_request_poll_exit(self, record):
         self._dispatch_record(record, always_send=True)

@@ -74,6 +74,7 @@ class HandleManager(object):
     _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_track: Dict[Tuple[str, ...], float]
     _metric_copy: Dict[Tuple[str, ...], Any]
+    _track_time: Optional[float]
 
     def __init__(
         self,

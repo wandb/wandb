@@ -63,11 +63,7 @@ class SendManager(object):
     # _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self,
-        settings,
-        record_q,
-        result_q,
-        interface,
+        self, settings, record_q, result_q, interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -302,7 +298,7 @@ class SendManager(object):
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
         logger.info("send defer")
-
+        self._update_config()
         self._interface.publish_defer()
 
     def send_final(self, data):
@@ -887,10 +883,8 @@ class SendManager(object):
                 artifact
             ).get("id")
         except Exception as e:
-            result.response.log_artifact_response.error_message = (
-                'error logging artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
-                )
+            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
+                artifact.type, artifact.name, e
             )
 
         self._result_q.put(result)
