@@ -68,7 +68,7 @@ import yaml
 # TODO(jhr): Add print_summary
 
 sweeps = get_module(
-    "wandb.sweeps",
+    "wandb.sweeps_engine",
     required="This module requires wandb to be built with the local "
     "controller. Please run pip install wandb[sweeps].",
 )

@@ -17,6 +17,7 @@ source =
 omit =
     wandb/sdk_py27/*
     wandb/sweeps/*
+    wandb/sweeps_engine/*
     wandb/vendor/*
 
 [report]
@@ -27,4 +28,5 @@ exclude_lines =
 omit =
     wandb/sdk_py27/*
     wandb/sweeps/*
+    wandb/sweeps_engine/*
     wandb/vendor/*
