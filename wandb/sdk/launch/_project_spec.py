@@ -12,7 +12,7 @@ import tempfile
 from typing import Tuple
 
 import wandb
-from wandb.errors import Error as ExecutionException
+from wandb.errors import Error as ExecutionException, LaunchException
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -72,7 +72,7 @@ class LaunchProject(object):
         else:
             # assume local
             if not os.path.exists(self.uri):
-                raise Exception(
+                raise LaunchException(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
             self.source = LaunchSource.LOCAL

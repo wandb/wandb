@@ -6,7 +6,7 @@ import sys
 from typing import Any, Dict, List
 
 import wandb
-from wandb.errors import LaunchException
+from wandb.errors import CommError, LaunchException
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
@@ -103,9 +103,16 @@ class LocalRunner(AbstractRunner):
         )
         command_args += get_docker_command(image=image, docker_args=docker_args,)
         if self.backend_config.get("runQueueItemId"):
-            self._api.ack_run_queue_item(
-                self.backend_config["runQueueItemId"], launch_project.run_id
-            )
+            try:
+                self._api.ack_run_queue_item(
+                    self.backend_config["runQueueItemId"], launch_project.run_id
+                )
+            except CommError:
+                wandb.termerror(
+                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
+                )
+                return
+
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted

@@ -60,7 +60,7 @@ def set_project_entity_defaults(
 ) -> Tuple[str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
-        _, uri_project = parse_wandb_uri(uri)
+        _, uri_project, _ = parse_wandb_uri(uri)
     elif _is_git_uri(uri):
         uri_project = os.path.splitext(os.path.basename(uri))[0]
     else:
@@ -154,7 +154,10 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
-    result = api.get_run_info(entity, project, name)
+    try:
+        result = api.get_run_info(entity, project, name)
+    except CommError as e:
+        raise LaunchException(e)
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     if result.get("args") is not None:

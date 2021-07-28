@@ -121,7 +121,6 @@ def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
     api = _get_cling_api()
-
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
@@ -989,6 +988,9 @@ def launch(
             synchronous=resource in ("local")
             or resource is None,  # todo currently always true
         )
+    except wandb_launch.LaunchException as e:
+        logger.error("=== %s ===", e)
+        sys.exit(e)
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)
         sys.exit(e)
