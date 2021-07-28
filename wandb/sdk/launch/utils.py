@@ -66,7 +66,7 @@ def set_project_entity_defaults(
     else:
         uri_project = UNCATEGORIZED_PROJECT
     if project is None:
-        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+        project = uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
             "Target project for this run not specified, defaulting to project {}".format(
                 project
