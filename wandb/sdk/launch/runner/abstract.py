@@ -143,7 +143,7 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(self, launch_project: LaunchProject) -> AbstractRun:
+    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution
         :param launch_project: Object of _project_spec.LaunchProject class representing a wandb launch project

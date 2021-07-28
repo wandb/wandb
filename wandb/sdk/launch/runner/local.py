@@ -3,7 +3,7 @@ import os
 import signal
 import subprocess
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.errors import CommError, LaunchException
@@ -75,7 +75,7 @@ class LocalSubmittedRun(AbstractRun):
 class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun"""
 
-    def run(self, launch_project: LaunchProject) -> AbstractRun:
+    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
@@ -111,7 +111,7 @@ class LocalRunner(AbstractRunner):
                 wandb.termerror(
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
-                return
+                return None
 
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be

@@ -9,7 +9,6 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import wandb
 import wandb.util as util
-from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import LaunchException
 
@@ -43,7 +42,7 @@ class LaunchAgent(object):
         self._entity = entity
         self._project = project
         self._api = Api()
-        self._settings = Settings()
+        self._settings = wandb.Settings()
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[int, AbstractRun] = {}
         self._ticks = 0
@@ -154,8 +153,9 @@ class LaunchAgent(object):
         backend.verify()
 
         run = backend.run(project)
-        self._jobs[run.id] = run
-        self._running += 1
+        if run:
+            self._jobs[run.id] = run
+            self._running += 1
 
     def loop(self) -> None:
         """Main loop function for agent"""

@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 from typing import Any, Dict, List, Sequence, Union
-from wandb.util import get_module
+
 
 from docker.models.resource import Model  # type: ignore
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -17,6 +17,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.env import DOCKER
 from wandb.errors import ExecutionException, LaunchException
+from wandb.util import get_module
 
 from . import _project_spec
 from .utils import _is_wandb_dev_uri, _is_wandb_local_uri

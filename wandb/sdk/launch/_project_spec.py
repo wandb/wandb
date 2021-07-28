@@ -41,7 +41,7 @@ class LaunchProject(object):
         uri: str,
         target_entity: str,
         target_project: str,
-        name: str,
+        name: Optional[str],
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
@@ -282,7 +282,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     project, entity = utils.set_project_entity_defaults(
         uri, launch_spec.get("project"), launch_spec.get("entity"), api
     )
-    name = None
+    name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
 

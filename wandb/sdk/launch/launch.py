@@ -1,5 +1,4 @@
 import logging
-import sys
 
 import wandb
 from wandb.apis.internal import Api
@@ -9,7 +8,6 @@ from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .runner import loader
 from .utils import (
-    _is_wandb_local_uri,
     construct_launch_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -67,8 +65,8 @@ def _run(
         parameters,
         launch_config,
     )
-    project = create_project_from_spec(launch_spec, api)
-    project = fetch_and_validate_project(project, api)
+    launch_project = create_project_from_spec(launch_spec, api)
+    launch_project = fetch_and_validate_project(launch_project, api)
 
     # construct runner config.
     runner_config: Dict[str, Any] = {}
@@ -77,7 +75,10 @@ def _run(
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
-        submitted_run = backend.run(project)
+        submitted_run = backend.run(launch_project)
+        # this check will always pass, run is only optional in the agent case where
+        # a run queue id is present on the backend config
+        assert submitted_run
         return submitted_run
     else:
         raise ExecutionException(
