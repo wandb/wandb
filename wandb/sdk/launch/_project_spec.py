@@ -148,7 +148,7 @@ class LaunchProject(object):
             )
             patch = utils.fetch_project_diff(self.uri, api)
             if run_info.get("python"):
-                with open(os.path.join(self.project_dir, 'runtime.txt'), "w") as fp:
+                with open(os.path.join(self.project_dir, "runtime.txt"), "w") as fp:
                     fp.write("python-{}".format(run_info["python"]))
             if patch:
                 utils.apply_patch(patch, self.project_dir)

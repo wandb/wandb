@@ -42,7 +42,6 @@ import yaml
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
-    from wandb.sdk.launch import launch as wandb_launch
     from wandb.sdk.launch.utils import construct_launch_spec
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
@@ -953,6 +952,20 @@ def launch(
     These arguments can be overridden using the param_list args, or specifying those arguments
     in the config's 'overrides' key, 'args' field as a list of strings
     """
+    _ = util.get_module(
+        "docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "chardet",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    from wandb.sdk.launch import launch as wandb_launch
+
     api = _get_cling_api()
 
     param_dict = util._user_args_to_dict(param_list)
@@ -1008,6 +1021,21 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
+    _ = util.get_module(
+        "docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "chardet",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+
+    from wandb.sdk.launch import launch as wandb_launch
+
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
