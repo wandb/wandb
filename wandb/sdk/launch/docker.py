@@ -132,8 +132,9 @@ def build_docker_image(
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
+    image_name = "wandb_launch_{}".format(launch_project.run_id)
     image_uri = _get_docker_image_uri(
-        name=launch_project.name, work_dir=launch_project.project_dir
+        name=image_name, work_dir=launch_project.project_dir
     )
     copy_code_line = ""
     workdir_line = ""
