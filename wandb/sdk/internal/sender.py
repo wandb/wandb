@@ -63,7 +63,11 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self,
+        settings,
+        record_q,
+        result_q,
+        interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -87,6 +91,7 @@ class SendManager(object):
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._config_runtime: Optional[float] = None
+        self._metadata_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
 
@@ -290,7 +295,7 @@ class SendManager(object):
         runtime = exit.runtime
         self._config_runtime = runtime
         logger.info("handling runtime: %s", exit.runtime)
-
+        self._metadata_summary["_full_runtime"] = runtime
         # Pass the responsibility to respond to handle_request_defer()
         if data.control.req_resp:
             self._exit_sync_uuid = data.uuid
@@ -744,7 +749,9 @@ class SendManager(object):
         self._save_history(history_dict)
 
     def send_summary(self, data):
+
         summary_dict = proto_util.dict_from_proto_list(data.summary.update)
+        summary_dict.update(self._metadata_summary)
         json_summary = json.dumps(summary_dict)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
@@ -883,8 +890,10 @@ class SendManager(object):
                 artifact
             ).get("id")
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._result_q.put(result)
