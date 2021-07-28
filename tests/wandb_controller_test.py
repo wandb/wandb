@@ -2,6 +2,7 @@ import wandb
 import sys
 import platform
 import pytest
+from wandb import sweeps_engine
 
 
 pytestmark = pytest.mark.skipif(
@@ -10,7 +11,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_run_from_dict():
-    from wandb import sweeps_engine
+
 
     run = sweeps_engine.SweepRun(
         **{
