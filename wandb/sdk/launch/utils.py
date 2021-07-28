@@ -57,13 +57,14 @@ def _is_git_uri(uri: str) -> bool:
 
 def set_project_entity_defaults(
     uri: str, project: Optional[str], entity: Optional[str], api: Api
-) -> Tuple[str, str, str]:
+) -> Tuple[str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
-        _, uri_project, run_id = parse_wandb_uri(uri)
+        _, uri_project = parse_wandb_uri(uri)
+    elif _is_git_uri(uri):
+        uri_project = os.path.splitext(os.path.basename(uri))[0]
     else:
         uri_project = UNCATEGORIZED_PROJECT
-        run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
     if project is None:
         project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
@@ -78,7 +79,7 @@ def set_project_entity_defaults(
                 entity
             )
         )
-    return project, entity, run_id
+    return project, entity
 
 
 def construct_launch_spec(
