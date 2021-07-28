@@ -31,13 +31,18 @@ wandb/proto                - Protocol buffers for inter-process communication an
 wandb/internal             - Backend threads/processes
 wandb/apis                 - Public api (still has internal api but this should be moved to wandb/internal)
 wandb/cli                  - Handlers for command line functionality
-wandb/sweeps               - Hyperparameter sweep engine (pin of https://github.com/wandb/sweeps)
+wandb/sweeps_engine        - Hyperparameter sweep engine (pin of https://github.com/wandb/sweeps)
 wandb/integration/keras    - keras integration
 wandb/integration/pytorch  - pytorch integration
 ```
 
-The hyperparameter engine `wandb/sweeps` is a submodule: https://github.com/wandb/sweeps. For more on managing the sweeps
-submodule for `wandb/client`, see [sweeps submodule management](#sweeps-submodule-management).
+The hyperparameter engine `wandb/sweeps_engine` is a submodule: https://github.com/wandb/sweeps.
+
+To check out the currently pinned version of the sweeps submodule, do:
+
+```
+make submodule-update
+```
 
 ## Setup development environment
 
@@ -404,11 +409,3 @@ A file named `cli.md` in the same folder as the code. The file is the generated 
 **Requirements**
 - python >= 3.8
 - wandb
-
-### sweeps submodule management
-
-To check out the currently pinned version of the sweeps submodule, potentially pulling state from a remote, do:
-
-```
-make submodule-update
-```
