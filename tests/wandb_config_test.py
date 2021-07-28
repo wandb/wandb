@@ -53,7 +53,7 @@ def test_locked_set_attr(consolidated, config):
 def test_getattribute(config):
     config.this = 8
     assert config.__getattribute__("this") == 8
-    with pytest.raises(AttributeError):
+    with pytest.raises(KeyError):
         config.__getattribute__("that")
 
 

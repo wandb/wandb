@@ -150,11 +150,8 @@ class Config(object):
     def __getattribute__(self, item):
         try:
             return super().__getattribute__(item)
-        except AttributeError as e:
-            try:
-                return self._items[item]
-            except KeyError:
-                raise e
+        except AttributeError:
+            return self._items[item]
 
     def __getattr__(self, key):
         return self.__getitem__(key)
