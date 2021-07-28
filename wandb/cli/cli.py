@@ -338,7 +338,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -849,6 +851,21 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
+def _check_launch_imports():
+    _ = util.get_module(
+        "docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "chardet",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+
+
 @cli.command(help="Launch a job on a specified resource")
 @click.argument("uri")
 @click.option(
@@ -952,18 +969,7 @@ def launch(
     These arguments can be overridden using the param_list args, or specifying those arguments
     in the config's 'overrides' key, 'args' field as a list of strings
     """
-    _ = util.get_module(
-        "docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    _ = util.get_module(
-        "repo2docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    _ = util.get_module(
-        "chardet",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
+    _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
     api = _get_cling_api()
@@ -1021,18 +1027,7 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
-    _ = util.get_module(
-        "docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    _ = util.get_module(
-        "repo2docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    _ = util.get_module(
-        "chardet",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
+    _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
 
@@ -1118,6 +1113,10 @@ def launch_add(
     docker_image=None,
     param_list=None,
 ):
+    _check_launch_imports()
+
+    from wandb.sdk.launch import launch as wandb_launch
+
     api = _get_cling_api()
 
     param_dict = util._user_args_to_dict(param_list)
@@ -1540,7 +1539,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
