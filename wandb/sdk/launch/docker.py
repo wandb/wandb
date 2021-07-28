@@ -60,7 +60,7 @@ def generate_docker_image(
     # by _fetch_project_local
     get_module(
         "repo2docker",
-        required="wandb launch requires additional dependencies, install with pip install wandb[launch]",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
     )
     assert isinstance(path, str)
     cmd: Sequence[str] = [
