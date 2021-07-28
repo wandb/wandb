@@ -138,8 +138,8 @@ def build_docker_image(
     )
     copy_code_line = ""
     workdir_line = ""
+    workdir = os.path.join("/home/", getpass.getuser())
     if copy_code:
-        workdir = os.path.join("/home/", getpass.getuser())
         copy_code_line = "COPY {}/ {}\n".format(_PROJECT_TAR_ARCHIVE_NAME, workdir)
         workdir_line = "WORKDIR {}\n".format(workdir)
     name_line = ""
@@ -150,6 +150,7 @@ def build_docker_image(
 
     dockerfile = (
         "FROM {imagename}\n"
+        "COPY {src_tar}/{config_path} {workdir}"
         "{copy_code_line}"
         "{workdir_line}"
         "{name_line}"
@@ -163,6 +164,9 @@ def build_docker_image(
         "ENV WANDB_DOCKER={docker_image}"
     ).format(
         imagename=base_image,
+        src_tar=_PROJECT_TAR_ARCHIVE_NAME,
+        config_path=_project_spec.DEFAULT_CONFIG_PATH,
+        workdir=workdir,
         copy_code_line=copy_code_line,
         workdir_line=workdir_line,
         name_line=name_line,
@@ -170,10 +174,8 @@ def build_docker_image(
         api_key=api.api_key,
         project=project,
         entity=entity,
-        wandb_name=launch_project.name,
-        config_path=launch_project.config_path,
         run_id=launch_project.run_id or None,
-        docker_image={launch_project.docker_image},
+        docker_image=launch_project.docker_image,
     )
     build_ctx_path = _create_docker_build_ctx(launch_project.project_dir, dockerfile)
     with open(build_ctx_path, "rb") as docker_build_ctx:
@@ -254,7 +256,9 @@ def _get_docker_image_uri(name: str, work_dir: str) -> str:
     return name + version_string
 
 
-def _create_docker_build_ctx(work_dir: str, dockerfile_contents: str) -> str:
+def _create_docker_build_ctx(
+    work_dir: str, dockerfile_contents: str, config_path: str
+) -> str:
     """
     Creates build context tarfile containing Dockerfile and project code, returning path to tarfile
     """
@@ -262,6 +266,10 @@ def _create_docker_build_ctx(work_dir: str, dockerfile_contents: str) -> str:
     try:
         dst_path = os.path.join(directory, "wandb-project-contents")
         shutil.copytree(src=work_dir, dst=dst_path)
+        shutil.copyfile(
+            src=config_path,
+            dst=os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH),
+        )
         with open(os.path.join(dst_path, _GENERATED_DOCKERFILE_NAME), "w") as handle:
             handle.write(dockerfile_contents)
         _, result_path = tempfile.mkstemp()
