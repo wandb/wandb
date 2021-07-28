@@ -805,17 +805,79 @@ class Api(object):
         return res["project"]["runQueues"]
 
     @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+            
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
     def push_to_run_queue(self, queue_name, launch_spec):
         # TODO(kdg): add pushToRunQueueByName to avoid this extra query
-        queues_found = self.get_project_run_queues(
-            launch_spec["entity"], launch_spec["project"]
-        )
-        matching_queues = [q for q in queues_found if q["name"] == queue_name]
+        entity = launch_spec["entity"]
+        project = launch_spec["project"]
+        queues_found = self.get_project_run_queues(entity, project)
+        matching_queues = [
+            q
+            for q in queues_found
+            if q["name"] == queue_name
+            # ensure user has access to queue
+            and (q["access"] == "PROJECT" or q["createdBy"] == self.default_entity)
+        ]
         if not matching_queues:
-            logger.error("Queue with name {} not found".format(queue_name))
+            # in the case of a missing default queue. create it
+            if queue_name == "default":
+                wandb.termwarn(
+                    "No default queue existing for {}/{} creating one.".format(
+                        entity, project
+                    )
+                )
+                res = self.create_run_queue(
+                    launch_spec["entity"],
+                    launch_spec["project"],
+                    queue_name,
+                    access="PROJECT",
+                )
+                if res is None or res.get("queueID") is None:
+                    wandb.termerror(
+                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
+                            entity, project
+                        )
+                    )
+                    return
+                queue_id = res["queueID"]
+
+            else:
+                wandb.termwarn("Unable to push to run queue {}. Queue not found.")
+                return None
         elif len(matching_queues) > 1:
-            logger.error("Multiple queues with name {} found".format(queue_name))
-        queue_id = matching_queues[0]["id"]
+            wandb.termwarn(
+                "Unable to push to run queue {}. More than one queue found with this name."
+            )
+            return None
+        else:
+            queue_id = matching_queues[0]["id"]
 
         mutation = gql(
             """
@@ -873,6 +935,10 @@ class Api(object):
         response = self.gql(
             mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
         )
+        if not response["ackRunQueueItem"]["success"]:
+            raise CommError(
+                "Error acking run queue item. Item may have already been acknowledged by another process"
+            )
         return response["ackRunQueueItem"]["success"]
 
     @normalize_exceptions
@@ -1054,13 +1120,13 @@ class Api(object):
         variable_values = {"project": project, "entity": entity, "name": name}
         res = self.gql(query, variable_values)
         if res.get("project") is None:
-            raise Exception(
-                "Error fetching run info for {}/{}/{}. Check that you have access to this entity and project".format(
+            raise CommError(
+                "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
                     entity, project, name
                 )
             )
         elif res["project"].get("run") is None:
-            raise Exception(
+            raise CommError(
                 "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
                     entity, project, name
                 )
