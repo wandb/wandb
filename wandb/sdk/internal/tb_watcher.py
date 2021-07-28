@@ -430,10 +430,7 @@ class TBHistory(object):
     _data: "HistoryDict"
     _added: "List[HistoryDict]"
 
-    def __init__(
-            self,
-            start_time: int = 0
-    ) -> None:
+    def __init__(self, start_time: int = 0) -> None:
         self._step = 0
         self._step_size = 0
         self._data = dict()
