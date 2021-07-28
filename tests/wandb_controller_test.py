@@ -12,7 +12,6 @@ pytestmark = pytest.mark.skipif(
 
 def test_run_from_dict():
 
-
     run = sweeps_engine.SweepRun(
         **{
             "name": "test",
