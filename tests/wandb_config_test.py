@@ -50,6 +50,11 @@ def test_locked_set_attr(consolidated, config):
     assert consolidated == dict(config)
 
 
+def test_getattribute(config):
+    config.this = 8
+    assert config.__getattribute__("this") == 8
+
+
 def test_locked_set_key(consolidated, config):
     config.update_locked(dict(this=2, that=4), "sweep")
     config["this"] = 8
