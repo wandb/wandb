@@ -92,6 +92,7 @@ class SendManager(object):
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._config_runtime: Optional[float] = None
         self._metadata_summary: Dict[str, Any] = dict()
+        self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
 
@@ -296,6 +297,8 @@ class SendManager(object):
         self._config_runtime = runtime
         logger.info("handling runtime: %s", exit.runtime)
         self._metadata_summary["_full_runtime"] = runtime
+        self._update_summary()
+
         # Pass the responsibility to respond to handle_request_defer()
         if data.control.req_resp:
             self._exit_sync_uuid = data.uuid
@@ -749,8 +752,12 @@ class SendManager(object):
         self._save_history(history_dict)
 
     def send_summary(self, data):
-
         summary_dict = proto_util.dict_from_proto_list(data.summary.update)
+        self._cached_summary = summary_dict
+        self._update_summary()
+
+    def _update_summary(self):
+        summary_dict = self._cached_summary.copy()
         summary_dict.update(self._metadata_summary)
         json_summary = json.dumps(summary_dict)
         if self._fs:
