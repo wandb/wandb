@@ -147,10 +147,14 @@ class Config(object):
 
     __setattr__ = __setitem__
 
+    def __getattribute__(self, item):
+        try:
+            return object.__getattribute__(self, item)
+        except AttributeError:
+            return self._items[item]
+
     def __getattr__(self, key):
         return self.__getitem__(key)
-
-    __getattribute__ = __getattr__
 
     def __contains__(self, key):
         return key in self._items
