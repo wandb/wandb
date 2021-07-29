@@ -503,8 +503,8 @@ def disable_console():
 def parse_ctx():
     """Fixture providing class to parse context data."""
 
-    def parse_ctx_fn(ctx):
-        return utils.ParseCTX(ctx)
+    def parse_ctx_fn(ctx, run_id=None):
+        return utils.ParseCTX(ctx, run_id=run_id)
 
     yield parse_ctx_fn
 
@@ -796,20 +796,34 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
 def publish_util(
     mocked_run, mock_server, backend_interface, parse_ctx,
 ):
-    def fn(metrics=None, history=None, artifacts=None):
+    def fn(
+        metrics=None,
+        history=None,
+        artifacts=None,
+        files=None,
+        begin_cb=None,
+        end_cb=None,
+    ):
         metrics = metrics or []
         history = history or []
         artifacts = artifacts or []
+        files = files or []
 
         with backend_interface() as interface:
+            if begin_cb:
+                begin_cb()
             for m in metrics:
                 interface._publish_metric(m)
             for h in history:
                 interface.publish_history(**h)
             for a in artifacts:
                 interface.publish_artifact(**a)
+            for f in files:
+                interface.publish_files(**f)
+            if end_cb:
+                end_cb()
 
-        ctx_util = parse_ctx(mock_server.ctx)
+        ctx_util = parse_ctx(mock_server.ctx, run_id=mocked_run.id)
         return ctx_util
 
     yield fn

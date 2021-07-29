@@ -124,7 +124,7 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_torch",
     "xgboost",
     "sync",
-    "sweeps",
+    "sweeps_engine",
     "cli",
 }
 
