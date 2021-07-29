@@ -114,7 +114,6 @@ def pull_docker_image(docker_image: str) -> None:
 def build_docker_image(
     launch_project: _project_spec.LaunchProject,
     base_image: str,
-    api: Api,
     copy_code: bool,
 ) -> Union[Model, Any]:
     """

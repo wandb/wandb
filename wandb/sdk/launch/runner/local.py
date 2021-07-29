@@ -98,7 +98,6 @@ class LocalRunner(AbstractRunner):
         image = build_docker_image(
             launch_project=launch_project,
             base_image=launch_project.docker_image,
-            api=self._api,
             copy_code=copy_code,
         )
         command_args += get_docker_command(
@@ -175,7 +174,10 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
