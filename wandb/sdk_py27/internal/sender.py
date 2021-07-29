@@ -292,7 +292,7 @@ class SendManager(object):
         runtime = exit.runtime
         self._config_runtime = runtime
         logger.info("handling runtime: %s", exit.runtime)
-        self._metadata_summary["_full_runtime"] = runtime
+        self._metadata_summary["_runtime"] = runtime
         self._update_summary()
 
         # Pass the responsibility to respond to handle_request_defer()

@@ -188,7 +188,6 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def _save_summary(self, summary_dict: SummaryDict, flush: bool = False) -> None:
-        summary_dict.pop("_full_runtime", None)
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
