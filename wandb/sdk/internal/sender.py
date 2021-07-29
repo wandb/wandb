@@ -6,6 +6,7 @@ sender.
 
 from __future__ import print_function
 
+from collections import defaultdict
 from datetime import datetime
 import json
 import logging
@@ -86,8 +87,7 @@ class SendManager(object):
         self._consolidated_config: DictNoValues = dict()
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
-        self._config_runtime: Optional[float] = None
-        self._metadata_summary: Dict[str, Any] = dict()
+        self._metadata_summary: Dict[str, Any] = defaultdict(lambda: defaultdict())
         self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
@@ -290,9 +290,8 @@ class SendManager(object):
         self._exit_code = exit.exit_code
         logger.info("handling exit code: %s", exit.exit_code)
         runtime = exit.runtime
-        self._config_runtime = runtime
         logger.info("handling runtime: %s", exit.runtime)
-        self._metadata_summary["_runtime"] = runtime
+        self._metadata_summary["_wandb"]["runtime"] = runtime
         self._update_summary()
 
         # Pass the responsibility to respond to handle_request_defer()
@@ -302,7 +301,6 @@ class SendManager(object):
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
         logger.info("send defer")
-        self._update_config()
         self._interface.publish_defer()
 
     def send_final(self, data):
@@ -530,20 +528,11 @@ class SendManager(object):
         config_dict.setdefault(wandb_key, dict())
         config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
-    def _config_runtime_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add default xaxis to config."""
-        if self._config_runtime is None:
-            return
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        config_dict[wandb_key]["rt"] = self._config_runtime
-
     def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
         """Format dict into value dict with telemetry info."""
         config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
         self._config_telemetry_update(config_dict)
         self._config_metric_update(config_dict)
-        self._config_runtime_update(config_dict)
         config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 

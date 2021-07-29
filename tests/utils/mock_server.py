@@ -1333,7 +1333,12 @@ class ParseCTX(object):
     @property
     def summary(self):
         # TODO: move this to config_user eventually
-        return self.summary_raw
+        return {k: v for k, v in self.summary_raw.items() if k != "_wandb"}
+
+    @property
+    def summary_wandb(self):
+        # TODO: move this to config_user eventually
+        return self.summary_raw["_wandb"]
 
     @property
     def history(self):
