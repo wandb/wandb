@@ -113,9 +113,7 @@ def pull_docker_image(docker_image: str) -> None:
 
 
 def build_docker_image(
-    launch_project: _project_spec.LaunchProject,
-    base_image: str,
-    copy_code: bool,
+    launch_project: _project_spec.LaunchProject, base_image: str, copy_code: bool,
 ) -> Union[Model, Any]:
     """
     Build a docker image containing the project in `work_dir`, using the base image.

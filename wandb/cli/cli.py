@@ -962,7 +962,7 @@ def launch(
     config,
 ):
     """
-    Run a W&B run from the given URI. Which can either be a wandb URI or a github repo uri.
+    Run a W&B run from the given URI. Which can either be a wandb URI or a github repo uri or a local path.
     In the case of a wandb URI the arguments used in the original run will be used by default.
     These arguments can be overridden using the param_list args, or specifying those arguments
     in the config's 'overrides' key, 'args' field as a list of strings
