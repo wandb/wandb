@@ -57,6 +57,7 @@ class LaunchProject(object):
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self._runtime: Optional[str] = None
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -81,7 +82,6 @@ class LaunchProject(object):
         self.aux_dir = tempfile.mkdtemp()
 
         self.run_id = generate_id()
-        self.config_path = os.path.join(self.aux_dir, DEFAULT_CONFIG_PATH)
 
         self.clear_parameter_run_config_collisions()
 
@@ -148,8 +148,7 @@ class LaunchProject(object):
             )
             patch = utils.fetch_project_diff(self.uri, api)
             if run_info.get("python"):
-                with open(os.path.join(self.project_dir, "runtime.txt"), "w") as fp:
-                    fp.write("python-{}".format(run_info["python"]))
+                self._runtime = "python-{}".format(run_info["python"])
             if patch:
                 utils.apply_patch(patch, self.project_dir)
 
@@ -171,12 +170,6 @@ class LaunchProject(object):
                 self.add_entry_point("main.py")
 
             utils._fetch_git_repo(self.project_dir, parsed_uri, self.git_version)
-
-    def _copy_config_local(self) -> None:
-        if not self.override_config:
-            return None
-        with open(self.config_path, "w+") as f:
-            json.dump(self.override_config, f)
 
 
 class EntryPoint(object):
@@ -312,7 +305,6 @@ def fetch_and_validate_project(
             launch_project.add_entry_point("main.py")
     else:
         launch_project._fetch_project_local(api=api)
-    launch_project._copy_config_local()  # copy config into self.dir even if we're local
     first_entry_point = list(launch_project._entry_points.keys())[0]
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
         launch_project.override_args

@@ -1,4 +1,5 @@
 import getpass
+import json
 import logging
 import os
 import posixpath
@@ -7,7 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 
 from docker.models.resource import Model  # type: ignore
@@ -158,7 +159,10 @@ def build_docker_image(
         name_line=name_line,
     )
     build_ctx_path = _create_docker_build_ctx(
-        launch_project.project_dir, dockerfile, launch_project.config_path
+        launch_project.project_dir,
+        dockerfile,
+        launch_project._runtime,
+        launch_project.override_config,
     )
     with open(build_ctx_path, "rb") as docker_build_ctx:
         _logger.info("=== Building docker image %s ===", image_uri)
@@ -270,7 +274,10 @@ def _get_docker_image_uri(name: str, work_dir: str) -> str:
 
 
 def _create_docker_build_ctx(
-    work_dir: str, dockerfile_contents: str, config_path: str
+    work_dir: str,
+    dockerfile_contents: str,
+    runtime: Optional[str],
+    run_config: Dict[str, Any],
 ) -> str:
     """
     Creates build context tarfile containing Dockerfile and project code, returning path to tarfile
@@ -279,11 +286,15 @@ def _create_docker_build_ctx(
     try:
         dst_path = os.path.join(directory, "wandb-project-contents")
         shutil.copytree(src=work_dir, dst=dst_path)
-        if os.path.exists(config_path):
-            shutil.copyfile(
-                src=config_path,
-                dst=os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH),
-            )
+        if run_config:
+            config_path = os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH)
+            with open(config_path, "w") as fp:
+                json.dump(run_config, fp)
+        if runtime:
+            runtime_path = os.path.join(dst_path, "runtime.txt")
+            with open(runtime_path, "w") as fp:
+                fp.write(runtime)
+
         with open(os.path.join(dst_path, _GENERATED_DOCKERFILE_NAME), "w") as handle:
             handle.write(dockerfile_contents)
         _, result_path = tempfile.mkstemp()
