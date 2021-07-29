@@ -60,7 +60,11 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
-from wandb.util import get_module, handle_sweep_config_violations
+from wandb.util import (
+    get_module,
+    handle_sweep_config_violations,
+    sweep_config_err_text_from_jsonschema_violations,
+)
 import yaml
 
 # TODO(jhr): Add metric status
@@ -368,6 +372,11 @@ class _WandbController:
     def _configure_check(self) -> None:
         if self._started:
             raise ControllerError("Can not configure after sweep has been started.")
+
+    def _validate(self, config: Dict) -> str:
+        violations = sweeps.schema_violations_from_proposed_config(config)
+        msg = sweep_config_err_text_from_jsonschema_violations(violations)
+        return msg
 
     def create(self, from_dict: bool = False) -> str:
         if self._started:
