@@ -1829,22 +1829,15 @@ class Image(BatchableMedia):
         else:
             self._initialize_from_data(data_or_path, mode)
 
-        self._set_initialization_meta(grouping, caption, classes, boxes, masks)
+        self._set_initialization_meta(grouping, caption)
+        self._set_initialization_children(classes, boxes, masks)
 
-    def _set_initialization_meta(
+    def _set_initialization_children(
         self,
-        grouping: Optional[str] = None,
-        caption: Optional[str] = None,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
         boxes: Optional[Union[Dict[str, "BoundingBoxes2D"], Dict[str, dict]]] = None,
         masks: Optional[Union[Dict[str, "ImageMask"], Dict[str, dict]]] = None,
     ) -> None:
-        if grouping is not None:
-            self._grouping = grouping
-
-        if caption is not None:
-            self._caption = caption
-
         if classes is not None:
             if not isinstance(classes, Classes):
                 self._classes = Classes(classes)
@@ -1898,6 +1891,15 @@ class Image(BatchableMedia):
 
         self._width, self._height = self._image.size  # type: ignore
         self._free_ram()
+
+    def _set_initialization_meta(
+        self, grouping: Optional[str] = None, caption: Optional[str] = None
+    ) -> None:
+        if grouping is not None:
+            self._grouping = grouping
+
+        if caption is not None:
+            self._caption = caption
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
