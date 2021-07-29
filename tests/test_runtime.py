@@ -3,7 +3,11 @@ from wandb.proto import wandb_internal_pb2 as pb
 
 
 def test_runtime(
-    internal_hm, mocked_run, mock_server, backend_interface, parse_ctx,
+    internal_hm,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     with backend_interface() as interface:
 
@@ -19,11 +23,17 @@ def test_runtime(
         time.sleep(3)
 
     ctx_util = parse_ctx(mock_server.ctx)
+
+    assert ctx_util.summary["_full_runtime"] >= 3
     assert ctx_util.config_wandb["rt"] >= 3
 
 
 def test_runtime_pause_resume(
-    internal_hm, mocked_run, mock_server, backend_interface, parse_ctx,
+    internal_hm,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     with backend_interface() as interface:
 
@@ -43,11 +53,16 @@ def test_runtime_pause_resume(
         time.sleep(3)
 
     ctx_util = parse_ctx(mock_server.ctx)
+    assert 9 >= ctx_util.summary["_full_runtime"] >= 6
     assert 9 >= ctx_util.config_wandb["rt"] >= 6
 
 
 def test_runtime_pause_pause(
-    internal_hm, mocked_run, mock_server, backend_interface, parse_ctx,
+    internal_hm,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     with backend_interface() as interface:
 
@@ -67,11 +82,16 @@ def test_runtime_pause_pause(
         time.sleep(3)
 
     ctx_util = parse_ctx(mock_server.ctx)
+    assert 9 >= ctx_util.summary["_full_runtime"] >= 3
     assert 9 >= ctx_util.config_wandb["rt"] >= 3
 
 
 def test_runtime_resume_resume(
-    internal_hm, mocked_run, mock_server, backend_interface, parse_ctx,
+    internal_hm,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     with backend_interface() as interface:
 
@@ -91,11 +111,16 @@ def test_runtime_resume_resume(
         time.sleep(3)
 
     ctx_util = parse_ctx(mock_server.ctx)
+    assert ctx_util.summary["_full_runtime"] >= 9
     assert ctx_util.config_wandb["rt"] >= 9
 
 
 def test_runtime_resume_pause(
-    internal_hm, mocked_run, mock_server, backend_interface, parse_ctx,
+    internal_hm,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     with backend_interface() as interface:
 
@@ -115,4 +140,5 @@ def test_runtime_resume_pause(
         time.sleep(3)
 
     ctx_util = parse_ctx(mock_server.ctx)
+    assert 9 >= ctx_util.summary["_full_runtime"] >= 6
     assert 9 >= ctx_util.config_wandb["rt"] >= 6
