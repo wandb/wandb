@@ -1258,8 +1258,36 @@ def _is_databricks():
     return False
 
 
+def sweep_config_err_text_from_jsonschema_violations(violations):
+    """Consolidate violation strings from wandb/sweeps describing the ways in which a
+    sweep config violates the allowed schema as a single string.
+
+    Parameters
+    ----------
+    violations: list of str
+        The warnings to render.
+
+    Returns
+    -------
+    violation: str
+        The consolidated violation text.
+
+    """
+
+    violation_base = (
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
+        "To avoid this, please fix the sweep config schema violations below:"
+    )
+
+    for i, warning in enumerate(violations):
+        violations[i] = "  Violation {}. {}".format(i + 1, warning)
+    violation = "\n".join([violation_base] + violations)
+
+    return violation
+
+
 def handle_sweep_config_violations(warnings):
-    """Render warnings from gorilla describing the ways in which a 
+    """Render warnings from gorilla describing the ways in which a
     sweep config violates the allowed schema as terminal warnings.
 
     Parameters
@@ -1268,15 +1296,7 @@ def handle_sweep_config_violations(warnings):
         The warnings to render.
     """
 
-    warning_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
-        "To avoid this, please fix the sweep config schema violations below:"
-    )
-
-    for i, warning in enumerate(warnings):
-        warnings[i] = "  Violation {}. {}".format(i + 1, warning)
-    warning = "\n".join([warning_base] + warnings)
-
+    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
     if len(warnings) > 0:
         term.termwarn(warning)
 
