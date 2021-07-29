@@ -79,8 +79,6 @@ class LaunchProject(object):
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
-        self.aux_dir = tempfile.mkdtemp()
-
         self.run_id = generate_id()
 
         self.clear_parameter_run_config_collisions()
