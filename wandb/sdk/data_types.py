@@ -1706,7 +1706,7 @@ class BoundingBoxes2D(JSONMetadata):
 class Classes(Media):
     _log_type = "classes"
 
-    _class_set: Sequence[dict]
+    _class_set: List[dict]
 
     def __init__(self, class_set: Sequence[dict]) -> None:
         """Classes is holds class metadata intended to be used in concert with other objects when visualizing artifacts
@@ -1717,7 +1717,7 @@ class Classes(Media):
         super(Classes, self).__init__()
         for class_obj in class_set:
             assert "id" in class_obj and "name" in class_obj
-        self._class_set = class_set
+        self._class_set = list(class_set)
 
     @classmethod
     def from_json(
@@ -1751,6 +1751,19 @@ class Classes(Media):
             return self._class_set == other._class_set
         else:
             return False
+
+    def has_class(self, key: str) -> bool:
+        for class_obj in self._class_set:
+            if class_obj["id"] == key:
+                return True
+        return False
+
+    def set_class(self, index: Union[int, str], name: str):
+        for class_obj in self._class_set:
+            if class_obj["id"] == index:
+                class_obj["name"] = name
+                return
+        self._class_set.append({"id": index, "name": name})
 
 
 class Image(BatchableMedia):
@@ -1837,6 +1850,7 @@ class Image(BatchableMedia):
             else:
                 self._classes = classes
 
+        classes_in_children = False
         if boxes:
             if not isinstance(boxes, dict):
                 raise ValueError('Images "boxes" argument must be a dictionary')
@@ -1847,6 +1861,13 @@ class Image(BatchableMedia):
                     boxes_final[key] = box_item
                 elif isinstance(box_item, dict):
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
+
+                # move classes to image class object if any are missing from bbox
+                for key, name in boxes_final[key]._class_labels.items():
+                    classes_in_children = True
+                    if not classes.has_class(key):
+                        classes.set_class(key, name)
+
             self._boxes = boxes_final
 
         if masks:
@@ -1859,9 +1880,22 @@ class Image(BatchableMedia):
                     masks_final[key] = mask_item
                 elif isinstance(mask_item, dict):
                     masks_final[key] = ImageMask(mask_item, key)
+
+                # move classes to image class object if any are missing from mask
+                for key, name in masks_final[key]._val["class_labels"].items():
+                    classes_in_children = True
+                    if not classes.has_class(key):
+                        classes.set_class(key, name)
+
             self._masks = masks_final
 
-        self._width, self._height = self.image.size  # type: ignore
+        if classes_in_children:
+            logging.warning(
+                'You have defined class sets in a box and/or mask. '
+                + 'This method is deprecated and has been moved to an argument of the Image class.'
+            )
+
+        self._width, self._height = self._image.size  # type: ignore
         self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
