@@ -375,7 +375,11 @@ class _WandbController:
 
     def _validate(self, config: Dict) -> str:
         violations = sweeps.schema_violations_from_proposed_config(config)
-        msg = sweep_config_err_text_from_jsonschema_violations(violations)
+        msg = (
+            sweep_config_err_text_from_jsonschema_violations(violations)
+            if len(violations) > 0
+            else ""
+        )
         return msg
 
     def create(self, from_dict: bool = False) -> str:
