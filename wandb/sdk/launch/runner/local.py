@@ -101,7 +101,12 @@ class LocalRunner(AbstractRunner):
             api=self._api,
             copy_code=copy_code,
         )
-        command_args += get_docker_command(image=image, docker_args=docker_args,)
+        command_args += get_docker_command(
+            image=image,
+            launch_project=launch_project,
+            api=self._api,
+            docker_args=docker_args,
+        )
         if self.backend_config.get("runQueueItemId"):
             try:
                 self._api.ack_run_queue_item(

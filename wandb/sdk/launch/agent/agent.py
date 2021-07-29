@@ -8,9 +8,9 @@ import time
 from typing import Any, Dict, Iterable, List, Optional
 
 import wandb
-import wandb.util as util
 from wandb.apis.internal import Api
 from wandb.errors import LaunchException
+import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..runner.abstract import AbstractRun, State

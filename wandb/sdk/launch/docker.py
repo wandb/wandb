@@ -126,13 +126,6 @@ def build_docker_image(
     """
     import docker
 
-    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
-        _, _, port = _, _, port = api.settings("base_url").split(":")
-        base_url = "http://host.docker.internal:{}".format(port)
-    elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
-    else:
-        base_url = api.settings("base_url")
     image_name = "wandb_launch_{}".format(launch_project.run_id)
     image_uri = _get_docker_image_uri(
         name=image_name, work_dir=launch_project.project_dir
@@ -151,8 +144,6 @@ def build_docker_image(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
-    project = launch_project.target_project
-    entity = launch_project.target_entity
 
     dockerfile = (
         "FROM {imagename}\n"
@@ -160,27 +151,12 @@ def build_docker_image(
         "{copy_code_line}"
         "{workdir_line}"
         "{name_line}"
-        "ENV WANDB_BASE_URL={base_url}\n"
-        "ENV WANDB_API_KEY={api_key}\n"
-        "ENV WANDB_PROJECT={project}\n"
-        "ENV WANDB_ENTITY={entity}\n"
-        "ENV WANDB_LAUNCH=True\n"
-        "ENV WANDB_LAUNCH_CONFIG_PATH={config_path}\n"
-        "ENV WANDB_RUN_ID={run_id}\n"
-        "ENV WANDB_DOCKER={docker_image}"
     ).format(
         imagename=base_image,
         copy_config_line=copy_config_line,
         copy_code_line=copy_code_line,
         workdir_line=workdir_line,
         name_line=name_line,
-        base_url=base_url,
-        api_key=api.api_key,
-        project=project,
-        entity=entity,
-        run_id=launch_project.run_id or None,
-        docker_image=launch_project.docker_image,
-        config_path=_project_spec.DEFAULT_CONFIG_PATH,
     )
     build_ctx_path = _create_docker_build_ctx(
         launch_project.project_dir, dockerfile, launch_project.config_path
@@ -218,15 +194,46 @@ def build_docker_image(
 
 
 def get_docker_command(
-    image: Union[Model, Any], docker_args: Dict[str, Any] = None
+    image: Union[Model, Any],
+    launch_project: _project_spec.LaunchProject,
+    api: Api,
+    docker_args: Dict[str, Any] = None,
 ) -> List[str]:
     """
     Constructs the docker command using the image and docker args.
     :param image: Docker image to be run
-    :docker_args: dictionary of additional docker args for the command
+    :param launch_project: instance of LaunchProject
+    :param docker_args: dictionary of additional docker args for the command
     """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
+
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
+        _, _, port = _, _, port = api.settings("base_url").split(":")
+        base_url = "http://host.docker.internal:{}".format(port)
+    elif _is_wandb_dev_uri(api.settings("base_url")):
+        base_url = "http://host.docker.internal:9002"
+    else:
+        base_url = api.settings("base_url")
+
+    cmd += [
+        "--env",
+        f"WANDB_BASE_URL={base_url}",
+        "--env",
+        f"WANDB_API_KEY={api.api_key}",
+        "--env",
+        f"WANDB_PROJECT={launch_project.target_project}",
+        "--env",
+        f"WANDB_ENTITY={launch_project.target_entity}",
+        "--env",
+        f"WANDB_LAUNCH={True}",
+        "--env",
+        f"WANDB_LAUNCH_CONFIG_PATH={_project_spec.DEFAULT_CONFIG_PATH}",
+        "--env",
+        f"WANDB_RUN_ID={launch_project.run_id or None}",
+        "--env",
+        f"WANDB_DOCKER={launch_project.docker_image}",
+    ]
 
     if docker_args:
         for name, value in docker_args.items():
