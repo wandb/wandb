@@ -1393,7 +1393,8 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            key="",
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
@@ -1891,8 +1892,8 @@ class Image(BatchableMedia):
 
         if classes_in_children:
             logging.warning(
-                'You have defined class sets in a box and/or mask. '
-                + 'This method is deprecated and has been moved to an argument of the Image class.'
+                "You have defined class sets in a box and/or mask. "
+                + "This method is deprecated and has been moved to an argument of the Image class."
             )
 
         self._width, self._height = self._image.size  # type: ignore
@@ -1929,7 +1930,11 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
+    def _initialize_from_data(
+        self,
+        data: "ImageDataType",
+        mode: str = None,
+    ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -2649,7 +2654,9 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
+        cls,
+        json_dict: Dict[str, Any],
+        artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (
