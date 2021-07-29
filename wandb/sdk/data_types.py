@@ -1759,7 +1759,7 @@ class Classes(Media):
                 return True
         return False
 
-    def set_class(self, index: Union[int, str], name: str):
+    def set_class(self, index: Union[int, str], name: str) -> None:
         for class_obj in self._class_set:
             if class_obj["id"] == index:
                 class_obj["name"] = name
@@ -1859,8 +1859,8 @@ class Image(BatchableMedia):
                 # move classes to image class object if any are missing from bbox
                 for key, name in boxes_final[key]._class_labels.items():
                     classes_in_children = True
-                    if not classes.has_class(key):
-                        classes.set_class(key, name)
+                    if self._classes is not None and not self._classes.has_class(key):
+                        self._classes.set_class(key, name)
 
             self._boxes = boxes_final
 
@@ -1878,8 +1878,8 @@ class Image(BatchableMedia):
                 # move classes to image class object if any are missing from mask
                 for key, name in masks_final[key]._val["class_labels"].items():
                     classes_in_children = True
-                    if not classes.has_class(key):
-                        classes.set_class(key, name)
+                    if self._classes is not None and not self._classes.has_class(key):
+                        self._classes.set_class(key, name)
 
             self._masks = masks_final
 
