@@ -215,7 +215,7 @@ def dummy_api_key():
 
 @pytest.fixture
 def test_settings(test_dir, mocker, live_mock_server):
-    """ Settings object for tests"""
+    """Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
@@ -244,7 +244,7 @@ def test_settings(test_dir, mocker, live_mock_server):
 
 @pytest.fixture
 def mocked_run(runner, test_settings):
-    """ A managed run object for tests with a mock backend """
+    """A managed run object for tests with a mock backend"""
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run
@@ -792,10 +792,23 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
     return backend_context
 
 
+@pytest.fixture()
+def start_run(mocked_run, internal_hm):
+    def fn(interface):
+
+        proto_run = pb.RunRecord()
+        mocked_run._make_proto_run(proto_run)
+
+        run_start = pb.RunStartRequest()
+        run_start.run.CopyFrom(proto_run)
+        record = interface._make_request(run_start=run_start)
+        internal_hm.handle_request_run_start(record)
+
+    return fn
+
+
 @pytest.fixture
-def publish_util(
-    mocked_run, mock_server, backend_interface, parse_ctx,
-):
+def publish_util(mocked_run, mock_server, backend_interface, parse_ctx, start_run):
     def fn(
         metrics=None,
         history=None,
@@ -811,7 +824,7 @@ def publish_util(
 
         with backend_interface() as interface:
             if begin_cb:
-                begin_cb()
+                begin_cb(interface)
             for m in metrics:
                 interface._publish_metric(m)
             for h in history:
@@ -821,7 +834,7 @@ def publish_util(
             for f in files:
                 interface.publish_files(**f)
             if end_cb:
-                end_cb()
+                end_cb(interface)
 
         ctx_util = parse_ctx(mock_server.ctx, run_id=mocked_run.id)
         return ctx_util
