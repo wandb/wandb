@@ -165,6 +165,7 @@ class BackendSender(object):
         self._process = process
         self._run = None
         self._router = None
+        self._step = None
 
         if record_q and result_q:
             self._router = MessageRouter(record_q, result_q)
@@ -216,7 +217,11 @@ class BackendSender(object):
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
         run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
+        if publish_step:
+            data = data_types.history_dict_to_json(run, data, step=step)
+        else:
+            assert self._step is not None
+            data = data_types.history_dict_to_json(run, data, step=self._step)
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None

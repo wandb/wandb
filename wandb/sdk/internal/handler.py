@@ -95,6 +95,7 @@ class HandleManager(object):
         self._tb_watcher = None
         self._system_stats = None
         self._step = 0
+        self._interface._step = 0
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
@@ -133,6 +134,14 @@ class HandleManager(object):
 
     def debounce(self) -> None:
         pass
+
+    def increment_step(self, step: Optional[int] = None) -> None:
+        if step is not None:
+            self._step = step + 1
+            self._interface._step = step + 1
+        else:
+            self._step += 1
+            self._interface._step += 1
 
     def handle_request_defer(self, record: Record) -> None:
         defer = record.request.defer
@@ -355,11 +364,13 @@ class HandleManager(object):
             step = record.history.step.num
             history_dict["_step"] = step
             item.value_json = json.dumps(step)
-            self._step = step + 1
+            # self._step = step + 1
+            self._increment_step(step)
         else:
             history_dict["_step"] = self._step
             item.value_json = json.dumps(self._step)
             self._step += 1
+            self._increment_step()
 
     def _history_define_metric(
         self, hkey: str
@@ -532,6 +543,7 @@ class HandleManager(object):
 
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
+            self._interface._step = self._step
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._result_q.put(result)
 
