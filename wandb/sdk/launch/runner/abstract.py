@@ -10,7 +10,7 @@ import wandb
 from wandb import Settings
 from wandb.apis.internal import Api
 
-from .._project_spec import Project
+from .._project_spec import LaunchProject
 
 _logger = logging.getLogger(__name__)
 
@@ -143,10 +143,10 @@ class AbstractRunner(ABC):
         return True
 
     @abstractmethod
-    def run(self, project: Project) -> AbstractRun:
+    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         """
         Submit an entrypoint. It must return a SubmittedRun object to track the execution
-        :param project: Object of _project_spec.Project class representing a wandb launch project
+        :param launch_project: Object of _project_spec.LaunchProject class representing a wandb launch project
         :return: A :py:class:`wandb.sdk.launch.runners.SubmittedRun`. This function is expected to run
                  the project asynchronously, i.e. it should trigger project execution and then
                  immediately return a `SubmittedRun` to track execution status.

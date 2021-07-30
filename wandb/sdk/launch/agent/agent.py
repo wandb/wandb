@@ -8,10 +8,9 @@ import time
 from typing import Any, Dict, Iterable, List, Optional
 
 import wandb
-import wandb.util as util
-from wandb import Settings
 from wandb.apis.internal import Api
 from wandb.errors import LaunchException
+import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
 from ..runner.abstract import AbstractRun, State
@@ -43,7 +42,7 @@ class LaunchAgent(object):
         self._entity = entity
         self._project = project
         self._api = Api()
-        self._settings = Settings()
+        self._settings = wandb.Settings()
         self._base_url = self._api.settings().get("base_url")
         self._jobs: Dict[int, AbstractRun] = {}
         self._ticks = 0
@@ -58,6 +57,7 @@ class LaunchAgent(object):
         """
         Checks the project to ensure run queues exist then adds them to a list to be watched by the agent
         """
+        # TODO: add run queue filtering to server
         project_run_queues = self._api.get_project_run_queues(
             self._entity, self._project
         )
@@ -153,8 +153,9 @@ class LaunchAgent(object):
         backend.verify()
 
         run = backend.run(project)
-        self._jobs[run.id] = run
-        self._running += 1
+        if run:
+            self._jobs[run.id] = run
+            self._running += 1
 
     def loop(self) -> None:
         """Main loop function for agent"""
