@@ -4,7 +4,6 @@ into a runnable wandb launch script
 """
 
 import enum
-import json
 import logging
 import os
 from shlex import quote
