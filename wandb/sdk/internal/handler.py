@@ -135,7 +135,7 @@ class HandleManager(object):
     def debounce(self) -> None:
         pass
 
-    def increment_step(self, step: Optional[int] = None) -> None:
+    def _increment_step(self, step: Optional[int] = None) -> None:
         if step is not None:
             self._step = step + 1
             self._interface._step = step + 1
