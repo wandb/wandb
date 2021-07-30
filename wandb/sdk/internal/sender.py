@@ -11,9 +11,7 @@ from datetime import datetime
 import json
 import logging
 import os
-from pdb import Pdb
 import time
-import pandas as pd
 
 from pkg_resources import parse_version
 import requests
