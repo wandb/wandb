@@ -136,7 +136,7 @@ message ErrorInfo {
  */
 message RunExitRecord {
   int32 exit_code = 1;
-  float runtime = 2;
+  int32 runtime = 2;
 }
 
 message RunPreemptingRecord {

@@ -496,7 +496,7 @@ class HandleManager(object):
     def handle_exit(self, record):
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
-        record.exit.runtime = self._accumulate_time
+        record.exit.runtime = int(self._accumulate_time)
         self._dispatch_record(record, always_send=True)
 
     def handle_final(self, record):
