@@ -517,6 +517,9 @@ class SendManager(object):
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
+        b = self._telemetry_obj.feature.offline
+        config_dict[wandb_key]["is_offline"] = b
+
         t = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
 
