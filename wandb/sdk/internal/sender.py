@@ -11,7 +11,9 @@ from datetime import datetime
 import json
 import logging
 import os
+from pdb import Pdb
 import time
+import pandas as pd
 
 from pkg_resources import parse_version
 import requests
@@ -516,6 +518,9 @@ class SendManager(object):
         config_dict[wandb_key]["is_jupyter_run"] = b
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
+
+        b = self._telemetry_obj.feature.offline
+        config_dict[wandb_key]["is_offline"] = b
 
         t: Dict[int, Any] = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
