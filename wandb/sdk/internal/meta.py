@@ -10,7 +10,6 @@ import logging
 import multiprocessing
 import os
 from shutil import copyfile
-import subprocess
 import sys
 
 from wandb import util
@@ -23,6 +22,12 @@ from ..lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from ..lib.git import GitRepo
+
+if os.name == "posix" and sys.version_info[0] < 3:
+    import subprocess32 as subprocess  # type: ignore[import]
+else:
+    import subprocess  # type: ignore[no-redef]
+
 
 logger = logging.getLogger(__name__)
 
