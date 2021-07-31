@@ -1,3 +1,9 @@
+## 0.11.2 (July 31, 2021)
+
+#### :bug: Bug Fix
+
+- Restore vendored graphql-core library because of network regression
+
 ## 0.11.1 (July 29, 2021)
 
 #### :hourglass: Deprecated
