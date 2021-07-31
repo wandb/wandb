@@ -40,7 +40,7 @@ def end_run_resume_pause(interface):
 
 
 @pytest.mark.parametrize(
-    "end_cb, lower_bound, upper_bound",
+    "end_cb, lower_bound",
     [
         (end_run_basic, 3),
         (end_run_pause_resume, 6),
