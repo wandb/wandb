@@ -122,16 +122,6 @@ class SummarySubDict(object):
         self.get(k)  # load the value into _dict if it should be there
         res = self._dict[k]
 
-        # Special condition to automatically load and deserialize table entries
-        if (
-            isinstance(res, wandb.old.summary.SummarySubDict)
-            and res.get("_type") == "table-file"
-            and "artifact_path" in res
-        ):
-            api = wandb.Api()
-            return api.artifact(res["artifact_path"]["artifact"]).get(
-                res["artifact_path"]["path"]
-            )
         return res
 
     def __contains__(self, k):
