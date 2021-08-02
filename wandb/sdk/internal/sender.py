@@ -460,6 +460,12 @@ class SendManager(object):
                 events_rt = events.get("_runtime", 0)
             config = json.loads(resume_status["config"] or "{}")
             summary = json.loads(resume_status["summaryMetrics"] or "{}")
+            new_runtime = summary.get("_wandb", {}).get("runtime", None)
+            if new_runtime is not None:
+                if "_wandb" not in self._resume_state:
+                    self._resume_state["_wandb"] = {}
+                self._resume_state["_wandb"].update({"runtime": new_runtime})
+
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
@@ -659,6 +665,7 @@ class SendManager(object):
         self._run = run
         if self._resume_state.get("resumed"):
             self._run.resumed = True
+            self._run.runtime = self._resume_state.get("_wandb", {}).get("runtime", 0)
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))

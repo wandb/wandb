@@ -526,7 +526,9 @@ class HandleManager(object):
         assert run_start.run
 
         self._track_time = time.time()
-        self._accumulate_time = 0
+        self._accumulate_time = (
+            0 if not run_start.run.resumed else run_start.run.runtime
+        )
 
         if not self._settings._disable_stats:
             pid = os.getpid()

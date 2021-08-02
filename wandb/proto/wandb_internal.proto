@@ -112,6 +112,7 @@ message RunRecord {
   google.protobuf.Timestamp start_time = 17;
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
+  int32                     runtime = 20;
 }
 
 message RunUpdateResult {
