@@ -469,7 +469,7 @@ def check_large_post() -> bool:
     client = public_api._base_client
 
     try:
-        client._get_result(
+        client.execute(
             query,
             variable_values={
                 "entity": username,
