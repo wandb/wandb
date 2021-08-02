@@ -85,6 +85,7 @@ class SendManager(object):
 
         # keep track of config from key/val updates
         self._consolidated_config = dict()
+        self._start_time = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list = []
         self._metadata_summary = defaultdict(lambda: defaultdict())
@@ -520,6 +521,8 @@ class SendManager(object):
         b = self._telemetry_obj.feature.offline
         config_dict[wandb_key]["is_offline"] = b
 
+        config_dict[wandb_key]["start_time"] = self._start_time
+
         t = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
 
@@ -565,6 +568,9 @@ class SendManager(object):
         run = data.run
         error = None
         is_wandb_init = self._run is None
+
+        # save start time of a run
+        self._start_time = run.start_time.seconds
 
         # update telemetry
         if run.telemetry:
