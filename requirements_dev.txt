@@ -1,6 +1,6 @@
 pytest
 coverage
-tox==3.23.1
+tox==3.24.0
 pip
 Pillow
 pandas
@@ -17,7 +17,6 @@ ipykernel
 nbclient; python_version >= '3.5'
 sklearn
 tensorflow>=1.15.2; python_version < '3.9'
-pydoc-markdown
 torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torch==1.8.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'

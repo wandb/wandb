@@ -103,11 +103,11 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
         return False
 
 
-def docker_image_inspect(docker_image: str) -> Optional[Dict[Any]]:
+def docker_image_inspect(docker_image: str) -> Dict[str, Any]:
     """Get the parsed json result of docker inspect image_name"""
     if _inspected_images.get(docker_image) is None:
         docker_image_exists(docker_image, True)
-    return _inspected_images.get(docker_image)
+    return _inspected_images.get(docker_image, {})
 
 
 def pull_docker_image(docker_image: str) -> None:
