@@ -56,7 +56,11 @@ def _is_git_uri(uri: str) -> bool:
 
 
 def set_project_entity_defaults(
-    uri: str, project: Optional[str], entity: Optional[str], api: Api
+    uri: str,
+    api: Api,
+    project: Optional[str],
+    entity: Optional[str],
+    launch_config: Optional[Dict[str, Any]],
 ) -> Tuple[str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
@@ -66,14 +70,20 @@ def set_project_entity_defaults(
     else:
         uri_project = UNCATEGORIZED_PROJECT
     if project is None:
-        project = uri_project or UNCATEGORIZED_PROJECT
+        config_project = None
+        if launch_config:
+            config_project = launch_config.get("project")
+        project = config_project or uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
             "Target project for this run not specified, defaulting to project {}".format(
                 project
             )
         )
     if entity is None:
-        entity = api.default_entity
+        config_entity = None
+        if launch_config:
+            config_entity = launch_config.get("entity")
+        entity = config_entity or api.default_entity
         wandb.termlog(
             "Target entity for this run not specified, defaulting to current logged-in user {}".format(
                 entity
@@ -97,7 +107,9 @@ def construct_launch_spec(
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
-    project, entity = set_project_entity_defaults(uri, project, entity, api)
+    project, entity = set_project_entity_defaults(
+        uri, api, project, entity, launch_config,
+    )
     launch_spec["entity"] = entity
 
     launch_spec["project"] = project
