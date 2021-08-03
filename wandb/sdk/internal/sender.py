@@ -763,7 +763,8 @@ class SendManager(object):
     def _update_summary(self):
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
-        summary_dict["_wandb"] = self._metadata_summary
+        if self._metadata_summary:
+            summary_dict["_wandb"] = self._metadata_summary
         json_summary = json.dumps(summary_dict)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
