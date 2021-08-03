@@ -394,7 +394,8 @@ class BackendSender(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -602,6 +603,17 @@ class BackendSender(object):
         resume = pb.ResumeRequest()
         rec = self._make_request(resume=resume)
         self._publish(rec)
+
+    def _make_run_start(self, run_obj):
+        run_start = pb.RunStartRequest()
+        if run_obj:
+            run_start.run.CopyFrom(run_obj)
+        return run_start
+
+    def _publish_run_start(self, run_obj):
+        run_start = self._make_run_start(run_obj)
+        req = self._make_request(run_start=run_start)
+        self._publish(req)
 
     def _publish_run(self, run):
         rec = self._make_record(run=run)

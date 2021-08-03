@@ -745,7 +745,8 @@ def _start_backend(
         ht = start_handle_thread(internal_hm)
         st = start_send_thread(internal_sm)
         if initial_run:
-            _ = _internal_sender.communicate_run(mocked_run)
+            run = _internal_sender.communicate_run(mocked_run)
+            _internal_sender._publish_run_start(run.run)
         return (ht, st)
 
     yield start_backend_func

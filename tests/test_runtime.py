@@ -42,28 +42,10 @@ def end_run_resume_pause(interface):
 def test_runtime_resume_point_2(
     publish_util, test_settings, mock_server, start_run,
 ):
-    def end_run_basic(interface):
-        time.sleep(2)
-
     mock_server.ctx["resume"] = True
     test_settings.resume = "allow"
 
     ctx_util = publish_util(begin_cb=start_run, end_cb=end_run_basic)
-    assert ctx_util.summary_wandb["runtime"] >= 53
-
-
-def test_runtime_resume_point_1(
-    test_settings, live_mock_server, parse_ctx,
-):
-    import wandb
-
-    test_settings.resume = "allow"
-    _ = live_mock_server.set_ctx({"resume": True})
-
-    run = wandb.init(settings=test_settings)
-    time.sleep(3)
-    run.finish()
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
     assert ctx_util.summary_wandb["runtime"] >= 53
 
 
