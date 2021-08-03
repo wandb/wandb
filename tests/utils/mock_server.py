@@ -372,7 +372,7 @@ def create_app(user_ctx=None):
                                     "displayName": "funky-town-13",
                                     "id": "test",
                                     "config": '{"epochs": {"value": 10}}',
-                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5}',
+                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5, "_wandb": {"runtime": 50}}',
                                     "logLineCount": 14,
                                     "historyLineCount": 15,
                                     "eventsLineCount": 0,
@@ -1334,7 +1334,12 @@ class ParseCTX(object):
     @property
     def summary(self):
         # TODO: move this to config_user eventually
-        return self.summary_raw
+        return {k: v for k, v in self.summary_raw.items() if k != "_wandb"}
+
+    @property
+    def summary_wandb(self):
+        # TODO: move this to config_user eventually
+        return self.summary_raw["_wandb"]
 
     @property
     def history(self):
