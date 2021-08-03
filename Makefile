@@ -60,13 +60,13 @@ test-clean:
 	rm -rf .pytest_cache/
 
 test:
-	tox -e "codemod,black,mypy,flake8,flake8-docstrings"
+	tox -e "black,mypy,flake8,flake8-docstrings"
 
 test-full:
 	tox
 
 test-short:
-	tox -e "codemod,black,mypy,flake8,flake8-docstrings,py36"
+	tox -e "black,mypy,flake8,flake8-docstrings,py36"
 
 format:
 	tox -e format

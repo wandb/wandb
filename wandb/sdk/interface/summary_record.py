@@ -5,10 +5,7 @@ This module implements a summary record as an intermediate format before being c
 to a protocol buffer.
 """
 
-import wandb
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    import typing as t
+import typing as t
 
 
 class SummaryRecord(object):
