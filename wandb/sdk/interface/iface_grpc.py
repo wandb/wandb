@@ -7,9 +7,10 @@ Manage backend sender.
 """
 
 import logging
+from typing import Optional
+from typing import TYPE_CHECKING
 
-import grpc  # type: ignore
-import wandb
+import grpc
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
@@ -17,12 +18,9 @@ from wandb.proto import wandb_telemetry_pb2 as tpb
 
 from .interface import _Future, BackendSenderBase
 
-if wandb.TYPE_CHECKING:
-    from typing import Optional
-    from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from ..wandb_run import Run
+if TYPE_CHECKING:
+    from ..wandb_run import Run
 
 
 logger = logging.getLogger("wandb")

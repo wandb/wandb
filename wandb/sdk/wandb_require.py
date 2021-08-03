@@ -11,12 +11,10 @@ Example:
 """
 
 import os
+from typing import Sequence, Union
 
 import wandb
 from wandb.errors import RequireError
-
-if wandb.TYPE_CHECKING:
-    from typing import Sequence, Union
 
 
 class _Requires(object):

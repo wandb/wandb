@@ -14,11 +14,14 @@ import subprocess
 import sys
 import threading
 import time
+from typing import Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING
 
 import wandb
 
 from ..interface import interface
 from ..internal.internal import wandb_internal
+from ..wandb_settings import Settings
 
 # Using exception block for pre py3.4 and to preservee type info
 try:
@@ -26,14 +29,10 @@ try:
 except ImportError:
     imp_mach = None  # type: ignore
 
-if wandb.TYPE_CHECKING:
-    from typing import Any, Callable, Dict, Optional
-    from typing import TYPE_CHECKING
-    from ..wandb_settings import Settings
 
-    if TYPE_CHECKING:
-        from ..wandb_run import Run
-        from wandb.proto.wandb_internal_pb2 import Record, Result
+if TYPE_CHECKING:
+    from ..wandb_run import Run
+    from wandb.proto.wandb_internal_pb2 import Record, Result
 
 logger = logging.getLogger("wandb")
 

@@ -9,9 +9,11 @@ import os
 import sys
 import tempfile
 import time
+from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING
 
-import grpc  # type: ignore
-import setproctitle  # type: ignore
+import grpc
+import setproctitle
 from six.moves import queue
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
@@ -22,18 +24,15 @@ from wandb.proto import wandb_telemetry_pb2 as tpb
 from .. import lib as wandb_lib
 from ..interface import interface
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
-    from typing import Any, Dict, Optional
 
-    if TYPE_CHECKING:
+if TYPE_CHECKING:
 
-        class GrpcServerType(object):
-            def __init__(self) -> None:
-                pass
+    class GrpcServerType(object):
+        def __init__(self) -> None:
+            pass
 
-            def stop(self, num: int) -> None:
-                pass
+        def stop(self, num: int) -> None:
+            pass
 
 
 class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):

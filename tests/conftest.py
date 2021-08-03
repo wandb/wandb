@@ -27,20 +27,11 @@ import shutil
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.lib.module import unset_globals
-    from wandb.sdk.lib.git import GitRepo
-    from wandb.sdk.internal.handler import HandleManager
-    from wandb.sdk.internal.sender import SendManager
-    from wandb.sdk.interface.interface import BackendSender
-else:
-    from wandb.sdk_py27.lib.module import unset_globals
-    from wandb.sdk_py27.lib.git import GitRepo
-    from wandb.sdk_py27.internal.handler import HandleManager
-    from wandb.sdk_py27.internal.sender import SendManager
-    from wandb.sdk_py27.interface.interface import BackendSender
+from wandb.sdk.lib.module import unset_globals
+from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.internal.handler import HandleManager
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.interface.interface import BackendSender
 
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb

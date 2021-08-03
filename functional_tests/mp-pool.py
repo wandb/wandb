@@ -51,7 +51,6 @@ import multiprocessing as mp
 import os
 import time
 
-import yea
 import wandb
 
 
@@ -73,7 +72,7 @@ def do_run(num):
 
 def main():
     wandb.require("multiprocessing")
-    
+
     num_proc = 4
     pool = mp.Pool(processes=num_proc)
     result = pool.map_async(do_run, range(num_proc))

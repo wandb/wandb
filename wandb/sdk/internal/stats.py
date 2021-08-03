@@ -6,6 +6,7 @@ import platform
 import subprocess
 import threading
 import time
+from typing import Dict, List, Optional, Union
 
 import psutil
 import wandb
@@ -13,16 +14,13 @@ from wandb import util
 from wandb.vendor.pynvml import pynvml
 
 from . import tpu
+from ..interface.interface import BackendSender
 from ..lib import telemetry
 
 
-if wandb.TYPE_CHECKING:
-    from typing import Dict, List, Optional, Union
-    from ..interface.interface import BackendSender
-
-    GPUHandle = object
-    SamplerDict = Dict[str, List[float]]
-    StatsDict = Dict[str, Union[float, Dict[str, float]]]
+GPUHandle = object
+SamplerDict = Dict[str, List[float]]
+StatsDict = Dict[str, Union[float, Dict[str, float]]]
 
 
 # TODO: hard coded max watts as 16.5, found this number in the SMC list.

@@ -7,6 +7,7 @@ account.
 from __future__ import print_function
 
 import os
+from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
 
 import click
 import wandb
@@ -17,10 +18,6 @@ from .internal.internal_api import Api
 from .lib import apikey
 from .wandb_settings import Settings
 from ..apis import InternalApi
-
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:

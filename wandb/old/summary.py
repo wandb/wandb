@@ -16,12 +16,7 @@ from wandb.apis.internal import Api
 from six import string_types
 
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk import lib as wandb_lib
-else:
-    from wandb.sdk_py27 import lib as wandb_lib
+from wandb.sdk import lib as wandb_lib
 
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'

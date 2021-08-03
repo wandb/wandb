@@ -9,8 +9,12 @@ Manage backend sender.
 from abc import abstractmethod
 import json
 import logging
+from multiprocessing.process import BaseProcess
 import os
 import threading
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import cast
+from typing import TYPE_CHECKING
 import uuid
 
 import six
@@ -29,24 +33,13 @@ from wandb.util import (
     WandBJSONEncoderOld,
 )
 
+from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from ..wandb_artifacts import Artifact
 
-if wandb.TYPE_CHECKING:
-    import typing as t
-    from . import summary_record as sr
-    from typing import Any, Dict, Iterable, Optional, Tuple, Union
-    from multiprocessing.process import BaseProcess
-    from typing import cast
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from ..wandb_run import Run
-        from six.moves.queue import Queue
-else:
-
-    def cast(_, val):
-        return val
+if TYPE_CHECKING:
+    from ..wandb_run import Run
+    from six.moves.queue import Queue
 
 
 logger = logging.getLogger("wandb")
@@ -309,7 +302,7 @@ class BackendSenderBase(object):
             update.value_json = json.dumps(v)
         return summary
 
-    def _summary_encode(self, value: t.Any, path_from_root: str) -> dict:
+    def _summary_encode(self, value: Any, path_from_root: str) -> dict:
         """Normalize, compress, and encode sub-objects for backend storage.
 
         value: Object to encode.
