@@ -8,7 +8,6 @@ Manage backend sender.
 
 import json
 import logging
-import time
 import threading
 import uuid
 
