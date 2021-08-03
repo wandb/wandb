@@ -371,7 +371,7 @@ def create_app(user_ctx=None):
                                     "displayName": "funky-town-13",
                                     "id": "test",
                                     "config": '{"epochs": {"value": 10}}',
-                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5}',
+                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5, "_wandb": {"runtime": 50}}',
                                     "logLineCount": 14,
                                     "historyLineCount": 15,
                                     "eventsLineCount": 0,
