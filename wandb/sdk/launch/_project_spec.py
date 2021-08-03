@@ -4,7 +4,6 @@ into a runnable wandb launch script
 """
 
 import enum
-import json
 import logging
 import os
 from shlex import quote
@@ -12,7 +11,7 @@ import tempfile
 from typing import Tuple
 
 import wandb
-from wandb.errors import Error as ExecutionException
+from wandb.errors import Error as ExecutionException, LaunchException
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -33,7 +32,7 @@ class LaunchSource(enum.IntEnum):
     LOCAL: int = 3
 
 
-class Project(object):
+class LaunchProject(object):
     """A launch project specification."""
 
     def __init__(
@@ -41,7 +40,7 @@ class Project(object):
         uri: str,
         target_entity: str,
         target_project: str,
-        name: str,
+        name: Optional[str],
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
@@ -59,6 +58,7 @@ class Project(object):
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self._runtime: Optional[str] = None
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -74,16 +74,13 @@ class Project(object):
         else:
             # assume local
             if not os.path.exists(self.uri):
-                raise Exception(
+                raise LaunchException(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
-        self.aux_dir = tempfile.mkdtemp()
-
         self.run_id = generate_id()
-        self.config_path = os.path.join(self.aux_dir, DEFAULT_CONFIG_PATH)
 
         self.clear_parameter_run_config_collisions()
 
@@ -93,6 +90,10 @@ class Project(object):
             self.target_project, self.python_version or "3"
         )
         return self._base_image or generated_name
+
+    @property
+    def image_name(self) -> str:
+        return "{}_py{}_launch".format(self.target_project, self.python_version or "3",)
 
     def clear_parameter_run_config_collisions(self) -> None:
         """
@@ -112,7 +113,7 @@ class Project(object):
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
         if len(self._entry_points) != 1:
-            raise Exception("Project must have exactly one entry point")
+            raise Exception("LaunchProject must have exactly one entry point")
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
@@ -157,6 +158,8 @@ class Project(object):
                 self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
             )
             patch = utils.fetch_project_diff(self.uri, api)
+            if run_info.get("python"):
+                self._runtime = "python-{}".format(run_info["python"])
             if patch:
                 utils.apply_patch(patch, self.project_dir)
 
@@ -164,6 +167,7 @@ class Project(object):
             utils.download_wandb_python_deps(self.uri, api, self.project_dir)
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info["python"]
+            # TODO: get rid of _runtime or standardize this
             with open(os.path.join(self.project_dir, "runtime.txt"), "w") as f:
                 f.write("python-{}".format(self.python_version))
 
@@ -186,12 +190,6 @@ class Project(object):
                 self.add_entry_point("main.py")
 
             utils._fetch_git_repo(self.project_dir, parsed_uri, self.git_version)
-
-    def _copy_config_local(self) -> None:
-        if not self.override_config:
-            return None
-        with open(self.config_path, "w+") as f:
-            json.dump(self.override_config, f)
 
 
 class EntryPoint(object):
@@ -279,7 +277,6 @@ def get_entry_point_command(
 ) -> List[str]:
     """
     Returns the shell command to execute in order to run the specified entry point.
-    :param project: Project containing the target entry point
     :param entry_point: Entry point to run
     :param parameters: Parameters (dictionary) for the entry point command
     """
@@ -288,22 +285,21 @@ def get_entry_point_command(
     return commands
 
 
-def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> Project:
+def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
     """
-    Constructs a Project instance using a launch spec.
+    Constructs a LaunchProject instance using a launch spec.
     :param launch_spec: Dictionary representation of launch spec
     :parm api: Instance of wandb.apis.internal Api
     """
     uri = launch_spec["uri"]
-    project, entity, run_id = utils.set_project_entity_defaults(
+    project, entity = utils.set_project_entity_defaults(
         uri, launch_spec.get("project"), launch_spec.get("entity"), api
     )
+    name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
-    else:
-        name = "{}_{}_launch".format(project, run_id)  # default naming scheme
 
-    return Project(
+    return LaunchProject(
         uri,
         entity,
         project,
@@ -314,22 +310,23 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> Project:
     )
 
 
-def fetch_and_validate_project(project: Project, api: Api) -> Project:
+def fetch_and_validate_project(
+    launch_project: LaunchProject, api: Api
+) -> LaunchProject:
     """
     Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
     Returns the validated project.
-    :param project: Project to fetch and validate.
+    :param launch_project: LaunchProject to fetch and validate.
     :param api: Instance of wandb.apis.internal Api
     """
-    if project.source == LaunchSource.LOCAL:
-        if not project._entry_points:
+    if launch_project.source == LaunchSource.LOCAL:
+        if not launch_project._entry_points:
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
-            project.add_entry_point("main.py")
+            launch_project.add_entry_point("main.py")
     else:
-        project._fetch_project_local(api=api)
-    project._copy_config_local()  # copy config into self.dir even if we're local
-    first_entry_point = list(project._entry_points.keys())[0]
-    project.get_entry_point(first_entry_point)._validate_parameters(
-        project.override_args
+        launch_project._fetch_project_local(api=api)
+    first_entry_point = list(launch_project._entry_points.keys())[0]
+    launch_project.get_entry_point(first_entry_point)._validate_parameters(
+        launch_project.override_args
     )
-    return project
+    return launch_project

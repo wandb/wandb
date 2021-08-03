@@ -3,13 +3,13 @@ import os
 import signal
 import subprocess
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.errors import LaunchException
+from wandb.errors import CommError, LaunchException
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, Project
+from .._project_spec import get_entry_point_command, LaunchProject
 from ..docker import (
     build_docker_image_if_needed,
     docker_image_exists,
@@ -76,49 +76,63 @@ class LocalSubmittedRun(AbstractRun):
 class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun"""
 
-    def run(self, project: Project) -> AbstractRun:
+    def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
-        entry_point = project.get_single_entry_point()
+        entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
         copy_code = True
-        if project.docker_image:
-            pull_docker_image(project.docker_image)
+        if launch_project.docker_image:
+            pull_docker_image(launch_project.docker_image)
             copy_code = False
         else:
-            if not docker_image_exists(project.base_image):
-                if generate_docker_base_image(project, entry_cmd) is None:
+            if not docker_image_exists(launch_project.base_image):
+                if generate_docker_base_image(launch_project, entry_cmd) is None:
                     raise LaunchException("Unable to build base image")
             else:
                 wandb.termlog(
-                    "Using existing base image: {}".format(project.base_image)
+                    "Using existing base image: {}".format(launch_project.base_image)
                 )
 
         command_args = []
         command_separator = " "
         image = build_docker_image_if_needed(
-            project=project, api=self._api, copy_code=copy_code,
+            launch_project=launch_project, api=self._api, copy_code=copy_code,
         )
-        validate_docker_env(project)
-        command_args += get_docker_command(image=image, docker_args=docker_args,)
+        validate_docker_env(launch_project)
+        command_args += get_docker_command(
+            image=image,
+            launch_project=launch_project,
+            api=self._api,
+            docker_args=docker_args,
+        )
         if self.backend_config.get("runQueueItemId"):
-            self._api.ack_run_queue_item(
-                self.backend_config["runQueueItemId"], project.run_id
-            )
+            try:
+                self._api.ack_run_queue_item(
+                    self.backend_config["runQueueItemId"], launch_project.run_id
+                )
+            except CommError:
+                wandb.termerror(
+                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
+                )
+                return None
+
         # In synchronous mode, run the entry point command in a blocking fashion, sending status
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
-            command_args += get_entry_point_command(entry_point, project.override_args)
+            command_args += get_entry_point_command(
+                entry_point, launch_project.override_args
+            )
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
                 "Launching run in docker with command: {}".format(command_str)
             )
-            run = _run_entry_point(command_str, project.project_dir)
+            run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess

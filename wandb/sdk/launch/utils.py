@@ -58,32 +58,31 @@ def _is_git_uri(uri: str) -> bool:
 
 
 def set_project_entity_defaults(
-    uri: str, wandb_project: Optional[str], wandb_entity: Optional[str], api: Api
-) -> Tuple[str, str, str]:
+    uri: str, project: Optional[str], entity: Optional[str], api: Api
+) -> Tuple[str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
-        _, uri_project, run_id = parse_wandb_uri(uri)
+        _, uri_project, _ = parse_wandb_uri(uri)
+    elif _is_git_uri(uri):
+        uri_project = os.path.splitext(os.path.basename(uri))[0]
     else:
         uri_project = UNCATEGORIZED_PROJECT
-        run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
-    if wandb_project is None:
-        wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
-    if wandb_entity is None:
-        wandb_entity = api.default_entity
+    if project is None:
+        project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if entity is None:
+        entity = api.default_entity
     prefix = ""
     if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
         prefix = "🚀 "
-    wandb.termlog(
-        "{}Launching run into {}/{}".format(prefix, wandb_entity, wandb_project)
-    )
-    return wandb_project, wandb_entity, run_id
+    wandb.termlog("{}Launching run into {}/{}".format(prefix, entity, project))
+    return project, entity
 
 
 def construct_launch_spec(
     uri: str,
     experiment_name: Optional[str],
-    wandb_project: Optional[str],
-    wandb_entity: Optional[str],
+    project: Optional[str],
+    entity: Optional[str],
     docker_image: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
@@ -93,10 +92,10 @@ def construct_launch_spec(
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
-    if wandb_entity:
-        launch_spec["entity"] = wandb_entity
-    if wandb_project:
-        launch_spec["project"] = wandb_project
+    if entity:
+        launch_spec["entity"] = entity
+    if project:
+        launch_spec["project"] = project
     if experiment_name:
         launch_spec["name"] = experiment_name
     if "docker" not in launch_spec:
@@ -111,9 +110,22 @@ def construct_launch_spec(
 
     if "overrides" not in launch_spec:
         launch_spec["overrides"] = {}
+
     if parameters:
-        base_args = util._user_args_to_dict(launch_spec["overrides"].get("args", []))
+        override_args = util._user_args_to_dict(
+            launch_spec["overrides"].get("args", [])
+        )
+        if isinstance(override_args, list):
+            base_args = util._user_args_to_dict(
+                launch_spec["overrides"].get("args", [])
+            )
+        elif isinstance(override_args, dict):
+            base_args = override_args
         launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
+    elif isinstance(launch_spec["overrides"].get("args"), list):
+        launch_spec["overrides"]["args"] = util._user_args_to_dict(
+            launch_spec["overrides"].get("args")
+        )
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
 
