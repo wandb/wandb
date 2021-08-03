@@ -741,13 +741,12 @@ def _start_backend(
     start_send_thread,
     log_debug,
 ):
-    def start_backend_func(initial_run=True, initial_start=False):
+    def start_backend_func(initial_run=True):
         ht = start_handle_thread(internal_hm)
         st = start_send_thread(internal_sm)
         if initial_run:
             run = _internal_sender.communicate_run(mocked_run)
-            if initial_start:
-                _internal_sender._publish_run_start(run.run)
+            _internal_sender._publish_run_start(run.run)
         return (ht, st)
 
     yield start_backend_func
@@ -784,8 +783,8 @@ def _stop_backend(
 @pytest.fixture()
 def backend_interface(_start_backend, _stop_backend, _internal_sender):
     @contextmanager
-    def backend_context(initial_run=True, initial_start=False):
-        threads = _start_backend(initial_run=initial_run, initial_start=initial_start)
+    def backend_context(initial_run=True):
+        threads = _start_backend(initial_run=initial_run)
         try:
             yield _internal_sender
         finally:
@@ -821,14 +820,13 @@ def publish_util(
         files=None,
         begin_cb=None,
         end_cb=None,
-        initial_start=False,
     ):
         metrics = metrics or []
         history = history or []
         artifacts = artifacts or []
         files = files or []
 
-        with backend_interface(initial_start=initial_start) as interface:
+        with backend_interface() as interface:
             if begin_cb:
                 begin_cb(interface)
             for m in metrics:

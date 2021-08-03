@@ -45,9 +45,7 @@ def test_runtime_resume_point_2(
     mock_server.ctx["resume"] = True
     test_settings.resume = "allow"
 
-    ctx_util = publish_util(
-        begin_cb=start_run, end_cb=end_run_basic, initial_start=True
-    )
+    ctx_util = publish_util(begin_cb=start_run, end_cb=end_run_basic)
     assert ctx_util.summary_wandb["runtime"] >= 53
 
 
