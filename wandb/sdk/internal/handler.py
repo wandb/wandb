@@ -9,8 +9,8 @@ import logging
 import math
 import numbers
 import os
-import time
 from threading import Event
+import time
 from typing import (
     Any,
     Callable,
