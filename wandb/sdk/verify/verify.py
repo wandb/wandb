@@ -12,10 +12,10 @@ import sys
 import time
 
 import click
+from gql import gql  # type: ignore
 from pkg_resources import parse_version  # type: ignore
 import requests
 import wandb
-from wandb.apis.client import gql
 
 
 if wandb.TYPE_CHECKING:  # type: ignore
