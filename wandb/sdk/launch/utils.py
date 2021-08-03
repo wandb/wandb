@@ -151,12 +151,34 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
-    # TODO: download wandb-metadata.yaml to support legacy versions?
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
+    if result.get("codePath") is None:
+        # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
+        # it from wandb-metadata.json if we can.
+        metadata = api.download_url(
+            project, "wandb-metadata.json", run=name, entity=entity
+        )
+        if metadata is not None:
+            _, response = api.download_file(metadata["url"])
+            data = response.json()
+            result["codePath"] = data.get("codePath")
     if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     return result
+
+
+def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool:
+    entity, project, name = parse_wandb_uri(uri)
+    metadata = api.download_url(project, f"code/{entry_point}", run=name, entity=entity)
+    if metadata is not None:
+        _, response = api.download_file(metadata["url"])
+
+        with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return True
+    return False
 
 
 def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:

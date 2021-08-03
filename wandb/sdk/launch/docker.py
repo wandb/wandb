@@ -1,4 +1,3 @@
-import getpass
 import json
 import logging
 import os
@@ -39,15 +38,6 @@ def validate_docker_installation() -> None:
         )
 
 
-def validate_docker_env(launch_project: _project_spec.LaunchProject) -> None:
-    """Ensure project has a docker image associated with it"""
-    if not launch_project.docker_image:
-        raise ExecutionException(
-            "LaunchProject with docker environment must specify the docker image "
-            "to use via 'docker_image' field."
-        )
-
-
 def generate_docker_base_image(
     launch_project: _project_spec.LaunchProject, entry_cmd: str
 ) -> Optional[str]:
@@ -77,28 +67,47 @@ def generate_docker_base_image(
     )
     build_log = os.path.join(launch_project.project_dir, "build.log")
     with yaspin(
-        text="Generating docker base image {}, this may take a few minutes.  Detailed logs: {}".format(
-            launch_project.base_image, build_log
-        ),
+        text="Generating docker base image {}, this may take a few minutes...".format(
+            launch_project.base_image
+        )
     ).bouncingBar.blue as spinner:
         with open(build_log, "w") as f:
             process = subprocess.Popen(cmd, stdout=f, stderr=f)
             res = process.wait()
             if res == 0:
+                spinner.text = "Generated docker base image {}".format(
+                    launch_project.base_image
+                )
                 spinner.ok("✅ ")
             else:
+                spinner.text = "Detailed error logs: {}".format(build_log)
                 spinner.fail("💥 ")
                 return None
     return launch_project.base_image
 
 
-def docker_image_exists(docker_image: str) -> bool:
-    """Checks if a specific image is already available"""
+_inspected_images = {}
+
+
+def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
+    """Checks if a specific image is already available,
+       optionally raising an exception"""
     try:
-        docker.run(["docker", "image", "inspect", docker_image])
+        data = docker.run(["docker", "image", "inspect", docker_image])
+        parsed = json.loads(data)[0]
+        _inspected_images[docker_image] = parsed
         return True
-    except DockerException:
+    except (DockerException, ValueError) as e:
+        if should_raise:
+            raise e
         return False
+
+
+def docker_image_inspect(docker_image: str) -> Optional[Dict[Any]]:
+    """Get the parsed json result of docker inspect image_name"""
+    if _inspected_images.get(docker_image) is None:
+        docker_image_exists(docker_image, True)
+    return _inspected_images.get(docker_image)
 
 
 def pull_docker_image(docker_image: str) -> None:
@@ -126,64 +135,56 @@ def build_docker_image_if_needed(
     if docker_image_exists(image_uri):
         wandb.termlog("Using existing image: {}".format(image_uri))
         return image_uri
+    container_inspect = docker_image_inspect(launch_project.base_image)
     copy_code_line = ""
-    workdir_line = ""
-    workdir = "/root"
-    if copy_code:
-        # TODO: consider making the workdir /wandb
-        workdir = os.path.join("/home/", getpass.getuser())
-        copy_code_line = "COPY ./wandb-project-contents/ {}\n".format(workdir)
-        workdir_line = "WORKDIR {}\n".format(workdir)
     requirements_line = ""
-    if docker.is_buildx_installed():
-        # TODO: introspect the docker container for the pip cache dir
-        # TODO: introspect the docker container for the uid and gid permissions
-        requirements_line = "RUN --mount=type=cache,target={}/.cache,uid=1000,gid=1000 ".format(
-            workdir
+    workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
+    # TODO: we currently assume the home directory holds the pip cache
+    homedir = workdir
+    # for custom base_images we attempt to introspect the homedir
+    for env in container_inspect["ContainerConfig"]["Env"]:
+        if env.startswith("HOME="):
+            homedir = env.split("=", 1)[1]
+    if copy_code:
+        copy_code_line = "COPY ./src/ {}\n".format(workdir)
+        if docker.is_buildx_installed():
+            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                homedir, launch_project.docker_user_id
+            )
+        else:
+            wandb.termwarn(
+                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+            )
+            requirements_line = "RUN WANDB_DISABLE_CACHE=true "
+        shutil.copy(
+            os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
+            os.path.join(launch_project.project_dir),
         )
-    else:
-        wandb.termwarn(
-            "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-        )
-        requirements_line = "RUN WANDB_DISABLE_CACHE=true "
-    base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
-    # TODO: make this configurable?
-    if os.path.exists(base_requirements):
-        include_only = set()
-        with open(base_requirements) as f:
-            for pkg in pkg_resources.parse_requirements(f):
-                # TODO: pkg_resources doesn't declare the name attribute?
-                include_only.add(shlex_quote(pkg.name.lower()))  # type: ignore
-        requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
+        base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
+        # TODO: make this configurable?
+        if os.path.exists(base_requirements):
+            include_only = set()
+            with open(base_requirements) as f:
+                for pkg in pkg_resources.parse_requirements(f):
+                    # TODO: pkg_resources doesn't declare the name attribute type?
+                    include_only.add(shlex_quote(pkg.name.lower()))  # type: ignore
+            requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
 
-    requirements_line += "python _wandb_bootstrap.py\n"
+        requirements_line += "python _wandb_bootstrap.py\n"
+
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
     dockerfile = (
-        "FROM {imagename}\n"
-        "{copy_code_line}"
-        "{workdir_line}"
-        "{requirements_line}"
-        "{name_line}"
+        "FROM {imagename}\n" "{copy_code_line}" "{requirements_line}" "{name_line}"
     ).format(
         imagename=launch_project.base_image,
         copy_code_line=copy_code_line,
-        workdir_line=workdir_line,
         requirements_line=requirements_line,
         name_line=name_line,
     )
-    build_ctx_path = _create_docker_build_ctx(
-        launch_project.project_dir,
-        dockerfile,
-        launch_project._runtime,
-        launch_project.override_config,
-    )
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile)
     _logger.info("=== Building docker image %s ===", image_uri)
-    shutil.copy(
-        os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
-        os.path.join(build_ctx_path, "wandb-project-contents"),
-    )
 
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
     wandb.termlog("Generating launch image {}".format(image_uri))
@@ -228,6 +229,7 @@ def get_docker_command(
     else:
         base_url = api.settings("base_url")
 
+    # TODO: only add WANDB_DOCKER when we are pushing the image to a registry
     cmd += [
         "--env",
         f"WANDB_BASE_URL={base_url}",
@@ -238,14 +240,21 @@ def get_docker_command(
         "--env",
         f"WANDB_ENTITY={launch_project.target_entity}",
         "--env",
-        f"WANDB_LAUNCH={True}",
+        "WANDB_LAUNCH=true",
         "--env",
-        f"WANDB_LAUNCH_CONFIG_PATH={_project_spec.DEFAULT_CONFIG_PATH}",
-        "--env",
-        f"WANDB_RUN_ID={launch_project.run_id or None}",
+        "WANDB_RUN_ID={}".format(launch_project.run_id or ""),
         "--env",
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]
+    if launch_project.override_config:
+        # Mount the current config into the container
+        # TODO: find a better way to do this generically for remote launchers
+        cmd += [
+            "--env",
+            f"WANDB_LAUNCH_CONFIG_PATH={_project_spec.DEFAULT_CONFIG_PATH}",
+            "-v",
+            f"{os.path.join(launch_project.project_dir, _project_spec.DEFAULT_CONFIG_PATH)}:.",
+        ]
 
     if docker_args:
         for name, value in docker_args.items():
@@ -283,26 +292,25 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str) -> str:
 
 
 def _create_docker_build_ctx(
-    work_dir: str,
-    dockerfile_contents: str,
-    runtime: Optional[str],
-    run_config: Dict[str, Any],
+    launch_project: _project_spec.LaunchProject, dockerfile_contents: str,
 ) -> str:
     """
     Creates build context temp dir containing Dockerfile and project code, returning path to temp dir
     """
     directory = tempfile.mkdtemp()
-    dst_path = os.path.join(directory, "wandb-project-contents")
-    shutil.copytree(src=work_dir, dst=dst_path)
-    # TODO: maybe do this elsewhere?
-    if run_config:
+    dst_path = os.path.join(directory, "src")
+    shutil.copytree(src=launch_project.project_dir, dst=dst_path)
+    if launch_project.override_config:
         config_path = os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH)
         with open(config_path, "w") as fp:
-            json.dump(run_config, fp)
-    if runtime:
+            json.dump(launch_project.override_config, fp)
+    if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
         with open(runtime_path, "w") as fp:
-            fp.write(runtime)
+            fp.write(f"python-{launch_project.python_version}")
+    # TODO: we likely don't need to pass the whole git repo into the container
+    # with open(os.path.join(directory, ".dockerignore"), "w") as f:
+    #    f.write("**/.git")
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory

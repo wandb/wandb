@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -16,7 +17,6 @@ from ..docker import (
     generate_docker_base_image,
     get_docker_command,
     pull_docker_image,
-    validate_docker_env,
     validate_docker_installation,
 )
 from ..utils import (
@@ -89,6 +89,7 @@ class LocalRunner(AbstractRunner):
             pull_docker_image(launch_project.docker_image)
             copy_code = False
         else:
+            # TODO: potentially pull the base_image
             if not docker_image_exists(launch_project.base_image):
                 if generate_docker_base_image(launch_project, entry_cmd) is None:
                     raise LaunchException("Unable to build base image")
@@ -99,10 +100,12 @@ class LocalRunner(AbstractRunner):
 
         command_args = []
         command_separator = " "
-        image = build_docker_image_if_needed(
-            launch_project=launch_project, api=self._api, copy_code=copy_code,
-        )
-        validate_docker_env(launch_project)
+        if launch_project.docker_image is None:
+            image = build_docker_image_if_needed(
+                launch_project=launch_project, api=self._api, copy_code=copy_code,
+            )
+        else:
+            image = launch_project.docker_image
         command_args += get_docker_command(
             image=image,
             launch_project=launch_project,
@@ -130,7 +133,9 @@ class LocalRunner(AbstractRunner):
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
-                "Launching run in docker with command: {}".format(command_str)
+                "Launching run in docker with command: {}".format(
+                    re.sub(r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str)
+                )
             )
             run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()

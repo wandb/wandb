@@ -868,7 +868,19 @@ def _check_launch_imports():
     )
 
 
-@cli.command(help="Launch a job on a specified resource")
+@cli.command(
+    help="""Launch a job on a specified resource.
+
+Example URI's:
+
+    wandb launch https://wandb.ai/wandb/launch/runs/a1b2c3d
+
+    wandb launch https://github.com/wandb/examples
+
+    wandb launch /path/to/git_repo
+
+"""
+)
 @click.argument("uri")
 @click.option(
     "--entry-point",
