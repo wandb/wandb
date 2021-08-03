@@ -43,7 +43,6 @@ import yaml
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
-    from wandb.sdk.launch.utils import construct_launch_spec
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
@@ -1130,40 +1129,25 @@ def launch_add(
 ):
     _check_launch_imports()
 
-    from wandb.sdk.launch import launch as wandb_launch
+    from wandb.sdk.launch.launch_add import _launch_add
 
     api = _get_cling_api()
-
-    param_dict = util._user_args_to_dict(param_list)
-    resource = resource or "local"
-    if config is not None:
-        with open(config, "r") as f:
-            launch_config = json.load(f)
-    else:
-        launch_config = {}
-
-    launch_spec = construct_launch_spec(
-        uri,
-        experiment_name,
-        project,
-        entity,
-        docker_image,
-        entry_point,
-        version,
-        param_dict,
-        launch_config,
-    )
-
+    params_dict = util._user_args_to_dict(param_list)
     try:
-        res = wandb_launch.push_to_queue(api, queue, launch_spec)
-        if res is None or "runQueueItemId" not in res:
-            raise Exception("Error adding run to queue")
-        else:
-            wandb.termlog(
-                "Added run to {}/{}'s queue {}".format(
-                    launch_spec["entity"], launch_spec["project"], queue
-                )
-            )
+        _launch_add(
+            api,
+            uri,
+            config,
+            project,
+            entity,
+            queue,
+            resource,
+            entry_point,
+            experiment_name,
+            version,
+            docker_image,
+            params_dict,
+        )
     except Exception as e:
         print(e)
         sys.exit(1)
