@@ -51,6 +51,8 @@ class Project(object):
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
+        self.python_version: Optional[str] = docker_config.get("python_version")
+        self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
         self.docker_user_id: int = docker_config.get("user_id", 1000)
         self.git_version: Optional[str] = git_info.get("version")
@@ -84,6 +86,13 @@ class Project(object):
         self.config_path = os.path.join(self.aux_dir, DEFAULT_CONFIG_PATH)
 
         self.clear_parameter_run_config_collisions()
+
+    @property
+    def base_image(self) -> str:
+        generated_name = "{}_base:{}".format(
+            self.target_project, self.python_version or "3"
+        )
+        return self._base_image or generated_name
 
     def clear_parameter_run_config_collisions(self) -> None:
         """
@@ -141,6 +150,7 @@ class Project(object):
         parsed_uri = self.uri
         if utils._is_wandb_uri(self.uri):
             run_info = utils.fetch_wandb_project_run_info(self.uri, api)
+            # TODO: look for code artifact / handle notebooks
             if not run_info["git"]:
                 raise ExecutionException("Run must have git repo associated")
             utils._fetch_git_repo(
@@ -150,7 +160,15 @@ class Project(object):
             if patch:
                 utils.apply_patch(patch, self.project_dir)
 
+            # Download any frozen requirements
+            utils.download_wandb_python_deps(self.uri, api, self.project_dir)
+            # Specify the python runtime for jupyter2docker
+            self.python_version = run_info["python"]
+            with open(os.path.join(self.project_dir, "runtime.txt"), "w") as f:
+                f.write("python-{}".format(self.python_version))
+
             if not self._entry_points:
+                # TODO: expose codePath in runInfo
                 self.add_entry_point(run_info["program"])
 
             self.override_args = utils.merge_parameters(

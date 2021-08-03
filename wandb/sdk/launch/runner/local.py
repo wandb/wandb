@@ -11,8 +11,9 @@ from wandb.errors import LaunchException
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, Project
 from ..docker import (
-    build_docker_image,
-    generate_docker_image,
+    build_docker_image_if_needed,
+    docker_image_exists,
+    generate_docker_base_image,
     get_docker_command,
     pull_docker_image,
     validate_docker_env,
@@ -76,29 +77,32 @@ class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun"""
 
     def run(self, project: Project) -> AbstractRun:
+        validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
         entry_point = project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        copy_code = False
+        copy_code = True
         if project.docker_image:
             pull_docker_image(project.docker_image)
-            copy_code = True
+            copy_code = False
         else:
-            project.docker_image = generate_docker_image(project, entry_cmd)
+            if not docker_image_exists(project.base_image):
+                if generate_docker_base_image(project, entry_cmd) is None:
+                    raise LaunchException("Unable to build base image")
+            else:
+                wandb.termlog(
+                    "Using existing base image: {}".format(project.base_image)
+                )
 
         command_args = []
         command_separator = " "
-        validate_docker_env(project)
-        validate_docker_installation()
-        image = build_docker_image(
-            project=project,
-            base_image=project.docker_image,
-            api=self._api,
-            copy_code=copy_code,
+        image = build_docker_image_if_needed(
+            project=project, api=self._api, copy_code=copy_code,
         )
+        validate_docker_env(project)
         command_args += get_docker_command(image=image, docker_args=docker_args,)
         if self.backend_config.get("runQueueItemId"):
             self._api.ack_run_queue_item(

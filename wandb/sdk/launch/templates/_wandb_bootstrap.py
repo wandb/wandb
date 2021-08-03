@@ -1,16 +1,20 @@
+import json
 import multiprocessing
 import os
-import json
 import subprocess
 import sys
 
 CORES = multiprocessing.cpu_count()
 ONLY_INCLUDE = set(os.getenv("WANDB_ONLY_INCLUDE", "").split(","))
 OPTS = []
+# If the builder doesn't support buildx no need to use the cache
 if os.getenv("WANDB_DISABLE_CACHE"):
     OPTS.append("--no-cache-dir")
+# When installing all packages from requirements.frozen.txt no need to resolve deps
 if len(ONLY_INCLUDE) == 0:
     OPTS.append("--no-deps")
+# When installing the intersection of requirements.frozen.txt and requirements.txt
+# force the frozen versions
 else:
     OPTS.append("--force")
 

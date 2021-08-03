@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile as nativetempfile
 import textwrap
 import time
 import traceback
@@ -48,16 +49,14 @@ else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
 
-# TODO: turn this on in a cleaner way
-# right now we will litter the filesystem with wandb dirs
-#
-# _wandb_dir = wandb_dir(env.get_dir())
-# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
-# logging.basicConfig(
-#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
-#     level=logging.DEBUG,
-# )
-# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+_wandb_dir = util.wandb_dir(env.get_dir())
+if not os.path.exists(_wandb_dir):
+    _wandb_dir = nativetempfile.gettempdir()
+logging.basicConfig(
+    filename=os.path.join(_wandb_dir, "debug-cli.log"), level=logging.DEBUG,
+)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
@@ -94,6 +93,11 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
+            wandb.termerror(
+                "Find detailed error logs at: {}".format(
+                    os.path.join(_wandb_dir, "debug-cli.log")
+                )
+            )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
@@ -934,6 +938,7 @@ def sweep(
     "as config to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
+@display_error
 def launch(
     uri,
     entry_point,
@@ -1077,6 +1082,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
     "are not in the list of parameters for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
+@display_error
 def launch_add(
     uri,
     config=None,

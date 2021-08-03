@@ -1,8 +1,10 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import logging
 import os
+import platform
 import re
 import subprocess
+import sys
 from typing import Any, Dict, Optional, Tuple
 
 import wandb
@@ -66,18 +68,14 @@ def set_project_entity_defaults(
         run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
     if wandb_project is None:
         wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
-        wandb.termlog(
-            "Target project for this run not specified, defaulting to project {}".format(
-                wandb_project
-            )
-        )
     if wandb_entity is None:
         wandb_entity = api.default_entity
-        wandb.termlog(
-            "Target entity for this run not specified, defaulting to current logged-in user {}".format(
-                wandb_entity
-            )
-        )
+    prefix = ""
+    if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
+        prefix = "🚀 "
+    wandb.termlog(
+        "{}Launching run into {}/{}".format(prefix, wandb_entity, wandb_project)
+    )
     return wandb_project, wandb_entity, run_id
 
 
@@ -141,11 +139,27 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
     result = api.get_run_info(entity, project, name)
+    # TODO: download wandb-metadata.yaml to support legacy versions?
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     return result
+
+
+def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
+    entity, project, name = parse_wandb_uri(uri)
+    metadata = api.download_url(project, "requirements.txt", run=name, entity=entity)
+    if metadata is not None:
+        _, response = api.download_file(metadata["url"])
+
+        with util.fsync_open(
+            os.path.join(dir, "requirements.frozen.txt"), "wb"
+        ) as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return "requirements.frozen.txt"
+    return None
 
 
 def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
