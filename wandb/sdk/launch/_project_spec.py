@@ -269,17 +269,15 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     :parm api: Instance of wandb.apis.internal Api
     """
     uri = launch_spec["uri"]
-    project, entity = utils.set_project_entity_defaults(
-        uri, launch_spec.get("project"), launch_spec.get("entity"), api
-    )
+
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
 
     return LaunchProject(
         uri,
-        entity,
-        project,
+        launch_spec["entity"],
+        launch_spec["project"],
         name,
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
