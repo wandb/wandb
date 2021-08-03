@@ -9,7 +9,6 @@ import shutil
 import sys
 import tempfile
 import time
-from wandb.errors import LaunchException
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
@@ -23,6 +22,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.errors import LaunchException
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 import yaml
@@ -906,7 +906,7 @@ class QueuedJob(Attrs):
                         )
                         self._run_id = item["node"]["resultingRunId"]
                         return
-                    except ValueError as e:
+                    except ValueError:
                         continue
             time.sleep(5)
 

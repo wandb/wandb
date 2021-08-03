@@ -1,10 +1,9 @@
 import json
 from typing import Any, Dict, Optional, Union
-import sys
 
 import wandb
-import wandb.apis.public as public
 from wandb.apis.internal import Api
+import wandb.apis.public as public
 from wandb.sdk.launch.utils import construct_launch_spec
 
 
