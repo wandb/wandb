@@ -165,10 +165,23 @@ def build_docker_image_if_needed(
         if os.path.exists(base_requirements):
             include_only = set()
             with open(base_requirements) as f:
-                for pkg in pkg_resources.parse_requirements(f):
-                    # TODO: pkg_resources doesn't declare the name attribute type?
-                    include_only.add(shlex_quote(pkg.name.lower()))  # type: ignore
-            requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
+                iter = pkg_resources.parse_requirements(f)
+                while True:
+                    try:
+                        pkg = next(iter)
+                        if hasattr(pkg, "name"):
+                            name = pkg.name.lower()
+                        else:
+                            name = str(pkg)
+                        include_only.add(name)
+                        requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
+                            ",".join(include_only)
+                        )
+                    except pkg_resources.RequirementParseError as e:
+                        _logger.warn(f"Unable to parse requirements.txt: {e}")
+                        continue
+                    except StopIteration:
+                        break
 
         requirements_line += "python _wandb_bootstrap.py\n"
 

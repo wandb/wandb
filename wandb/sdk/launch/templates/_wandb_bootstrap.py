@@ -53,26 +53,29 @@ def install_deps(deps, failed=None):
 
 def main():
     """Install deps in requirements.frozen.txt"""
-    print("Installing frozen dependencies...")
-    with open("requirements.frozen.txt") as f:
-        reqs = []
-        failed = set()
-        for req in f:
-            if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
-                reqs.append(req.strip())
-            if len(reqs) >= CORES:
+    if os.path.exists("requirements.frozen.txt"):
+        with open("requirements.frozen.txt") as f:
+            print("Installing frozen dependencies...")
+            reqs = []
+            failed = set()
+            for req in f:
+                if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
+                    reqs.append(req.strip())
+                if len(reqs) >= CORES:
+                    deps_failed = install_deps(reqs)
+                    reqs = []
+                    if deps_failed is not None:
+                        failed = failed.union(deps_failed)
+            if len(reqs) > 0:
                 deps_failed = install_deps(reqs)
-                reqs = []
                 if deps_failed is not None:
                     failed = failed.union(deps_failed)
-        if len(reqs) > 0:
-            deps_failed = install_deps(reqs)
-            if deps_failed is not None:
-                failed = failed.union(deps_failed)
-        with open("_wandb_bootstrap_errors.json", "w") as f:
-            f.write(json.dumps({"pip": list(failed)}))
-        sys.stderr.write("ERROR: Failed to install: {}".format(",".join(failed)))
-        sys.stderr.flush()
+            with open("_wandb_bootstrap_errors.json", "w") as f:
+                f.write(json.dumps({"pip": list(failed)}))
+            sys.stderr.write("ERROR: Failed to install: {}".format(",".join(failed)))
+            sys.stderr.flush()
+    else:
+        print("No frozen requirements found")
 
 
 if __name__ == "__main__":

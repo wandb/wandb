@@ -19,7 +19,7 @@ grpc_requirements = ["grpcio==1.27.2"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
 sweeps_requirements = ["numpy"]
-launch_requirements = ["jupyter-repo2docker", "chardet"]
+launch_requirements = ["jupyter-repo2docker", "setuptools", "chardet"]
 
 setup(
     name="wandb",
