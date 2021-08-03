@@ -9,6 +9,7 @@ class connect:
     def get_dataset(self, dataset):
         # load sample JSONL dataset
         json_list = []
-        with open('prodigy_sample_dataset.jsonl', 'r') as json_file:
-            json_list = list(json_file)
+        if dataset == "ner":
+            with open('prodigy_sample_dataset.jsonl', 'r') as json_file:
+                json_list = list(json_file)
         return json_list
