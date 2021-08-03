@@ -171,7 +171,16 @@ class HandleManager(object):
     def handle_output(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def reassign_file_step(self, record: wandb_internal_pb2.FilesRecord):
+        for f in record.files.files:
+            for f in record.files.files:
+                prefix, fstep, tail = f.path.rsplit("_", 2)
+                if int(fstep) != self._step:
+                    f.path = f"{prefix}_{self._step}_{tail}"
+
     def handle_files(self, record: Record) -> None:
+        if record.files.tb_repath:
+            self.reassign_file_step(record)
         self._dispatch_record(record)
 
     def handle_artifact(self, record: Record) -> None:

@@ -277,6 +277,7 @@ message SummaryResult {
  */
 message FilesRecord {
   repeated FilesItem files = 1;
+  bool   tb_repath = 100;
 }
 
 message FilesItem {

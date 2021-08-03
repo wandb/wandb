@@ -347,7 +347,7 @@ class TBEventConsumer(object):
         # datatypes callback ourselves.
         def datatypes_cb(fname: str) -> None:
             files = dict(files=[(fname, "now")])
-            self._tbwatcher._interface.publish_files(files)
+            self._tbwatcher._interface.publish_files(files, True)
 
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
 

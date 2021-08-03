@@ -8,6 +8,7 @@ Manage backend sender.
 
 import json
 import logging
+import time
 import threading
 import uuid
 
@@ -410,12 +411,18 @@ class BackendSender(object):
 
         return pb_summary_record
 
-    def _make_files(self, files_dict: dict) -> pb.FilesRecord:
+    def _make_files(
+        self, files_dict: dict, tb_repath_step: bool = False
+    ) -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
             f.path = path
             f.policy = file_policy_to_enum(policy)
+        if tb_repath_step:
+            files.tb_repath = True
+        else:
+            files.tb_repath = False
         return files
 
     def _make_login(self, api_key: str = None) -> pb.LoginRequest:
@@ -670,8 +677,8 @@ class BackendSender(object):
         rec = self._make_record(stats=stats)
         self._publish(rec)
 
-    def publish_files(self, files_dict: dict) -> None:
-        files = self._make_files(files_dict)
+    def publish_files(self, files_dict: dict, tb_restep: bool = False) -> None:
+        files = self._make_files(files_dict, tb_restep)
         rec = self._make_record(files=files)
         self._publish(rec)
 
