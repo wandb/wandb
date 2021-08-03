@@ -669,9 +669,6 @@ class SendManager(object):
                 and "runtime" in self._resume_state["_wandb"]
             ):
                 self._run.runtime = self._resume_state["_wandb"]["runtime"]
-            # self._run.runtime = self._resume_state.get("_wandb", {}).get(
-            #     "runtime", None
-            # )
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
