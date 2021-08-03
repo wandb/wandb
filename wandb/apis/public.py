@@ -1119,7 +1119,6 @@ class Run(Attrs):
         )
         while True:
             res = self._exec(query)
-            print(res)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
                 print("Run finished with status : {}".format(state))

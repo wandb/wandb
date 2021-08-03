@@ -97,12 +97,10 @@ def construct_launch_spec(
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
-    backup_project, backup_entity = set_project_entity_defaults(
-        uri, launch_spec.get("project"), launch_spec.get("entity"), api
-    )
-    launch_spec["entity"] = entity or backup_entity
+    project, entity = set_project_entity_defaults(uri, project, entity, api)
+    launch_spec["entity"] = entity
 
-    launch_spec["project"] = project or backup_project
+    launch_spec["project"] = project
     if experiment_name:
         launch_spec["name"] = experiment_name
     if "docker" not in launch_spec:

@@ -96,4 +96,4 @@ def _launch_add(
     queued_job = public_api.queued_job(
         f"{entity}/{project}/{queue}/{res['runQueueItemId']}"
     )
-    return queued_job
+    return queued_job  # type: ignore
