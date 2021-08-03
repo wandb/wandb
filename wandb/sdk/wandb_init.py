@@ -16,6 +16,7 @@ import sys
 import tempfile
 import time
 import traceback
+from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
 import six
@@ -34,8 +35,6 @@ from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union, List, Sequence, Dict, Any  # noqa: F401
 
 logger = None  # logger configured during wandb.init()
 
