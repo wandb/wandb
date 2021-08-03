@@ -54,18 +54,12 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec,
-    api,
-    uri,
-    wandb_project=None,
-    wandb_entity=None,
-    config=None,
-    parameters=None,
+    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
 ):
     assert project_spec.uri == uri
-    expected_project = wandb_project or uri.split("/")[4]
+    expected_project = project or uri.split("/")[4]
     assert project_spec.target_project == expected_project
-    expected_target_entity = wandb_entity or api.default_entity
+    expected_target_entity = entity or api.default_entity
     assert project_spec.target_entity == expected_target_entity
     if (
         config
@@ -90,12 +84,12 @@ def check_backend_config(config, expected_backend_config):
 
 def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
     for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.Project):
+        if isinstance(arg, _project_spec.LaunchProject):
             check_project_spec(arg, **kwargs)
         if isinstance(arg, dict):
             check_backend_config(arg, expected_config)
     for arg in mock_with_run_info.kwargs.items():
-        if isinstance(arg, _project_spec.Project):
+        if isinstance(arg, _project_spec.LaunchProject):
             check_project_spec(arg, **kwargs)
         if isinstance(arg, dict):
             check_backend_config(arg, expected_config)
@@ -117,8 +111,8 @@ def test_launch_base_case(
     kwargs = {
         "uri": uri,
         "api": api,
-        "wandb_entity": "mock_server_entity",
-        "wandb_project": "test",
+        "entity": "mock_server_entity",
+        "project": "test",
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
@@ -137,8 +131,8 @@ def test_launch_specified_project(
     kwargs = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
-        "wandb_project": "new_test_project",
-        "wandb_entity": "mock_server_entity",
+        "project": "new_test_project",
+        "entity": "mock_server_entity",
     }
     expected_config = {}
     mock_with_run_info = launch.run(**kwargs)
@@ -154,8 +148,8 @@ def test_launch_unowned_project(
     kwargs = {
         "uri": "https://wandb.ai/other_user/test_project/runs/1",
         "api": api,
-        "wandb_project": "new_test_project",
-        "wandb_entity": "mock_server_entity",
+        "project": "new_test_project",
+        "entity": "mock_server_entity",
     }
     expected_config = {}
     mock_with_run_info = launch.run(**kwargs)
@@ -171,8 +165,8 @@ def test_launch_run_config_in_spec(
     kwargs = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
-        "wandb_project": "new_test_project",
-        "wandb_entity": "mock_server_entity",
+        "project": "new_test_project",
+        "entity": "mock_server_entity",
         "config": {"overrides": {"run_config": {"epochs": 3}}},
     }
 
@@ -190,8 +184,8 @@ def test_launch_args_supersede_config_vals(
     kwargs = {
         "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
         "api": api,
-        "wandb_project": "new_test_project",
-        "wandb_entity": "mock_server_entity",
+        "project": "new_test_project",
+        "entity": "mock_server_entity",
         "config": {
             "project": "not-this-project",
             "overrides": {
@@ -205,7 +199,7 @@ def test_launch_args_supersede_config_vals(
     input_kwargs["parameters"] = ["epochs", 5]
     mock_with_run_info = launch.run(**kwargs)
     for arg in mock_with_run_info.args:
-        if isinstance(arg, _project_spec.Project):
+        if isinstance(arg, _project_spec.LaunchProject):
             assert arg.override_args["epochs"] == 5
             assert arg.override_config.get("epochs") is None
             assert arg.target_project == "new_test_project"

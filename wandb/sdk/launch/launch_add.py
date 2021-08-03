@@ -1,11 +1,11 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 import sys
 
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
-from wandb.sdk.launch.utils import construct_launch_spec, set_project_entity_defaults
+from wandb.sdk.launch.utils import construct_launch_spec
 
 
 def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
@@ -18,18 +18,18 @@ def push_to_queue(api: Api, queue: str, launch_spec: Dict[str, Any]) -> Any:
 
 
 def launch_add(
-    uri: str = None,
-    config: Dict[str, Any] = None,
-    project: str = None,
-    entity: str = None,
-    queue: str = None,
-    resource: str = None,
-    entry_point: str = None,
-    name: str = None,
-    version: str = None,
-    docker_image: str = None,
-    params: Dict[str, Any] = None,
-):
+    uri: str,
+    config: Optional[Union[str, Dict[str, Any]]] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    queue: Optional[str] = None,
+    resource: Optional[str] = None,
+    entry_point: Optional[str] = None,
+    name: Optional[str] = None,
+    version: Optional[str] = None,
+    docker_image: Optional[str] = None,
+    params: Optional[Dict[str, Any]] = None,
+) -> "public.QueuedJob":
     api = Api()
     return _launch_add(
         api,
@@ -50,36 +50,34 @@ def launch_add(
 def _launch_add(
     api: Api,
     uri: str,
-    config: Dict[str, Any],
-    project: str,
-    entity: str,
-    queue: str,
-    resource: str,
-    entry_point: str,
-    name: str,
-    version: str,
-    docker_image: str,
-    params: Dict[str, Any],
+    config: Optional[Union[str, Dict[str, Any]]],
+    project: Optional[str],
+    entity: Optional[str],
+    queue: Optional[str],
+    resource: Optional[str],
+    entry_point: Optional[str],
+    name: Optional[str],
+    version: Optional[str],
+    docker_image: Optional[str],
+    params: Optional[Dict[str, Any]],
 ) -> "public.QueuedJob":
 
     resource = resource or "local"
     if config is not None:
-        launch_config = config
+        if isinstance(config, str):
+            with open(config, "r") as fp:
+                launch_config = json.load(fp)
+        elif isinstance(config, dict):
+            launch_config = config
     else:
         launch_config = {}
-
-    project, entity, _ = set_project_entity_defaults(
-        uri,
-        project or launch_config.get("project"),
-        entity or launch_config.get("entity"),
-        api,
-    )
 
     if queue is None:
         queue = "default"
 
     launch_spec = construct_launch_spec(
         uri,
+        api,
         name,
         project,
         entity,

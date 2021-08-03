@@ -42,8 +42,6 @@ import yaml
 PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
 if PY3:
     import wandb.sdk.verify.verify as wandb_verify
-    from wandb.sdk.launch import launch as wandb_launch
-    from wandb.sdk.launch.launch_add import _launch_add
 else:
     import wandb.sdk_py27.verify.verify as wandb_verify
 
@@ -121,7 +119,6 @@ def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
     api = _get_cling_api()
-
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
@@ -851,6 +848,21 @@ def sweep(
         tuner.run(verbose=verbose)
 
 
+def _check_launch_imports():
+    _ = util.get_module(
+        "docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "chardet",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+
+
 @cli.command(help="Launch a job on a specified resource")
 @click.argument("uri")
 @click.option(
@@ -906,8 +918,8 @@ def sweep(
     "-p",
     metavar="<str>",
     default=None,
-    help="Name of the target project which the new run will be sent to. Defaults to using the project set by local wandb/settings folder."
-    " If passed in, will override the project value passed in using a config file.",
+    help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
+    "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
 )
 @click.option(
     "--resource",
@@ -934,6 +946,7 @@ def sweep(
     "as config to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
+@display_error
 def launch(
     uri,
     entry_point,
@@ -948,14 +961,14 @@ def launch(
     config,
 ):
     """
-    Run an W&B project from the given URI.
-    For local runs, the run will block until it completes.
-    Otherwise, the project will run asynchronously.
-    If running locally (the default), the URI can be either a Git repository URI or a local path.
-    If running on Databricks, the URI must be a Git repository.
-    By default, Git projects run in a new working directory with the given parameters, while
-    local projects run from the project's root directory.
+    Run a W&B run from the given URI. Which can either be a wandb URI or a github repo uri or a local path.
+    In the case of a wandb URI the arguments used in the original run will be used by default.
+    These arguments can be overridden using the param_list args, or specifying those arguments
+    in the config's 'overrides' key, 'args' field as a list of strings
     """
+    _check_launch_imports()
+    from wandb.sdk.launch import launch as wandb_launch
+
     api = _get_cling_api()
 
     param_dict = util._user_args_to_dict(param_list)
@@ -980,8 +993,8 @@ def launch(
             api,
             entry_point,
             version,
-            wandb_project=project,
-            wandb_entity=entity,
+            project=project,
+            entity=entity,
             docker_image=docker_image,
             experiment_name=experiment_name,
             parameters=param_dict,
@@ -991,6 +1004,9 @@ def launch(
             synchronous=resource in ("local")
             or resource is None,  # todo currently always true
         )
+    except wandb_launch.LaunchException as e:
+        logger.error("=== %s ===", e)
+        sys.exit(e)
     except wandb_launch.ExecutionException as e:
         logger.error("=== %s ===", e)
         sys.exit(e)
@@ -1008,6 +1024,10 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
+    _check_launch_imports()
+
+    from wandb.sdk.launch import launch as wandb_launch
+
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1090,6 +1110,10 @@ def launch_add(
     docker_image=None,
     param_list=None,
 ):
+    _check_launch_imports()
+
+    from wandb.sdk.launch.launch_add import _launch_add
+
     api = _get_cling_api()
     params_dict = util._user_args_to_dict(param_list)
     try:

@@ -56,36 +56,38 @@ def _is_git_uri(uri: str) -> bool:
 
 
 def set_project_entity_defaults(
-    uri: str, wandb_project: Optional[str], wandb_entity: Optional[str], api: Api
-) -> Tuple[str, str, str]:
+    uri: str, project: Optional[str], entity: Optional[str], api: Api
+) -> Tuple[str, str]:
     # set the target project and entity if not provided
     if _is_wandb_uri(uri):
-        _, uri_project, run_id = parse_wandb_uri(uri)
+        _, uri_project, _ = parse_wandb_uri(uri)
+    elif _is_git_uri(uri):
+        uri_project = os.path.splitext(os.path.basename(uri))[0]
     else:
         uri_project = UNCATEGORIZED_PROJECT
-        run_id = "non_wandb_run"  # this is used in naming the docker image if name not specified
-    if wandb_project is None:
-        wandb_project = api.settings("project") or uri_project or UNCATEGORIZED_PROJECT
+    if project is None:
+        project = uri_project or UNCATEGORIZED_PROJECT
         wandb.termlog(
             "Target project for this run not specified, defaulting to project {}".format(
-                wandb_project
+                project
             )
         )
-    if wandb_entity is None:
-        wandb_entity = api.default_entity
+    if entity is None:
+        entity = api.default_entity
         wandb.termlog(
             "Target entity for this run not specified, defaulting to current logged-in user {}".format(
-                wandb_entity
+                entity
             )
         )
-    return wandb_project, wandb_entity, run_id
+    return project, entity
 
 
 def construct_launch_spec(
     uri: str,
+    api: Api,
     experiment_name: Optional[str],
-    wandb_project: Optional[str],
-    wandb_entity: Optional[str],
+    project: Optional[str],
+    entity: Optional[str],
     docker_image: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
@@ -95,10 +97,12 @@ def construct_launch_spec(
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
-    if wandb_entity:
-        launch_spec["entity"] = wandb_entity
-    if wandb_project:
-        launch_spec["project"] = wandb_project
+    backup_project, backup_entity = set_project_entity_defaults(
+        uri, launch_spec.get("project"), launch_spec.get("entity"), api
+    )
+    launch_spec["entity"] = entity or backup_entity
+
+    launch_spec["project"] = project or backup_project
     if experiment_name:
         launch_spec["name"] = experiment_name
     if "docker" not in launch_spec:
@@ -153,7 +157,10 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
-    result = api.get_run_info(entity, project, name)
+    try:
+        result = api.get_run_info(entity, project, name)
+    except CommError as e:
+        raise LaunchException(e)
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     if result.get("args") is not None:
