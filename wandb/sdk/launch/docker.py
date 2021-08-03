@@ -160,31 +160,8 @@ def build_docker_image_if_needed(
             os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
             os.path.join(launch_project.project_dir),
         )
-        base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
-        # TODO: make this configurable?
-        if os.path.exists(base_requirements):
-            include_only = set()
-            with open(base_requirements) as f:
-                iter = pkg_resources.parse_requirements(f)
-                while True:
-                    try:
-                        pkg = next(iter)
-                        if hasattr(pkg, "name"):
-                            name = pkg.name.lower()
-                        else:
-                            name = str(pkg)
-                        include_only.add(name)
-                        requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
-                            ",".join(include_only)
-                        )
-                    except StopIteration:
-                        break
-                    # Different versions of pkg_resources throw different errors
-                    # just catch them all and ignore packages we can't parse
-                    except Exception as e:
-                        _logger.warn(f"Unable to parse requirements.txt: {e}")
-                        continue
-
+        # TODO: make this configurable or change the default behavior...
+        requirements_line += _parse_existing_requirements(launch_project)
         requirements_line += "python _wandb_bootstrap.py\n"
 
     name_line = ""
@@ -288,6 +265,34 @@ def get_docker_command(
 
     cmd += [image]
     return [shlex_quote(c) for c in cmd]
+
+
+def _parse_existing_requirements(launch_project: _project_spec.LaunchProject) -> str:
+    requirements_line = ""
+    base_requirements = os.path.join(launch_project.project_dir, "requirements.txt")
+    if os.path.exists(base_requirements):
+        include_only = set()
+        with open(base_requirements) as f:
+            iter = pkg_resources.parse_requirements(f)
+            while True:
+                try:
+                    pkg = next(iter)
+                    if hasattr(pkg, "name"):
+                        name = pkg.name.lower()  # type: ignore
+                    else:
+                        name = str(pkg)
+                    include_only.add(shlex_quote(name))
+                    requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
+                        ",".join(include_only)
+                    )
+                except StopIteration:
+                    break
+                # Different versions of pkg_resources throw different errors
+                # just catch them all and ignore packages we can't parse
+                except Exception as e:
+                    _logger.warn(f"Unable to parse requirements.txt: {e}")
+                    continue
+    return requirements_line
 
 
 def _get_docker_image_uri(name: Optional[str], work_dir: str) -> str:
