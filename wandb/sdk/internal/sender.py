@@ -12,14 +12,17 @@ import json
 import logging
 import os
 import time
+from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
 from pkg_resources import parse_version
 import requests
 from six.moves import queue
+from six.moves.queue import Queue
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.proto.wandb_internal_pb2 import HttpResponse
 
 from . import artifacts
 from . import file_stream
@@ -34,13 +37,9 @@ from ..lib.git import GitRepo
 
 logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:  # TYPE_CHECKING
-    from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
-    from six.moves.queue import Queue
-    from wandb.proto.wandb_internal_pb2 import HttpResponse
 
-    DictWithValues = NewType("DictWithValues", Dict[str, Any])
-    DictNoValues = NewType("DictNoValues", Dict[str, Any])
+DictWithValues = NewType("DictWithValues", Dict[str, Any])
+DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 
 def _framework_priority(

@@ -10,36 +10,33 @@ import math
 import numbers
 import os
 import time
+from threading import Event
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 import six
-import wandb
+from six.moves.queue import Queue
 from wandb.proto import wandb_internal_pb2
+from wandb.proto.wandb_internal_pb2 import Record, Result
 
 from . import meta, sample, stats
 from . import tb_watcher
+from .settings_static import SettingsStatic
+from ..interface.interface import BackendSender
 from ..lib import handler_util, proto_util
 
 
-if wandb.TYPE_CHECKING:
-    from typing import (
-        TYPE_CHECKING,
-        Any,
-        Callable,
-        Dict,
-        List,
-        Tuple,
-        Sequence,
-        Iterable,
-        Optional,
-        cast,
-    )
-    from .settings_static import SettingsStatic
-    from six.moves.queue import Queue
-    from threading import Event
-    from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import Record, Result
-
-    SummaryDict = Dict[str, Any]
+SummaryDict = Dict[str, Any]
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +48,7 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
     for k in key_list[:-1]:
         target.setdefault(k, {})
         new_target = target.get(k)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             new_target = cast(Dict[str, Any], new_target)
         target = new_target
     # use the last element of the key to write the leaf:

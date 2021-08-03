@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import threading
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import wandb
 from wandb import util
@@ -10,13 +11,11 @@ import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
 
-if wandb.TYPE_CHECKING:
-    from typing import List, Optional, Dict, TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from wandb.sdk.internal.internal_api import Api as InternalApi
-        from .file_pusher import FilePusher
-        from wandb.proto import wandb_internal_pb2
+if TYPE_CHECKING:
+    from wandb.sdk.internal.internal_api import Api as InternalApi
+    from .file_pusher import FilePusher
+    from wandb.proto import wandb_internal_pb2
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:

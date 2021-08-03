@@ -24,16 +24,10 @@ import json
 import os
 from wandb.keras import WandbCallback
 
-if wandb.TYPE_CHECKING:
-    from wandb.sdk.integration_utils.data_logging import (
-        ValidationDataLogger,
-        CAN_INFER_IMAGE_AND_VIDEO,
-    )
-else:
-    from wandb.sdk_py27.integration_utils.data_logging import (
-        ValidationDataLogger,
-        CAN_INFER_IMAGE_AND_VIDEO,
-    )
+from wandb.sdk.integration_utils.data_logging import (
+    ValidationDataLogger,
+    CAN_INFER_IMAGE_AND_VIDEO,
+)
 import glob
 import numpy as np
 
