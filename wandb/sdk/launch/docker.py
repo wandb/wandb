@@ -177,11 +177,13 @@ def build_docker_image_if_needed(
                         requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
                             ",".join(include_only)
                         )
-                    except pkg_resources.RequirementParseError as e:
-                        _logger.warn(f"Unable to parse requirements.txt: {e}")
-                        continue
                     except StopIteration:
                         break
+                    # Different versions of pkg_resources throw different errors
+                    # just catch them all and ignore packages we can't parse
+                    except Exception as e:
+                        _logger.warn(f"Unable to parse requirements.txt: {e}")
+                        continue
 
         requirements_line += "python _wandb_bootstrap.py\n"
 
