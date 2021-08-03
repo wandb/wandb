@@ -14,7 +14,7 @@ done
 echo "Setting local pyenv versions to: $full_all"
 pyenv local $full_all
 echo "Installing dependencies: tox..."
-pip install -qq tox==3.23.1
+pip install -qq tox==3.24.0
 echo "Configuring submodules..."
 make submodule-update
 echo "Development environment setup!"

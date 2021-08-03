@@ -1057,7 +1057,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     testable_setters_invalid = ["aliases"]
 
     # These methods should be valid both before and after logging
-    testable_methods_valid = ["save"]
+    testable_methods_valid = []
 
     # These methods should be valid only after logging
     testable_methods_invalid = [
@@ -1076,6 +1076,8 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
 
     # these are failures of mocking
     special_errors = {
+        "save": wandb.errors.CommError,
+        "delete": wandb.errors.CommError,
         "verify": ValueError,
         "logged_by": KeyError,
     }

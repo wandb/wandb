@@ -6,12 +6,12 @@ import sys
 import time
 import requests
 
+from gql import gql
 import six
 
 import wandb
 from wandb import util
 from wandb import data_types
-from wandb.apis.client import gql
 from wandb.apis.internal import Api
 from six import string_types
 
@@ -24,7 +24,7 @@ else:
     from wandb.sdk_py27 import lib as wandb_lib
 
 
-DEEP_SUMMARY_FNAME = "wandb.h5"
+DEEP_SUMMARY_FNAME = 'wandb.h5'
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
 h5py = util.get_module("h5py")
 np = util.get_module("numpy")
@@ -122,16 +122,6 @@ class SummarySubDict(object):
         self.get(k)  # load the value into _dict if it should be there
         res = self._dict[k]
 
-        # Special condition to automatically load and deserialize table entries
-        if (
-            isinstance(res, wandb.old.summary.SummarySubDict)
-            and res.get("_type") == "table-file"
-            and "artifact_path" in res
-        ):
-            api = wandb.Api()
-            return api.artifact(res["artifact_path"]["artifact"]).get(
-                res["artifact_path"]["path"]
-            )
         return res
 
     def __contains__(self, k):
@@ -173,14 +163,10 @@ class SummarySubDict(object):
         repr_dict = dict(self._dict)
         for k in self._json_dict:
             v = self._json_dict[k]
-            if (
-                k not in repr_dict
-                and isinstance(v, dict)
-                and v.get("_type") in H5_TYPES
-            ):
+            if k not in repr_dict and isinstance(v, dict) and v.get('_type') in H5_TYPES:
                 # unloaded h5 objects may be very large. use a placeholder for them
                 # if we haven't already loaded them
-                repr_dict[k] = "..."
+                repr_dict[k] = '...'
             else:
                 repr_dict[k] = self[k]
 
@@ -211,7 +197,8 @@ class SummarySubDict(object):
 
         for key, value in write_items:
             if isinstance(value, dict):
-                self._dict[key] = SummarySubDict(self._root, self._path + (key,))
+                self._dict[key] = SummarySubDict(
+                    self._root, self._path + (key,))
                 self._dict[key]._update(value, overwrite)
             else:
                 self._dict[key] = value
@@ -265,7 +252,7 @@ class Summary(SummarySubDict):
                 wandb.termerror("Deleting tensors in summary requires h5py")
             else:
                 self.open_h5()
-                h5_key = "summary/" + ".".join(path)
+                h5_key = "summary/" + '.'.join(path)
                 del self._h5[h5_key]
                 self._h5.flush()
 
@@ -285,10 +272,10 @@ class Summary(SummarySubDict):
             wandb.termerror("Storing tensors in summary requires h5py")
         else:
             try:
-                del self._h5["summary/" + ".".join(path)]
+                del self._h5["summary/" + '.'.join(path)]
             except KeyError:
                 pass
-            self._h5["summary/" + ".".join(path)] = val
+            self._h5["summary/" + '.'.join(path)] = val
             self._h5.flush()
 
     def read_h5(self, path, val=None):
@@ -298,11 +285,11 @@ class Summary(SummarySubDict):
         if not self._h5:
             wandb.termerror("Reading tensors from summary requires h5py")
         else:
-            return self._h5.get("summary/" + ".".join(path), val)
+            return self._h5.get("summary/" + '.'.join(path), val)
 
     def open_h5(self):
         if not self._h5 and h5py:
-            self._h5 = h5py.File(self._h5_path, "a", libver="latest")
+            self._h5 = h5py.File(self._h5_path, 'a', libver='latest')
 
     def _decode(self, path, json_value):
         """Decode a `dict` encoded by `Summary._encode()`, loading h5 objects.
@@ -312,10 +299,9 @@ class Summary(SummarySubDict):
         if isinstance(json_value, dict):
             if json_value.get("_type") in H5_TYPES:
                 return self.read_h5(path, json_value)
-            elif json_value.get("_type") == "data-frame":
+            elif json_value.get("_type") == 'data-frame':
                 wandb.termerror(
-                    "This data frame was saved via the wandb data API. Contact support@wandb.com for help."
-                )
+                    'This data frame was saved via the wandb data API. Contact support@wandb.com for help.')
                 return None
             # TODO: transform wandb objects and plots
             else:
@@ -346,11 +332,9 @@ class Summary(SummarySubDict):
         else:
             path = ".".join(path_from_root)
             friendly_value, converted = util.json_friendly(
-                data_types.val_to_json(self._run, path, value, namespace="summary")
-            )
+                data_types.val_to_json(self._run, path, value, namespace="summary"))
             json_value, compressed = util.maybe_compress_summary(
-                friendly_value, util.get_h5_typename(value)
-            )
+                friendly_value, util.get_h5_typename(value))
             if compressed:
                 self.write_h5(path_from_root, friendly_value)
 
@@ -359,13 +343,9 @@ class Summary(SummarySubDict):
 
 def download_h5(run_id, entity=None, project=None, out_dir=None):
     api = Api()
-    meta = api.download_url(
-        project or api.settings("project"),
-        DEEP_SUMMARY_FNAME,
-        entity=entity or api.settings("entity"),
-        run=run_id,
-    )
-    if meta and "md5" in meta and meta["md5"] is not None:
+    meta = api.download_url(project or api.settings(
+        "project"), DEEP_SUMMARY_FNAME, entity=entity or api.settings("entity"), run=run_id)
+    if meta and 'md5' in meta and meta['md5'] is not None:
         # TODO: make this non-blocking
         wandb.termlog("Downloading summary data...")
         path, res = api.download_write_file(meta, out_dir=out_dir)
@@ -375,10 +355,9 @@ def download_h5(run_id, entity=None, project=None, out_dir=None):
 def upload_h5(file, run_id, entity=None, project=None):
     api = Api()
     wandb.termlog("Uploading summary data...")
-    with open(file, "rb") as f:
-        api.push(
-            {os.path.basename(file): f}, run=run_id, project=project, entity=entity
-        )
+    with open(file, 'rb') as f:
+        api.push({os.path.basename(file): f}, run=run_id, project=project,
+                entity=entity)
 
 
 class FileSummary(Summary):
@@ -396,9 +375,9 @@ class FileSummary(Summary):
 
     def _write(self, commit=False):
         # TODO: we just ignore commit to ensure backward capability
-        with open(self._fname, "w") as f:
+        with open(self._fname, 'w') as f:
             f.write(util.json_dumps_safer(self._json_dict))
-            f.write("\n")
+            f.write('\n')
             f.flush()
             os.fsync(f.fileno())
         if self._h5:
@@ -420,41 +399,26 @@ class HTTPSummary(Summary):
 
     def open_h5(self):
         if not self._h5 and h5py:
-            download_h5(
-                self._run.id,
-                entity=self._run.entity,
-                project=self._run.project,
-                out_dir=self._run.dir,
-            )
+            download_h5(self._run.id, entity=self._run.entity, project=self._run.project, out_dir=self._run.dir)
         super(HTTPSummary, self).open_h5()
 
     def _write(self, commit=False):
-        mutation = gql(
-            """
+        mutation = gql('''
         mutation UpsertBucket( $id: String, $summaryMetrics: JSONString) {
             upsertBucket(input: { id: $id, summaryMetrics: $summaryMetrics}) {
                 bucket { id }
             }
         }
-        """
-        )
+        ''')
         if commit:
             if self._h5:
                 self._h5.close()
                 self._h5 = None
-            res = self._client.execute(
-                mutation,
-                variable_values={
-                    "id": self._run.storage_id,
-                    "summaryMetrics": util.json_dumps_safer(self._json_dict),
-                },
-            )
-            assert res["upsertBucket"]["bucket"]["id"]
+            res = self._client.execute(mutation, variable_values={
+                'id': self._run.storage_id, 'summaryMetrics': util.json_dumps_safer(self._json_dict)})
+            assert res['upsertBucket']['bucket']['id']
             entity, project, run = self._run.path
-            if (
-                os.path.exists(self._h5_path)
-                and os.path.getmtime(self._h5_path) >= self._started
-            ):
+            if os.path.exists(self._h5_path) and os.path.getmtime(self._h5_path) >= self._started:
                 upload_h5(self._h5_path, run, entity=entity, project=project)
         else:
             return False
