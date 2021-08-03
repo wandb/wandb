@@ -340,7 +340,8 @@ def notebook(live_mock_server, test_dir):
             setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
             new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__", live_mock_server.base_url,
+                "__WANDB_BASE_URL__",
+                live_mock_server.base_url,
             )
             if save_code:
                 new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
@@ -613,7 +614,9 @@ class MockProcess:
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
     return BackendSender(
-        record_q=record_q, result_q=internal_result_q, process=internal_process,
+        record_q=record_q,
+        result_q=internal_result_q,
+        process=internal_process,
     )
 
 
@@ -747,7 +750,7 @@ def _start_backend(
         if initial_run:
             run = _internal_sender.communicate_run(mocked_run)
             if initial_start:
-                _internal_sender._publish_run_start(run.run)
+                _internal_sender.communicate_run_start(run.run)
         return (ht, st)
 
     yield start_backend_func
@@ -794,25 +797,12 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
     return backend_context
 
 
-@pytest.fixture()
-def start_run(mocked_run, internal_hm):
-    def fn(interface):
-
-        proto_run = pb.RunRecord()
-        mocked_run._make_proto_run(proto_run)
-
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(proto_run)
-
-        record = interface._make_request(run_start=run_start)
-        internal_hm.handle_request_run_start(record)
-
-    return fn
-
-
 @pytest.fixture
 def publish_util(
-    mocked_run, mock_server, backend_interface, parse_ctx, start_run,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     def fn(
         metrics=None,

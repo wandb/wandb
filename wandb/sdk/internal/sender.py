@@ -64,7 +64,11 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self,
+        settings,
+        record_q,
+        result_q,
+        interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -88,7 +92,7 @@ class SendManager(object):
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
-        self._metadata_summary: Dict[str, Any] = defaultdict(lambda: defaultdict())
+        self._metadata_summary: Dict[str, Any] = defaultdict()
         self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
@@ -292,7 +296,7 @@ class SendManager(object):
         logger.info("handling exit code: %s", exit.exit_code)
         runtime = exit.runtime
         logger.info("handling runtime: %s", exit.runtime)
-        self._metadata_summary["_wandb"]["runtime"] = runtime
+        self._metadata_summary["runtime"] = runtime
         self._update_summary()
 
         # Pass the responsibility to respond to handle_request_defer()
@@ -665,7 +669,14 @@ class SendManager(object):
         self._run = run
         if self._resume_state.get("resumed"):
             self._run.resumed = True
-            self._run.runtime = self._resume_state.get("_wandb", {}).get("runtime", 0)
+            if (
+                "_wandb" in self._resume_state
+                and "runtime" in self._resume_state["_wandb"]
+            ):
+                self._run.runtime = self._resume_state["_wandb"]["runtime"]
+            # self._run.runtime = self._resume_state.get("_wandb", {}).get(
+            #     "runtime", None
+            # )
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -760,7 +771,7 @@ class SendManager(object):
     def _update_summary(self):
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
-        summary_dict.update(self._metadata_summary)
+        summary_dict["_wandb"] = self._metadata_summary
         json_summary = json.dumps(summary_dict)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
@@ -899,8 +910,10 @@ class SendManager(object):
                 artifact
             ).get("id")
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._result_q.put(result)

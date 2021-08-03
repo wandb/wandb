@@ -39,15 +39,15 @@ def end_run_resume_pause(interface):
     time.sleep(3)
 
 
-def test_runtime_resume_point_2(
-    publish_util, test_settings, mock_server, start_run,
+def test_runtime_resume(
+    publish_util,
+    test_settings,
+    mock_server,
 ):
     mock_server.ctx["resume"] = True
     test_settings.resume = "allow"
 
-    ctx_util = publish_util(
-        begin_cb=start_run, end_cb=end_run_basic, initial_start=True
-    )
+    ctx_util = publish_util(end_cb=end_run_basic, initial_start=True)
     assert ctx_util.summary_wandb["runtime"] >= 53
 
 
@@ -61,8 +61,8 @@ def test_runtime_resume_point_2(
         (end_run_resume_pause, 6),
     ],
 )
-def test_runtime(publish_util, start_run, end_cb, lower_bound):
+def test_runtime(publish_util, end_cb, lower_bound):
 
-    ctx_util = publish_util(begin_cb=start_run, end_cb=end_cb)
+    ctx_util = publish_util(end_cb=end_cb, initial_start=True)
 
     assert ctx_util.summary_wandb["runtime"] >= lower_bound
