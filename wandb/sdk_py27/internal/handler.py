@@ -79,14 +79,7 @@ class HandleManager(object):
     # _accumulate_time: float
 
     def __init__(
-        self,
-        settings,
-        record_q,
-        result_q,
-        stopped,
-        sender_q,
-        writer_q,
-        interface,
+        self, settings, record_q, result_q, stopped, sender_q, writer_q, interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -132,7 +125,7 @@ class HandleManager(object):
         assert handler, "unknown handle: {}".format(handler_str)
         handler(record)
 
-    def _dispatch_record(self, record, always_send = False):
+    def _dispatch_record(self, record, always_send=False):
         if not self._settings._offline or always_send:
             self._sender_q.put(record)
         if not record.control.local and self._writer_q:
@@ -187,7 +180,7 @@ class HandleManager(object):
     def handle_alert(self, record):
         self._dispatch_record(record)
 
-    def _save_summary(self, summary_dict, flush = False):
+    def _save_summary(self, summary_dict, flush=False):
         summary = wandb_internal_pb2.SummaryRecord()
         for k, v in six.iteritems(summary_dict):
             update = summary.update.add()
@@ -209,12 +202,7 @@ class HandleManager(object):
                 self._sampled_history[k].add(v)
 
     def _update_summary_metrics(
-        self,
-        s,
-        kl,
-        v,
-        float_v,
-        goal_max,
+        self, s, kl, v, float_v, goal_max,
     ):
         updated = False
         best_key = None
@@ -272,10 +260,7 @@ class HandleManager(object):
         return updated
 
     def _update_summary_leaf(
-        self,
-        kl,
-        v,
-        d = None,
+        self, kl, v, d=None,
     ):
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -306,10 +291,7 @@ class HandleManager(object):
         return False
 
     def _update_summary_list(
-        self,
-        kl,
-        v,
-        d = None,
+        self, kl, v, d=None,
     ):
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
@@ -368,9 +350,7 @@ class HandleManager(object):
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def _history_define_metric(
-        self, hkey
-    ):
+    def _history_define_metric(self, hkey):
         """check for hkey match in glob metrics, return defined metric."""
         # Dont define metric for internal metrics
         if hkey.startswith("_"):
@@ -386,9 +366,7 @@ class HandleManager(object):
                     return m
         return None
 
-    def _history_update_leaf(
-        self, kl, v, history_dict, update_history
-    ):
+    def _history_update_leaf(self, kl, v, history_dict, update_history):
         hkey = ".".join([k.replace(".", "\\.") for k in kl])
         m = self._metric_defines.get(hkey)
         if not m:
@@ -407,9 +385,7 @@ class HandleManager(object):
                 if step is not None:
                     update_history[m.step_metric] = step
 
-    def _history_update_list(
-        self, kl, v, history_dict, update_history
-    ):
+    def _history_update_list(self, kl, v, history_dict, update_history):
         if isinstance(v, dict):
             for nk, nv in six.iteritems(v):
                 self._history_update_list(

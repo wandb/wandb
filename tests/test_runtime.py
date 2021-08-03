@@ -40,9 +40,7 @@ def end_run_resume_pause(interface):
 
 
 def test_runtime_resume(
-    publish_util,
-    test_settings,
-    mock_server,
+    publish_util, test_settings, mock_server,
 ):
     mock_server.ctx["resume"] = True
     test_settings.resume = "allow"

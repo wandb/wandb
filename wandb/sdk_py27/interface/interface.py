@@ -78,7 +78,7 @@ class _Future(object):
         self._object_ready = threading.Event()
         self._lock = threading.Lock()
 
-    def get(self, timeout = None):
+    def get(self, timeout=None):
         is_set = self._object_ready.wait(timeout)
         if is_set and self._object:
             return self._object
@@ -94,9 +94,7 @@ class MessageRouter(object):
     # _request_queue: "Queue[pb.Record]"
     # _response_queue: "Queue[pb.Result]"
 
-    def __init__(
-        self, request_queue, response_queue
-    ):
+    def __init__(self, request_queue, response_queue):
         self._request_queue = request_queue
         self._response_queue = response_queue
 
@@ -116,7 +114,7 @@ class MessageRouter(object):
                 continue
             self._handle_msg_rcv(msg)
 
-    def send_and_receive(self, rec, local = None):
+    def send_and_receive(self, rec, local=None):
         rec.control.req_resp = True
         if local:
             rec.control.local = local
@@ -155,10 +153,7 @@ class BackendSender(object):
     # _router: Optional[MessageRouter]
 
     def __init__(
-        self,
-        record_q = None,
-        result_q = None,
-        process = None,
+        self, record_q=None, result_q=None, process=None,
     ):
         self.record_q = record_q
         self.result_q = result_q
@@ -193,9 +188,7 @@ class BackendSender(object):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def publish_tbdata(
-        self, log_dir, save, root_logdir
-    ):
+    def publish_tbdata(self, log_dir, save, root_logdir):
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
@@ -212,9 +205,7 @@ class BackendSender(object):
         rec = self._make_record(preempting=preempt_rec)
         self._publish(rec)
 
-    def publish_history(
-        self, data, step = None, run = None, publish_step = True
-    ):
+    def publish_history(self, data, step=None, run=None, publish_step=True):
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
@@ -261,9 +252,7 @@ class BackendSender(object):
         self._make_artifact_manifest(artifact.manifest, obj=proto_artifact.manifest)
         return proto_artifact
 
-    def _make_artifact_manifest(
-        self, artifact_manifest, obj = None
-    ):
+    def _make_artifact_manifest(self, artifact_manifest, obj=None):
         proto_manifest = obj or pb.ArtifactManifest()
         proto_manifest.version = artifact_manifest.version()  # type: ignore
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
@@ -297,11 +286,7 @@ class BackendSender(object):
         return exit
 
     def _make_config(
-        self,
-        data = None,
-        key = None,
-        val = None,
-        obj = None,
+        self, data=None, key=None, val=None, obj=None,
     ):
         config = obj or pb.ConfigRecord()
         if data:
@@ -418,7 +403,7 @@ class BackendSender(object):
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def _make_login(self, api_key = None):
+    def _make_login(self, api_key=None):
         login = pb.LoginRequest()
         if api_key:
             login.api_key = api_key
@@ -426,18 +411,18 @@ class BackendSender(object):
 
     def _make_request(
         self,
-        login = None,
-        get_summary = None,
-        pause = None,
-        resume = None,
-        stop_status = None,
-        network_status = None,
-        poll_exit = None,
-        sampled_history = None,
-        run_start = None,
-        check_version = None,
-        log_artifact = None,
-        defer = None,
+        login=None,
+        get_summary=None,
+        pause=None,
+        resume=None,
+        stop_status=None,
+        network_status=None,
+        poll_exit=None,
+        sampled_history=None,
+        run_start=None,
+        check_version=None,
+        log_artifact=None,
+        defer=None,
     ):
         request = pb.Request()
         if login:
@@ -473,23 +458,23 @@ class BackendSender(object):
 
     def _make_record(
         self,
-        run = None,
-        config = None,
-        files = None,
-        summary = None,
-        history = None,
-        stats = None,
-        exit = None,
-        artifact = None,
-        tbrecord = None,
-        alert = None,
-        final = None,
-        metric = None,
-        header = None,
-        footer = None,
-        request = None,
-        telemetry = None,
-        preempting = None,
+        run=None,
+        config=None,
+        files=None,
+        summary=None,
+        history=None,
+        stats=None,
+        exit=None,
+        artifact=None,
+        tbrecord=None,
+        alert=None,
+        final=None,
+        metric=None,
+        header=None,
+        footer=None,
+        request=None,
+        telemetry=None,
+        preempting=None,
     ):
         record = pb.Record()
         if run:
@@ -530,7 +515,7 @@ class BackendSender(object):
             raise Exception("Invalid record")
         return record
 
-    def _publish(self, record, local = None):
+    def _publish(self, record, local=None):
         if self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:
@@ -538,21 +523,17 @@ class BackendSender(object):
         if self.record_q:
             self.record_q.put(record)
 
-    def _communicate(
-        self, rec, timeout = 5, local = None
-    ):
+    def _communicate(self, rec, timeout=5, local=None):
         return self._communicate_async(rec, local=local).get(timeout=timeout)
 
-    def _communicate_async(self, rec, local = None):
+    def _communicate_async(self, rec, local=None):
         assert self._router
         if self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         future = self._router.send_and_receive(rec, local=local)
         return future
 
-    def communicate_login(
-        self, api_key = None, timeout = 15
-    ):
+    def communicate_login(self, api_key=None, timeout=15):
         login = self._make_login(api_key)
         rec = self._make_request(login=login)
         result = self._communicate(rec, timeout=timeout)
@@ -570,7 +551,7 @@ class BackendSender(object):
         rec = self._make_request(defer=defer)
         self._publish(rec, local=True)
 
-    def publish_defer(self, state = 0):
+    def publish_defer(self, state=0):
         self._publish_defer(cast("pb.DeferRequest.DeferStateValue", state))
 
     def publish_header(self):
@@ -588,7 +569,7 @@ class BackendSender(object):
         rec = self._make_record(final=final)
         self._publish(rec)
 
-    def publish_login(self, api_key = None):
+    def publish_login(self, api_key=None):
         login = self._make_login(api_key)
         rec = self._make_request(login=login)
         self._publish(rec)
@@ -623,10 +604,7 @@ class BackendSender(object):
         self._publish_run(run)
 
     def publish_config(
-        self,
-        data = None,
-        key = None,
-        val = None,
+        self, data=None, key=None, val=None,
     ):
         cfg = self._make_config(data=data, key=key, val=val)
 
@@ -648,9 +626,7 @@ class BackendSender(object):
         rec = self._make_record(metric=metric)
         self._publish(rec)
 
-    def _communicate_run(
-        self, run, timeout = None
-    ):
+    def _communicate_run(self, run, timeout=None):
         """Send synchronous run object waiting for a response.
 
         Arguments:
@@ -670,9 +646,7 @@ class BackendSender(object):
         assert resp.HasField("run_result")
         return resp.run_result
 
-    def communicate_run(
-        self, run_obj, timeout = None
-    ):
+    def communicate_run(self, run_obj, timeout=None):
         run = self._make_run(run_obj)
         return self._communicate_run(run, timeout=timeout)
 
@@ -691,9 +665,9 @@ class BackendSender(object):
         run,
         artifact,
         aliases,
-        is_user_created = False,
-        use_after_commit = False,
-        finalize = True,
+        is_user_created=False,
+        use_after_commit=False,
+        finalize=True,
     ):
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
@@ -716,9 +690,9 @@ class BackendSender(object):
         run,
         artifact,
         aliases,
-        is_user_created = False,
-        use_after_commit = False,
-        finalize = True,
+        is_user_created=False,
+        use_after_commit=False,
+        finalize=True,
     ):
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
@@ -733,9 +707,7 @@ class BackendSender(object):
         rec = self._make_record(artifact=proto_artifact)
         self._publish(rec)
 
-    def publish_alert(
-        self, title, text, level, wait_duration
-    ):
+    def publish_alert(self, title, text, level, wait_duration):
         proto_alert = pb.AlertRecord()
         proto_alert.title = title
         proto_alert.text = text
@@ -744,9 +716,7 @@ class BackendSender(object):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def communicate_stop_status(
-        self, timeout = None
-    ):
+    def communicate_stop_status(self, timeout=None):
         status = pb.StopStatusRequest()
         req = self._make_request(stop_status=status)
 
@@ -756,9 +726,7 @@ class BackendSender(object):
         assert resp.response.stop_status_response
         return resp.response.stop_status_response
 
-    def communicate_network_status(
-        self, timeout = None
-    ):
+    def communicate_network_status(self, timeout=None):
         status = pb.NetworkStatusRequest()
         req = self._make_request(network_status=status)
 
@@ -773,9 +741,7 @@ class BackendSender(object):
         rec = self._make_record(exit=exit_data)
         self._publish(rec)
 
-    def _communicate_exit(
-        self, exit_data, timeout = None
-    ):
+    def _communicate_exit(self, exit_data, timeout=None):
         req = self._make_record(exit=exit_data)
 
         result = self._communicate(req, timeout=timeout)
@@ -797,9 +763,7 @@ class BackendSender(object):
         assert poll_exit_response
         return poll_exit_response
 
-    def communicate_check_version(
-        self, current_version = None
-    ):
+    def communicate_check_version(self, current_version=None):
         check_version = pb.CheckVersionRequest()
         if current_version:
             check_version.current_version = current_version
@@ -817,7 +781,7 @@ class BackendSender(object):
         result = self._communicate(rec)
         return result
 
-    def communicate_exit(self, exit_code, timeout = None):
+    def communicate_exit(self, exit_code, timeout=None):
         exit_data = self._make_exit(exit_code)
         return self._communicate_exit(exit_data, timeout=timeout)
 

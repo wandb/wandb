@@ -43,9 +43,7 @@ if wandb.TYPE_CHECKING:  # TYPE_CHECKING
     DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 
-def _framework_priority(
-    imp,
-):
+def _framework_priority(imp,):
     yield imp.lightgbm, "lightgbm"
     yield imp.catboost, "catboost"
     yield imp.xgboost, "xgboost"
