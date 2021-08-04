@@ -130,7 +130,7 @@ def start_mock_server(worker_id):
                 started = True
                 break
             print("Attempting to connect but got: %s" % res)
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
             print(
                 "Timed out waiting for server to start...", server.base_url, time.time()
             )

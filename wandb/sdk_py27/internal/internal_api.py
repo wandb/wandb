@@ -848,7 +848,7 @@ class Api(object):
         if not matching_queues:
             # in the case of a missing default queue. create it
             if queue_name == "default":
-                wandb.termwarn(
+                wandb.termlog(
                     "No default queue existing for {}/{} creating one.".format(
                         entity, project
                     )
@@ -869,11 +869,11 @@ class Api(object):
                 queue_id = res["queueID"]
 
             else:
-                wandb.termwarn("Unable to push to run queue {}. Queue not found.")
+                wandb.termwarn("Unable to push to run queue {}. Queue not found.".format(queue_name))
                 return None
         elif len(matching_queues) > 1:
-            wandb.termwarn(
-                "Unable to push to run queue {}. More than one queue found with this name."
+            wandb.termerror(
+                "Unable to push to run queue {}. More than one queue found with this name.".format(queue_name)
             )
             return None
         else:
