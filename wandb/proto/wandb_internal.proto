@@ -112,6 +112,7 @@ message RunRecord {
   google.protobuf.Timestamp start_time = 17;
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
+  int32                     runtime = 20;
 }
 
 message RunUpdateResult {
@@ -136,6 +137,7 @@ message ErrorInfo {
  */
 message RunExitRecord {
   int32 exit_code = 1;
+  int32 runtime = 2;
 }
 
 message RunPreemptingRecord {

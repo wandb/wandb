@@ -34,14 +34,9 @@ from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
+import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
-
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    import wandb.sdk.verify.verify as wandb_verify
-else:
-    import wandb.sdk_py27.verify.verify as wandb_verify
 
 
 # TODO: turn this on in a cleaner way
