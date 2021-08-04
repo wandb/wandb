@@ -1,12 +1,12 @@
 #
 # -*- coding: utf-8 -*-
-"""Defines wandb.init and associated classes and methods.
+"""Defines wandb.init() and associated classes and methods.
 
-`wandb.init` indicates the beginning of a new run. In an ML training pipeline,
-you could add `wandb.init` to the beginning of your training script as well as
+`wandb.init()` indicates the beginning of a new run. In an ML training pipeline,
+you could add `wandb.init()` to the beginning of your training script as well as
 your evaluation script, and each step would be tracked as a run in W&B.
 
-For more on using `wandb.init`, including code snippets, check out our
+For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 
@@ -77,7 +77,7 @@ class _WandbInit(object):
         self.notebook = None
 
     def setup(self, kwargs) -> None:
-        """Completes setup for wandb.init().
+        """Completes setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.
         """
@@ -609,7 +609,7 @@ def init(
     child process, you must explicitly call `wandb.finish` at the end of the
     child process.
 
-    For more on using `wandb.init`, including code snippets, check out our
+    For more on using `wandb.init()`, including code snippets, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
     Arguments:
