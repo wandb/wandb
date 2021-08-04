@@ -10,6 +10,6 @@ class connect:
         # load sample JSONL dataset
         json_list = []
         if dataset == "ner":
-            with open('prodigy_sample_dataset.jsonl', 'r') as json_file:
+            with open('prodigy_sample_datasets/prodigy_sample_ner.jsonl', 'r') as json_file:
                 json_list = list(json_file)
         return json_list
