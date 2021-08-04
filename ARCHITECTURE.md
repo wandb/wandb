@@ -1,32 +1,60 @@
 
 [DRAFT]
 
-Life of a Run
-```
-                                                             |                               |
-User Context                                                 |         Shared Queues         |       Internal Process
-                                                             |                               |
-wandb.init()                                                                                  
-     |                                                       |                               |
-    wandb.sdk.wandb_init.init()                               
-     |                                                       |                               |
-    wandb.sdk.wandb_init._WandbInit                           
-     |                                                       |                               |
-    wandb.sdk.wandb_init._WandbInit.setup()                   
-     |                                                       |                               |
-    wandb.sdk.wandb_setup._setup()                            
-     |                                                       |                               |
-    wandb.sdk.backend.backend.Backend                         
-     |                                                       |                               |
-    wandb.sdk.backend.backend.Backend.ensure_lauched()  ----------  record_q    result_q  --------   wandb.sdk.internal.internal.wandb_internal
-     |                                                       |                               |
-     |                                                                                               HandlerThread    WriterThread    SenderThread
-     |                                                       |                               |
-    wandb.sdk.wandb_run.Run                                                                                    
-     |                                                       |                               |
-    return Run
 
+## Concepts
 
-wandb.log()
+### Processes/Threads
+
+User Context     | Calls wandb.init()
+Internal Process | Most processing of users requests
+Handler Thread   | Single thread in the internal process to serialize all requests
+Sender Thread    | All network operations happen from this thread
+Writer Thread    | Runs in parallel with Sender Thread to write a log of transactions
+
+### Records/Results
+
+[https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto](Protobuf Definitions)
+
+## Sequence diagrams
+
+### wandb.init()
 
 ```
+                 |               |
+ User Context    | Shared Queues |       Internal Process       |    Cloud    |
+                 |               |                              |             |
+                 | rec_q . res_q | HandlerT . WriterT . SenderT |             |
+ wandb.init()
+ RunRecord   ----1--->
+                 |       .       |          .         .         |             |
+                     ----------------->
+                 |       .       |          .         .         |             |
+                                      handle_run()
+                 |       .       |          .         .         |             |
+                                      ---------->
+                 |       .       |          .         .         |             |
+                                      --------------------->
+                 |       .       |          .         .         |             |
+                                                            ----2---->
+                 |       .       |          .         .         |             |
+                             <------------------------------
+                 |       .       |          .         .         |             |
+             <---------------
+                 |       .       |          .         .         |             |
+ RunStartReq ----3---->
+                 |       .       |          .         .         |             |
+                      ----------------->
+                 |       .       |          .         .         |             |
+                                       handle_req_run_start()
+                 |       .       |          .         .         |             |
+                             <----------
+                 |       .       |          .         .         |             |
+             <----------------
+
+1. communicate_run()
+2. upsertBucket
+3. communicate_run_start()
+```
+
+### wandb.log()
