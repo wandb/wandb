@@ -1,21 +1,18 @@
 import logging
+from typing import Any, Dict, List, Optional
 
-import wandb
 from wandb.apis.internal import Api
 from wandb.errors import ExecutionException, LaunchException
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
 from .runner import loader
+from .runner.abstract import AbstractRun
 from .utils import (
     construct_launch_spec,
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
-
-if wandb.TYPE_CHECKING:
-    from .runner.abstract import AbstractRun
-    from typing import Any, Dict, List, Optional
 
 _logger = logging.getLogger(__name__)
 
