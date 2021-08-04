@@ -367,7 +367,7 @@ class _WandbInit(object):
         )
         return drun
 
-    def error_out(self, backend: Backend, error_message: Optional[str]):
+    def _error_out(self, backend: Backend, error_message: str):
         assert logger
         logger.error("encountered error: {}".format(error_message))
         # Shutdown the backend and get rid of the logger
@@ -498,7 +498,7 @@ class _WandbInit(object):
             run_proto = backend.interface._make_run(run)
 
             if s.resume is not None:
-                self.error_out(
+                self._error_out(
                     backend, error_message="Offline mode does not support resume"
                 )
 
@@ -532,7 +532,7 @@ class _WandbInit(object):
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
-                self.error_out(backend, error_message=error_message)
+                self._error_out(backend, error_message=error_message)
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
