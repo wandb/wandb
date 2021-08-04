@@ -6,6 +6,8 @@
 
 ### Processes/Threads
 
+| Context | Description |
+| ---     | --- |
 | User Context     | Calls wandb.init() |
 | Internal Process | Most processing of users requests |
 | Handler Thread   | Single thread in the internal process to serialize all requests |
