@@ -310,6 +310,7 @@ class Settings(object):
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
+        timeout: float = 30.0,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
         strict: str = None,

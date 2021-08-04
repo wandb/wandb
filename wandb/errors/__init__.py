@@ -43,6 +43,12 @@ class RequireError(Error):
     pass
 
 
+class InputTimeoutError(Error):
+    """Raised when user input times out"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -50,4 +56,5 @@ __all__ = [
     "LogError",
     "LogMultiprocessError",
     "RequireError",
+    "InputTimeoutError",
 ]

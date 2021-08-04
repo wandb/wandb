@@ -36,7 +36,7 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
-def login(anonymous=None, key=None, relogin=None, host=None, force=None):
+def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout=30.0):
     """
     Log in to W&B.
 
@@ -154,13 +154,14 @@ class _WandbLogin(object):
         if not self._wl.settings._offline:
             self._wl._update_user_settings()
 
-    def prompt_api_key(self):
+    def prompt_api_key(self, timeout=30.0):
         api = Api(self._settings)
         key = apikey.prompt_api_key(
             self._settings,
             api=api,
             no_offline=self._settings.force,
             no_create=self._settings.force,
+            timeout=timeout,
         )
         if key is False:
             directive = (
@@ -191,6 +192,7 @@ def _login(
     _backend=None,
     _silent=None,
     _disable_warning=None,
+    timeout=30.0,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
@@ -232,7 +234,7 @@ def _login(
         return logged_in
 
     if not key:
-        wlogin.prompt_api_key()
+        wlogin.prompt_api_key(timeout=timeout)
 
     # make sure login credentials get to the backend
     wlogin.propogate_login()
