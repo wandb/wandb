@@ -241,10 +241,6 @@ jobs:
                 pip3 install jupyter-repo2docker
         - restore-tox-cache
         - run:
-            name: Build r2d image
-            command: |
-                jupyter-repo2docker --no-run tests/fixtures/
-        - run:
             name: Run tests
             command: |
                 python3 -m tox -vv -e << parameters.toxenv >>
