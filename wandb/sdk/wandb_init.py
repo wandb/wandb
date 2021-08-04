@@ -93,7 +93,9 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config: Dict = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        sm_config: Dict = (
+            {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        )
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()
@@ -365,6 +367,15 @@ class _WandbInit(object):
         )
         return drun
 
+    def error_out(self, backend: Backend, error_message: Optional[str]):
+        assert logger
+        logger.error("encountered error: {}".format(error_message))
+        # Shutdown the backend and get rid of the logger
+        # we don't need to do console cleanup at this point
+        backend.cleanup()
+        self.teardown()
+        raise UsageError(error_message)
+
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         assert logger
         logger.info("calling init triggers")
@@ -485,6 +496,12 @@ class _WandbInit(object):
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
+
+            if s.resume is not None:
+                self.error_out(
+                    backend, error_message="Offline mode does not support resume"
+                )
+
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
         else:
@@ -503,7 +520,8 @@ class _WandbInit(object):
             run._on_init()
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
-            error_message = None
+
+            error_message: Optional[str] = None
             if not ret:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
@@ -514,12 +532,7 @@ class _WandbInit(object):
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
-                logger.error("encountered error: {}".format(error_message))
-                # Shutdown the backend and get rid of the logger
-                # we don't need to do console cleanup at this point
-                backend.cleanup()
-                self.teardown()
-                raise UsageError(error_message)
+                self.error_out(backend, error_message=error_message)
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
