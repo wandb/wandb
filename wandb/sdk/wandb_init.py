@@ -13,8 +13,10 @@ import logging
 import os
 import platform
 import sys
+import tempfile
 import time
 import traceback
+from typing import Any, Dict, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
 import six
@@ -33,8 +35,6 @@ from .wandb_helper import parse_config
 from .wandb_run import Run
 from .wandb_settings import Settings
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Optional, Union, List, Sequence, Dict, Any  # noqa: F401
 
 logger = None  # logger configured during wandb.init()
 
@@ -352,7 +352,7 @@ class _WandbInit(object):
         drun.disabled = True
         drun.id = shortuuid.uuid()
         drun.name = "dummy-" + drun.id
-        drun.dir = "/"
+        drun.dir = tempfile.gettempdir()
         module.set_global(
             run=drun,
             config=drun.config,

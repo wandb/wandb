@@ -58,11 +58,9 @@ SYMBOLS_ROOT_OTHER = {
     "Config",
     "Error",
     "InternalApi",
-    "PY3",
     "PublicApi",
     "START_TIME",
     "Settings",
-    "TYPE_CHECKING",
     "UsageError",
     "absolute_import",
     "agents",
@@ -123,7 +121,7 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_torch",
     "xgboost",
     "sync",
-    "sweeps",
+    "sweeps_engine",
     "cli",
 }
 

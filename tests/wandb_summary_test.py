@@ -7,14 +7,7 @@ import sys
 
 from wandb import wandb_sdk
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.interface.summary_record import SummaryRecord
-else:
-    from wandb.sdk_py27.interface.summary_record import SummaryRecord
-
-# if TYPE_CHECKING:
-#     import typing as t
+from wandb.sdk.interface.summary_record import SummaryRecord
 
 
 class MockCallback(object):
