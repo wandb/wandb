@@ -8,17 +8,14 @@ import logging
 import os
 from shlex import quote
 import tempfile
-from typing import Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
+from wandb.apis.internal import Api
 from wandb.errors import Error as ExecutionException, LaunchException
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
-
-if wandb.TYPE_CHECKING:
-    from wandb.apis.internal import Api
-    from typing import Any, Dict, List, Optional
 
 
 _logger = logging.getLogger(__name__)

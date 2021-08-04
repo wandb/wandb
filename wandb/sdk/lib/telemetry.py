@@ -1,20 +1,19 @@
 #
 
 import re
+from types import TracebackType
+from typing import ContextManager, Dict, List, Optional, Type
+from typing import TYPE_CHECKING
 
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Imports as TelemetryImports
 from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import ContextManager, Dict, List, Type, Optional
-    from types import TracebackType
 
-    # avoid cycle, use string type reference
-    from typing import TYPE_CHECKING
+# avoid cycle, use string type reference
 
-    if TYPE_CHECKING:
-        from .. import wandb_run
+if TYPE_CHECKING:
+    from .. import wandb_run
 
 
 _LABEL_TOKEN: str = "@wandbcode{"
