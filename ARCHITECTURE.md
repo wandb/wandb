@@ -6,11 +6,11 @@
 
 ### Processes/Threads
 
-User Context     | Calls wandb.init()
-Internal Process | Most processing of users requests
-Handler Thread   | Single thread in the internal process to serialize all requests
-Sender Thread    | All network operations happen from this thread
-Writer Thread    | Runs in parallel with Sender Thread to write a log of transactions
+| User Context     | Calls wandb.init() |
+| Internal Process | Most processing of users requests |
+| Handler Thread   | Single thread in the internal process to serialize all requests |
+| Sender Thread    | All network operations happen from this thread |
+| Writer Thread    | Runs in parallel with Sender Thread to write a log of transactions |
 
 ### Records/Results
 
