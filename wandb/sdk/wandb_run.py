@@ -462,22 +462,12 @@ class Run(object):
 
     @property
     def dir(self) -> str:
-        """Returns the directory where files associated with the run are saved.
-
-        Returns:
-            (str): The directory where all of the files associated with the run are
-                placed.
-        """
+        """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property
     def config(self) -> wandb_config.Config:
-        """Returns the config object associated with this run.
-
-        Returns:
-            (Config): A config object (similar to a nested dict) of key
-                value pairs associated with the hyperparameters of the run.
-        """
+        """Returns the config object associated with this run."""
         return self._config
 
     @property
@@ -488,9 +478,8 @@ class Run(object):
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
 
-        Returns:
-            (str): the display name of the run. It does not need to be unique
-                and ideally is descriptive.
+        Display names are not guaranteed to be unique and may be descriptive.
+        By default, they are randomly generated.
         """
         if self._name:
             return self._name
@@ -506,11 +495,10 @@ class Run(object):
 
     @property
     def notes(self) -> Optional[str]:
-        r"""Returns the notes associated with the run, if there are any.
+        """Returns the notes associated with the run, if there are any.
 
-        Returns:
-            (str): notes associated with the run. Notes can be a multiline string
-            and can also use markdown and latex equations inside $$ like $\\{x}$.
+        Notes can be a multiline string and can also use markdown and latex equations
+        inside `$$`, like `$x + 3$`.
         """
         if self._notes:
             return self._notes
@@ -526,11 +514,7 @@ class Run(object):
 
     @property
     def tags(self) -> Optional[Tuple]:
-        """Returns the tags associated with the run, if there are any.
-
-        Returns:
-            (Tuple[str]): tags associated with the run
-        """
+        """Returns the tags associated with the run, if there are any."""
         if self._tags:
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
@@ -546,22 +530,14 @@ class Run(object):
 
     @property
     def id(self) -> str:
-        """Returns the identifier for this run.
-
-        Returns:
-            (str): the run_id associated with the run
-        """
+        """Returns the identifier for this run."""
         if TYPE_CHECKING:
             assert self._run_id is not None
         return self._run_id
 
     @property
     def sweep_id(self) -> Optional[str]:
-        """Returns the ID of the sweep associated with the run, if there is one.
-
-        Returns:
-            (str, optional): the sweep id associated with the run or None
-        """
+        """Returns the ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
@@ -572,9 +548,6 @@ class Run(object):
 
         Run paths include entity, project, and run ID, in the format
         `entity/project/run_id`.
-
-        Returns:
-            (str): the path to the run `[entity]/[project]/[run_id]`
         """
         parts = []
         for e in [self._entity, self._project, self._run_id]:
@@ -584,10 +557,7 @@ class Run(object):
 
     @property
     def start_time(self) -> float:
-        """Returns the time stamp when the run started.
-
-        Returns:
-            (int): the unix time stamp in seconds when the run started
+        """Returns the unix time stamp, in seconds, when the run started.
         """
         if not self._run_obj:
             return self._start_time
@@ -596,11 +566,7 @@ class Run(object):
 
     @property
     def starting_step(self) -> int:
-        """Returns the first step of the run.
-
-        Returns:
-            (int): the first step of the run
-        """
+        """Returns the first step of the run."""
         if not self._run_obj:
             return self._starting_step
         else:
@@ -608,11 +574,7 @@ class Run(object):
 
     @property
     def resumed(self) -> bool:
-        """Returns True if the run was resumed, False otherwise.
-
-        Returns:
-            (bool): whether or not the run was resumed
-        """
+        """Returns True if the run was resumed, False otherwise."""
         if self._run_obj:
             return self._run_obj.resumed
         return False
@@ -621,12 +583,7 @@ class Run(object):
     def step(self) -> int:
         """Returns the current value of the step.
 
-        Every time you call wandb.log() it will by default increment the step
-        counter.
-
-        Returns:
-            (int): step counter
-        """
+        This counter is incremented by `wandb.log`."""
         return self.history._step
 
     def project_name(self) -> str:
@@ -656,9 +613,6 @@ class Run(object):
             runs in the training the same group.
         If you are doing crossvalidation you should give all the crossvalidation
             folds the same group.
-
-        Returns:
-            (str): name of W&B group associated with run.
         """
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group if run_obj else ""
@@ -670,11 +624,7 @@ class Run(object):
 
     @property
     def project(self) -> str:
-        """Returns the name of the W&B project associated with the run.
-
-        Returns:
-            (str): name of W&B project associated with run.
-        """
+        """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
     def log_code(
@@ -738,9 +688,7 @@ class Run(object):
     def get_url(self) -> Optional[str]:
         """Returns the url for the W&B run, if there is one.
 
-        Returns:
-            A url (str, optional) for the W&B run or None if the run
-            is offline
+        Offline runs will not have a url.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -750,9 +698,7 @@ class Run(object):
     def get_project_url(self) -> Optional[str]:
         """Returns the url for the W&B project associated with the run, if there is one.
 
-        Returns:
-            A url (str, optional) for the W&B project associated with
-            the run or None if the run is offline
+        Offline runs will not have a project url.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -760,12 +706,7 @@ class Run(object):
         return self._get_project_url()
 
     def get_sweep_url(self) -> Optional[str]:
-        """Returns the url for the sweep associated with the run, if there is one.
-
-        Returns:
-            A url (str, optional) for the sweep associated with the run
-            or None if there is no associated sweep or the run is offline.
-        """
+        """Returns the url for the sweep associated with the run, if there is one."""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -773,21 +714,14 @@ class Run(object):
 
     @property
     def url(self) -> Optional[str]:
-        """Returns the W&B url associated with the run.
-
-        Returns:
-            (str): name of W&B url associated with run.
-        """
+        """Returns the W&B url associated with the run."""
         return self.get_url()
 
     @property
     def entity(self) -> str:
-        """Returns the name of the W&B entity aossciated with the run.
+        """Returns the name of the W&B entity associated with the run.
 
-        Returns:
-            (str): name of W&B entity associated with run. Entity is either
-                a user name or an organization name.
-        """
+        Entity can be a user name or the name of a team or organization."""
         return self._entity or ""
 
     def _label_internal(
