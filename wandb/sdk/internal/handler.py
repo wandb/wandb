@@ -173,10 +173,9 @@ class HandleManager(object):
 
     def reassign_file_step(self, record: wandb_internal_pb2.FilesRecord):
         for f in record.files.files:
-            for f in record.files.files:
-                prefix, fstep, tail = f.path.rsplit("_", 2)
-                if int(fstep) != self._step:
-                    f.path = f"{prefix}_{self._step}_{tail}"
+            prefix, fstep, tail = f.path.rsplit("_", 2)
+            if int(fstep) != self._step:
+                f.path = f"{prefix}_{self._step}_{tail}"
 
     def handle_files(self, record: Record) -> None:
         if record.files.tb_repath:
