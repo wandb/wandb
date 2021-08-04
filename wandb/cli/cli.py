@@ -34,6 +34,7 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
+from wandb.sdk.launch.launch_add import _launch_add
 
 # from wandb.old.core import wandb_dir
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
@@ -946,6 +947,16 @@ def _check_launch_imports():
     "as config to the compute resource. The exact content which should be "
     "provided is different for each execution backend. See documentation for layout of this file.",
 )
+@click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of run queue to push to. If none, launches single run directly. If supplied without "
+    "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
+    "project and entity supplied.",
+)
 @display_error
 def launch(
     uri,
@@ -959,6 +970,7 @@ def launch(
     project,
     docker_image,
     config,
+    queue,
 ):
     """
     Run a W&B run from the given URI. Which can either be a wandb URI or a github repo uri or a local path.
@@ -987,29 +999,46 @@ def launch(
     else:
         config = {}
 
-    try:
-        wandb_launch.run(
-            uri,
+    if queue is None:
+        # direct launch
+        try:
+            wandb_launch.run(
+                uri,
+                api,
+                entry_point,
+                version,
+                project=project,
+                entity=entity,
+                docker_image=docker_image,
+                experiment_name=experiment_name,
+                parameters=param_dict,
+                docker_args=docker_args_dict,
+                resource=resource,
+                config=config,
+                synchronous=resource in ("local")
+                or resource is None,  # todo currently always true
+            )
+        except wandb_launch.LaunchException as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+        except wandb_launch.ExecutionException as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+    else:
+        _launch_add(
             api,
+            uri,
+            config,
+            project,
+            entity,
+            queue,
+            resource,
             entry_point,
+            experiment_name,
             version,
-            project=project,
-            entity=entity,
-            docker_image=docker_image,
-            experiment_name=experiment_name,
-            parameters=param_dict,
-            docker_args=docker_args_dict,
-            resource=resource,
-            config=config,
-            synchronous=resource in ("local")
-            or resource is None,  # todo currently always true
+            docker_image,
+            param_dict,
         )
-    except wandb_launch.LaunchException as e:
-        logger.error("=== %s ===", e)
-        sys.exit(e)
-    except wandb_launch.ExecutionException as e:
-        logger.error("=== %s ===", e)
-        sys.exit(e)
 
 
 @cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
@@ -1040,100 +1069,6 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     wandb.termlog("Starting launch agent ✨")
     wandb_launch.run_agent(entity, project, queues=queues)
-
-
-@cli.command(help="Add a job onto the run queue for a specified resource")
-@click.argument("uri")
-@click.option("--config", "-c", default=None, help="Path to a user config")
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.option(
-    "--queue",
-    "-q",
-    default="default",
-    help="Run queue to push to, defaults to project queue",
-)
-@click.option(
-    "--resource",
-    "-r",
-    default="local",
-    help="Resource to run this job on, defaults to local machine",
-)
-@click.option(
-    "--entry-point",
-    "-e",
-    metavar="NAME",
-    default=None,
-    help="Entry point within project. [default: main]. If the entry point is not found, "
-    "attempts to run the project file with the specified name as a script, "
-    "using 'python' to run .py files and the default shell (specified by "
-    "environment variable $SHELL) to run .sh files",
-)
-@click.option(
-    "--experiment-name",
-    envvar="WANDB_NAME",
-    help="Name of the experiment under which to launch the run. If not "
-    "specified, 'experiment-id' option will be used to launch run.",
-)
-@click.option(
-    "--version",
-    "-v",
-    metavar="VERSION",
-    help="Version of the project to run, as a Git commit reference for Git projects.",
-)
-@click.option(
-    "--docker-image",
-    "-d",
-    default=None,
-    metavar="DOCKER IMAGE",
-    help="Specific docker image you'd like to use. In the form name:tag.",
-)
-@click.option(
-    "--param-list",
-    "-P",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="A parameter for the run, of the form -P name=value. Provided parameters that "
-    "are not in the list of parameters for an entry point will be passed to the "
-    "corresponding entry point as command-line arguments in the form `--name value`",
-)
-def launch_add(
-    uri,
-    config=None,
-    project=None,
-    entity=None,
-    queue=None,
-    resource=None,
-    entry_point=None,
-    experiment_name=None,
-    version=None,
-    docker_image=None,
-    param_list=None,
-):
-    _check_launch_imports()
-
-    from wandb.sdk.launch.launch_add import _launch_add
-
-    api = _get_cling_api()
-    params_dict = util._user_args_to_dict(param_list)
-    try:
-        _launch_add(
-            api,
-            uri,
-            config,
-            project,
-            entity,
-            queue,
-            resource,
-            entry_point,
-            experiment_name,
-            version,
-            docker_image,
-            params_dict,
-        )
-    except Exception as e:
-        print(e)
-        sys.exit(1)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
