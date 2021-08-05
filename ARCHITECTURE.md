@@ -1,4 +1,3 @@
-
 ## Concepts
 
 ### Processes/Threads
@@ -63,10 +62,12 @@ There are a few conventions:
 ```
 
 Ref | Data Structure | File | Description
+--- | --- | --- | ---
 rec_q | record_q | [backend.py] | Queue to pass records to internal process
 res_q | result_q | [backend.py] | Queue to pass results from internal process
 
 Ref | Thread | File | Description
+--- | --- | --- | ---
 HandlerT | HandlerThread | [handler.py] | Thread to read record_q
 WriterT  | WriterThread  | [writer.py] | Thread to write to transaction log
 SenderT  | SenderThread  | [sender.py] | Thread to make network requests to cloud
@@ -83,6 +84,14 @@ wandb.init() | [wandb_init.py] | Spin up internal process, create run in cloud, 
 handle_run() | [handler.py] | Process RunRecord, hand off to writer and sender
 handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys metric logging, cache run properties
 
+### wandb.log()
+
+TODO
+
+### wandb.finish()
+
+TODO
+
 [backend.py]: https://github.com/wandb/client/blob/master/wandb/sdk/backend/backend.py
 [handler.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/handler.py
 [writer.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/writer.py
@@ -90,7 +99,3 @@ handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys 
 [interface.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface.py
 [internal_api.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal_api.py
 [wandb_init.py]: https://github.com/wandb/client/blob/master/wandb/sdk/wandb_init.py
-
-### wandb.log()
-
-### wandb.finish()
