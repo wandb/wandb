@@ -34,7 +34,7 @@ There are a few conventions:
                  |               |
  User Context    | Shared Queues |       Internal Process       |    Cloud    |
                  |       .       |          .         .         |             |
-                   rec_q   res_q   HandlerT   WriterT   SenderT
+                  [rec_q] [res_q] [HandlerT] [WriterT] [SenderT]
                  |       .       |          .         .         |             |
  wandb.init()
                  |       .       |          .         .         |             |
@@ -65,10 +65,15 @@ There are a few conventions:
              <----------------
 ```
 
-[]()|     |
+Ref | Item | Description
 --- | --- | ---
-1   | communicate_run() | Send a RunRecord to the internal process
-2   | UpsertBucket | GraphQL Upsert Bucket mutation
-3   | communicate_run_start() | Send start run request
+rec_q    | record_q                | Queue to pass records to internal process
+res_q    | result_q                | Queue to pass results from internal process
+HandlerT | HandlerThread           | Thread to read record_q
+WriterT  | WriterThread            | Thread to write to transaction log
+SenderT  | SenderThread            | Thread to make network requests to cloud
+1        | communicate_run()       | Send a RunRecord to the internal process
+2        | UpsertBucket            | GraphQL Upsert Bucket mutation
+3        | communicate_run_start() | Send start run request
 
 ### wandb.log()
