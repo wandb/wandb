@@ -93,7 +93,9 @@ class _WandbInit(object):
             settings=settings.duplicate().freeze()
         )
 
-        sm_config: Dict = {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        sm_config: Dict = (
+            {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        )
         if sm_config:
             sm_api_key = sm_config.get("wandb_api_key", None)
             sm_run, sm_env = sagemaker.parse_sm_resources()
@@ -487,6 +489,10 @@ class _WandbInit(object):
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
+            if s.resume:
+                wandb.termwarn(
+                    f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
+                )
         else:
             logger.info("communicating current version")
             ret = backend.interface.communicate_check_version(
@@ -503,7 +509,8 @@ class _WandbInit(object):
             run._on_init()
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
-            error_message = None
+
+            error_message: Optional[str] = None
             if not ret:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
@@ -515,6 +522,7 @@ class _WandbInit(object):
                 error_message = ret.error.message
             if error_message:
                 logger.error("encountered error: {}".format(error_message))
+
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
