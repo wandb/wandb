@@ -1,7 +1,4 @@
 
-[DRAFT]
-
-
 ## Concepts
 
 ### Processes/Threads
@@ -31,50 +28,60 @@ There are a few conventions:
 ### wandb.init()
 
 ```text
-                 |               |                              |
- User Context    | Shared Queues |       Internal Process       |    Cloud
-                 |       .       |          .         .         |
-                  [rec_q] [res_q] [HandlerT] [WriterT] [SenderT]
-                 |       .       |          .         .         |
+                  |               |                              |
+ User Context     | Shared Queues |       Internal Process       |    Cloud
+                  |       .       |          .         .         |
+                   [rec_q] [res_q] [HandlerT] [WriterT] [SenderT]
+                  |       .       |          .         .         |
  wandb.init()
-                 |       .       |          .         .         |
- RunRecord   ----[1]--->
-                 |       .       |          .         .         |
-                     ----------------->
-                 |       .       |          .         .         |
-                                      handle_run()
-                 |       .       |          .         .         |
-                                      ---------->
-                 |       .       |          .         .         |
-                                      --------------------->
-                 |       .       |          .         .         |
-                                                            ----[2]---->
-                 |       .       |          .         .         |
-                             <------------------------------
-                 |       .       |          .         .         |
-             <---------------
-                 |       .       |          .         .         |
- RunStartReq ----[3]---->
-                 |       .       |          .         .         |
+                  |       .       |          .         .         |
+ RunRecord    ---[1]--->
+                  |       .       |          .         .         |
                       ----------------->
-                 |       .       |          .         .         |
-                                       handle_req_run_start()
-                 |       .       |          .         .         |
-                             <----------
-                 |       .       |          .         .         |
-             <----------------
+                  |       .       |          .         .         |
+                                       handle_run()
+                  |       .       |          .         .         |
+                                       ---------->
+                  |       .       |          .         .         |
+                                       --------------------->
+                  |       .       |          .         .         |
+                                                             ---[2]--->
+                  |       .       |          .         .         |
+                              <------------------------------
+                  |       .       |          .         .         |
+              <---------------
+                  |       .       |          .         .         |
+ RunStartReq  ---[3]---->
+                  |       .       |          .         .         |
+                       ----------------->
+                  |       .       |          .         .         |
+                                       handle_request_run_start()
+                  |       .       |          .         .         |
+                              <----------
+                  |       .       |          .         .         |
+              <----------------
 ```
 
-Ref | Item | File | Description
+Ref | Data Structure | File | Description
+rec_q | record_q | [backend.py] | Queue to pass records to internal process
+res_q | result_q | [backend.py] | Queue to pass results from internal process
+
+Ref | Thread | File | Description
+HandlerT | HandlerThread | [handler.py] | Thread to read record_q
+WriterT  | WriterThread  | [writer.py] | Thread to write to transaction log
+SenderT  | SenderThread  | [sender.py] | Thread to make network requests to cloud
+
+Ref | Message | File | Description
 --- | --- | --- | ---
-rec_q    | record_q                | [backend.py] | Queue to pass records to internal process
-res_q    | result_q                | [backend.py] | Queue to pass results from internal process
-HandlerT | HandlerThread           | [handler.py] | Thread to read record_q
-WriterT  | WriterThread            | [writer.py] | Thread to write to transaction log
-SenderT  | SenderThread            | [sender.py] | Thread to make network requests to cloud
-1        | communicate_run()       | [interface.py] | Send a RunRecord to the internal process
-2        | UpsertBucket            | [internal_api.py] | GraphQL Upsert Bucket mutation
-3        | communicate_run_start() | [interface.py] | Send start run request
+1   | communicate_run()       | [interface.py] | Send a RunRecord to the internal process
+2   | UpsertBucket            | [internal_api.py] | GraphQL Upsert Bucket mutation
+3   | communicate_run_start() | [interface.py] | Send start run request
+
+Function | File | Description
+--- | --- | ---
+wandb.init() | [wandb_init.py] | Spin up internal process, create run in cloud, return Run object
+handle_run() | [handler.py] | Process RunRecord, hand off to writer and sender
+handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys metric logging, cache run properties
 
 [backend.py]: https://github.com/wandb/client/blob/master/wandb/sdk/backend/backend.py
 [handler.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/handler.py
@@ -82,5 +89,8 @@ SenderT  | SenderThread            | [sender.py] | Thread to make network reques
 [sender.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/sender.py
 [interface.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface.py
 [internal_api.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal_api.py
+[wandb_init.py]: https://github.com/wandb/client/blob/master/wandb/sdk/wandb_init.py
 
 ### wandb.log()
+
+### wandb.finish()
