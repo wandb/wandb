@@ -870,7 +870,11 @@ class Api(object):
                 queue_id = res["queueID"]
 
             else:
-                wandb.termwarn("Unable to push to run queue {}. Queue not found.")
+                wandb.termwarn(
+                    "Unable to push to run queue {}. Queue not found.".format(
+                        queue_name
+                    )
+                )
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
