@@ -39,6 +39,7 @@ def default_ctx():
         "manifests_created": [],
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
+        "run_queues_return_default": True,
         "run_queues": {"1": []},
         "num_popped": 0,
         "num_acked": 0,
@@ -867,21 +868,29 @@ def create_app(user_ctx=None):
             }
             return {"data": {"project": {"artifact": art}}}
         if "query Project" in body["query"] and "runQueues" in body["query"]:
-            return json.dumps(
-                {
-                    "data": {
-                        "project": {
-                            "runQueues": [
-                                {
-                                    "id": 1,
-                                    "name": "default",
-                                    "createdBy": "mock_server_entity",
-                                    "access": "PROJECT",
-                                }
-                            ]
+            if ctx["run_queues_return_default"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueues": [
+                                    {
+                                        "id": 1,
+                                        "name": "default",
+                                        "createdBy": "mock_server_entity",
+                                        "access": "PROJECT",
+                                    }
+                                ]
+                            }
                         }
                     }
-                }
+                )
+            else:
+                return json.dumps({"data": {"project": {"runQueues": []}}})
+        if "mutation createRunQueue" in body["query"]:
+            ctx["run_queues_return_default"] = True
+            return json.dumps(
+                {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
             )
         if "mutation popFromRunQueue" in body["query"]:
             if ctx["num_popped"] != 0:
