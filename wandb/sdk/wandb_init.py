@@ -487,12 +487,11 @@ class _WandbInit(object):
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
-
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
             if s.resume is not None:
                 wandb.termwarn(
-                    f"Since run is in `offline` mode resume will be ignored. Starting a new run with run id {run.id}"
+                    f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
                 )
         else:
             logger.info("communicating current version")
