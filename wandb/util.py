@@ -993,7 +993,7 @@ def _prompt_choice_with_timeout(timeout=30.0):
         return TIMEOUT_CODE
 
 
-def prompt_choices(choices, allow_manual=False, timeout=30.0):
+def prompt_choices(choices, allow_manual=False, timeout=0):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))

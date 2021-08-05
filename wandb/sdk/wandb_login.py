@@ -48,6 +48,8 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout
         key: (string, optional) authentication key.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
+        timeout: (float, optional) Set timeout period. Wait `timeout` seconds
+            for user response then defaults to dryrun mode if no response.
 
     Returns:
         bool: if key is configured
@@ -72,6 +74,7 @@ class _WandbLogin(object):
         self._silent = None
         self._wl = None
         self._key = None
+        self._timeout = None
 
     def setup(self, kwargs):
         self.kwargs = kwargs
@@ -96,6 +99,9 @@ class _WandbLogin(object):
 
     def set_silent(self, silent):
         self._silent = silent
+
+    def set_timeout(self, timeout):
+        self._timeout = timeout
 
     def login(self):
         apikey_configured = self.is_apikey_configured()
@@ -126,7 +132,11 @@ class _WandbLogin(object):
         else:
             login_state_str = "W&B API key is configured"
             wandb.termlog(
-                "{} {}".format(login_state_str, login_info_str,), repeat=False,
+                "{} {}".format(
+                    login_state_str,
+                    login_info_str,
+                ),
+                repeat=False,
             )
 
     def configure_api_key(self, key):
@@ -154,14 +164,14 @@ class _WandbLogin(object):
         if not self._wl.settings._offline:
             self._wl._update_user_settings()
 
-    def prompt_api_key(self, timeout=30.0):
+    def prompt_api_key(self):
         api = Api(self._settings)
         key = apikey.prompt_api_key(
             self._settings,
             api=api,
             no_offline=self._settings.force,
             no_create=self._settings.force,
-            timeout=timeout,
+            timeout=self._timeout,
         )
         if key is False:
             directive = (
@@ -212,6 +222,10 @@ def _login(
     if _silent:
         wlogin.set_silent(_silent)
 
+    timeout = kwargs.pop("timeout", None)
+    if timeout:
+        wlogin.set_timeout(timeout)
+
     # configure login object
     wlogin.setup(kwargs)
 
@@ -234,7 +248,7 @@ def _login(
         return logged_in
 
     if not key:
-        wlogin.prompt_api_key(timeout=timeout)
+        wlogin.prompt_api_key()
 
     # make sure login credentials get to the backend
     wlogin.propogate_login()
