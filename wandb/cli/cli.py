@@ -971,10 +971,13 @@ def launch(
     queue,
 ):
     """
-    Run a W&B run from the given URI. Which can either be a wandb URI or a github repo uri or a local path.
+    Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
     In the case of a wandb URI the arguments used in the original run will be used by default.
     These arguments can be overridden using the param_list args, or specifying those arguments
-    in the config's 'overrides' key, 'args' field as a list of strings
+    in the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
+    `wandb launch [URI] --queue [optional queuename]`.
     """
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
