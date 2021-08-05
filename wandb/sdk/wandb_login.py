@@ -132,11 +132,7 @@ class _WandbLogin(object):
         else:
             login_state_str = "W&B API key is configured"
             wandb.termlog(
-                "{} {}".format(
-                    login_state_str,
-                    login_info_str,
-                ),
-                repeat=False,
+                "{} {}".format(login_state_str, login_info_str,), repeat=False,
             )
 
     def configure_api_key(self, key):
