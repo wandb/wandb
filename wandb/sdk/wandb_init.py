@@ -489,7 +489,7 @@ class _WandbInit(object):
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
-            if s.resume is not None:
+            if s.resume:
                 wandb.termwarn(
                     f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
                 )
