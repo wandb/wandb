@@ -10,7 +10,7 @@ import pytest
 
 
 def test_file_upload_good(mocked_run, publish_util, mock_server):
-    def begin_fn():
+    def begin_fn(interface):
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
@@ -20,7 +20,7 @@ def test_file_upload_good(mocked_run, publish_util, mock_server):
 
 
 def test_file_upload_inject(mocked_run, publish_util, mock_server, inject_requests):
-    def begin_fn():
+    def begin_fn(interface):
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 

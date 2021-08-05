@@ -23,6 +23,7 @@ import sys
 import threading
 import time
 import traceback
+from typing import TYPE_CHECKING
 
 import psutil
 from six.moves import queue
@@ -37,17 +38,14 @@ from . import writer
 from ..interface import interface
 
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from ..interface.interface import BackendSender
-        from .settings_static import SettingsStatic
-        from typing import Any, Dict, List, Optional, Union
-        from six.moves.queue import Queue
-        from .internal_util import RecordLoopThread
-        from wandb.proto.wandb_internal_pb2 import Record, Result
-        from threading import Event
+if TYPE_CHECKING:
+    from ..interface.interface import BackendSender
+    from .settings_static import SettingsStatic
+    from typing import Any, Dict, List, Optional, Union
+    from six.moves.queue import Queue
+    from .internal_util import RecordLoopThread
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+    from threading import Event
 
 
 logger = logging.getLogger(__name__)

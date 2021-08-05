@@ -3,13 +3,7 @@ import errno
 import os
 import re
 import threading
-
-
-import wandb
-
-
-if wandb.TYPE_CHECKING:
-    from typing import BinaryIO
+from typing import BinaryIO
 
 
 def _safe_makedirs(dir_name):

@@ -16,6 +16,20 @@ import sys
 import threading
 import time
 import traceback
+from types import TracebackType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    TextIO,
+    Tuple,
+    Type,
+    Union,
+)
+from typing import TYPE_CHECKING
 
 import click
 import requests
@@ -29,7 +43,14 @@ from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
+from wandb.apis.public import Api as PublicApi
 from wandb.errors import Error
+from wandb.proto.wandb_internal_pb2 import (
+    FilePusherStats,
+    MetricRecord,
+    PollExitResponse,
+    RunRecord,
+)
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
     create_custom_chart,
@@ -44,6 +65,8 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.interface import BackendSender
+from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
@@ -56,47 +79,21 @@ from .lib import (
     sparkline,
     telemetry,
 )
+from .lib.reporting import Reporter
+from .wandb_artifacts import Artifact
+from .wandb_settings import Settings, SettingsConsole
+from .wandb_setup import _WandbSetup
 
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import (
-        Any,
-        Dict,
-        List,
-        Optional,
-        Sequence,
-        TextIO,
-        Tuple,
-        Union,
-        Type,
-        Callable,
+if TYPE_CHECKING:
+    from typing import NoReturn
+
+    from .data_types import WBValue
+
+    from .interface.artifacts import (
+        ArtifactEntry,
+        ArtifactManifest,
     )
-    from types import TracebackType
-    from .wandb_settings import Settings, SettingsConsole
-    from .interface.summary_record import SummaryRecord
-    from .interface.interface import BackendSender
-    from .lib.reporting import Reporter
-    from wandb.proto.wandb_internal_pb2 import (
-        RunRecord,
-        FilePusherStats,
-        PollExitResponse,
-        MetricRecord,
-    )
-    from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi
-    from .wandb_artifacts import Artifact
-
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from typing import NoReturn
-
-        from .data_types import WBValue
-
-        from .interface.artifacts import (
-            ArtifactEntry,
-            ArtifactManifest,
-        )
 
 
 logger = logging.getLogger("wandb")
@@ -549,7 +546,7 @@ class Run(object):
         Returns:
             (str): the run_id associated with the run
         """
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert self._run_id is not None
         return self._run_id
 

@@ -35,7 +35,7 @@ media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotl
 
 setup(
     name='wandb',
-    version='0.11.1.dev1',
+    version='0.11.3.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -63,7 +63,7 @@ setup(
     license="MIT license",
     zip_safe=False,
     # keywords='wandb',
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
