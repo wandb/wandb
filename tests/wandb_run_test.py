@@ -177,7 +177,7 @@ def assertion(run_id, found, stderr):
         ("allow", True),
         ("never", True),
         ("must", True),
-        ("", True),
+        ("", False),
         (0, False),
         (None, False),
     ],
