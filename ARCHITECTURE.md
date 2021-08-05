@@ -30,10 +30,9 @@ There are a few conventions:
 
 ### wandb.init()
 
-``
-                 |               |
- User Context    | Shared Queues |       Internal Process       |    Cloud    |
-                 |               |                              |             |
+``                 |               |``
+`` User Context    | Shared Queues |       Internal Process       |    Cloud    |``
+``                 |               |                              |             |``
                  | rec_q . res_q | HandlerT . WriterT . SenderT |             |
  wandb.init()
  RunRecord   ----[1]--->
