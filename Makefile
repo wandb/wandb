@@ -20,13 +20,21 @@ coverage: ## check code coverage quickly with the default Python
 	$(BROWSER) htmlcov/index.html
 
 
+submodule-init: ## check if submodule has been initialized, if not, clone from remote
+	if ! git submodule foreach git status | grep sweeps > /dev/null; then \
+	git submodule update --init --remote; \
+	fi
+
+submodule-update: submodule-init  # checkout the pinned version of submodules
+	git submodule update
+
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*
 
 release: dist ## package and upload release
 	twine upload dist/*
 
-dist: clean ## builds source and wheel package
+dist: clean submodule-init ## builds source and wheel package
 	python setup.py sdist bdist_wheel
 	ls -l dist
 
@@ -52,16 +60,13 @@ test-clean:
 	rm -rf .pytest_cache/
 
 test:
-	tox -e "codemod,black,mypy,flake8,flake8-docstrings"
+	tox -e "black,mypy,flake8,flake8-docstrings"
 
 test-full:
 	tox
 
 test-short:
-	tox -e "codemod,black,mypy,flake8,flake8-docstrings,py36"
-
-test-sweeps:
-	tox -e "py36" -- wandb/sweeps/
+	tox -e "black,mypy,flake8,flake8-docstrings,py36"
 
 format:
 	tox -e format
@@ -88,3 +93,4 @@ bumpversion-to-dev:
 
 bumpversion-from-dev:
 	tox -e bumpversion-from-dev
+

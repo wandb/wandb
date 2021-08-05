@@ -21,14 +21,11 @@ from __future__ import print_function
 import logging
 import os
 import struct
-import sys
 import zlib
 
 import wandb
 
 logger = logging.getLogger(__name__)
-
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 5
 
 LEVELDBLOG_HEADER_LEN = 7
 LEVELDBLOG_BLOCK_LEN = 32768
@@ -79,10 +76,6 @@ class DataStore(object):
         self._fname = fname
         logger.info("open: %s", fname)
         open_flags = "xb"
-        if not PY3:
-            open_flags = "wb"
-            if os.path.exists(fname):
-                raise IOError("File exists: {}".format(fname))
         self._fp = open(fname, open_flags)
         self._write_header()
 

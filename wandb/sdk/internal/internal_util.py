@@ -12,25 +12,22 @@ import logging
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
 
 from six.moves import queue
-import wandb
 
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import Tuple, Type, Optional, Union
+    from six.moves.queue import Queue
+    from wandb.proto.wandb_internal_pb2 import Record, Result
+    from threading import Event
+    from types import TracebackType
 
-    if TYPE_CHECKING:
-        from typing import Tuple, Type, Optional, Union
-        from six.moves.queue import Queue
-        from wandb.proto.wandb_internal_pb2 import Record, Result
-        from threading import Event
-        from types import TracebackType
-
-        ExceptionType = Union[
-            Tuple[Type[BaseException], BaseException, TracebackType],
-            Tuple[None, None, None],
-        ]
+    ExceptionType = Union[
+        Tuple[Type[BaseException], BaseException, TracebackType],
+        Tuple[None, None, None],
+    ]
 
 
 logger = logging.getLogger(__name__)
