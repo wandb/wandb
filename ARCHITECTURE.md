@@ -30,14 +30,13 @@ There are a few conventions:
 
 ### wandb.init()
 
-TryThis::
-    wandb.init()
-                     |               |
-     User Context    | Shared Queues |       Internal Process       |    Cloud    |
-                     |               |                              |             |
-                     | rec_q . res_q | HandlerT . WriterT . SenderT |             |
+<pre>
+                 |               |
+ User Context    | Shared Queues |       Internal Process       |    Cloud    |
+                 |               |                              |             |
+                 | rec_q . res_q | HandlerT . WriterT . SenderT |             |
  wandb.init()
- RunRecord   ----[1]--->
+ RunRecord   ----[<a href="#seq-init-communicate-run">1</a>]--->
                  |       .       |          .         .         |             |
                      ----------------->
                  |       .       |          .         .         |             |
@@ -62,10 +61,7 @@ TryThis::
                              <----------
                  |       .       |          .         .         |             |
              <----------------
-
-[1]: #seq-init-communicate-run
-[2]: #seq-init-upsert-bucket
-[3]: #seq-init-communicate-run-start
+</pre>
 
 Message | Description
 --- | ---
