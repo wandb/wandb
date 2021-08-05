@@ -367,15 +367,6 @@ class _WandbInit(object):
         )
         return drun
 
-    def _error_out(self, backend: Backend, error_message: str):
-        assert logger
-        logger.error("encountered error: {}".format(error_message))
-        # Shutdown the backend and get rid of the logger
-        # we don't need to do console cleanup at this point
-        backend.cleanup()
-        self.teardown()
-        raise UsageError(error_message)
-
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
         assert logger
         logger.info("calling init triggers")
@@ -497,13 +488,12 @@ class _WandbInit(object):
                 tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
 
-            if s.resume is not None:
-                self._error_out(
-                    backend, error_message="Offline mode does not support resume"
-                )
-
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
+            if s.resume is not None:
+                wandb.termwarn(
+                    f"Since run is in `offline` mode resume will be ignored. Starting a new run with run id {run.id}"
+                )
         else:
             logger.info("communicating current version")
             ret = backend.interface.communicate_check_version(
@@ -532,7 +522,13 @@ class _WandbInit(object):
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
-                self._error_out(backend, error_message=error_message)
+                logger.error("encountered error: {}".format(error_message))
+
+                # Shutdown the backend and get rid of the logger
+                # we don't need to do console cleanup at this point
+                backend.cleanup()
+                self.teardown()
+                raise UsageError(error_message)
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
