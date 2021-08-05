@@ -27,20 +27,11 @@ import shutil
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.lib.module import unset_globals
-    from wandb.sdk.lib.git import GitRepo
-    from wandb.sdk.internal.handler import HandleManager
-    from wandb.sdk.internal.sender import SendManager
-    from wandb.sdk.interface.interface import BackendSender
-else:
-    from wandb.sdk_py27.lib.module import unset_globals
-    from wandb.sdk_py27.lib.git import GitRepo
-    from wandb.sdk_py27.internal.handler import HandleManager
-    from wandb.sdk_py27.internal.sender import SendManager
-    from wandb.sdk_py27.interface.interface import BackendSender
+from wandb.sdk.lib.module import unset_globals
+from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.internal.handler import HandleManager
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.interface.interface import BackendSender
 
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
@@ -215,7 +206,7 @@ def dummy_api_key():
 
 @pytest.fixture
 def test_settings(test_dir, mocker, live_mock_server):
-    """ Settings object for tests"""
+    """Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
@@ -244,7 +235,7 @@ def test_settings(test_dir, mocker, live_mock_server):
 
 @pytest.fixture
 def mocked_run(runner, test_settings):
-    """ A managed run object for tests with a mock backend """
+    """A managed run object for tests with a mock backend"""
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run
@@ -741,11 +732,13 @@ def _start_backend(
     start_send_thread,
     log_debug,
 ):
-    def start_backend_func(initial_run=True):
+    def start_backend_func(initial_run=True, initial_start=False):
         ht = start_handle_thread(internal_hm)
         st = start_send_thread(internal_sm)
         if initial_run:
-            _ = _internal_sender.communicate_run(mocked_run)
+            run = _internal_sender.communicate_run(mocked_run)
+            if initial_start:
+                _internal_sender.communicate_run_start(run.run)
         return (ht, st)
 
     yield start_backend_func
@@ -782,8 +775,8 @@ def _stop_backend(
 @pytest.fixture()
 def backend_interface(_start_backend, _stop_backend, _internal_sender):
     @contextmanager
-    def backend_context(initial_run=True):
-        threads = _start_backend(initial_run=initial_run)
+    def backend_context(initial_run=True, initial_start=False):
+        threads = _start_backend(initial_run=initial_run, initial_start=initial_start)
         try:
             yield _internal_sender
         finally:
@@ -803,15 +796,16 @@ def publish_util(
         files=None,
         begin_cb=None,
         end_cb=None,
+        initial_start=False,
     ):
         metrics = metrics or []
         history = history or []
         artifacts = artifacts or []
         files = files or []
 
-        with backend_interface() as interface:
+        with backend_interface(initial_start=initial_start) as interface:
             if begin_cb:
-                begin_cb()
+                begin_cb(interface)
             for m in metrics:
                 interface._publish_metric(m)
             for h in history:
@@ -821,7 +815,7 @@ def publish_util(
             for f in files:
                 interface.publish_files(**f)
             if end_cb:
-                end_cb()
+                end_cb(interface)
 
         ctx_util = parse_ctx(mock_server.ctx, run_id=mocked_run.id)
         return ctx_util

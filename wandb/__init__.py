@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.11.1.dev1"
+__version__ = "0.11.3.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -31,13 +31,7 @@ from wandb.errors import Error
 # This needs to be early as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-TYPE_CHECKING = False  # type: bool
-if PY3:
-    TYPE_CHECKING = True
-    from wandb import sdk as wandb_sdk
-else:
-    from wandb import sdk_py27 as wandb_sdk
+from wandb import sdk as wandb_sdk
 
 import wandb
 

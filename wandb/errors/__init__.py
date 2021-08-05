@@ -19,12 +19,6 @@ class CommError(Error):
         self.exc = exc
 
 
-class GQLError(Error):
-    """Graphql related errors"""
-
-    pass
-
-
 class UsageError(Error):
     """API Usage Error"""
 
@@ -53,7 +47,6 @@ __all__ = [
     "Error",
     "UsageError",
     "CommError",
-    "GQLError",
     "LogError",
     "LogMultiprocessError",
     "RequireError",

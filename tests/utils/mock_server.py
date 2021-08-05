@@ -50,7 +50,8 @@ def mock_server(mocker):
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
-    mocker.patch("wandb.apis.client.requests", mock)
+    sdk_path = "wandb.sdk"
+    mocker.patch("gql.transport.requests.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
@@ -371,7 +372,7 @@ def create_app(user_ctx=None):
                                     "displayName": "funky-town-13",
                                     "id": "test",
                                     "config": '{"epochs": {"value": 10}}',
-                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5}',
+                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5, "_wandb": {"runtime": 50}}',
                                     "logLineCount": 14,
                                     "historyLineCount": 15,
                                     "eventsLineCount": 0,
@@ -1333,7 +1334,12 @@ class ParseCTX(object):
     @property
     def summary(self):
         # TODO: move this to config_user eventually
-        return self.summary_raw
+        return {k: v for k, v in self.summary_raw.items() if k != "_wandb"}
+
+    @property
+    def summary_wandb(self):
+        # TODO: move this to config_user eventually
+        return self.summary_raw["_wandb"]
 
     @property
     def history(self):
