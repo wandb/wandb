@@ -878,7 +878,9 @@ class Api(object):
                 return None
         elif len(matching_queues) > 1:
             wandb.termerror(
-                "Unable to push to run queue {}. More than one queue found with this name."
+                "Unable to push to run queue {}. More than one queue found with this name.".format(
+                    queue_name
+                )
             )
             return None
         else:

@@ -91,7 +91,7 @@ def _launch_add(
 
     if res is None or "runQueueItemId" not in res:
         raise Exception("Error adding run to queue")
-    wandb.termlog("Added run to queue")
+    wandb.termlog("Added run to queue {}".format(queue))
     public_api = public.Api()
     queued_job = public_api.queued_job(
         f"{entity}/{project}/{queue}/{res['runQueueItemId']}"
