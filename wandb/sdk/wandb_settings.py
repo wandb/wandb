@@ -1057,7 +1057,7 @@ class Settings(object):
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg
-        if args.get("resume") is not None:
+        if args.get("resume"):
             if isinstance(args["resume"], six.string_types):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
                     if args.get("run_id") is None:
