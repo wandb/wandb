@@ -63,6 +63,7 @@ There are a few conventions:
              <----------------
 </pre>
 
+N | Name | Description
 --- | --- | ---
 <a name="s-i-1"></a>1 | communicate_run() | Send a RunRecord to the internal process
 <a name="s-i-2"></a>2 | UpsertBucket | GraphQL Upsert Bucket mutation
