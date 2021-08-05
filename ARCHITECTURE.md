@@ -40,8 +40,6 @@ wandb.init() | [wandb_init.py] | Spin up internal process, create run in cloud, 
 handle_run() | [handler.py] | Process RunRecord, hand off to writer and sender
 handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys metric logging, cache run properties
 
-[Protobuf definition](https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto)
-
 ## Sequence diagrams
 
 ### wandb.init()
