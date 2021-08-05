@@ -30,13 +30,15 @@ There are a few conventions:
 
 ### wandb.init()
 
-<pre>
+```text
                  |               |
  User Context    | Shared Queues |       Internal Process       |    Cloud    |
-                 |               |                              |             |
-                 | rec_q . res_q | HandlerT . WriterT . SenderT |             |
+                 |       .       |          .         .         |             |
+                   rec_q   res_q   HandlerT   WriterT   SenderT
+                 |       .       |          .         .         |             |
  wandb.init()
- RunRecord   ----[<a href="#s-i-1" title="communicate_run()">1</a>]--->
+                 |       .       |          .         .         |             |
+ RunRecord   ----[1]--->
                  |       .       |          .         .         |             |
                      ----------------->
                  |       .       |          .         .         |             |
@@ -46,13 +48,13 @@ There are a few conventions:
                  |       .       |          .         .         |             |
                                       --------------------->
                  |       .       |          .         .         |             |
-                                                            ----[<a href="#s-i-2" title="UpsertBucket()">2</a>]---->
+                                                            ----[2]---->
                  |       .       |          .         .         |             |
                              <------------------------------
                  |       .       |          .         .         |             |
              <---------------
                  |       .       |          .         .         |             |
- RunStartReq ----[<a href="#s-i-3" title="communicate_run_start()">3</a>]---->
+ RunStartReq ----[3]---->
                  |       .       |          .         .         |             |
                       ----------------->
                  |       .       |          .         .         |             |
@@ -61,12 +63,12 @@ There are a few conventions:
                              <----------
                  |       .       |          .         .         |             |
              <----------------
-</pre>
+```
 
-N | Name | Description
+[]()|     |
 --- | --- | ---
-<a name="s-i-1"></a>1 | communicate_run() | Send a RunRecord to the internal process
-<a name="s-i-2"></a>2 | UpsertBucket | GraphQL Upsert Bucket mutation
-<a name="s-i-3"></a>3 | communicate_run_start() | Send start run request
+1   | communicate_run() | Send a RunRecord to the internal process
+2   | UpsertBucket | GraphQL Upsert Bucket mutation
+3   | communicate_run_start() | Send start run request
 
 ### wandb.log()
