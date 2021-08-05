@@ -859,6 +859,7 @@ class Api(object):
                     queue_name,
                     access="PROJECT",
                 )
+
                 if res is None or res.get("queueID") is None:
                     wandb.termerror(
                         "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
