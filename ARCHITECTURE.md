@@ -36,7 +36,7 @@ There are a few conventions:
                  |               |                              |             |
                  | rec_q . res_q | HandlerT . WriterT . SenderT |             |
  wandb.init()
- RunRecord   ----[<a href="#seq-init-communicate-run">1</a>]--->
+ RunRecord   ----[<a href="#s-i-1" title="communicate_run()">1</a>]--->
                  |       .       |          .         .         |             |
                      ----------------->
                  |       .       |          .         .         |             |
@@ -46,13 +46,13 @@ There are a few conventions:
                  |       .       |          .         .         |             |
                                       --------------------->
                  |       .       |          .         .         |             |
-                                                            ----[2]---->
+                                                            ----[<a href="#s-i-2" title="UpsertBucket()">2</a>]---->
                  |       .       |          .         .         |             |
                              <------------------------------
                  |       .       |          .         .         |             |
              <---------------
                  |       .       |          .         .         |             |
- RunStartReq ----[3]---->
+ RunStartReq ----[<a href="#s-i-3" title="communicate_run_start()">3</a>]---->
                  |       .       |          .         .         |             |
                       ----------------->
                  |       .       |          .         .         |             |
@@ -63,10 +63,9 @@ There are a few conventions:
              <----------------
 </pre>
 
-Message | Description
---- | ---
-<a name="seq-init-communicate-run"></a>communicate_run() | Send a RunRecord to the internal process
-<a name="seq-init-upsert-bucket"></a>UpsertBucket | GraphQL Upsert Bucket mutation
-<a name="seq-init-communicate-run-start"></a>communicate_run_start() | Send start run request
+--- | --- | ---
+<a name="s-i-1"></a>1 | communicate_run() | Send a RunRecord to the internal process
+<a name="s-i-2"></a>2 | UpsertBucket | GraphQL Upsert Bucket mutation
+<a name="s-i-3"></a>3 | communicate_run_start() | Send start run request
 
 ### wandb.log()
