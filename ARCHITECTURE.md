@@ -2,13 +2,20 @@
 
 ### Processes/Threads
 
-Context | Description
---- | ---
-User Context     | Calls wandb.init()
-Internal Process | Most processing of users requests
-Handler Thread   | Single thread in the internal process to serialize all requests
-Sender Thread    | All network operations happen from this thread
-Writer Thread    | Runs in parallel with Sender Thread to write a log of transactions
+Ref | Identifier | File | Description
+--- | --- | --- | ---
+User Context     | N/A | N/A | Users python script: Calls wandb.init(), wandb.log()
+Internal Process | wandb_internal | [internal.py] | Most processing of users requests
+HandlerT | HandlerThread | [handler.py] | Single thread in the internal process to serialize all requests
+SenderT  | SenderThread  | [sender.py] | All network operations are initiated from this thread
+WriterT  | WriterThread  | [writer.py] | Runs in parallel with Sender Thread to write a log of transactions
+
+### Important data structures
+
+Ref | Data Structure | File | Description
+--- | --- | --- | ---
+rec_q | record_q | [backend.py] | Queue to pass records to internal process
+res_q | result_q | [backend.py] | Queue to pass results from internal process
 
 ### Records/Results
 
@@ -19,6 +26,19 @@ There are a few conventions:
 - Result is a "reply" for Record
 - Request is for internal communication (not persisted)
 - Response is a "reply" for Request
+
+Protobuf | File | Description
+--- | --- | ---
+RunRecord | [wandb_internal.proto] | All run parameters (entity, project, name, id, config, summary)
+RunStartRequest | [wandb_internal.proto] | Message to trigger the start of run tracking (start system metrics, etc)
+
+### Important functions
+
+Function | File | Description
+--- | --- | ---
+wandb.init() | [wandb_init.py] | Spin up internal process, create run in cloud, return Run object
+handle_run() | [handler.py] | Process RunRecord, hand off to writer and sender
+handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys metric logging, cache run properties
 
 [Protobuf definition](https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto)
 
@@ -61,28 +81,12 @@ There are a few conventions:
               <----------------
 ```
 
-Ref | Data Structure | File | Description
---- | --- | --- | ---
-rec_q | record_q | [backend.py] | Queue to pass records to internal process
-res_q | result_q | [backend.py] | Queue to pass results from internal process
-
-Ref | Thread | File | Description
---- | --- | --- | ---
-HandlerT | HandlerThread | [handler.py] | Thread to read record_q
-WriterT  | WriterThread  | [writer.py] | Thread to write to transaction log
-SenderT  | SenderThread  | [sender.py] | Thread to make network requests to cloud
 
 Ref | Message | File | Description
 --- | --- | --- | ---
 1   | communicate_run()       | [interface.py] | Send a RunRecord to the internal process
 2   | UpsertBucket            | [internal_api.py] | GraphQL Upsert Bucket mutation
 3   | communicate_run_start() | [interface.py] | Send start run request
-
-Function | File | Description
---- | --- | ---
-wandb.init() | [wandb_init.py] | Spin up internal process, create run in cloud, return Run object
-handle_run() | [handler.py] | Process RunRecord, hand off to writer and sender
-handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys metric logging, cache run properties
 
 ### wandb.log()
 
@@ -99,3 +103,5 @@ TODO
 [interface.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface.py
 [internal_api.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal_api.py
 [wandb_init.py]: https://github.com/wandb/client/blob/master/wandb/sdk/wandb_init.py
+[internal.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal.py
+[wandb_internal.proto]: https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto
