@@ -31,49 +31,56 @@ There are a few conventions:
 ### wandb.init()
 
 ```text
-                 |               |
- User Context    | Shared Queues |       Internal Process       |    Cloud    |
-                 |       .       |          .         .         |             |
+                 |               |                              |
+ User Context    | Shared Queues |       Internal Process       |    Cloud
+                 |       .       |          .         .         |
                   [rec_q] [res_q] [HandlerT] [WriterT] [SenderT]
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
  wandb.init()
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
  RunRecord   ----[1]--->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                      ----------------->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                                       handle_run()
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                                       ---------->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                                       --------------------->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                                                             ----[2]---->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                              <------------------------------
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
              <---------------
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
  RunStartReq ----[3]---->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                       ----------------->
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                                        handle_req_run_start()
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
                              <----------
-                 |       .       |          .         .         |             |
+                 |       .       |          .         .         |
              <----------------
 ```
 
-Ref | Item | Description
---- | --- | ---
-rec_q    | record_q                | Queue to pass records to internal process
-res_q    | result_q                | Queue to pass results from internal process
-HandlerT | HandlerThread           | Thread to read record_q
-WriterT  | WriterThread            | Thread to write to transaction log
-SenderT  | SenderThread            | Thread to make network requests to cloud
-1        | communicate_run()       | Send a RunRecord to the internal process
-2        | UpsertBucket            | GraphQL Upsert Bucket mutation
-3        | communicate_run_start() | Send start run request
+Ref | Item | File | Description
+--- | --- | --- | ---
+rec_q    | record_q                | [backend.py] | Queue to pass records to internal process
+res_q    | result_q                | [backend.py] | Queue to pass results from internal process
+HandlerT | HandlerThread           | [handler.py] | Thread to read record_q
+WriterT  | WriterThread            | [writer.py] | Thread to write to transaction log
+SenderT  | SenderThread            | [sender.py] | Thread to make network requests to cloud
+1        | communicate_run()       | [interface.py] | Send a RunRecord to the internal process
+2        | UpsertBucket            | [internal_api.py] | GraphQL Upsert Bucket mutation
+3        | communicate_run_start() | [interface.py] | Send start run request
+
+[backend.py]: https://github.com/wandb/client/blob/master/wandb/sdk/backend/backend.py
+[handler.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/handler.py
+[writer.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/writer.py
+[sender.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/sender.py
+[interface.py]: https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface.py
+[internal_api.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal_api.py
 
 ### wandb.log()
