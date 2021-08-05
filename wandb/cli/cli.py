@@ -27,7 +27,6 @@ from wandb import Config
 from wandb import env, util
 from wandb import Error
 from wandb import wandb_agent
-from wandb import wandb_controller
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
@@ -35,14 +34,9 @@ from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 
 # from wandb.old.core import wandb_dir
+import wandb.sdk.verify.verify as wandb_verify
 from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
-
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    import wandb.sdk.verify.verify as wandb_verify
-else:
-    import wandb.sdk_py27.verify.verify as wandb_verify
 
 
 # TODO: turn this on in a cleaner way
@@ -636,9 +630,9 @@ def sync(
 @click.option("--entity", "-e", default=None, help="The entity scope for the project.")
 @click.option("--controller", is_flag=True, default=False, help="Run local controller")
 @click.option("--verbose", is_flag=True, default=False, help="Display verbose output")
-@click.option("--name", default=False, help="Set sweep name")
-@click.option("--program", default=False, help="Set sweep program")
-@click.option("--settings", default=False, help="Set sweep settings", hidden=True)
+@click.option("--name", default=None, help="Set sweep name")
+@click.option("--program", default=None, help="Set sweep program")
+@click.option("--settings", default=None, help="Set sweep settings", hidden=True)
 @click.option("--update", default=None, help="Update pending sweep")
 @click.option(
     "--stop",
@@ -793,7 +787,9 @@ def sweep(
 
     is_local = config.get("controller", {}).get("type") == "local"
     if is_local:
-        tuner = wandb_controller.controller()
+        from wandb import controller as wandb_controller
+
+        tuner = wandb_controller()
         err = tuner._validate(config)
         if err:
             wandb.termerror("Error in sweep file: %s" % err)
@@ -813,15 +809,18 @@ def sweep(
         or api.settings("project")
         or util.auto_project_name(config.get("program"))
     )
-    sweep_id = api.upsert_sweep(
+    sweep_id, warnings = api.upsert_sweep(
         config, project=project, entity=entity, obj_id=sweep_obj_id
     )
+    util.handle_sweep_config_violations(warnings)
+
     wandb.termlog(
         "{} sweep with ID: {}".format(
             "Updated" if sweep_obj_id else "Created", click.style(sweep_id, fg="yellow")
         )
     )
-    sweep_url = wandb_controller._get_sweep_url(api, sweep_id)
+
+    sweep_url = wandb_sdk.wandb_sweep._get_sweep_url(api, sweep_id)
     if sweep_url:
         wandb.termlog(
             "View sweep at: {}".format(
@@ -850,7 +849,9 @@ def sweep(
     )
     if controller:
         wandb.termlog("Starting wandb controller...")
-        tuner = wandb_controller.controller(sweep_id)
+        from wandb import controller as wandb_controller
+
+        tuner = wandb_controller(sweep_id)
         tuner.run(verbose=verbose)
 
 
@@ -884,7 +885,9 @@ def agent(ctx, project, entity, count, sweep_id):
 @display_error
 def controller(verbose, sweep_id):
     click.echo("Starting wandb controller...")
-    tuner = wandb_controller.controller(sweep_id)
+    from wandb import controller as wandb_controller
+
+    tuner = wandb_controller(sweep_id)
     tuner.run(verbose=verbose)
 
 
@@ -1223,6 +1226,8 @@ def put(path, name, description, type, alias):
         type,
         artifact_name,
         artifact.digest,
+        client_id=artifact._client_id,
+        sequence_client_id=artifact._sequence_client_id,
         entity_name=entity,
         project_name=project,
         run_name=run.id,

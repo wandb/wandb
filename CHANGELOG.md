@@ -1,3 +1,86 @@
+## 0.11.2 (August 2, 2021)
+
+#### :bug: Bug Fix
+
+- Restore vendored graphql-core library because of network regression
+
+## 0.11.1 (July 29, 2021)
+
+#### :hourglass: Deprecated
+
+- Python 3.5 will not be supported as of `wandb==0.12.0`
+
+#### :bug: Bug Fix
+
+- Reduce Memory Footprint of Images In Tables
+- Added a dependency on graphql-core>=2.3.0
+- Removed urllib3 pin to avoid conflicts, if you see urllib3 related errors run `pip install --upgrade urllib3`
+- Improved Public API HTTP error messages
+- Set run.dir to the generated directory name in disabled mode
+
+#### :nail_care: Enhancement
+
+- Adds support for native Jax array logging
+- Tables now support Molecule data type
+- Improve Stable-Baselines3 API by auto log model's name and always upload models at the end of training
+- Implements the sweep local controller using wandb/sweeps
+
+## 0.11.0 (July 15, 2021)
+
+#### :hourglass: No Longer Supported
+
+- Remove Python 2.7 support
+
+#### :bug: Bug Fix
+
+- Fix issue where `wandb.watch()` broke model saving in pytorch
+- Fix issue where uniform sweep parameters were parsed as int_uniform
+- Fix issue where file_stream thread was killed on 4xx errors
+
+#### :nail_care: Enhancement
+
+- Improve performance of artifact logging by making it non-blocking
+- Add wandb integration for Stable-Baselines3
+- Improve keras callback validation logging inference logic
+- Expose sweep state via the public API
+- Improve performance of sweep run fetches via the API
+
+## 0.10.33 (June 28, 2021)
+
+#### :bug: Bug Fix
+
+- Fix issue where wandb restore 404ed if the run did not have a diff.patch file
+- Fix issue where wandb.log raised an Exception after trying to log a pandas dataframe
+- Fix issue where runs could be marked finished before files were finished uploading
+
+#### :nail_care: Enhancement
+
+- Disable reloading of run metadata (such as command) in resumed runs
+- Allow logging of pandas dataframes by automatically converting them to W&B tables
+- Fix up `log_code()` exclude fn to handle .wandb dir
+- Improve handling of PyTorch model topology
+- Increase config debounce interval to 30s to reduce load on WB/backend
+- Improve reliability of CLI in generating sweeps with names, programs, and settings
+
+## 0.10.32 (June 10, 2021)
+
+#### :bug: Bug Fix
+
+- Make `log_artifact()` more resilient to network errors
+- Removed Duplicate Artifact Dependencies
+- Workaround urlib3 issue on windows
+- Fix regression where ipython was hanging
+- Allow logging of numpy high precision floating point values
+- Reduce liklyhood of collisions for file backed media or artifact objects
+- Fix wandb.watch() regression when logging pytorch graphs
+
+#### :nail_care: Enhancement
+
+- Add support for logging joined and partitioned table
+- Handle schema validation warnings for sweep configs
+- Improve wandb sync to handle errors
+- Add ability to label scripts and repositories who use wandb
+
 ## 0.10.31 (May 27, 2021)
 
 #### :bug: Bug Fix

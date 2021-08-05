@@ -15,6 +15,7 @@ class UploadJob(threading.Thread):
         done_queue,
         stats,
         api,
+        file_stream,
         silent,
         save_name,
         path,
@@ -38,6 +39,7 @@ class UploadJob(threading.Thread):
         self._done_queue = done_queue
         self._stats = stats
         self._api = api
+        self._file_stream = file_stream
         self.silent = silent
         self.save_name = save_name
         self.save_path = self.path = path
@@ -56,6 +58,8 @@ class UploadJob(threading.Thread):
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
             self._done_queue.put(EventJobDone(self, success))
+            if success:
+                self._file_stream.push_success(self.artifact_id, self.save_name)
 
     def push(self):
         try:

@@ -64,6 +64,7 @@ JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 SYNC_MLFLOW = "WANDB_SYNC_MLFLOW"
+DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -100,6 +101,7 @@ def immutable_keys():
         HOST,
         CACHE_DIR,
         USE_V1_ARTIFACTS,
+        DISABLE_SSL,
     ]
 
 
@@ -124,6 +126,10 @@ def error_reporting_enabled():
 
 def sync_mlflow():
     return _env_as_bool(SYNC_MLFLOW, default=True)
+
+
+def ssl_disabled():
+    return _env_as_bool(DISABLE_SSL, default=False)
 
 
 def get_error_reporting(default=True, env=None):

@@ -24,49 +24,25 @@ import six
 import wandb
 from wandb import util
 from wandb.compat import tempfile
-
-_PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-
-if _PY3:
-    from wandb.sdk.interface import _dtypes
-    from wandb.sdk.data_types import (
-        WBValue,
-        Histogram,
-        Media,
-        BatchableMedia,
-        Object3D,
-        Molecule,
-        Html,
-        Video,
-        ImageMask,
-        BoundingBoxes2D,
-        Classes,
-        Image,
-        Plotly,
-        history_dict_to_json,
-        val_to_json,
-        _numpy_arrays_to_lists,
-    )
-else:
-    from wandb.sdk_py27.interface import _dtypes
-    from wandb.sdk_py27.data_types import (
-        WBValue,
-        Histogram,
-        Media,
-        BatchableMedia,
-        Object3D,
-        Molecule,
-        Html,
-        Video,
-        ImageMask,
-        BoundingBoxes2D,
-        Classes,
-        Image,
-        Plotly,
-        history_dict_to_json,
-        val_to_json,
-        _numpy_arrays_to_lists,
-    )
+from wandb.sdk.data_types import (
+    _numpy_arrays_to_lists,
+    BatchableMedia,
+    BoundingBoxes2D,
+    Classes,
+    Histogram,
+    history_dict_to_json,
+    Html,
+    Image,
+    ImageMask,
+    Media,
+    Molecule,
+    Object3D,
+    Plotly,
+    val_to_json,
+    Video,
+    WBValue,
+)
+from wandb.sdk.interface import _dtypes
 
 __all__ = [
     "Audio",
@@ -430,16 +406,20 @@ class Table(Media):
             )
         return result_type
 
-    def _to_table_json(self, max_rows=None):
+    def _to_table_json(self, max_rows=None, warn=True):
         # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
-        if len(self.data) > max_rows:
+        if len(self.data) > max_rows and warn:
             logging.warning("Truncating wandb.Table object to %i rows." % max_rows)
         return {"columns": self.columns, "data": self.data[:max_rows]}
 
     def bind_to_run(self, *args, **kwargs):
-        data = self._to_table_json()
+        # We set `warn=False` since Tables will now always be logged to both
+        # files and artifacts. The file limit will never practically matter and
+        # this code path will be ultimately removed. The 10k limit warning confuses
+        # users given that we publically say 200k is the limit.
+        data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
@@ -842,12 +822,12 @@ class PartitionedTable(Media):
             "_type": PartitionedTable._log_type,
         }
         if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is None:
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is None:
                 raise ValueError(
                     "PartitionedTables must first be added to an Artifact before logging to a Run"
                 )
-            json_obj["artifact_path"] = artifact_entry.ref_url()
+            json_obj["artifact_path"] = artifact_entry_url
         else:
             json_obj["parts_path"] = self.parts_path
         return json_obj
@@ -1134,7 +1114,7 @@ class JoinedTable(Media):
             # Give the new object a unique, yet deterministic name
             name = binascii.hexlify(
                 base64.standard_b64decode(table.entry.digest)
-            ).decode("ascii")[:8]
+            ).decode("ascii")[:20]
             entry = artifact.add_reference(
                 table.ref_url(), "{}.{}.json".format(name, table.name.split(".")[-2])
             )[0]
@@ -1151,12 +1131,12 @@ class JoinedTable(Media):
             "_type": JoinedTable._log_type,
         }
         if isinstance(artifact_or_run, wandb.wandb_sdk.wandb_run.Run):
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is None:
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is None:
                 raise ValueError(
                     "JoinedTables must first be added to an Artifact before logging to a Run"
                 )
-            json_obj["artifact_path"] = artifact_entry.ref_url()
+            json_obj["artifact_path"] = artifact_entry_url
         else:
             table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
             table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)

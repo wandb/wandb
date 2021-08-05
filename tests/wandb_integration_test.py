@@ -65,7 +65,8 @@ def test_resume_allow_success(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows", reason="File syncing is somewhat busted in windows"
+    platform.system() == "Windows" or sys.version_info < (3, 6),
+    reason="File syncing is somewhat busted in windows and python 2",
 )
 # TODO: Sometimes wandb-summary.json didn't exists, other times requirements.txt in windows
 def test_parallel_runs(request, live_mock_server, test_settings, test_name):
@@ -127,6 +128,15 @@ def test_resume_auto_failure(live_mock_server, test_settings):
     assert run.id == "resumeme"
     run.join(exit_code=3)
     assert os.path.exists(test_settings.resume_fname)
+
+
+def test_resume_no_metadata(live_mock_server, test_settings):
+    # do not write metadata file if we are resuming
+    live_mock_server.set_ctx({"resume": True})
+    run = wandb.init(resume=True, settings=test_settings)
+    run.join()
+    ctx = live_mock_server.get_ctx()
+    assert "wandb-metadata.json" not in ctx["storage"][run.id]
 
 
 def test_include_exclude_config_keys(live_mock_server, test_settings):

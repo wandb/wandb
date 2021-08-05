@@ -5,27 +5,25 @@ import contextlib
 import hashlib
 import os
 import random
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 
 import wandb
 from wandb import env
 from wandb import util
 from wandb.data_types import WBValue
 
-if wandb.TYPE_CHECKING:  # type: ignore
 
-    from typing import (
-        List,
-        Optional,
-        Union,
-        Dict,
-        Callable,
-        TYPE_CHECKING,
-        Sequence,
-        Tuple,
-    )
-
-    if TYPE_CHECKING:
-        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
+if TYPE_CHECKING:
+    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 
 def md5_string(string: str) -> str:
@@ -64,13 +62,14 @@ class ArtifactManifest(object):
 
     @classmethod
     # TODO: we don't need artifact here.
-    def from_manifest_json(cls, artifact, manifest_json):
+    def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
         for sub in cls.__subclasses__():
             if sub.version() == version:
                 return sub.from_manifest_json(artifact, manifest_json)
+        raise ValueError("Invalid manifest version.")
 
     @classmethod
     def version(cls):
@@ -833,6 +832,7 @@ class ArtifactsCache(object):
         self._artifacts_by_id = {}
         self._random = random.Random()
         self._random.seed()
+        self._artifacts_by_client_id = {}
 
     def check_md5_obj_path(self, b64_md5: str, size: int) -> Tuple[str, bool, Callable]:
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -856,6 +856,12 @@ class ArtifactsCache(object):
 
     def store_artifact(self, artifact):
         self._artifacts_by_id[artifact.id] = artifact
+
+    def get_client_artifact(self, client_id):
+        return self._artifacts_by_client_id.get(client_id)
+
+    def store_client_artifact(self, artifact):
+        self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
         bytes_reclaimed: int = 0

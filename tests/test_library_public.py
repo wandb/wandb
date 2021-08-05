@@ -46,6 +46,7 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "require",
 }
 
 # Look into these and see what we can remove / hide
@@ -57,11 +58,9 @@ SYMBOLS_ROOT_OTHER = {
     "Config",
     "Error",
     "InternalApi",
-    "PY3",
     "PublicApi",
     "START_TIME",
     "Settings",
-    "TYPE_CHECKING",
     "UsageError",
     "absolute_import",
     "agents",
@@ -124,7 +123,7 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_torch",
     "xgboost",
     "sync",
-    "sweeps",
+    "sweeps_engine",
     "cli",
 }
 

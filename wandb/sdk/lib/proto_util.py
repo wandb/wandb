@@ -1,16 +1,11 @@
 #
 import json
+from typing import Any, Dict, Union
+from typing import TYPE_CHECKING
 
-import wandb
-
-
-if wandb.TYPE_CHECKING:
-    from typing import Any, Dict, Union
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:  # pragma: no cover
-        from wandb.proto import wandb_internal_pb2 as pb
-        from wandb.proto import wandb_telemetry_pb2 as tpb
+if TYPE_CHECKING:  # pragma: no cover
+    from wandb.proto import wandb_internal_pb2 as pb
+    from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
 def dict_from_proto_list(obj_list):
@@ -41,4 +36,12 @@ def proto_encode_to_dict(
                 items = [d.number for d, v in nested if v]
                 if items:
                     data[desc.number] = items
+            else:
+                # TODO: for now this code only handles sub-messages with strings
+                md = {}
+                for d, v in nested:
+                    if not v or d.type != d.TYPE_STRING:
+                        continue
+                    md[d.number] = v
+                data[desc.number] = md
     return data

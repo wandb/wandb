@@ -1,0 +1,12 @@
+
+[yea]
+
+test_paths =
+  this
+  functional_tests/
+
+coverage_config_template = functional_tests/.coveragerc
+coverage_source = ../wandb/
+coverage_source_env = YEACOV_SOURCE
+
+results_file = test-results/junit-yea.xml

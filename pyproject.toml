@@ -2,8 +2,8 @@
 line-length = 88
 exclude = '''
   wandb/vendor/
-| wandb/sdk_py27/
 | wandb/sweeps/
+| wandb/sweeps_engine/
 | wandb/old/
 | wandb/bin/
 | wandb/proto/
@@ -13,8 +13,15 @@ exclude = '''
 | tests/wandb_tensorflow_summary.pb
 | tests/logs/cleanup.sh
 | tests/notebooks/
+| tests/standalone/.coveragerc
+| tests/testlib/schema-wandb-testlib.json
+| tools/diff_cli_files.sh
+| tools/strip_type_annotations.sh
+| tools/setup_dev_environment.sh
+| tools/loop.sh
 '''
 include = '''
   wandb/
 | tests/
+| tools/
 '''

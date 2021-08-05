@@ -14,6 +14,7 @@ message TelemetryRecord {
   string  huggingface_version = 6;
   // string  framework = 7;
   Env     env = 8;
+  Labels  label = 9;
 }
 
 message Imports {
@@ -28,6 +29,7 @@ message Imports {
   bool pytorch_lightning = 9;
   bool pytorch_ignite = 10;
   bool transformers_huggingface = 11;
+  bool jax = 12;
 }
 
 message Feature {
@@ -52,4 +54,10 @@ message Env {
   bool start_fork = 6;        // multiprocessing fork
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
+}
+
+message Labels {
+  string code_string = 1;   // code identification
+  string repo_string = 2;   // repo identification
+  string code_version = 3;  // code version
 }

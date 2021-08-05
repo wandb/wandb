@@ -1,10 +1,9 @@
 pytest
 coverage
-tox==3.7
+tox==3.24.0
 pip
 Pillow
 pandas
-numpy
 matplotlib<3.3.3
 soundfile
 boto3
@@ -18,7 +17,6 @@ ipykernel
 nbclient; python_version >= '3.5'
 sklearn
 tensorflow>=1.15.2; python_version < '3.9'
-pydoc-markdown
 torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torch==1.8.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
@@ -26,3 +24,7 @@ torchvision==0.9.1+cpu; python_version >= '3.5' and python_version < '3.9' and s
 plotly; python_version < '3.9'
 bokeh
 tqdm
+stable_baselines3
+tensorboard
+gym
+jax[cpu]

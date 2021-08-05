@@ -10,20 +10,18 @@ import codecs
 import errno
 import hashlib
 import json
-import getpass
 import logging
 import math
 import numbers
+import traceback
 import os
 import re
 import shlex
 import socket
-import subprocess
 import sys
 import threading
 import time
 import random
-import stat
 import shortuuid
 import importlib
 import types
@@ -32,30 +30,25 @@ from datetime import date, datetime
 import platform
 from six.moves.urllib.parse import urlparse
 
-import click
 import requests
 import six
 from six.moves import queue, input
-import textwrap
 from sys import getsizeof
-from collections import namedtuple
 from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
 from wandb.errors import CommError, term
 from wandb.old.core import wandb_dir
-from wandb import env
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
-MAX_LINE_SIZE = 9 * 1024 * 1024 - 100 * 1024  # imposed by back end
+MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # these match the environments for gorilla
@@ -332,6 +325,16 @@ def is_pytorch_tensor_typename(typename):
     )
 
 
+def is_jax_tensor_typename(typename):
+    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+
+
+def get_jax_tensor(obj):
+    import jax
+
+    return jax.device_get(obj)
+
+
 def is_fastai_tensor_typename(typename):
     return typename.startswith("fastai.") and ("Tensor" in typename)
 
@@ -447,6 +450,8 @@ def json_friendly(obj):
             obj = obj.cpu().detach().numpy()
         else:
             return obj.item(), True
+    elif is_jax_tensor_typename(typename):
+        obj = get_jax_tensor(obj)
 
     if is_numpy_array(obj):
         if obj.size == 1:
@@ -457,6 +462,13 @@ def json_friendly(obj):
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
+        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+            # obj is a numpy float with precision greater than that of native python float
+            # (i.e., float96 or float128). in this case obj.item() does not return a native
+            # python float to avoid loss of precision, so we need to explicitly cast this
+            # down to a 64bit float
+            obj = float(obj)
+
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -570,10 +582,10 @@ def launch_browser(attempt_launch_browser=True):
     return launch_browser
 
 
-def generate_id():
+def generate_id(length=8):
     # ~3t run ids (36**8)
     run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
+    return run_gen.random(length)
 
 
 def parse_tfjob_config():
@@ -1247,3 +1259,63 @@ def _is_databricks():
                 sc = shell.sc
                 return sc.appName == "Databricks Shell"
     return False
+
+
+def sweep_config_err_text_from_jsonschema_violations(violations):
+    """Consolidate violation strings from wandb/sweeps describing the ways in which a
+    sweep config violates the allowed schema as a single string.
+
+    Parameters
+    ----------
+    violations: list of str
+        The warnings to render.
+
+    Returns
+    -------
+    violation: str
+        The consolidated violation text.
+
+    """
+
+    violation_base = (
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
+        "To avoid this, please fix the sweep config schema violations below:"
+    )
+
+    for i, warning in enumerate(violations):
+        violations[i] = "  Violation {}. {}".format(i + 1, warning)
+    violation = "\n".join([violation_base] + violations)
+
+    return violation
+
+
+def handle_sweep_config_violations(warnings):
+    """Render warnings from gorilla describing the ways in which a
+    sweep config violates the allowed schema as terminal warnings.
+
+    Parameters
+    ----------
+    warnings: list of str
+        The warnings to render.
+    """
+
+    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
+    if len(warnings) > 0:
+        term.termwarn(warning)
+
+
+def _log_thread_stacks():
+    """Log all threads, useful for debugging."""
+
+    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+
+    for thread_id, frame in sys._current_frames().items():
+        logger.info(
+            "\n--- Stack for thread {t} {name} ---".format(
+                t=thread_id, name=thread_map.get(thread_id, "unknown")
+            )
+        )
+        for filename, lineno, name, line in traceback.extract_stack(frame):
+            logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                logger.info("  Line: %s" % line)

@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.32.dev1"
+__version__ = "0.11.3.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -31,13 +31,7 @@ from wandb.errors import Error
 # This needs to be early as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-TYPE_CHECKING = False  # type: bool
-if PY3:
-    TYPE_CHECKING = True
-    from wandb import sdk as wandb_sdk
-else:
-    from wandb import sdk_py27 as wandb_sdk
+from wandb import sdk as wandb_sdk
 
 import wandb
 
@@ -52,6 +46,9 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
+sweep = wandb_sdk.sweep
+controller = wandb_sdk.controller
+require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
@@ -63,7 +60,6 @@ from wandb.errors import CommError, UsageError
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader
 from wandb import wandb_torch
-from wandb import util
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.data_types import Graph
@@ -82,7 +78,6 @@ from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
-from wandb.wandb_controller import sweep, controller
 
 from wandb import superagent
 
@@ -200,6 +195,7 @@ __all__ = [
     "setup",
     "save",
     "sweep",
+    "controller",
     "agent",
     "config",
     "log",
@@ -216,4 +212,5 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
+    "_enable",
 ]
