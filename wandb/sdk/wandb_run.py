@@ -2267,7 +2267,6 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-
         return artifact
 
     def _public_api(self) -> PublicApi:
