@@ -862,12 +862,12 @@ def _check_launch_imports():
     )
 
 
-@cli.command(help="Launch or queue a job on a specified resource")
-@click.argument(
-    "uri",
-    "A wandb uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
-    "or a git uri pointing to a remote repository, or path to a local directory.",
+@cli.command(
+    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "or a git uri pointing to a remote repository, or path to a local directory."
 )
+@click.argument("uri")
 @click.option(
     "--entry-point",
     "-E",
