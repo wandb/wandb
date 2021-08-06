@@ -159,7 +159,7 @@ class _WandbInit(object):
 
         if not settings._offline and not settings._noop:
             wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
-        print("After login")
+
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
 
@@ -167,7 +167,6 @@ class _WandbInit(object):
         save_code_pre_user_settings = settings["save_code"]
 
         settings._apply_init(kwargs)
-        print("after apply init")
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
@@ -178,7 +177,10 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
+        d = dict(
+            _start_time=time.time(),
+            _start_datetime=datetime.datetime.now(),
+        )
         settings.update(d)
 
         if not settings._noop:
@@ -188,14 +190,12 @@ class _WandbInit(object):
                 self._jupyter_setup(settings)
 
         self.settings = settings.freeze()
-        print("settings frozen")
 
     def teardown(self):
         # TODO: currently this is only called on failed wandb.init attempts
         # normally this happens on the run object
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
-            print("init hook", hook.__name__)
             hook()
 
     def _enable_logging(self, log_fname, run_id=None):
@@ -428,12 +428,9 @@ class _WandbInit(object):
             return wandb.run
 
         logger.info("starting backend")
-        print("launching backend")
         backend = Backend(settings=s)
         backend.ensure_launched()
-        print("ensure launched")
         backend.server_connect()
-        print("server connected")
         logger.info("backend started and connected")
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
@@ -778,11 +775,9 @@ def init(
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
-        print("done wi setup")
         except_exit = wi.settings._except_exit
         try:
             run = wi.init()
-            print("done wi init")
             except_exit = wi.settings._except_exit
         except (KeyboardInterrupt, Exception) as e:
             if not isinstance(e, KeyboardInterrupt):
@@ -820,5 +815,4 @@ def init(
             if except_exit:
                 os._exit(-1)
             six.raise_from(Exception("problem"), error_seen)
-    print("returning run")
     return run

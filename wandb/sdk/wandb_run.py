@@ -557,8 +557,7 @@ class Run(object):
 
     @property
     def start_time(self) -> float:
-        """Returns the unix time stamp, in seconds, when the run started.
-        """
+        """Returns the unix time stamp, in seconds, when the run started."""
         if not self._run_obj:
             return self._start_time
         else:
@@ -1248,15 +1247,12 @@ class Run(object):
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
         """
-        print("Finish called from", os.getpid())
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
         for hook in self._teardown_hooks:
-            print("finish hook", hook.__name__)
             hook()
-        print("hooks done")
         self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
@@ -1866,7 +1862,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1915,10 +1914,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1927,8 +1931,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2250,9 +2259,7 @@ class Run(object):
             artifact_or_path, name, type, aliases
         )
         artifact.distributed_id = distributed_id
-        print("asserting can log arti")
         self._assert_can_log_artifact(artifact)
-        print("done asserting")
         if self._backend:
             if not self._settings._offline:
                 future = self._backend.interface.communicate_artifact(
@@ -2273,7 +2280,7 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-        print("done _log_artifact")
+
         return artifact
 
     def _public_api(self) -> PublicApi:
@@ -2424,14 +2431,6 @@ def restore(
 
     Returns:
         None if it can't find the file, otherwise a file object open for reading
-<<<<<<< HEAD
-
-    Raises:
-        wandb.CommError: if we can't connect to the wandb backend
-        ValueError: if the file is not found or can't find run_path
-    """
-=======
->>>>>>> master
 
     Raises:
         wandb.CommError: if we can't connect to the wandb backend

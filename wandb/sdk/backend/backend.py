@@ -97,11 +97,13 @@ class Backend(object):
         self.wandb_process = process_class(
             target=wandb_internal,
             kwargs=dict(
-                settings=settings, record_q=self.record_q, result_q=self.result_q,
+                settings=settings,
+                record_q=self.record_q,
+                result_q=self.result_q,
             ),
         )
         self.wandb_process.name = "wandb_internal"
-        print("doing main mod stuff")
+
         # Support running code without a: __name__ == "__main__"
         save_mod_name = None
         save_mod_path = None
@@ -131,12 +133,10 @@ class Backend(object):
                 os.path.dirname(wandb.__file__), "mpmain", "__main__.py"
             )
             main_module.__file__ = fname
-        print("done main mod stuff")
+
         logger.info("starting backend process...")
-        print("starting backend process")
         # Start the process with __name__ == "__main__" workarounds
         self.wandb_process.start()
-        print("backend started")
         self._internal_pid = self.wandb_process.pid
         logger.info(
             "started backend process with pid: {}".format(self.wandb_process.pid)
@@ -150,9 +150,10 @@ class Backend(object):
             main_module.__file__ = save_mod_path
 
         self.interface = interface.BackendSender(
-            process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=self.wandb_process,
+            record_q=self.record_q,
+            result_q=self.result_q,
         )
-        print("inited backendsender")
 
     def server_connect(self):
         """Connect to server."""
