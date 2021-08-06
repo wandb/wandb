@@ -1,26 +1,20 @@
+import base64
 import collections
 from copy import deepcopy
-import spacy
-import pandas as pd
-from PIL import Image
-import urllib
-import requests
-import base64
+import importlib
 import io
 import json
+import urllib
 
+import pandas as pd
+from PIL import Image
+import spacy
 import wandb
 from wandb import util
 from wandb.plots.utils import (
-    test_missing,
     deprecation_notice,
+    test_missing
 )
-
-try:
-    from prodigy.components.db import connect
-except:
-    print("Warning: `prodigy` is required but not installed.")
-
 
 def named_entity(docs):
     deprecation_notice()
@@ -29,10 +23,9 @@ def named_entity(docs):
         "spacy",
         required="part_of_speech requires the spacy library, install with `pip install spacy`",
     )
-    en_core_web_md = util.get_module(
-        "en_core_web_md",
-        required="part_of_speech requires the en_core_web_md library, install with `python -m spacy download en_core_web_md`",
-    )
+    corpus_lib = importlib.util.find_spec("en_core_web_md")
+    if corpus_lib is None:
+        print("Error: part_of_speech requires `en_core_web_md` library, install with `python -m spacy download en_core_web_md`")
 
     if test_missing(docs=docs):
         wandb.termlog("Visualizing named entity recognition.")
@@ -63,7 +56,7 @@ def get_keys(list_data_dict, struct):
         # If the list contains dict objects
         for k, v in item.items():
             # Check if key already exists in template
-            if not k in struct.keys():
+            if k not in struct.keys():
                 if isinstance(v, list):
                     if len(v) > 0 and isinstance(v[0], list):
                         # nested list coordinate structure
@@ -102,6 +95,7 @@ def get_keys(list_data_dict, struct):
 
     return struct
 
+
 def standardize(item, structure):
     for k,v in structure.items():
         if k not in item:
@@ -115,7 +109,7 @@ def standardize(item, structure):
         else:
             # If the structure/field already exists and is a list or dict
             if isinstance(item[k], list):
-                #ignore if nested list structure
+                # ignore if item is a nested list structure
                 if not (len(item[k]) > 0 and isinstance(item[k][0], list)):
                     for subitem in item[k]:
                         standardize(subitem, v)
@@ -160,7 +154,7 @@ def create_table(data):
                 isbase64 = ("data:" in document["image"]) and (";base64" in document["image"])
                 if isurl:
                     # is url
-                    im = Image.open(requests.get(document["image"], stream=True).raw)
+                    im = Image.open(urllib.request.urlopen(document["image"]))
                     document["image"] = wandb.Image(im)
                 elif isbase64:
                     # is base64 uri
@@ -178,20 +172,27 @@ def create_table(data):
         main_table.add_data(*values_list)
     return main_table
 
+
 def upload_dataset(dataset_name):
     # Check if wandb.init has been called
     if wandb.run is None:
         raise ValueError("You must call wandb.init() before upload_dataset()")
 
-    # Retrieve prodigy dataset
-    database = connect()
+    prodigy_db = util.get_module(
+        "prodigy.components.db",
+        required="`prodigy` library is required but not installed. Please see https://prodi.gy/docs/install",
+    )
+    # Retrieve and upload prodigy dataset
+    database = prodigy_db.connect()
     data = database.get_dataset(dataset_name)
+
     schema = get_keys(data, {})
     for i, d in enumerate(data):
         standardize(data[i], schema)
     table = create_table(data)
     wandb.log({dataset_name: table})
     print("Prodigy dataset `" + dataset_name + "` uploaded.")
+
 
 # For development use only (REMOVE)
 def upload_json(dataset_name):
@@ -208,6 +209,3 @@ def upload_json(dataset_name):
     table = create_table(data)
     wandb.log({"random_dataset": table})
     print("Prodigy dataset `" + dataset_name + "` uploaded.")
-
-
-
