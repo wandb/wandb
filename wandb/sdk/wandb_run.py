@@ -377,6 +377,11 @@ class Run(object):
         ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
+            for key, item in launch_config.keys():
+                if isinstance(item, dict) and item.get("guid") is not None and item.get("_wandb_type") is not None:
+                    artifact = self.use_artifact(item["guid"])
+                    launch_config[key] = artifact
+
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
