@@ -1,0 +1,63 @@
+keras
+pytorch_lightning
+transformers
+spacy>=3.1
+fastai>=2.5
+yolov5
+pytorch-ignite
+catalyst
+skorch
+TTS
+espnet
+catboost
+lightgbm
+scikit-learn
+xgboost
+detectron2
+detectron
+simpletransformers
+pycaret
+# dalle-pytorch
+# torch-points3d
+# mmdet
+# mmcv
+# fairseq
+# flair
+# allennlp
+# autogluon
+# ray
+# autokeras
+# avalanche
+# hivemind
+# optuna
+# easyocr
+# spleeter
+# paddle
+# torch_geometric
+# horovod
+# nni
+# syft
+# tensorlayer
+# deeppavlov
+# onmt
+# deepctr
+# TensorLayer
+# tensortrade
+# tianshou
+# tensorforce
+# parl
+# stable-baselines3
+# deepchem
+# icevision
+# datasets
+# tokenizers
+# huggingface_hub
+# flash_lightning
+# tf-agents
+# mmf
+# detr
+# pytorchvideo
+# greykite
+# prophet
+# parlai
+# nemo_toolkit['all']
