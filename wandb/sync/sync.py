@@ -16,23 +16,12 @@ from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.sdk.interface import interface
+from wandb.sdk.internal import datastore
+from wandb.sdk.internal import handler
+from wandb.sdk.internal import sender
+from wandb.sdk.internal import tb_watcher
 from wandb.util import check_and_warn_old, mkdir_exists_ok
-
-
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.internal import datastore
-    from wandb.sdk.internal import handler
-    from wandb.sdk.internal import sender
-    from wandb.sdk.internal import tb_watcher
-    from wandb.sdk.interface import interface
-else:
-    from wandb.sdk_py27.internal import datastore
-    from wandb.sdk_py27.internal import handler
-    from wandb.sdk_py27.internal import sender
-    from wandb.sdk_py27.internal import tb_watcher
-    from wandb.sdk_py27.interface import interface
 
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
