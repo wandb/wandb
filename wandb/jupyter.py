@@ -177,8 +177,9 @@ def attempt_colab_load_ipynb():
 
 
 def check_colab_on_tpu():
-    """Checks if the process is running on a TPU
-    Needed because in a colab notebook, the TPU process hangs when attempting to send a colab._message
+    """
+    Checks if the process is running on a TPU. Needed because in a colab notebook,
+    the TPU process hangs when attempting to send a colab._message
     """
 
     return os.environ.get("XRT_MULTI_PROCESSING_DEVICE") is not None

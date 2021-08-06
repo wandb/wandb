@@ -272,7 +272,6 @@ class _WandbInit(object):
         if self.notebook.save_ipynb():
             art = self.run.log_code(root=None)
             # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
-            # on pytorch lightning DDP
             art._artifact_dir.cleanup()
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
@@ -425,6 +424,7 @@ class _WandbInit(object):
             return wandb.run
 
         logger.info("starting backend")
+
         backend = Backend(settings=s)
         backend.ensure_launched()
         backend.server_connect()
