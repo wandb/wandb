@@ -232,6 +232,37 @@ def test_push_to_runqueue(live_mock_server, test_settings):
     assert len(ctx["run_queues"]["1"]) == 1
 
 
+def test_push_to_default_runqueue_notexist(live_mock_server, test_settings):
+    live_mock_server.set_ctx({"run_queues_return_default": False})
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    api.push_to_run_queue("default", launch_spec)
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["run_queues"]["1"]) == 1
+
+
+def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    api.push_to_run_queue("not-found", launch_spec)
+    ctx = live_mock_server.get_ctx()
+    _, err = capsys.readouterr()
+    assert len(ctx["run_queues"]["1"]) == 0
+    assert "Unable to push to run queue not-found. Queue not found" in err
+
+
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(240)
