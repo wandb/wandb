@@ -151,6 +151,16 @@ class Backend(object):
             process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
 
+    def check_local(self):
+        if self._settings.base_url != "http://api.wandb.ai/":
+            # TODO(kpt) is there a way to get sha from interal api?
+            current_id = wandb.docker.container_id("wandb-local").split("@")[-1]
+            latest_id = wandb.docker.image_id("wandb/local").split("@")[-1]
+            if current_id != latest_id:
+                wandb.termwarn(
+                    "Your W&B Local version is out-of-date to get the latest features available please upgrade to latest. For upgrade details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
+                )
+
     def server_connect(self):
         """Connect to server."""
         pass

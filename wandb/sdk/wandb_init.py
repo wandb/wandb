@@ -382,6 +382,7 @@ class _WandbInit(object):
                 sweep_config, config
             )
         )
+
         if s._noop:
             return self._make_run_disabled()
         if s.reinit or (s._jupyter and s.reinit is not False):
@@ -427,6 +428,8 @@ class _WandbInit(object):
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
+        backend.check_local()
+
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
