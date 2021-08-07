@@ -1,9 +1,13 @@
 #
 # -*- coding: utf-8 -*-
-"""
-wandb.init() indicates the beginning of a new run. In an ML training pipeline,
-you could add wandb.init() to the beginning of your training script as well as
-your evaluation script, and each piece steps would be tracked as a run in W&B.
+"""Defines wandb.init() and associated classes and methods.
+
+`wandb.init()` indicates the beginning of a new run. In an ML training pipeline,
+you could add `wandb.init()` to the beginning of your training script as well as
+your evaluation script, and each step would be tracked as a run in W&B.
+
+For more on using `wandb.init()`, including code snippets, check out our
+[guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 
 from __future__ import print_function
@@ -73,9 +77,9 @@ class _WandbInit(object):
         self.notebook = None
 
     def setup(self, kwargs) -> None:
-        """
-        Complete setup for wandb.init(). This includes parsing all arguments,
-        applying them with settings and enabling logging.
+        """Completes setup for `wandb.init()`.
+
+        This includes parsing all arguments, applying them with settings and enabling logging.
         """
         self.kwargs = kwargs
 
@@ -192,9 +196,9 @@ class _WandbInit(object):
             hook()
 
     def _enable_logging(self, log_fname, run_id=None):
-        """
-        Enable logging to the global debug log.  This adds a run_id to the log,
-        in case of muliple processes on the same machine.
+        """Enables logging to the global debug log.
+
+        This adds a run_id to the log, in case of muliple processes on the same machine.
         Currently there is no way to disable logging after it's enabled.
         """
         handler = logging.FileHandler(log_fname)
@@ -262,7 +266,7 @@ class _WandbInit(object):
             self.backend.interface.publish_resume()
 
     def _jupyter_teardown(self):
-        """Teardown hooks and display saving, called with wandb.finish"""
+        """Teardown hooks and display saving, called with wandb.finish."""
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
@@ -280,7 +284,7 @@ class _WandbInit(object):
         del ipython.display_pub._orig_publish
 
     def _jupyter_setup(self, settings):
-        """Add magic, hooks, and session history saving"""
+        """Add magic, hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
         ipython.register_magics(wandb.jupyter.WandBMagics)
@@ -304,8 +308,7 @@ class _WandbInit(object):
         ipython.display_pub.publish = publish
 
     def _log_setup(self, settings):
-        """Set up logging from settings."""
-
+        """Sets up logging from settings."""
         filesystem._safe_makedirs(os.path.dirname(settings.log_user))
         filesystem._safe_makedirs(os.path.dirname(settings.log_internal))
         filesystem._safe_makedirs(os.path.dirname(settings.sync_file))
@@ -596,8 +599,7 @@ def init(
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled, None]:
-    """
-    Start a new tracked run with `wandb.init()`.
+    """Starts a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
     to the beginning of your training script as well as your evaluation
@@ -608,12 +610,15 @@ def init(
     Call `wandb.init()` to start a run before logging data with `wandb.log()`.
 
     `wandb.init()` returns a run object, and you can also access the run object
-    with wandb.run.
+    with `wandb.run`.
 
-    At the end of your script, we will automatically call `wandb.finish(`) to
-    finalize and cleanup the run. However, if you call `wandb.init()` from a
-    child process, you must explicitly call `wandb.finish()` at the end of the
+    At the end of your script, we will automatically call `wandb.finish` to
+    finalize and cleanup the run. However, if you call `wandb.init` from a
+    child process, you must explicitly call `wandb.finish` at the end of the
     child process.
+
+    For more on using `wandb.init()`, including code snippets, check out our
+    [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
@@ -625,30 +630,30 @@ def init(
             starting to log runs.
             If you don't specify an entity, the run will be sent to your default
             entity, which is usually your username. Change your default entity
-            in [Settings](wandb.ai/settings) under "default location to create
-            new projects".
+            in [your settings](https://wandb.ai/settings) under "default location
+            to create new projects".
         config: (dict, argparse, absl.flags, str, optional)
-            This sets wandb.config, a dictionary-like object for saving inputs
+            This sets `wandb.config`, a dictionary-like object for saving inputs
             to your job, like hyperparameters for a model or settings for a data
             preprocessing job. The config will show up in a table in the UI that
             you can use to group, filter, and sort runs. Keys should not contain
             `.` in their names, and values should be under 10 MB.
             If dict, argparse or absl.flags: will load the key value pairs into
-                the wandb.config object.
+                the `wandb.config` object.
             If str: will look for a yaml file by that name, and load config from
-                that file into the wandb.config object.
+                that file into the `wandb.config` object.
         save_code: (bool, optional) Turn this on to save the main script or
             notebook to W&B. This is valuable for improving experiment
             reproducibility and to diff code across experiments in the UI. By
             default this is off, but you can flip the default behavior to on
-            in [Settings](wandb.ai/settings).
+            in [your settings page](https://wandb.ai/settings).
         group: (str, optional) Specify a group to organize individual runs into
             a larger experiment. For example, you might be doing cross
             validation, or you might have multiple jobs that train and evaluate
             a model against different test sets. Group gives you a way to
             organize runs together into a larger whole, and you can toggle this
-            on and off in the UI. For more details, see
-            [Grouping](docs.wandb.com/library/grouping).
+            on and off in the UI. For more details, see our
+            [guide to grouping runs](https://docs.wandb.com/library/grouping).
         job_type: (str, optional) Specify the type of run, which is useful when
             you're grouping runs together into larger experiments using group.
             For example, you might have multiple jobs in a group, with job types
@@ -665,13 +670,13 @@ def init(
             table to charts. Keeping these run names short makes the chart
             legends and tables easier to read. If you're looking for a place to
             save your hyperparameters, we recommend saving those in config.
-        notes: (str, optional) A longer description of the run, like a -m commit
+        notes: (str, optional) A longer description of the run, like a `-m` commit
             message in git. This helps you remember what you were doing when you
             ran this run.
         dir: (str, optional) An absolute path to a directory where metadata will
             be stored. When you call `download()` on an artifact, this is the
             directory where downloaded files will be saved. By default this is
-            the ./wandb directory.
+            the `./wandb` directory.
         resume: (bool, str, optional) Sets the resuming behavior. Options:
             `"allow"`, `"must"`, `"never"`, `"auto"` or `None`. Defaults to `None`.
             Cases:
@@ -690,9 +695,10 @@ def init(
                 `WANDB_RUN_ID="UNIQUE_ID"` and it is identical to a previous run,
                 wandb will automatically resume the run with the id. Otherwise
                 wandb will crash.
-            See https://docs.wandb.com/library/advanced/resuming for more.
+            See [our guide to resuming runs](https://docs.wandb.com/library/advanced/resuming)
+            for more.
         reinit: (bool, optional) Allow multiple `wandb.init()` calls in the same
-            process. (default: False)
+            process. (default: `False`)
         magic: (bool, dict, or str, optional) The bool controls whether we try to
             auto-instrument your script, capturing basic details of your run
             without you having to add more wandb code. (default: `False`)
@@ -721,16 +727,16 @@ def init(
             logged in to W&B. If `False`, this will let the script run in offline
             mode if a user isn't logged in to W&B. (default: `False`)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
-            tensorboardX and saves the relevant events file. (default: `False`)
-        monitor_gym: (bool, optional) Automatically logs videos of environment when
+            tensorboardX and save the relevant events file. (default: `False`)
+        monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
-            See https://docs.wandb.com/library/integrations/openai-gym
+            See [our guide to this integration](https://docs.wandb.com/library/integrations/openai-gym).
         id: (str, optional) A unique ID for this run, used for resuming. It must
             be unique in the project, and if you delete a run you can't reuse
             the ID. Use the name field for a short descriptive name, or config
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
-            See https://docs.wandb.com/library/resuming
+            See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
 
     Examples:
