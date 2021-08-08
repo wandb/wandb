@@ -16,6 +16,20 @@ import sys
 import threading
 import time
 import traceback
+from types import TracebackType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    TextIO,
+    Tuple,
+    Type,
+    Union,
+)
+from typing import TYPE_CHECKING
 
 import click
 import requests
@@ -29,7 +43,14 @@ from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
+from wandb.apis.public import Api as PublicApi
 from wandb.errors import Error
+from wandb.proto.wandb_internal_pb2 import (
+    FilePusherStats,
+    MetricRecord,
+    PollExitResponse,
+    RunRecord,
+)
 from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
 from wandb.viz import (
     create_custom_chart,
@@ -44,6 +65,8 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
+from .interface.interface import BackendSender
+from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
@@ -56,47 +79,21 @@ from .lib import (
     sparkline,
     telemetry,
 )
+from .lib.reporting import Reporter
+from .wandb_artifacts import Artifact
+from .wandb_settings import Settings, SettingsConsole
+from .wandb_setup import _WandbSetup
 
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import (
-        Any,
-        Dict,
-        List,
-        Optional,
-        Sequence,
-        TextIO,
-        Tuple,
-        Union,
-        Type,
-        Callable,
+if TYPE_CHECKING:
+    from typing import NoReturn
+
+    from .data_types import WBValue
+
+    from .interface.artifacts import (
+        ArtifactEntry,
+        ArtifactManifest,
     )
-    from types import TracebackType
-    from .wandb_settings import Settings, SettingsConsole
-    from .interface.summary_record import SummaryRecord
-    from .interface.interface import BackendSender
-    from .lib.reporting import Reporter
-    from wandb.proto.wandb_internal_pb2 import (
-        RunRecord,
-        FilePusherStats,
-        PollExitResponse,
-        MetricRecord,
-    )
-    from .wandb_setup import _WandbSetup
-    from wandb.apis.public import Api as PublicApi
-    from .wandb_artifacts import Artifact
-
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from typing import NoReturn
-
-        from .data_types import WBValue
-
-        from .interface.artifacts import (
-            ArtifactEntry,
-            ArtifactManifest,
-        )
 
 
 logger = logging.getLogger("wandb")
@@ -217,8 +214,7 @@ class RunStatusChecker(object):
 
 
 class Run(object):
-    """
-    A unit of computation logged by wandb. Typically this is an ML experiment.
+    """A unit of computation logged by wandb. Typically this is an ML experiment.
 
     Create a run with `wandb.init()`.
 
@@ -416,6 +412,8 @@ class Run(object):
             imp.pytorch_ignite = True
         if mods.get("transformers"):
             imp.transformers_huggingface = True
+        if mods.get("jax"):
+            imp.jax = True
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -464,20 +462,12 @@ class Run(object):
 
     @property
     def dir(self) -> str:
-        """
-        Returns:
-            (str): The directory where all of the files associated with the run are
-                placed.
-        """
+        """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property
     def config(self) -> wandb_config.Config:
-        """
-        Returns:
-            (Config): A config object (similar to a nested dict) of key
-                value pairs associated with the hyperparameters of the run.
-        """
+        """Returns the config object associated with this run."""
         return self._config
 
     @property
@@ -486,10 +476,10 @@ class Run(object):
 
     @property
     def name(self) -> Optional[str]:
-        """
-        Returns:
-            (str): the display name of the run. It does not need to be unique
-                and ideally is descriptive.
+        """Returns the display name of the run.
+
+        Display names are not guaranteed to be unique and may be descriptive.
+        By default, they are randomly generated.
         """
         if self._name:
             return self._name
@@ -505,10 +495,11 @@ class Run(object):
 
     @property
     def notes(self) -> Optional[str]:
-        r"""
-        Returns:
-            (str): notes associated with the run. Notes can be a multiline string
-                and can also use markdown and latex equations inside $$ like $\\{x}"""
+        """Returns the notes associated with the run, if there are any.
+
+        Notes can be a multiline string and can also use markdown and latex equations
+        inside `$$`, like `$x + 3$`.
+        """
         if self._notes:
             return self._notes
         if not self._run_obj:
@@ -523,10 +514,7 @@ class Run(object):
 
     @property
     def tags(self) -> Optional[Tuple]:
-        """
-        Returns:
-            (Tuple[str]): tags associated with the run
-        """
+        """Returns the tags associated with the run, if there are any."""
         if self._tags:
             return self._tags
         run_obj = self._run_obj or self._run_obj_offline
@@ -542,30 +530,24 @@ class Run(object):
 
     @property
     def id(self) -> str:
-        """id property.
-
-        Returns:
-            (str): the run_id associated with the run
-        """
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        """Returns the identifier for this run."""
+        if TYPE_CHECKING:
             assert self._run_id is not None
         return self._run_id
 
     @property
     def sweep_id(self) -> Optional[str]:
-        """
-        Returns:
-            (str, optional): the sweep id associated with the run or None
-        """
+        """Returns the ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
             return None
         return self._run_obj.sweep_id or None
 
     @property
     def path(self) -> str:
-        """
-        Returns:
-            (str): the path to the run `[entity]/[project]/[run_id]`
+        """Returns the path to the run.
+
+        Run paths include entity, project, and run ID, in the format
+        `entity/project/run_id`.
         """
         parts = []
         for e in [self._entity, self._project, self._run_id]:
@@ -575,9 +557,7 @@ class Run(object):
 
     @property
     def start_time(self) -> float:
-        """
-        Returns:
-            (int): the unix time stamp in seconds when the run started
+        """Returns the unix time stamp, in seconds, when the run started.
         """
         if not self._run_obj:
             return self._start_time
@@ -586,10 +566,7 @@ class Run(object):
 
     @property
     def starting_step(self) -> int:
-        """
-        Returns:
-            (int): the first step of the run
-        """
+        """Returns the first step of the run."""
         if not self._run_obj:
             return self._starting_step
         else:
@@ -597,23 +574,16 @@ class Run(object):
 
     @property
     def resumed(self) -> bool:
-        """
-        Returns:
-            (bool): whether or not the run was resumed
-        """
+        """Returns True if the run was resumed, False otherwise."""
         if self._run_obj:
             return self._run_obj.resumed
         return False
 
     @property
     def step(self) -> int:
-        """
-        Every time you call wandb.log() it will by default increment the step
-        counter.
+        """Returns the current value of the step.
 
-        Returns:
-            (int): step counter
-        """
+        This counter is incremented by `wandb.log`."""
         return self.history._step
 
     def project_name(self) -> str:
@@ -635,16 +605,14 @@ class Run(object):
 
     @property
     def group(self) -> str:
-        """
+        """Returns the name of the group associated with the run.
+
         Setting a group helps the W&B UI organize runs in a sensible way.
 
         If you are doing a distributed training you should give all of the
             runs in the training the same group.
         If you are doing crossvalidation you should give all the crossvalidation
             folds the same group.
-
-        Returns:
-            (str): name of W&B group associated with run.
         """
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.run_group if run_obj else ""
@@ -656,10 +624,7 @@ class Run(object):
 
     @property
     def project(self) -> str:
-        """
-        Returns:
-            (str): name of W&B project associated with run.
-        """
+        """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
     def log_code(
@@ -669,21 +634,21 @@ class Run(object):
         include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
-        """
-        log_code() saves the current state of your code to a W&B artifact.  By
-        default it walks the current directory and logs all files that end with ".py".
+        """Saves the current state of your code to a W&B artifact.
+
+        By default it walks the current directory and logs all files that end with `.py`.
 
         Arguments:
-            root (str, optional): The relative (to os.getcwd()) or absolute path to
+            root (str, optional): The relative (to `os.getcwd()`) or absolute path to
                 recursively find code from.
-            name (str, optional): The name of our code artifact.  By default we'll name
-                the artifact "source-$RUN_ID".  There may be scenarios where you want
-                many runs to share the same artifact.  Specifying name allows you to achieve that.
+            name (str, optional): The name of our code artifact. By default we'll name
+                the artifact `source-$RUN_ID`. There may be scenarios where you want
+                many runs to share the same artifact. Specifying name allows you to achieve that.
             include_fn (callable, optional): A callable that accepts a file path and
-                returns True when it should be included and False otherwise.  This
+                returns True when it should be included and False otherwise. This
                 defaults to: `lambda path: path.endswith(".py")`
             exclude_fn (callable, optional): A callable that accepts a file path and
-                returns True when it should be excluded and False otherwise.  This
+                returns `True` when it should be excluded and `False` otherwise. This
                 defaults to: `lambda path: False`
 
         Examples:
@@ -721,10 +686,9 @@ class Run(object):
         return self.log_artifact(art)
 
     def get_url(self) -> Optional[str]:
-        """
-        Returns:
-            A url (str, optional) for the W&B run or None if the run
-            is offline
+        """Returns the url for the W&B run, if there is one.
+
+        Offline runs will not have a url.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -732,10 +696,9 @@ class Run(object):
         return self._get_run_url()
 
     def get_project_url(self) -> Optional[str]:
-        """
-        Returns:
-            A url (str, optional) for the W&B project associated with
-            the run or None if the run is offline
+        """Returns the url for the W&B project associated with the run, if there is one.
+
+        Offline runs will not have a project url.
         """
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
@@ -743,11 +706,7 @@ class Run(object):
         return self._get_project_url()
 
     def get_sweep_url(self) -> Optional[str]:
-        """
-        Returns:
-            A url (str, optional) for the sweep associated with the run
-            or None if there is no associated sweep or the run is offline.
-        """
+        """Returns the url for the sweep associated with the run, if there is one."""
         if not self._run_obj:
             wandb.termwarn("URL not available in offline run")
             return None
@@ -755,19 +714,14 @@ class Run(object):
 
     @property
     def url(self) -> Optional[str]:
-        """
-        Returns:
-            (str): name of W&B url associated with run.
-        """
+        """Returns the W&B url associated with the run."""
         return self.get_url()
 
     @property
     def entity(self) -> str:
-        """
-        Returns:
-            (str): name of W&B entity associated with run. Entity is either
-                a user name or an organization name.
-        """
+        """Returns the name of the W&B entity associated with the run.
+
+        Entity can be a user name or the name of a team or organization."""
         return self._entity or ""
 
     def _label_internal(
@@ -1001,7 +955,8 @@ class Run(object):
 
         Add singleton can be called many times in one run and it will only be
         updated when the value changes. The last value logged will be the one
-        persisted to the server"""
+        persisted to the server.
+        """
         value_extra = {"type": data_type, "key": key, "value": value}
 
         if data_type not in self.config["_wandb"]:
@@ -1023,52 +978,56 @@ class Run(object):
         commit: bool = None,
         sync: bool = None,
     ) -> None:
-        """Log a dict to the global run's history.
+        """Logs a dictonary of data to the current run's history.
 
         Use `wandb.log` to log data from runs, such as scalars, images, video,
-        histograms, and matplotlib plots.
+        histograms, plots, and tables.
 
-        The most basic usage is `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`.
-        This will save a history row associated with the run with `train-loss=0.5`
-        and `accuracy=0.9`. Visualize logged data in the workspace at wandb.ai,
-        or locally on a self-hosted instance of the W&B app:
-        https://docs.wandb.ai/self-hosted
+        See our [guides to logging](https://docs.wandb.ai/guides/track/log) for
+        live examples, code snippets, best practices, and more.
 
-        Export data to explore in a Jupyter notebook, for example, with the API:
-        https://docs.wandb.ai/ref/public-api
+        The most basic usage is `wandb.log({"train-loss": 0.5, "accuracy": 0.9})`.
+        This will save the loss and accuracy to the run's history and update
+        the summary values for these metrics.
 
-        Each time you call wandb.log(), this adds a new row to history and updates
-        the summary values for each key logged. In the UI, summary values show
-        up in the run table to compare single values across runs. You might want
-        to update summary manually to set the *best* value instead of the *last*
-        value for a given metric. After you finish logging, you can set summary:
-        `wandb.run.summary["accuracy"] = 0.9`.
+        Visualize logged data in the workspace at [wandb.ai](https://wandb.ai),
+        or locally on a [self-hosted instance](https://docs.wandb.ai/self-hosted)
+        of the W&B app, or export data to visualize and explore locally, e.g. in
+        Jupyter notebooks, with [our API](https://docs.wandb.ai/guides/track/public-api-guide).
+
+        In the UI, summary values show up in the run table to compare single values across runs.
+        Summary values can also be set directly with `wandb.run.summary["key"] = value`.
 
         Logged values don't have to be scalars. Logging any wandb object is supported.
         For example `wandb.log({"example": wandb.Image("myimage.jpg")})` will log an
-        example image which will be displayed nicely in the wandb UI. See
-        https://docs.wandb.com/library/reference/data_types for all of the different
-        supported types.
+        example image which will be displayed nicely in the W&B UI.
+        See the [reference documentation](https://docs.wandb.com/library/reference/data_types)
+        for all of the different supported types or check out our
+        [guides to logging](https://docs.wandb.ai/guides/track/log) for examples,
+        from 3D molecular structures and segmentation masks to PR curves and histograms.
+        `wandb.Table`s can be used to logged structured data. See our
+        [guide to logging tables](https://docs.wandb.ai/guides/data-vis/log-tables)
+        for details.
 
-        Logging nested metrics is encouraged and is supported in the wandb API, so
-        you could log multiple accuracy values with `wandb.log({'dataset-1':
-        {'acc': 0.9, 'loss': 0.3} ,'dataset-2': {'acc': 0.8, 'loss': 0.2}})`
-        and the metrics will be organized in the wandb UI.
+        Logging nested metrics is encouraged and is supported in the W&B UI.
+        If you log with a nested dictionary like `wandb.log({"train":
+        {"acc": 0.9}, "val": {"acc": 0.8}})`, the metrics will be organized into
+        `train` and `val` sections in the W&B UI.
 
-        W&B keeps track of a global step so logging related metrics together is
-        encouraged, so by default each time wandb.log is called a global step
-        is incremented. If it's inconvenient to log related metrics together
-        calling `wandb.log({'train-loss': 0.5, commit=False})` and then
-        `wandb.log({'accuracy': 0.9})` is equivalent to calling
-        `wandb.log({'train-loss': 0.5, 'accuracy': 0.9})`
+        wandb keeps track of a global step, which by default increments with each
+        call to `wandb.log`, so logging related metrics together is encouraged.
+        If it's inconvenient to log related metrics together
+        calling `wandb.log({"train-loss": 0.5, commit=False})` and then
+        `wandb.log({"accuracy": 0.9})` is equivalent to calling
+        `wandb.log({"train-loss": 0.5, "accuracy": 0.9})`.
 
-        wandb.log is not intended to be called more than a few times per second.
+        `wandb.log` is not intended to be called more than a few times per second.
         If you want to log more frequently than that it's better to aggregate
         the data on the client side or you may get degraded performance.
 
         Arguments:
             row: (dict, optional) A dict of serializable python objects i.e `str`,
-                `ints`, `floats`, `Tensors`, `dicts`, or `wandb.data_types`.
+                `ints`, `floats`, `Tensors`, `dicts`, or any of the `wandb.data_types`.
             commit: (boolean, optional) Save the metrics dict to the wandb server
                 and increment the step.  If false `wandb.log` just updates the current
                 metrics dict with the row argument and metrics won't be saved until
@@ -1080,6 +1039,9 @@ class Run(object):
                 change the behaviour of `wandb.log`.
 
         Examples:
+            For more and more detailed examples, see
+            [our guides to logging](https://docs.wandb.com/guides/track/log).
+
             Basic usage
             ```python
             wandb.log({'accuracy': 0.9, 'epoch': 5})
@@ -1125,8 +1087,6 @@ class Run(object):
                 wandb.Object3D(open("sample.gltf")),
                 wandb.Object3D(open("sample.glb"))]})
             ```
-
-            For more examples, see https://docs.wandb.com/library/log
 
         Raises:
             wandb.Error: if called before `wandb.init`
@@ -1188,7 +1148,7 @@ class Run(object):
         base_path: Optional[str] = None,
         policy: str = "live",
     ) -> Union[bool, List[str]]:
-        """ Ensure all files matching `glob_str` are synced to wandb with the policy specified.
+        """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
         Arguments:
             glob_str: (string) a relative or absolute path to a unix glob or regular
@@ -1283,9 +1243,10 @@ class Run(object):
         return restore(name, run_path or self.path, replace, root or self.dir)
 
     def finish(self, exit_code: int = None) -> None:
-        """Marks a run as finished, and finishes uploading all data.  This is
-        used when creating multiple runs in the same process.  We automatically
-        call this method when your script exits.
+        """Marks a run as finished, and finishes uploading all data.
+
+        This is used when creating multiple runs in the same process. We automatically
+        call this method when your script exits or if you use the run context manager.
         """
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
@@ -1300,12 +1261,13 @@ class Run(object):
         module.unset_globals()
 
     def join(self, exit_code: int = None) -> None:
-        """Deprecated alias for `finish()` - please use finish"""
+        """Deprecated alias for `finish()` - please use finish."""
         self.finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
     def plot_table(self, vega_spec_name, data_table, fields, string_fields=None):  # type: ignore
         """Creates a custom plot on a table.
+
         Arguments:
             vega_spec_name: the name of the spec for the plot
             table_key: the key used to log the data table
@@ -1381,7 +1343,6 @@ class Run(object):
             (str): url if the run is part of a sweep
             (None): if the run is not part of the sweep
         """
-
         r = self._run_obj
         if not r:
             return ""
@@ -2075,17 +2036,18 @@ class Run(object):
         return m
 
     # TODO(jhr): annotate this
-    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None) -> None:  # type: ignore
-        wandb.watch(models, criterion, log, log_freq, idx)
+    def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
+        wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
     def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
-        """ Declare an artifact as an input to a run, call `download` or `file` on
-        the returned object to get the contents locally.
+        """Declare an artifact as an input to a run.
+
+        Call `download` or `file` on the returned object to get the contents locally.
 
         Arguments:
             artifact_or_name: (str or Artifact) An artifact name.
-                May be prefixed with entity/project. Valid names
+                May be prefixed with entity/project/. Valid names
                 can be in the following forms:
                     - name:version
                     - name:alias
@@ -2138,7 +2100,7 @@ class Run(object):
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> wandb_artifacts.Artifact:
-        """ Declare an artifact as output of a run.
+        """Declare an artifact as an output of a run.
 
         Arguments:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
@@ -2172,9 +2134,10 @@ class Run(object):
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
     ) -> wandb_artifacts.Artifact:
-        """ Declare (or append tp) a non-finalized artifact as output of a run. Note that you must call
-        run.finish_artifact() to finalize the artifact. This is useful when distributed jobs
-        need to all contribute to the same artifact.
+        """Declare (or append to) a non-finalized artifact as output of a run.
+
+        Note that you must call run.finish_artifact() to finalize the artifact.
+        This is useful when distributed jobs need to all contribute to the same artifact.
 
         Arguments:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
@@ -2223,8 +2186,9 @@ class Run(object):
         aliases: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
     ) -> wandb_artifacts.Artifact:
-        """ Finish a non-finalized artifact as output of a run. Subsequent "upserts" with
-        the same distributed ID will result in a new version
+        """Finishes a non-finalized artifact as output of a run.
+
+        Subsequent "upserts" with the same distributed ID will result in a new version.
 
         Arguments:
             artifact_or_path: (str or Artifact) A path to the contents of this artifact,
@@ -2424,8 +2388,10 @@ class Run(object):
         return exc_type is None
 
     def mark_preempting(self) -> None:
-        """Mark this run as preempting and tell the internal process
-        to immediately report this to the server."""
+        """Marks this run as preempting.
+
+        Also tells the internal process to immediately report this to server.
+        """
         if self._backend:
             self._backend.interface.publish_preempting()
 
@@ -2437,26 +2403,26 @@ def restore(
     replace: bool = False,
     root: Optional[str] = None,
 ) -> Union[None, TextIO]:
-    """ Downloads the specified file from cloud storage into the current directory
-        or run directory.  By default this will only download the file if it doesn't
-        already exist.
+    """Downloads the specified file from cloud storage.
 
-        Arguments:
-            name: the name of the file
-            run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
-                if wandb.init has not been called, this is required.
-            replace: whether to download the file even if it already exists locally
-            root: the directory to download the file to.  Defaults to the current
-                directory or the run directory if wandb.init was called.
+    File is placed into the current directory or run directory.
+    By default will only download the file if it doesn't already exist.
 
-        Returns:
-            None if it can't find the file, otherwise a file object open for reading
+    Arguments:
+        name: the name of the file
+        run_path: optional path to a run to pull files from, i.e. `username/project_name/run_id`
+            if wandb.init has not been called, this is required.
+        replace: whether to download the file even if it already exists locally
+        root: the directory to download the file to.  Defaults to the current
+            directory or the run directory if wandb.init was called.
 
-        Raises:
-            wandb.CommError: if we can't connect to the wandb backend
-            ValueError: if the file is not found or can't find run_path
+    Returns:
+        None if it can't find the file, otherwise a file object open for reading
+
+    Raises:
+        wandb.CommError: if we can't connect to the wandb backend
+        ValueError: if the file is not found or can't find run_path
     """
-
     is_disabled = wandb.run is not None and wandb.run.disabled
     run = None if is_disabled else wandb.run
     if run_path is None:
@@ -2496,8 +2462,7 @@ except AttributeError:
 
 
 def finish(exit_code: int = None) -> None:
-    """
-    Marks a run as finished, and finishes uploading all data.
+    """Marks a run as finished, and finishes uploading all data.
 
     This is used when creating multiple runs in the same process.
     We automatically call this method when your script exits.

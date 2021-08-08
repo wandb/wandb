@@ -1,3 +1,50 @@
+## 0.11.2 (August 2, 2021)
+
+#### :bug: Bug Fix
+
+- Restore vendored graphql-core library because of network regression
+
+## 0.11.1 (July 29, 2021)
+
+#### :hourglass: Deprecated
+
+- Python 3.5 will not be supported as of `wandb==0.12.0`
+
+#### :bug: Bug Fix
+
+- Reduce Memory Footprint of Images In Tables
+- Added a dependency on graphql-core>=2.3.0
+- Removed urllib3 pin to avoid conflicts, if you see urllib3 related errors run `pip install --upgrade urllib3`
+- Improved Public API HTTP error messages
+- Set run.dir to the generated directory name in disabled mode
+
+#### :nail_care: Enhancement
+
+- Adds support for native Jax array logging
+- Tables now support Molecule data type
+- Improve Stable-Baselines3 API by auto log model's name and always upload models at the end of training
+- Implements the sweep local controller using wandb/sweeps
+
+## 0.11.0 (July 15, 2021)
+
+#### :hourglass: No Longer Supported
+
+- Remove Python 2.7 support
+
+#### :bug: Bug Fix
+
+- Fix issue where `wandb.watch()` broke model saving in pytorch
+- Fix issue where uniform sweep parameters were parsed as int_uniform
+- Fix issue where file_stream thread was killed on 4xx errors
+
+#### :nail_care: Enhancement
+
+- Improve performance of artifact logging by making it non-blocking
+- Add wandb integration for Stable-Baselines3
+- Improve keras callback validation logging inference logic
+- Expose sweep state via the public API
+- Improve performance of sweep run fetches via the API
+
 ## 0.10.33 (June 28, 2021)
 
 #### :bug: Bug Fix

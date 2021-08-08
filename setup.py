@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """wandb setup."""
 
+import warnings
+
 from setuptools import setup
 
 
@@ -10,6 +12,15 @@ with open('package_readme.md') as readme_file:
 
 with open('requirements.txt') as requirements_file:
     requirements = requirements_file.read().splitlines()
+
+try:
+    with open('wandb/sweeps_engine/requirements.txt') as sweeps_requirements_file:
+        sweeps_requirements = sweeps_requirements_file.read().splitlines()
+except FileNotFoundError:
+    warnings.warn("Sweeps module is not present, unable to determine "
+                  "extra requirements for sweeps. Will not be able to build "
+                  "sweeps extras locally. Run `make submodule-update` to get module.")
+    sweeps_requirements = []
 
 test_requirements = [
     'mock>=2.0.0',
@@ -21,11 +32,10 @@ aws_requirements = ['boto3']
 grpc_requirements = ['grpcio==1.27.2']
 kubeflow_requirements = ['kubernetes', 'minio', 'google-cloud-storage', 'sh']
 media_requirements = ['numpy', 'moviepy', 'pillow', 'bokeh', 'soundfile', 'plotly']
-sweeps_requirements = ['numpy']
 
 setup(
     name='wandb',
-    version='0.10.34.dev1',
+    version='0.11.3.dev1',
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -39,6 +49,7 @@ setup(
     package_data={
         'wandb': [
             'py.typed',
+            'sweeps_engine/requirements.txt'
         ]
     },
     entry_points={
@@ -52,7 +63,7 @@ setup(
     license="MIT license",
     zip_safe=False,
     # keywords='wandb',
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
