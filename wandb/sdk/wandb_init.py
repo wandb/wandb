@@ -171,7 +171,7 @@ class _WandbInit(object):
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
 
-        self._wl._check_local()
+            self._wl._check_local()
 
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false
