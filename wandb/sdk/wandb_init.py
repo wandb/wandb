@@ -25,8 +25,8 @@ from typing import Any, Dict, Optional, Sequence, Union
 import shortuuid  # type: ignore
 import six
 import wandb
+from wandb import trigger
 
-from wandb import set_trace, trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -431,7 +431,6 @@ class _WandbInit(object):
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
-        backend.check_local()
 
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
