@@ -36,7 +36,7 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
-def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout=30.0):
+def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout=None):
     """
     Log in to W&B.
 
@@ -74,7 +74,6 @@ class _WandbLogin(object):
         self._silent = None
         self._wl = None
         self._key = None
-        self._timeout = None
 
     def setup(self, kwargs):
         self.kwargs = kwargs
@@ -99,9 +98,6 @@ class _WandbLogin(object):
 
     def set_silent(self, silent):
         self._silent = silent
-
-    def set_timeout(self, timeout):
-        self._timeout = timeout
 
     def login(self):
         apikey_configured = self.is_apikey_configured()
@@ -167,7 +163,6 @@ class _WandbLogin(object):
             api=api,
             no_offline=self._settings.force,
             no_create=self._settings.force,
-            timeout=self._timeout,
         )
         if key is False:
             directive = (
@@ -198,7 +193,7 @@ def _login(
     _backend=None,
     _silent=None,
     _disable_warning=None,
-    timeout=30.0,
+    timeout=None,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
@@ -218,13 +213,8 @@ def _login(
     if _silent:
         wlogin.set_silent(_silent)
 
-    timeout = kwargs.pop("timeout", None)
-    if timeout:
-        wlogin.set_timeout(timeout)
-
     # configure login object
     wlogin.setup(kwargs)
-
     if wlogin._settings._offline:
         return False
     elif wandb.util._is_kaggle() and not wandb.util._has_internet():

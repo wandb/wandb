@@ -2,8 +2,8 @@ import sys
 
 from wandb.errors import InputTimeoutError
 
-DEFAULT_TIMEOUT = 30.0
-INTERVAL = 0.05
+DEFAULT_TIMEOUT = None
+INTERVAL = 0.1
 TIMEOUT_CODE = -2
 
 # telnet convention

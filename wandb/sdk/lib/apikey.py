@@ -46,7 +46,6 @@ def prompt_api_key(  # noqa: C901
     no_offline=False,
     no_create=False,
     local=False,
-    timeout=30.0,
 ):
     """Prompt for api key.
 
@@ -90,7 +89,7 @@ def prompt_api_key(  # noqa: C901
     elif len(choices) == 1:
         result = choices[0]
     else:
-        result = prompt_choices(choices, timeout=timeout)
+        result = prompt_choices(choices, timeout=settings.timeout)
 
     api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
     if result == LOGIN_CHOICE_ANON:

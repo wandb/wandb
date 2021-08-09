@@ -975,7 +975,7 @@ def _prompt_choice():
         return -1
 
 
-def _prompt_choice_with_timeout(timeout=30.0):
+def _prompt_choice_with_timeout(timeout=None):
     timeout_log = (
         "Input timeout occured! run `wandb login` to enable logging runs to W&B"
     )
