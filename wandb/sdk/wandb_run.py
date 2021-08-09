@@ -53,9 +53,9 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.util import (
     add_import_hook,
+    is_unicode_safe,
     sentry_set_scope,
     to_forward_slash_path,
-    is_unicode_safe,
 )
 from wandb.viz import (
     create_custom_chart,
