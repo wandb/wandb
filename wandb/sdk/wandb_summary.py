@@ -1,13 +1,10 @@
 #
 import abc
+import typing as t
 
 import six
-import wandb
 
 from .interface.summary_record import SummaryItem, SummaryRecord
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    import typing as t
 
 
 def _get_dict(d):

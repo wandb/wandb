@@ -1,0 +1,4 @@
+global-exclude tests/*
+recursive-exclude tests *
+recursive-exclude tests_py35 *
+recursive-exclude examples *
