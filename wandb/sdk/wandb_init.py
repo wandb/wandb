@@ -13,6 +13,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 from __future__ import print_function
 
 import datetime
+import json
 import logging
 import os
 import platform
@@ -537,6 +538,27 @@ class _WandbInit(object):
                     tel.feature.resumed = True
             run._set_run_obj(ret.run)
 
+        cp = s.from_checkpoint
+        if cp:
+            # TODO: move this somewhere else
+            # TODO: allow restore from different checkpoint, how?
+            if ":" not in cp:
+                cp = f"{cp}:latest"
+            cp_art = run.use_artifact(cp)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                cp_art.download(root=tmpdirname)
+                ckpt_metaname = "checkpoint.json"
+                ckpt_fname = os.path.join(tmpdirname, ckpt_metaname)
+                with open(ckpt_fname) as json_file:
+                    data = json.load(json_file)
+                    # TODO: these are not right
+                    run.config.update(data["config"])
+                    run.summary.update(data["summary"])
+                    run_obj = run._run_obj
+                    assert run_obj
+                    run_obj.starting_step = max(data["step"] - 1, 0)
+                    run._set_run_obj(run_obj)
+
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
@@ -598,6 +620,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
+    from_checkpoint: str = None,
 ) -> Union[Run, RunDisabled, None]:
     """Starts a new run to track and log to W&B.
 
