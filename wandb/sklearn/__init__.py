@@ -630,13 +630,16 @@ def plot_feature_importances(
         if found_attribute == "feature_importances_":
             importances = model.feature_importances_
         elif found_attribute == "coef_":  # ElasticNet or ElasticNetCV like models
-            importances = np.median(model.coef_, axis=0)
+            importances = model.coef_
         elif found_attribute == "feature_log_prob_":  # coef_ was
             # deprecated in
             # sklearn 0.24,
             # replaced with
             # feature_log_prob_
-            importances = np.median(model.feature_log_prob_, axis=0)
+            importances = model.feature_log_prob_
+
+        if len(importances.shape) == 2:
+            importances = np.median(importances, axis=0)
 
         indices = np.argsort(importances)[::-1]
         importances = importances[indices]
