@@ -197,7 +197,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             if local_version_info.get("outOfDate", None) is not None:
                 latest_version = local_version_info["latestVersionString"]
                 wandb.termwarn(
-                    f"Upgrade to W&B Local {latest_version} to get the latest features available.. For upgrade details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
+                    f"Upgrade to W&B Local {latest_version} to get the latest features available. For details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
                 )
 
     def _check(self):
