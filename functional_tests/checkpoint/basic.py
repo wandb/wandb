@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+"""checkpoint basic.
+
+---
+id: 99.0.1
+check-ext-wandb: {}
+assert:
+  - :wandb:runs_len: 4
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][exitcode]: 0
+  - :wandb:runs[2][exitcode]: 0
+  - :wandb:runs[3][exitcode]: 0
+"""
 
 import wandb
 
