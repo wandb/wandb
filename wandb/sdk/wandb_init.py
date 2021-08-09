@@ -25,7 +25,8 @@ from typing import Any, Dict, Optional, Sequence, Union
 import shortuuid  # type: ignore
 import six
 import wandb
-from wandb import trigger
+
+from wandb import set_trace, trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
@@ -170,6 +171,8 @@ class _WandbInit(object):
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
             settings._apply_user(user_settings)
+
+        self._wl._check_local()
 
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false

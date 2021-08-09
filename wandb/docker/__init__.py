@@ -124,11 +124,3 @@ def image_id(image_name):
         return shell(
             ["inspect", image_name, "--format", "{{index .RepoDigests 0}}"]
         ) or image_id_from_registry(image_name)
-
-
-def container_id(container_name: str):
-    container_id = shell(
-        ["ps", "--filter", f"name={container_name}", "--format", "{{.ID}}"]
-    )
-    image_name = shell(["inspect", f"{container_id}", "--format", "{{.Image}}"])
-    return shell(["inspect", image_name, "--format", "{{index .RepoDigests 0}}"])

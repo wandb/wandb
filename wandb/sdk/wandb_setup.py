@@ -93,7 +93,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._settings.freeze()
 
         wandb.termsetup(self._settings, logger)
-
         self._check()
         self._setup()
 
@@ -185,6 +184,19 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             user_settings["email"] = email
 
         return user_settings
+
+    def _check_local(self):
+        if self._settings.base_url != "http://api.wandb.ai/":
+            local_version_info = self._server._serverinfo.get(
+                "latestLocalVersionInfo", None
+            )
+            if local_version_info is None:
+                return
+            if local_version_info["outOfDate"]:
+                latest_version = local_version_info["latestVersionString"]
+                wandb.termwarn(
+                    f"Upgrade to W&B Local {latest_version} to get the latest features available.. For upgrade details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
+                )
 
     def _check(self):
         if hasattr(threading, "main_thread"):

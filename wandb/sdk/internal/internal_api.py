@@ -302,6 +302,10 @@ class Api(object):
         cli_query = """
             serverInfo {
                 cliVersionInfo
+                latestLocalVersionInfo{
+                    outOfDate
+                    latestVersionString
+                }
             }
         """
         query_str = """
@@ -324,7 +328,6 @@ class Api(object):
         """
         query_new = gql(query_str.replace("_CLI_QUERY_", cli_query))
         query_old = gql(query_str.replace("_CLI_QUERY_", ""))
-
         for query in query_new, query_old:
             try:
                 res = self.gql(query)
