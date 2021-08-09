@@ -187,6 +187,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
     def _check_local(self):
         if self._settings.base_url != "http://api.wandb.ai/":
+            if (
+                self._server is None
+            ):  # TODO(kpt) should we check it again and load the viewer
+                self._load_viewer()
             local_version_info = self._server._serverinfo.get(
                 "latestLocalVersionInfo", {}
             )
