@@ -1200,6 +1200,13 @@ def uri_from_path(path):
     return url.path if url.path[0] != "/" else url.path[1:]
 
 
+def is_unicode_safe(stream):
+    """returns true if the stream supports UTF-8"""
+    if not hasattr(stream, "encoding"):
+        return False
+    return stream.encoding == "UTF-8"
+
+
 def _has_internet():
     """Attempts to open a DNS connection to Googles root servers"""
     try:
