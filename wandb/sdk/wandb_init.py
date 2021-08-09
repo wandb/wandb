@@ -26,7 +26,6 @@ import shortuuid  # type: ignore
 import six
 import wandb
 from wandb import trigger
-
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install

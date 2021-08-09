@@ -188,11 +188,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _check_local(self):
         if self._settings.base_url != "http://api.wandb.ai/":
             local_version_info = self._server._serverinfo.get(
-                "latestLocalVersionInfo", None
+                "latestLocalVersionInfo", {}
             )
-            if local_version_info is None:
-                return
-            if local_version_info["outOfDate"]:
+            if local_version_info.get("outOfDate", None) is not None:
                 latest_version = local_version_info["latestVersionString"]
                 wandb.termwarn(
                     f"Upgrade to W&B Local {latest_version} to get the latest features available.. For upgrade details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
