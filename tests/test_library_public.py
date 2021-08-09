@@ -156,6 +156,7 @@ SYMBOLS_RUN = {
     "config_static",
     "log",
     "log_artifact",
+    "log_checkpoint",
     "upsert_artifact",
     "finish_artifact",
     "use_artifact",
