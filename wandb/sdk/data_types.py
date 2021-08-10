@@ -1817,18 +1817,20 @@ class Image(BatchableMedia):
         self._classes = None
         self._boxes = None
         self._masks = None
-
         # Allows the user to pass an Image object as the first parameter and have a perfect copy,
         # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
-        elif isinstance(data_or_path, six.string_types):
+        elif isinstance(data_or_path, str):
             self._initialize_from_path(data_or_path)
         else:
             self._initialize_from_data(data_or_path, mode)
 
         self._set_initialization_meta(grouping, caption)
         self._set_initialization_children(classes, boxes, masks)
+
+        self._width, self._height = self.image.size  # type: ignore
+        self._free_ram()
 
     # flake8: noqa: C901
     def _set_initialization_children(
@@ -1891,9 +1893,6 @@ class Image(BatchableMedia):
                 "You have defined class sets in a box and/or mask. "
                 + "This method is deprecated and has been moved to an argument of the Image class."
             )
-
-        self._width, self._height = self._image.size  # type: ignore
-        self._free_ram()
 
     def _set_initialization_meta(
         self, grouping: Optional[str] = None, caption: Optional[str] = None
