@@ -104,6 +104,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -310,7 +311,7 @@ class Settings(object):
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
-        timeout: float = None,
+        login_timeout: float = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
         strict: str = None,

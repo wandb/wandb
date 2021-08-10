@@ -18,7 +18,7 @@ def echo(prompt):
     sys.stdout.flush()
 
 
-def posix_input_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
+def posix_stdin_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
     echo(prompt)
     sel = selectors.DefaultSelector()
     sel.register(sys.stdin, selectors.EVENT_READ)
@@ -33,7 +33,7 @@ def posix_input_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
         raise InputTimeoutError(timeout_log)
 
 
-def windows_input_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
+def windows_stdin_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
     echo(prompt)
     begin = time.monotonic()
     end = begin + timeout
@@ -64,9 +64,9 @@ except ImportError:
     import selectors
     import termios
 
-    input_timeout = posix_input_timeout
+    stdin_timeout = posix_stdin_timeout
 
 else:
     import time
 
-    input_timeout = windows_input_timeout
+    stdin_timeout = windows_stdin_timeout

@@ -245,8 +245,12 @@ def mocked_run(runner, test_settings):
 def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
-    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
-    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(
+        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
+    )
+    monkeypatch.setattr(
+        wandb.wandb_lib.apikey, "prompt_choices", lambda x, input_timeout=None: x[0]
+    )
     monkeypatch.setattr(click, "launch", lambda x: 1)
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
@@ -331,7 +335,8 @@ def notebook(live_mock_server, test_dir):
             setupcell = setupnb["cells"][0]
             # Ensure the notebooks talks to our mock server
             new_source = setupcell["source"].replace(
-                "__WANDB_BASE_URL__", live_mock_server.base_url,
+                "__WANDB_BASE_URL__",
+                live_mock_server.base_url,
             )
             if save_code:
                 new_source = new_source.replace("__WANDB_NOTEBOOK_NAME__", nb_path)
@@ -439,7 +444,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
         mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
         run = wandb.init(
             settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
-            **args["wandb_init"]
+            **args["wandb_init"],
         )
         yield run
         wandb.join()
@@ -464,7 +469,7 @@ def wandb_init(request, runner, mocker, mock_server):
                     console="off", mode="offline", _except_exit=False
                 ),
                 *args,
-                **kwargs
+                **kwargs,
             )
         finally:
             unset_globals()
@@ -604,7 +609,9 @@ class MockProcess:
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
     return BackendSender(
-        record_q=record_q, result_q=internal_result_q, process=internal_process,
+        record_q=record_q,
+        result_q=internal_result_q,
+        process=internal_process,
     )
 
 
@@ -787,7 +794,10 @@ def backend_interface(_start_backend, _stop_backend, _internal_sender):
 
 @pytest.fixture
 def publish_util(
-    mocked_run, mock_server, backend_interface, parse_ctx,
+    mocked_run,
+    mock_server,
+    backend_interface,
+    parse_ctx,
 ):
     def fn(
         metrics=None,

@@ -44,7 +44,7 @@ from wandb.env import error_reporting_enabled
 import wandb
 from wandb.errors import CommError, term, InputTimeoutError
 from wandb.old.core import wandb_dir
-from wandb.sdk.lib.input_timeout import input_timeout, TIMEOUT_CODE
+from wandb.sdk.lib.stdin_timeout import stdin_timeout, TIMEOUT_CODE
 
 
 logger = logging.getLogger(__name__)
@@ -975,14 +975,14 @@ def _prompt_choice():
         return -1
 
 
-def _prompt_choice_with_timeout(timeout=None):
+def _prompt_choice_with_timeout(input_timeout=None):
     timeout_log = (
         "Input timeout occured! run `wandb login` to enable logging runs to W&B"
     )
     try:
-        choice = input_timeout(
+        choice = stdin_timeout(
             prompt="%s: Enter your choice: " % term.LOG_STRING,
-            timeout=timeout,
+            timeout=input_timeout,
             timeout_log=timeout_log,
         )
         return int(choice) - 1
@@ -993,11 +993,11 @@ def _prompt_choice_with_timeout(timeout=None):
         return TIMEOUT_CODE
 
 
-def prompt_choices(choices, allow_manual=False, timeout=0):
+def prompt_choices(choices, allow_manual=False, input_timeout=None):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
-    idx = _prompt_choice_with_timeout(timeout)
+    idx = _prompt_choice_with_timeout(input_timeout)
     while idx < 0 or idx > len(choices) - 1:
         if idx == TIMEOUT_CODE:
             return len(choices) - 1  # LOGIN_CHOICE_DRYRUN
