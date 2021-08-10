@@ -7,16 +7,9 @@ import threading
 
 from six.moves import queue
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.internal.meta import Meta
-    from wandb.sdk.internal.sender import SendManager
-    from wandb.sdk.interface.interface import BackendSender
-else:
-    from wandb.sdk_py27.internal.meta import Meta
-    from wandb.sdk_py27.internal.sender import SendManager
-    from wandb.sdk_py27.interface.interface import BackendSender
+from wandb.sdk.internal.meta import Meta
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.interface.interface import BackendSender
 
 
 @pytest.fixture()
