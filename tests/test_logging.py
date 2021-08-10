@@ -41,7 +41,7 @@ def test_logging(wandb_init):
     root_logger.info("info5")
     root_logger.warn("warn5")
 
-    # Work around unknown test flake WB-XXXX
+    # Work around unknown test flake WB-6348
     try:
         root_logs.remove("git repository is invalid")
     except ValueError:
