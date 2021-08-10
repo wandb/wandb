@@ -25,6 +25,7 @@ import wandb
 from wandb import util
 from wandb.compat import tempfile
 from wandb.sdk.data_types import (
+    _ClassesIdType,
     _numpy_arrays_to_lists,
     BatchableMedia,
     BoundingBoxes2D,
