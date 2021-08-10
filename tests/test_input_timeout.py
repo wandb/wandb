@@ -6,7 +6,6 @@ import pytest
 
 @pytest.fixture
 def input_timeout(monkeypatch):
-    monkeypatch.setattr('sys.stdin', io.StringIO('1'))
+    monkeypatch.setattr("sys.stdin", io.StringIO("1"))
     choice = stdin_timeout("", None, "")
-    assert choice == '1'
-
+    assert choice == "1"
