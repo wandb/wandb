@@ -185,21 +185,6 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         return user_settings
 
-    def _check_local(self):
-        if self._settings.base_url != "http://api.wandb.ai/":
-            if (
-                self._server is None
-            ):  # TODO(kpt) should we check it again and load the viewer
-                self._load_viewer()
-            local_version_info = self._server._serverinfo.get(
-                "latestLocalVersionInfo", {}
-            )
-            if local_version_info.get("outOfDate", None) is not None:
-                latest_version = local_version_info["latestVersionString"]
-                wandb.termwarn(
-                    f"Upgrade to W&B Local {latest_version} to get the latest features available. For details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
-                )
-
     def _check(self):
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():

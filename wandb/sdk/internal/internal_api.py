@@ -299,13 +299,16 @@ class Api(object):
 
     @normalize_exceptions
     def viewer_server_info(self):
-        cli_query = """
-            serverInfo {
-                cliVersionInfo
-                latestLocalVersionInfo{
+        local_query = """
+                latestLocalVersionInfo {
                     outOfDate
                     latestVersionString
                 }
+        """
+        cli_query = """
+            serverInfo {
+                cliVersionInfo
+                _LOCAL_QUERY_
             }
         """
         query_str = """
@@ -326,9 +329,21 @@ class Api(object):
             _CLI_QUERY_
         }
         """
-        query_new = gql(query_str.replace("_CLI_QUERY_", cli_query))
-        query_old = gql(query_str.replace("_CLI_QUERY_", ""))
-        for query in query_new, query_old:
+        queries = []
+        queries.append(
+            gql(
+                query_str.replace("_CLI_QUERY_", cli_query).replace(
+                    "_LOCAL_QUERY_", local_query
+                )
+            )
+        )
+        queries.append(
+            gql(
+                query_str.replace("_CLI_QUERY_", cli_query).replace("_LOCAL_QUERY_", "")
+            )
+        )
+        queries.append(gql(query_str.replace("_CLI_QUERY_", "")))
+        for query in queries:
             try:
                 res = self.gql(query)
             except UsageError as e:

@@ -557,8 +557,7 @@ class Run(object):
 
     @property
     def start_time(self) -> float:
-        """Returns the unix time stamp, in seconds, when the run started.
-        """
+        """Returns the unix time stamp, in seconds, when the run started."""
         if not self._run_obj:
             return self._start_time
         else:
@@ -740,7 +739,7 @@ class Run(object):
         code: str = None,
         repo: str = None,
         code_version: str = None,
-        **kwargs: str
+        **kwargs: str,
     ) -> None:
         if self._settings.label_disable:
             return
@@ -1812,6 +1811,7 @@ class Run(object):
             )
 
         self._show_version_info(footer=True)
+        self._show_local_warning()
 
     def _show_version_info(self, footer: bool = None) -> None:
         package_problem = False
@@ -1889,6 +1889,22 @@ class Run(object):
                 history_lines += format_str.format(*row)
             wandb.termlog(history_lines)
 
+    def _show_local_warning(self) -> None:
+        if not self._poll_exit_response or not self._poll_exit_response.local_info:
+            return
+
+        if self._settings._offline:
+            return
+
+        if self._settings.base_url != "http://api.wandb.ai/":
+            local_info = self._poll_exit_response.local_info
+            latest_version = local_info.version
+            out_of_date = local_info.out_of_date
+            if latest_version != "" and out_of_date:
+                wandb.termwarn(
+                    f"Upgrade to W&B Local {latest_version} to get the latest features available. For details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
+                )
+
     def _show_files(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
             return
@@ -1950,7 +1966,7 @@ class Run(object):
         summary: str = None,
         goal: str = None,
         overwrite: bool = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Define metric properties which will later be logged with `wandb.log()`.
 
