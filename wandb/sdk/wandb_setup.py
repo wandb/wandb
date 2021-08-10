@@ -93,6 +93,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._settings.freeze()
 
         wandb.termsetup(self._settings, logger)
+
         self._check()
         self._setup()
 

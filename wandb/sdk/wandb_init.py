@@ -177,7 +177,10 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
+        d = dict(
+            _start_time=time.time(),
+            _start_datetime=datetime.datetime.now(),
+        )
         settings.update(d)
 
         if not settings._noop:
@@ -382,7 +385,6 @@ class _WandbInit(object):
                 sweep_config, config
             )
         )
-
         if s._noop:
             return self._make_run_disabled()
         if s.reinit or (s._jupyter and s.reinit is not False):
@@ -428,7 +430,6 @@ class _WandbInit(object):
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
-
         # Make sure we are logged in
         # wandb_login._login(_backend=backend, _settings=self.settings)
 
