@@ -1350,9 +1350,6 @@ class ImageMask(Media):
                 val["class_labels"] = class_labels
 
             self.validate(val)
-            self._val = val
-            self._key = key
-
             ext = "." + self.type_name() + ".png"
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ext)
 
@@ -1364,6 +1361,9 @@ class ImageMask(Media):
 
             image.save(tmp_path, transparency=None)
             self._set_file(tmp_path, is_tmp=True, extension=ext)
+
+        self._val = val
+        self._key = key
 
     def bind_to_run(
         self,
@@ -1866,12 +1866,16 @@ class Image(BatchableMedia):
             if not isinstance(masks, dict):
                 raise ValueError('Images "masks" argument must be a dictionary')
             masks_final: Dict[str, ImageMask] = {}
+
             for key in masks:
                 mask_item = masks[key]
                 if isinstance(mask_item, ImageMask):
                     masks_final[key] = mask_item
                 elif isinstance(mask_item, dict):
                     masks_final[key] = ImageMask(mask_item, key)
+
+                if "class_labels" not in masks_final[key]._val:
+                    continue
 
                 # move classes to image class object if any are missing from mask
                 for key, name in masks_final[key]._val["class_labels"].items():
