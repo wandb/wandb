@@ -1324,7 +1324,7 @@ class ParseCTX(object):
     @property
     def summary_raw(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files.get("wandb-summary.json", [])[-1]
+        summary = fs_files.get("wandb-summary.json", [{}])[-1]
         return summary
 
     @property
