@@ -1896,11 +1896,11 @@ class Run(object):
         if self._settings._offline:
             return
 
-        if self._settings.base_url != "http://api.wandb.ai/":
+        if self._settings.base_url != "https://api.wandb.ai/":
             local_info = self._poll_exit_response.local_info
             latest_version = local_info.version
             out_of_date = local_info.out_of_date
-            if latest_version != "" and out_of_date:
+            if out_of_date:
                 wandb.termwarn(
                     f"Upgrade to W&B Local {latest_version} to get the latest features available. For details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
                 )

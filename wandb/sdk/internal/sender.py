@@ -1011,12 +1011,23 @@ class SendManager(object):
     def _local_info(self):
         self._viewer_server_info()
         logger.info(self._cached_server_info)
+
         local_info = wandb_internal_pb2.LocalInfo()
         latest_local_version_info = self._cached_server_info.get(
             "latestLocalVersionInfo", {}
         )
-        local_info.version = latest_local_version_info.get("latestVersionString", "")
-        local_info.out_of_date = latest_local_version_info.get("outOfDate", False)
+
+        server_info_is_empty = len(self._cached_server_info) == 0
+        local_version_exists = "latestLocalVersionInfo" in self._cached_server_info
+        # if the server info is not empty it means the query was successful
+        # and if it doesn't have the localVersionInfo it means that the docker is out-of-date
+        out_of_date = not server_info_is_empty and not local_version_exists
+
+        latest_local_version = "0.9.42"  # TODO(kpt) Use cli realses to get the versions instead of hard-coded
+        local_info.version = latest_local_version_info.get(
+            "latestVersionString", latest_local_version
+        )
+        local_info.out_of_date = latest_local_version_info.get("outOfDate", out_of_date)
         return local_info
 
     def __next__(self):
