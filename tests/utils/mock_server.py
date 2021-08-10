@@ -39,6 +39,7 @@ def default_ctx():
         "artifacts_by_id": {},
         "upsert_bucket_count": 0,
         "max_cli_version": "0.10.33",
+        "out_of_date": False,
         "runs": {},
         "run_ids": [],
         "file_names": [],
@@ -467,8 +468,8 @@ def create_app(user_ctx=None):
                             },
                             "latestLocalVersionInfo": {
                                 "outOfDate": ctx.get("out_of_date", False),
-                                "latestVersionString": ctx.get(
-                                    "latest_version", "0.9.42"
+                                "latestVersionString": str(
+                                    ctx.get("latest_version", "0.9.42")
                                 ),
                             },
                         },

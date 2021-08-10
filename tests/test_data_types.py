@@ -173,8 +173,7 @@ def test_image_accepts_masks_without_class_labels(mocked_run):
 
 
 def test_cant_serialize_to_other_run(mocked_run, test_settings):
-    """This isn't implemented yet. Should work eventually.
-    """
+    """This isn't implemented yet. Should work eventually."""
     other_run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     other_run._set_backend(mocked_run._backend)
     wb_image = wandb.Image(image)
@@ -314,8 +313,8 @@ def test_matplotlib_image():
 
 
 def test_matplotlib_image_with_multiple_axes():
-    """Ensures that wandb.Image constructor can accept a pyplot or figure 
-    reference in which the figure has multiple axes. Importantly, there is 
+    """Ensures that wandb.Image constructor can accept a pyplot or figure
+    reference in which the figure has multiple axes. Importantly, there is
     no requirement that any of the axes have plotted data.
     """
     for fig in utils.matplotlib_multiple_axes_figures():
@@ -329,8 +328,8 @@ def test_matplotlib_image_with_multiple_axes():
     sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
 )
 def test_matplotlib_plotly_with_multiple_axes():
-    """Ensures that wandb.Plotly constructor can accept a plotly figure 
-    reference in which the figure has multiple axes. Importantly, there is 
+    """Ensures that wandb.Plotly constructor can accept a plotly figure
+    reference in which the figure has multiple axes. Importantly, there is
     no requirement that any of the axes have plotted data.
     """
     for fig in utils.matplotlib_multiple_axes_figures():
@@ -342,7 +341,7 @@ def test_matplotlib_plotly_with_multiple_axes():
 
 def test_plotly_from_matplotlib_with_image():
     """Ensures that wandb.Plotly constructor properly errors when
-    a pyplot with image is passed 
+    a pyplot with image is passed
     """
     # try the figure version
     fig = utils.matplotlib_with_image()
@@ -358,8 +357,7 @@ def test_plotly_from_matplotlib_with_image():
 
 
 def test_image_from_matplotlib_with_image():
-    """Ensures that wandb.Image constructor supports a pyplot with image is passed 
-    """
+    """Ensures that wandb.Image constructor supports a pyplot with image is passed"""
     # try the figure version
     fig = utils.matplotlib_with_image()
     wandb.Image(fig)  # this should not error.
@@ -401,8 +399,7 @@ def test_make_plot_media_from_matplotlib_with_image():
 
 
 def test_create_bokeh_plot(mocked_run):
-    """Ensures that wandb.Bokeh constructor accepts a bokeh plot 
-    """
+    """Ensures that wandb.Bokeh constructor accepts a bokeh plot"""
     bp = dummy_data.bokeh_plot()
     bp = wandb.data_types.Bokeh(bp)
     bp.bind_to_run(mocked_run, "bokeh", 0)
@@ -792,7 +789,7 @@ def test_numpy_arrays_to_list():
     conv = data_types._numpy_arrays_to_lists
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
-    assert conv(np.array(({"a": [np.array((1, 2,))]}, 3))) == [{"a": [[1, 2]]}, 3]
+    assert conv(np.array(({"a": [np.array((1, 2,))]}, 3,))) == [{"a": [[1, 2]]}, 3]
 
 
 def test_partitioned_table_from_json(runner, mock_server, api):
@@ -1014,3 +1011,13 @@ def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
     run.log({"logged_table": jt})
     run.finish()
     assert True
+
+
+@pytest.mark.parametrize("oudated", [True, False])
+def test_local_warning(live_mock_server, test_settings, capsys, oudated):
+    live_mock_server.set_ctx({"out_of_date": oudated})
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    captured = capsys.readouterr().err
+    msg = "WARNING Upgrade to W&B Local"
+    assert msg in captured if oudated else msg not in captured
