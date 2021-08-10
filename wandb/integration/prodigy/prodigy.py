@@ -1,20 +1,18 @@
 import base64
 import collections
 from copy import deepcopy
-import importlib
 import io
-import json
 import urllib
 
 import pandas as pd
 from PIL import Image
-import spacy
 import wandb
 from wandb import util
 from wandb.plots.utils import (
     deprecation_notice,
     test_missing
 )
+
 
 def named_entity(docs):
     deprecation_notice()
@@ -23,12 +21,13 @@ def named_entity(docs):
         "spacy",
         required="part_of_speech requires the spacy library, install with `pip install spacy`",
     )
-    corpus_lib = importlib.util.find_spec("en_core_web_md")
-    if corpus_lib is None:
-        print("Error: part_of_speech requires `en_core_web_md` library, install with `python -m spacy download en_core_web_md`")
+
+    util.get_module(
+        "en_core_web_md",
+        required="part_of_speech requires `en_core_web_md` library, install with `python -m spacy download en_core_web_md`",
+    )
 
     if test_missing(docs=docs):
-        wandb.termlog("Visualizing named entity recognition.")
         html = spacy.displacy.render(
             docs, style="ent", page=True, minify=True, jupyter=False
         )
@@ -49,7 +48,7 @@ def merge(dict1, dict2):
     return result
 
 
-def get_keys(list_data_dict, struct):
+def get_keys(list_data_dict, struct, array_dict_types):
     # Get the structure of the JSON objects in the database
     # This is similar to getting a JSON schema but with slightly different format
     for i, item in enumerate(list_data_dict):
@@ -59,14 +58,19 @@ def get_keys(list_data_dict, struct):
             if k not in struct.keys():
                 if isinstance(v, list):
                     if len(v) > 0 and isinstance(v[0], list):
-                        # nested list coordinate structure
+                        # nested list structure
+                        struct[k] = type(v)  # type list
+                    elif len(v) > 0 and not (isinstance(v[0], list) or isinstance(v[0], dict)):
+                        # list of singular values
                         struct[k] = type(v)  # type list
                     else:
+                        # list of dicts
+                        array_dict_types.append(k)  # keep track of keys that are type list[dict]
                         struct[k] = {}
-                        struct[k] = get_keys(v, struct[k])
+                        struct[k] = get_keys(v, struct[k], array_dict_types)
                 elif isinstance(v, dict):
                     struct[k] = {}
-                    struct[k] = get_keys([v], struct[k])
+                    struct[k] = get_keys([v], struct[k], array_dict_types)
                 else:
                     struct[k] = type(v)
             else:
@@ -78,14 +82,19 @@ def get_keys(list_data_dict, struct):
                         # nested list coordinate structure
                         if (struct[k] == type(None)) or (v is not None):
                             struct[k] = type(v)  # type list
+                    elif len(v) > 0 and not (isinstance(v[0], list) or isinstance(v[0], dict)):
+                        # single list with values
+                        if (struct[k] == type(None)) or (v is not None):
+                            struct[k] = type(v)  # type list
                     else:
+                        array_dict_types.append(k)  # keep track of keys that are type list[dict]
                         struct[k] = {}
-                        struct[k] = get_keys(v, struct[k])
+                        struct[k] = get_keys(v, struct[k], array_dict_types)
                         # merge cur_struct and struct[k], remove duplicates
                         struct[k] = merge(struct[k], cur_struct)
                 elif isinstance(v, dict):
                     struct[k] = {}
-                    struct[k] = get_keys([v], struct[k])
+                    struct[k] = get_keys([v], struct[k], array_dict_types)
                     # merge cur_struct and struct[k], remove duplicates
                     struct[k] = merge(struct[k], cur_struct)
                 else:
@@ -96,12 +105,17 @@ def get_keys(list_data_dict, struct):
     return struct
 
 
-def standardize(item, structure):
-    for k,v in structure.items():
+def standardize(item, structure, array_dict_types):
+    for k, v in structure.items():
         if k not in item:
             # If the structure/field does not exist
-            if isinstance(v, dict):
-                # If key k is not a singular value
+            if isinstance(v, dict) and (not k in array_dict_types):
+                # If key k is of type dict, and not not a type list[dict]
+                item[k] = {}
+                standardize(item[k], v, array_dict_types)
+            elif isinstance(v, dict) and (k in array_dict_types):
+                # If key k is of type dict, and is actually of type list[dict],
+                # just treat as a list and set to None by default
                 item[k] = None
             else:
                 # Assign a default type
@@ -109,12 +123,14 @@ def standardize(item, structure):
         else:
             # If the structure/field already exists and is a list or dict
             if isinstance(item[k], list):
-                # ignore if item is a nested list structure
-                if not (len(item[k]) > 0 and isinstance(item[k][0], list)):
+                # ignore if item is a nested list structure or list of non-dicts
+                condition = (not (len(item[k]) > 0 and isinstance(item[k][0], list))) and (
+                    not (len(item[k]) > 0 and not (isinstance(item[k][0], list) or isinstance(item[k][0], dict))))
+                if condition:
                     for subitem in item[k]:
-                        standardize(subitem, v)
+                        standardize(subitem, v, array_dict_types)
             elif isinstance(item[k], dict):
-                standardize(item[k], v)
+                standardize(item[k], v, array_dict_types)
 
 
 def create_table(data):
@@ -122,14 +138,20 @@ def create_table(data):
     table_df = pd.DataFrame(data)
     columns = list(table_df.columns)
     if ("spans" in table_df.columns) and ("text" in table_df.columns):
-        columns.append('spans_visual')
+        columns.append("spans_visual")
+    if ("image" in columns):
+        columns.append("image_visual")
     main_table = wandb.Table(columns=columns)
 
     # Convert to dictionary format to maintain order during processing
     matrix = table_df.to_dict(orient="records")
 
-    # TODO: Check if en_core_web_md exists (use import method: https://spacy.io/usage/models)
-    nlp = spacy.load("en_core_web_md", disable=['ner'])
+    # Import en_core_web_md if exists
+    en_core_web_md = util.get_module(
+        "en_core_web_md",
+        required="part_of_speech requires `en_core_web_md` library, install with `python -m spacy download en_core_web_md`",
+    )
+    nlp = en_core_web_md.load(disable=["ner"])
 
     # Go through each individual row
     for i, document in enumerate(matrix):
@@ -142,30 +164,37 @@ def create_table(data):
             ents = []
             if ("spans" in document) and (document["spans"] is not None):
                 for span in document["spans"]:
-                    charspan = doc.char_span(span["start"], span["end"], span["label"])
-                    ents.append(charspan)
+                    if ("start" in span) and ("end" in span) and ("label" in span):
+                        charspan = doc.char_span(span["start"], span["end"], span["label"])
+                        ents.append(charspan)
                 doc.ents = ents
                 document["spans_visual"] = named_entity(docs=doc)
+
         # Convert image link to wandb Image
         if ("image" in columns):
             # Turn into wandb image
+            document["image_visual"] = None
             if ("image" in document) and (document["image"] is not None):
                 isurl = urllib.parse.urlparse(document["image"]).scheme in ('http', 'https')
                 isbase64 = ("data:" in document["image"]) and (";base64" in document["image"])
                 if isurl:
                     # is url
-                    im = Image.open(urllib.request.urlopen(document["image"]))
-                    document["image"] = wandb.Image(im)
+                    try:
+                        im = Image.open(urllib.request.urlopen(document["image"]))
+                        document["image_visual"] = wandb.Image(im)
+                    except urllib.error.URLError:
+                        print("Warning: Image URL " + str(document["image"]) + " is invalid.")
+                        document["image_visual"] = None
                 elif isbase64:
                     # is base64 uri
                     imgb64 = document["image"].split("base64,")[1]
                     msg = base64.b64decode(imgb64)
                     buf = io.BytesIO(msg)
                     im = Image.open(buf)
-                    document["image"] = wandb.Image(im)
+                    document["image_visual"] = wandb.Image(im)
                 else:
                     # is data path
-                    document["image"] = wandb.Image(document["image"])
+                    document["image_visual"] = wandb.Image(document["image"])
 
         # Create row and append to table
         values_list = list(document.values())
@@ -186,26 +215,11 @@ def upload_dataset(dataset_name):
     database = prodigy_db.connect()
     data = database.get_dataset(dataset_name)
 
-    schema = get_keys(data, {})
+    array_dict_types = []
+    schema = get_keys(data, {}, array_dict_types)
+
     for i, d in enumerate(data):
-        standardize(data[i], schema)
+        standardize(data[i], schema, array_dict_types)
     table = create_table(data)
     wandb.log({dataset_name: table})
-    print("Prodigy dataset `" + dataset_name + "` uploaded.")
-
-
-# For development use only (REMOVE)
-def upload_json(dataset_name):
-    # Check if wandb.init has been called
-    if wandb.run is None:
-        raise ValueError("You must call wandb.init() before upload_dataset()")
-
-    # Retrieve prodigy dataset
-    with open(dataset_name) as f:
-        data = json.load(f)
-    schema = get_keys(data, {})
-    for i, d in enumerate(data):
-        standardize(data[i], schema)
-    table = create_table(data)
-    wandb.log({"random_dataset": table})
     print("Prodigy dataset `" + dataset_name + "` uploaded.")
