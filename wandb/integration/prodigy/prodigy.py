@@ -8,10 +8,7 @@ import pandas as pd
 from PIL import Image
 import wandb
 from wandb import util
-from wandb.plots.utils import (
-    deprecation_notice,
-    test_missing
-)
+from wandb.plots.utils import deprecation_notice, test_missing
 
 
 def named_entity(docs):
@@ -36,7 +33,7 @@ def named_entity(docs):
 
 
 def merge(dict1, dict2):
-    ''' Return a new dictionary by merging two dictionaries recursively. '''
+    """ Return a new dictionary by merging two dictionaries recursively. """
     result = deepcopy(dict1)
 
     for key, value in dict2.items():
@@ -51,7 +48,7 @@ def merge(dict1, dict2):
 def get_keys(list_data_dict, struct, array_dict_types):
     # Get the structure of the JSON objects in the database
     # This is similar to getting a JSON schema but with slightly different format
-    for i, item in enumerate(list_data_dict):
+    for _i, item in enumerate(list_data_dict):
         # If the list contains dict objects
         for k, v in item.items():
             # Check if key already exists in template
@@ -60,12 +57,16 @@ def get_keys(list_data_dict, struct, array_dict_types):
                     if len(v) > 0 and isinstance(v[0], list):
                         # nested list structure
                         struct[k] = type(v)  # type list
-                    elif len(v) > 0 and not (isinstance(v[0], list) or isinstance(v[0], dict)):
+                    elif len(v) > 0 and not (
+                        isinstance(v[0], list) or isinstance(v[0], dict)
+                    ):
                         # list of singular values
                         struct[k] = type(v)  # type list
                     else:
                         # list of dicts
-                        array_dict_types.append(k)  # keep track of keys that are type list[dict]
+                        array_dict_types.append(
+                            k
+                        )  # keep track of keys that are type list[dict]
                         struct[k] = {}
                         struct[k] = get_keys(v, struct[k], array_dict_types)
                 elif isinstance(v, dict):
@@ -80,14 +81,20 @@ def get_keys(list_data_dict, struct, array_dict_types):
                 if isinstance(v, list):
                     if len(v) > 0 and isinstance(v[0], list):
                         # nested list coordinate structure
-                        if (struct[k] == type(None)) or (v is not None):
+                        # if the value in the item is currently None, then update
+                        if v is not None:
                             struct[k] = type(v)  # type list
-                    elif len(v) > 0 and not (isinstance(v[0], list) or isinstance(v[0], dict)):
+                    elif len(v) > 0 and not (
+                        isinstance(v[0], list) or isinstance(v[0], dict)
+                    ):
                         # single list with values
-                        if (struct[k] == type(None)) or (v is not None):
+                        # if the value in the item is currently None, then update
+                        if v is not None:
                             struct[k] = type(v)  # type list
                     else:
-                        array_dict_types.append(k)  # keep track of keys that are type list[dict]
+                        array_dict_types.append(
+                            k
+                        )  # keep track of keys that are type list[dict]
                         struct[k] = {}
                         struct[k] = get_keys(v, struct[k], array_dict_types)
                         # merge cur_struct and struct[k], remove duplicates
@@ -98,8 +105,8 @@ def get_keys(list_data_dict, struct, array_dict_types):
                     # merge cur_struct and struct[k], remove duplicates
                     struct[k] = merge(struct[k], cur_struct)
                 else:
-                    # if the type of field k is currently NoneType, then update
-                    if (struct[k] == type(None)) or (v is not None):
+                    # if the value in the item is currently None, then update
+                    if v is not None:
                         struct[k] = type(v)
 
     return struct
@@ -109,7 +116,7 @@ def standardize(item, structure, array_dict_types):
     for k, v in structure.items():
         if k not in item:
             # If the structure/field does not exist
-            if isinstance(v, dict) and (not k in array_dict_types):
+            if isinstance(v, dict) and (k not in array_dict_types):
                 # If key k is of type dict, and not not a type list[dict]
                 item[k] = {}
                 standardize(item[k], v, array_dict_types)
@@ -124,11 +131,19 @@ def standardize(item, structure, array_dict_types):
             # If the structure/field already exists and is a list or dict
             if isinstance(item[k], list):
                 # ignore if item is a nested list structure or list of non-dicts
-                condition = (not (len(item[k]) > 0 and isinstance(item[k][0], list))) and (
-                    not (len(item[k]) > 0 and not (isinstance(item[k][0], list) or isinstance(item[k][0], dict))))
+                condition = (
+                    not (len(item[k]) > 0 and isinstance(item[k][0], list))
+                ) and (
+                    not (
+                        len(item[k]) > 0
+                        and not (
+                            isinstance(item[k][0], list) or isinstance(item[k][0], dict)
+                        )
+                    )
+                )
                 if condition:
-                    for subitem in item[k]:
-                        standardize(subitem, v, array_dict_types)
+                    for sub_item in item[k]:
+                        standardize(sub_item, v, array_dict_types)
             elif isinstance(item[k], dict):
                 standardize(item[k], v, array_dict_types)
 
@@ -139,7 +154,7 @@ def create_table(data):
     columns = list(table_df.columns)
     if ("spans" in table_df.columns) and ("text" in table_df.columns):
         columns.append("spans_visual")
-    if ("image" in columns):
+    if "image" in columns:
         columns.append("image_visual")
     main_table = wandb.Table(columns=columns)
 
@@ -154,7 +169,7 @@ def create_table(data):
     nlp = en_core_web_md.load(disable=["ner"])
 
     # Go through each individual row
-    for i, document in enumerate(matrix):
+    for _i, document in enumerate(matrix):
 
         # Text NER span visualizations
         if ("spans_visual" in columns) and ("text" in columns):
@@ -165,25 +180,36 @@ def create_table(data):
             if ("spans" in document) and (document["spans"] is not None):
                 for span in document["spans"]:
                     if ("start" in span) and ("end" in span) and ("label" in span):
-                        charspan = doc.char_span(span["start"], span["end"], span["label"])
+                        charspan = doc.char_span(
+                            span["start"], span["end"], span["label"]
+                        )
                         ents.append(charspan)
                 doc.ents = ents
                 document["spans_visual"] = named_entity(docs=doc)
 
         # Convert image link to wandb Image
-        if ("image" in columns):
+        if "image" in columns:
             # Turn into wandb image
             document["image_visual"] = None
             if ("image" in document) and (document["image"] is not None):
-                isurl = urllib.parse.urlparse(document["image"]).scheme in ('http', 'https')
-                isbase64 = ("data:" in document["image"]) and (";base64" in document["image"])
+                isurl = urllib.parse.urlparse(document["image"]).scheme in (
+                    "http",
+                    "https",
+                )
+                isbase64 = ("data:" in document["image"]) and (
+                    ";base64" in document["image"]
+                )
                 if isurl:
                     # is url
                     try:
                         im = Image.open(urllib.request.urlopen(document["image"]))
                         document["image_visual"] = wandb.Image(im)
                     except urllib.error.URLError:
-                        print("Warning: Image URL " + str(document["image"]) + " is invalid.")
+                        print(
+                            "Warning: Image URL "
+                            + str(document["image"])
+                            + " is invalid."
+                        )
                         document["image_visual"] = None
                 elif isbase64:
                     # is base64 uri
@@ -218,7 +244,7 @@ def upload_dataset(dataset_name):
     array_dict_types = []
     schema = get_keys(data, {}, array_dict_types)
 
-    for i, d in enumerate(data):
+    for i, _d in enumerate(data):
         standardize(data[i], schema, array_dict_types)
     table = create_table(data)
     wandb.log({dataset_name: table})
