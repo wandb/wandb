@@ -1830,6 +1830,7 @@ class Image(BatchableMedia):
         self._set_initialization_meta(grouping, caption)
         self._set_initialization_children(classes, boxes, masks)
 
+    # flake8: noqa: C901
     def _set_initialization_children(
         self,
         classes: Optional[Union["Classes", Sequence[dict]]] = None,
