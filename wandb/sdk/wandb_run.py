@@ -1902,7 +1902,7 @@ class Run(object):
             out_of_date = local_info.out_of_date
             if out_of_date:
                 wandb.termwarn(
-                    f"Upgrade to W&B Local {latest_version} to get the latest features available. For details, see: https://docs.wandb.ai/guides/self-hosted/local#upgrades"
+                    f"Upgrade to W&B Local {latest_version} to get the latest features. Learn more: http://wandb.me/local-upgrade"
                 )
 
     def _show_files(self) -> None:
