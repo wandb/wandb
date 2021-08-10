@@ -1649,7 +1649,7 @@ class _ImageFileType(_dtypes.Type):
 
         if classes is None:
             classes = _dtypes.UnknownType()
-        if not isinstance(classes, Classes):
+        elif not isinstance(classes, Classes):
             raise TypeError("classes must be instance of Classes")
         else:
             classes = _ClassesIdType(classes)
