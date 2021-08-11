@@ -452,7 +452,7 @@ def test_exit_poll_local(
     mock_server.ctx["local_none"] = local_none
     publish_util()
 
-    out_of_date = collect_responses.values["local_info"].out_of_date
+    out_of_date = collect_responses.local_info.out_of_date
     if empty_query:
         assert out_of_date
     elif local_none:
