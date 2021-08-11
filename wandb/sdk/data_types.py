@@ -1752,12 +1752,18 @@ class Classes(Media):
             return False
 
     def has_class(self, key: str) -> bool:
+        """
+        Checks if class exists given an id.
+        """
         for class_obj in self._class_set:
             if class_obj["id"] == key:
                 return True
         return False
 
     def set_class(self, index: Union[int, str], name: str) -> None:
+        """
+        Sets a class id and
+        """
         for class_obj in self._class_set:
             if class_obj["id"] == index:
                 class_obj["name"] = name
