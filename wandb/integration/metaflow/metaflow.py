@@ -3,6 +3,7 @@ from functools import wraps
 
 import wandb
 from fastcore.all import typedispatch
+from metaflow import current
 
 # I think importing here is more appropriate than importing in the func?
 try:
@@ -37,6 +38,7 @@ class ArtifactProxy:
                 "inputs": {},
                 "outputs": {},
                 "base": set(dir(flow)),
+                "params": {p: getattr(flow, p) for p in current.parameter_names},
             }
         )
 
@@ -99,6 +101,7 @@ def wandb_log(
         def wrapper(flow, *args, **kwargs):
             with wandb.init(settings=settings) as run:
                 proxy = ArtifactProxy(flow)
+                run.config.update(proxy.params)
                 func(proxy, *args, **kwargs)
 
                 print("=== LOGGING INPUTS ===")
