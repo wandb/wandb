@@ -47,41 +47,41 @@ handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys 
 ### wandb.init()
 
 ```text
-                  |               |                              |
- User Context     | Shared Queues |       Internal Process       |    Cloud
-                  |       .       |          .         .         |
-                   [rec_q] [res_q] [HandlerT] [WriterT] [SenderT]
-                  |       .       |          .         .         |
+                  |               |                                   |
+ User Context     | Shared Queues |          Internal Process         |  Cloud
+                  |       .       |          .         .         .    |
+                   [rec_q] [res_q] [HandlerT] [WriterT] [SenderT] [FS]
+                  |       .       |          .         .         .    |
  wandb.init()
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
  RunRecord     --[1]-->
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
                       ----------------->
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
                                        handle_run()
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
                                        _dispatch_record()
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
                                        ---------->
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
                                        --------------------->
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
                                                             send_run()
-                  |       .       |          .         .         |
-                                                             ---[2]--->
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
+                                                            ---------[2]--->
+                  |       .       |          .         .         .    |
                               <------------------------------
-                  |       .       |          .         .         |
-              <---------------
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
+              <----------------
+                  |       .       |          .         .         .    |
  RunStartReq   --[3]-->
-                  |       .       |          .         .         |
-                       ----------------->
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
+                       ---------------->
+                  |       .       |          .         .         .    |
                                        handle_request_run_start()
-                  |       .       |          .         .         |
-                              <----------
-                  |       .       |          .         .         |
+                  |       .       |          .         .         .    |
+                              <---------
+                  |       .       |          .         .         .    |
               <----------------
 ```
 
@@ -96,7 +96,7 @@ Ref | Message | File | Description
 
 ```text
                   |               |                                   |
- User Context     | Shared Queues |       Internal Process            |  Cloud
+ User Context     | Shared Queues |          Internal Process         |
                   |       .       |          .         .         .    |
                    [rec_q] [res_q] [HandlerT] [WriterT] [SenderT] [FS]
                   |       .       |          .         .         .    |
