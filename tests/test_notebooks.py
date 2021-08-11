@@ -1,11 +1,13 @@
 import os
 import platform
 import subprocess
+from wandb.sdk.lib import ipython
 import pytest
 import json
 import sys
 import wandb
-import pickle
+import tempfile
+from unittest.mock import MagicMock
 
 from wandb.errors import UsageError
 
@@ -130,3 +132,35 @@ def test_notebook_exits(live_mock_server, test_settings):
     cmd = [ipython, script_fname]
 
     subprocess.check_call(cmd)
+
+
+def test_jupyter_teardown(live_mock_server, test_settings, mocker, mocked_run):
+    # mock shell stuff
+    mock = MagicMock()
+    shell_mock = MagicMock()
+    mock.shell = shell_mock
+
+    # get tempdir that will be created
+    temp_compat_mock = MagicMock()
+    tmpdir = tempfile.TemporaryDirectory()
+
+    def temp_dir_fn(missing_ok_on_cleanup=False):
+        return tmpdir
+
+    temp_compat_mock.TemporaryDirectory = temp_dir_fn
+    mocker.patch("wandb.wandb_sdk.wandb_artifacts.compat_tempfile", temp_compat_mock)
+    _wi = wandb.wandb_sdk.wandb_init._WandbInit()
+    _wi.setup({"settings": test_settings, "save_code": True})
+    _wi.run = mocked_run
+    # TODO: investigate sometimes the code dir doesn't get made...
+    try:
+        os.makedirs(mocked_run._settings._tmp_code_dir)
+    except:
+        pass
+    with open(os.path.join(mocked_run._settings._tmp_code_dir, "test.py"), "w") as fp:
+        fp.write("print('test')")
+    _wi.notebook = mock
+
+    _wi._jupyter_teardown()
+    # ensure the directory was removed
+    assert not os.path.exists(tmpdir.name)
