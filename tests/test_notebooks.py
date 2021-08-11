@@ -1,7 +1,6 @@
 import os
 import platform
 import subprocess
-from wandb.sdk.lib import ipython
 import pytest
 import json
 import sys
