@@ -2,7 +2,7 @@
 """Test prodigy integration
 
 ---
-id: 0.0.1
+id: 6.0.1
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][summary][tumblr_images][nrows]: 108
