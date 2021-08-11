@@ -123,9 +123,6 @@ class ExitHooks(object):
 
     def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
-        if code == 999:
-            print("do this")
-            print("do that")
         if code is None:
             code = 0
         elif not isinstance(code, int):
