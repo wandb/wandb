@@ -445,14 +445,14 @@ def test_upgrade_removed(
 @pytest.mark.parametrize("local_none", [True, False])
 @pytest.mark.parametrize("oudated", [True, False])
 def test_exit_poll_local(
-    publish_util, mock_server, mocked_run, empty_query, local_none, oudated
+    publish_util, mock_server, collect_responses, empty_query, local_none, oudated
 ):
     mock_server.ctx["out_of_date"] = oudated
     mock_server.ctx["empty_query"] = empty_query
     mock_server.ctx["local_none"] = local_none
     publish_util()
 
-    out_of_date = mocked_run._poll_exit_response.local_info.out_of_date
+    out_of_date = collect_responses.values["local_info"].out_of_date
     if empty_query:
         assert out_of_date
     elif local_none:

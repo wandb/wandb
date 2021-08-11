@@ -752,6 +752,7 @@ def _stop_backend(
     _internal_sender,
     start_handle_thread,
     start_send_thread,
+    collect_responses,
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
@@ -762,9 +763,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
-                    mocked_run._poll_exit_response.local_info = (
-                        poll_exit_resp.local_info
-                    )
+                    collect_responses.values["local_info"] = poll_exit_resp.local_info
                     break
             time.sleep(1)
         _internal_sender.join()
@@ -860,3 +859,13 @@ def inject_requests(mock_server):
 
     # TODO(jhr): make this compatible with live_mock_server
     return utils.InjectRequests(ctx=mock_server.ctx)
+
+
+class Responses:
+    values = {}
+
+
+@pytest.fixture
+def collect_responses():
+    responses = Responses()
+    yield responses
