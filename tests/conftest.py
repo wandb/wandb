@@ -762,7 +762,9 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
-                    mocked_run._poll_exit_response = poll_exit_resp
+                    mocked_run._poll_exit_response.local_info = (
+                        poll_exit_resp.local_info
+                    )
                     break
             time.sleep(1)
         _internal_sender.join()
