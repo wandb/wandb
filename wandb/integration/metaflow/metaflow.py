@@ -64,7 +64,7 @@ def _wandb_log(name: str, data: pd.DataFrame, **kwargs):
 @typedispatch  # noqa: F811
 def _wandb_log(name: str, data: nn.Module, **kwargs):
     if kwargs["models"]:
-        artifact = wandb.Artifact(name, type="dataset")
+        artifact = wandb.Artifact(name, type="model")
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             torch.save(data, f)
         kwargs["run"].log_artifact(artifact)
@@ -73,7 +73,7 @@ def _wandb_log(name: str, data: nn.Module, **kwargs):
 @typedispatch  # noqa: F811
 def _wandb_log(name: str, data: BaseEstimator, **kwargs):
     if kwargs["models"]:
-        artifact = wandb.Artifact(name, type="dataset")
+        artifact = wandb.Artifact(name, type="model")
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             pickle.dump(data, f)
         kwargs["run"].log_artifact(artifact)
