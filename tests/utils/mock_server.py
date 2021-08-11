@@ -40,7 +40,6 @@ def default_ctx():
         "upsert_bucket_count": 0,
         "max_cli_version": "0.10.33",
         "out_of_date": False,
-        "viewer_state": "default",
         "runs": {},
         "run_ids": [],
         "file_names": [],
@@ -474,16 +473,21 @@ def create_app(user_ctx=None):
                 },
             }
 
-            if ctx["viewer_state"] == "post-init":
-                local_version_dict = {"latestLocalVersionInfo": None}
-
-            if ctx["viewer_state"] in ["post", "post-init"]:
-                server_info["serverInfo"].update(local_version_dict)
-
-            if ctx["viewer_state"] in ["default", "post", "post-init"]:
-                viewer_dict["data"].update(server_info)
+            server_info["serverInfo"].update(local_version_dict)
+            viewer_dict["data"].update(server_info)
 
             return json.dumps(viewer_dict)
+
+        # if "__type" in body["query"]:
+
+        #     return json.dumps(
+        #         {
+        #             "__type": {
+        #                 "fields": [{"name": "outOfDate"}, {"name": "latestVersionString"}]
+        #             }
+        #         }
+        #     )
+
         if "query Sweep(" in body["query"]:
             return json.dumps(
                 {

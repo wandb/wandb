@@ -278,13 +278,7 @@ class Api(object):
     def server_info_introspection(self):
 
         query_string = """
-            {
-                __type(name: "LocalVersionInfo") {
-                        fields {
-                        name
-                    }
-                }
-            }
+            { __type(name: "LocalVersionInfo") { fields { name } }}
         """
         query = gql(query_string)
 

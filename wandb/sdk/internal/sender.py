@@ -1017,17 +1017,13 @@ class SendManager(object):
             local_info.out_of_date = False
             return local_info
 
-        server_info_exists = len(self._api.server_info_introspection()) > 0
-
-        # TODO(kpt) Move this code to cli realse
-        res = requests.get("https://api.github.com/repos/wandb/local/releases/latest")
-        latest_local_version = (
-            res.json().get("tag_name", "latest") if res.ok else "latest"
-        )
+        server_info_intro = self._api.server_info_introspection()
+        logger.info(server_info_intro)
+        server_info_exists = len(server_info_intro) > 0
 
         if not server_info_exists:
             local_info.out_of_date = True
-            local_info.version = latest_local_version
+            local_info.version = "latest"
 
         else:
             self._viewer_server_info()
@@ -1045,7 +1041,7 @@ class SendManager(object):
                 return local_info
 
             local_info.version = latest_local_version_info.get(
-                "latestVersionString", latest_local_version
+                "latestVersionString", "latest"
             )
             local_info.out_of_date = latest_local_version_info.get("outOfDate", False)
         return local_info
