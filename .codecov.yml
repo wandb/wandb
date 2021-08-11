@@ -19,6 +19,9 @@ coverage:
       default:
         threshold: 0.75%
     patch:
+      default:
+        target: 0
+        informational: true
       sdk:
         paths:
           - wandb/sdk/*.py
