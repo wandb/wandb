@@ -50,7 +50,7 @@ def login(
         key: (string, optional) authentication key.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
-        input_timeout: (float, optional) Set timeout period. Wait `timeout` seconds
+        login_timeout: (float, optional) Set timeout period. Wait `timeout` seconds
             for user response then defaults to dryrun mode if no response.
 
     Returns:
