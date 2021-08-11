@@ -86,7 +86,14 @@ def _wandb_log(name: str, data: (dict, list, set, str, int, float, bool), **kwar
 
 @typedispatch  # noqa: F811
 def _wandb_use(name: str, data: (pd.DataFrame, nn.Module, BaseEstimator), **kwargs):  # type: ignore
+    try:
     return kwargs["run"].use_artifact(f"{name}:latest")
+    except wandb.CommError:
+        print(
+            f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
+            f"If you created an instance inline (e.g. sklearn.ensemble.RandomForestClassifier), then you can safely ignore this"
+            f"Otherwise you may want to check your internet connection!"
+        )
 
 
 def wandb_log(
