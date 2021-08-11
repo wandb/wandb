@@ -478,15 +478,18 @@ def create_app(user_ctx=None):
 
             return json.dumps(viewer_dict)
 
-        # if "__type" in body["query"]:
+        if "__type" in body["query"]:
 
-        #     return json.dumps(
-        #         {
-        #             "__type": {
-        #                 "fields": [{"name": "outOfDate"}, {"name": "latestVersionString"}]
-        #             }
-        #         }
-        #     )
+            return json.dumps(
+                {
+                    "__type": {
+                        "fields": [
+                            {"name": "outOfDate"},
+                            {"name": "latestVersionString"},
+                        ]
+                    }
+                }
+            )
 
         if "query Sweep(" in body["query"]:
             return json.dumps(
