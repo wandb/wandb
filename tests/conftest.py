@@ -439,7 +439,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
         mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
         run = wandb.init(
             settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
-            **args["wandb_init"]
+            **args["wandb_init"],
         )
         yield run
         wandb.join()
@@ -464,7 +464,7 @@ def wandb_init(request, runner, mocker, mock_server):
                     console="off", mode="offline", _except_exit=False
                 ),
                 *args,
-                **kwargs
+                **kwargs,
             )
         finally:
             unset_globals()
@@ -744,7 +744,7 @@ def _start_backend(
     yield start_backend_func
 
 
-@pytest.fixture()
+@pytest.fixture(autouse=True)
 def _stop_backend(
     mocked_run,
     internal_hm,
@@ -762,6 +762,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
+                    mocked_run._poll_exit_response = poll_exit_resp
                     break
             time.sleep(1)
         _internal_sender.join()
@@ -816,7 +817,6 @@ def publish_util(
                 interface.publish_files(**f)
             if end_cb:
                 end_cb(interface)
-
         ctx_util = parse_ctx(mock_server.ctx, run_id=mocked_run.id)
         return ctx_util
 

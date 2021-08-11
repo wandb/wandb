@@ -186,3 +186,26 @@ def test_offline_resume(test_settings, capsys, resume, found):
     run = wandb.init(mode="offline", resume=resume, settings=test_settings)
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
+
+
+@pytest.mark.parametrize("empty_query", [True, False])
+@pytest.mark.parametrize("local_none", [True, False])
+@pytest.mark.parametrize("oudated", [True, False])
+def test_local_warning(
+    live_mock_server, test_settings, capsys, oudated, empty_query, local_none
+):
+    live_mock_server.set_ctx(
+        {"out_of_date": oudated, "empty_query": empty_query, "local_none": local_none}
+    )
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    captured = capsys.readouterr().err
+
+    msg = "WARNING Upgrade to W&B Local"
+
+    if empty_query:
+        assert msg in captured
+    elif local_none:
+        assert msg not in captured
+    else:
+        assert msg in captured if oudated else msg not in captured
