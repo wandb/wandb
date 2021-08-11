@@ -4,7 +4,7 @@
 
 Ref | Identifier | File | Description
 --- | --- | --- | ---
-User Context     | N/A | N/A | Users python script: Calls wandb.init(), wandb.log()
+User Context     | N/A | N/A | Users python script: Calls wandb.init(), run.log()
 Internal Process | wandb_internal | [internal.py] | Most processing of users requests
 HandlerT | HandlerThread | [handler.py] | Single thread in the internal process to serialize all requests
 SenderT  | SenderThread  | [sender.py] | All network operations are initiated from this thread
@@ -32,7 +32,7 @@ Protobuf | File | Description
 --- | --- | ---
 RunRecord | [wandb_internal.proto] | All run parameters (entity, project, name, id, config, summary)
 RunStartRequest | [wandb_internal.proto] | Message to trigger the start of run tracking (start system metrics, etc)
-HistoryRecord | [wandb_internal.proto] | Message to send wandb.log() json history
+HistoryRecord | [wandb_internal.proto] | Message to send run.log() json history
 
 ### Important functions
 
@@ -92,7 +92,7 @@ Ref | Message | File | Description
 2   | UpsertBucket            | [internal_api.py] | GraphQL Upsert Bucket mutation
 3   | communicate_run_start() | [interface.py] | Send start run request
 
-### wandb.log()
+### run.log()
 
 ```text
                   |               |                                   |
