@@ -98,10 +98,10 @@ def _wandb_use(name: str, data: (pd.DataFrame, nn.Module, BaseEstimator), **kwar
 
 def wandb_log(
     func=None,
+    # /,  #  py38 support only
     datasets=False,
     models=False,
-    settings={}
-    # func=None, /, datasets=False, models=False, settings=wandb.Settings()  #  py38 support only
+    settings={},
 ):
     def decorator(func):
         @wraps(func)
