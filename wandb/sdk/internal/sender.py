@@ -275,8 +275,8 @@ class SendManager(object):
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         self._api.reauth()
-        self._viewer_server_info()
-        viewer, server_info = self._cached_viewer, self._cached_server_info
+        viewer = self.get_viewer_info()
+        server_info = self.get_server_info()
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
         if server_info:
@@ -408,7 +408,9 @@ class SendManager(object):
             if self._pusher:
                 self._pusher.join()
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
-            result.response.poll_exit_response.local_info.CopyFrom(self._local_info())
+            result.response.poll_exit_response.local_info.CopyFrom(
+                self.get_local_info()
+            )
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
 
@@ -995,21 +997,35 @@ class SendManager(object):
             self._fs = None
 
     def _max_cli_version(self):
-        self._viewer_server_info()
-        max_cli_version = self._cached_server_info.get("cliVersionInfo", {}).get(
+        server_info = self.get_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
         return max_cli_version
 
-    def _viewer_server_info(self):
+    def get_viewer_server_info(self):
         if not self._cached_server_info or not self._cached_viewer:
             (
                 self._cached_viewer,
                 self._cached_server_info,
             ) = self._api.viewer_server_info()
 
-    def _local_info(self):
+    def get_viewer_info(self):
+        if not self._cached_viewer:
+            self.get_viewer_server_info()
+        return self._cached_viewer
 
+    def get_server_info(self):
+        if not self._cached_server_info:
+            self.get_viewer_server_info()
+        return self._cached_server_info
+
+    def get_local_info(self):
+        """
+        This is a helper function that query the server to get the state of the local version.
+        First we perform an introspection, if it returns empty we deduce that the docker image is
+        outdate. Otherwise we use the returned response to deduce the state of the local server.
+        """
         local_info = wandb_internal_pb2.LocalInfo()
 
         latest_local_version = "latest"
@@ -1018,10 +1034,8 @@ class SendManager(object):
             local_info.out_of_date = True
             local_info.version = latest_local_version
         else:
-            self._viewer_server_info()
-            latest_local_version_info = self._cached_server_info.get(
-                "latestLocalVersionInfo", {}
-            )
+            server_info = self.get_server_info()
+            latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
             if latest_local_version_info is None:
                 local_info.out_of_date = False
             else:
