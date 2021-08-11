@@ -1063,9 +1063,6 @@ class Run(Attrs):
                     self.sweep_name,
                     withRuns=False,
                 )
-                # TODO: Older runs don't always have sweeps when sweep_name is set
-                if self.sweep:
-                    self.sweep.runs.append(self)
 
         self._attrs["summaryMetrics"] = (
             json.loads(self._attrs["summaryMetrics"])
