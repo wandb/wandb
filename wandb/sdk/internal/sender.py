@@ -1011,57 +1011,43 @@ class SendManager(object):
     def _local_info(self):
 
         local_info = wandb_internal_pb2.LocalInfo()
-        # If we are offline then this we don't need to test it.
+
+        # If we are offline then we don't need to proceed.
         if self._settings._offline:
             local_info.out_of_date = False
             return local_info
 
-        self._viewer_server_info()
-        logger.info(self._cached_server_info)
-        logger.info(self._cached_viewer)
+        server_info_exists = len(self._api.server_info_introspection()) > 0
 
-        server_info_is_empty = len(self._cached_server_info) == 0
-        cached_viewer_is_empty = len(self._cached_viewer) == 0
-
-        # TODO(kpt) Use cli realses to get the versions instead of hard-coded
+        # TODO(kpt) Move this code to cli realse
         res = requests.get("https://api.github.com/repos/wandb/local/releases/latest")
         latest_local_version = (
             res.json().get("tag_name", "latest") if res.ok else "latest"
         )
 
-        # if server_info returns empty but the viewer is not
-        # it means that the query was succesful
-        # and the current version of the docker is pre-Sep-2020
-        # https://github.com/wandb/core/pull/5632
-        if server_info_is_empty and not cached_viewer_is_empty:
+        if not server_info_exists:
             local_info.out_of_date = True
             local_info.version = latest_local_version
-            return local_info
 
-        local_version_exists = "latestLocalVersionInfo" in self._cached_server_info
-        # if the server info is not empty it means the query was successful
-        # and if it doesn't have the localVersionInfo
-        # it means that the docker is pre-March-2021
-        # https://github.com/wandb/core/pull/6561
-        if not server_info_is_empty and not local_version_exists:
-            local_info.out_of_date = True
-            local_info.version = latest_local_version
-            return local_info
+        else:
+            self._viewer_server_info()
 
-        latest_local_version_info = self._cached_server_info.get(
-            "latestLocalVersionInfo", {}
-        )
+            self._cached_server_info
 
-        # This means that the cron job didn't run yet so the values are not populated
-        # In this case we will try again in a later time
-        if local_version_exists and latest_local_version_info is None:
-            local_info.out_of_date = False
-            return local_info
+            latest_local_version_info = self._cached_server_info.get(
+                "latestLocalVersionInfo", {}
+            )
 
-        local_info.version = latest_local_version_info.get(
-            "latestVersionString", latest_local_version
-        )
-        local_info.out_of_date = latest_local_version_info.get("outOfDate", False)
+            # This means that the cron job didn't run yet so the values are not populated
+            # In this case we will try again in a later time
+            if latest_local_version_info is None:
+                local_info.out_of_date = False
+                return local_info
+
+            local_info.version = latest_local_version_info.get(
+                "latestVersionString", latest_local_version
+            )
+            local_info.out_of_date = latest_local_version_info.get("outOfDate", False)
         return local_info
 
     def __next__(self):

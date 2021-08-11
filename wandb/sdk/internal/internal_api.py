@@ -275,6 +275,24 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
+    def server_info_introspection(self):
+
+        query_string = """
+            {
+                __type(name: "LocalVersionInfo") {
+                        fields {
+                        name
+                    }
+                }
+            }
+        """
+        query = gql(query_string)
+
+        res = self.gql(query)
+
+        return res or {}
+
+    @normalize_exceptions
     def viewer(self):
         query = gql(
             """
