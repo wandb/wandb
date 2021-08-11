@@ -9,6 +9,7 @@ Internal Process | wandb_internal | [internal.py] | Most processing of users req
 HandlerT | HandlerThread | [handler.py] | Single thread in the internal process to serialize all requests
 SenderT  | SenderThread  | [sender.py] | All network operations are initiated from this thread
 WriterT  | WriterThread  | [writer.py] | Runs in parallel with Sender Thread to write a log of transactions
+FS       | FileStreamApi | [file_stream.py] | Thread to make http post requests
 
 ### Important data structures
 
@@ -31,6 +32,7 @@ Protobuf | File | Description
 --- | --- | ---
 RunRecord | [wandb_internal.proto] | All run parameters (entity, project, name, id, config, summary)
 RunStartRequest | [wandb_internal.proto] | Message to trigger the start of run tracking (start system metrics, etc)
+HistoryRecord | [wandb_internal.proto] | Message to send wandb.log() json history
 
 ### Important functions
 
@@ -52,15 +54,19 @@ handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys 
                   |       .       |          .         .         |
  wandb.init()
                   |       .       |          .         .         |
- RunRecord    ---[1]--->
+ RunRecord     --[1]-->
                   |       .       |          .         .         |
                       ----------------->
                   |       .       |          .         .         |
                                        handle_run()
                   |       .       |          .         .         |
+                                       _dispatch_record()
+                  |       .       |          .         .         |
                                        ---------->
                   |       .       |          .         .         |
                                        --------------------->
+                  |       .       |          .         .         |
+                                                            send_run()
                   |       .       |          .         .         |
                                                              ---[2]--->
                   |       .       |          .         .         |
@@ -68,7 +74,7 @@ handle_request_run_start() | [handler.py] | Process RunStartRecord, spin up sys 
                   |       .       |          .         .         |
               <---------------
                   |       .       |          .         .         |
- RunStartReq  ---[3]---->
+ RunStartReq   --[3]-->
                   |       .       |          .         .         |
                        ----------------->
                   |       .       |          .         .         |
@@ -88,7 +94,57 @@ Ref | Message | File | Description
 
 ### wandb.log()
 
-TODO
+```text
+                  |               |                                   |
+ User Context     | Shared Queues |       Internal Process            |  Cloud
+                  |       .       |          .         .         .    |
+                   [rec_q] [res_q] [HandlerT] [WriterT] [SenderT] [FS]
+                  |       .       |          .         .         .    |
+ run.log()
+                  |       .       |          .         .         .    |
+ run.history._row_add()
+                  |       .       |          .         .         .    |
+ run._history_callback()
+                  |       .       |          .         .         .    |
+ publish_history()
+                  |       .       |          .         .         .    |
+ history_dict_to_json()
+                  |       .       |          .         .         .    |
+ HistoryRecord --[1]-->
+                  |       .       |          .         .         .    |
+                      ----------------->
+                  |       .       |          .         .         .    |
+                                       handle_history()
+                  |       .       |          .         .         .    |
+                                       _history_update()
+                  |       .       |          .         .         .    |
+                                       _history_assign_step()
+                  |       .       |          .         .         .    |
+                                       _dispatch_record()
+                  |       .       |          .         .         .    |
+                                       ---------->
+                  |       .       |          .         .         .    |
+                                       --------------------->
+                  |       .       |          .         .         .    |
+                                                            send_history()
+                  |       .       |          .         .         .    |
+                                                            _fs.push()
+                  |       .       |          .         .         .    |
+                                                            ------->
+                  |       .       |          .         .         .    |
+                                                                   --[2]-->
+                  |       .       |          .         .         .    |
+                                       _update_summary()
+                  |       .       |          .         .         .    |
+
+
+```
+
+
+Ref | Message | File | Description
+--- | --- | --- | ---
+1   | \_publish\_history()    | [interface.py] | Send a HistoryRecord to the internal process
+2   | client.post()           | [file_stream.py] | Http post json to cloud server
 
 ### wandb.finish()
 
@@ -102,4 +158,5 @@ TODO
 [internal_api.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal_api.py
 [wandb_init.py]: https://github.com/wandb/client/blob/master/wandb/sdk/wandb_init.py
 [internal.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/internal.py
+[file_stream.py]: https://github.com/wandb/client/blob/master/wandb/sdk/internal/file_stream.py
 [wandb_internal.proto]: https://github.com/wandb/client/blob/master/wandb/proto/wandb_internal.proto
