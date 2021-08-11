@@ -32,7 +32,7 @@ except ImportError:
 
 class WandbDecorator(StepDecorator):
     name = "wandb_log"
-    defaults = {"datasets": False, "models": False, "wandb_init_kwargs": {}}
+    defaults = {"datasets": False, "models": False, "settings": {}}
 
     def task_pre_step(
         self,
@@ -48,13 +48,15 @@ class WandbDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        if not self.attributes["wandb_init_kwargs"]:
-            self.run = wandb.init(
-                group=f"{current.flow_name}/{current.run_id}",
-                job_type=step_name,
-            )
+        if self.attributes["settings"]:
+            self.run = wandb.init(settings=self.attributes["settings"])
         else:
-            self.run = wandb.init(**self.attributes["wandb_init_kwargs"])
+            self.run = wandb.init(
+                settings=wandb.Settings(
+                    run_group=f"{current.flow_name}/{current.run_id}",
+                    run_job_type=current.step_name,
+                )
+            )
 
         self.inputs = [inp.to_dict() for inp in inputs][0]
         for name, data in self.inputs.items():
