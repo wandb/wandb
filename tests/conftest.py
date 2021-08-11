@@ -744,7 +744,7 @@ def _start_backend(
     yield start_backend_func
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture()
 def _stop_backend(
     mocked_run,
     internal_hm,
