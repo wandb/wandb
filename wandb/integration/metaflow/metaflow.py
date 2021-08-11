@@ -1,10 +1,8 @@
 import pickle
+from functools import wraps
 
 import wandb
 from fastcore.all import typedispatch
-
-from metaflow import Step, current, plugins
-from metaflow.decorators import StepDecorator, _import_plugin_decorators
 
 # I think importing here is more appropriate than importing in the func?
 try:
@@ -30,92 +28,92 @@ except ImportError:
     )
 
 
-class WandbDecorator(StepDecorator):
-    name = "wandb_log"
-    defaults = {"datasets": False, "models": False, "settings": {}}
+class ArtifactProxy:
+    def __init__(self, flow):
+        # do this to avoid recursion problem with __setattr__
+        self.__dict__.update(
+            {
+                "flow": flow,
+                "inputs": {},
+                "outputs": {},
+                "base": set(dir(flow)),
+            }
+        )
 
-    def task_pre_step(
-        self,
-        step_name,
-        datastore,
-        metadata,
-        run_id,
-        task_id,
-        flow,
-        graph,
-        retry_count,
-        max_user_code_retries,
-        ubf_context,
-        inputs,
-    ):
-        if self.attributes["settings"]:
-            self.run = wandb.init(settings=self.attributes["settings"])
-        else:
-            self.run = wandb.init(
-                settings=wandb.Settings(
-                    run_group=f"{current.flow_name}/{current.run_id}",
-                    run_job_type=current.step_name,
-                )
-            )
+    def __setattr__(self, key, val):
+        self.outputs[key] = val
+        return setattr(self.flow, key, val)
 
-        self.inputs = [inp.to_dict() for inp in inputs][0]
-        for name, data in self.inputs.items():
-            self.wandb_use(name, data)
-
-    def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
-    ):
-        step = Step(f"{current.flow_name}/{current.run_id}/{current.step_name}")
-        params = {param: getattr(flow, param) for param in current.parameter_names}
-        self.run.config.update(params)
-
-        self.outputs = step.task.artifacts._asdict()
-        self.delta = [
-            artifact for var, artifact in self.outputs.items() if var not in self.inputs
-        ]
-
-        for artifact in self.delta:
-            self.wandb_log(artifact.id, artifact.data)
-        self.run.finish()
-
-    @typedispatch
-    def wandb_log(self, name: str, data: pd.DataFrame):
-        if self.attributes["datasets"] is True:
-            dataset = wandb.Artifact(name, type="dataset")
-            with dataset.new_file(f"{name}.csv") as f:
-                data.to_csv(f)
-        self.run.log_artifact(dataset)
-        print(f"wandb: logging artifact: {name} ({type(data)})")
-
-    @typedispatch
-    def wandb_log(self, name: str, data: nn.Module):
-        if self.attributes["models"] is True:
-            model = wandb.Artifact(name, type="model")
-            with model.new_file(f"{name}.pkl", "wb") as f:
-                torch.save(data, f)
-            self.run.log_artifact(model)
-            print(f"wandb: logging artifact: {name} ({type(data)})")
-
-    @typedispatch
-    def wandb_log(self, name: str, data: BaseEstimator):
-        if self.attributes["models"] is True:
-            model = wandb.Artifact(name, type="model")
-            with model.new_file(f"{name}.pkl", "wb") as f:
-                pickle.dump(data, f)
-            self.run.log_artifact(model)
-            print(f"wandb: logging artifact: {name} ({type(data)})")
-
-    @typedispatch
-    def wandb_log(self, name: str, data: (dict, str, int, float, bool)):  # type: ignore
-        self.run.log({name: data})
-        print(f"wandb: logging metric: {name} ({type(data)})")
-
-    @typedispatch
-    def wandb_use(self, name: str, data: (pd.DataFrame, nn.Module, BaseEstimator)):  # type: ignore
-        artifact = self.run.use_artifact(f"{name}:latest")
-        print(f"wandb: using artifact: {name} ({type(data)})")
-        return artifact
+    def __getattr__(self, key):
+        if key not in self.base:
+            self.inputs[key] = getattr(self.flow, key)
+        return getattr(self.flow, key)
 
 
-plugins.STEP_DECORATORS.append(WandbDecorator)
-_import_plugin_decorators(globals())
+@typedispatch  # noqa: F811
+def _wandb_log(name: str, data: pd.DataFrame, **kwargs):
+    if kwargs["datasets"]:
+        artifact = wandb.Artifact(name, type="dataset")
+        with artifact.new_file(f"{name}.csv") as f:
+            data.to_csv(f)
+        kwargs["run"].log_artifact(artifact)
+
+
+@typedispatch  # noqa: F811
+def _wandb_log(name: str, data: nn.Module, **kwargs):
+    if kwargs["models"]:
+        artifact = wandb.Artifact(name, type="dataset")
+        with artifact.new_file(f"{name}.pkl", "wb") as f:
+            torch.save(data, f)
+        kwargs["run"].log_artifact(artifact)
+
+
+@typedispatch  # noqa: F811
+def _wandb_log(name: str, data: BaseEstimator, **kwargs):
+    if kwargs["models"]:
+        artifact = wandb.Artifact(name, type="dataset")
+        with artifact.new_file(f"{name}.pkl", "wb") as f:
+            pickle.dump(data, f)
+        kwargs["run"].log_artifact(artifact)
+
+
+@typedispatch  # noqa: F811
+def _wandb_log(name: str, data: (dict, list, set, str, int, float, bool), **kwargs):  # type: ignore
+    kwargs["run"].log({name: data})
+
+
+@typedispatch  # noqa: F811
+def _wandb_use(name: str, data: (pd.DataFrame, nn.Module, BaseEstimator), **kwargs):  # type: ignore
+    return kwargs["run"].use_artifact(f"{name}:latest")
+
+
+def wandb_log(
+    func=None,
+    datasets=False,
+    models=False,
+    settings=wandb.Settings()
+    # func=None, /, datasets=False, models=False, settings=wandb.Settings()  #py38 support only
+):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(flow, *args, **kwargs):
+            with wandb.init(settings=settings) as run:
+                proxy = ArtifactProxy(flow)
+                func(proxy, *args, **kwargs)
+
+                print("=== LOGGING INPUTS ===")
+                for name, data in proxy.inputs.items():
+                    _wandb_use(name, data, run=run)
+                    print(f"wandb: using artifact: {name} ({type(data)})")
+
+                print("=== LOGGING OUTPUTS ===")
+                for name, data in proxy.outputs.items():
+                    _wandb_log(name, data, datasets=datasets, models=models, run=run)
+                    print(f"wandb: logging artifact: {name} ({type(data)})")
+
+        return wrapper
+
+    if func is None:
+        return decorator
+    else:
+        return decorator(func)
