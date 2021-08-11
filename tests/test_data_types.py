@@ -1014,14 +1014,19 @@ def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
 
 
 @pytest.mark.parametrize(
-    "oudated", [True, False],
+    "oudated, empty_query",
+    [(True, True), (True, False), (False, True), (False, False)],
 )
-def test_local_warning(live_mock_server, test_settings, capsys, oudated):
+def test_local_warning(live_mock_server, test_settings, capsys, oudated, empty_query):
     live_mock_server.set_ctx({"out_of_date": oudated})
+    live_mock_server.set_ctx({"empty_query": empty_query})
     run = wandb.init(settings=test_settings)
     run.finish()
     captured = capsys.readouterr().err
 
     msg = "WARNING Upgrade to W&B Local"
 
-    assert msg in captured if oudated else msg not in captured
+    if empty_query:
+        assert msg in captured
+    else:
+        assert msg in captured if oudated else msg not in captured

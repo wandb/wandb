@@ -40,6 +40,7 @@ def default_ctx():
         "upsert_bucket_count": 0,
         "max_cli_version": "0.10.33",
         "out_of_date": False,
+        "empty_query": False,
         "runs": {},
         "run_ids": [],
         "file_names": [],
@@ -476,6 +477,9 @@ def create_app(user_ctx=None):
             return json.dumps(viewer_dict)
 
         if "__type" in body["query"]:
+            if ctx["empty_query"]:
+                return json.dumps({"data": {}})
+
             return json.dumps(
                 {
                     "data": {
