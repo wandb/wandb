@@ -50,7 +50,8 @@ class WandbDecorator(StepDecorator):
     ):
         if not self.attributes["wandb_init_kwargs"]:
             self.run = wandb.init(
-                group=f"{current.flow_name}/{current.run_id}", job_type=step_name,
+                group=f"{current.flow_name}/{current.run_id}",
+                job_type=step_name,
             )
         else:
             self.run = wandb.init(**self.attributes["wandb_init_kwargs"])
@@ -75,29 +76,12 @@ class WandbDecorator(StepDecorator):
             self.wandb_log(artifact.id, artifact.data)
         self.run.finish()
 
-        # for artifact in step.task.artifacts:
-        #     if artifact.id not in ["name", *params]:
-        #         name, data = artifact.id, artifact.data
-        #         print(f"{name} is a {type(data)}")
-        #         self.wandb_log(name, data)
-        # self.run.finish()
-
     @typedispatch
     def wandb_log(self, name: str, data: pd.DataFrame):
         if self.attributes["datasets"] is True:
             dataset = wandb.Artifact(name, type="dataset")
-            if self.attributes["datasets"] is True:
-                with dataset.new_file(f"{name}.csv") as f:
-                    data.to_csv(f)
-
-        # elif self.attributes["datasets"]:
-        #     path = Path(self.attributes["datasets"])
-        #     if path.is_dir():
-        #         for f in path.glob("**/*"):
-        #             dataset.add_file(f)
-        #     elif path.is_file():
-        #         dataset.add_file(path)
-
+            with dataset.new_file(f"{name}.csv") as f:
+                data.to_csv(f)
         self.run.log_artifact(dataset)
         print(f"wandb: logging artifact: {name} ({type(data)})")
 
