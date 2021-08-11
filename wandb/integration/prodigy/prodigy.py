@@ -1,3 +1,20 @@
+"""Prodigy integration for W&B
+
+User can upload Prodigy annotated datasets directly
+from the local database to W&B in Tables format.
+
+Example usage:
+
+```python
+import wandb
+from wandb.integration.prodigy import upload_dataset
+
+run = wandb.init(project='prodigy')
+upload_dataset("name_of_dataset")
+wandb.finish()
+```
+"""
+
 import base64
 import collections
 from copy import deepcopy
@@ -12,6 +29,7 @@ from wandb.plots.utils import deprecation_notice, test_missing
 
 
 def named_entity(docs):
+    """ Creates a named entity visualization."""
     deprecation_notice()
 
     spacy = util.get_module(
@@ -45,7 +63,8 @@ def merge(dict1, dict2):
     return result
 
 
-def get_keys(list_data_dict, struct, array_dict_types):
+def get_schema(list_data_dict, struct, array_dict_types):
+    """Get a schema of the dataset's structure and data types"""
     # Get the structure of the JSON objects in the database
     # This is similar to getting a JSON schema but with slightly different format
     for _i, item in enumerate(list_data_dict):
@@ -68,10 +87,10 @@ def get_keys(list_data_dict, struct, array_dict_types):
                             k
                         )  # keep track of keys that are type list[dict]
                         struct[k] = {}
-                        struct[k] = get_keys(v, struct[k], array_dict_types)
+                        struct[k] = get_schema(v, struct[k], array_dict_types)
                 elif isinstance(v, dict):
                     struct[k] = {}
-                    struct[k] = get_keys([v], struct[k], array_dict_types)
+                    struct[k] = get_schema([v], struct[k], array_dict_types)
                 else:
                     struct[k] = type(v)
             else:
@@ -96,12 +115,12 @@ def get_keys(list_data_dict, struct, array_dict_types):
                             k
                         )  # keep track of keys that are type list[dict]
                         struct[k] = {}
-                        struct[k] = get_keys(v, struct[k], array_dict_types)
+                        struct[k] = get_schema(v, struct[k], array_dict_types)
                         # merge cur_struct and struct[k], remove duplicates
                         struct[k] = merge(struct[k], cur_struct)
                 elif isinstance(v, dict):
                     struct[k] = {}
-                    struct[k] = get_keys([v], struct[k], array_dict_types)
+                    struct[k] = get_schema([v], struct[k], array_dict_types)
                     # merge cur_struct and struct[k], remove duplicates
                     struct[k] = merge(struct[k], cur_struct)
                 else:
@@ -113,6 +132,11 @@ def get_keys(list_data_dict, struct, array_dict_types):
 
 
 def standardize(item, structure, array_dict_types):
+    """Standardize all rows/entries in dataset to fit the schema.
+
+    Will look for missing values and fill it in so all rows have
+    the same items and structure.
+    """
     for k, v in structure.items():
         if k not in item:
             # If the structure/field does not exist
@@ -149,6 +173,11 @@ def standardize(item, structure, array_dict_types):
 
 
 def create_table(data):
+    """ Create a W&B Table.
+
+    - Create/decode images from URL/Base64
+    - Uses spacy to translate NER span data to visualizations.
+    """
     # create table object from columns
     table_df = pd.DataFrame(data)
     columns = list(table_df.columns)
@@ -214,10 +243,18 @@ def create_table(data):
                 elif isbase64:
                     # is base64 uri
                     imgb64 = document["image"].split("base64,")[1]
-                    msg = base64.b64decode(imgb64)
-                    buf = io.BytesIO(msg)
-                    im = Image.open(buf)
-                    document["image_visual"] = wandb.Image(im)
+                    try:
+                        msg = base64.b64decode(imgb64)
+                        buf = io.BytesIO(msg)
+                        im = Image.open(buf)
+                        document["image_visual"] = wandb.Image(im)
+                    except base64.binascii.Error:
+                        print(
+                            "Warning: Base64 string "
+                            + str(document["image"])
+                            + " is invalid."
+                        )
+                        document["image_visual"] = None
                 else:
                     # is data path
                     document["image_visual"] = wandb.Image(document["image"])
@@ -229,6 +266,11 @@ def create_table(data):
 
 
 def upload_dataset(dataset_name):
+    """ Uploads dataset from local database to Weights & Biases.
+
+    Args:
+        dataset_name: The name of the dataset in the Prodigy database.
+    """
     # Check if wandb.init has been called
     if wandb.run is None:
         raise ValueError("You must call wandb.init() before upload_dataset()")
@@ -242,7 +284,7 @@ def upload_dataset(dataset_name):
     data = database.get_dataset(dataset_name)
 
     array_dict_types = []
-    schema = get_keys(data, {}, array_dict_types)
+    schema = get_schema(data, {}, array_dict_types)
 
     for i, _d in enumerate(data):
         standardize(data[i], schema, array_dict_types)
