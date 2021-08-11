@@ -41,6 +41,7 @@ def default_ctx():
         "max_cli_version": "0.10.33",
         "out_of_date": False,
         "empty_query": False,
+        "local_none": False,
         "runs": {},
         "run_ids": [],
         "file_names": [],
@@ -471,6 +472,9 @@ def create_app(user_ctx=None):
                     },
                 }
             }
+
+            if ctx["local_none"]:
+                server_info["serverInfo"]["latestLocalVersionInfo"] = None
 
             viewer_dict["data"].update(server_info)
 

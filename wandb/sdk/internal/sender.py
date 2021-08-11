@@ -1017,14 +1017,13 @@ class SendManager(object):
             local_info.out_of_date = False
             return local_info
 
-        server_info_exists = len(self._api.server_info_introspection()) > 0
         latest_local_version = "latest"
 
-        if not server_info_exists:
+        if len(self._api.server_info_introspection()) == 0:
             local_info.out_of_date = True
+            local_info.version = latest_local_version
         else:
             self._viewer_server_info()
-
             latest_local_version_info = self._cached_server_info.get(
                 "latestLocalVersionInfo", {}
             )
