@@ -93,12 +93,17 @@ def wandb_log(
     func=None,
     datasets=False,
     models=False,
-    settings=wandb.Settings()
-    # func=None, /, datasets=False, models=False, settings=wandb.Settings()  #py38 support only
+    settings={}
+    # func=None, /, datasets=False, models=False, settings=wandb.Settings()  #  py38 support only
 ):
     def decorator(func):
         @wraps(func)
-        def wrapper(flow, *args, **kwargs):
+        def wrapper(flow, settings=settings, *args, **kwargs):
+            if not settings:
+                settings = wandb.Settings(
+                    run_group=f"{current.flow_name}/{current.run_id}",
+                    run_job_type=current.step_name,
+                )
             with wandb.init(settings=settings) as run:
                 proxy = ArtifactProxy(flow)
                 run.config.update(proxy.params)
