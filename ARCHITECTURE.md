@@ -96,7 +96,7 @@ Ref | Message | File | Description
 
 ```text
                   |               |                                   |
- User Context     | Shared Queues |          Internal Process         |
+ User Context     | Shared Queues |          Internal Process         |  Cloud
                   |       .       |          .         .         .    |
                    [rec_q] [res_q] [HandlerT] [WriterT] [SenderT] [FS]
                   |       .       |          .         .         .    |
