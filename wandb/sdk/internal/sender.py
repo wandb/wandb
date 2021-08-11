@@ -1022,9 +1022,9 @@ class SendManager(object):
 
     def get_local_info(self):
         """
-        This is a helper function that query the server to get the state of the local version.
-        First we perform an introspection, if it returns empty we deduce that the docker image is
-        outdate. Otherwise we use the returned response to deduce the state of the local server.
+        This is a helper function that queries the server to get the the local version information.
+        First, we perform an introspection, if it returns empty we deduce that the docker image is
+        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
 
