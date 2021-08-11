@@ -63,7 +63,11 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self,
+        settings,
+        record_q,
+        result_q,
+        interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -904,8 +908,10 @@ class SendManager(object):
                 artifact
             ).get("id")
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._result_q.put(result)
@@ -1017,39 +1023,26 @@ class SendManager(object):
             local_info.out_of_date = False
             return local_info
 
-        self._viewer_server_info()
-
+        server_info_exists = len(self._api.server_info_introspection()) > 0
         latest_local_version = "latest"
 
-        server_info_exists = len(self._cached_server_info) > 0
+        if not server_info_exists:
+            local_info.out_of_date = True
+        else:
+            self._viewer_server_info()
 
-        # # if server_info returns empty but the viewer is not
-        # # it means that the query was succesful
-        # # and the current version of the docker is pre-Sep-2020
-        # # https://github.com/wandb/core/pull/5632
-        # if not server_info_exists and len(self._cached_viewer) > 0:
-        #     local_info.out_of_date = True
-        #     local_info.version = latest_local_version
-        #     return local_info
-
-        local_version_exists = "latestLocalVersionInfo" in self._cached_server_info
-
-        latest_local_version_info = self._cached_server_info.get(
-            "latestLocalVersionInfo", {}
-        )
-        # if the server info is not empty it means the query was successful
-        # and if it doesn't have the localVersionInfo
-        out_of_date = not local_version_exists and server_info_exists
-
-        # This means that the cron job didn't run yet so the values are not populated
-        # In this case we will try again in a later time
-        if local_version_exists and latest_local_version_info is None:
-            out_of_date = False
-
-        local_info.out_of_date = latest_local_version_info.get("outOfDate", out_of_date)
-        local_info.version = latest_local_version_info.get(
-            "latestVersionString", latest_local_version
-        )
+            latest_local_version_info = self._cached_server_info.get(
+                "latestLocalVersionInfo", {}
+            )
+            if latest_local_version_info is None:
+                local_info.out_of_date = False
+            else:
+                local_info.out_of_date = latest_local_version_info.get(
+                    "outOfDate", False
+                )
+                local_info.version = latest_local_version_info.get(
+                    "latestVersionString", latest_local_version
+                )
         return local_info
 
     def __next__(self):

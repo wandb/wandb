@@ -121,7 +121,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -161,7 +165,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -464,19 +470,30 @@ def create_app(user_ctx=None):
                     "cliVersionInfo": {
                         "max_cli_version": str(ctx.get("max_cli_version", "0.10.33"))
                     },
+                    "latestLocalVersionInfo": {
+                        "outOfDate": ctx.get("out_of_date", False),
+                        "latestVersionString": str(ctx.get("latest_version", "0.9.42")),
+                    },
                 }
             }
-            local_version_dict = {
-                "latestLocalVersionInfo": {
-                    "outOfDate": ctx.get("out_of_date", False),
-                    "latestVersionString": str(ctx.get("latest_version", "0.9.42")),
-                },
-            }
 
-            server_info["serverInfo"].update(local_version_dict)
             viewer_dict["data"].update(server_info)
 
             return json.dumps(viewer_dict)
+
+        if "__type" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "__type": {
+                            "fields": [
+                                {"name": "outOfDate"},
+                                {"name": "latestVersionString"},
+                            ]
+                        }
+                    }
+                }
+            )
 
         if "query Sweep(" in body["query"]:
             return json.dumps(
@@ -537,14 +554,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -687,7 +714,13 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
             for c in ctx, run_ctx:
                 c["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -704,7 +737,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             return {
                 "data": {
