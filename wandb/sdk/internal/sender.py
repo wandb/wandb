@@ -1017,6 +1017,8 @@ class SendManager(object):
             return local_info
 
         self._viewer_server_info()
+        logger.info(self._cached_server_info)
+        logger.info(self._cached_viewer)
 
         server_info_is_empty = len(self._cached_server_info) == 0
         cached_viewer_is_empty = len(self._cached_viewer) == 0
@@ -1046,7 +1048,9 @@ class SendManager(object):
             local_info.version = latest_local_version
             return local_info
 
-        latest_local_version_info = self._cached_server_info["latestLocalVersionInfo"]
+        latest_local_version_info = self._cached_server_info.get(
+            "latestLocalVersionInfo", {}
+        )
 
         # This means that the cron job didn't run yet so the values are not populated
         # In this case we will try again in a later time

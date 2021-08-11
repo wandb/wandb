@@ -40,6 +40,7 @@ def default_ctx():
         "upsert_bucket_count": 0,
         "max_cli_version": "0.10.33",
         "out_of_date": False,
+        "viewer_state": "default",
         "runs": {},
         "run_ids": [],
         "file_names": [],
@@ -450,32 +451,39 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Viewer " in body["query"]:
-            return json.dumps(
-                {
-                    "data": {
-                        "viewer": {
-                            "entity": "mock_server_entity",
-                            "flags": '{"code_saving_enabled": true}',
-                            "teams": {
-                                "edges": []  # TODO make configurable for cli_test
-                            },
-                        },
-                        "serverInfo": {
-                            "cliVersionInfo": {
-                                "max_cli_version": str(
-                                    ctx.get("max_cli_version", "0.10.33")
-                                )
-                            },
-                            "latestLocalVersionInfo": {
-                                "outOfDate": ctx.get("out_of_date", False),
-                                "latestVersionString": str(
-                                    ctx.get("latest_version", "0.9.42")
-                                ),
-                            },
-                        },
-                    }
+            viewer_dict = {
+                "data": {
+                    "viewer": {
+                        "entity": "mock_server_entity",
+                        "flags": '{"code_saving_enabled": true}',
+                        "teams": {"edges": []},  # TODO make configurable for cli_test
+                    },
+                },
+            }
+            server_info = {
+                "serverInfo": {
+                    "cliVersionInfo": {
+                        "max_cli_version": str(ctx.get("max_cli_version", "0.10.33"))
+                    },
                 }
-            )
+            }
+            local_version_dict = {
+                "latestLocalVersionInfo": {
+                    "outOfDate": ctx.get("out_of_date", False),
+                    "latestVersionString": str(ctx.get("latest_version", "0.9.42")),
+                },
+            }
+
+            if ctx["viewer_state"] == "post-init":
+                local_version_dict = {"latestLocalVersionInfo": None}
+
+            if ctx["viewer_state"] in ["post", "post-init"]:
+                server_info["serverInfo"].update(local_version_dict)
+
+            if ctx["viewer_state"] in ["default", "post", "post-init"]:
+                viewer_dict["data"].update(server_info)
+
+            return json.dumps(viewer_dict)
         if "query Sweep(" in body["query"]:
             return json.dumps(
                 {
