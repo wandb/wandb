@@ -1013,9 +1013,9 @@ class SendManager(object):
         local_info = wandb_internal_pb2.LocalInfo()
 
         # If we are offline then we don't need to proceed.
-        if self._settings._offline:
-            local_info.out_of_date = False
-            return local_info
+        # if self._settings._offline:
+        #     local_info.out_of_date = False
+        #     return local_info
 
         latest_local_version = "latest"
 

@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import os
-from re import I
 import pytest
 import six
 from six.moves import queue
