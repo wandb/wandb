@@ -188,7 +188,7 @@ def test_offline_resume(test_settings, capsys, resume, found):
     assert assertion(run.id, found, captured.err)
 
 
-def test_use_artifact_offline(live_mock_server):
+def test_use_artifact_offline(live_mock_server, test_settings):
     run = wandb.init(mode="offline")
     with pytest.raises(Exception) as e_info:
         artifact = run.use_artifact("boom-data")
