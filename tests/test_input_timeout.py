@@ -13,7 +13,7 @@ def input_timeout(monkeypatch):
 
 """
 @pytest.fixture
-def setup(pytestconfig):
+def input_timeout_no_choice(pytestconfig):
     capmanager = pytestconfig.pluginmanager.getplugin('capturemanager')
     capmanager.suspend_global_capture(_in=True)
 
