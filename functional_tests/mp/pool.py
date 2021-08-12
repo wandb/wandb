@@ -49,10 +49,10 @@ assert:
 """
 
 import multiprocessing as mp
-import os
 import time
 
 import wandb
+import yea
 
 
 def do_run(num):
@@ -81,14 +81,6 @@ def main():
     print("TEST: Out", data)
 
 
-def setup_mp():
-    # TODO: Move to yea
-    perm = os.environ.get("YEA_PERMUTE_VAL")
-    if not perm:
-        return
-    mp.set_start_method(perm)
-
-
 if __name__ == "__main__":
-    setup_mp()
+    yea.setup()  # Use ":yea:start_method:" to set mp.set_start_method()
     main()
