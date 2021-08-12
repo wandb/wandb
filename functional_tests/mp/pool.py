@@ -3,9 +3,10 @@
 
 ---
 id: 3.0.2
-check-ext-wandb: {}
-permute:
-  group:
+plugin:
+  - wandb
+parametrize:
+  permute:
     - :yea:start_method:
       - fork
       - spawn
