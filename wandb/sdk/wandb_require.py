@@ -30,8 +30,14 @@ class _Requires(object):
     def require_require(self) -> None:
         pass
 
-    def require_multiprocessing(self) -> None:
+    def _require_grpc(self) -> None:
         os.environ["WANDB_START_METHOD"] = "grpc"
+
+    def require_grpc(self) -> None:
+        self._require_grpc()
+
+    def require_attach(self) -> None:
+        self._require_grpc()
 
     def apply(self) -> None:
         """Call require_* method for supported features."""
