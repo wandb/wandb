@@ -54,7 +54,7 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(file_name, "live")]))
+    interface.publish_files(dict(files=[("", file_name, False, "live")]))
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
@@ -342,8 +342,8 @@ class TBEventConsumer(object):
         # This is a bit of a hack to get file saving to work as it does in the user
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
-        def datatypes_cb(fname: str) -> None:
-            files = dict(files=[(fname, "now")])
+        def datatypes_cb(orig_fname: str, new_fname: str, is_tmp: bool) -> None:
+            files = dict(files=[(orig_fname, new_fname, is_tmp, "now")])
             self._tbwatcher._interface.publish_files(files, True)
 
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)

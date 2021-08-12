@@ -9,6 +9,7 @@ import logging
 import math
 import numbers
 import os
+import shutil
 from threading import Event
 import time
 from typing import (
@@ -131,8 +132,10 @@ class HandleManager(object):
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
+            logger.info("Sending queue record {}".format(record))
             self._sender_q.put(record)
         if not record.control.local and self._writer_q:
+            logger.info("Writing queue record {}".format(record))
             self._writer_q.put(record)
 
     def debounce(self) -> None:
@@ -175,15 +178,35 @@ class HandleManager(object):
     def handle_output(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def reassign_file_step(self, record: wandb_internal_pb2.FilesRecord):
+    def reassign_file_step(self, record: Record) -> Record:
+        logger.info("Re assigning: {}, {}".format(os.getcwd(), self._step))
+        logger.info(record)
         for f in record.files.files:
+            orig_path = f.orig_path
+            # full_path = os.path.join(self._settings.files_dir, f.path)
+            # logger.info(
+            #     "FUll pathh {}, exiosts: {}".format(
+            #         full_path, os.path.exists(full_path)
+            #     )
+            # )
             prefix, fstep, tail = f.path.rsplit("_", 2)
             if int(fstep) != self._step:
-                f.path = f"{prefix}_{self._step}_{tail}"
+                new_path = f"{prefix}_{self._step}_{tail}"
+                f.path = new_path
+                full_new_path = os.path.join(self._settings.files_dir, new_path)
+            if f.orig_path != "":
+                if f.is_tmp:
+                    shutil.move(f.orig_path, full_new_path)
+                else:
+                    shutil.copyfile(f.orig_path, full_new_path)
+        return record
 
     def handle_files(self, record: Record) -> None:
         if record.files.tb_repath:
-            self.reassign_file_step(record)
+            record = self.reassign_file_step(record)
+            logger.info("Re assigninged")
+            logger.info(record)
+
         self._dispatch_record(record)
 
     def handle_artifact(self, record: Record) -> None:

@@ -409,10 +409,12 @@ class BackendSender(object):
         self, files_dict: dict, tb_repath_step: bool = False
     ) -> pb.FilesRecord:
         files = pb.FilesRecord()
-        for path, policy in files_dict["files"]:
+        for orig_path, new_path, is_tmp, policy in files_dict["files"]:
             f = files.files.add()
-            f.path = path
+            f.orig_path = orig_path
+            f.path = new_path
             f.policy = file_policy_to_enum(policy)
+            f.is_tmp = is_tmp
         if tb_repath_step:
             files.tb_repath = True
         else:

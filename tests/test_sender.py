@@ -55,7 +55,7 @@ def test_send_status_request_network(mock_server, backend_interface):
     mock_server.ctx["rate_limited_times"] = 3
 
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
+        interface.publish_files({"files": [("", "test.txt", False, "live")]})
 
         status_resp = interface.communicate_network_status()
         assert status_resp is not None
@@ -100,7 +100,7 @@ def test_save_live_existing_file(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
-        interface.publish_files({"files": [("test.txt", "live")]})
+        interface.publish_files({"files": [("", "test.txt", False, "live")]})
 
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
     assert any(
@@ -113,7 +113,7 @@ def test_save_live_existing_file(mocked_run, mock_server, backend_interface):
 
 def test_save_live_write_after_policy(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
+        interface.publish_files({"files": [("", "test.txt", False, "live")]})
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
@@ -133,7 +133,7 @@ def test_preempting_sent_to_server(mocked_run, mock_server, backend_interface):
 
 def test_save_live_multi_write(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
+        interface.publish_files({"files": [("", "test.txt", False, "live")]})
         test_file = os.path.join(mocked_run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
@@ -155,7 +155,7 @@ def test_save_live_glob_multi_write(mocked_run, mock_server, mocker, backend_int
     )
 
     with backend_interface() as interface:
-        interface.publish_files({"files": [("checkpoints/*", "live")]})
+        interface.publish_files({"files": [("", "checkpoints/*", False, "live")]})
         mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
         test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
         test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
@@ -188,7 +188,7 @@ def test_save_live_glob_multi_write(mocked_run, mock_server, mocker, backend_int
 
 def test_save_rename_file(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "live")]})
+        interface.publish_files({"files": [("", "test.txt", False, "live")]})
         test_file = os.path.join(mocked_run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
@@ -202,7 +202,7 @@ def test_save_rename_file(mocked_run, mock_server, backend_interface):
 
 def test_save_end_write_after_policy(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "end")]})
+        interface.publish_files({"files": [("", "test.txt", False, "end")]})
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
@@ -213,14 +213,14 @@ def test_save_end_existing_file(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
-        interface.publish_files({"files": [("test.txt", "end")]})
+        interface.publish_files({"files": [("", "test.txt", False, "end")]})
 
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
 def test_save_end_multi_write(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "end")]})
+        interface.publish_files({"files": [("", "test.txt", False, "end")]})
         test_file = os.path.join(mocked_run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
@@ -234,7 +234,7 @@ def test_save_end_multi_write(mocked_run, mock_server, backend_interface):
 
 def test_save_now_write_after_policy(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "now")]})
+        interface.publish_files({"files": [("", "test.txt", False, "now")]})
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
@@ -245,14 +245,14 @@ def test_save_now_existing_file(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
-        interface.publish_files({"files": [("test.txt", "now")]})
+        interface.publish_files({"files": [("", "test.txt", False, "now")]})
 
     assert len(mock_server.ctx["storage?file=test.txt"]) == 1
 
 
 def test_save_now_multi_write(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("test.txt", "now")]})
+        interface.publish_files({"files": [("", "test.txt", False, "now")]})
         test_file = os.path.join(mocked_run.dir, "test.txt")
         with open(test_file, "w") as f:
             f.write("TEST TEST")
@@ -266,7 +266,7 @@ def test_save_now_multi_write(mocked_run, mock_server, backend_interface):
 
 def test_save_glob_multi_write(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("checkpoints/*", "now")]})
+        interface.publish_files({"files": [("", "checkpoints/*", False, "now")]})
         mkdir_exists_ok(os.path.join(mocked_run.dir, "checkpoints"))
         test_file_1 = os.path.join(mocked_run.dir, "checkpoints", "test_1.txt")
         test_file_2 = os.path.join(mocked_run.dir, "checkpoints", "test_2.txt")
@@ -291,7 +291,7 @@ def test_save_glob_multi_write(mocked_run, mock_server, backend_interface):
 
 def test_save_now_relative_path(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
-        interface.publish_files({"files": [("foo/test.txt", "now")]})
+        interface.publish_files({"files": [("", "foo/test.txt", False, "now")]})
         test_file = os.path.join(mocked_run.dir, "foo", "test.txt")
         mkdir_exists_ok(os.path.dirname(test_file))
         with open(test_file, "w") as f:
@@ -304,7 +304,7 @@ def test_save_now_relative_path(mocked_run, mock_server, backend_interface):
 def test_save_now_twice(mocked_run, mock_server, backend_interface):
     with backend_interface() as interface:
         file_path = os.path.join("foo", "test.txt")
-        interface.publish_files({"files": [(file_path, "now")]})
+        interface.publish_files({"files": [("", file_path, False, "now")]})
         test_file = os.path.join(mocked_run.dir, file_path)
         mkdir_exists_ok(os.path.dirname(test_file))
         with open(test_file, "w") as f:
@@ -312,7 +312,7 @@ def test_save_now_twice(mocked_run, mock_server, backend_interface):
         time.sleep(1.5)
         with open(test_file, "w") as f:
             f.write("TEST TEST TEST TEST")
-        interface.publish_files({"files": [(file_path, "now")]})
+        interface.publish_files({"files": [("", file_path, False, "now")]})
 
     print("DAMN DUDE", mock_server.ctx)
     assert len(mock_server.ctx["storage?file=foo/test.txt"]) == 2

@@ -14,6 +14,6 @@ def _datatypes_set_callback(cb):
     _glob_datatypes_callback = cb
 
 
-def _datatypes_callback(fname):
+def _datatypes_callback(orig_fname, new_fname, is_tmp):
     if _glob_datatypes_callback:
-        _glob_datatypes_callback(fname)
+        _glob_datatypes_callback(orig_fname, new_fname, is_tmp)

@@ -513,16 +513,18 @@ class Media(WBValue):
         media_path = os.path.join(self.get_media_subdir(), file_path)
         new_path = os.path.join(self._run.dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
-
+        using_tensorboard = len(wandb.patched["tensorboard"]) > 0
         if self._is_tmp:
-            shutil.move(self._path, new_path)
+            if not using_tensorboard:
+                shutil.move(self._path, new_path)
             self._path = new_path
             self._is_tmp = False
-            _datatypes_callback(media_path)
+            _datatypes_callback(self._path, media_path, True)
         else:
-            shutil.copy(self._path, new_path)
+            if not using_tensorboard:
+                shutil.copy(self._path, new_path)
             self._path = new_path
-            _datatypes_callback(media_path)
+            _datatypes_callback(self._path, media_path, False)
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`

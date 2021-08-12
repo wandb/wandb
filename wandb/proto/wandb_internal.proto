@@ -290,7 +290,9 @@ message FilesItem {
   }
   string path = 1;
   PolicyType policy = 2;
+  string orig_path = 3;
   string external_path = 16;
+  bool is_tmp = 20;
 }
 
 /*

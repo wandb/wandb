@@ -217,10 +217,13 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
             wandb.log({"wandb_logged_val": step ** 2})
 
         wandb.log({"wandb_logged_val_with_step": step}, step=step + 3)
+        image = tf.random.uniform(shape=[8, 8, 1, 1])
+        summary_image = sess.run(tf.compat.v1.summary.image("test_image", image))
+        writer.add_summary(summary_image, step + 4)
         writer.close()
     wandb.finish()
     server_ctx = live_mock_server.get_ctx()
-    print("CONTEXT!", server_ctx)
+    # print("CONTEXT!", server_ctx)
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     history = ctx_util.history
     assert (
@@ -229,8 +232,11 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
     ) in term.PRINTED_MESSAGES
     assert history[9]["wandb_logged_val"] == 81
     assert history[10]["wandb_logged_val_with_step"] == 9
-    assert history[-1]["_step"] == 20
+    assert history[-1]["_step"] == 21
+    print(history)
+    assert "media/images/test_image_image_21_1.png" in ctx_util.file_names
     wandb.tensorboard.unpatch()
+    assert False
 
 
 @pytest.mark.skipif(

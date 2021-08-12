@@ -557,8 +557,7 @@ class Run(object):
 
     @property
     def start_time(self) -> float:
-        """Returns the unix time stamp, in seconds, when the run started.
-        """
+        """Returns the unix time stamp, in seconds, when the run started."""
         if not self._run_obj:
             return self._start_time
         else:
@@ -845,11 +844,14 @@ class Run(object):
         if self._backend:
             self._backend.interface._publish_metric(metric_record)
 
-    def _datatypes_callback(self, fname: str) -> None:
+    def _datatypes_callback(
+        self, orig_fname: str, new_fname: str, is_tmp: bool
+    ) -> None:
         if not self._backend:
             return
-        files = dict(files=[(fname, "now")])
-        self._backend.interface.publish_files(files)
+        files = dict(files=[(orig_fname, new_fname, is_tmp, "now")])
+        using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+        self._backend.interface.publish_files(files, using_tensorboard)
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
     def _history_callback(self, row: Dict[str, Any], step: int) -> None:
@@ -1228,7 +1230,7 @@ class Run(object):
                 )
                 % file_str
             )
-        files_dict = dict(files=[(wandb_glob_str, policy)])
+        files_dict = dict(files=[("", wandb_glob_str, False, policy)])
         if self._backend:
             self._backend.interface.publish_files(files_dict)
         return files

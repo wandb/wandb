@@ -257,12 +257,12 @@ class Meta(object):
             f.write(s)
             f.write("\n")
         base_name = os.path.basename(self.fname)
-        files = dict(files=[(base_name, "now")])
+        files = dict(files=[("", base_name, False, "now")])
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
-            files["files"].append((saved_program, "now"))
+            files["files"].append(("", saved_program, False, "now"))
         for patch in self._saved_patches:
-            files["files"].append((patch, "now"))
+            files["files"].append(("", patch, False, "now"))
 
         self._interface.publish_files(files)
