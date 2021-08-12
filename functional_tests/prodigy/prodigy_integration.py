@@ -20,30 +20,29 @@ depend:
       source: https://raw.githubusercontent.com/wandb/wandb-testing/master/test_data/prodigy/prodigy_test_resources.zip
 assert:
   - :wandb:runs_len: 1
-  - :wandb:runs[0][summary]:
-      image_segmentation[nrows]: 34
-      audio[nrows]: 3
-      nyt_tokens[nrows]: 200
-      quora_questions[nrows]: 100
-      already_labelled[nrows]: 373
-      products_html[nrows]: 200
-      unsplash_base64[nrows]: 207
-      unsplash_base64_corrupted[nrows]: 1
-      chinese_chars[nrows]: 30
-      unsplash[nrows]: 210
-      movies_ner[nrows]: 0
-      movies_tokens[nrows]: 200
-      nyt_classification[nrows]: 200
-      unsplash_food_options[nrows]: 37
-      videos[nrows]: 3
-      nyt_text[nrows]: 200
-      movies_cats[nrows]: 200
-      nyt_pos_tokens[nrows]: 246
-      compare_medical[nrows]: 300
-      nyt_ner[nrows]: 282
-      bio_tokens[nrows]: 129
-      bad_encoding[nrows]: 20
-      nyt_dep[nrows]: 112
+  - :wandb:runs[0][summary][image_segmentation][nrows]: 34
+  - :wandb:runs[0][summary][audio][nrows]: 3
+  - :wandb:runs[0][summary][nyt_tokens][nrows]: 200
+  - :wandb:runs[0][summary][quora_questions][nrows]: 100
+  - :wandb:runs[0][summary][already_labelled][nrows]: 373
+  - :wandb:runs[0][summary][products_html][nrows]: 200
+  - :wandb:runs[0][summary][unsplash_base64][nrows]: 207
+  - :wandb:runs[0][summary][unsplash_base64_corrupted][nrows]: 1
+  - :wandb:runs[0][summary][chinese_chars][nrows]: 30
+  - :wandb:runs[0][summary][unsplash][nrows]: 210
+  - :wandb:runs[0][summary][movies_ner][nrows]: 0
+  - :wandb:runs[0][summary][movies_tokens][nrows]: 200
+  - :wandb:runs[0][summary][nyt_classification][nrows]: 200
+  - :wandb:runs[0][summary][unsplash_food_options][nrows]: 37
+  - :wandb:runs[0][summary][videos][nrows]: 3
+  - :wandb:runs[0][summary][nyt_text][nrows]: 200
+  - :wandb:runs[0][summary][movies_cats][nrows]: 200
+  - :wandb:runs[0][summary][nyt_pos_tokens][nrows]: 246
+  - :wandb:runs[0][summary][compare_medical][nrows]: 300
+  - :wandb:runs[0][summary][nyt_ner][nrows]: 282
+  - :wandb:runs[0][summary][bio_tokens][nrows]: 129
+  - :wandb:runs[0][summary][bad_encoding][nrows]: 20
+  - :wandb:runs[0][summary][nyt_dep][nrows]: 112
   - :wandb:runs[0][exitcode]: 0
 """
 
