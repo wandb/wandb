@@ -3,7 +3,8 @@
 
 ---
 id: 0.0.4
-check-ext-wandb: {}
+plugin:
+  - wandb
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][policy_type]: MlpPolicy

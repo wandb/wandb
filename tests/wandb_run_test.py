@@ -209,3 +209,10 @@ def test_local_warning(
         assert msg not in captured
     else:
         assert msg in captured if oudated else msg not in captured
+
+
+def test_use_artifact_offline(live_mock_server, test_settings):
+    run = wandb.init(mode="offline")
+    with pytest.raises(Exception) as e_info:
+        artifact = run.use_artifact("boom-data")
+        assert str(e_info.value) == "Cannot use artifact when in offline mode."
