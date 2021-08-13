@@ -230,6 +230,10 @@ class Config(object):
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+        if isinstance(val, wandb.Artifact) or isinstance(
+            val, wandb.apis.public.Artifact
+        ):
+            return key, val
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
