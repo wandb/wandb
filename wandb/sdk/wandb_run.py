@@ -377,7 +377,7 @@ class Run(object):
         ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
-            for key, item in launch_config.keys():
+            for key, item in launch_config.items():
                 print(key, item, isinstance(item, dict))
                 if (
                     isinstance(item, dict)
