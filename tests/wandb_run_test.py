@@ -163,3 +163,33 @@ def test_except_hook(test_settings):
     assert "".join(stderr) == "Exception: After wandb.init()\n"
 
     sys.stderr.write = old_stderr_write
+
+
+def assertion(run_id, found, stderr):
+    msg = f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run_id}"
+    return msg in stderr if found else msg not in stderr
+
+
+@pytest.mark.parametrize(
+    "resume, found",
+    [
+        ("auto", True),
+        ("allow", True),
+        ("never", True),
+        ("must", True),
+        ("", False),
+        (0, False),
+        (None, False),
+    ],
+)
+def test_offline_resume(test_settings, capsys, resume, found):
+    run = wandb.init(mode="offline", resume=resume, settings=test_settings)
+    captured = capsys.readouterr()
+    assert assertion(run.id, found, captured.err)
+
+
+def test_use_artifact_offline(live_mock_server, test_settings):
+    run = wandb.init(mode="offline")
+    with pytest.raises(Exception) as e_info:
+        artifact = run.use_artifact("boom-data")
+        assert str(e_info.value) == "Cannot use artifact when in offline mode."

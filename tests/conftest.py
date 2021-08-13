@@ -27,20 +27,11 @@ import shutil
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.lib.module import unset_globals
-    from wandb.sdk.lib.git import GitRepo
-    from wandb.sdk.internal.handler import HandleManager
-    from wandb.sdk.internal.sender import SendManager
-    from wandb.sdk.interface.interface import BackendSender
-else:
-    from wandb.sdk_py27.lib.module import unset_globals
-    from wandb.sdk_py27.lib.git import GitRepo
-    from wandb.sdk_py27.internal.handler import HandleManager
-    from wandb.sdk_py27.internal.sender import SendManager
-    from wandb.sdk_py27.interface.interface import BackendSender
+from wandb.sdk.lib.module import unset_globals
+from wandb.sdk.lib.git import GitRepo
+from wandb.sdk.internal.handler import HandleManager
+from wandb.sdk.internal.sender import SendManager
+from wandb.sdk.interface.interface import BackendSender
 
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
@@ -215,7 +206,7 @@ def dummy_api_key():
 
 @pytest.fixture
 def test_settings(test_dir, mocker, live_mock_server):
-    """ Settings object for tests"""
+    """Settings object for tests"""
     #  TODO: likely not the right thing to do, we shouldn't be setting this
     wandb._IS_INTERNAL_PROCESS = False
     wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
@@ -243,7 +234,7 @@ def test_settings(test_dir, mocker, live_mock_server):
 
 @pytest.fixture
 def mocked_run(runner, test_settings):
-    """ A managed run object for tests with a mock backend """
+    """A managed run object for tests with a mock backend"""
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run
@@ -502,8 +493,8 @@ def disable_console():
 def parse_ctx():
     """Fixture providing class to parse context data."""
 
-    def parse_ctx_fn(ctx):
-        return utils.ParseCTX(ctx)
+    def parse_ctx_fn(ctx, run_id=None):
+        return utils.ParseCTX(ctx, run_id=run_id)
 
     yield parse_ctx_fn
 
@@ -610,7 +601,7 @@ class MockProcess:
 
 
 @pytest.fixture()
-def internal_sender(record_q, internal_result_q, internal_process):
+def _internal_sender(record_q, internal_result_q, internal_process):
     return BackendSender(
         record_q=record_q, result_q=internal_result_q, process=internal_process,
     )
@@ -623,7 +614,7 @@ def internal_sm(
     internal_result_q,
     test_settings,
     mock_server,
-    internal_sender,
+    _internal_sender,
 ):
     with runner.isolated_filesystem():
         test_settings.root_dir = os.getcwd()
@@ -631,7 +622,7 @@ def internal_sm(
             settings=test_settings,
             record_q=internal_sender_q,
             result_q=internal_result_q,
-            interface=internal_sender,
+            interface=_internal_sender,
         )
         yield sm
 
@@ -651,7 +642,7 @@ def internal_hm(
     mock_server,
     internal_sender_q,
     internal_writer_q,
-    internal_sender,
+    _internal_sender,
     stopped_event,
 ):
     with runner.isolated_filesystem():
@@ -663,7 +654,7 @@ def internal_hm(
             stopped=stopped_event,
             sender_q=internal_sender_q,
             writer_q=internal_writer_q,
-            interface=internal_sender,
+            interface=_internal_sender,
         )
         yield hm
 
@@ -731,46 +722,48 @@ def start_handle_thread(record_q, internal_get_record, stopped_event):
 
 
 @pytest.fixture()
-def start_backend(
+def _start_backend(
     mocked_run,
     internal_hm,
     internal_sm,
-    internal_sender,
+    _internal_sender,
     start_handle_thread,
     start_send_thread,
     log_debug,
 ):
-    def start_backend_func(initial_run=True):
+    def start_backend_func(initial_run=True, initial_start=False):
         ht = start_handle_thread(internal_hm)
         st = start_send_thread(internal_sm)
         if initial_run:
-            _ = internal_sender.communicate_run(mocked_run)
+            run = _internal_sender.communicate_run(mocked_run)
+            if initial_start:
+                _internal_sender.communicate_run_start(run.run)
         return (ht, st)
 
     yield start_backend_func
 
 
 @pytest.fixture()
-def stop_backend(
+def _stop_backend(
     mocked_run,
     internal_hm,
     internal_sm,
-    internal_sender,
+    _internal_sender,
     start_handle_thread,
     start_send_thread,
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
         done = False
-        internal_sender.publish_exit(0)
+        _internal_sender.publish_exit(0)
         for _ in range(30):
-            poll_exit_resp = internal_sender.communicate_poll_exit()
+            poll_exit_resp = _internal_sender.communicate_poll_exit()
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
                     break
             time.sleep(1)
-        internal_sender.join()
+        _internal_sender.join()
         for t in threads:
             t.join()
         assert done, "backend didnt shutdown"
@@ -778,57 +771,80 @@ def stop_backend(
     yield stop_backend_func
 
 
+@pytest.fixture()
+def backend_interface(_start_backend, _stop_backend, _internal_sender):
+    @contextmanager
+    def backend_context(initial_run=True, initial_start=False):
+        threads = _start_backend(initial_run=initial_run, initial_start=initial_start)
+        try:
+            yield _internal_sender
+        finally:
+            _stop_backend(threads=threads)
+
+    return backend_context
+
+
 @pytest.fixture
 def publish_util(
-    mocked_run, mock_server, internal_sender, start_backend, stop_backend, parse_ctx,
+    mocked_run, mock_server, backend_interface, parse_ctx,
 ):
-    def fn(metrics=None, history=None, artifacts=None):
+    def fn(
+        metrics=None,
+        history=None,
+        artifacts=None,
+        files=None,
+        begin_cb=None,
+        end_cb=None,
+        initial_start=False,
+    ):
         metrics = metrics or []
         history = history or []
         artifacts = artifacts or []
+        files = files or []
 
-        threads = start_backend()
-        for m in metrics:
-            internal_sender._publish_metric(m)
-        for h in history:
-            internal_sender.publish_history(**h)
-        for a in artifacts:
-            internal_sender.publish_artifact(**a)
+        with backend_interface(initial_start=initial_start) as interface:
+            if begin_cb:
+                begin_cb(interface)
+            for m in metrics:
+                interface._publish_metric(m)
+            for h in history:
+                interface.publish_history(**h)
+            for a in artifacts:
+                interface.publish_artifact(**a)
+            for f in files:
+                interface.publish_files(**f)
+            if end_cb:
+                end_cb(interface)
 
-        stop_backend(threads=threads)
-
-        ctx_util = parse_ctx(mock_server.ctx)
+        ctx_util = parse_ctx(mock_server.ctx, run_id=mocked_run.id)
         return ctx_util
 
     yield fn
 
 
 @pytest.fixture
-def tbwatcher_util(
-    mocked_run, mock_server, internal_hm, start_backend, stop_backend, parse_ctx,
-):
+def tbwatcher_util(mocked_run, mock_server, internal_hm, backend_interface, parse_ctx):
     def fn(write_function, logdir="./", save=True, root_dir="./"):
 
-        start_backend()
+        with backend_interface() as interface:
+            proto_run = pb.RunRecord()
+            mocked_run._make_proto_run(proto_run)
 
-        proto_run = pb.RunRecord()
-        mocked_run._make_proto_run(proto_run)
+            run_start = pb.RunStartRequest()
+            run_start.run.CopyFrom(proto_run)
 
-        run_start = pb.RunStartRequest()
-        run_start.run.CopyFrom(proto_run)
+            request = pb.Request()
+            request.run_start.CopyFrom(run_start)
 
-        request = pb.Request()
-        request.run_start.CopyFrom(run_start)
+            record = pb.Record()
+            record.request.CopyFrom(request)
+            internal_hm.handle_request_run_start(record)
+            internal_hm._tb_watcher.add(logdir, save, root_dir)
 
-        record = pb.Record()
-        record.request.CopyFrom(request)
-        internal_hm.handle_request_run_start(record)
-        internal_hm._tb_watcher.add(logdir, save, root_dir)
+            # need to sleep to give time for the tb_watcher delay
+            time.sleep(15)
+            write_function()
 
-        # need to sleep to give time for the tb_watcher delay
-        time.sleep(15)
-        write_function()
-        stop_backend()
         ctx_util = parse_ctx(mock_server.ctx)
         return ctx_util
 
