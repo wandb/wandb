@@ -18,7 +18,6 @@ from . import meta, sample, stats
 from . import tb_watcher
 from ..lib import handler_util, proto_util
 
-
 if wandb.TYPE_CHECKING:
     from typing import (
         TYPE_CHECKING,
@@ -40,7 +39,6 @@ if wandb.TYPE_CHECKING:
 
     SummaryDict = Dict[str, Any]
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -57,7 +55,6 @@ def _dict_nested_set(target, key_list, v):
 
 
 class HandleManager(object):
-
     # _consolidated_summary: SummaryDict
     # _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     # _settings: SettingsStatic
@@ -421,6 +418,10 @@ class HandleManager(object):
         if history_dict.get("_step") is None:
             self._history_assign_step(record, history_dict)
 
+        # assign the runtime in the handler
+        # instead of having the History Objects do it
+        self._history_assign_runtime(record, history_dict)
+
         update_history = {}
         # Look for metric matches
         if self._metric_defines or self._metric_globs:
@@ -433,6 +434,14 @@ class HandleManager(object):
                 item = record.history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
+
+    def _history_assign_runtime(self, record, history_dict):
+        item = record.history.item.add()
+        item.key = "_runtime"
+        history_dict["_runtime"] = (
+            history_dict["_timestamp"] - self._run_start_time.ToSeconds()
+        )
+        item.value_json = json.dumps(history_dict["_runtime"])
 
     def handle_history(self, record):
         history_dict = proto_util.dict_from_proto_list(record.history.item)
@@ -515,6 +524,8 @@ class HandleManager(object):
         run_start = record.request.run_start
         assert run_start
         assert run_start.run
+
+        self._run_start_time = run_start.run.start_time
 
         if not self._settings._disable_stats:
             pid = os.getpid()
