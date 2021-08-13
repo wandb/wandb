@@ -2114,7 +2114,13 @@ class Run(object):
             An `Artifact` object.
         """
         r = self._run_obj
-        api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
+        if r is None:
+            entity = self._settings.entity
+            project = self._settings.project
+        else:
+            entity = r.entity
+            project = r.project
+        api = internal.Api(default_settings={"entity": entity, "project": project})
         api.set_current_run_id(self.id)
 
         if isinstance(artifact_or_name, str):
