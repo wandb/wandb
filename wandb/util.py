@@ -1324,10 +1324,13 @@ def _log_thread_stacks():
 
 
 def sanitize_keys(data: Dict[str, Any]) -> Dict[str, Any]:
-    return {sanitize(k): v for k, v in data.items()}
+    from wandb.sdk.data_types import Media
+
+    return {(sanitize(k) if isinstance(v, Media) else k): v for k, v in data.items()}
 
 
 def sanitize(key: str) -> str:
-    key = unicodedata.normalize("NFKC", key)
-    key = re.sub(r"[^\w\s-]", "", key)
-    return re.sub(r"[-\s]+", "-", key).strip("-_")
+    if sys.platform == "Windows":
+        return key.strip('<>:"/\\|?').strip()
+    else:
+        return key.strip("/").strip()

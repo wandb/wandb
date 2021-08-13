@@ -516,11 +516,15 @@ class Media(WBValue):
 
         if self._is_tmp:
             shutil.move(self._path, new_path)
+            if not os.path.exists(new_path):
+                wandb.termerror(f"Could not create media file: {new_path}")
             self._path = new_path
             self._is_tmp = False
             _datatypes_callback(media_path)
         else:
             shutil.copy(self._path, new_path)
+            if not os.path.exists(new_path):
+                wandb.termerror(f"Could not create media file: {new_path}")
             self._path = new_path
             _datatypes_callback(media_path)
 
