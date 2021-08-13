@@ -388,10 +388,11 @@ class Run(object):
                     name = item["definition"]["name"]
                     artifact = self.use_artifact(f"{entity}/{project}/{name}")
                     launch_config[key] = artifact
-
+            print("launch config", launch_config)
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
+            print("DATASET", self.config.dataset)
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False

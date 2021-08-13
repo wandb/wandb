@@ -230,6 +230,7 @@ class Config(object):
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+        print("SANITIZE", key, val)
         if isinstance(val, wandb.Artifact) or isinstance(
             val, wandb.apis.public.Artifact
         ):
