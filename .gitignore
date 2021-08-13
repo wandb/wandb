@@ -25,3 +25,4 @@ mypy-results/
 cover-results/
 wandb/proto_check/
 .idea/
+.yea-requirements.txt
