@@ -7,7 +7,7 @@ name: prodigy integration test
 tag:
   suite: nightly
 command:
-  timeout: 500
+  timeout: 300
 plugin:
   - wandb
 depend:
