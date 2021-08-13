@@ -1,13 +1,18 @@
 from wandb.sdk.lib.stdin_timeout import stdin_timeout
 from wandb.errors import InputTimeoutError
+from wandb.util import prompt_choices
 import io
 import pytest
 
 
 @pytest.fixture
-def input_timeout(monkeypatch):
+def stdin_timeout(monkeypatch):
     monkeypatch.setattr("sys.stdin", io.StringIO("1"))
     choice = stdin_timeout("", None, "")
+    assert choice == "1"
+
+    choices = ["1", "2"]
+    choice = prompt_choices(choices)
     assert choice == "1"
 
 
