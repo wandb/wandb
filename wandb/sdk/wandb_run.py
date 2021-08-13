@@ -2120,6 +2120,7 @@ class Run(object):
         else:
             entity = r.entity
             project = r.project
+        print("SETTINGS ENTITY PROJECT", entity, project)
         api = internal.Api(default_settings={"entity": entity, "project": project})
         api.set_current_run_id(self.id)
 
