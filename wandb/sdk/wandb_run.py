@@ -378,6 +378,7 @@ class Run(object):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             for key, item in launch_config.keys():
+                print(key, item, isinstance(item, dict))
                 if (
                     isinstance(item, dict)
                     and item.get("_wandb_config_param_type") is not None
@@ -846,6 +847,17 @@ class Run(object):
         data: Dict[str, object] = None,
     ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
+        if isinstance(val, wandb.Artifact) or isinstance(
+            val, wandb.apis.public.Artifact
+        ):
+            val = {
+                "_wandb_config_param_type": "artifact_version",
+                "definition": {
+                    "type": val.type,
+                    "name": val.name,
+                    "alias": val.name.split(":")[-1],
+                },
+            }
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
