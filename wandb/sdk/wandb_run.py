@@ -382,8 +382,9 @@ class Run(object):
                     key,
                     item,
                     isinstance(item, dict),
-                    item.get("_wandb_config_param_type"),
                 )
+                if isinstance(item, dict):
+                    print(item.get("_wandb_config_param_type"))
                 if (
                     isinstance(item, dict)
                     and item.get("_wandb_config_param_type") is not None
