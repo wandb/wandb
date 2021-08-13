@@ -51,7 +51,12 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     RunRecord,
 )
-from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
+from wandb.util import (
+    add_import_hook,
+    sanitize_keys,
+    sentry_set_scope,
+    to_forward_slash_path,
+)
 from wandb.viz import (
     create_custom_chart,
     custom_chart_panel_config,
@@ -1110,6 +1115,8 @@ class Run(object):
 
         if any(not isinstance(key, string_types) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        data = sanitize_keys(data)
 
         if step is not None:
             # if step is passed in when tensorboard_sync is used we honor the step passed

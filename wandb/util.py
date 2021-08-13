@@ -29,6 +29,8 @@ import yaml
 from datetime import date, datetime
 import platform
 from six.moves.urllib.parse import urlparse
+from typing import Any, Dict
+import unicodedata
 
 import requests
 import six
@@ -1319,3 +1321,13 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def sanitize_keys(data: Dict[str, Any]) -> Dict[str, Any]:
+    return {sanitize(k): v for k, v in data.items()}
+
+
+def sanitize(key: str) -> str:
+    key = unicodedata.normalize("NFKC", key)
+    key = re.sub(r"[^\w\s-]", "", key)
+    return re.sub(r"[-\s]+", "-", key).strip("-_")
