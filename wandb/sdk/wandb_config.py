@@ -203,11 +203,10 @@ class Config(object):
         num = self._users[user]
 
         for k, v in six.iteritems(d):
-            if isinstance(v, wandb.Artifact) or isinstance(
+            if not isinstance(v, wandb.Artifact) or isinstance(
                 v, wandb.apis.public.Artifact
             ):
-                continue
-            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
+                k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
 
