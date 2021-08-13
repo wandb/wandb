@@ -378,11 +378,18 @@ class Run(object):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             for key, item in launch_config.items():
+                print(
+                    key,
+                    item,
+                    isinstance(item, dict),
+                    item.get("_wandb_config_param_type"),
+                )
                 if (
                     isinstance(item, dict)
                     and item.get("_wandb_config_param_type") is not None
-                    and item.get("_wandb_config_param_type") is "artifact_version"
+                    and item.get("_wandb_config_param_type") == "artifact_version"
                 ):
+                    print("GETTING THE ARTIFACT")
                     project = item["definition"]["project"]
                     entity = item["definition"]["entity"]
                     name = item["definition"]["name"]
