@@ -433,8 +433,12 @@ class _WandbInit(object):
                         )
                     )
         elif isinstance(wandb.run, Run):
-            logger.info("wandb.init() called when a run is still active")
-            return wandb.run
+            if wandb.run._init_pid == os.getpid():
+                logger.info("wandb.init() called when a run is still active")
+                return wandb.run
+            elif s.start_method != "grpc":
+                logger.error("wandb.init() called when a run is still active. Unsafe mp usage.")
+                return wandb.run
 
         if s._attach_id and s.start_method != "grpc":
             wandb.termwarn("Must use start_method = grpc to use `wandb.init(attach=)`")
