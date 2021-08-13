@@ -73,14 +73,14 @@ class HandleManager(object):
     _accumulate_time: float
 
     def __init__(
-            self,
-            settings: SettingsStatic,
-            record_q: "Queue[Record]",
-            result_q: "Queue[Result]",
-            stopped: Event,
-            sender_q: "Queue[Record]",
-            writer_q: "Queue[Record]",
-            interface: BackendSender,
+        self,
+        settings: SettingsStatic,
+        record_q: "Queue[Record]",
+        result_q: "Queue[Result]",
+        stopped: Event,
+        sender_q: "Queue[Record]",
+        writer_q: "Queue[Record]",
+        interface: BackendSender,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -203,12 +203,12 @@ class HandleManager(object):
                 self._sampled_history[k].add(v)
 
     def _update_summary_metrics(
-            self,
-            s: wandb_internal_pb2.MetricSummary,
-            kl: List[str],
-            v: "numbers.Real",
-            float_v: float,
-            goal_max: Optional[bool],
+        self,
+        s: wandb_internal_pb2.MetricSummary,
+        kl: List[str],
+        v: "numbers.Real",
+        float_v: float,
+        goal_max: Optional[bool],
     ) -> bool:
         updated = False
         best_key: Optional[Tuple[str, ...]] = None
@@ -266,10 +266,10 @@ class HandleManager(object):
         return updated
 
     def _update_summary_leaf(
-            self,
-            kl: List[str],
-            v: Any,
-            d: Optional[wandb_internal_pb2.MetricRecord] = None,
+        self,
+        kl: List[str],
+        v: Any,
+        d: Optional[wandb_internal_pb2.MetricRecord] = None,
     ) -> bool:
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -294,16 +294,16 @@ class HandleManager(object):
         if d.goal:
             goal_max = d.goal == d.GOAL_MAXIMIZE
         if self._update_summary_metrics(
-                d.summary, kl=kl, v=v, float_v=float_v, goal_max=goal_max
+            d.summary, kl=kl, v=v, float_v=float_v, goal_max=goal_max
         ):
             return True
         return False
 
     def _update_summary_list(
-            self,
-            kl: List[str],
-            v: Any,
-            d: Optional[wandb_internal_pb2.MetricRecord] = None,
+        self,
+        kl: List[str],
+        v: Any,
+        d: Optional[wandb_internal_pb2.MetricRecord] = None,
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
@@ -326,10 +326,10 @@ class HandleManager(object):
         # For now, non recursive - just top level
         for nk, nv in six.iteritems(v):
             if (
-                    isinstance(nv, dict)
-                    and handler_util.metric_is_wandb_dict(nv)
-                    and "_latest_artifact_path" in nv
-                    and "artifact_path" in nv
+                isinstance(nv, dict)
+                and handler_util.metric_is_wandb_dict(nv)
+                and "_latest_artifact_path" in nv
+                and "artifact_path" in nv
             ):
                 # TODO: Make non-destructive?
                 nv["artifact_path"] = nv["_latest_artifact_path"]
@@ -371,13 +371,11 @@ class HandleManager(object):
             self._run_start_time = history_dict["_timestamp"]
         item = record.history.item.add()
         item.key = "_runtime"
-        history_dict["_runtime"] = (
-                history_dict["_timestamp"] - self._run_start_time
-        )
+        history_dict["_runtime"] = history_dict["_timestamp"] - self._run_start_time
         item.value_json = json.dumps(history_dict["_runtime"])
 
     def _history_define_metric(
-            self, hkey: str
+        self, hkey: str
     ) -> Optional[wandb_internal_pb2.MetricRecord]:
         """check for hkey match in glob metrics, return defined metric."""
         # Dont define metric for internal metrics
@@ -395,7 +393,7 @@ class HandleManager(object):
         return None
 
     def _history_update_leaf(
-            self, kl: List[str], v: Any, history_dict: Dict, update_history: Dict[str, Any]
+        self, kl: List[str], v: Any, history_dict: Dict, update_history: Dict[str, Any]
     ) -> None:
         hkey = ".".join([k.replace(".", "\\.") for k in kl])
         m = self._metric_defines.get(hkey)
@@ -416,7 +414,7 @@ class HandleManager(object):
                     update_history[m.step_metric] = step
 
     def _history_update_list(
-            self, kl: List[str], v: Any, history_dict: Dict, update_history: Dict[str, Any]
+        self, kl: List[str], v: Any, history_dict: Dict, update_history: Dict[str, Any]
     ) -> None:
         if isinstance(v, dict):
             for nk, nv in six.iteritems(v):
