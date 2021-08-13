@@ -10,7 +10,6 @@ import codecs
 import errno
 import hashlib
 import json
-import getpass
 import logging
 import math
 import numbers
@@ -19,12 +18,10 @@ import os
 import re
 import shlex
 import socket
-import subprocess
 import sys
 import threading
 import time
 import random
-import stat
 import shortuuid
 import importlib
 import types
@@ -33,27 +30,20 @@ from datetime import date, datetime
 import platform
 from six.moves.urllib.parse import urlparse
 
-import click
 import requests
 import six
 from six.moves import queue, input
-import textwrap
 from sys import getsizeof
-from collections import namedtuple
 from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from sentry_sdk import configure_scope
 from wandb.env import error_reporting_enabled
 
 import wandb
 from wandb.errors import CommError, term
 from wandb.old.core import wandb_dir
-from wandb import env
-
-from typing import List
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -338,6 +328,16 @@ def is_pytorch_tensor_typename(typename):
     )
 
 
+def is_jax_tensor_typename(typename):
+    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+
+
+def get_jax_tensor(obj):
+    import jax
+
+    return jax.device_get(obj)
+
+
 def is_fastai_tensor_typename(typename):
     return typename.startswith("fastai.") and ("Tensor" in typename)
 
@@ -453,6 +453,8 @@ def json_friendly(obj):
             obj = obj.cpu().detach().numpy()
         else:
             return obj.item(), True
+    elif is_jax_tensor_typename(typename):
+        obj = get_jax_tensor(obj)
 
     if is_numpy_array(obj):
         if obj.size == 1:
@@ -1266,6 +1268,35 @@ def _is_databricks():
     return False
 
 
+def sweep_config_err_text_from_jsonschema_violations(violations):
+    """Consolidate violation strings from wandb/sweeps describing the ways in which a
+    sweep config violates the allowed schema as a single string.
+
+
+    Parameters
+    ----------
+    violations: list of str
+        The warnings to render.
+
+    Returns
+    -------
+    violation: str
+        The consolidated violation text.
+
+    """
+
+    violation_base = (
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
+        "To avoid this, please fix the sweep config schema violations below:"
+    )
+
+    for i, warning in enumerate(violations):
+        violations[i] = "  Violation {}. {}".format(i + 1, warning)
+    violation = "\n".join([violation_base] + violations)
+
+    return violation
+
+
 def handle_sweep_config_violations(warnings):
     """Render warnings from gorilla describing the ways in which a
     sweep config violates the allowed schema as terminal warnings.
@@ -1276,15 +1307,7 @@ def handle_sweep_config_violations(warnings):
         The warnings to render.
     """
 
-    warning_base = (
-        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
-        "To avoid this, please fix the sweep config schema violations below:"
-    )
-
-    for i, warning in enumerate(warnings):
-        warnings[i] = "  Violation {}. {}".format(i + 1, warning)
-    warning = "\n".join([warning_base] + warnings)
-
+    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
     if len(warnings) > 0:
         term.termwarn(warning)
 

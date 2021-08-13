@@ -1,10 +1,7 @@
 #
 import os
+from typing import Callable
 
-import wandb
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Callable
 
 WANDB_DIRS = ("wandb", ".wandb")
 

@@ -1,8 +1,5 @@
-import wandb
-
-
-if wandb.TYPE_CHECKING:
-    from typing import Dict, Iterable
+#
+from typing import Dict, Iterable
 
 
 def split_files(

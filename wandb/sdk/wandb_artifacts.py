@@ -6,6 +6,20 @@ import os
 import re
 import shutil
 import time
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    IO,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 
 import requests
 from six.moves.urllib.parse import quote, urlparse
@@ -34,26 +48,11 @@ from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     StoragePolicy,
 )
 
-if wandb.TYPE_CHECKING:
-    from typing import (
-        List,
-        Optional,
-        Union,
-        Dict,
-        Tuple,
-        TYPE_CHECKING,
-        Callable,
-        Sequence,
-        Mapping,
-        IO,
-        Generator,
-        Any,
-    )
 
-    if TYPE_CHECKING:
-        import google.cloud.storage as gcs_module  # type: ignore
-        import boto3  # type: ignore
-        import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
+if TYPE_CHECKING:
+    import google.cloud.storage as gcs_module  # type: ignore
+    import boto3  # type: ignore
+    import wandb.filesync.step_prepare.StepPrepare as StepPrepare  # type: ignore
 
 # This makes the first sleep 1s, and then doubles it up to total times,
 # which makes for ~18 hours.
@@ -473,6 +472,7 @@ class Artifact(ArtifactInterface):
             data_types.Video,
             data_types.Html,
             data_types.Object3D,
+            data_types.Molecule,
         ]
 
         if not any(isinstance(obj, t) for t in allowed_types):
@@ -943,6 +943,7 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit and entry.local_path is not None:
             with cache_open() as f:
                 shutil.copyfile(entry.local_path, f.name)
+            entry.local_path = cache_path
 
         resp = preparer.prepare(
             lambda: {

@@ -1162,7 +1162,8 @@ class Api(object):
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                util.sentry_reraise(retry.TransientError(exc=e))
+                e = retry.TransientError(exc=e)
+                six.reraise(type(e), e, sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
 
@@ -1286,6 +1287,11 @@ class Api(object):
         # avoid modifying the original config dict in
         # case it is reused outside the calling func
         config = deepcopy(config)
+
+        # explicitly cast to dict in case config was passed as a sweepconfig
+        # sweepconfig does not serialize cleanly to yaml and breaks graphql
+        # but it is a subclass of dict, so this conversion is clean
+        config = dict(config)
 
         if "parameters" not in config:
             raise ValueError("sweep config must have a parameters section")
