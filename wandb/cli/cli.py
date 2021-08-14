@@ -867,17 +867,16 @@ def _check_launch_imports():
 
 
 @cli.command(
-    help="""Launch a job on a specified resource.
-
-Example URI's:
+    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "or a git uri pointing to a remote repository, or path to a local directory."
+    """\n\nExamples:
 
     wandb launch https://wandb.ai/wandb/launch/runs/a1b2c3d
 
     wandb launch https://github.com/wandb/examples
 
-    wandb launch /path/to/git_repo
-
-"""
+    wandb launch /path/to/git_repo"""
 )
 @click.argument("uri")
 @click.option(

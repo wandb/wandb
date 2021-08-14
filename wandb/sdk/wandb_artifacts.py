@@ -943,6 +943,7 @@ class WandbStoragePolicy(StoragePolicy):
         if not hit and entry.local_path is not None:
             with cache_open() as f:
                 shutil.copyfile(entry.local_path, f.name)
+            entry.local_path = cache_path
 
         resp = preparer.prepare(
             lambda: {
