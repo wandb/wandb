@@ -18,6 +18,7 @@ def stdin_tests(monkeypatch):
     choice = _prompt_choice_with_timeout()
     assert choice == 0
 
+
 """"
 @pytest.fixture
 def input_timeout_test(pytestconfig):
