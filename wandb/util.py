@@ -997,7 +997,11 @@ def prompt_choices(choices, allow_manual=False, input_timeout=None):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
-    idx = _prompt_choice_with_timeout(input_timeout)
+    idx = (
+        _prompt_choice_with_timeout(input_timeout)
+        if input_timeout
+        else _prompt_choice()
+    )
     while idx < 0 or idx > len(choices) - 1:
         if idx == TIMEOUT_CODE:
             return len(choices) - 1  # LOGIN_CHOICE_DRYRUN
