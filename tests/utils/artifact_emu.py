@@ -13,9 +13,7 @@ class ArtifactEmulator:
         state = "PENDING"
         aliases = []
         latest = None
-        manifest = "wandb_manifest.json"
         art_id = variables.get("digest", "")
-        request_url_root = self._base_url
 
         # Find most recent artifact
         versions = self._artifacts.get(collection_name)
@@ -33,8 +31,9 @@ class ArtifactEmulator:
             "artifactSequence": art_seq,
         }
 
-        response = {"data": {"createArtifact": {"artifact": copy.deepcopy(art_data),}}}
+        response = {"data": {"createArtifact": {"artifact": copy.deepcopy(art_data)}}}
 
+        # save in artifact emu object
         art_seq["name"] = collection_name
         art_data["artifactSequence"] = art_seq
         art_data["state"] = "COMMITTED"
@@ -42,7 +41,8 @@ class ArtifactEmulator:
         if art_type:
             art_data["artifactType"] = {"id": 1, "name": art_type}
         self._artifacts.setdefault(collection_name, []).append(copy.deepcopy(art_data))
-        # FIXME: add type
+
+        # save in context
         self._ctx["artifacts_created"].setdefault(collection_name, {})
         self._ctx["artifacts_created"][collection_name].setdefault("num", 0)
         self._ctx["artifacts_created"][collection_name]["num"] += 1
@@ -61,15 +61,13 @@ class ArtifactEmulator:
                             {
                                 "node": {
                                     "id": idx,
-                                    "name": afile["name"],
-                                    "displayName": afile["name"],
-                                    "uploadUrl": base_url
-                                    + "/storage?file=%s&id=%s"
-                                    % (afile["name"], afile["artifactID"]),
+                                    "name": af["name"],
+                                    "displayName": af["name"],
+                                    "uploadUrl": f"{base_url}/storage?file={af['name']}&id={af['artifactID']}",
                                     "uploadHeaders": [],
-                                    "artifact": {"id": afile["artifactID"]},
+                                    "artifact": {"id": af["artifactID"]},
                                 }
-                                for idx, afile in enumerate(variables["artifactFiles"])
+                                for idx, af in enumerate(variables["artifactFiles"])
                             },
                         ],
                     },
