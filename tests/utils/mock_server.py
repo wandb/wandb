@@ -54,11 +54,11 @@ def default_ctx():
         "artifacts_by_id": {},
         "artifacts_created": {},
         "upsert_bucket_count": 0,
-        "max_cli_version": "0.10.33",
+        "max_cli_version": "0.12.0",
         "runs": {},
         "run_ids": [],
         "file_names": [],
-        "emulate_artifacts": False,
+        "emulate_artifacts": None,
     }
 
 
@@ -346,10 +346,15 @@ def create_app(user_ctx=None):
                 return json.dumps({"error": "rate limit exceeded"}), 429
 
         # Setup artifact emulator (should this be somewhere else?)
-        if ctx["emulate_artifacts"]:
-            global ART_EMU
-            if ART_EMU is None:
-                ART_EMU = ArtifactEmulator(ctx=ctx, base_url=base_url)
+        emulate_random_str = ctx["emulate_artifacts"]
+        global ART_EMU
+        if emulate_random_str:
+            if ART_EMU is None or ART_EMU._random_str != emulate_random_str:
+                ART_EMU = ArtifactEmulator(
+                    random_str=emulate_random_str, ctx=ctx, base_url=base_url
+                )
+        else:
+            ART_EMU = None
 
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)

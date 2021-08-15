@@ -2,9 +2,11 @@ import copy
 
 
 class ArtifactEmulator:
-    def __init__(self, ctx, base_url):
+    def __init__(self, random_str, ctx, base_url):
+        self._random_str = random_str
         self._ctx = ctx
         self._artifacts = {}
+        self._artifacts_by_id = {}
         self._files = {}
         self._base_url = base_url
 
@@ -40,7 +42,9 @@ class ArtifactEmulator:
         art_type = variables.get("artifactTypeName")
         if art_type:
             art_data["artifactType"] = {"id": 1, "name": art_type}
-        self._artifacts.setdefault(collection_name, []).append(copy.deepcopy(art_data))
+        art_save = copy.deepcopy(art_data)
+        self._artifacts.setdefault(collection_name, []).append(art_save)
+        self._artifacts_by_id[art_id] = art_save
 
         # save in context
         self._ctx["artifacts_created"].setdefault(collection_name, {})
@@ -77,20 +81,26 @@ class ArtifactEmulator:
         return response
 
     def query(self, variables):
-        art_name = variables["name"]
-        collection_name, version = art_name.split(":", 1)
-        artifact = None
-        artifacts = self._artifacts.get(collection_name)
-        if artifacts:
-            if version == "latest":
-                version_num = len(artifacts)
-            else:
-                assert version.startswith("v")
-                version_num = int(version[1:])
-            artifact = artifacts[version_num - 1]
-            # TODO: add alias info?
+        art_id = variables.get("id")
+        art_name = variables.get("name")
+        assert art_id or art_name
+
+        if art_name:
+            collection_name, version = art_name.split(":", 1)
+            artifact = None
+            artifacts = self._artifacts.get(collection_name)
+            if artifacts:
+                if version == "latest":
+                    version_num = len(artifacts)
+                else:
+                    assert version.startswith("v")
+                    version_num = int(version[1:])
+                artifact = artifacts[version_num - 1]
+                # TODO: add alias info?
+        elif art_id:
+            artifact = self._artifacts_by_id[art_id]
+
         response = {"data": {"project": {"artifact": artifact}}}
-        print("RESP=====", response)
         return response
 
     def file(self, entity, digest):
