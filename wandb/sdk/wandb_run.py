@@ -2398,10 +2398,10 @@ class Run(object):
         if self._backend:
             self._backend.interface.publish_preempting()
 
-    def log_checkpoint(self) -> None:
+    def log_checkpoint(self, name: str = None) -> None:
         """Logs current runstate as an artifact checkpoint."""
 
-        name = self._run_id
+        name = name or "{}-{}".format("checkpoint", self.id)
         art = wandb.Artifact(name, "checkpoint")
 
         # TODO: should we save files and artifacts? probably, how?

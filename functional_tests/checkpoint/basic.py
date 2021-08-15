@@ -3,7 +3,8 @@
 
 ---
 id: 99.0.1
-check-ext-wandb: {}
+plugin:
+  - wandb
 assert:
   - :wandb:runs_len: 4
   - :wandb:runs[0][exitcode]: 0
@@ -47,9 +48,9 @@ def run_branch(ckpt: str, mult):
 
 def main():
     run_id = run_base()
-    run_branch(f"{run_id}:v3", 2)
-    run_branch(f"{run_id}:v1", 3)
-    run_branch(f"{run_id}:latest", 4)
+    run_branch(f"checkpoint-{run_id}:v3", 2)
+    run_branch(f"checkpoint-{run_id}:v1", 3)
+    run_branch(f"checkpoint-{run_id}:latest", 4)
 
 
 if __name__ == "__main__":
