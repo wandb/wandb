@@ -2704,10 +2704,12 @@ class _DeferredUsedArtifact(ArtifactInterface):
         self.source_name = name
 
     def _assert_instance(self) -> ArtifactInterface:
-        if not self._instance or wandb.run is None:
+        if wandb.run is None:
             raise ValueError(
-                "Must call wait(), and have inizitialized a run before accessing logged artifact properties"
+                "Must have inizitialized a run before accessing logged artifact properties"
             )
+        if not self._instance:
+            self.wait()
         return self._instance
 
     def __getattr__(self, item: str) -> Any:
