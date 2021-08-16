@@ -47,7 +47,7 @@ class ArtifactProxy:
         return setattr(self.flow, key, val)
 
     def __getattr__(self, key):
-        if key not in self.base:
+        if key not in self.base and key not in self.outputs:
             self.inputs[key] = getattr(self.flow, key)
         return getattr(self.flow, key)
 
