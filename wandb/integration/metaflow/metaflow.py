@@ -158,14 +158,14 @@ def wandb_log(
 ):
     def decorator(func):
         @wraps(func)
-        def wrapper(flow, settings=settings, *args, **kwargs):
+        def wrapper(self, settings=settings, *args, **kwargs):
             if not settings:
                 settings = wandb.Settings(
                     run_group=f"{current.flow_name}/{current.run_id}",
                     run_job_type=current.step_name,
                 )
             with wandb.init(settings=settings) as run:
-                proxy = ArtifactProxy(flow)
+                proxy = ArtifactProxy(self)
                 run.config.update(proxy.params)
                 func(proxy, *args, **kwargs)
 
