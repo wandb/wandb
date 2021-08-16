@@ -153,7 +153,7 @@ def wandb_log(
     # /,  #  py38 support only
     datasets=False,
     models=False,
-    settings={},
+    others=False,
 ):
     def decorator(func):
         @wraps(func)
