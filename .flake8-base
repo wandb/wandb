@@ -33,6 +33,7 @@ exclude =
     ./wandb/integration/lightgbm/
     ./wandb/integration/xgboost/
     ./wandb/integration/fastai/
+    ./wandb/integration/metaflow/
     ./wandb/filesync/
     ./wandb/sdk/internal/internal_api.py
     ./wandb/sdk/internal/file_pusher.py
@@ -44,6 +45,8 @@ exclude =
     ./wandb/sklearn/
     ./wandb/viz.py
     ./wandb/vendor/
+    ./functional_tests/metaflow/
+    ./wandb/tests/integrations/test_metaflow.py
 
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
