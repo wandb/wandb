@@ -151,11 +151,14 @@ def _wandb_use(name: str, data, ctx):  # type: ignore
 
 
 def wandb_log(
+    func=None,
+    # /,  # py38 only
     datasets=False,
     models=False,
     others=False,
     settings=None,
 ):
+    @wraps(func)
     def decorator(func):
         # If you decorate a class, apply the decoration to all methods in that class
         if inspect.isclass(func):
@@ -195,7 +198,9 @@ def wandb_log(
                     wandb_track(name, data, ctx)
 
         wrapper._base_func = func
-        if func is None:
-            return wrapper
-        else:
-            return wrapper(func)
+        return wrapper
+
+    if func is None:
+        return decorator
+    else:
+        return decorator(func)
