@@ -177,13 +177,11 @@ def wandb_log(
 
                 print("=== LOGGING INPUTS ===")
                 for name, data in proxy.inputs.items():
-                    _wandb_use(name, data, run=run)
-                    print(f"wandb: using artifact: {name} ({type(data)})")
+                    wandb_use(name, data, ctx)
 
                 print("=== LOGGING OUTPUTS ===")
                 for name, data in proxy.outputs.items():
-                    _wandb_log(name, data, datasets=datasets, models=models, run=run)
-                    print(f"wandb: logging artifact: {name} ({type(data)})")
+                    wandb_track(name, data, ctx)
 
         return wrapper
 
