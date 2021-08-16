@@ -255,6 +255,14 @@ def wandb_log(
                     )
 
         wrapper._base_func = func
+
+        # Add for testing visibility
+        wrapper._kwargs = {
+            "datasets": datasets,
+            "models": models,
+            "others": others,
+            "settings": settings,
+        }
         return wrapper
 
     if func is None:
