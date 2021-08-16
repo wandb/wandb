@@ -157,6 +157,10 @@ def wandb_log(
     settings=None,
 ):
     def decorator(func):
+        # prefer the latest decoration (i.e. method decoration overrides class decoration)
+        if hasattr(func, "_base_func"):
+            func = func._base_func
+
         @wraps(func)
         def wrapper(self, settings=settings, *args, **kwargs):
             if not settings:
@@ -183,6 +187,7 @@ def wandb_log(
                 for name, data in proxy.outputs.items():
                     wandb_track(name, data, ctx)
 
+        wrapper._base_func = func
         return wrapper
 
     if func is None:
