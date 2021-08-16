@@ -195,9 +195,7 @@ def wandb_log(
                     wandb_track(name, data, ctx)
 
         wrapper._base_func = func
-        return wrapper
-
-    if func is None:
-        return decorator
-    else:
-        return decorator(func)
+        if func is None:
+            return wrapper
+        else:
+            return wrapper(func)
