@@ -151,8 +151,6 @@ def _wandb_use(name: str, data, ctx):  # type: ignore
 
 
 def wandb_log(
-    func=None,
-    # /,  #  py38 support only
     datasets=False,
     models=False,
     others=False,
