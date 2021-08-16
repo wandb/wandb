@@ -388,9 +388,7 @@ class Run(object):
                     project = item["definition"]["project"]
                     entity = item["definition"]["entity"]
                     name = item["definition"]["name"]
-                    artifact = _DeferredUsedArtifact(
-                        entity, project, name
-                    )  # self.use_artifact(f"{entity}/{project}/{name}")
+                    artifact = _DeferredUsedArtifact(entity, project, name)
                     launch_config[key] = artifact
 
             self._config.update_locked(

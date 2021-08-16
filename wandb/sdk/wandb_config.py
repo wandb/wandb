@@ -140,7 +140,7 @@ class Config(object):
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
-            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredArtifact)
+            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredUsedArtifact)
         ):
             key, val = self._sanitize(key, val)
 
@@ -235,7 +235,7 @@ class Config(object):
         if (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
-            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredArtifact)
+            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredUsedArtifact)
         ):
             return key, val
         # We always normalize keys by stripping '-'
