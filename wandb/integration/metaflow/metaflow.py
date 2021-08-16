@@ -55,67 +55,107 @@ class ArtifactProxy:
 
 
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data: (dict, list, set, str, int, float, bool), ctx):  # type: ignore
-    ctx["run"].log({name: data})
+def wandb_track(name: str, data: (dict, list, set, str, int, float, bool), run=None, testing=False, *args, **kwargs):  # type: ignore
+    if testing:
+        return "scalar"
+
+    run.log({name: data})
 
 
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data: Path, ctx):
-    if ctx["datasets"]:
+def wandb_track(
+    name: str, data: Path, datasets=False, run=None, testing=False, *args, **kwargs
+):
+    if testing:
+        return "Path" if datasets else None
+
+    if datasets:
         artifact = wandb.Artifact(name, type="dataset")
         if data.is_dir():
             artifact.add_dir(data)
         elif data.is_file():
             artifact.add_file(data)
-        ctx["run"].log_artifact(artifact)
+        run.log_artifact(artifact)
         print(f"wandb: logging artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data: pd.DataFrame, ctx):
-    if ctx["datasets"]:
+def wandb_track(
+    name: str,
+    data: pd.DataFrame,
+    datasets=False,
+    run=None,
+    testing=False,
+    *args,
+    **kwargs,
+):
+    if testing:
+        return "pd.DataFrame" if datasets else None
+
+    if datasets:
         artifact = wandb.Artifact(name, type="dataset")
         with artifact.new_file(f"{name}.csv") as f:
             data.to_csv(f)
-        ctx["run"].log_artifact(artifact)
+        run.log_artifact(artifact)
         print(f"wandb: logging artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data: nn.Module, ctx):
-    if ctx["models"]:
+def wandb_track(
+    name: str, data: nn.Module, models=False, run=None, testing=False, *args, **kwargs
+):
+    if testing:
+        return "nn.Module" if models else None
+
+    if models:
         artifact = wandb.Artifact(name, type="model")
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             torch.save(data, f)
-        ctx["run"].log_artifact(artifact)
+        run.log_artifact(artifact)
         print(f"wandb: logging artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data: BaseEstimator, ctx):
-    if ctx["models"]:
+def wandb_track(
+    name: str,
+    data: BaseEstimator,
+    models=False,
+    run=None,
+    testing=False,
+    *args,
+    **kwargs,
+):
+    if testing:
+        return "BaseEstimator" if models else None
+
+    if models:
         artifact = wandb.Artifact(name, type="model")
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             pickle.dump(data, f)
-        ctx["run"].log_artifact(artifact)
+        run.log_artifact(artifact)
         print(f"wandb: logging artifact: {name} ({type(data)})")
 
 
 # this is the base case
 @typedispatch  # noqa: F811
-def wandb_track(name: str, data, ctx):
-    if ctx["others"]:
+def wandb_track(
+    name: str, data, others=False, run=None, testing=False, *args, **kwargs
+):
+    if testing:
+        return "generic" if others else None
+
+    if others:
         artifact = wandb.Artifact(name, type="other")
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             pickle.dump(data, f)
-        ctx["run"].log_artifact(artifact)
+        run.log_artifact(artifact)
         print(f"wandb: logging artifact: {name} ({type(data)})")
 
 
 @typedispatch
-def wandb_use(name: str, data, ctx):
+def wandb_use(name: str, data, *args, **kwargs):
     try:
-        _wandb_use(name, data, ctx)
+        return _wandb_use(name, data, *args, **kwargs)
     except wandb.CommError:
         print(
             f"This artifact ({name}, {type(data)}) does not exist in the wandb datastore!"
@@ -125,28 +165,37 @@ def wandb_use(name: str, data, ctx):
 
 
 @typedispatch  # noqa: F811
-def wandb_use(name: str, data: (dict, list, set, str, int, float, bool), ctx):  # type: ignore
+def wandb_use(name: str, data: (dict, list, set, str, int, float, bool), *args, **kwargs):  # type: ignore
     pass  # do nothing for these types
 
 
 @typedispatch  # noqa: F811
-def _wandb_use(name: str, data: (nn.Module, BaseEstimator), ctx):  # type: ignore
-    if ctx["models"]:
-        ctx["run"].use_artifact(f"{name}:latest")
+def _wandb_use(name: str, data: (nn.Module, BaseEstimator), models=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+    if testing:
+        return "models" if models else None
+
+    if models:
+        run.use_artifact(f"{name}:latest")
         print(f"wandb: using artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
-def _wandb_use(name: str, data: (pd.DataFrame, Path), ctx):  # type: ignore
-    if ctx["datasets"]:
-        ctx["run"].use_artifact(f"{name}:latest")
+def _wandb_use(name: str, data: (pd.DataFrame, Path), datasets=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+    if testing:
+        return "datasets" if datasets else None
+
+    if datasets:
+        run.use_artifact(f"{name}:latest")
         print(f"wandb: using artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
-def _wandb_use(name: str, data, ctx):  # type: ignore
-    if ctx["others"]:
-        ctx["run"].use_artifact(f"{name}:latest")
+def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **kwargs):  # type: ignore
+    if testing:
+        return "others" if others else None
+
+    if others:
+        run.use_artifact(f"{name}:latest")
         print(f"wandb: using artifact: {name} ({type(data)})")
 
 
