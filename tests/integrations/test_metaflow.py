@@ -1,11 +1,12 @@
-from metaflow import FlowSpec, step
-from wandb.integration.metaflow import wandb_log, wandb_use, wandb_track
-import pandas as pd
-import torch.nn as nn
-import torch.functional as F
-import torch
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from pathlib import Path
+
+import pandas as pd
+import torch
+import torch.functional as F
+import torch.nn as nn
+from metaflow import FlowSpec, step
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
 
 
 def test_decoration_class():

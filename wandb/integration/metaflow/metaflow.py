@@ -1,11 +1,12 @@
-from functools import wraps
-import pickle
 import inspect
-
-from fastcore.all import typedispatch
-from metaflow import current
-import wandb
+import pickle
+from functools import wraps
 from pathlib import Path
+
+import wandb
+from fastcore.all import typedispatch
+
+from metaflow import current
 
 # I think importing here is more appropriate than importing in the func?
 try:
