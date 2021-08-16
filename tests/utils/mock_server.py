@@ -18,9 +18,23 @@ import logging
 from six.moves import urllib
 import threading
 
-from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+RequestsMock = None
+InjectRequestsParse = None
+ArtifactEmulator = None
 
-# from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
+
+def load_modules(use_yea=False):
+    global RequestsMock, InjectRequestsParse, ArtifactEmulator
+    if use_yea:
+        from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
+        from yea_wandb.artifact_emu import ArtifactEmulator
+    else:
+        from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+        from tests.utils.artifact_emu import ArtifactEmulator
+
+
+# global (is this safe?)
+ART_EMU = None
 
 
 def default_ctx():
@@ -37,20 +51,24 @@ def default_ctx():
         "resume": None,
         "file_bytes": {},
         "manifests_created": [],
+        "artifacts": {},
         "artifacts_by_id": {},
+        "artifacts_created": {},
         "upsert_bucket_count": 0,
         "run_queues_return_default": True,
         "run_queues": {"1": []},
         "num_popped": 0,
         "num_acked": 0,
-        "max_cli_version": "0.10.33",
+        "max_cli_version": "0.12.0",
         "runs": {},
         "run_ids": [],
         "file_names": [],
+        "emulate_artifacts": None,
     }
 
 
 def mock_server(mocker):
+    load_modules()
     ctx = default_ctx()
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
@@ -346,6 +364,18 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+
+        # Setup artifact emulator (should this be somewhere else?)
+        emulate_random_str = ctx["emulate_artifacts"]
+        global ART_EMU
+        if emulate_random_str:
+            if ART_EMU is None or ART_EMU._random_str != emulate_random_str:
+                ART_EMU = ArtifactEmulator(
+                    random_str=emulate_random_str, ctx=ctx, base_url=base_url
+                )
+        else:
+            ART_EMU = None
+
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
@@ -655,6 +685,9 @@ def create_app(user_ctx=None):
                 )
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation CreateArtifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create(variables=body["variables"])
+
             collection_name = body["variables"]["artifactCollectionNames"][0]
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
@@ -717,6 +750,8 @@ def create_app(user_ctx=None):
             }
             return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation CreateArtifactFiles" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create_files(variables=body["variables"])
             return {
                 "data": {
                     "files": [
@@ -832,6 +867,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.query(variables=body.get("variables", {}))
             art = artifact(
                 ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
             )
@@ -958,7 +995,7 @@ def create_app(user_ctx=None):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
-        request.get_data()
+        request.get_data(as_text=True)
         run_ctx = ctx["runs"].setdefault(run, default_ctx())
         for c in ctx, run_ctx:
             c["file_names"].append(request.args.get("file"))
@@ -978,6 +1015,8 @@ def create_app(user_ctx=None):
                 ctx["file_bytes"][file] += request.content_length
             else:
                 ctx["file_bytes"][file] += request.content_length
+        if ART_EMU:
+            return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -1188,6 +1227,8 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
+        if ART_EMU:
+            return ART_EMU.file(entity=entity, digest=digest)
         if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
@@ -1470,8 +1511,30 @@ class ParseCTX(object):
     def manifests_created_ids(self):
         return [m["id"] for m in self.manifests_created]
 
+    @property
+    def artifacts(self):
+        return self._ctx.get("artifacts_created") or {}
+
+    def _debug(self):
+        if not self._run_id:
+            items = {"run_ids": "run_ids", "artifacts": "artifacts"}
+        else:
+            items = {
+                "config": "config_user",
+                "summary": "summary_user",
+                "exit_code": "exit_code",
+                "telemetry": "telemetry",
+            }
+        d = {}
+        for k, v in items.items():
+            d[k] = getattr(self, v)
+        return d
+
 
 if __name__ == "__main__":
+    use_yea = "--yea" in sys.argv[1:]
+    load_modules(use_yea=use_yea)
+
     app = create_app()
     app.logger.setLevel(logging.INFO)
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)))
