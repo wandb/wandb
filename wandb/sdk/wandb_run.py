@@ -383,11 +383,12 @@ class Run(object):
                 if (
                     isinstance(item, dict)
                     and item.get("_wandb_config_param_type") is not None
-                    and item.get("_wandb_config_param_type") is "artifact_version"
+                    and item.get("_wandb_config_param_type") == "artifact_version"
                 ):
                     project = item["definition"]["project"]
                     entity = item["definition"]["entity"]
                     name = item["definition"]["name"]
+                    print("MAKING THE DEFERRED THING")
                     artifact = _DeferredUsedArtifact(entity, project, name)
                     launch_config[key] = artifact
             print("Launch config", launch_config)
