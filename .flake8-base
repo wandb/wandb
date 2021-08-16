@@ -15,6 +15,7 @@ exclude =
     *.egg-info
     .cache
     .eggs
+    ./functional_tests/metaflow/
     ./wandb/__init__.py
     ./wandb/wandb_torch.py
     ./wandb/bin
@@ -45,8 +46,6 @@ exclude =
     ./wandb/sklearn/
     ./wandb/viz.py
     ./wandb/vendor/
-    ./functional_tests/metaflow/
-    ./wandb/tests/integrations/test_metaflow.py
 
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
