@@ -454,6 +454,7 @@ class HandleManager(object):
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
 
+        # Inject _runtime if it is not present
         if history_dict is not None:
             if "_runtime" not in history_dict:
                 self._history_assign_runtime(record, history_dict)
