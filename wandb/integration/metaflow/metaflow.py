@@ -154,6 +154,7 @@ def wandb_log(
     datasets=False,
     models=False,
     others=False,
+    settings=None,
 ):
     def decorator(func):
         @wraps(func)
