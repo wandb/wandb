@@ -171,7 +171,7 @@ def wandb_log(
             return func
 
         @wraps(func)
-        def wrapper(self, settings=settings, *args, **kwargs):
+        def wrapper(self, *args, settings=settings, **kwargs):
             if not settings:
                 settings = wandb.Settings(
                     run_group=f"{current.flow_name}/{current.run_id}",
