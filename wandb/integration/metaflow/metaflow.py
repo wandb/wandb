@@ -233,18 +233,26 @@ def wandb_log(
                 proxy = ArtifactProxy(self)
                 run.config.update(proxy.params)
                 func(proxy, *args, **kwargs)
-                ctx = {
-                    "datasets": datasets,
-                    "models": models,
-                    "others": others,
-                    "run": run,
-                }
 
                 for name, data in proxy.inputs.items():
-                    wandb_use(name, data, ctx)
+                    wandb_use(
+                        name,
+                        data,
+                        datasets=datasets,
+                        models=models,
+                        others=others,
+                        run=run,
+                    )
 
                 for name, data in proxy.outputs.items():
-                    wandb_track(name, data, ctx)
+                    wandb_track(
+                        name,
+                        data,
+                        datasets=datasets,
+                        models=models,
+                        others=others,
+                        run=run,
+                    )
 
         wrapper._base_func = func
         return wrapper
