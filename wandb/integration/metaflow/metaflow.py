@@ -168,6 +168,12 @@ def wandb_log(
                 proxy = ArtifactProxy(self)
                 run.config.update(proxy.params)
                 func(proxy, *args, **kwargs)
+                ctx = {
+                    "datasets": datasets,
+                    "models": models,
+                    "others": others,
+                    "run": run,
+                }
 
                 print("=== LOGGING INPUTS ===")
                 for name, data in proxy.inputs.items():
