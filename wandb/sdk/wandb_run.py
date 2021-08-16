@@ -390,7 +390,7 @@ class Run(object):
                     name = item["definition"]["name"]
                     artifact = _DeferredUsedArtifact(entity, project, name)
                     launch_config[key] = artifact
-
+            print("Launch config", launch_config)
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
             )
