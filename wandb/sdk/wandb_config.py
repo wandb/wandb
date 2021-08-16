@@ -137,11 +137,11 @@ class Config(object):
         print(key, val, type(val))
         if self._check_locked(key):
             return
-        if isinstance(val, wandb.Artifact) or isinstance(
-            val, wandb.apis.public.Artifact
+        if not (
+            isinstance(val, wandb.Artifact)
+            or isinstance(val, wandb.apis.public.Artifact)
+            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredArtifact)
         ):
-            pass
-        else:
             key, val = self._sanitize(key, val)
 
         self._items[key] = val
@@ -227,9 +227,17 @@ class Config(object):
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
+
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
+
+        if (
+            isinstance(val, wandb.Artifact)
+            or isinstance(val, wandb.apis.public.Artifact)
+            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredArtifact)
+        ):
+            return key, val
         # We always normalize keys by stripping '-'
         key = key.strip("-")
         val = json_friendly_val(val)

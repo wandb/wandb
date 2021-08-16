@@ -30,6 +30,7 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
+from wandb.env import ENTITY
 
 import click
 import requests
@@ -387,7 +388,9 @@ class Run(object):
                     project = item["definition"]["project"]
                     entity = item["definition"]["entity"]
                     name = item["definition"]["name"]
-                    artifact = self.use_artifact(f"{entity}/{project}/{name}")
+                    artifact = _DeferredUsedArtifact(
+                        entity, project, name
+                    )  # self.use_artifact(f"{entity}/{project}/{name}")
                     launch_config[key] = artifact
 
             self._config.update_locked(
@@ -2560,6 +2563,163 @@ class _LazyArtifact(ArtifactInterface):
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
             resp.artifact_id, self._api.client.app_url()
         )
+        return self._instance
+
+    @property
+    def id(self) -> Optional[str]:
+        return self._assert_instance().id
+
+    @property
+    def version(self) -> str:
+        return self._assert_instance().version
+
+    @property
+    def name(self) -> str:
+        return self._assert_instance().name
+
+    @property
+    def type(self) -> str:
+        return self._assert_instance().type
+
+    @property
+    def entity(self) -> str:
+        return self._assert_instance().entity
+
+    @property
+    def project(self) -> str:
+        return self._assert_instance().project
+
+    @property
+    def manifest(self) -> "ArtifactManifest":
+        return self._assert_instance().manifest
+
+    @property
+    def digest(self) -> str:
+        return self._assert_instance().digest
+
+    @property
+    def state(self) -> str:
+        return self._assert_instance().state
+
+    @property
+    def size(self) -> int:
+        return self._assert_instance().size
+
+    @property
+    def commit_hash(self) -> str:
+        return self._assert_instance().commit_hash
+
+    @property
+    def description(self) -> Optional[str]:
+        return self._assert_instance().description
+
+    @description.setter
+    def description(self, desc: Optional[str]) -> None:
+        self._assert_instance().description = desc
+
+    @property
+    def metadata(self) -> dict:
+        return self._assert_instance().metadata
+
+    @metadata.setter
+    def metadata(self, metadata: dict) -> None:
+        self._assert_instance().metadata = metadata
+
+    @property
+    def aliases(self) -> List[str]:
+        return self._assert_instance().aliases
+
+    @aliases.setter
+    def aliases(self, aliases: List[str]) -> None:
+        self._assert_instance().aliases = aliases
+
+    def used_by(self) -> List["wandb.apis.public.Run"]:
+        return self._assert_instance().used_by()
+
+    def logged_by(self) -> "wandb.apis.public.Run":
+        return self._assert_instance().logged_by()
+
+    # Commenting this block out since this code is unreachable since LocalArtifact
+    # overrides them and therefore untestable.
+    # Leaving behind as we may want to support these in the future.
+
+    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().new_file(name, mode)
+
+    # def add_file(
+    #     self,
+    #     local_path: str,
+    #     name: Optional[str] = None,
+    #     is_tmp: Optional[bool] = False,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_file(local_path, name, is_tmp)
+
+    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    #     return self._assert_instance().add_dir(local_path, name)
+
+    # def add_reference(
+    #     self,
+    #     uri: Union["ArtifactEntry", str],
+    #     name: Optional[str] = None,
+    #     checksum: bool = True,
+    #     max_objects: Optional[int] = None,
+    # ) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
+
+    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
+    #     return self._assert_instance().add(obj, name)
+
+    def get_path(self, name: str) -> "ArtifactEntry":
+        return self._assert_instance().get_path(name)
+
+    def get(self, name: str) -> "WBValue":
+        return self._assert_instance().get(name)
+
+    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
+        return self._assert_instance().download(root, recursive)
+
+    def checkout(self, root: Optional[str] = None) -> str:
+        return self._assert_instance().checkout(root)
+
+    def verify(self, root: Optional[str] = None) -> Any:
+        return self._assert_instance().verify(root)
+
+    def save(self) -> None:
+        return self._assert_instance().save()
+
+    def delete(self) -> None:
+        return self._assert_instance().delete()
+
+
+class _DeferredUsedArtifact(ArtifactInterface):
+
+    _api: PublicApi
+    _instance: Optional[ArtifactInterface] = None
+    _future: Any
+
+    def __init__(self, entity: str, project: str, name: str):
+        self.entity = entity
+        self.project = project
+        self.name = name
+
+    def _assert_instance(self) -> ArtifactInterface:
+        if not self._instance or wandb.run is None:
+            raise ValueError(
+                "Must call wait(), and have inizitialized a run before accessing logged artifact properties"
+            )
+        return self._instance
+
+    def __getattr__(self, item: str) -> Any:
+        self._assert_instance()
+        return getattr(self._instance, item)
+
+    def wait(self) -> ArtifactInterface:
+        if not self._instance and wandb.run is not None:
+            self._instance = wandb.run.use_artifact(
+                f"{self.entity}/{self.project}/{self.name}"
+            )
+        elif wandb.run is None:
+            raise ValueError("Must init run befor calling wait")
         return self._instance
 
     @property
