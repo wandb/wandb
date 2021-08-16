@@ -157,6 +157,16 @@ def wandb_log(
     settings=None,
 ):
     def decorator(func):
+        # If you decorate a class, apply the decoration to all methods in that class
+        if inspect.isclass(func):
+            cls = func
+            for attr in cls.__dict__:
+                if callable(getattr(cls, attr)):
+                    # print(f"calling deco on this {attr}")
+                    if hasattr(attr, "_base_func"):
+                        setattr(cls, attr, decorator(getattr(cls, attr)))
+            return cls
+
         # prefer the latest decoration (i.e. method decoration overrides class decoration)
         if hasattr(func, "_base_func"):
             func = func._base_func
