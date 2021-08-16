@@ -51,7 +51,9 @@ class History(object):
     def _flush(self):
         if len(self._data) > 0:
             self._data["_step"] = self._step
-            # moved the runtime calculation to handler
+            self._data["_runtime"] = int(
+                self._data.get("_runtime", time.time() - self.start_time)
+            )
             self._data["_timestamp"] = int(self._data.get("_timestamp", time.time()))
             if self._callback:
                 self._callback(row=self._data, step=self._step)

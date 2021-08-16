@@ -1,0 +1,24 @@
+{
+  "files.exclude": {
+    "**/*.pyc": true,
+    "docs/_build": true,
+    "build": true
+  },
+  "git.ignoreLimitWarning": true,
+
+  "editor.formatOnSave": true,
+
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.mypyEnabled": false,
+
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.testing.nosetestsEnabled": false,
+
+  "python.formatting.provider": "black",
+  "python.formatting.autopep8Args": ["--max-line-length", "120"],
+  "python.testing.pytestArgs": ["."],
+  "python.linting.pylintEnabled": false,
+  "jupyter.jupyterServerType": "local"
+}

@@ -363,18 +363,6 @@ class HandleManager(object):
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def _history_assign_runtime(self, record: Record, history_dict: Dict) -> None:
-        self._run_start_time = record.request.run_start.run.start_time.ToSeconds()
-        # start_time is 0 if using offline sync
-        # so in that case set the _run_start_time to the first
-        # timestamp received from the history dict
-        if self._run_start_time == 0:
-            self._run_start_time = history_dict["_timestamp"]
-        item = record.history.item.add()
-        item.key = "_runtime"
-        history_dict["_runtime"] = history_dict["_timestamp"] - self._run_start_time
-        item.value_json = json.dumps(history_dict["_runtime"])
-
     def _history_define_metric(
         self, hkey: str
     ) -> Optional[wandb_internal_pb2.MetricRecord]:
@@ -434,9 +422,6 @@ class HandleManager(object):
         # if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
             self._history_assign_step(record, history_dict)
-
-        # calculate the _runtime, inject to history record proto
-        self._history_assign_runtime(record, history_dict)
 
         update_history: Dict[str, Any] = {}
         # Look for metric matches
