@@ -96,6 +96,7 @@ class HandleManager(object):
 
         self._track_time = None
         self._accumulate_time = 0
+        self._run_start_time = 0
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
@@ -452,6 +453,11 @@ class HandleManager(object):
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
+
+        if history_dict is not None:
+            if "_runtime" not in history_dict:
+                self._history_assign_runtime(record, history_dict)
+
         self._history_update(record, history_dict)
         self._dispatch_record(record)
         self._save_history(record)
@@ -533,6 +539,8 @@ class HandleManager(object):
         run_start = record.request.run_start
         assert run_start
         assert run_start.run
+
+        self._run_start_time = run_start.run.start_time.ToSeconds()
 
         self._track_time = time.time()
         if run_start.run.resumed and run_start.run.runtime:
@@ -694,3 +702,18 @@ class HandleManager(object):
         return self._record_q.get(block=True)
 
     next = __next__
+
+    def _history_assign_runtime(self, record: Record, history_dict: Dict) -> None:
+        # _runtime calculation is meaningless if there is no _timestamp
+        if "_timestamp" not in history_dict:
+            return
+        # if it is offline sync, self._run_start_time is 0
+        # in that case set it to the first tfevent timestamp
+        if self._run_start_time == 0:
+            self._run_start_time = history_dict["_timestamp"]
+        history_dict["_runtime"] = int(
+            history_dict["_timestamp"] - self._run_start_time
+        )
+        item = record.history.item.add()
+        item.key = "_runtime"
+        item.value_json = json.dumps(history_dict[item.key])
