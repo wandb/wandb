@@ -860,6 +860,8 @@ class Run(object):
                     "alias": val.name.split(":")[-1],
                 },
             }
+        elif isinstance(val, _DeferredUsedArtifact):
+            return
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)

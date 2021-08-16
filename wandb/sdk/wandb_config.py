@@ -134,7 +134,6 @@ class Config(object):
         return False
 
     def __setitem__(self, key, val):
-        print(key, val, type(val))
         if self._check_locked(key):
             return
         if not (
