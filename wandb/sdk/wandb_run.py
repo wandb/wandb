@@ -2697,9 +2697,9 @@ class _DeferredUsedArtifact(ArtifactInterface):
     _future: Any
 
     def __init__(self, entity: str, project: str, name: str):
-        self.entity = entity
-        self.project = project
-        self.name = name
+        self.entity_name = entity
+        self.project_name = project
+        self.source_name = name
 
     def _assert_instance(self) -> ArtifactInterface:
         if not self._instance or wandb.run is None:
@@ -2715,7 +2715,7 @@ class _DeferredUsedArtifact(ArtifactInterface):
     def wait(self) -> ArtifactInterface:
         if not self._instance and wandb.run is not None:
             self._instance = wandb.run.use_artifact(
-                f"{self.entity}/{self.project}/{self.name}"
+                f"{self.entity_name}/{self.project_name}/{self.source_name}"
             )
         elif wandb.run is None:
             raise ValueError("Must init run befor calling wait")
