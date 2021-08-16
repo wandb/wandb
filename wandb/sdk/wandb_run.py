@@ -2531,7 +2531,7 @@ class _LazyArtifact(ArtifactInterface):
         assert isinstance(
             self._instance, ArtifactInterface
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
-            resp.artifact_id, self._api.client.app_url()
+            resp.artifact_id, self._api.client.app_url
         )
         return self._instance
 
