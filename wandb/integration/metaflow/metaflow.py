@@ -191,11 +191,9 @@ def wandb_log(
                     "run": run,
                 }
 
-                print("=== LOGGING INPUTS ===")
                 for name, data in proxy.inputs.items():
                     wandb_use(name, data, ctx)
 
-                print("=== LOGGING OUTPUTS ===")
                 for name, data in proxy.outputs.items():
                     wandb_track(name, data, ctx)
 
