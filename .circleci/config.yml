@@ -48,7 +48,7 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.21-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.23-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
