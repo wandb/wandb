@@ -86,7 +86,7 @@ class WandbPyTorchFlow(FlowSpec):
         dataset2 = datasets.MNIST(self.mnist_dir, train=False, transform=transform)
 
         # this subset to speed up testing
-        subset = torch.arange(5000)
+        subset = torch.arange(2000)
         self.dataset1 = torch.utils.data.Subset(dataset1, subset)
         self.dataset2 = torch.utils.data.Subset(dataset2, subset)
         self.next(self.setup_dataloaders)
