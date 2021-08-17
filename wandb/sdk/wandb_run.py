@@ -562,8 +562,7 @@ class Run(object):
 
     @property
     def start_time(self) -> float:
-        """Returns the unix time stamp, in seconds, when the run started.
-        """
+        """Returns the unix time stamp, in seconds, when the run started."""
         if not self._run_obj:
             return self._start_time
         else:
@@ -2063,6 +2062,9 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
+        if self.offline:
+            raise TypeError("Cannot use artifact when in offline mode.")
+
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
@@ -2514,7 +2516,7 @@ class _LazyArtifact(ArtifactInterface):
         assert isinstance(
             self._instance, ArtifactInterface
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
-            resp.artifact_id, self._api.client.app_url()
+            resp.artifact_id, self._api.client.app_url
         )
         return self._instance
 
