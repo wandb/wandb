@@ -3,7 +3,8 @@
 
 ---
 id: 0.0.1
-check-ext-wandb: {}
+plugin:
+  - wandb
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
