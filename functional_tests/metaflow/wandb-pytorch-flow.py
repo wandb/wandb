@@ -84,15 +84,12 @@ class WandbPyTorchFlow(FlowSpec):
         transform = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
-        dataset1 = datasets.MNIST(
-            self.mnist_dir, train=True, download=True, transform=transform
+        self.dataset1 = datasets.FakeData(
+            size=2000, image_size=(1, 28, 28), num_classes=10, transform=transform
         )
-        dataset2 = datasets.MNIST(self.mnist_dir, train=False, transform=transform)
-
-        # this subset to speed up testing
-        subset = torch.arange(2000)
-        self.dataset1 = torch.utils.data.Subset(dataset1, subset)
-        self.dataset2 = torch.utils.data.Subset(dataset2, subset)
+        self.dataset2 = datasets.FakeData(
+            size=2000, image_size=(1, 28, 28), num_classes=10, transform=transform
+        )
         self.next(self.setup_dataloaders)
 
     # @wandb_log(datasets=True, models=True, others=True)
