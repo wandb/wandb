@@ -1023,10 +1023,10 @@ def launch(
                 synchronous=resource in ("local")
                 or resource is None,  # todo currently always true
             )
-        except wandb_launch.LaunchException as e:
+        except wandb_launch.LaunchError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
-        except wandb_launch.ExecutionException as e:
+        except wandb_launch.ExecutionError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
     else:

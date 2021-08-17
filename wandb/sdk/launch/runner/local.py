@@ -6,7 +6,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
-from wandb.errors import CommError, LaunchException
+from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import get_entry_point_command, LaunchProject
@@ -28,10 +28,7 @@ _logger = logging.getLogger(__name__)
 
 
 class LocalSubmittedRun(AbstractRun):
-    """
-    Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point
-    command locally.
-    """
+    """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command locally."""
 
     def __init__(self, command_proc: "subprocess.Popen[bytes]") -> None:
         super().__init__()
@@ -73,7 +70,7 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    """Runner class, uses a project to create a LocallySubmittedRun"""
+    """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
@@ -133,14 +130,17 @@ class LocalRunner(AbstractRunner):
             run.wait()
             return run
         # Otherwise, invoke `wandb launch` in a subprocess
-        raise LaunchException("asynchronous mode not yet available")
+        raise LaunchError("asynchronous mode not yet available")
 
 
 def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
-    """
-    Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
-    Returns a handle to the subprocess. Popen launched to invoke ``wandb launch``.
-    :param cmd: List of strings indicating command to run
+    """Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
+
+    Arguments:
+    cmd: List of strings indicating the command to run
+
+    Returns:
+        A handle to the subprocess. Popen launched to invoke ``wandb launch``.
     """
     final_env = os.environ.copy()
     # Launch `wandb launch` command as the leader of its own process group so that we can do a
@@ -159,12 +159,15 @@ def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
 
 
 def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
-    """
-    Run an entry point command in a subprocess, returning a SubmittedRun that can be used to
-    query the run's status.
-    :param command: Entry point command to run
-    :param work_dir: Working directory in which to run the command
-    :param run: SubmittedRun object associated with the entry point execution.
+    """Run an entry point command in a subprocess.
+
+    Arguments:
+    command: Entry point command to run
+    work_dir: Working directory in which to run the command
+    run: SubmittedRun object associated with the entry point execution.
+
+    Returns:
+        An instance of `LocalSubmittedRun`
     """
     env = os.environ.copy()
     if os.name == "nt":

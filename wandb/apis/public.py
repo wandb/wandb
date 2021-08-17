@@ -21,7 +21,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import LaunchException
+from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
@@ -900,7 +900,7 @@ class QueuedJob(Attrs):
     @property
     def run(self):
         if self._run_id is None:
-            raise LaunchException("Tried to fetch run without having run_id")
+            raise LaunchError("Tried to fetch run without having run_id")
         return Run(self.client, self._entity, self.project, self._run_id)
 
 

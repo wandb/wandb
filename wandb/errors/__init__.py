@@ -37,26 +37,20 @@ class LogMultiprocessError(LogError):
     pass
 
 
-class ShellCommandException(Error):
-    """Shell command Error"""
-
-    pass
-
-
 class RequireError(Error):
     """Raised when wandb.require() fails"""
 
     pass
 
 
-class ExecutionException(Error):
+class ExecutionError(Error):
     """Generic execution exception"""
 
     pass
 
 
-class LaunchException(Error):
-    """Raised when a known error occurs in wandb launch """
+class LaunchError(Error):
+    """Raised when a known error occurs in wandb launch"""
 
     pass
 
@@ -67,8 +61,7 @@ __all__ = [
     "CommError",
     "LogError",
     "LogMultiprocessError",
-    "ShellCommandException",
     "RequireError",
-    "ExecutionException",
-    "LaunchException",
+    "ExecutionError",
+    "LaunchError",
 ]

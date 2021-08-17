@@ -17,7 +17,7 @@ from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
 from wandb.env import DOCKER
-from wandb.errors import ExecutionException, LaunchException
+from wandb.errors import ExecutionError, LaunchError
 from wandb.util import get_module
 
 from . import _project_spec
@@ -31,11 +31,9 @@ _PROJECT_TAR_ARCHIVE_NAME = "wandb-project-docker-build-context"
 
 
 def validate_docker_installation() -> None:
-    """
-    Verify if Docker is installed on host machine.
-    """
+    """Verify if Docker is installed on host machine."""
     if not find_executable("docker"):
-        raise ExecutionException(
+        raise ExecutionError(
             "Could not find Docker executable. "
             "Ensure Docker is installed as per the instructions "
             "at https://docs.docker.com/install/overview/."
@@ -43,9 +41,9 @@ def validate_docker_installation() -> None:
 
 
 def validate_docker_env(launch_project: _project_spec.LaunchProject) -> None:
-    """Ensure project has a docker image associated with it"""
+    """Ensure project has a docker image associated with it."""
     if not launch_project.docker_image:
-        raise ExecutionException(
+        raise ExecutionError(
             "LaunchProject with docker environment must specify the docker image "
             "to use via 'docker_image' field."
         )
@@ -54,9 +52,7 @@ def validate_docker_env(launch_project: _project_spec.LaunchProject) -> None:
 def generate_docker_image(
     launch_project: _project_spec.LaunchProject, entry_cmd: str
 ) -> str:
-    """
-    Uses project and entry point to generate the docker image
-    """
+    """Uses project and entry point to generate the docker image."""
     path = launch_project.project_dir
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
@@ -92,13 +88,13 @@ def generate_docker_image(
     if not image_id:
         image_id = re.findall(r"Reusing existing image \((.+)\)", stderr)
     if not image_id:
-        raise LaunchException("error running repo2docker: {}".format(stderr))
+        raise LaunchError("error running repo2docker: {}".format(stderr))
     os.environ[DOCKER] = image_id[0]
     return image_id[0]
 
 
 def pull_docker_image(docker_image: str) -> None:
-    """Pulls the requested docker image"""
+    """Pulls the requested docker image."""
     import docker  # type: ignore
 
     info = docker_image.split(":")
@@ -109,18 +105,25 @@ def pull_docker_image(docker_image: str) -> None:
         else:
             client.images.pull(info[0], tag=info[1])
     except docker.errors.APIError as e:
-        raise LaunchException("Docker server returned error: {}".format(e))
+        raise LaunchError("Docker server returned error: {}".format(e))
 
 
 def build_docker_image(
     launch_project: _project_spec.LaunchProject, base_image: str, copy_code: bool,
 ) -> Union[Model, Any]:
-    """
-    Build a docker image containing the project in `work_dir`, using the base image.
-    :param launch_project: LaunchProject class instance
-    :param base_image: base_image to build the docker image off of
-    :param api: instance of wandb.apis.internal Api
-    :param copy_code: boolean indicating if code should be copied into the docker container
+    """Build a docker image containing the project in `work_dir`, using the base image.
+
+    Arguments:
+    launch_project: LaunchProject class instance
+    base_image: base_image to build the docker image off of
+    api: instance of wandb.apis.internal Api
+    copy_code: boolean indicating if code should be copied into the docker container
+
+    Returns:
+        A `Model` instance of the docker image.
+
+    Raises:
+        LaunchError: if there is an issue communicating with the docker client
     """
     import docker
 
@@ -181,9 +184,7 @@ def build_docker_image(
                 encoding="gzip",
             )
         except ConnectionError as e:
-            raise LaunchException(
-                "Error communicating with docker client: {}".format(e)
-            )
+            raise LaunchError("Error communicating with docker client: {}".format(e))
 
     try:
         os.remove(build_ctx_path)
@@ -200,11 +201,13 @@ def get_docker_command(
     api: Api,
     docker_args: Dict[str, Any] = None,
 ) -> List[str]:
-    """
-    Constructs the docker command using the image and docker args.
-    :param image: Docker image to be run
-    :param launch_project: instance of LaunchProject
-    :param docker_args: dictionary of additional docker args for the command
+    """Constructs the docker command using the image and docker args.
+
+    Arguments:
+    image: a Docker image to be run
+    launch_project: an instance of LaunchProject
+    api: an instance of wandb.apis.internal Api
+    docker_args: a dictionary of additional docker args for the command
     """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
@@ -256,12 +259,12 @@ def get_docker_command(
 
 
 def _get_docker_image_uri(name: str, work_dir: str) -> str:
-    """
-    Returns an appropriate Docker image URI for a project based on the git hash of the specified
-    working directory.
-    :param name: The URI of the Docker repository with which to tag the image. The
-                           repository URI is used as the prefix of the image URI.
-    :param work_dir: Path to the working directory in which to search for a git commit hash
+    """Returns a Docker image URI based on the git hash of the specified working directory.
+
+    Arguments:
+    name: The URI of the Docker repository with which to tag the image. The
+        repository URI is used as the prefix of the image URI.
+    work_dir: Path to the working directory in which to search for a git commit hash
     """
     name = name.replace(" ", "-") if name else "docker-project"
     # Optionally include first 7 digits of git SHA in tag name, if available.
@@ -277,9 +280,7 @@ def _create_docker_build_ctx(
     runtime: Optional[str],
     run_config: Dict[str, Any],
 ) -> str:
-    """
-    Creates build context tarfile containing Dockerfile and project code, returning path to tarfile
-    """
+    """Creates build context tarfile containing Dockerfile and project code, returning path to tarfile."""
     directory = tempfile.mkdtemp()
     try:
         dst_path = os.path.join(directory, "wandb-project-contents")
