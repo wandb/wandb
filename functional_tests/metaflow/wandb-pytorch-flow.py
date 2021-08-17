@@ -17,13 +17,15 @@ assert:
     - :wandb:runs[3][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
     - :wandb:runs[4][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
     - :wandb:runs[0][summary]: {"test_kwargs": {"batch_size": 1000}, "train_kwargs": {"batch_size": 64}, "use_cuda": False}
-    - :wandb:runs[3][summary]: {'epoch': 1, 'step': 1920, 'loss': 0.6059669852256775, 'test_loss': 0.44002601623535154, 'accuracy': 0.8585}
     - :wandb:runs[0][exitcode]: 0
     - :wandb:runs[1][exitcode]: 0
     - :wandb:runs[2][exitcode]: 0
     - :wandb:runs[3][exitcode]: 0
     - :wandb:runs[4][exitcode]: 0
 """
+
+# Remove this because it's not consistent between environments...
+# - :wandb:runs[3][summary]: {'epoch': 1, 'step': 1920, 'loss': 0.6059669852256775, 'test_loss': 0.44002601623535154, 'accuracy': 0.8585}
 
 
 import os
