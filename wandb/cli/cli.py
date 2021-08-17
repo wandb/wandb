@@ -332,7 +332,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -1023,10 +1025,10 @@ def launch(
                 synchronous=resource in ("local")
                 or resource is None,  # todo currently always true
             )
-        except wandb_launch.LaunchException as e:
+        except wandb_launch.LaunchError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
-        except wandb_launch.ExecutionException as e:
+        except wandb_launch.ExecutionError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
     else:
@@ -1463,7 +1465,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

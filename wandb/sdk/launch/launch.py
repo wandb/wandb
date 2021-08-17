@@ -3,7 +3,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
-from wandb.errors import ExecutionException, LaunchException
+from wandb.errors import ExecutionError, LaunchError
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -39,11 +39,7 @@ def _run(
     synchronous: Optional[bool],
     api: Api,
 ) -> AbstractRun:
-    """
-    Helper that delegates to the project-running method corresponding to the passed-in backend.
-    Returns a ``SubmittedRun`` corresponding to the project run.
-    """
-
+    """Helper that delegates to the project-running method corresponding to the passed-in backend."""
     launch_spec = construct_launch_spec(
         uri,
         api,
@@ -72,7 +68,7 @@ def _run(
         assert submitted_run
         return submitted_run
     else:
-        raise ExecutionException(
+        raise ExecutionError(
             "Unavailable backend {}, available backends: {}".format(
                 resource, ", ".join(loader.WANDB_RUNNERS.keys())
             )
@@ -94,35 +90,33 @@ def run(
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
 ) -> AbstractRun:
-    """
-    Run a W&B launch experiment. The project can be wandb uri or a Git URI.
-    :raises: :py:class:`wandb.exceptions.ExecutionException` If a run launched in blocking mode
-             is unsuccessful.
-    :param uri: URI of experiment to run. A wandb run uri or a Git repository URI.
-    :param api: An instance of a wandb Api from wandb.apis.internal.
-    :param entry_point: Entry point to run within the project. Defaults to using the entry point used
-                        in the original run for wandb URIs, or main.py for git repository URIs.
-    :param version: For Git-based projects, either a commit hash or a branch name.
-    :param parameters: Parameters (dictionary) for the entry point command. Defaults to using the
-                       the parameters used to run the original run.
-    :param docker_args: Arguments (dictionary) for the docker command.
-    :param experiment_name: Name of experiment under which to launch the run.
-    :param resource: Execution backend for the run: W&B provides built-in support for "local" backend
-    :param project: Target project to send launched run to
-    :param entity: Target entity to send launched run to
-    :param config: A dictionary which will be passed as config to the backend. The exact content
-                           which should be provided is different for each execution backend
-    :param synchronous: Whether to block while waiting for a run to complete. Defaults to True.
-                        Note that if ``synchronous`` is False and ``backend`` is "local", this
-                        method will return, but the current process will block when exiting until
-                        the local run completes. If the current process is interrupted, any
-                        asynchronous runs launched via this method will be terminated. If
-                        ``synchronous`` is True and the run fails, the current process will
-                        error out as well.
-    :return: :py:class:`wandb.launch.SubmittedRun` exposing information (e.g. run ID)
-             about the launched run.
-    .. code-block:: python
-        :caption: Example
+    """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
+
+    Arguments:
+    uri: URI of experiment to run. A wandb run uri or a Git repository URI.
+    api: An instance of a wandb Api from wandb.apis.internal.
+    entry_point: Entry point to run within the project. Defaults to using the entry point used
+        in the original run for wandb URIs, or main.py for git repository URIs.
+    version: For Git-based projects, either a commit hash or a branch name.
+    parameters: Parameters (dictionary) for the entry point command. Defaults to using the
+        the parameters used to run the original run.
+    docker_args: Arguments (dictionary) for the docker command.
+    experiment_name: Name of experiment under which to launch the run.
+    resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    project: Target project to send launched run to
+    entity: Target entity to send launched run to
+    config: A dictionary which will be passed as config to the backend. The exact content
+        which should be provided is different for each execution backend
+    synchronous: Whether to block while waiting for a run to complete. Defaults to True.
+        Note that if ``synchronous`` is False and ``backend`` is "local", this
+        method will return, but the current process will block when exiting until
+        the local run completes. If the current process is interrupted, any
+        asynchronous runs launched via this method will be terminated. If
+        ``synchronous`` is True and the run fails, the current process will
+        error out as well.
+
+
+    Example:
         import wandb
         project_uri = "https://github.com/wandb/examples"
         params = {"alpha": 0.5, "l1_ratio": 0.01}
@@ -130,15 +124,15 @@ def run(
         # on a local host
         api = wandb.apis.internal.Api()
         wandb.launch(project_uri, api, parameters=params)
-    .. code-block:: text
-        :caption: Output
-        ...
-        ...
-        Elasticnet model (alpha=0.500000, l1_ratio=0.010000):
-        RMSE: 0.788347345611717
-        MAE: 0.6155576449938276
-        R2: 0.19729662005412607
-        ... wandb.launch: === Run (ID '6a5109febe5e4a549461e149590d0a7c') succeeded ===
+
+
+    Returns:
+        an instance of`wandb.launch.SubmittedRun` exposing information (e.g. run ID)
+        about the launched run.
+
+    Raises:
+        `wandb.exceptions.ExecutionError` If a run launched in blocking mode
+        is unsuccessful.
     """
     if docker_args is None:
         docker_args = {}
@@ -173,7 +167,7 @@ def run(
     if synchronous:
         _wait_for(submitted_run_obj)
     else:
-        raise LaunchException("Non synchronous mode not supported")
+        raise LaunchError("Non synchronous mode not supported")
     return submitted_run_obj
 
 
@@ -185,7 +179,7 @@ def _wait_for(submitted_run_obj: AbstractRun) -> None:
         if submitted_run_obj.wait():
             _logger.info("=== Submitted run succeeded ===")
         else:
-            raise ExecutionException("Submitted run failed")
+            raise ExecutionError("Submitted run failed")
     except KeyboardInterrupt:
         _logger.error("=== Submitted run interrupted, cancelling run ===")
         submitted_run_obj.cancel()
