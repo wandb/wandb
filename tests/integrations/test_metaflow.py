@@ -1,12 +1,27 @@
+import platform
+import sys
 from pathlib import Path
 
 import pandas as pd
-import torch
-import torch.functional as F
-import torch.nn as nn
+import pytest
 from metaflow import FlowSpec, step
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
+
+if sys.version_info >= (3, 9):
+    pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
+
+if platform.system() == "Windows":
+    pytest.importorskip("metaflow", reason="metaflow does not support native Windows")
+
+try:
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+except ImportError:
+
+    class nn:
+        Module = object
 
 
 def test_decoration_class():
