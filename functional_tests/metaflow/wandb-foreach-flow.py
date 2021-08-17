@@ -3,10 +3,12 @@ Test Metaflow Flow integration
 
 ---
 id: metaflow.foreach.base
-check-ext-wandb: {}
-command-args:
-    - --no-pylint
-    - run
+plugin:
+  - wandb
+command:
+    args:
+        - --no-pylint
+        - run
 assert:
     - :wandb:runs_len: 6
     - :wandb:runs[0][config]: {"seed": 1337, "test_size": 0.2, "raw_data": https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv}

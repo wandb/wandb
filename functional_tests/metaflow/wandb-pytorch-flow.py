@@ -3,10 +3,12 @@ Test Metaflow Flow integration
 
 ---
 id: metaflow.pytorch.base
-check-ext-wandb: {}
-command-args:
-    - --no-pylint
-    - run
+plugin:
+  - wandb
+command:
+    args:
+        - --no-pylint
+        - run
 assert:
     - :wandb:runs_len: 5
     - :wandb:runs[0][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
