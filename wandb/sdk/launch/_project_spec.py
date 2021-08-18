@@ -1,8 +1,3 @@
-"""
-Internal utility for converting arguments from a launch spec or call to wandb launch
-into a runnable wandb launch script
-"""
-
 import enum
 import logging
 import os
@@ -12,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.errors import Error as ExecutionException, LaunchException
+from wandb.errors import Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
 from . import utils
@@ -69,7 +64,7 @@ class LaunchProject(object):
         else:
             # assume local
             if not os.path.exists(self.uri):
-                raise LaunchException(
+                raise LaunchError(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
             self.source = LaunchSource.LOCAL
@@ -80,9 +75,7 @@ class LaunchProject(object):
         self.clear_parameter_run_config_collisions()
 
     def clear_parameter_run_config_collisions(self) -> None:
-        """
-        Clear values from the overide run config values if a matching key exists in the override arguments.
-        """
+        """Clear values from the overide run config values if a matching key exists in the override arguments."""
         if not self.override_config:
             return
         keys = [key for key in self.override_config.keys()]
@@ -91,9 +84,7 @@ class LaunchProject(object):
                 del self.override_config[key]
 
     def get_single_entry_point(self) -> "EntryPoint":
-        """
-        Returns the first entrypoint for the project.
-        """
+        """Returns the first entrypoint for the project."""
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we wanna support multiple entry points or not
         if len(self._entry_points) != 1:
@@ -101,9 +92,7 @@ class LaunchProject(object):
         return list(self._entry_points.values())[0]
 
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
-        """
-        Adds an entry point to the project.
-        """
+        """Adds an entry point to the project."""
         _, file_extension = os.path.splitext(entry_point)
         ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
         if file_extension in ext_to_cmd:
@@ -111,7 +100,7 @@ class LaunchProject(object):
             new_entrypoint = EntryPoint(name=entry_point, command=command)
             self._entry_points[entry_point] = new_entrypoint
             return new_entrypoint
-        raise ExecutionException(
+        raise ExecutionError(
             "Could not find {0} among entry points {1} or interpret {0} as a "
             "runnable script. Supported script file extensions: "
             "{2}".format(
@@ -120,23 +109,19 @@ class LaunchProject(object):
         )
 
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
-        """
-        Gets the entrypoint if its set, or adds it and returns the entrypoint
-        """
+        """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
         if entry_point in self._entry_points:
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
     def _fetch_project_local(self, api: Api) -> None:
-        """
-        Fetch a project into a local directory, returning the path to the local project directory.
-        """
+        """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         parsed_uri = self.uri
         if utils._is_wandb_uri(self.uri):
             run_info = utils.fetch_wandb_project_run_info(self.uri, api)
             if not run_info["git"]:
-                raise ExecutionException("Run must have git repo associated")
+                raise ExecutionError("Run must have git repo associated")
             utils._fetch_git_repo(
                 self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
             )
@@ -180,7 +165,7 @@ class EntryPoint(object):
             if name not in user_parameters and self.parameters[name].default is None:
                 missing_params.append(name)
         if missing_params:
-            raise ExecutionException(
+            raise ExecutionError(
                 "No value given for missing parameters: %s"
                 % ", ".join(["'%s'" % name for name in missing_params])
             )
@@ -188,7 +173,8 @@ class EntryPoint(object):
     def compute_parameters(
         self, user_parameters: Optional[Dict[str, Any]]
     ) -> Tuple[Dict[str, Optional[str]], Dict[str, Optional[str]]]:
-        """
+        """Validates and sanitizes parameters dict into expected dict format.
+
         Given a dict mapping user-specified param names to values, computes parameters to
         substitute into the command for this entry point. Returns a tuple (params, extra_params)
         where `params` contains key-value pairs for parameters specified in the entry point
@@ -221,9 +207,7 @@ class EntryPoint(object):
         )
 
     def compute_command(self, user_parameters: Optional[Dict[str, Any]]) -> str:
-        """
-        Converts user parameter dictionary to a string
-        """
+        """Converts user parameter dictionary to a string."""
         params, extra_params = self.compute_parameters(user_parameters)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
@@ -237,9 +221,7 @@ class EntryPoint(object):
 
     @staticmethod
     def _sanitize_param_dict(param_dict: Dict[str, Any]) -> Dict[str, Optional[str]]:
-        """
-        Sanitizes a dictionary of paramaeters, quoting values, except for keys with None values.
-        """
+        """Sanitizes a dictionary of paramaeters, quoting values, except for keys with None values."""
         return {
             (str(key)): (quote(str(value)) if value is not None else None)
             for key, value in param_dict.items()
@@ -249,10 +231,14 @@ class EntryPoint(object):
 def get_entry_point_command(
     entry_point: "EntryPoint", parameters: Dict[str, Any]
 ) -> List[str]:
-    """
-    Returns the shell command to execute in order to run the specified entry point.
-    :param entry_point: Entry point to run
-    :param parameters: Parameters (dictionary) for the entry point command
+    """Returns the shell command to execute in order to run the specified entry point.
+
+    Arguments:
+    entry_point: Entry point to run
+    parameters: Parameters (dictionary) for the entry point command
+
+    Returns:
+        List of strings representing the shell command to be executed
     """
     commands = []
     commands.append(entry_point.compute_command(parameters))
@@ -260,10 +246,14 @@ def get_entry_point_command(
 
 
 def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
-    """
-    Constructs a LaunchProject instance using a launch spec.
-    :param launch_spec: Dictionary representation of launch spec
-    :parm api: Instance of wandb.apis.internal Api
+    """Constructs a LaunchProject instance using a launch spec.
+
+    Arguments:
+    launch_spec: Dictionary representation of launch spec
+    api: Instance of wandb.apis.internal Api
+
+    Returns:
+        An initialized `LaunchProject` object
     """
     uri = launch_spec["uri"]
 
@@ -285,11 +275,15 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
 def fetch_and_validate_project(
     launch_project: LaunchProject, api: Api
 ) -> LaunchProject:
-    """
-    Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
-    Returns the validated project.
-    :param launch_project: LaunchProject to fetch and validate.
-    :param api: Instance of wandb.apis.internal Api
+    """Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
+
+    Arguments:
+    launch_project: LaunchProject to fetch and validate.
+    api: Instance of wandb.apis.internal Api
+
+    Returns:
+        A validated `LaunchProject` object.
+
     """
     if launch_project.source == LaunchSource.LOCAL:
         if not launch_project._entry_points:

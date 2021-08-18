@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict
 
 from wandb.apis.internal import Api
-from wandb.errors import LaunchException
+from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 
 from .local import LocalRunner
@@ -21,7 +21,7 @@ def load_backend(
     if backend_name in WANDB_RUNNERS:
         return WANDB_RUNNERS[backend_name](api, backend_config)
 
-    raise LaunchException(
+    raise LaunchError(
         "Resource name not among available resources. Available resources: {} ".format(
             ",".join(list(WANDB_RUNNERS.keys()))
         )

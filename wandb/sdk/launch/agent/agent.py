@@ -1,7 +1,3 @@
-"""
-Implementation of launch agent.
-"""
-
 import os
 import sys
 import time
@@ -9,7 +5,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.errors import LaunchException
+from wandb.errors import LaunchError
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -23,7 +19,7 @@ from ..utils import (
 
 
 def _convert_access(access: str) -> str:
-    """Converts access string to a value accepted by wandb"""
+    """Converts access string to a value accepted by wandb."""
     access = access.upper()
     assert (
         access == "PROJECT" or access == "USER"
@@ -32,9 +28,7 @@ def _convert_access(access: str) -> str:
 
 
 class LaunchAgent(object):
-    """
-    Launch agent class which polls run given run queues and launches runs for wandb launch.
-    """
+    """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
     STATE_MAP: Dict[str, State] = {}
 
@@ -54,9 +48,7 @@ class LaunchAgent(object):
         self.setup_run_queues(queues)
 
     def setup_run_queues(self, queues: Optional[Iterable[str]]) -> None:
-        """
-        Checks the project to ensure run queues exist then adds them to a list to be watched by the agent
-        """
+        """Checks the project to ensure run queues exist then adds them to a list to be watched by the agent."""
         # TODO: add run queue filtering to server
         project_run_queues = self._api.get_project_run_queues(
             self._entity, self._project
@@ -69,7 +61,7 @@ class LaunchAgent(object):
                 if queue["name"] == "default":
                     self._queues = ["default"]
                     return
-            raise LaunchException(
+            raise LaunchError(
                 "Error launching launch-agent: Requested default queue for {}/{} but default queue does not exist.".format(
                     self._entity, self._project
                 )
@@ -77,7 +69,7 @@ class LaunchAgent(object):
         else:
             for queue in queues:
                 if queue not in existing_run_queue_names:
-                    raise LaunchException(
+                    raise LaunchError(
                         "Error launching launch-agent: {} does not exist for {}/{}".format(
                             queue, self._entity, self._project
                         )
@@ -90,7 +82,7 @@ class LaunchAgent(object):
         return list(self._jobs.keys())
 
     def pop_from_queue(self, queue: str) -> Any:
-        """Pops an item off the runqueue to run as a job"""
+        """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
                 queue, entity=self._entity, project=self._project
@@ -101,6 +93,7 @@ class LaunchAgent(object):
         return ups
 
     def print_status(self) -> None:
+        """Prints the current status of the agent."""
         print(
             "polling on project {}, queues {} for jobs".format(
                 self._project, " ".join(self._queues)
@@ -108,18 +101,18 @@ class LaunchAgent(object):
         )
 
     def finish_job_id(self, job_id: int) -> None:
-        """Removes the job from our list for now"""
+        """Removes the job from our list for now."""
         # TODO:  keep logs or something for the finished jobs
         del self._jobs[job_id]
         self._running -= 1
 
     def _update_finished(self, job_id: int) -> None:
-        """Check our status enum"""
+        """Check our status enum."""
         if self._jobs[job_id].get_status().state in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
     def run_job(self, job: Dict[str, Any]) -> None:
-        """Sets up project and runs the job"""
+        """Sets up project and runs the job."""
         # TODO: logger
         print("agent: got job", job)
         # parse job
@@ -158,7 +151,7 @@ class LaunchAgent(object):
             self._running += 1
 
     def loop(self) -> None:
-        """Main loop function for agent"""
+        """Main loop function for agent."""
         wandb.termlog(
             "launch agent polling project {}/{} on queues: {}".format(
                 self._entity, self._project, ",".join(self._queues)

@@ -177,7 +177,7 @@ def assertion(run_id, found, stderr):
         ("allow", True),
         ("never", True),
         ("must", True),
-        ("", True),
+        ("", False),
         (0, False),
         (None, False),
     ],
@@ -186,3 +186,10 @@ def test_offline_resume(test_settings, capsys, resume, found):
     run = wandb.init(mode="offline", resume=resume, settings=test_settings)
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
+
+
+def test_use_artifact_offline(live_mock_server, test_settings):
+    run = wandb.init(mode="offline")
+    with pytest.raises(Exception) as e_info:
+        artifact = run.use_artifact("boom-data")
+        assert str(e_info.value) == "Cannot use artifact when in offline mode."
