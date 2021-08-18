@@ -2,8 +2,8 @@
 line-length = 88
 exclude = '''
   wandb/vendor/
-| wandb/sdk_py27/
 | wandb/sweeps/
+| wandb/sweeps_engine/
 | wandb/old/
 | wandb/bin/
 | wandb/proto/

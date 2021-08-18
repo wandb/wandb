@@ -3,13 +3,15 @@
 
 ---
 id: 0.0.2
-check-ext-wandb:
-  run:
-    - exit: 0
-      config: {}
-      summary:
-        m1: 1
-        m2: 2
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]:
+      m1: 1
+      m2: 2
+  - :wandb:runs[0][exitcode]: 0
 """
 
 import wandb
