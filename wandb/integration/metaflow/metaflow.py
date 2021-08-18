@@ -20,14 +20,14 @@ try:
     import torch.nn as nn
 except ImportError:
     print(
-        "Warning: `pytorch` not installed >> @wandb_log(models=True) may not auto log your dataset!"
+        "Warning: `pytorch` not installed >> @wandb_log(models=True) may not auto log your model!"
     )
 
 try:
     from sklearn.base import BaseEstimator
 except ImportError:
     print(
-        "Warning: `sklearn` not installed >> @wandb_log(models=True) may not auto log your dataset!"
+        "Warning: `sklearn` not installed >> @wandb_log(models=True) may not auto log your model!"
     )
 
 
