@@ -94,8 +94,8 @@ def wandb_track(
 
     if datasets:
         artifact = wandb.Artifact(name, type="dataset")
-        with artifact.new_file(f"{name}.csv") as f:
-            data.to_csv(f)
+        with artifact.new_file(f"{name}.parquet", "wb") as f:
+            data.to_parquet(f, engine="pyarrow")
         run.log_artifact(artifact)
         wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 

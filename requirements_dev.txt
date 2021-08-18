@@ -29,3 +29,4 @@ gym
 jax[cpu]
 fastcore
 metaflow
+pyarrow
