@@ -8,16 +8,18 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import copy
 import logging
+import numpy as np
 import operator
 import os
-import numpy as np
-import wandb
 import sys
-from wandb.util import add_import_hook
-from importlib import import_module
+
 from itertools import chain
+from pkg_resources import parse_version
+
+import wandb
+from wandb.util import add_import_hook
+
 
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
 
@@ -51,22 +53,33 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
+
     from tensorflow.python.eager import context
-    from tensorflow.python.keras.engine import training
 
     try:
-        from tensorflow.python.keras.engine import training_arrays_v1 as training_arrays
-        from tensorflow.python.keras.engine import (
-            training_generator_v1 as training_generator,
-        )
-    except (ImportError, AttributeError):
+        from keras.engine import training
+        from keras.engine import training_arrays_v1 as training_arrays
+        from keras.engine import training_generator_v1 as training_generator
+
+    except ModuleNotFoundError:
+
+        from tensorflow.python.keras.engine import training
+
         try:
-            from tensorflow.python.keras.engine import training_arrays
-            from tensorflow.python.keras.engine import training_generator
-        except (ImportError, AttributeError) as e:
-            wandb.termerror("Unable to patch Tensorflow/Keras")
-            logger.exception("exception while trying to patch_tf_keras")
-            return
+            from tensorflow.python.keras.engine import (
+                training_arrays_v1 as training_arrays,
+            )
+            from tensorflow.python.keras.engine import (
+                training_generator_v1 as training_generator,
+            )
+        except (ModuleNotFoundError, AttributeError):
+            try:
+                from tensorflow.python.keras.engine import training_arrays
+                from tensorflow.python.keras.engine import training_generator
+            except (ModuleNotFoundError, AttributeError):
+                wandb.termerror("Unable to patch Tensorflow/Keras")
+                logger.exception("exception while trying to patch_tf_keras")
+                return
 
     # Tensorflow 2.1
     training_v2_1 = wandb.util.get_module("tensorflow.python.keras.engine.training_v2")
@@ -152,14 +165,11 @@ def patch_tf_keras():
 
 
 def _check_keras_version():
-    import keras
+    from keras import __version__ as keras_version
 
-    keras_version = keras.__version__
-    major, minor, patch = keras_version.split(".")
-    if int(major) < 2 or int(minor) < 4:
+    if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(
-            "Keras version %s is not fully supported. Required keras >= 2.4.0"
-            % (keras_version)
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
 
 
@@ -173,7 +183,6 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
 tf_logger = tf.get_logger()
-
 
 patch_tf_keras()
 
@@ -341,7 +350,6 @@ class WandbCallback(keras.callbacks.Callback):
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
-
         self.validation_data = None
         # This is kept around for legacy reasons
         if validation_data is not None:
