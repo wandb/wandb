@@ -332,7 +332,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -964,7 +966,7 @@ def launch(
     uri,
     entry_point,
     version,
-    args,
+    args_list,
     docker_args,
     name,
     resource,
@@ -988,7 +990,7 @@ def launch(
 
     api = _get_cling_api()
 
-    args_dict = util._user_args_to_dict(args)
+    args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
@@ -1463,7 +1465,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
