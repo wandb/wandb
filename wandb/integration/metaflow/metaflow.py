@@ -76,7 +76,7 @@ def wandb_track(
         elif data.is_file():
             artifact.add_file(data)
         run.log_artifact(artifact)
-        print(f"wandb: logging artifact: {name} ({type(data)})")
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
@@ -97,7 +97,7 @@ def wandb_track(
         with artifact.new_file(f"{name}.csv") as f:
             data.to_csv(f)
         run.log_artifact(artifact)
-        print(f"wandb: logging artifact: {name} ({type(data)})")
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
@@ -112,7 +112,7 @@ def wandb_track(
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             torch.save(data, f)
         run.log_artifact(artifact)
-        print(f"wandb: logging artifact: {name} ({type(data)})")
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
@@ -133,7 +133,7 @@ def wandb_track(
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             pickle.dump(data, f)
         run.log_artifact(artifact)
-        print(f"wandb: logging artifact: {name} ({type(data)})")
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 # this is the base case
@@ -149,7 +149,7 @@ def wandb_track(
         with artifact.new_file(f"{name}.pkl", "wb") as f:
             pickle.dump(data, f)
         run.log_artifact(artifact)
-        print(f"wandb: logging artifact: {name} ({type(data)})")
+        wandb.termlog(f"Logging artifact: {name} ({type(data)})")
 
 
 @typedispatch
@@ -176,7 +176,7 @@ def _wandb_use(name: str, data: (nn.Module, BaseEstimator), models=False, run=No
 
     if models:
         run.use_artifact(f"{name}:latest")
-        print(f"wandb: using artifact: {name} ({type(data)})")
+        wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
@@ -186,7 +186,7 @@ def _wandb_use(name: str, data: (pd.DataFrame, Path), datasets=False, run=None, 
 
     if datasets:
         run.use_artifact(f"{name}:latest")
-        print(f"wandb: using artifact: {name} ({type(data)})")
+        wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
 @typedispatch  # noqa: F811
@@ -196,7 +196,7 @@ def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **
 
     if others:
         run.use_artifact(f"{name}:latest")
-        print(f"wandb: using artifact: {name} ({type(data)})")
+        wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
 def wandb_log(
