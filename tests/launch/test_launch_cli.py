@@ -42,7 +42,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(280)
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
@@ -69,7 +69,7 @@ def test_launch_agent_base(
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(280)
 def test_launch_cli_with_config_file_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -91,7 +91,7 @@ def test_launch_cli_with_config_file_and_params(
             [
                 "-c",
                 "config.json",
-                "-P",
+                "-a",
                 "epochs=1",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
@@ -101,7 +101,7 @@ def test_launch_cli_with_config_file_and_params(
         assert "python train.py --epochs 1" in result.output
 
 
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(280)
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -118,7 +118,7 @@ def test_launch_cli_with_config_and_params(
             [
                 "-c",
                 json.dumps(config),
-                "-P",
+                "-a",
                 "epochs=1",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],

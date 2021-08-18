@@ -95,7 +95,7 @@ def set_project_entity_defaults(
 def construct_launch_spec(
     uri: str,
     api: Api,
-    experiment_name: Optional[str],
+    name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
@@ -114,8 +114,8 @@ def construct_launch_spec(
     launch_spec["entity"] = entity
 
     launch_spec["project"] = project
-    if experiment_name:
-        launch_spec["name"] = experiment_name
+    if name:
+        launch_spec["name"] = name
     if "docker" not in launch_spec:
         launch_spec["docker"] = {}
     if docker_image:
