@@ -26,7 +26,7 @@ def run_agent(entity: str, project: str, queues: Optional[List[str]] = None) -> 
 
 def _run(
     uri: str,
-    experiment_name: Optional[str],
+    name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
@@ -43,7 +43,7 @@ def _run(
     launch_spec = construct_launch_spec(
         uri,
         api,
-        experiment_name,
+        name,
         project,
         entity,
         docker_image,
@@ -82,7 +82,7 @@ def run(
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,
     docker_args: Optional[Dict[str, Any]] = None,
-    experiment_name: Optional[str] = None,
+    name: Optional[str] = None,
     resource: str = "local",
     project: Optional[str] = None,
     entity: Optional[str] = None,
@@ -101,7 +101,7 @@ def run(
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
     docker_args: Arguments (dictionary) for the docker command.
-    experiment_name: Name of experiment under which to launch the run.
+    name: Name of run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
     project: Target project to send launched run to
     entity: Target entity to send launched run to
@@ -150,7 +150,7 @@ def run(
 
     submitted_run_obj = _run(
         uri=uri,
-        experiment_name=experiment_name,
+        name=name,
         project=project,
         entity=entity,
         docker_image=docker_image,

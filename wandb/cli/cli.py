@@ -885,11 +885,11 @@ def _check_launch_imports():
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
-    "--param-list",
-    "-P",
+    "--args-list",
+    "-a",
     metavar="NAME=VALUE",
     multiple=True,
-    help="A parameter for the run, of the form -P name=value. Provided parameters that "
+    help="An argument for the entrypoint script, of the form -a name=value. Provided parameters that "
     "are not in the list of parameters for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
@@ -903,10 +903,10 @@ def _check_launch_imports():
     "`docker run --name value` or `docker run --name` respectively. ",
 )
 @click.option(
-    "--experiment-name",
+    "--name",
     envvar="WANDB_NAME",
-    help="Name of the experiment under which to launch the run. If not "
-    "specified, 'experiment-id' option will be used to launch run. If passed in, will override the name passed in using a config file.",
+    help="Name of the run under which to launch the run. If not "
+    "specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.",
 )
 @click.option(
     "--entity",
@@ -966,7 +966,7 @@ def launch(
     version,
     param_list,
     docker_args,
-    experiment_name,
+    name,
     resource,
     entity,
     project,
@@ -1015,7 +1015,7 @@ def launch(
                 project=project,
                 entity=entity,
                 docker_image=docker_image,
-                experiment_name=experiment_name,
+                name=name,
                 parameters=param_dict,
                 docker_args=docker_args_dict,
                 resource=resource,
@@ -1039,7 +1039,7 @@ def launch(
             queue,
             resource,
             entry_point,
-            experiment_name,
+            name,
             version,
             docker_image,
             param_dict,
