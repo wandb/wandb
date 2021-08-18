@@ -1,3 +1,18 @@
+## 0.12.0 (August 10, 2021)
+
+#### :hourglass: No Longer Supported
+
+- Remove Python 3.5 support
+
+#### :bug: Bug Fix
+
+- Fix issue that could cause artifact uploads to fail if artifact files are being modified
+- Fix issue where `wandb.restore()` wouldn't work with runs from a sweep
+
+#### :nail_care: Enhancement
+
+- Improve run execution time calculation
+
 ## 0.11.2 (August 2, 2021)
 
 #### :bug: Bug Fix
