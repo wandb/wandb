@@ -393,7 +393,7 @@ class Api(object):
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
-        parsed = path.strip('/ ').split('/')
+        parsed = path.strip("/ ").split("/")
         if len(parsed) != 2:
             raise ValueError("path must follow the format 'entity/project'")
         entity, project = parsed
@@ -403,7 +403,7 @@ class Api(object):
             key = "/".join([entity, project, str(name)])
         else:
             key = "/".join([entity, project])
-            
+
         if key not in self._reports:
             self._reports[key] = Reports(
                 self.client,
@@ -1775,9 +1775,7 @@ class Reports(Paginator):
     @property
     def more(self):
         if self.last_response:
-            return (
-                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
-            )
+            return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
         else:
             return True
 
