@@ -362,6 +362,7 @@ class Run(object):
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
+        self._launch_artifact_mapping = None
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -378,19 +379,10 @@ class Run(object):
         ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
-            for key, item in launch_config.items():
-                print(key, item, isinstance(item, dict))
-                if (
-                    isinstance(item, dict)
-                    and item.get("_wandb_config_param_type") is not None
-                    and item.get("_wandb_config_param_type") == "artifact_version"
-                ):
-                    project = item["definition"]["project"]
-                    entity = item["definition"]["entity"]
-                    name = item["definition"]["name"]
-                    print("MAKING THE DEFERRED THING")
-                    artifact = _DeferredUsedArtifact(entity, project, name)
-                    launch_config[key] = artifact
+            if launch_config.get("artifacts") is not None:
+                for key, item in launch_config.get("artifacts").items():
+                    self._launch_artifact_mapping[key] = item
+
             print("Launch config", launch_config)
             self._config.update_locked(
                 launch_config, user="launch", _allow_val_change=True
@@ -2117,7 +2109,11 @@ class Run(object):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact_or_name, str):
-            name = artifact_or_name
+            if self._launch_artifact_mapping is not None:
+                new_name = self._launch_artifact_mapping.get(artifact_or_name)
+                if new_name is None:
+                    wandb.termwarn(f"Could not find {artifact_or_name} in mapping list.")
+            name = new_name or artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
