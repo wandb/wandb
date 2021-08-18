@@ -70,9 +70,9 @@ class ArtifactEmulator:
                                     "uploadUrl": f"{base_url}/storage?file={af['name']}&id={af['artifactID']}",
                                     "uploadHeaders": [],
                                     "artifact": {"id": af["artifactID"]},
-                                }
-                                for idx, af in enumerate(variables["artifactFiles"])
-                            },
+                                },
+                            }
+                            for idx, af in enumerate(variables["artifactFiles"])
                         ],
                     },
                 },
