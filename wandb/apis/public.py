@@ -393,16 +393,17 @@ class Api(object):
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
-        entity, project, run = self._parse_path(path)
-        if entity is None:
-            entity = self.settings["entity"] or self.default_entity
-            if entity is None:
-                raise ValueError(
-                    "entity must be passed as a parameter, or set in settings"
-                )
+        parsed = path.strip('/ ').split('/')
+        if len(parsed) != 2:
+            raise ValueError("path must follow the format 'entity/project'")
+        entity, project = parsed
+
         if name:
             name = urllib.parse.unquote(name)
-        key = "/".join([entity, project, str(name)])
+            key = "/".join([entity, project, str(name)])
+        else:
+            key = "/".join([entity, project])
+            
         if key not in self._reports:
             self._reports[key] = Reports(
                 self.client,
@@ -1742,6 +1743,11 @@ class Reports(Paginator):
                         }
                         cursor
                     }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+
                 }
             }
         }
@@ -1761,13 +1767,16 @@ class Reports(Paginator):
     @property
     def length(self):
         # TODO: Add the count the backend
-        return self.per_page
+        if self.last_response:
+            return len(self.objects)
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
             return (
-                len(self.last_response["project"]["allViews"]["edges"]) == self.per_page
+                self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
             )
         else:
             return True
