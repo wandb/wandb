@@ -5,11 +5,6 @@ Test Metaflow Flow integration
 id: metaflow.example.step
 plugin:
   - wandb
-command:
-    args:
-        - --no-pylint
-        - run
-
 """
 
 import os
