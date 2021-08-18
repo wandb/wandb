@@ -332,9 +332,7 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog(
-            "Which team should we use?",
-        )
+        wandb.termlog("Which team should we use?",)
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -891,7 +889,7 @@ def _check_launch_imports():
     "-a",
     metavar="NAME=VALUE",
     multiple=True,
-    help="An argument for the entrypoint script, of the form -a name=value. Provided arguments that "
+    help="An argument for the run, of the form -a name=value. Provided arguments that "
     "are not in the list of arguments for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
@@ -1465,9 +1463,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(
-            path=artifact_path,
-        ),
+        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
         prefix=False,
     )
 

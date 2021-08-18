@@ -101,7 +101,7 @@ def run(
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
     docker_args: Arguments (dictionary) for the docker command.
-    name: Name of run under which to launch the run.
+    name: Name run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
     project: Target project to send launched run to
     entity: Target entity to send launched run to
