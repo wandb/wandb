@@ -199,6 +199,10 @@ def _wandb_use(name: str, data, others=False, run=None, testing=False, *args, **
         wandb.termlog(f"Using artifact: {name} ({type(data)})")
 
 
+def coalesce(*arg):
+    return next((a for a in arg if a is not None), None)
+
+
 def wandb_log(
     func=None,
     # /,  # py38 only
@@ -224,11 +228,14 @@ def wandb_log(
 
         @wraps(func)
         def wrapper(self, *args, settings=settings, **kwargs):
-            if not settings:
-                settings = wandb.Settings(
-                    run_group=f"{current.flow_name}/{current.run_id}",
-                    run_job_type=current.step_name,
-                )
+            if not isinstance(settings, wandb.sdk.wandb_settings.Settings):
+                settings = wandb.Settings()
+
+            settings.run_group = coalesce(
+                settings.run_group, f"{current.flow_name}/{current.run_id}"
+            )
+            settings.run_job_type = coalesce(settings.run_job_type, current.step_name)
+
             with wandb.init(settings=settings) as run:
                 proxy = ArtifactProxy(self)
                 run.config.update(proxy.params)
