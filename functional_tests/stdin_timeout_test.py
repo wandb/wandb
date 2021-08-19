@@ -7,8 +7,8 @@ plugin:
   - wandb
 """
 from wandb.errors import InputTimeoutError
-from wandb.sdk.lib.stdin_timeout import stdin_timeout
-from wandb.util import prompt_choices
+from wandb.sdk.lib.stdin_timeout import stdin_timeout, TIMEOUT_CODE
+from wandb.util import _prompt_choice_with_timeout
 
 timeout_log = "input timeout!"
 try:
@@ -16,5 +16,5 @@ try:
 except InputTimeoutError as e:
     assert str(e) == timeout_log
 
-c = prompt_choices(["1"], input_timeout=1)
-assert c == 0
+c = _prompt_choice_with_timeout(input_timeout=1)
+assert c == TIMEOUT_CODE
