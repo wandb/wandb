@@ -5,16 +5,14 @@
 id: 0.0.6
 """
 from wandb.errors import InputTimeoutError
-from wandb.sdk.lib.stdin_timeout import stdin_timeout
-from wandb.util import prompt_choices
+from wandb.sdk.lib.stdin_timeout import stdin_timeout, TIMEOUT_CODE
+from wandb.util import _prompt_choice_with_timeout
 
-c = prompt_choices(["1"], input_timeout=1)
-print(c)
-assert c == 0
+c = _prompt_choice_with_timeout(input_timeout=1)
+assert c == TIMEOUT_CODE
 
 timeout_log = "input timeout!"
 try:
     stdin_timeout("waiting for input", 1, timeout_log)
 except InputTimeoutError as e:
     assert str(e) == timeout_log
-
