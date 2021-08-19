@@ -56,13 +56,13 @@ def patch_tf_keras():
 
     from tensorflow.python.eager import context
 
-    try:
+    from tensorflow import __version__ as tf_version
+
+    if parse_version(tf_version) >= parse_version("2.6.0"):
         from keras.engine import training
         from keras.engine import training_arrays_v1 as training_arrays
         from keras.engine import training_generator_v1 as training_generator
-
-    except ModuleNotFoundError:
-
+    else:
         from tensorflow.python.keras.engine import training
 
         try:
@@ -495,11 +495,15 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
