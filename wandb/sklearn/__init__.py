@@ -631,10 +631,8 @@ def plot_feature_importances(
             importances = model.feature_importances_
         elif found_attribute == "coef_":  # ElasticNet or ElasticNetCV like models
             importances = model.coef_
-        elif found_attribute == "feature_log_prob_":  # coef_ was
-            # deprecated in
-            # sklearn 0.24,
-            # replaced with
+        elif found_attribute == "feature_log_prob_":
+            # coef_ was deprecated in sklearn 0.24, replaced with
             # feature_log_prob_
             importances = model.feature_log_prob_
 
