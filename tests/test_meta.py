@@ -4,6 +4,7 @@ import platform
 import sys
 import subprocess
 import threading
+import wandb
 
 from six.moves import queue
 
@@ -84,6 +85,27 @@ def test_meta_probe(mock_server, meta, sm, record_q, log_debug, monkeypatch):
     if sys.version_info > (3, 0):
         assert len(mock_server.ctx["storage?file=conda-environment.yaml"]) == 1
     assert len(mock_server.ctx["storage?file=diff.patch"]) == 1
+
+
+def test_executable_outside_cwd(mock_server, meta):
+    meta._settings.update(program="asdf.py")
+    meta.probe()
+    assert meta.data.get("codePath") is None
+    assert meta.data["program"] == "asdf.py"
+
+
+def test_jupyter_name(meta, mocked_ipython):
+    meta._settings.update(notebook_name="test_nb")
+    meta.probe()
+    assert meta.data["program"] == "test_nb"
+
+
+def test_jupyter_path(meta, mocked_ipython):
+    # not actually how jupyter setup works but just to test the meta paths
+    meta._settings.update(_jupyter_path="dummy/path")
+    meta.probe()
+    assert meta.data["program"] == "dummy/path"
+    assert meta.data.get("root") is not None
 
 
 # TODO: test actual code saving
