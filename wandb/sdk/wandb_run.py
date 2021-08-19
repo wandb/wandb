@@ -2117,7 +2117,7 @@ class Run(object):
             if self._launch_artifact_mapping is not None:
                 new_name = self._launch_artifact_mapping.get(
                     ds_slot_name or artifact_or_name
-                )
+                )["name"]
                 if new_name is None:
                     wandb.termwarn(
                         f"Could not find {artifact_or_name} in mapping list."
