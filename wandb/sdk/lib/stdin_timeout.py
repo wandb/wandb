@@ -58,9 +58,7 @@ try:
 except ImportError:
     import selectors
     import termios
-
     stdin_timeout = posix_stdin_timeout
 else:
     import time
-
     stdin_timeout = windows_stdin_timeout
