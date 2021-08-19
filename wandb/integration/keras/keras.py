@@ -59,10 +59,15 @@ def patch_tf_keras():
     from tensorflow import __version__ as tf_version
 
     if parse_version(tf_version) >= parse_version("2.6.0"):
+        keras_engine = "keras.engine"
+
         from keras.engine import training
         from keras.engine import training_arrays_v1 as training_arrays
         from keras.engine import training_generator_v1 as training_generator
+
     else:
+        keras_engine = "tensorflow.python.keras.engine"
+
         from tensorflow.python.keras.engine import training
 
         try:
@@ -84,7 +89,7 @@ def patch_tf_keras():
     # Tensorflow 2.1
     training_v2_1 = wandb.util.get_module("tensorflow.python.keras.engine.training_v2")
     # Tensorflow 2.2
-    training_v2_2 = wandb.util.get_module("tensorflow.python.keras.engine.training_v1")
+    training_v2_2 = wandb.util.get_module(f"{keras_engine}.training_v1")
 
     if training_v2_1:
         old_v2 = training_v2_1.Loop.fit
@@ -145,11 +150,9 @@ def patch_tf_keras():
     training_arrays.fit_loop = new_arrays
     training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
+    wandb.patched["keras"].append([f"{keras_engine}.training_arrays", "fit_loop"])
     wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"]
-    )
-    wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_generator", "fit_generator"]
+        [f"{keras_engine}.training_generator", "fit_generator"]
     )
 
     if training_v2_1:
@@ -159,9 +162,7 @@ def patch_tf_keras():
         )
     elif training_v2_2:
         training.Model.fit = new_v2
-        wandb.patched["keras"].append(
-            ["tensorflow.python.keras.engine.training.Model", "fit"]
-        )
+        wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
 def _check_keras_version():
