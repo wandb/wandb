@@ -301,11 +301,8 @@ class BackendSender(object):
         config = obj or pb.ConfigRecord()
         if data:
             for k, v in six.iteritems(data):
-                if isinstance(v, wandb.wandb_sdk.wandb_run._DeferredUsedArtifact):
-                    continue
                 update = config.update.add()
                 update.key = k
-
                 update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
         if key:
             update = config.update.add()

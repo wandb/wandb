@@ -231,12 +231,10 @@ class Config(object):
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
 
-        if (
-            isinstance(val, wandb.Artifact)
-            or isinstance(val, wandb.apis.public.Artifact)
-            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredUsedArtifact)
-        ):
-            return key, val
+        # if isinstance(val, wandb.Artifact) or isinstance(
+        #     val, wandb.apis.public.Artifact
+        # ):
+        #     return key, val
         # We always normalize keys by stripping '-'
         key = key.strip("-")
         val = json_friendly_val(val)

@@ -853,8 +853,6 @@ class Run(object):
                     "alias": val.name.split(":")[-1],
                 },
             }
-        elif isinstance(val, _DeferredUsedArtifact):
-            return
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
@@ -2145,10 +2143,11 @@ class Run(object):
                             "sequence_name": artifact._sequence_name,
                             "commit_hash": artifact.commit_hash,
                             "version": artifact.version,
-                            "aliases": artifact.aliases,
                             "entity": artifact.entity,
                             "project": artifact.project,
                             "name": artifact.name,
+                            "_type": "artifact_version",
+                            "version_id": artifact.id,
                         }
                     }
                 }
@@ -2592,165 +2591,6 @@ class _LazyArtifact(ArtifactInterface):
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
             resp.artifact_id, self._api.client.app_url
         )
-        return self._instance
-
-    @property
-    def id(self) -> Optional[str]:
-        return self._assert_instance().id
-
-    @property
-    def version(self) -> str:
-        return self._assert_instance().version
-
-    @property
-    def name(self) -> str:
-        return self._assert_instance().name
-
-    @property
-    def type(self) -> str:
-        return self._assert_instance().type
-
-    @property
-    def entity(self) -> str:
-        return self._assert_instance().entity
-
-    @property
-    def project(self) -> str:
-        return self._assert_instance().project
-
-    @property
-    def manifest(self) -> "ArtifactManifest":
-        return self._assert_instance().manifest
-
-    @property
-    def digest(self) -> str:
-        return self._assert_instance().digest
-
-    @property
-    def state(self) -> str:
-        return self._assert_instance().state
-
-    @property
-    def size(self) -> int:
-        return self._assert_instance().size
-
-    @property
-    def commit_hash(self) -> str:
-        return self._assert_instance().commit_hash
-
-    @property
-    def description(self) -> Optional[str]:
-        return self._assert_instance().description
-
-    @description.setter
-    def description(self, desc: Optional[str]) -> None:
-        self._assert_instance().description = desc
-
-    @property
-    def metadata(self) -> dict:
-        return self._assert_instance().metadata
-
-    @metadata.setter
-    def metadata(self, metadata: dict) -> None:
-        self._assert_instance().metadata = metadata
-
-    @property
-    def aliases(self) -> List[str]:
-        return self._assert_instance().aliases
-
-    @aliases.setter
-    def aliases(self, aliases: List[str]) -> None:
-        self._assert_instance().aliases = aliases
-
-    def used_by(self) -> List["wandb.apis.public.Run"]:
-        return self._assert_instance().used_by()
-
-    def logged_by(self) -> "wandb.apis.public.Run":
-        return self._assert_instance().logged_by()
-
-    # Commenting this block out since this code is unreachable since LocalArtifact
-    # overrides them and therefore untestable.
-    # Leaving behind as we may want to support these in the future.
-
-    # def new_file(self, name: str, mode: str = "w") -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().new_file(name, mode)
-
-    # def add_file(
-    #     self,
-    #     local_path: str,
-    #     name: Optional[str] = None,
-    #     is_tmp: Optional[bool] = False,
-    # ) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add_file(local_path, name, is_tmp)
-
-    # def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
-    #     return self._assert_instance().add_dir(local_path, name)
-
-    # def add_reference(
-    #     self,
-    #     uri: Union["ArtifactEntry", str],
-    #     name: Optional[str] = None,
-    #     checksum: bool = True,
-    #     max_objects: Optional[int] = None,
-    # ) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add_reference(uri, name, checksum, max_objects)
-
-    # def add(self, obj: "WBValue", name: str) -> Any:  # TODO: Refine Type
-    #     return self._assert_instance().add(obj, name)
-
-    def get_path(self, name: str) -> "ArtifactEntry":
-        return self._assert_instance().get_path(name)
-
-    def get(self, name: str) -> "WBValue":
-        return self._assert_instance().get(name)
-
-    def download(self, root: Optional[str] = None, recursive: bool = False) -> str:
-        return self._assert_instance().download(root, recursive)
-
-    def checkout(self, root: Optional[str] = None) -> str:
-        return self._assert_instance().checkout(root)
-
-    def verify(self, root: Optional[str] = None) -> Any:
-        return self._assert_instance().verify(root)
-
-    def save(self) -> None:
-        return self._assert_instance().save()
-
-    def delete(self) -> None:
-        return self._assert_instance().delete()
-
-
-class _DeferredUsedArtifact(ArtifactInterface):
-
-    _api: PublicApi
-    _instance: Optional[ArtifactInterface] = None
-    _future: Any
-
-    def __init__(self, entity: str, project: str, name: str):
-        self.entity_name = entity
-        self.project_name = project
-        self.source_name = name
-
-    def _assert_instance(self) -> ArtifactInterface:
-        if wandb.run is None:
-            raise ValueError(
-                "Must have inizitialized a run before accessing logged artifact properties"
-            )
-        if not self._instance:
-            self.wait()
-        return self._instance
-
-    def __getattr__(self, item: str) -> Any:
-        self._assert_instance()
-        return getattr(self._instance, item)
-
-    def wait(self) -> ArtifactInterface:
-        if not self._instance and wandb.run is not None:
-            self._instance = wandb.run.use_artifact(
-                f"{self.entity_name}/{self.project_name}/{self.source_name}"
-            )
-        elif wandb.run is None:
-            raise ValueError("Must init run befor calling wait")
         return self._instance
 
     @property
