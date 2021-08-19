@@ -380,6 +380,7 @@ class Run(object):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("artifacts") is not None:
+                self._launch_artifact_mapping = {}
                 for key, item in launch_config.get("artifacts").items():
                     self._launch_artifact_mapping[key] = item
 
@@ -2083,7 +2084,7 @@ class Run(object):
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, ds_slot_name=None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2108,11 +2109,19 @@ class Run(object):
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
+        if ds_slot_name and self._launch_artifact_mapping is not None:
+            artifact_or_name = ds_slot_name
+
         if isinstance(artifact_or_name, str):
+            new_name = None
             if self._launch_artifact_mapping is not None:
-                new_name = self._launch_artifact_mapping.get(artifact_or_name)
+                new_name = self._launch_artifact_mapping.get(
+                    ds_slot_name or artifact_or_name
+                )
                 if new_name is None:
-                    wandb.termwarn(f"Could not find {artifact_or_name} in mapping list.")
+                    wandb.termwarn(
+                        f"Could not find {artifact_or_name} in mapping list."
+                    )
             name = new_name or artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
@@ -2125,6 +2134,25 @@ class Run(object):
             api.use_artifact(
                 artifact.id, entity_name=artifact.entity, project_name=artifact.project
             )
+
+            self.config.update(
+                {
+                    "artifacts": {
+                        ds_slot_name
+                        or name: {
+                            "type": artifact.type,
+                            "sequence_name": artifact._sequence_name,
+                            "commit_hash": artifact.commit_hash,
+                            "version": artifact.version,
+                            "aliases": artifact.aliases,
+                            "entity": artifact.entity,
+                            "project": artifact.project,
+                            "name": artifact.name,
+                        }
+                    }
+                }
+            )
+
             return artifact
         else:
             artifact = artifact_or_name
