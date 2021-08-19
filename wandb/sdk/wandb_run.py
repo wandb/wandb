@@ -2124,6 +2124,7 @@ class Run(object):
                     )
             name = new_name or artifact_or_name
             public_api = self._public_api()
+            print(name)
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
