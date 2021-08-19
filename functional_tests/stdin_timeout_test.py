@@ -3,8 +3,6 @@
 
 ---
 id: 0.0.6
-plugin:
-  - wandb
 """
 from wandb.errors import InputTimeoutError
 from wandb.sdk.lib.stdin_timeout import stdin_timeout
