@@ -17,4 +17,5 @@ except InputTimeoutError as e:
     assert str(e) == timeout_log
 
 c = _prompt_choice_with_timeout(input_timeout=1)
+print(c)
 assert c == TIMEOUT_CODE
