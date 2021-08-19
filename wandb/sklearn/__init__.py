@@ -637,7 +637,7 @@ def plot_feature_importances(
             importances = model.feature_log_prob_
 
         if len(importances.shape) == 2:
-            importances = np.median(importances, axis=0)
+            importances = np.mean(importances, axis=0)
 
         indices = np.argsort(importances)[::-1]
         importances = importances[indices]
