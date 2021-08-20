@@ -5,11 +5,6 @@ Test Metaflow Flow integration
 id: metaflow.example.class
 plugin:
   - wandb
-depend:
-  requirements:
-    - fastcore
-    - pyarrow
-    - git+git://github.com/wandb/metaflow.git@hardcode-branch-false#egg=metaflow
 command:
     args:
         - --no-pylint
