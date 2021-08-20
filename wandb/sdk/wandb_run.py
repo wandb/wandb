@@ -842,17 +842,7 @@ class Run(object):
         data: Dict[str, object] = None,
     ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
-        if isinstance(val, wandb.Artifact) or isinstance(
-            val, wandb.apis.public.Artifact
-        ):
-            val = {
-                "_wandb_config_param_type": "artifact_version",
-                "definition": {
-                    "type": val.type,
-                    "name": val.name,
-                    "alias": val.name.split(":")[-1],
-                },
-            }
+
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)

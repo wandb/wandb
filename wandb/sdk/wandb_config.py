@@ -136,10 +136,34 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
+
+        if isinstance(val, wandb.Artifact) or isinstance(
+            val, wandb.apis.public.Artifact
+        ):
+            if type(self._items.get("artifacts")) is dict:
+                for config_key in self._items["artifacts"].keys():
+                    if self._items["artifacts"][config_key]["name"] == val.name:
+                        wandb.termwarn(
+                            f"Artifact already in config under name: {config_key}, not adding to config at key {key}"
+                        )
+                        return
+            val = {
+                key: {
+                    "type": val.type,
+                    "sequence_name": val._sequence_name,
+                    "commit_hash": val.commit_hash,
+                    "version": val.version,
+                    "entity": val.entity,
+                    "project": val.project,
+                    "name": val.name,
+                    "_type": "artifact_version",
+                    "version_id": val.id,
+                }
+            }
+            key = "artifacts"
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
-            or isinstance(val, wandb.wandb_sdk.wandb_run._DeferredUsedArtifact)
         ):
             key, val = self._sanitize(key, val)
 
