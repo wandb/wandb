@@ -60,11 +60,14 @@ def patch_tf_keras():
 
     if parse_version(tf_version) >= parse_version("2.6.0"):
         keras_engine = "keras.engine"
-
-        from keras.engine import training
-        from keras.engine import training_arrays_v1 as training_arrays
-        from keras.engine import training_generator_v1 as training_generator
-
+        try:
+            from keras.engine import training
+            from keras.engine import training_arrays_v1 as training_arrays
+            from keras.engine import training_generator_v1 as training_generator
+        except (ImportError, AttributeError):
+            wandb.termerror("Unable to patch Tensorflow/Keras")
+            logger.exception("exception while trying to patch_tf_keras")
+            return
     else:
         keras_engine = "tensorflow.python.keras.engine"
 
@@ -77,11 +80,11 @@ def patch_tf_keras():
             from tensorflow.python.keras.engine import (
                 training_generator_v1 as training_generator,
             )
-        except (ModuleNotFoundError, AttributeError):
+        except (ImportError, AttributeError):
             try:
                 from tensorflow.python.keras.engine import training_arrays
                 from tensorflow.python.keras.engine import training_generator
-            except (ModuleNotFoundError, AttributeError):
+            except (ImportError, AttributeError):
                 wandb.termerror("Unable to patch Tensorflow/Keras")
                 logger.exception("exception while trying to patch_tf_keras")
                 return
@@ -496,15 +499,11 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if (
-            self.input_type
-            in (
-                "image",
-                "images",
-                "segmentation_mask",
-            )
-            or self.output_type in ("image", "images", "segmentation_mask")
-        ):
+        if self.input_type in (
+            "image",
+            "images",
+            "segmentation_mask",
+        ) or self.output_type in ("image", "images", "segmentation_mask"):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
