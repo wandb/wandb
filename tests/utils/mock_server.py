@@ -1413,7 +1413,7 @@ class ParseCTX(object):
 
     @property
     def config_wandb(self):
-        return self.config["_wandb"]["value"]
+        return self.config.get("_wandb", {}).get("value", {})
 
     @property
     def telemetry(self):
