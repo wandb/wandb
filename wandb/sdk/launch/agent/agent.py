@@ -165,7 +165,7 @@ class LaunchAgent(object):
                     if job:
                         break
                 if not job:
-                    time.sleep(30)
+                    time.sleep(5)
                     # for job_id in self.job_ids:
                     # self._update_finished(job_id)
                     if self._ticks % 2 == 0:

@@ -1832,7 +1832,6 @@ class Api(object):
         )
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
-        print("entity projkect", entity_name, project_name)
         run_name = run_name or self.current_run_id
 
         response = self.gql(
