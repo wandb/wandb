@@ -287,6 +287,15 @@ def test_projects(mock_server, api):
     assert count == 2
 
 
+def test_reports(mock_server, api):
+    error_paths = ["", "entity", "entity/ ", "entity/project/blah", "entity//"]
+
+    for path in error_paths:
+        with pytest.raises(ValueError) as e_info:
+            reports = api.reports(path)
+            assert str(e_info.value) == "path must follow the format 'entity/project'"
+
+
 def test_delete_file(runner, mock_server, api):
     run = api.run("test/test/test")
     file = run.files()[0]
