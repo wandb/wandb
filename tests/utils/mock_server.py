@@ -502,8 +502,10 @@ def create_app(user_ctx=None):
                     },
                 }
             }
+            if ctx["empty_query"]:
+                server_info["serverInfo"].pop("latestLocalVersionInfo")
 
-            if ctx["local_none"]:
+            elif ctx["local_none"]:
                 server_info["serverInfo"]["latestLocalVersionInfo"] = None
 
             viewer_dict["data"].update(server_info)
@@ -519,8 +521,8 @@ def create_app(user_ctx=None):
                     "data": {
                         "__type": {
                             "fields": [
-                                {"name": "outOfDate"},
-                                {"name": "latestVersionString"},
+                                {"name": "cliVersionInfo"},
+                                {"name": "latestLocalVersionInfo"},
                             ]
                         }
                     }

@@ -190,12 +190,12 @@ def test_offline_resume(test_settings, capsys, resume, found):
 
 @pytest.mark.parametrize("empty_query", [True, False])
 @pytest.mark.parametrize("local_none", [True, False])
-@pytest.mark.parametrize("oudated", [True, False])
+@pytest.mark.parametrize("outdated", [True, False])
 def test_local_warning(
-    live_mock_server, test_settings, capsys, oudated, empty_query, local_none
+    live_mock_server, test_settings, capsys, outdated, empty_query, local_none,
 ):
     live_mock_server.set_ctx(
-        {"out_of_date": oudated, "empty_query": empty_query, "local_none": local_none}
+        {"out_of_date": outdated, "empty_query": empty_query, "local_none": local_none}
     )
     run = wandb.init(settings=test_settings)
     run.finish()
@@ -208,7 +208,7 @@ def test_local_warning(
     elif local_none:
         assert msg not in captured
     else:
-        assert msg in captured if oudated else msg not in captured
+        assert msg in captured if outdated else msg not in captured
 
 
 def test_use_artifact_offline(live_mock_server, test_settings):
