@@ -1334,3 +1334,10 @@ def sanitize(key: str) -> str:
         return key.strip('<>:"/\\|?').strip()
     else:
         return key.strip("/").strip()
+
+
+def check_key(key: str) -> bool:
+    if platform.system() == "Windows":
+        return bool(re.match(r"<>:\"/\\|?", key))
+    else:
+        return bool(re.match(r"/", key))
