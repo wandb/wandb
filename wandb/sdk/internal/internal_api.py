@@ -331,7 +331,10 @@ class Api(object):
                 }
         """
         cli_query = """
+            serverInfo {
                 cliVersionInfo
+                _LOCAL_QUERY_
+            }
         """
         query_str = """
         query Viewer{
@@ -348,10 +351,7 @@ class Api(object):
                     }
                 }
             }
-            serverInfo {
-                _CLI_QUERY_
-                _LOCAL_QUERY_
-            }
+            _CLI_QUERY_
         }
         """
 
