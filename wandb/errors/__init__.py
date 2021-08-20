@@ -1,6 +1,3 @@
-import requests
-
-
 class Error(Exception):
     """Base W&B Error"""
 

@@ -48,7 +48,6 @@ def normalize_exceptions(func):
                 )
         except Exception as err:
             # gql raises server errors with dict's as strings...
-
             if len(err.args) > 0:
                 payload = err.args[0]
             else:
