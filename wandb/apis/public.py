@@ -235,7 +235,7 @@ class Api(object):
         self._sweeps = {}
         self._reports = {}
         self._default_entity = None
-        self._timeout = timeout or self._HTTP_TIMEOUT
+        self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
