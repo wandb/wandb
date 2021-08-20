@@ -75,6 +75,9 @@ class _WandbInit(object):
         self._reporter = None
         self._use_sagemaker = None
         self._use_init_config = None
+        self._set_run_name = None
+        self._set_run_tags = None
+        self._set_run_id = None
         self.notebook = None
 
     def setup(self, kwargs) -> None:
@@ -116,6 +119,13 @@ class _WandbInit(object):
         init_config = kwargs.pop("config", None) or dict()
         if len(init_config.keys()) > 0:
             self._use_init_config = True
+
+        if kwargs.get("name"):
+            self._set_run_name = True
+        if kwargs.get("id"):
+            self._set_run_id = True
+        if kwargs.get("tags"):
+            self._set_run_tags = True
 
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
