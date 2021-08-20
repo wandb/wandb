@@ -12,6 +12,7 @@ import requests
 import six
 from wandb import env
 from wandb.errors import CommError
+from wandb.errors.term import termerror
 
 
 def normalize_exceptions(func):
@@ -48,6 +49,13 @@ def normalize_exceptions(func):
                 )
         except Exception as err:
             # gql raises server errors with dict's as strings...
+            from . import public
+            if isinstance(err, public.ReadTimeoutWrapper):
+                termerror(f"{err.num_iters} graphql requests initiated by the public wandb API timed out (timeout={err.timeout} sec). "
+                          f"Set WANDB_HTTP_TIMEOUT to an integer larger than {err.timeout} to increase the graphql "
+                          f"timeout.")
+                err = err.exc
+
             if len(err.args) > 0:
                 payload = err.args[0]
             else:

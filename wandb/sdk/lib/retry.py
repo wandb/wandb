@@ -115,12 +115,13 @@ class Retry(object):
                 return result
             except self._retryable_exceptions as e:
                 # if the secondary check fails, re-raise
-                if not check_retry_fn(e):
-                    raise
-                if (
+                if not check_retry_fn(e) or (
                     datetime.datetime.now() - start_time >= retry_timedelta
                     or self._num_iter >= num_retries
                 ):
+                    from ...apis.public import ReadTimeoutWrapper
+                    if isinstance(e, ReadTimeoutWrapper):
+                        e.num_iters = self.num_iters
                     raise
                 if self._num_iter == 2:
                     logger.exception("Retry attempt failed:")
