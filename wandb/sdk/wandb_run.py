@@ -383,6 +383,7 @@ class Run(object):
                 self._launch_artifact_mapping = {}
                 for key, item in launch_config.get("artifacts").items():
                     self._launch_artifact_mapping[key] = item
+                del launch_config["artifacts"]
 
             print("Launch config", launch_config)
             self._config.update_locked(
