@@ -74,6 +74,7 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self._use_sagemaker = None
+        self._use_init_config = None
         self.notebook = None
 
     def setup(self, kwargs) -> None:
@@ -113,6 +114,9 @@ class _WandbInit(object):
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
+        if len(init_config.keys()) > 0:
+            self._use_init_config = True
+
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
@@ -177,7 +181,10 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
+        d = dict(
+            _start_time=time.time(),
+            _start_datetime=datetime.datetime.now(),
+        )
         settings.update(d)
 
         if not settings._noop:
@@ -458,6 +465,14 @@ class _WandbInit(object):
             run._telemetry_imports(tel.imports_init)
             if self._use_sagemaker:
                 tel.feature.sagemaker = True
+            if self._use_init_config:
+                tel.feature.config_wandb_init = True
+            if self._set_run_name:
+                tel.feature.set_run_name = True
+            if self._set_run_id:
+                tel.feature.set_run_id = True
+            if self._set_run_tags:
+                tel.feature.set_run_tags = True
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True

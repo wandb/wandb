@@ -145,7 +145,12 @@ class Config(object):
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
 
-    __setattr__ = __setitem__
+    # __setattr__ = __setitem__
+
+    def __setattr__(self, key, val):
+        with wandb.wandb_lib.telemetry.context() as tel:
+            tel.feature.config_dot_set_item = True
+        self.__setitem__(key, val)
 
     def __getattr__(self, key):
         return self.__getitem__(key)
