@@ -1281,7 +1281,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def use_artifact(self, artifact):
-        """ Declare an artifact as an input to a run.
+        """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -1308,7 +1308,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def log_artifact(self, artifact, aliases=None):
-        """ Declare an artifact as output of a run.
+        """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -2340,7 +2340,9 @@ class RunArtifacts(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["edges"]["cursor"]
+            return self.last_response["project"]["run"][self.run_key]["edges"][-1][
+                "cursor"
+            ]
         else:
             return None
 
@@ -2883,7 +2885,9 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
-        self.client.execute(mutation, variable_values={"id": self.id,})
+        self.client.execute(
+            mutation, variable_values={"id": self.id,},
+        )
         return True
 
     def new_file(self, name, mode=None):
