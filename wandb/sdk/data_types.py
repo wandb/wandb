@@ -2450,7 +2450,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
 
 
 def _data_frame_to_json(
-    df: "pd.DataFraome", run: "LocalRun", key: str, step: Union[int, str]
+    df: "pd.DataFrame", run: "LocalRun", key: str, step: Union[int, str]
 ) -> dict:
     """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 
