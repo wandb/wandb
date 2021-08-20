@@ -267,7 +267,7 @@ class WandbCallback(keras.callbacks.Callback):
         log_gradients: (boolean) if True log histograms of the training gradients
         training_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  This is needed
             for calculating gradients - this is mandatory if `log_gradients` is `True`.
-        validate_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
+        validation_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
             for wandb to visualize.  If this is set, every epoch, wandb will
             make a small number of predictions and save the results for later visualization.
         generator: (generator) a generator that returns validation data for wandb to visualize.  This
@@ -496,11 +496,15 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
