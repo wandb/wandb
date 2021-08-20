@@ -1330,7 +1330,7 @@ def sanitize_keys(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def sanitize(key: str) -> str:
-    if sys.platform == "Windows":
+    if sys.platform == "win32":
         return key.strip('<>:"/\\|?').strip()
     else:
         return key.strip("/").strip()
