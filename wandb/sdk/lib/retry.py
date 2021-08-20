@@ -7,6 +7,8 @@ import time
 
 from requests import HTTPError
 import wandb
+from wandb.errors import ReadTimeoutWithContext
+
 
 logger = logging.getLogger(__name__)
 
@@ -119,8 +121,7 @@ class Retry(object):
                     datetime.datetime.now() - start_time >= retry_timedelta
                     or self._num_iter >= num_retries
                 ):
-                    from ...apis.public import ReadTimeoutWrapper
-                    if isinstance(e, ReadTimeoutWrapper):
+                    if isinstance(e, ReadTimeoutWithContext):
                         e.num_iters = self.num_iters
                     raise
                 if self._num_iter == 2:

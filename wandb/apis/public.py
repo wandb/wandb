@@ -20,6 +20,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.errors import ReadTimeoutWithContext
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
@@ -158,14 +159,6 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
 }"""
 
 
-class ReadTimeoutWrapper(requests.exceptions.ReadTimeout):
-
-    def __init__(self, read_timeout_exc: requests.exceptions.ReadTimeout, timeout: int, num_iters: int = 0):
-        self.exc = read_timeout_exc
-        self.timeout = timeout
-        self.num_iters = num_iters
-
-
 class RetryingClient(object):
     def __init__(self, client):
         self._client = client
@@ -185,7 +178,7 @@ class RetryingClient(object):
         except requests.exceptions.ReadTimeout as e:
             if "timeout" not in kwargs:
                 timeout = self._client.transport.default_timeout
-                raise ReadTimeoutWrapper(e, timeout)
+                raise ReadTimeoutWithContext(e, timeout)
             raise
 
 
