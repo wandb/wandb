@@ -2249,11 +2249,11 @@ class RunArtifacts(Paginator):
     OUTPUT_QUERY = gql(
         """
         query RunArtifacts(
-            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String, $artifactLimit: Int,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    outputArtifacts(after: $cursor) {
+                    outputArtifacts(after: $cursor, limit: $artifactLimit) {
                         totalCount
                         edges {
                             node {
@@ -2277,11 +2277,11 @@ class RunArtifacts(Paginator):
     INPUT_QUERY = gql(
         """
         query RunArtifacts(
-            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String, $artifactLimit: Int,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    inputArtifacts(after: $cursor) {
+                    inputArtifacts(after: $cursor, limit: $artifactLimit) {
                         totalCount
                         edges {
                             node {
@@ -2347,7 +2347,9 @@ class RunArtifacts(Paginator):
             return None
 
     def update_variables(self):
-        self.variables.update({"cursor": self.cursor})
+        self.variables.update(
+            {"cursor": self.cursor, "artifactLimit": self.per_page,}
+        )
 
     def convert_objects(self):
         return [
