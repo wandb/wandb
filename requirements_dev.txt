@@ -28,5 +28,5 @@ tensorboard
 gym
 jax[cpu]
 fastcore
-metaflow
 pyarrow
+git+git://github.com/wandb/metaflow.git@hardcode-branch-false#egg=metaflow
