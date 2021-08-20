@@ -1028,23 +1028,15 @@ class SendManager(object):
         """
         local_info = wandb_internal_pb2.LocalInfo()
 
-        latest_local_version = "latest"
-
-        if len(self._api.server_info_introspection()) == 0:
-            local_info.out_of_date = True
-            local_info.version = latest_local_version
+        server_info = self.get_server_info()
+        latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
+        if latest_local_version_info is None:
+            local_info.out_of_date = False
         else:
-            server_info = self.get_server_info()
-            latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
-            if latest_local_version_info is None:
-                local_info.out_of_date = False
-            else:
-                local_info.out_of_date = latest_local_version_info.get(
-                    "outOfDate", False
-                )
-                local_info.version = latest_local_version_info.get(
-                    "latestVersionString", latest_local_version
-                )
+            local_info.out_of_date = latest_local_version_info.get("outOfDate", True)
+            local_info.version = latest_local_version_info.get(
+                "latestVersionString", "latest"
+            )
         return local_info
 
     def __next__(self):

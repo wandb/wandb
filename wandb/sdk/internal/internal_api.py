@@ -275,11 +275,12 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
-    def server_info_introspection(self):
+    def type_introspection(self, type_name: str):
 
         query_string = """
+            query TypeIntrospect($typeName: String!)
             {
-                __type(name: "LocalVersionInfo") {
+                __type(name: $typeName) {
                         fields {
                         name
                     }
@@ -288,9 +289,15 @@ class Api(object):
         """
         query = gql(query_string)
 
-        res = self.gql(query)
+        res = (
+            self.gql(query, variable_values={"typeName": type_name})
+            .get("__type", {})
+            .get("fields", [{}])
+        )
 
-        return res or {}
+        res = [value for type_pair in res for value in type_pair.values()]
+
+        return res or []
 
     @normalize_exceptions
     def viewer(self):
@@ -324,10 +331,7 @@ class Api(object):
                 }
         """
         cli_query = """
-            serverInfo {
                 cliVersionInfo
-                _LOCAL_QUERY_
-            }
         """
         query_str = """
         query Viewer{
@@ -344,36 +348,30 @@ class Api(object):
                     }
                 }
             }
-            _CLI_QUERY_
+            serverInfo {
+                _CLI_QUERY_
+                _LOCAL_QUERY_
+            }
         }
         """
-        queries = []
-        queries.append(
-            gql(
-                query_str.replace("_CLI_QUERY_", cli_query).replace(
-                    "_LOCAL_QUERY_", local_query
-                )
+
+        server_info_introspection = self.type_introspection("ServerInfo")
+        cli_query = cli_query if "cliVersionInfo" in server_info_introspection else ""
+        local_query = (
+            local_query if "latestLocalVersionInfo" in server_info_introspection else ""
+        )
+
+        query = gql(
+            query_str.replace("_CLI_QUERY_", cli_query).replace(
+                "_LOCAL_QUERY_", local_query
             )
         )
-        queries.append(
-            gql(
-                query_str.replace("_CLI_QUERY_", cli_query).replace("_LOCAL_QUERY_", "")
-            )
-        )
-        queries.append(gql(query_str.replace("_CLI_QUERY_", "")))
-        for query in queries:
-            try:
-                res = self.gql(query)
-            except UsageError as e:
-                raise (e)
-            except Exception as e:
-                # graphql schema exception is generic
-                err = e
-                continue
-            err = None
-            break
-        if err:
-            raise (err)
+
+        try:
+            res = self.gql(query)
+        except (UsageError, Exception) as e:
+            raise (e)
+
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
