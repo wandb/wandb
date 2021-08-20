@@ -53,17 +53,4 @@ __all__ = [
     "LogError",
     "LogMultiprocessError",
     "RequireError",
-    "ReadTimeoutWithContext",
 ]
-
-
-class ReadTimeoutWithContext(requests.exceptions.ReadTimeout):
-    def __init__(
-        self,
-        read_timeout_exc: requests.exceptions.ReadTimeout,
-        timeout: int,
-        num_iters: int = 0,
-    ):
-        self.exc = read_timeout_exc
-        self.timeout = timeout
-        self.num_iters = num_iters

@@ -20,7 +20,6 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import ReadTimeoutWithContext
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
@@ -175,10 +174,14 @@ class RetryingClient(object):
     def execute(self, *args, **kwargs):
         try:
             return self._client.execute(*args, **kwargs)
-        except requests.exceptions.ReadTimeout as e:
+        except requests.exceptions.ReadTimeout:
             if "timeout" not in kwargs:
                 timeout = self._client.transport.default_timeout
-                raise ReadTimeoutWithContext(e, timeout)
+                wandb.termwarn(
+                    f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
+                    f"Set WANDB_HTTP_TIMEOUT to an integer larger than {timeout} to increase the graphql "
+                    f"timeout."
+                )
             raise
 
 
@@ -1518,7 +1521,7 @@ class Sweep(Attrs):
         sid=None,
         order=None,
         query=None,
-        **kwargs
+        **kwargs,
     ):
         """Execute a query against the cloud backend"""
         if query is None:
