@@ -25,7 +25,7 @@ def test_log_custom_chart(wandb_init_run):
 
 
 def test_log_windows_bad_key(wandb_init_run):
-    wandb.log({"  /my:bad:key": 10})
+    wandb.log({"  /my:bad:key": wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"])})
     if sys.platform == "win32":
         assert wandb.run._backend.history[0].get("mybadkey")
     else:
