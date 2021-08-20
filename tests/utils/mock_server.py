@@ -128,7 +128,7 @@ def run(ctx):
         "id": "test",
         "name": "test",
         "displayName": "beast-bug-33",
-        "state": ctx.get("run_state"),
+        "state": "finished",
         "config": '{"epochs": {"value": 10}}',
         "group": "A",
         "jobType": "test",
@@ -1473,7 +1473,7 @@ class ParseCTX(object):
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                if k == "output.log":
+                if k == u"output.log":
                     lines = [content]
                 else:
                     lines = map(json.loads, content)
