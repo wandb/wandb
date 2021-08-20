@@ -16,12 +16,7 @@ from wandb.apis.internal import Api
 from six import string_types
 
 
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk import lib as wandb_lib
-else:
-    from wandb.sdk_py27 import lib as wandb_lib
+from wandb.sdk import lib as wandb_lib
 
 
 DEEP_SUMMARY_FNAME = 'wandb.h5'
@@ -122,10 +117,6 @@ class SummarySubDict(object):
         self.get(k)  # load the value into _dict if it should be there
         res = self._dict[k]
 
-        # Special condition to automatically load and deserialize table entries
-        if isinstance(res, wandb.old.summary.SummarySubDict) and res.get("_type") == "table-file" and "artifact_path" in res:
-            api = wandb.Api()
-            return api.artifact(res["artifact_path"]["artifact"]).get(res["artifact_path"]["path"])
         return res
 
     def __contains__(self, k):

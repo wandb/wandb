@@ -24,8 +24,5 @@ test-results/
 mypy-results/
 cover-results/
 wandb/proto_check/
-functional_tests/.coverage.*
-functional_tests/runs/
-functional_tests/videos/
-functional_tests/models/
 .idea/
+.yea-requirements.txt
