@@ -1726,7 +1726,7 @@ class Reports(Paginator):
     QUERY = gql(
         """
         query Run($project: String!, $entity: String!, $reportCursor: String,
-            $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
+            $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
                 allViews(viewType: $viewType, viewName: $viewName, first:
                     $reportLimit, after: $reportCursor) {
