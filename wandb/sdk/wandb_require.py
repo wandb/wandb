@@ -29,6 +29,11 @@ class _Requires(object):
     def require_require(self) -> None:
         pass
 
+    def require_launch(self) -> None:
+        wandb.termwarn(
+            "W&B launch is in an early experimental state, and can change with minimal notice."
+        )
+
     def apply(self) -> None:
         """Call require_* method for supported features."""
         last_message: str = ""
