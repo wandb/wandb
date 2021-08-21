@@ -201,7 +201,7 @@ def test_local_warning(
     run.finish()
     captured = capsys.readouterr().err
 
-    msg = "WARNING Upgrade to W&B Local"
+    msg = "version of W&B Local to get the latest features"
 
     if empty_query:
         assert msg in captured
