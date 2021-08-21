@@ -503,9 +503,7 @@ def create_app(user_ctx=None):
                 }
             }
 
-            if ctx["empty_query"]:
-                server_info["serverInfo"].pop("latestLocalVersionInfo")
-            elif ctx["local_none"]:
+            if ctx["local_none"]:
                 server_info["serverInfo"]["latestLocalVersionInfo"] = None
 
             viewer_dict["data"].update(server_info)
@@ -521,8 +519,8 @@ def create_app(user_ctx=None):
                     "data": {
                         "__type": {
                             "fields": [
-                                {"name": "cliVersionInfo"},
-                                {"name": "latestLocalVersionInfo"},
+                                {"name": "outOfDate"},
+                                {"name": "latestVersionString"},
                             ]
                         }
                     }
@@ -1443,7 +1441,7 @@ class ParseCTX(object):
 
     @property
     def config_wandb(self):
-        return self.config.get("_wandb", {}).get("value", {})
+        return self.config["_wandb"]["value"]
 
     @property
     def telemetry(self):
