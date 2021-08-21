@@ -92,9 +92,7 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
             if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
                 if nn["kernel"]["id"] == kernel_id:
                     return {
-                        "root": s.get(
-                            "root_dir", s.get("notebook_dir", os.getcwd())
-                        ),
+                        "root": s.get("root_dir", s.get("notebook_dir", os.getcwd())),
                         "path": nn["notebook"]["path"],
                         "name": nn["notebook"]["name"],
                     }
@@ -121,14 +119,14 @@ def notebook_metadata(silent):
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
             ret = {
-                    "root": "/content",
-                    "path": ipynb["metadata"]["colab"]["name"],
-                    "name": ipynb["metadata"]["colab"]["name"],
-                }
+                "root": "/content",
+                "path": ipynb["metadata"]["colab"]["name"],
+                "name": ipynb["metadata"]["colab"]["name"],
+            }
 
             jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
             if jupyter_metadata:
-                ret['path'] = jupyter_metadata['path']
+                ret["path"] = jupyter_metadata["path"]
                 return ret
 
         if wandb.util._is_kaggle():
