@@ -1105,7 +1105,7 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print("Run finished with status : {}".format(state))
+                print("Run finished with status: {}".format(state))
                 self._attrs["state"] = state
                 self.state = state
                 return

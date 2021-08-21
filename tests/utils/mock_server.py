@@ -64,6 +64,8 @@ def default_ctx():
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "run_state": "running",
+        "run_queue_item_check_count": 0,
     }
 
 
@@ -448,6 +450,13 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Run(" in body["query"]:
+            # if querying state of run, change context from running to finished
+            if "RunFragment" not in body["query"] and "state" in body["query"]:
+                ret_val = json.dumps(
+                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                )
+                ctx["run_state"] = "finished"
+                return ret_val
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
@@ -924,6 +933,51 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {"project": {"runQueues": []}}})
+
+        if "query GetRunQueueItem" in body["query"]:
+            ctx["run_queue_item_check_count"] += 1
+            if ctx["run_queue_item_check_count"] > 1:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": "test",
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": None,
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
         if "mutation createRunQueue" in body["query"]:
             ctx["run_queues_return_default"] = True
             return json.dumps(
