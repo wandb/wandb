@@ -128,7 +128,7 @@ def run(ctx):
         "id": "test",
         "name": "test",
         "displayName": "beast-bug-33",
-        "state": "finished",
+        "state": "running",
         "config": '{"epochs": {"value": 10}}',
         "group": "A",
         "jobType": "test",
