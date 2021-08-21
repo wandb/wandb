@@ -122,7 +122,7 @@ def notebook_metadata(silent):
         if ipynb:
             ret = {
                     "root": "/content",
-                    "path": ipynb["metadata"]["colab"]["path"],
+                    "path": ipynb["metadata"]["colab"]["name"],
                     "name": ipynb["metadata"]["colab"]["name"],
                 }
 
