@@ -289,11 +289,12 @@ class Api(object):
         """
         query = gql(query_string)
 
-        res = (
-            self.gql(query, variable_values={"typeName": type_name})
-            .get("__type", {})
-            .get("fields", [{}])
-        )
+        try:
+            res = self.gql(query, variable_values={"typeName": type_name})
+        except Exception as e:
+            raise (e)
+
+        res = res.get("__type", {}).get("fields", [{}])
 
         res = [value for type_pair in res for value in type_pair.values()]
 
