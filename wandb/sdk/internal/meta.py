@@ -209,8 +209,10 @@ class Meta(object):
     def probe(self):
         logger.debug("probe")
         self._setup_sys()
+        logger.debug(f"settings.program: {self._settings.program}")
         if self._settings.program is not None:
             self.data["program"] = self._settings.program
+        logger.debug(f"settings.disable_code: {self._settings.disable_code}")
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
