@@ -275,18 +275,18 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
-    def type_introspection(self, type_name: str):
+    def type_introspection(self, type_name: str = ""):
 
         query_string = """
             query TypeIntrospect($typeName: String!)
             {
                 __type(name: $typeName) {
-                        fields {
+                    fields {
                         name
                     }
                 }
             }
-        """
+            """
         query = gql(query_string)
 
         try:
@@ -357,21 +357,38 @@ class Api(object):
         """
 
         server_info_introspection = self.type_introspection("ServerInfo")
-        cli_query = cli_query if "cliVersionInfo" in server_info_introspection else ""
+        # cli_query = cli_query if "cliVersionInfo" in server_info_introspection else ""
         local_query = (
             local_query if "latestLocalVersionInfo" in server_info_introspection else ""
         )
 
-        query = gql(
+        query_new = gql(
             query_str.replace("_CLI_QUERY_", cli_query).replace(
                 "_LOCAL_QUERY_", local_query
             )
         )
 
-        try:
-            res = self.gql(query)
-        except (UsageError, Exception) as e:
-            raise (e)
+        # query_new = query_new
+        query_old = gql(query_str.replace("_CLI_QUERY_", ""))
+
+        for query in query_new, query_old:
+            try:
+                res = self.gql(query)
+            except UsageError as e:
+                raise (e)
+            except Exception as e:
+                # graphql schema exception is generic
+                err = e
+                continue
+            err = None
+            break
+        if err:
+            raise (err)
+
+        # try:
+        #     res = self.gql(query)
+        # except (UsageError, Exception) as e:
+        #     raise (e)
 
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 

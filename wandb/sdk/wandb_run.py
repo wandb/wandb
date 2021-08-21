@@ -1891,18 +1891,18 @@ class Run(object):
 
     def _show_local_warning(self) -> None:
 
-        local_info_exists = (
-            self._poll_exit_response and self._poll_exit_response.local_info
-        )
-        not_offline = not self._settings._offline
-
-        if self._settings.is_local and not_offline and local_info_exists:
-            local_info = self._poll_exit_response.local_info
-            latest_version, out_of_date = local_info.version, local_info.out_of_date
-            if out_of_date:
-                wandb.termwarn(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: http://wandb.me/local-upgrade"
-                )
+        if self._poll_exit_response:
+            if (
+                not self._settings._offline
+                and self._settings.is_local
+                and self._poll_exit_response.local_info
+            ):
+                local_info = self._poll_exit_response.local_info
+                latest_version, out_of_date = local_info.version, local_info.out_of_date
+                if out_of_date:
+                    wandb.termwarn(
+                        f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: http://wandb.me/local-upgrade"
+                    )
 
     def _show_files(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
