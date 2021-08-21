@@ -298,7 +298,7 @@ def test_reports(mock_server, api):
     path = "test-entity/test-project"
     reports = api.reports(path)
     # calling __len__, __getitem__, or __next__ on a Reports object
-    # actually triggers an API call to fetch data w/ pagination.
+    # triggers the actual API call to fetch data w/ pagination.
     length = len(reports)
     assert length == 1
     assert reports[0].description == "test-description"

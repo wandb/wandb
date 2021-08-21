@@ -1804,6 +1804,8 @@ class Reports(Paginator):
         )
 
     def convert_objects(self):
+        if self.last_response["project"] is None:
+            raise ValueError(f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}")
         return [
             BetaReport(
                 self.client,
