@@ -209,18 +209,12 @@ class Meta(object):
     def probe(self):
         logger.debug("probe")
         self._setup_sys()
-        logger.debug(f"settings.program: {self._settings.program}")
         if self._settings.program is not None:
             self.data["program"] = self._settings.program
-        logger.debug(f"settings.disable_code: {self._settings.disable_code}")
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
-                logger.debug(f"settings.program_relpath: {self._settings.program_relpath}")
                 self.data["codePath"] = self._settings.program_relpath
             elif self._settings._jupyter:
-                logger.debug(f"settings._jupyter: {self._settings._jupyter}")
-                logger.debug(f"settings.notebook_name: {self._settings.notebook_name}")
-                logger.debug(f"settings._jupyter_path: {self._settings._jupyter_path}")
                 if self._settings.notebook_name:
                     self.data["program"] = self._settings.notebook_name
                 elif self._settings._jupyter_path:
