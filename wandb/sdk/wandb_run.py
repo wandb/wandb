@@ -1890,13 +1890,13 @@ class Run(object):
             wandb.termlog(history_lines)
 
     def _show_local_warning(self) -> None:
-        if not self._poll_exit_response or not self._poll_exit_response.local_info:
-            return
 
-        if self._settings._offline:
-            return
+        local_info_exists = (
+            self._poll_exit_response and self._poll_exit_response.local_info
+        )
+        not_offline = not self._settings._offline
 
-        if self._settings.is_local:
+        if self._settings.is_local and not_offline and local_info_exists:
             local_info = self._poll_exit_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
