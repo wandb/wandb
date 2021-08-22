@@ -636,9 +636,15 @@ def plot_feature_importances(
             # feature_log_prob_
             importances = model.feature_log_prob_
 
-        if len(importances.shape) == 2:
-            if importances.shape[1] > 1:
-                raise ValueError("Cannot handle two-dimensional feature importances")
+        if len(importances.shape) > 1:
+            if np.prod(importances.shape) > importances.shape[0]:
+                nd = len(importances.shape)
+                wandb.termwarn(
+                    f"{nd}-dimensional feature importances array passed to plot_feature_importances. "
+                    f"{nd}-dimensional and higher feature importances arrays are not currently supported. "
+                    f"These importances will not be plotted."
+                )
+                return
             else:
                 importances = np.squeeze(importances)
 
