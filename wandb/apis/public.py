@@ -7,6 +7,7 @@ import platform
 import re
 import shutil
 import tempfile
+from typing import Optional
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
@@ -172,7 +173,17 @@ class RetryingClient(object):
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def execute(self, *args, **kwargs):
-        return self._client.execute(*args, **kwargs)
+        try:
+            return self._client.execute(*args, **kwargs)
+        except requests.exceptions.ReadTimeout:
+            if "timeout" not in kwargs:
+                timeout = self._client.transport.default_timeout
+                wandb.termwarn(
+                    f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
+                    f"Create a new API with an integer timeout larger than {timeout}, e.g., `api = wandb.Api(timeout={timeout + 10})` "
+                    f"to increase the graphql timeout."
+                )
+            raise
 
 
 class Api(object):
@@ -209,7 +220,7 @@ class Api(object):
     """
     )
 
-    def __init__(self, overrides={}):
+    def __init__(self, overrides={}, timeout: Optional[int] = None):
         self.settings = InternalApi().settings()
         if self.api_key is None:
             wandb.login()
@@ -224,13 +235,14 @@ class Api(object):
         self._sweeps = {}
         self._reports = {}
         self._default_entity = None
+        self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
-                timeout=self._HTTP_TIMEOUT,
+                timeout=self._timeout,
                 auth=("api", self.api_key),
                 url="%s/graphql" % self.settings["base_url"],
             )
@@ -1511,7 +1523,7 @@ class Sweep(Attrs):
         sid=None,
         order=None,
         query=None,
-        **kwargs
+        **kwargs,
     ):
         """Execute a query against the cloud backend"""
         if query is None:
