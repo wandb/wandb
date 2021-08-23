@@ -93,7 +93,9 @@ class WandbCallback(BaseCallback):
             ), "to use the `model_save_freq` you have to set the `model_save_path` parameter"
 
     def _init_callback(self) -> None:
-        d = {"algo": type(self.model).__name__}
+        d = {}
+        if "algo" not in d:
+            d["algo"] = type(self.model).__name__
         for key in self.model.__dict__:
             if key in wandb.config:
                 continue
@@ -103,7 +105,7 @@ class WandbCallback(BaseCallback):
                 d[key] = str(self.model.__dict__[key])
         if self.gradient_save_freq > 0:
             wandb.watch(self.model.policy, log_freq=self.gradient_save_freq, log="all")
-        wandb.config.update(d)
+        wandb.config.setdefaults(d)
 
     def _on_step(self) -> bool:
         if self.model_save_freq > 0:

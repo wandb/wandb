@@ -15,7 +15,7 @@ ipython==5.4.1; python_version < '3.5'
 ipykernel
 nbclient; python_version >= '3.5'
 sklearn
-tensorflow>=1.15.2; python_version < '3.9'
+tensorflow>=1.15.2,<2.6.0; python_version < '3.9'
 torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torch==1.8.1+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
@@ -23,6 +23,7 @@ torchvision==0.9.1+cpu; python_version >= '3.5' and python_version < '3.9' and s
 plotly; python_version < '3.9'
 bokeh
 tqdm
+docker
 stable_baselines3
 tensorboard
 gym
