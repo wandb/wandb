@@ -437,11 +437,15 @@ class _WandbInit(object):
                 logger.info("wandb.init() called when a run is still active")
                 return wandb.run
             elif s._concurrency:
-                logger.error("wandb.init() called when a run is still active. Unsafe mp usage.")
+                logger.error(
+                    "wandb.init() called when a run is still active. Unsafe mp usage."
+                )
                 return wandb.run
 
         if s._attach_id and not s._concurrency:
-            wandb.termwarn("Must use 'concurrency' feature to use `wandb.init(attach=)`")
+            wandb.termwarn(
+                "Must use 'concurrency' feature to use `wandb.init(attach=)`"
+            )
 
         logger.info("starting backend")
 
