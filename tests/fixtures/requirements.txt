@@ -1,2 +1,2 @@
-git+https://github.com/wandb/client.git@master
+git+https://github.com/wandb/client.git
 numpy
