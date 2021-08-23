@@ -16,7 +16,24 @@ sys.path[0:0] = save_path
 import logging
 from six.moves import urllib
 import threading
-from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+
+RequestsMock = None
+InjectRequestsParse = None
+ArtifactEmulator = None
+
+
+def load_modules(use_yea=False):
+    global RequestsMock, InjectRequestsParse, ArtifactEmulator
+    if use_yea:
+        from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
+        from yea_wandb.artifact_emu import ArtifactEmulator
+    else:
+        from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+        from tests.utils.artifact_emu import ArtifactEmulator
+
+
+# global (is this safe?)
+ART_EMU = None
 
 
 def default_ctx():
@@ -30,16 +47,24 @@ def default_ctx():
         "current_run": None,
         "files": {},
         "k8s": False,
-        "resume": False,
+        "resume": None,
         "file_bytes": {},
         "manifests_created": [],
+        "artifacts": {},
         "artifacts_by_id": {},
+        "artifacts_created": {},
         "upsert_bucket_count": 0,
+        "max_cli_version": "0.12.0",
+        "runs": {},
+        "run_ids": [],
+        "file_names": [],
+        "emulate_artifacts": None,
         "item_acked": False,
     }
 
 
 def mock_server(mocker):
+    load_modules()
     ctx = default_ctx()
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
@@ -217,6 +242,12 @@ def get_ctx():
     return g.ctx.get()
 
 
+def get_run_ctx(run_id):
+    glob_ctx = get_ctx()
+    run_ctx = glob_ctx["runs"][run_id]
+    return run_ctx
+
+
 def set_ctx(ctx):
     get_ctx()
     g.ctx.set(ctx)
@@ -314,18 +345,22 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+
+        # Setup artifact emulator (should this be somewhere else?)
+        emulate_random_str = ctx["emulate_artifacts"]
+        global ART_EMU
+        if emulate_random_str:
+            if ART_EMU is None or ART_EMU._random_str != emulate_random_str:
+                ART_EMU = ArtifactEmulator(
+                    random_str=emulate_random_str, ctx=ctx, base_url=base_url
+                )
+        else:
+            ART_EMU = None
+
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
-        if "mutation UpsertBucket(" in body["query"]:
-            param_config = body["variables"].get("config")
-            if param_config:
-                ctx.setdefault("config", []).append(json.loads(param_config))
-            param_summary = body["variables"].get("summaryMetrics")
-            if param_summary:
-                ctx.setdefault("summary", []).append(json.loads(param_summary))
-            ctx["upsert_bucket_count"] += 1
 
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
@@ -368,7 +403,7 @@ def create_app(user_ctx=None):
                                     "displayName": "funky-town-13",
                                     "id": "test",
                                     "config": '{"epochs": {"value": 10}}',
-                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5}',
+                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5, "_wandb": {"runtime": 50}}',
                                     "logLineCount": 14,
                                     "historyLineCount": 15,
                                     "eventsLineCount": 0,
@@ -454,7 +489,14 @@ def create_app(user_ctx=None):
                             "teams": {
                                 "edges": []  # TODO make configurable for cli_test
                             },
-                        }
+                        },
+                        "serverInfo": {
+                            "cliVersionInfo": {
+                                "max_cli_version": str(
+                                    ctx.get("max_cli_version", "0.10.33")
+                                )
+                            }
+                        },
                     }
                 }
             )
@@ -469,7 +511,21 @@ def create_app(user_ctx=None):
                                 "state": "running",
                                 "bestLoss": 0.33,
                                 "config": yaml.dump(
-                                    {"metric": {"name": "loss", "value": "minimize"}}
+                                    {
+                                        "controller": {"type": "local"},
+                                        "method": "random",
+                                        "parameters": {
+                                            "param1": {
+                                                "values": [1, 2, 3],
+                                                "distribution": "categorical",
+                                            },
+                                            "param2": {
+                                                "values": [1, 2, 3],
+                                                "distribution": "categorical",
+                                            },
+                                        },
+                                        "program": "train-dummy.py",
+                                    }
                                 ),
                                 "createdAt": datetime.now().isoformat(),
                                 "heartbeatAt": datetime.now().isoformat(),
@@ -526,19 +582,53 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation UpsertBucket(" in body["query"]:
+            run_id_default = "abc123"
+            run_id = body["variables"].get("name", run_id_default)
+            run_num = len(ctx["runs"])
+            inserted = run_id not in ctx["runs"]
+            if inserted:
+                ctx["run_ids"].append(run_id)
+            run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
+
+            r = run_ctx.setdefault("run", {})
+            r.setdefault("display_name", "lovely-dawn-{}".format(run_num + 32))
+            r.setdefault("storage_id", "storageid{}".format(run_num))
+            r.setdefault("project_name", "test")
+            r.setdefault("entity_name", "mock_server_entity")
+
+            param_config = body["variables"].get("config")
+            if param_config:
+                for c in ctx, run_ctx:
+                    c.setdefault("config", []).append(json.loads(param_config))
+
+            param_summary = body["variables"].get("summaryMetrics")
+            if param_summary:
+                for c in ctx, run_ctx:
+                    c.setdefault("summary", []).append(json.loads(param_summary))
+
+            for c in ctx, run_ctx:
+                c["upsert_bucket_count"] += 1
+
+            # Update run context
+            ctx["runs"][run_id] = run_ctx
+
+            # support legacy tests which pass resume
+            if ctx["resume"] is True:
+                inserted = False
+
             response = {
                 "data": {
                     "upsertBucket": {
                         "bucket": {
-                            "id": "storageid",
-                            "name": body["variables"].get("name", "abc123"),
-                            "displayName": "lovely-dawn-32",
+                            "id": r["storage_id"],
+                            "name": run_id,
+                            "displayName": r["display_name"],
                             "project": {
-                                "name": "test",
-                                "entity": {"name": "mock_server_entity"},
+                                "name": r["project_name"],
+                                "entity": {"name": r["entity_name"]},
                             },
                         },
-                        "inserted": ctx["resume"] is False,
+                        "inserted": inserted,
                     }
                 }
             }
@@ -579,6 +669,9 @@ def create_app(user_ctx=None):
                 )
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation CreateArtifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create(variables=body["variables"])
+
             collection_name = body["variables"]["artifactCollectionNames"][0]
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
@@ -618,7 +711,10 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            ctx["manifests_created"].append(manifest)
+            run_name = body.get("variables", {}).get("runName", "unknown")
+            run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
+            for c in ctx, run_ctx:
+                c["manifests_created"].append(manifest)
             return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
@@ -638,6 +734,8 @@ def create_app(user_ctx=None):
             }
             return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation CreateArtifactFiles" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create_files(variables=body["variables"])
             return {
                 "data": {
                     "files": [
@@ -753,7 +851,11 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
-            art = artifact(ctx, request_url_root=base_url)
+            if ART_EMU:
+                return ART_EMU.query(variables=body.get("variables", {}))
+            art = artifact(
+                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
+            )
             if "id" in body.get("variables", {}):
                 art = artifact(
                     ctx,
@@ -786,6 +888,8 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query ClientIDMapping(" in body["query"]:
+            return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -818,7 +922,19 @@ def create_app(user_ctx=None):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
-        request.get_data()
+        request.get_data(as_text=True)
+        run_ctx = ctx["runs"].setdefault(run, default_ctx())
+        for c in ctx, run_ctx:
+            c["file_names"].append(request.args.get("file"))
+
+        inject = InjectRequestsParse(ctx).find(request=request)
+        if inject:
+            if inject.response:
+                response = inject.response
+            if inject.http_status:
+                # print("INJECT", inject, inject.http_status)
+                raise HttpException("some error", status_code=inject.http_status)
+
         if request.method == "PUT":
             curr = ctx["file_bytes"].get(file)
             if curr is None:
@@ -826,6 +942,8 @@ def create_app(user_ctx=None):
                 ctx["file_bytes"][file] += request.content_length
             else:
                 ctx["file_bytes"][file] += request.content_length
+        if ART_EMU:
+            return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -908,6 +1026,30 @@ def create_app(user_ctx=None):
                     "storagePolicyConfig": {},
                     "contents": {
                         "logged_table_2.table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "e6954815d2beb5841b3dabf7cf455c30":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "logged_table.partitioned-table.json": {
+                            "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
+                            "size": 81299,
+                        }
+                    },
+                }
+            elif _id == "0eec13efd400546f58a4530de62ed07a":
+                return {
+                    "version": 1,
+                    "storagePolicy": "wandb-storage-policy-v1",
+                    "storagePolicyConfig": {},
+                    "contents": {
+                        "jt.joined-table.json": {
                             "digest": "3aaaaaaaaaaaaaaaaaaaaa==",
                             "size": 81299,
                         }
@@ -1009,7 +1151,9 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
-        if entity == "entity":
+        if ART_EMU:
+            return ART_EMU.file(entity=entity, digest=digest)
+        if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
             ):  # "dataset.partitioned-table.json"
@@ -1093,8 +1237,10 @@ index 30d74d2..9a2c773 100644
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     def file_stream(entity, project, run):
         ctx = get_ctx()
-        ctx["file_stream"] = ctx.get("file_stream", [])
-        ctx["file_stream"].append(request.get_json())
+        run_ctx = get_run_ctx(run)
+        for c in ctx, run_ctx:
+            c["file_stream"] = c.get("file_stream", [])
+            c["file_stream"].append(request.get_json())
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
@@ -1170,12 +1316,13 @@ index 30d74d2..9a2c773 100644
 
 
 class ParseCTX(object):
-    def __init__(self, ctx):
-        self._ctx = ctx
+    def __init__(self, ctx, run_id=None):
+        self._ctx = ctx["runs"][run_id] if run_id else ctx
+        self._run_id = run_id
 
     def get_filestream_file_updates(self):
         data = {}
-        file_stream_updates = self._ctx["file_stream"]
+        file_stream_updates = self._ctx.get("file_stream", [])
         for update in file_stream_updates:
             files = update.get("files")
             if not files:
@@ -1194,7 +1341,9 @@ class ParseCTX(object):
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                assert offset == 0 or offset == len(l), (k, v, l, d)
+                # this check isnt valid right now.
+                # TODO: lets just assume it is fine, look into this later
+                # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
                 if k == u"output.log":
@@ -1206,24 +1355,69 @@ class ParseCTX(object):
         return data
 
     @property
-    def summary(self):
+    def run_ids(self):
+        return self._ctx.get("run_ids", [])
+
+    @property
+    def file_names(self):
+        return self._ctx.get("file_names", [])
+
+    @property
+    def dropped_chunks(self):
+        return self._ctx.get("file_stream", [{"dropped": 0}])[-1]["dropped"]
+
+    @property
+    def summary_raw(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files["wandb-summary.json"][-1]
+        summary = fs_files.get("wandb-summary.json", [{}])[-1]
         return summary
+
+    @property
+    def summary_user(self):
+        return {k: v for k, v in self.summary_raw.items() if not k.startswith("_")}
+
+    @property
+    def summary(self):
+        # TODO: move this to config_user eventually
+        return {k: v for k, v in self.summary_raw.items() if k != "_wandb"}
+
+    @property
+    def summary_wandb(self):
+        # TODO: move this to config_user eventually
+        return self.summary_raw["_wandb"]
 
     @property
     def history(self):
         fs_files = self.get_filestream_file_items()
-        history = fs_files["wandb-history.jsonl"]
+        history = fs_files.get("wandb-history.jsonl")
         return history
 
     @property
-    def config(self):
+    def exit_code(self):
+        exit_code = None
+        fs_list = self._ctx.get("file_stream")
+        if fs_list:
+            exit_code = fs_list[-1].get("exitcode")
+        return exit_code
+
+    @property
+    def config_raw(self):
         return self._ctx["config"][-1]
 
     @property
+    def config_user(self):
+        return {
+            k: v["value"] for k, v in self.config_raw.items() if not k.startswith("_")
+        }
+
+    @property
+    def config(self):
+        # TODO: move this to config_user eventually
+        return self.config_raw
+
+    @property
     def config_wandb(self):
-        return self.config["_wandb"]["value"]
+        return self.config.get("_wandb", {}).get("value", {})
 
     @property
     def telemetry(self):
@@ -1242,11 +1436,33 @@ class ParseCTX(object):
         return [m["id"] for m in self.manifests_created]
 
     @property
+    def artifacts(self):
+        return self._ctx.get("artifacts_created") or {}
+
+    def _debug(self):
+        if not self._run_id:
+            items = {"run_ids": "run_ids", "artifacts": "artifacts"}
+        else:
+            items = {
+                "config": "config_user",
+                "summary": "summary_user",
+                "exit_code": "exit_code",
+                "telemetry": "telemetry",
+            }
+        d = {}
+        for k, v in items.items():
+            d[k] = getattr(self, v)
+        return d
+
+    @property
     def item_acked(self):
         return self._ctx.get("item_acked")
 
 
 if __name__ == "__main__":
+    use_yea = "--yea" in sys.argv[1:]
+    load_modules(use_yea=use_yea)
+
     app = create_app()
     app.logger.setLevel(logging.INFO)
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)))

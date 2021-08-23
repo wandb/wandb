@@ -942,34 +942,27 @@ def test_interface_commit_hash(runner):
 
 
 def test_artifact_incremental_internal(
-    mocked_run,
-    mock_server,
-    internal_sender,
-    internal_sm,
-    start_backend,
-    stop_backend,
-    parse_ctx,
+    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
     artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
-    start_backend()
 
-    proto_run = internal_sender._make_run(mocked_run)
-    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+    with backend_interface() as interface:
+        proto_run = interface._make_run(mocked_run)
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
 
-    proto_artifact = internal_sender._make_artifact(artifact)
-    proto_artifact.run_id = proto_run.run_id
-    proto_artifact.project = proto_run.project
-    proto_artifact.entity = proto_run.entity
-    proto_artifact.user_created = False
-    proto_artifact.use_after_commit = False
-    proto_artifact.finalize = True
-    for alias in ["latest"]:
-        proto_artifact.aliases.append(alias)
-    log_artifact = pb.LogArtifactRequest()
-    log_artifact.artifact.CopyFrom(proto_artifact)
+        proto_artifact = interface._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = False
+        proto_artifact.use_after_commit = False
+        proto_artifact.finalize = True
+        for alias in ["latest"]:
+            proto_artifact.aliases.append(alias)
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
 
-    art = internal_sm.send_artifact(log_artifact)
-    stop_backend()
+        art = internal_sm.send_artifact(log_artifact)
 
     manifests_created = parse_ctx(mock_server.ctx).manifests_created
     assert manifests_created[0]["type"] == "INCREMENTAL"
@@ -989,6 +982,39 @@ def test_local_references(runner, live_mock_server, test_settings):
     artifact2 = wandb.Artifact("test_local_references_2", "dataset")
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
+
+
+def test_artifact_references_internal(
+    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx, test_settings,
+):
+    mock_server.set_context("max_cli_version", "0.11.0")
+    run = wandb.init(settings=test_settings)
+    t1 = wandb.Table(columns=[], data=[])
+    art = wandb.Artifact("A", "dataset")
+    art.add(t1, "t1")
+    run.log_artifact(art)
+    run.finish()
+
+    art = wandb.Artifact("A_PENDING", "dataset")
+    art.add(t1, "t1")
+
+    with backend_interface() as interface:
+        proto_run = interface._make_run(mocked_run)
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
+
+        proto_artifact = interface._make_artifact(art)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = False
+        proto_artifact.use_after_commit = False
+        proto_artifact.finalize = True
+        for alias in ["latest"]:
+            proto_artifact.aliases.append(alias)
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
+
+        art = internal_sm.send_artifact(log_artifact)
 
 
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):

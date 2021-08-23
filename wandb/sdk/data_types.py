@@ -7,7 +7,22 @@ import os
 import re
 import shutil
 import sys
+from typing import (
+    Any,
+    cast,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    Union,
+)
 
+from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
 import wandb
@@ -18,54 +33,71 @@ from wandb.util import has_num
 
 from .interface import _dtypes
 
-if wandb.TYPE_CHECKING:
-    from typing import (
-        TYPE_CHECKING,
-        ClassVar,
-        Dict,
-        Optional,
-        Type,
-        Union,
-        Sequence,
-        Tuple,
-        Set,
-        Any,
-        List,
-        cast,
-    )
 
-    if TYPE_CHECKING:  # pragma: no cover
-        from .interface.artifacts import ArtifactEntry
-        from .wandb_artifacts import Artifact as LocalArtifact
-        from .wandb_run import Run as LocalRun
-        from wandb.apis.public import Artifact as PublicArtifact
-        import numpy as np  # type: ignore
-        import pandas as pd  # type: ignore
-        import matplotlib  # type: ignore
-        import plotly  # type: ignore
-        import PIL  # type: ignore
-        import torch  # type: ignore
-        from typing import TextIO
+if TYPE_CHECKING:  # pragma: no cover
+    from .wandb_artifacts import Artifact as LocalArtifact
+    from .wandb_run import Run as LocalRun
+    from wandb.apis.public import Artifact as PublicArtifact
+    import numpy as np  # type: ignore
+    import pandas as pd  # type: ignore
+    import matplotlib  # type: ignore
+    import plotly  # type: ignore
+    import PIL  # type: ignore
+    import torch  # type: ignore
+    from typing import TextIO
 
-        TypeMappingType = Dict[str, Type["WBValue"]]
-        NumpyHistogram = Tuple[np.ndarray, np.ndarray]
-        ValToJsonType = Union[
-            dict,
-            "WBValue",
-            Sequence["WBValue"],
-            "plotly.Figure",
-            "matplotlib.artist.Artist",
-            "pd.DataFrame",
-            object,
-        ]
-        ImageDataType = Union[
-            "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
-        ]
-        ImageDataOrPathType = Union[str, "Image", ImageDataType]
-        TorchTensorType = Union["torch.Tensor", "torch.Variable"]
+    TypeMappingType = Dict[str, Type["WBValue"]]
+    NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+    ValToJsonType = Union[
+        dict,
+        "WBValue",
+        Sequence["WBValue"],
+        "plotly.Figure",
+        "matplotlib.artist.Artist",
+        "pd.DataFrame",
+        object,
+    ]
+    ImageDataType = Union[
+        "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+    ]
+    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
+
+
+def _get_max_cli_version() -> Union[str, None]:
+    _, server_info = wandb.api.viewer_server_info()
+    max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
+    return str(max_cli_version) if max_cli_version is not None else None
+
+
+def _is_offline() -> bool:
+    return (
+        wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
+    ) or str(wandb.setup().settings.mode) == "offline"
+
+
+def _server_accepts_client_ids() -> bool:
+    # First, if we are offline, assume the backend server cannot
+    # accept client IDs. Unfortunately, this is the best we can do
+    # until we are sure that all local versions are > "0.11.0" max_cli_version.
+    # The practical implication is that tables logged in offline mode
+    # will not show up in the workspace (but will still show up in artifacts). This
+    # means we never lose data, and we can still view using weave. If we decided
+    # to use client ids in offline mode, then the manifests and artifact data
+    # would never be resolvable and would lead to failed uploads. Our position
+    # is to never lose data - and instead take the tradeoff in the UI.
+    if _is_offline():
+        return False
+
+    # If the script is online, request the max_cli_version and ensure the server
+    # is of a high enough version.
+    max_cli_version = _get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.11.0") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -231,26 +263,74 @@ class WBValue(object):
         )
         self._artifact_target = _WBValueArtifactTarget(artifact, name)
 
-    def _get_artifact_reference_entry(self) -> Optional["ArtifactEntry"]:
-        ref_entry = None
+    def _get_artifact_entry_ref_url(self) -> Optional[str]:
         # If the object is coming from another artifact
         if self._artifact_source and self._artifact_source.name:
             ref_entry = self._artifact_source.artifact.get_path(
                 type(self).with_suffix(self._artifact_source.name)
             )
-        # Else, if the object is destined for another artifact
+            return str(ref_entry.ref_url())
+        # Else, if the object is destined for another artifact and we support client IDs
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}/{}".format(
+                self._artifact_target.artifact._client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        # Else if we do not support client IDs, but online, then block on upload
+        # Note: this is old behavior just to stay backwards compatible
+        # with older server versions. This code path should be removed
+        # once those versions are no longer supported. This path uses a .wait
+        # which blocks the user process on artifact upload.
         elif (
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
         ):
-            # Currently, we do not have a way to obtain a reference URL without waiting for the
-            # upstream artifact to be logged. This implies that this only works online as well.
             self._artifact_target.artifact.wait()
             ref_entry = self._artifact_target.artifact.get_path(
                 type(self).with_suffix(self._artifact_target.name)
             )
-        return ref_entry
+            return str(ref_entry.ref_url())
+        return None
+
+    def _get_artifact_entry_latest_ref_url(self) -> Optional[str]:
+        if (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._client_id is not None
+            and self._artifact_target.artifact._final
+            and _server_accepts_client_ids()
+        ):
+            return "wandb-client-artifact://{}:latest/{}".format(
+                self._artifact_target.artifact._sequence_client_id,
+                type(self).with_suffix(self._artifact_target.name),
+            )
+        # Else if we do not support client IDs, then block on upload
+        # Note: this is old behavior just to stay backwards compatible
+        # with older server versions. This code path should be removed
+        # once those versions are no longer supported. This path uses a .wait
+        # which blocks the user process on artifact upload.
+        elif (
+            self._artifact_target
+            and self._artifact_target.name
+            and self._artifact_target.artifact._logged_artifact is not None
+            and not _is_offline()
+            and not _server_accepts_client_ids()
+        ):
+            self._artifact_target.artifact.wait()
+            ref_entry = self._artifact_target.artifact.get_path(
+                type(self).with_suffix(self._artifact_target.name)
+            )
+            return str(ref_entry.ref_url())
+        return None
 
 
 class Histogram(WBValue):
@@ -487,9 +567,12 @@ class Media(WBValue):
                     "size": self._size,
                 }
             )
-            artifact_entry = self._get_artifact_reference_entry()
-            if artifact_entry is not None:
-                json_obj["artifact_path"] = artifact_entry.ref_url()
+            artifact_entry_url = self._get_artifact_entry_ref_url()
+            if artifact_entry_url is not None:
+                json_obj["artifact_path"] = artifact_entry_url
+            artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
+            if artifact_entry_latest_url is not None:
+                json_obj["_latest_artifact_path"] = artifact_entry_latest_url
         elif isinstance(run, wandb.wandb_sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
@@ -694,7 +777,7 @@ class Object3D(BatchableMedia):
             # which would cause a runtime error if the user's machine did
             # not have numpy installed.
 
-            if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            if TYPE_CHECKING:
                 assert isinstance(np_data, np.ndarray)
 
             if len(np_data.shape) != 2 or np_data.shape[1] not in {3, 4, 6}:
@@ -1037,7 +1120,7 @@ class Video(BatchableMedia):
         filename = os.path.join(
             _MEDIA_TMP.name, util.generate_id() + "." + self._format
         )
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}
         try:  # older versions of moviepy do not support logger argument
             kwargs = {"logger": None}
@@ -1777,7 +1860,8 @@ class Image(BatchableMedia):
                     masks_final[key] = ImageMask(mask_item, key)
             self._masks = masks_final
 
-        self._width, self._height = self._image.size  # type: ignore
+        self._width, self._height = self.image.size  # type: ignore
+        self._free_ram()
 
     def _initialize_from_wbimage(self, wbimage: "Image") -> None:
         self._grouping = wbimage._grouping
@@ -2008,7 +2092,7 @@ class Image(BatchableMedia):
         """
         Combines a list of images into a meta dictionary object describing the child images.
         """
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
         jsons = [obj.to_json(run) for obj in seq]
@@ -2025,11 +2109,11 @@ class Image(BatchableMedia):
                 )
 
         num_images_to_log = len(seq)
-        width, height = seq[0]._image.size  # type: ignore
+        width, height = seq[0].image.size  # type: ignore
         format = jsons[0]["format"]
 
         def size_equals_image(image: "Image") -> bool:
-            img_width, img_height = image._image.size  # type: ignore
+            img_width, img_height = image.image.size  # type: ignore
             return img_width == width and img_height == height  # type: ignore
 
         sizes_match = all(size_equals_image(img) for img in seq)
@@ -2122,22 +2206,46 @@ class Image(BatchableMedia):
         if not isinstance(other, Image):
             return False
         else:
+            self_image = self.image
+            other_image = other.image
+            if self_image is not None:
+                self_image = list(self_image.getdata())
+            if other_image is not None:
+                other_image = list(other_image.getdata())
+
             return (
                 self._grouping == other._grouping
                 and self._caption == other._caption
                 and self._width == other._width
                 and self._height == other._height
-                and self._image == other._image
+                and self_image == other_image
                 and self._classes == other._classes
             )
 
     def to_data_array(self) -> List[Any]:
         res = []
-        if self._image is not None:
-            data = list(self._image.getdata())
-            for i in range(self._image.height):
-                res.append(data[i * self._image.width : (i + 1) * self._image.width])
+        if self.image is not None:
+            data = list(self.image.getdata())
+            for i in range(self.image.height):
+                res.append(data[i * self.image.width : (i + 1) * self.image.width])
+        self._free_ram()
         return res
+
+    def _free_ram(self) -> None:
+        if self._path is not None:
+            self._image = None
+
+    @property
+    def image(self) -> Optional["PIL.Image"]:
+        if self._image is None:
+            if self._path is not None:
+                pil_image = util.get_module(
+                    "PIL.Image",
+                    required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
+                )
+                self._image = pil_image.open(self._path)
+                self._image.load()
+        return self._image
 
 
 class Plotly(Media):
@@ -2242,7 +2350,7 @@ def val_to_json(
             and all(isinstance(v, type(val[0])) for v in val)
         ):
 
-            if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            if TYPE_CHECKING:
                 val = cast(Sequence["BatchableMedia"], val)
 
             items = _prune_max_seq(val)
@@ -2320,7 +2428,7 @@ def _numpy_arrays_to_lists(
     elif isinstance(payload, SixSequence) and not isinstance(payload, six.string_types):
         return [_numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
     # Protects against logging non serializable objects
@@ -2342,7 +2450,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
 
 
 def _data_frame_to_json(
-    df: "pd.DataFraome", run: "LocalRun", key: str, step: Union[int, str]
+    df: "pd.DataFrame", run: "LocalRun", key: str, step: Union[int, str]
 ) -> dict:
     """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 

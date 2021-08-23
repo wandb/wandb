@@ -37,37 +37,36 @@ import socket
 import sys
 import tempfile
 import time
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    Union,
+)
 
 import six
 import wandb
 from wandb import util
+from wandb.sdk.wandb_config import Config
+from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
-if wandb.TYPE_CHECKING:
-    from wandb.sdk.wandb_config import Config
-    from wandb.sdk.wandb_setup import _EarlyLogger
-    from typing import (  # noqa: F401 pylint: disable=unused-import
-        cast,
-        Any,
-        Dict,
-        List,
-        Set,
-        Callable,
-        Generator,
-        Iterable,
-        Iterator,
-        Optional,
-        Sequence,
-        Tuple,
-        Type,
-        Union,
-        TYPE_CHECKING,
-    )
 
-    Defaults = Dict[str, Union[str, int, bool, Tuple]]
+Defaults = Dict[str, Union[str, int, bool, Tuple]]
 
 defaults: Defaults = dict(
     base_url="https://api.wandb.ai",
@@ -467,7 +466,7 @@ class Settings(object):
     @property
     def _kaggle(self) -> bool:
         is_kaggle = util._is_likely_kaggle()
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert isinstance(is_kaggle, bool)
         return is_kaggle
 
@@ -519,7 +518,7 @@ class Settings(object):
     @property
     def resume_fname(self) -> str:
         resume_fname = self._path_convert(self.resume_fname_spec)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert isinstance(resume_fname, str)
         return resume_fname
 
@@ -546,7 +545,7 @@ class Settings(object):
     @property
     def files_dir(self) -> str:
         file_path = self._path_convert(self.files_dir_spec)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert isinstance(file_path, str)
         return file_path
 
@@ -837,7 +836,7 @@ class Settings(object):
     def update(self, __d: Dict = None, **kwargs: Any) -> None:
         _source = kwargs.pop("_source", None)
         _override = kwargs.pop("_override", None)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             _source = cast(Optional[int], _source)
             _override = cast(Optional[int], _override)
 
@@ -1058,7 +1057,7 @@ class Settings(object):
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg
-        if args.get("resume") is not None:
+        if args.get("resume"):
             if isinstance(args["resume"], six.string_types):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
                     if args.get("run_id") is None:

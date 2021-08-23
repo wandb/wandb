@@ -8,7 +8,12 @@ Manage backend sender.
 
 import json
 import logging
+from multiprocessing import Process
 import threading
+import typing as t
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import cast
+from typing import TYPE_CHECKING
 import uuid
 
 import six
@@ -27,24 +32,14 @@ from wandb.util import (
     WandBJSONEncoderOld,
 )
 
+from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from ..wandb_artifacts import Artifact
 
-if wandb.TYPE_CHECKING:
-    import typing as t
-    from . import summary_record as sr
-    from typing import Any, Dict, Iterable, Optional, Tuple, Union
-    from multiprocessing import Process
-    from typing import cast
-    from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from ..wandb_run import Run
-        from six.moves.queue import Queue
-else:
-
-    def cast(_, val):
-        return val
+if TYPE_CHECKING:
+    from ..wandb_run import Run
+    from six.moves.queue import Queue
 
 
 logger = logging.getLogger("wandb")
@@ -148,9 +143,6 @@ class MessageRouter(object):
 
 
 class BackendSender(object):
-    class ExceptionTimeout(Exception):
-        pass
-
     record_q: Optional["Queue[pb.Record]"]
     result_q: Optional["Queue[pb.Result]"]
     process: Optional[Process]
@@ -251,6 +243,8 @@ class BackendSender(object):
         proto_artifact = pb.ArtifactRecord()
         proto_artifact.type = artifact.type
         proto_artifact.name = artifact.name
+        proto_artifact.client_id = artifact._client_id
+        proto_artifact.sequence_client_id = artifact._sequence_client_id
         proto_artifact.digest = artifact.digest
         if artifact.distributed_id:
             proto_artifact.distributed_id = artifact.distributed_id

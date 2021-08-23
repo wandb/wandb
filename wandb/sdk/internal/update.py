@@ -1,6 +1,4 @@
 #
-import sys
-
 from pkg_resources import parse_version
 import requests
 import six
@@ -86,15 +84,6 @@ def check_available(current_version):
             " --pre" if pip_prerelease else "",
         )
     )
-
-    if sys.version_info[0] == 2 and parse_version(latest_version) >= parse_version(
-        "0.11.0"
-    ):
-        upgrade_message = "%s version %s available, but requires python3, see %s" % (
-            wandb._wandb_module,
-            latest_version,
-            "http://wandb.me/library-eol-python27",
-        )
 
     delete_message = None
     if deleted:

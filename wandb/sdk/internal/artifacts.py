@@ -3,19 +3,19 @@ import json
 import os
 import tempfile
 import threading
+from typing import Dict, List, Optional, TYPE_CHECKING
 
 import wandb
+from wandb import util
 import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
 
-if wandb.TYPE_CHECKING:
-    from typing import List, Optional, Dict, TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from wandb.sdk.internal.internal_api import Api as InternalApi
-        from .file_pusher import FilePusher
-        from wandb.proto import wandb_internal_pb2
+if TYPE_CHECKING:
+    from wandb.sdk.internal.internal_api import Api as InternalApi
+    from .file_pusher import FilePusher
+    from wandb.proto import wandb_internal_pb2
 
 
 def _manifest_json_from_proto(manifest: "wandb_internal_pb2.ArtifactManifest") -> Dict:
@@ -73,6 +73,8 @@ class ArtifactSaver(object):
         self,
         type: str,
         name: str,
+        client_id: str,
+        sequence_client_id: str,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         metadata: Optional[Dict] = None,
@@ -110,6 +112,8 @@ class ArtifactSaver(object):
             description=description,
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,
+            client_id=client_id,
+            sequence_client_id=sequence_client_id,
         )
 
         # TODO(artifacts):
@@ -173,6 +177,7 @@ class ArtifactSaver(object):
         commit_event = threading.Event()
 
         def before_commit() -> None:
+            self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
                 json.dump(self._manifest.to_manifest_json(), fp, indent=4)
@@ -226,3 +231,19 @@ class ArtifactSaver(object):
             commit_event.wait()
 
         return self._server_artifact
+
+    def _resolve_client_id_manifest_references(self) -> None:
+        for entry_path in self._manifest.entries:
+            entry = self._manifest.entries[entry_path]
+            if entry.ref is not None:
+                if entry.ref.startswith("wandb-client-artifact:"):
+                    client_id = util.host_from_path(entry.ref)
+                    artifact_file_path = util.uri_from_path(entry.ref)
+                    artifact_id = self._api._resolve_client_id(client_id)
+                    if artifact_id is None:
+                        raise RuntimeError(
+                            "Could not resolve client id {}".format(client_id)
+                        )
+                    entry.ref = "wandb-artifact://{}/{}".format(
+                        util.b64_to_hex_id(artifact_id), artifact_file_path
+                    )

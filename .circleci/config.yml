@@ -48,18 +48,18 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.15-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.22-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.15-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.15-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.15-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
-              - v0.15-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.15-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.15-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+              - v0.22-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.22-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.22-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
+              - v0.22-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.22-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
+              - v0.22-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
   save-test-results:
     description: "Save test results"
     steps:
@@ -82,7 +82,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "codemodcheck,protocheck,mypy,black,flake8,flake8-docstrings"
+         toxenv: "protocheck,mypy,black,flake8,flake8-docstrings"
 # Disable python2.7 for good?
 #      - test:
 #         name: "Python 2.7"
@@ -158,7 +158,7 @@ jobs:
             - run:
                   name: Install python dependencies
                   command: |
-                      pip install tox
+                      pip install tox==3.24.0
             - restore-tox-cache
             - run:
                   name: Run tests
@@ -178,7 +178,7 @@ jobs:
             - run:
                   name: Install python dependencies
                   command: |
-                      pip install tox
+                      pip install tox==3.24.0
             - restore-tox-cache
             - run:
                   name: Temporary conda hack
@@ -206,7 +206,7 @@ jobs:
             - run:
                   name: Install python dependencies
                   command: |
-                      pip3 install tox
+                      pip3 install tox==3.24.0
             - restore-tox-cache
             - run:
                   name: Run tests

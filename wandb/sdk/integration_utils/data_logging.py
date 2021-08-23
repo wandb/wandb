@@ -2,17 +2,15 @@
 #
 # Contains common utility functions that enable
 # logging datasets and predictions to wandb.
+from collections.abc import Sequence
 import sys
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union
 
 import wandb
 
-if wandb.TYPE_CHECKING:
 
-    from typing import TYPE_CHECKING, Callable, Dict, Union, Optional, List, Any
-    from collections.abc import Sequence
-
-    if TYPE_CHECKING:
-        from wandb.data_types import _TableIndex
+if TYPE_CHECKING:
+    from wandb.data_types import _TableIndex
 
 CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.minor >= 5
 
@@ -167,7 +165,7 @@ class ValidationDataLogger(object):
         prediction_col_name: str = "output",
         val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
-        commit: bool = False,
+        commit: bool = True,
     ) -> wandb.data_types.Table:
         """Logs a set of predictions.
 
@@ -184,9 +182,6 @@ class ValidationDataLogger(object):
             table_name (str, optional): name of the prediction table. Defaults to "validation_predictions".
             commit (bool, optional): determines if commit should be called on the logged data. Defaults to False.
         """
-        if self.local_validation_artifact is not None:
-            self.local_validation_artifact.wait()
-
         pred_table = wandb.Table(columns=[], data=[])
         if isinstance(predictions, dict):
             for col_name in predictions:
@@ -210,7 +205,7 @@ class ValidationDataLogger(object):
         if self.prediction_row_processor is not None:
             pred_table.add_computed_columns(self.prediction_row_processor)
 
-        wandb.log({table_name: pred_table})
+        wandb.log({table_name: pred_table}, commit=commit)
         return pred_table
 
 

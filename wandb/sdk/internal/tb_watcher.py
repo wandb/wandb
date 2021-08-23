@@ -9,6 +9,7 @@ import socket
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import six
 from six.moves import queue
@@ -18,21 +19,17 @@ from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from ..interface.interface import BackendSender
-        from .settings_static import SettingsStatic
-        from typing import Dict, List, Optional
-        from wandb.proto.wandb_internal_pb2 import RunRecord
-        from six.moves.queue import PriorityQueue
-        from tensorboard.compat.proto.event_pb2 import ProtoEvent
-        from tensorboard.backend.event_processing.event_file_loader import (
-            EventFileLoader,
-        )
+if TYPE_CHECKING:
+    from ..interface.interface import BackendSender
+    from .settings_static import SettingsStatic
+    from typing import Dict, List, Optional
+    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from six.moves.queue import PriorityQueue
+    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 
-        HistoryDict = Dict[str, object]
+    HistoryDict = Dict[str, object]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -442,14 +439,14 @@ class TBHistory(object):
         # A single tensorboard step may have too much data
         # we just drop the largest keys in the step if it does.
         # TODO: we could flush the data across multiple steps
-        if self._step_size > util.MAX_LINE_SIZE:
+        if self._step_size > util.MAX_LINE_BYTES:
             metrics = [(k, sys.getsizeof(v)) for k, v in self._data.items()]
             metrics.sort(key=lambda t: t[1], reverse=True)
             bad = 0
             dropped_keys = []
             for k, v in metrics:
                 # TODO: (cvp) Added a buffer of 100KiB, this feels rather brittle.
-                if self._step_size - bad < util.MAX_LINE_SIZE - 100000:
+                if self._step_size - bad < util.MAX_LINE_BYTES - 100000:
                     break
                 else:
                     bad += v

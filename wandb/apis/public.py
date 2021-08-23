@@ -6,8 +6,8 @@ import os
 import platform
 import re
 import shutil
-import sys
 import tempfile
+from typing import Optional
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
@@ -23,22 +23,10 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
+from wandb.sdk.interface import artifacts
+from wandb.sdk.lib import retry
 import yaml
 
-
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.lib import retry
-else:
-    from wandb.sdk_py27.lib import retry
-
-
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.interface import artifacts
-else:
-    from wandb.sdk_py27.interface import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +173,17 @@ class RetryingClient(object):
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def execute(self, *args, **kwargs):
-        return self._client.execute(*args, **kwargs)
+        try:
+            return self._client.execute(*args, **kwargs)
+        except requests.exceptions.ReadTimeout:
+            if "timeout" not in kwargs:
+                timeout = self._client.transport.default_timeout
+                wandb.termwarn(
+                    f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
+                    f"Create a new API with an integer timeout larger than {timeout}, e.g., `api = wandb.Api(timeout={timeout + 10})` "
+                    f"to increase the graphql timeout."
+                )
+            raise
 
 
 class Api(object):
@@ -222,7 +220,7 @@ class Api(object):
     """
     )
 
-    def __init__(self, overrides={}):
+    def __init__(self, overrides={}, timeout: Optional[int] = None):
         self.settings = InternalApi().settings()
         if self.api_key is None:
             wandb.login()
@@ -237,13 +235,14 @@ class Api(object):
         self._sweeps = {}
         self._reports = {}
         self._default_entity = None
+        self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
-                timeout=self._HTTP_TIMEOUT,
+                timeout=self._timeout,
                 auth=("api", self.api_key),
                 url="%s/graphql" % self.settings["base_url"],
             )
@@ -836,14 +835,11 @@ class Runs(Paginator):
                 if sweep is None:
                     continue
                 run.sweep = sweep
-                if run.id not in sweep.runs_by_id:
-                    sweep.runs_by_id[run.id] = run
-                    sweep.runs.append(run)
 
         return objs
 
     def __repr__(self):
-        return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
+        return "<Runs {}/{}>".format(self.entity, self.project)
 
 
 class Run(Attrs):
@@ -1005,10 +1001,6 @@ class Run(Attrs):
                     self.sweep_name,
                     withRuns=False,
                 )
-                # TODO: Older runs don't always have sweeps when sweep_name is set
-                if self.sweep:
-                    self.sweep.runs.append(self)
-                    self.sweep.runs_by_id[self.id] = self
 
         self._attrs["summaryMetrics"] = (
             json.loads(self._attrs["summaryMetrics"])
@@ -1427,32 +1419,17 @@ class Sweep(Attrs):
 
     QUERY = gql(
         """
-    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!, $order: String) {
+    query Sweep($project: String!, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
                 name
                 bestLoss
                 config
-                runs(order: $order) @include(if: $withRuns) {
-                    edges {
-                        node {
-                            ...RunFragment
-                        }
-                        cursor
-                    }
-                    pageInfo {
-                        endCursor
-                        hasNextPage
-                    }
-                }
-                state
             }
         }
     }
-    %s
     """
-        % RUN_FRAGMENT
     )
 
     def __init__(self, client, entity, project, sweep_id, attrs={}):
@@ -1463,7 +1440,6 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
-        self.runs_by_id = {}
 
         self.load(force=not attrs)
 
@@ -1487,7 +1463,6 @@ class Sweep(Attrs):
                 raise ValueError("Could not find sweep %s" % self)
             self._attrs = sweep._attrs
             self.runs = sweep.runs
-            self.runs_by_id = sweep.runs_by_id
 
         return self._attrs
 
@@ -1546,10 +1521,9 @@ class Sweep(Attrs):
         entity=None,
         project=None,
         sid=None,
-        withRuns=True,  # noqa: N803
         order=None,
         query=None,
-        **kwargs
+        **kwargs,
     ):
         """Execute a query against the cloud backend"""
         if query is None:
@@ -1559,8 +1533,6 @@ class Sweep(Attrs):
             "entity": entity,
             "project": project,
             "name": sid,
-            "order": order,
-            "withRuns": withRuns,
         }
         variables.update(kwargs)
 
@@ -1571,23 +1543,15 @@ class Sweep(Attrs):
             return None
 
         sweep_response = response["project"]["sweep"]
-
-        # TODO: make this paginate
-        runs_response = sweep_response.get("runs")
-        runs = []
-        if runs_response:
-            for r in runs_response["edges"]:
-                run = Run(client, entity, project, r["node"]["name"], r["node"])
-                runs.append(run)
-
-            del sweep_response["runs"]
-
         sweep = cls(client, entity, project, sid, attrs=sweep_response)
-        sweep.runs = runs
-
-        for run in runs:
-            sweep.runs_by_id[run.id] = run
-            run.sweep = sweep
+        sweep.runs = Runs(
+            client,
+            entity,
+            project,
+            order=order,
+            per_page=10,
+            filters={"$and": [{"sweep": sweep.id}]},
+        )
 
         return sweep
 

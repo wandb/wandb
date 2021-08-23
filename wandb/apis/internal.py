@@ -1,12 +1,4 @@
-import sys
-
-
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.internal.internal_api import Api as InternalApi
-else:
-    from wandb.sdk_py27.internal.internal_api import Api as InternalApi
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 class Api(object):

@@ -1,6 +1,7 @@
 import json
-import threading
 import requests
+import threading
+import urllib
 
 
 class ResponseMock(object):
@@ -162,9 +163,10 @@ class RequestsMock(object):
 
 
 class InjectRequestsMatch(object):
-    def __init__(self, path_suffix=None, count=None):
+    def __init__(self, path_suffix=None, count=None, query_str=None):
         self._path_suffix = path_suffix
         self._count = count
+        self._query_str = query_str
 
     def _as_dict(self):
         r = {}
@@ -172,6 +174,8 @@ class InjectRequestsMatch(object):
             r["path_suffix"] = self._path_suffix
         if self._count:
             r["count"] = self._count
+        if self._query_str:
+            r["query_str"] = self._query_str
         return r
 
 
@@ -210,6 +214,14 @@ class InjectRequestsParse(object):
             # TODO: make matching better when we have more to do
             count = match.get("count")
             path_suffix = match.get("path_suffix")
+            query_str = match.get("query_str")
+            if query_str and request:
+                req_url = request.url
+                parsed = urllib.parse.urlparse(req_url)
+                req_qs = parsed.query
+                if query_str != req_qs:
+                    # print("NOMATCH", query_str, req_qs)
+                    continue
             if path_suffix:
                 if request_path.endswith(path_suffix):
                     requests_error = r.get("requests_error")
