@@ -7,6 +7,7 @@ import platform
 import re
 import shutil
 import tempfile
+import time
 from typing import Optional
 
 from dateutil.relativedelta import relativedelta
@@ -21,6 +22,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
@@ -501,6 +503,13 @@ class Api(object):
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
+    def queued_job(self, path=""):
+        """
+        Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
+        """
+        entity, project, queue, run_queue_item_id = path.split("/")
+        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+
     @normalize_exceptions
     def sweep(self, path=""):
         """
@@ -842,6 +851,71 @@ class Runs(Paginator):
         return "<Runs {}/{}>".format(self.entity, self.project)
 
 
+class QueuedJob(Attrs):
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+        super(QueuedJob, self).__init__(dict(attrs))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._queue = queue
+        self._run_queue_item_id = run_queue_item_id
+        self._run_id = None
+
+    @normalize_exceptions
+    def wait_until_running(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    resultingRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self._queue,
+        }
+
+        while True:
+            res = self.client.execute(query, variable_values)
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self._run_queue_item_id
+                    and item["node"]["resultingRunId"] is not None
+                ):
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    try:
+                        Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["resultingRunId"],
+                        )
+                        self._run_id = item["node"]["resultingRunId"]
+                        return
+                    except ValueError:
+                        continue
+            time.sleep(5)
+
+    @property
+    def run(self):
+        if self._run_id is None:
+            raise LaunchError("Tried to fetch run without having run_id")
+        return Run(self.client, self._entity, self.project, self._run_id)
+
+
 class Run(Attrs):
     """
     A single run associated with an entity and project.
@@ -1025,6 +1099,29 @@ class Run(Attrs):
         self._attrs["config"] = config_user
         self._attrs["rawconfig"] = config_raw
         return self._attrs
+
+    @normalize_exceptions
+    def wait_until_finished(self):
+        query = gql(
+            """
+            query Run($project: String!, $entity: String!, $name: String!) {
+                project(name: $project, entityName: $entity) {
+                    run(name: $name) {
+                        state
+                    }
+                }
+            }
+        """
+        )
+        while True:
+            res = self._exec(query)
+            state = res["project"]["run"]["state"]
+            if state in ["finished", "crashed", "failed"]:
+                print("Run finished with status: {}".format(state))
+                self._attrs["state"] = state
+                self.state = state
+                return
+            time.sleep(5)
 
     @normalize_exceptions
     def update(self):
@@ -1293,7 +1390,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def use_artifact(self, artifact):
-        """ Declare an artifact as an input to a run.
+        """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -1320,7 +1417,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def log_artifact(self, artifact, aliases=None):
-        """ Declare an artifact as output of a run.
+        """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -2895,7 +2992,9 @@ class Artifact(artifacts.Artifact):
         }
         """
         )
-        self.client.execute(mutation, variable_values={"id": self.id,})
+        self.client.execute(
+            mutation, variable_values={"id": self.id,},
+        )
         return True
 
     def new_file(self, name, mode=None):
