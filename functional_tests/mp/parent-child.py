@@ -16,7 +16,7 @@ def process_child():
 
 
 def main():
-    wandb.require("grpc")
+    wandb.require("concurrency")
 
     run_parent = wandb.init()
     run_parent.config.id = "parent"

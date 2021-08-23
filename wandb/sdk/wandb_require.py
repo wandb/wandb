@@ -30,14 +30,11 @@ class _Requires(object):
     def require_require(self) -> None:
         pass
 
-    def _require_grpc(self) -> None:
-        os.environ["WANDB_START_METHOD"] = "grpc"
+    def _require_concurrency(self) -> None:
+        os.environ["WANDB__CONCURRENCY"] = "True"
 
-    def require_grpc(self) -> None:
-        self._require_grpc()
-
-    def require_attach(self) -> None:
-        self._require_grpc()
+    def require_concurrency(self) -> None:
+        self._require_concurrency()
 
     def apply(self) -> None:
         """Call require_* method for supported features."""

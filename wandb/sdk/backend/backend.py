@@ -85,7 +85,9 @@ class Backend(object):
 
     def _multiprocessing_setup(self) -> None:
         assert self._settings
-        if self._settings.start_method in {"thread", "grpc"}:
+        if self._settings.start_method == "thread":
+            return
+        if self._settings._concurrency:
             return
 
         # defaulting to spawn for now, fork needs more testing
@@ -227,7 +229,7 @@ class Backend(object):
 
         start_method = settings.get("start_method")
 
-        if start_method == "grpc":
+        if settings.get("_concurrency"):
             self._ensure_launched_grpc()
             return
 

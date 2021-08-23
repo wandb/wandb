@@ -436,12 +436,12 @@ class _WandbInit(object):
             if wandb.run._init_pid == os.getpid():
                 logger.info("wandb.init() called when a run is still active")
                 return wandb.run
-            elif s.start_method != "grpc":
+            elif s._concurrency:
                 logger.error("wandb.init() called when a run is still active. Unsafe mp usage.")
                 return wandb.run
 
-        if s._attach_id and s.start_method != "grpc":
-            wandb.termwarn("Must use start_method = grpc to use `wandb.init(attach=)`")
+        if s._attach_id and not s._concurrency:
+            wandb.termwarn("Must use 'concurrency' feature to use `wandb.init(attach=)`")
 
         logger.info("starting backend")
 

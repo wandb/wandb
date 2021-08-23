@@ -16,7 +16,7 @@ def do_run(num):
 
 
 def main():
-    wandb.require("grpc")
+    wandb.require("concurrency")
 
     num_proc = 4
     pool = mp.Pool(processes=num_proc)

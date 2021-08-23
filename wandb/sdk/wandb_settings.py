@@ -104,6 +104,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    _concurrency=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -211,6 +212,7 @@ class Settings(object):
 
     mode: str = "online"
     start_method: Optional[str] = None
+    _concurrency: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     run_tags: Optional[Tuple] = None
@@ -297,6 +299,7 @@ class Settings(object):
         anonymous: str = None,
         mode: str = None,
         start_method: str = None,
+        _concurrency: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
