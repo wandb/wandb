@@ -79,8 +79,6 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-from wandb import superagent
-
 # from wandb.core import *
 from wandb.viz import visualize
 from wandb import plot

@@ -14,7 +14,7 @@ parser.add_argument("--sleep_every", type=int, default=0)
 args = parser.parse_args()
 print("Calling init with args: {}", format(args))
 print("Environ: {}".format({k: v for k, v in os.environ.items() if k.startswith("WANDB")}))
-wandb.init(config=args)
+wandb.init(config=args, project="test")
 print("Init called with config {}".format(wandb.config))
 
 # raise ValueError()
