@@ -1,0 +1,13 @@
+id: 0.1.1.tf26
+plugin:
+    - wandb
+command:
+    program: test_keras.py
+depend:
+    requirements:
+        - tensorflow==2.6.0
+assert:
+    - :wandb:runs_len: 1
+    - :runs[0]:
+        - summary : examples
+    - :wandb:runs[0][exitcode]: 0
