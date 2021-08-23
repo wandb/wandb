@@ -34,7 +34,10 @@ class LaunchAgent(object):
 
     STATE_MAP: Dict[str, State] = {}
 
-    def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
+    def __init__(
+        self, agent_id: str, entity: str, project: str, queues: Iterable[str] = None
+    ):
+        self._id = agent_id
         self._entity = entity
         self._project = project
         self._api = Api()

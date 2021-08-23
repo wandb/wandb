@@ -332,7 +332,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -1073,7 +1075,11 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
         entity = api.default_entity
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.run_agent(entity, project, queues=queues)
+
+    launch_agent = api.create_launch_agent(entity, project, queues)
+    wandb_launch.run_agent(
+        launch_agent["launchAgentId"], entity, project, queues=queues
+    )
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1463,7 +1469,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

@@ -19,8 +19,10 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def run_agent(entity: str, project: str, queues: Optional[List[str]] = None) -> None:
-    agent = LaunchAgent(entity, project, queues)
+def run_agent(
+    agent_id: str, entity: str, project: str, queues: Optional[List[str]] = None
+) -> None:
+    agent = LaunchAgent(agent_id, entity, project, queues)
     agent.loop()
 
 

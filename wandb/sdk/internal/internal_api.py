@@ -12,6 +12,7 @@ import re
 import click
 import logging
 import requests
+import socket
 import sys
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -691,7 +692,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -947,6 +952,38 @@ class Api(object):
                 "Error acking run queue item. Item may have already been acknowledged by another process"
             )
         return response["ackRunQueueItem"]["success"]
+
+    @normalize_exceptions
+    def create_launch_agent(self, entity, project, queues):
+        project_queues = self.get_project_run_queues(entity, project)
+        queue_ids = [
+            q["id"] for q in project_queues if q["name"] in queues
+        ]  # filter to poll specified queues
+        hostname = socket.gethostname()
+
+        mutation = gql(
+            """
+            mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
+                createLaunchAgent(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        runQueues: $queues,
+                        hostname: $hostname
+                    }
+                ) {
+                    launchAgentId
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queues": queue_ids,
+            "hostname": hostname,
+        }
+        return self.gql(mutation, variable_values)["createLaunchAgent"]
 
     @normalize_exceptions
     def upsert_run(
@@ -1244,7 +1281,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -2161,7 +2203,8 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2176,7 +2219,12 @@ class Api(object):
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")
