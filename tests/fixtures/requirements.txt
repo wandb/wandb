@@ -1,2 +1,2 @@
-git+https://github.com/wandb/client.git@feature/wandb-launch
+git+https://github.com/wandb/client.git
 numpy
