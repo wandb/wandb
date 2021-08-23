@@ -43,6 +43,18 @@ class RequireError(Error):
     pass
 
 
+class ExecutionError(Error):
+    """Generic execution exception"""
+
+    pass
+
+
+class LaunchError(Error):
+    """Raised when a known error occurs in wandb launch"""
+
+    pass
+
+
 __all__ = [
     "Error",
     "UsageError",
@@ -50,4 +62,6 @@ __all__ = [
     "LogError",
     "LogMultiprocessError",
     "RequireError",
+    "ExecutionError",
+    "LaunchError",
 ]
