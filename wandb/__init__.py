@@ -154,7 +154,7 @@ plot_table = _preinit.PreInitCallable(
 alert = _preinit.PreInitCallable("wandb.alert", wandb_sdk.wandb_run.Run.alert)
 
 # record of patched libraries
-patched = {"tensorboard": [], "keras": [], "gym": []}
+patched = {"tensorboard": [], "keras": [], "gym": [], "mlflow": []}
 
 keras = _lazyloader.LazyLoader("wandb.keras", globals(), "wandb.integration.keras")
 sklearn = _lazyloader.LazyLoader("wandb.sklearn", globals(), "wandb.sklearn")
@@ -174,6 +174,7 @@ lightgbm = _lazyloader.LazyLoader(
 docker = _lazyloader.LazyLoader("wandb.docker", globals(), "wandb.docker")
 jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
+mlflow = _lazyloader.LazyLoader("wandb.mlflow", globals(), "wandb.integration.mlflow")
 
 
 def ensure_configured():

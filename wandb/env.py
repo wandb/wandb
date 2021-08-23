@@ -63,6 +63,7 @@ ANONYMOUS = "WANDB_ANONYMOUS"
 JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
+SYNC_MLFLOW = "WANDB_SYNC_MLFLOW"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 
 # For testing, to be removed in future version
@@ -121,6 +122,10 @@ def is_debug(default=None, env=None):
 
 def error_reporting_enabled():
     return _env_as_bool(ERROR_REPORTING, default=True)
+
+
+def sync_mlflow():
+    return _env_as_bool(SYNC_MLFLOW, default=True)
 
 
 def ssl_disabled():
