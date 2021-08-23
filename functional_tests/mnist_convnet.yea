@@ -1,8 +1,14 @@
 id: 0.0.5
 plugin:
   - wandb
+var:
+  - runs_len:
+      :fn:len: :wandb:runs
 assert:
-  - :wandb:runs_len: 1
+  - :runs_len: 1
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 8  # keras
   - :wandb:runs[0][summary][epoch]: 1
   - :op:<=:
     - :wandb:runs[0][summary][best_epoch]
