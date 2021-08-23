@@ -15,6 +15,7 @@ import textwrap
 import time
 import traceback
 
+
 import click
 from click.exceptions import ClickException
 
@@ -32,6 +33,7 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
+from wandb.sdk.launch.launch_add import _launch_add
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -112,7 +114,6 @@ def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
     api = _get_cling_api()
-
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
@@ -240,15 +241,6 @@ def grpc_server(project=None, entity=None, port=None):
     from wandb.server.grpc_server import main as grpc_server
 
     grpc_server(port=port)
-
-
-@cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.argument("agent_spec", nargs=-1)
-@display_error
-def superagent(project=None, entity=None, agent_spec=None):
-    wandb.superagent.run_agent(agent_spec)
 
 
 @cli.command(
@@ -853,6 +845,235 @@ def sweep(
 
         tuner = wandb_controller(sweep_id)
         tuner.run(verbose=verbose)
+
+
+def _check_launch_imports():
+    _ = util.get_module(
+        "docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+    _ = util.get_module(
+        "chardet",
+        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
+    )
+
+
+@cli.command(
+    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "or a git uri pointing to a remote repository, or path to a local directory."
+)
+@click.argument("uri")
+@click.option(
+    "--entry-point",
+    "-E",
+    metavar="NAME",
+    default=None,
+    help="Entry point within project. [default: main]. If the entry point is not found, "
+    "attempts to run the project file with the specified name as a script, "
+    "using 'python' to run .py files and the default shell (specified by "
+    "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
+)
+@click.option(
+    "--git-version",
+    "-g",
+    metavar="GIT-VERSION",
+    help="Version of the project to run, as a Git commit reference for Git projects.",
+)
+@click.option(
+    "--args-list",
+    "-a",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="An argument for the run, of the form -a name=value. Provided arguments that "
+    "are not in the list of arguments for an entry point will be passed to the "
+    "corresponding entry point as command-line arguments in the form `--name value`",
+)
+@click.option(  # todo: maybe take these out it's confusing with the docker image stuff
+    "--docker-args",
+    "-A",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="A `docker run` argument or flag, of the form -A name=value (e.g. -A gpus=all) "
+    "or -A name (e.g. -A t). The argument will then be passed as "
+    "`docker run --name value` or `docker run --name` respectively. ",
+)
+@click.option(
+    "--name",
+    envvar="WANDB_NAME",
+    help="Name of the run under which to launch the run. If not "
+    "specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    metavar="<str>",
+    default=None,
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
+    "If passed in, will override the entity value passed in using a config file.",
+)
+@click.option(
+    "--project",
+    "-p",
+    metavar="<str>",
+    default=None,
+    help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
+    "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
+)
+@click.option(
+    "--resource",
+    "-r",
+    metavar="BACKEND",
+    default="local",
+    help="Execution resource to use for run. Supported values: 'local'."
+    " If passed in, will override the resource value passed in using a config file."
+    " Defaults to 'local'.",
+)
+@click.option(
+    "--docker-image",
+    "-d",
+    default=None,
+    metavar="DOCKER IMAGE",
+    help="Specific docker image you'd like to use. In the form name:tag."
+    " If passed in, will override the docker image value passed in using a config file.",
+)
+@click.option(
+    "--config",
+    "-c",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as config to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
+)
+@click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of run queue to push to. If none, launches single run directly. If supplied without "
+    "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
+    "project and entity supplied.",
+)
+@display_error
+def launch(
+    uri,
+    entry_point,
+    git_version,
+    args_list,
+    docker_args,
+    name,
+    resource,
+    entity,
+    project,
+    docker_image,
+    config,
+    queue,
+):
+    """
+    Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
+    In the case of a wandb URI the arguments used in the original run will be used by default.
+    These arguments can be overridden using the args option, or specifying those arguments
+    in the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
+    `wandb launch [URI] --queue [optional queuename]`.
+    """
+    _check_launch_imports()
+    from wandb.sdk.launch import launch as wandb_launch
+
+    api = _get_cling_api()
+
+    args_dict = util._user_args_to_dict(args_list)
+    docker_args_dict = util._user_args_to_dict(docker_args)
+    if config is not None:
+        if os.path.splitext(config)[-1] == ".json":
+            with open(config, "r") as f:
+                config = json.load(f)
+        else:
+            # assume a json string
+            try:
+                config = json.loads(config)
+            except ValueError as e:
+                wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
+                raise
+    else:
+        config = {}
+
+    if queue is None:
+        # direct launch
+        try:
+            wandb_launch.run(
+                uri,
+                api,
+                entry_point,
+                git_version,
+                project=project,
+                entity=entity,
+                docker_image=docker_image,
+                name=name,
+                parameters=args_dict,
+                docker_args=docker_args_dict,
+                resource=resource,
+                config=config,
+                synchronous=resource in ("local")
+                or resource is None,  # todo currently always true
+            )
+        except wandb_launch.LaunchError as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+        except wandb_launch.ExecutionError as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+    else:
+        _launch_add(
+            api,
+            uri,
+            config,
+            project,
+            entity,
+            queue,
+            resource,
+            entry_point,
+            name,
+            git_version,
+            docker_image,
+            args_dict,
+        )
+
+
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
+@click.pass_context
+@click.argument("project", nargs=1)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
+@click.option("--queues", "-q", default="default", help="The queue names to poll")
+@display_error
+def launch_agent(ctx, project=None, entity=None, queues=None):
+    _check_launch_imports()
+
+    from wandb.sdk.launch import launch as wandb_launch
+
+    api = _get_cling_api()
+    queues = queues.split(",")  # todo: check for none?
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the launch agent feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    if entity is None:
+        entity = api.default_entity
+
+    wandb.termlog("Starting launch agent ✨")
+    wandb_launch.run_agent(entity, project, queues=queues)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
