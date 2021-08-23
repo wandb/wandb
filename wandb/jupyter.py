@@ -124,10 +124,15 @@ def notebook_metadata(silent):
                 "name": ipynb["metadata"]["colab"]["name"],
             }
 
-            jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
-            if jupyter_metadata:
+            try:
+                jupyter_metadata = (
+                    notebook_metadata_from_jupyter_servers_and_kernel_id()
+                )
+            except RuntimeError:
+                pass
+            else:
                 ret["path"] = jupyter_metadata["path"]
-                return ret
+            return ret
 
         if wandb.util._is_kaggle():
             # In kaggle we can request the most recent contents
