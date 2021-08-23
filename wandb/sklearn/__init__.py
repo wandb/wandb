@@ -97,8 +97,9 @@ def plot_classifier(
                         'RandomForest', ['barks', 'drools, 'plays_fetch', 'breed'])
     """
     wandb.termlog("\nPlotting %s." % model_name)
-    plot_feature_importances(model, feature_names)
-    wandb.termlog("Logged feature importances.")
+    if not isinstance(model, naive_bayes.MultinomialNB):
+        plot_feature_importances(model, feature_names)
+        wandb.termlog("Logged feature importances.")
     plot_learning_curve(model, X_train, y_train)
     wandb.termlog("Logged learning curve.")
     plot_confusion_matrix(y_test, y_pred, labels)
@@ -109,7 +110,7 @@ def plot_classifier(
     wandb.termlog("Logged class proportions.")
     if not isinstance(model, naive_bayes.MultinomialNB):
         plot_calibration_curve(model, X_train, y_train, model_name)
-    wandb.termlog("Logged calibration curve.")
+        wandb.termlog("Logged calibration curve.")
     plot_roc(y_test, y_probas, labels)
     wandb.termlog("Logged roc curve.")
     plot_precision_recall(y_test, y_probas, labels)
