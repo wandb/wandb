@@ -234,11 +234,12 @@ jobs:
                   at: .
         - checkout
         - run:
-            name: Install python dependencies
+            name: Install python dependencies, build r2d
             command: |
                 pip3 install tox
                 pip3 install chardet
                 pip3 install jupyter-repo2docker
+                jupyter-repo2docker --no-run ./tests/fixtures/
         - restore-tox-cache
         - run:
             name: Run tests

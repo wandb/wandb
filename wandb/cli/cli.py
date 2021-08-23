@@ -881,9 +881,9 @@ def _check_launch_imports():
     "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
 )
 @click.option(
-    "--version",
-    "-v",
-    metavar="VERSION",
+    "--git-version",
+    "-g",
+    metavar="GIT-VERSION",
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
@@ -965,7 +965,7 @@ def _check_launch_imports():
 def launch(
     uri,
     entry_point,
-    version,
+    git_version,
     args_list,
     docker_args,
     name,
@@ -1016,7 +1016,7 @@ def launch(
                 uri,
                 api,
                 entry_point,
-                version,
+                git_version,
                 project=project,
                 entity=entity,
                 docker_image=docker_image,
@@ -1045,7 +1045,7 @@ def launch(
             resource,
             entry_point,
             name,
-            version,
+            git_version,
             docker_image,
             args_dict,
         )
