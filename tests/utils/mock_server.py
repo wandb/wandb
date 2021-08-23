@@ -5,6 +5,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 import json
+import platform
 import yaml
 import six
 
@@ -17,9 +18,23 @@ import logging
 from six.moves import urllib
 import threading
 
-from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+RequestsMock = None
+InjectRequestsParse = None
+ArtifactEmulator = None
 
-# from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
+
+def load_modules(use_yea=False):
+    global RequestsMock, InjectRequestsParse, ArtifactEmulator
+    if use_yea:
+        from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
+        from yea_wandb.artifact_emu import ArtifactEmulator
+    else:
+        from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+        from tests.utils.artifact_emu import ArtifactEmulator
+
+
+# global (is this safe?)
+ART_EMU = None
 
 
 def default_ctx():
@@ -36,16 +51,26 @@ def default_ctx():
         "resume": None,
         "file_bytes": {},
         "manifests_created": [],
+        "artifacts": {},
         "artifacts_by_id": {},
+        "artifacts_created": {},
         "upsert_bucket_count": 0,
-        "max_cli_version": "0.10.33",
+        "run_queues_return_default": True,
+        "run_queues": {"1": []},
+        "num_popped": 0,
+        "num_acked": 0,
+        "max_cli_version": "0.12.0",
         "runs": {},
         "run_ids": [],
         "file_names": [],
+        "emulate_artifacts": None,
+        "run_state": "running",
+        "run_queue_item_check_count": 0,
     }
 
 
 def mock_server(mocker):
+    load_modules()
     ctx = default_ctx()
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
@@ -56,7 +81,6 @@ def mock_server(mocker):
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
-    mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
@@ -132,6 +156,21 @@ def run(ctx):
         "sweepName": None,
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
+        "runInfo": {
+            "program": "train.py",
+            "args": [],
+            "os": platform.system(),
+            "python": platform.python_version(),
+            "colab": None,
+            "executable": None,
+            "codeSaved": False,
+            "cpuCount": 12,
+            "gpuCount": 0,
+            "git": {
+                "remote": "https://foo:bar@github.com/FooTest/Foo.git",
+                "commit": "HEAD",
+            },
+        },
     }
 
 
@@ -318,6 +357,7 @@ def create_app(user_ctx=None):
         if test_name:
             app.logger.info("Test request from: %s", test_name)
         app.logger.info("graphql post")
+
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
@@ -326,6 +366,18 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+
+        # Setup artifact emulator (should this be somewhere else?)
+        emulate_random_str = ctx["emulate_artifacts"]
+        global ART_EMU
+        if emulate_random_str:
+            if ART_EMU is None or ART_EMU._random_str != emulate_random_str:
+                ART_EMU = ArtifactEmulator(
+                    random_str=emulate_random_str, ctx=ctx, base_url=base_url
+                )
+        else:
+            ART_EMU = None
+
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
@@ -398,6 +450,13 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Run(" in body["query"]:
+            # if querying state of run, change context from running to finished
+            if "RunFragment" not in body["query"] and "state" in body["query"]:
+                ret_val = json.dumps(
+                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                )
+                ctx["run_state"] = "finished"
+                return ret_val
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
@@ -635,6 +694,9 @@ def create_app(user_ctx=None):
                 )
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation CreateArtifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create(variables=body["variables"])
+
             collection_name = body["variables"]["artifactCollectionNames"][0]
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
@@ -697,6 +759,8 @@ def create_app(user_ctx=None):
             }
             return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation CreateArtifactFiles" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create_files(variables=body["variables"])
             return {
                 "data": {
                     "files": [
@@ -812,6 +876,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.query(variables=body.get("variables", {}))
             art = artifact(
                 ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
             )
@@ -847,6 +913,108 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query Project" in body["query"] and "runQueues" in body["query"]:
+            if ctx["run_queues_return_default"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueues": [
+                                    {
+                                        "id": 1,
+                                        "name": "default",
+                                        "createdBy": "mock_server_entity",
+                                        "access": "PROJECT",
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {"project": {"runQueues": []}}})
+
+        if "query GetRunQueueItem" in body["query"]:
+            ctx["run_queue_item_check_count"] += 1
+            if ctx["run_queue_item_check_count"] > 1:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": "test",
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": None,
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+        if "mutation createRunQueue" in body["query"]:
+            ctx["run_queues_return_default"] = True
+            return json.dumps(
+                {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
+            )
+        if "mutation popFromRunQueue" in body["query"]:
+            if ctx["num_popped"] != 0:
+                return json.dumps({"data": {"popFromRunQueue": None}})
+            ctx["num_popped"] += 1
+            return json.dumps(
+                {
+                    "data": {
+                        "popFromRunQueue": {
+                            "runQueueItemId": 1,
+                            "runSpec": {
+                                "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                "project": "test_project",
+                                "entity": "mock_server_entity",
+                                "resource": "local",
+                            },
+                        }
+                    }
+                }
+            )
+        if "mutation pushToRunQueue" in body["query"]:
+            if ctx["run_queues"].get(body["variables"]["queueID"]):
+                ctx["run_queues"][body["variables"]["queueID"]].append(
+                    body["variables"]["queueID"]
+                )
+            else:
+                ctx["run_queues"][body["variables"]["queueID"]] = [
+                    body["variables"]["queueID"]
+                ]
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+        if "mutation ackRunQueueItem" in body["query"]:
+            ctx["num_acked"] += 1
+            return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
@@ -881,7 +1049,7 @@ def create_app(user_ctx=None):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
-        request.get_data()
+        request.get_data(as_text=True)
         run_ctx = ctx["runs"].setdefault(run, default_ctx())
         for c in ctx, run_ctx:
             c["file_names"].append(request.args.get("file"))
@@ -901,6 +1069,8 @@ def create_app(user_ctx=None):
                 ctx["file_bytes"][file] += request.content_length
             else:
                 ctx["file_bytes"][file] += request.content_length
+        if ART_EMU:
+            return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -1108,6 +1278,8 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
+        if ART_EMU:
+            return ART_EMU.file(entity=entity, digest=digest)
         if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
@@ -1372,7 +1544,7 @@ class ParseCTX(object):
 
     @property
     def config_wandb(self):
-        return self.config["_wandb"]["value"]
+        return self.config.get("_wandb", {}).get("value", {})
 
     @property
     def telemetry(self):
@@ -1390,8 +1562,30 @@ class ParseCTX(object):
     def manifests_created_ids(self):
         return [m["id"] for m in self.manifests_created]
 
+    @property
+    def artifacts(self):
+        return self._ctx.get("artifacts_created") or {}
+
+    def _debug(self):
+        if not self._run_id:
+            items = {"run_ids": "run_ids", "artifacts": "artifacts"}
+        else:
+            items = {
+                "config": "config_user",
+                "summary": "summary_user",
+                "exit_code": "exit_code",
+                "telemetry": "telemetry",
+            }
+        d = {}
+        for k, v in items.items():
+            d[k] = getattr(self, v)
+        return d
+
 
 if __name__ == "__main__":
+    use_yea = "--yea" in sys.argv[1:]
+    load_modules(use_yea=use_yea)
+
     app = create_app()
     app.logger.setLevel(logging.INFO)
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)))

@@ -78,6 +78,27 @@ class WandBMagics(Magics):
             get_ipython().run_cell(cell)
 
 
+def notebook_metadata_from_jupyter_servers_and_kernel_id():
+    servers, kernel_id = jupyter_servers_and_kernel_id()
+    for s in servers:
+        if s.get("password"):
+            raise ValueError("Can't query password protected kernel")
+        res = requests.get(
+            urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
+        ).json()
+        for nn in res:
+            # TODO: wandb/client#400 found a case where res returned an array of
+            # strings...
+            if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
+                if nn["kernel"]["id"] == kernel_id:
+                    return {
+                        "root": s.get("root_dir", s.get("notebook_dir", os.getcwd())),
+                        "path": nn["notebook"]["path"],
+                        "name": nn["notebook"]["name"],
+                    }
+    return None
+
+
 def notebook_metadata(silent):
     """Attempts to query jupyter for the path and name of the notebook file.
 
@@ -97,11 +118,21 @@ def notebook_metadata(silent):
         # In colab we can request the most recent contents
         ipynb = attempt_colab_load_ipynb()
         if ipynb:
-            return {
+            ret = {
                 "root": "/content",
                 "path": ipynb["metadata"]["colab"]["name"],
                 "name": ipynb["metadata"]["colab"]["name"],
             }
+
+            try:
+                jupyter_metadata = (
+                    notebook_metadata_from_jupyter_servers_and_kernel_id()
+                )
+            except RuntimeError:
+                pass
+            else:
+                ret["path"] = jupyter_metadata["path"]
+            return ret
 
         if wandb.util._is_kaggle():
             # In kaggle we can request the most recent contents
@@ -113,26 +144,9 @@ def notebook_metadata(silent):
                     "name": ipynb["metadata"]["name"],
                 }
 
-        servers, kernel_id = jupyter_servers_and_kernel_id()
-        for s in servers:
-            if s.get("password"):
-                raise ValueError("Can't query password protected kernel")
-            res = requests.get(
-                urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
-            ).json()
-            for nn in res:
-                # TODO: wandb/client#400 found a case where res returned an array of
-                # strings...
-                if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
-                    if nn["kernel"]["id"] == kernel_id:
-                        return {
-                            "root": s.get(
-                                "root_dir", s.get("notebook_dir", os.getcwd())
-                            ),
-                            "path": nn["notebook"]["path"],
-                            "name": nn["notebook"]["name"],
-                        }
-
+        jupyter_metadata = notebook_metadata_from_jupyter_servers_and_kernel_id()
+        if jupyter_metadata:
+            return jupyter_metadata
         if not silent:
             logger.error(error_message)
         return {}
