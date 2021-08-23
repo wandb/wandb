@@ -3,10 +3,15 @@ import tensorflow as tf
 import wandb
 from wandb.keras import WandbCallback
 
-wandb.init(project="keras")
+run = wandb.init(project="keras")
+
+x = np.random.randint(255, size=(100, 28, 28, 1))
+y = np.random.randint(10, size=(100,))
+
+dataset = (x, y)
 
 
-model = tf.keras.models.Sequential()
+model = tf.keras.Sequential()
 model.add(tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1)))
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dense(10, activation="softmax"))
@@ -15,9 +20,11 @@ model.compile(
 )
 
 model.fit(
-    np.ones((10, 28, 28, 1)),
-    np.ones((10,)),
+    x,
+    y,
     epochs=2,
-    validation_split=0.2,
+    validation_data=(x, y),
     callbacks=[WandbCallback(data_type="image")],
 )
+
+run.finish()
