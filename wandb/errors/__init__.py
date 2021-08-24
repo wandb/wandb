@@ -45,6 +45,18 @@ class RequireError(Error):
 
 class InputTimeoutError(Error):
     """Raised when user input times out"""
+    
+    pass
+  
+  
+class ExecutionError(Error):
+    """Generic execution exception"""
+
+    pass
+
+
+class LaunchError(Error):
+    """Raised when a known error occurs in wandb launch"""
 
     pass
 
@@ -57,4 +69,6 @@ __all__ = [
     "LogMultiprocessError",
     "RequireError",
     "InputTimeoutError",
+    "ExecutionError",
+    "LaunchError",
 ]

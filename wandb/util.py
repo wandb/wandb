@@ -8,6 +8,7 @@ import colorsys
 import contextlib
 import codecs
 import errno
+import gzip
 import hashlib
 import json
 import logging
@@ -24,11 +25,13 @@ import time
 import random
 import shortuuid
 import importlib
+import tarfile
+import tempfile
 import types
 import yaml
 from datetime import date, datetime
 import platform
-from six.moves.urllib.parse import urlparse
+from six.moves import urllib
 
 import requests
 import six
@@ -297,6 +300,83 @@ def get_h5_typename(o):
         return "torch.Tensor"
     else:
         return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+
+
+def is_uri(string):
+    parsed_uri = urllib.parse.urlparse(string)
+    return len(parsed_uri.scheme) > 0
+
+
+def local_file_uri_to_path(uri):
+    """
+    Convert URI to local filesystem path.
+    No-op if the uri does not have the expected scheme.
+    """
+    path = urllib.parse.urlparse(uri).path if uri.startswith("file:") else uri
+    return urllib.request.url2pathname(path)
+
+
+def get_local_path_or_none(path_or_uri):
+    """Check if the argument is a local path (no scheme or file:///) and return local path if true,
+    None otherwise.
+    """
+    parsed_uri = urllib.parse.urlparse(path_or_uri)
+    if (
+        len(parsed_uri.scheme) == 0
+        or parsed_uri.scheme == "file"
+        and len(parsed_uri.netloc) == 0
+    ):
+        return local_file_uri_to_path(path_or_uri)
+    else:
+        return None
+
+
+def make_tarfile(output_filename, source_dir, archive_name, custom_filter=None):
+    # Helper for filtering out modification timestamps
+    def _filter_timestamps(tar_info):
+        tar_info.mtime = 0
+        return tar_info if custom_filter is None else custom_filter(tar_info)
+
+    unzipped_filename = tempfile.mktemp()
+    try:
+        with tarfile.open(unzipped_filename, "w") as tar:
+            tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
+        # When gzipping the tar, don't include the tar's filename or modification time in the
+        # zipped archive (see https://docs.python.org/3/library/gzip.html#gzip.GzipFile)
+        with gzip.GzipFile(
+            filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
+        ) as gzipped_tar, open(unzipped_filename, "rb") as tar:
+            gzipped_tar.write(tar.read())
+    finally:
+        os.remove(unzipped_filename)
+
+
+def _user_args_to_dict(arguments):
+    user_dict = {}
+    i = 0
+    while i < len(arguments):
+        arg = arguments[i]
+        split = arg.split("=", maxsplit=1)
+        # flag arguments don't require a value -> set to True if specified
+        if len(split) == 1 and (
+            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
+        ):
+            name = split[0].lstrip("-")
+            value = True
+            i += 1
+        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
+            name = split[0].lstrip("-")
+            value = arguments[i + 1]
+            i += 2
+        elif len(split) == 2:
+            name = split[0].lstrip("-")
+            value = split[1]
+            i += 1
+        if name in user_dict:
+            wandb.termerror("Repeated parameter: '%s'" % name)
+            sys.exit(1)
+        user_dict[name] = value
+    return user_dict
 
 
 def is_tf_tensor(obj):
@@ -1215,14 +1295,21 @@ def hex_to_b64_id(encoded_string):
 
 def host_from_path(path):
     """returns the host of the path"""
-    url = urlparse(path)
+    url = urllib.parse.urlparse(path)
     return url.netloc
 
 
 def uri_from_path(path):
     """returns the URI of the path"""
-    url = urlparse(path)
+    url = urllib.parse.urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
+
+
+def is_unicode_safe(stream):
+    """returns true if the stream supports UTF-8"""
+    if not hasattr(stream, "encoding"):
+        return False
+    return stream.encoding == "UTF-8"
 
 
 def _has_internet():
