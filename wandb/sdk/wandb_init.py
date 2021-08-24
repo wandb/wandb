@@ -273,7 +273,7 @@ class _WandbInit(object):
             art = self.run.log_code(root=None)
             if art is not None:
                 # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
-                art._artifact_dir.cleanup()
+                art._cleanup_artifact_dir()
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
