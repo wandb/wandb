@@ -51,7 +51,12 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     RunRecord,
 )
-from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
+from wandb.util import (
+    add_import_hook,
+    is_unicode_safe,
+    sentry_set_scope,
+    to_forward_slash_path,
+)
 from wandb.viz import (
     create_custom_chart,
     custom_chart_panel_config,
@@ -1475,7 +1480,7 @@ class Run(object):
                 "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
             )
             emojis = dict(star="", broom="", rocket="")
-            if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
+            if platform.system() != "Windows" and is_unicode_safe(sys.stdout):
                 emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
 
             wandb.termlog(

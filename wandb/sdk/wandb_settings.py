@@ -970,12 +970,13 @@ class Settings(object):
         pass
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name not in self.__dict__:
-            raise AttributeError(name)
-        if self.__frozen:
-            raise TypeError("Settings object is frozen")
-        value = self._perform_preprocess(name, value)
-        self._check_invalid(name, value)
+        # using source.SETUP is a temporary hack here that should be replaced by
+        # having _apply_init() apply SOURCE.INIT to settings added via mutations
+        # to settings object
+        try:
+            self._update({name: value}, _source=self.Source.SETUP)
+        except KeyError as e:
+            raise AttributeError(str(e))
         object.__setattr__(self, name, value)
 
     @classmethod
