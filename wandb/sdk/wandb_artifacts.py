@@ -690,6 +690,9 @@ class Artifact(ArtifactInterface):
         self._added_local_paths[path] = entry
         return entry
 
+    def _cleanup_artifact_dir(self) -> None:
+        self._artifact_dir.cleanup()
+
     def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactEntry:
         return self.add(item, name)
 
@@ -991,7 +994,7 @@ class __S3BucketPolicy(StoragePolicy):
         local = LocalFileHandler()
 
         self._handler = MultiHandler(
-            handlers=[s3, local,], default_handler=TrackingHandler()
+            handlers=[s3, local,], default_handler=TrackingHandler(),
         )
 
     def config(self) -> Dict[str, str]:

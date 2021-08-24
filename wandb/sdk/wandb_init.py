@@ -271,8 +271,9 @@ class _WandbInit(object):
         self.notebook.save_history()
         if self.notebook.save_ipynb():
             art = self.run.log_code(root=None)
-            # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
-            art._artifact_dir.cleanup()
+            if art is not None:
+                # explicitly clean up artifact directory here to prevent garbage collection from issuing errors
+                art._artifact_dir.cleanup()
             logger.info("saved code and history")
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
