@@ -4,9 +4,21 @@ from functools import wraps
 from pathlib import Path
 
 import wandb
-from fastcore.all import typedispatch
 
-from metaflow import current
+try:
+    from metaflow import current
+except ImportError as e:
+    raise Exception(
+        "Error: `metaflow` not installed >> This integration requires metaflow!  To fix, please `pip install -Uqq metaflow`"
+    ) from e
+
+try:
+    from fastcore.all import typedispatch
+except ImportError as e:
+    raise Exception(
+        "Error: `fastcore` not installed >> This integration requires fastcore!  To fix, please `pip install -Uqq fastcore`"
+    ) from e
+
 
 try:
     import pandas as pd
