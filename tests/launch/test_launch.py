@@ -274,7 +274,7 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(280)
+@pytest.mark.timeout(320)
 def test_launch_agent(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
