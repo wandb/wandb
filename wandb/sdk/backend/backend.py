@@ -142,12 +142,12 @@ class Backend(object):
             pass
 
         pid_str = str(os.getpid())
-        exec_cmd_list = [ sys.executable, "-m"]
+        exec_cmd_list = [sys.executable, "-m"]
         if os.environ.get("COVERAGE_RCFILE"):
-            exec_cmd_list += [ "coverage", "run", "-m" ]
+            exec_cmd_list += ["coverage", "run", "-m"]
         internal_proc = subprocess.Popen(
-            exec_cmd_list +
-            [
+            exec_cmd_list
+            + [
                 "wandb",
                 "grpc-server",
                 "--port-filename",
