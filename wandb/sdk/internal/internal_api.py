@@ -282,7 +282,7 @@ class Api(object):
     def server_info_introspection(self):
 
         query_string = """
-            {
+            query Introspect{
                 __type(name: "LocalVersionInfo") {
                         fields {
                         name
@@ -293,7 +293,7 @@ class Api(object):
         query = gql(query_string)
 
         res = self.gql(query)
-
+        logger.info(res)
         return res or {}
 
     @normalize_exceptions
