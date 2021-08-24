@@ -282,7 +282,7 @@ class Api(object):
     def server_info_introspection(self):
 
         query_string = """
-            query Introspect{
+            {
                 __type(name: "LocalVersionInfo") {
                         fields {
                         name

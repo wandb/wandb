@@ -539,7 +539,7 @@ def create_app(user_ctx=None):
 
             return json.dumps(viewer_dict)
 
-        if "query Introspect" in body["query"]:
+        if '__type(name: "LocalVersionInfo"' in body["query"]:
             if ctx["empty_query"]:
                 return json.dumps({"data": {}})
 
