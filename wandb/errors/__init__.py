@@ -45,10 +45,10 @@ class RequireError(Error):
 
 class InputTimeoutError(Error):
     """Raised when user input times out"""
-    
+
     pass
-  
-  
+
+
 class ExecutionError(Error):
     """Generic execution exception"""
 

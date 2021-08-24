@@ -1030,7 +1030,7 @@ class Settings(object):
     def _apply_login(
         self, args: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
-        param_map = dict(key="api_key", host="base_url")
+        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
 

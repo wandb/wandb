@@ -1,4 +1,5 @@
 import sys
+from typing import Optional
 
 from wandb.errors import InputTimeoutError
 
@@ -13,12 +14,16 @@ LF = "\n"
 CRLF = CR + LF
 
 
-def echo(prompt):
+def echo(prompt: str):
     sys.stdout.write(prompt)
     sys.stdout.flush()
 
 
-def posix_stdin_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
+def posix_stdin_timeout(
+    prompt: Optional[str] = "",
+    timeout: Optional[float] = DEFAULT_TIMEOUT,
+    timeout_log: Optional[str] = "",
+):
     echo(prompt)
     sel = selectors.DefaultSelector()
     sel.register(sys.stdin, selectors.EVENT_READ)
@@ -32,7 +37,11 @@ def posix_stdin_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
         raise InputTimeoutError(timeout_log)
 
 
-def windows_stdin_timeout(prompt="", timeout=DEFAULT_TIMEOUT, timeout_log=""):
+def windows_stdin_timeout(
+    prompt: Optional[str] = "",
+    timeout: Optional[float] = DEFAULT_TIMEOUT,
+    timeout_log: Optional[str] = "",
+):
     echo(prompt)
     begin = time.monotonic()
     end = begin + timeout
