@@ -32,6 +32,10 @@ class Api(object):
         return self.api.app_url
 
     @property
+    def default_entity(self):
+        return self.api.default_entity
+
+    @property
     def git(self):
         return self.api.git
 
@@ -126,6 +130,21 @@ class Api(object):
 
     def upload_file_retry(self, *args, **kwargs):
         return self.api.upload_file_retry(*args, **kwargs)
+
+    def get_run_info(self, *args, **kwargs):
+        return self.api.get_run_info(*args, **kwargs)
+
+    def get_project_run_queues(self, *args, **kwargs):
+        return self.api.get_project_run_queues(*args, **kwargs)
+
+    def push_to_run_queue(self, *args, **kwargs):
+        return self.api.push_to_run_queue(*args, **kwargs)
+
+    def pop_from_run_queue(self, *args, **kwargs):
+        return self.api.pop_from_run_queue(*args, **kwargs)
+
+    def ack_run_queue_item(self, *args, **kwargs):
+        return self.api.ack_run_queue_item(*args, **kwargs)
 
 
 __all__ = ["Api"]
