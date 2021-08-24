@@ -17,6 +17,8 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
 )
 
+AGENT_POLLING_INTERVAL = 10
+
 
 def _convert_access(access: str) -> str:
     """Converts access string to a value accepted by wandb."""
@@ -165,7 +167,7 @@ class LaunchAgent(object):
                     if job:
                         break
                 if not job:
-                    time.sleep(5)
+                    time.sleep(AGENT_POLLING_INTERVAL)
                     # for job_id in self.job_ids:
                     # self._update_finished(job_id)
                     if self._ticks % 2 == 0:

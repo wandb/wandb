@@ -64,6 +64,8 @@ def default_ctx():
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "run_state": "running",
+        "run_queue_item_check_count": 0,
     }
 
 
@@ -142,7 +144,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -197,7 +203,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -448,6 +456,13 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Run(" in body["query"]:
+            # if querying state of run, change context from running to finished
+            if "RunFragment" not in body["query"] and "state" in body["query"]:
+                ret_val = json.dumps(
+                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                )
+                ctx["run_state"] = "finished"
+                return ret_val
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
@@ -578,14 +593,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -731,7 +756,13 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
             for c in ctx, run_ctx:
                 c["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -748,7 +779,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -924,6 +961,51 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {"project": {"runQueues": []}}})
+
+        if "query GetRunQueueItem" in body["query"]:
+            ctx["run_queue_item_check_count"] += 1
+            if ctx["run_queue_item_check_count"] > 1:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": "test",
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": None,
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
         if "mutation createRunQueue" in body["query"]:
             ctx["run_queues_return_default"] = True
             return json.dumps(
@@ -1490,7 +1572,7 @@ class ParseCTX(object):
 
     @property
     def config_wandb(self):
-        return self.config["_wandb"]["value"]
+        return self.config.get("_wandb", {}).get("value", {})
 
     @property
     def telemetry(self):

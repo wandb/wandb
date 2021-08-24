@@ -42,7 +42,7 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(280)
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
@@ -69,7 +69,7 @@ def test_launch_agent_base(
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(280)
 def test_launch_cli_with_config_file_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -83,7 +83,8 @@ def test_launch_cli_with_config_file_and_params(
     with runner.isolated_filesystem():
         with open("config.json", "w") as fp:
             json.dump(
-                config, fp,
+                config,
+                fp,
             )
 
         result = runner.invoke(
@@ -91,7 +92,7 @@ def test_launch_cli_with_config_file_and_params(
             [
                 "-c",
                 "config.json",
-                "-P",
+                "-a",
                 "epochs=1",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
@@ -101,7 +102,7 @@ def test_launch_cli_with_config_file_and_params(
         assert "python train.py --epochs 1" in result.output
 
 
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(280)
 def test_launch_cli_with_config_and_params(
     runner, mocked_fetchable_git_repo, live_mock_server
 ):
@@ -118,7 +119,7 @@ def test_launch_cli_with_config_and_params(
             [
                 "-c",
                 json.dumps(config),
-                "-P",
+                "-a",
                 "epochs=1",
                 "https://wandb.ai/mock_server_entity/test_project/runs/1",
             ],
@@ -129,11 +130,15 @@ def test_launch_cli_with_config_and_params(
 
 
 def test_launch_no_docker_exec(
-    runner, monkeypatch, mocked_fetchable_git_repo, test_settings,
+    runner,
+    monkeypatch,
+    mocked_fetchable_git_repo,
+    test_settings,
 ):
     monkeypatch.setattr(wandb.sdk.launch.docker, "find_executable", lambda name: False)
     result = runner.invoke(
-        cli.launch, ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
+        cli.launch,
+        ["https://wandb.ai/mock_server_entity/test_project/runs/1"],
     )
     assert result.exit_code == 1
     assert "Could not find Docker executable" in str(result.exception)
@@ -143,7 +148,11 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli.launch,
-            ["https://github.com/test/repo.git", "--entry-point", "train.py",],
+            [
+                "https://github.com/test/repo.git",
+                "--entry-point",
+                "train.py",
+            ],
         )
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
@@ -155,7 +164,10 @@ def test_launch_local_dir(runner):
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
             f.write('print("ok")\n')
-        result = runner.invoke(cli.launch, ["repo"],)
+        result = runner.invoke(
+            cli.launch,
+            ["repo"],
+        )
 
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output

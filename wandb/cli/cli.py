@@ -332,7 +332,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -879,18 +881,18 @@ def _check_launch_imports():
     "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
 )
 @click.option(
-    "--version",
-    "-v",
-    metavar="VERSION",
+    "--git-version",
+    "-g",
+    metavar="GIT-VERSION",
     help="Version of the project to run, as a Git commit reference for Git projects.",
 )
 @click.option(
-    "--param-list",
-    "-P",
+    "--args-list",
+    "-a",
     metavar="NAME=VALUE",
     multiple=True,
-    help="A parameter for the run, of the form -P name=value. Provided parameters that "
-    "are not in the list of parameters for an entry point will be passed to the "
+    help="An argument for the run, of the form -a name=value. Provided arguments that "
+    "are not in the list of arguments for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
 @click.option(  # todo: maybe take these out it's confusing with the docker image stuff
@@ -903,10 +905,10 @@ def _check_launch_imports():
     "`docker run --name value` or `docker run --name` respectively. ",
 )
 @click.option(
-    "--experiment-name",
+    "--name",
     envvar="WANDB_NAME",
-    help="Name of the experiment under which to launch the run. If not "
-    "specified, 'experiment-id' option will be used to launch run. If passed in, will override the name passed in using a config file.",
+    help="Name of the run under which to launch the run. If not "
+    "specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.",
 )
 @click.option(
     "--entity",
@@ -963,10 +965,10 @@ def _check_launch_imports():
 def launch(
     uri,
     entry_point,
-    version,
-    param_list,
+    git_version,
+    args_list,
     docker_args,
-    experiment_name,
+    name,
     resource,
     entity,
     project,
@@ -977,7 +979,7 @@ def launch(
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
     In the case of a wandb URI the arguments used in the original run will be used by default.
-    These arguments can be overridden using the param_list args, or specifying those arguments
+    These arguments can be overridden using the args option, or specifying those arguments
     in the config's 'overrides' key, 'args' field as a list of strings.
 
     Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
@@ -988,7 +990,7 @@ def launch(
 
     api = _get_cling_api()
 
-    param_dict = util._user_args_to_dict(param_list)
+    args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
@@ -1011,12 +1013,12 @@ def launch(
                 uri,
                 api,
                 entry_point,
-                version,
+                git_version,
                 project=project,
                 entity=entity,
                 docker_image=docker_image,
-                experiment_name=experiment_name,
-                parameters=param_dict,
+                name=name,
+                parameters=args_dict,
                 docker_args=docker_args_dict,
                 resource=resource,
                 config=config,
@@ -1039,10 +1041,10 @@ def launch(
             queue,
             resource,
             entry_point,
-            experiment_name,
-            version,
+            name,
+            git_version,
             docker_image,
-            param_dict,
+            args_dict,
         )
 
 
@@ -1463,7 +1465,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 
