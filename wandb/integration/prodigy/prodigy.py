@@ -26,6 +26,7 @@ from PIL import Image
 import wandb
 from wandb import util
 from wandb.plots.utils import deprecation_notice, test_missing
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 def named_entity(docs):
@@ -274,6 +275,9 @@ def upload_dataset(dataset_name):
     # Check if wandb.init has been called
     if wandb.run is None:
         raise ValueError("You must call wandb.init() before upload_dataset()")
+
+    with wb_telemetry.context(run=wandb.run) as tel:
+        tel.feature.prodigy = True
 
     prodigy_db = util.get_module(
         "prodigy.components.db",

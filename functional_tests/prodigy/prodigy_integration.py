@@ -2,17 +2,14 @@
 """Test prodigy integration
 
 ---
-id: 6.0.1
+id: 0.prodigy.1
 name: prodigy integration test
-tag:
-  suite: nightly
 command:
   timeout: 300
 plugin:
   - wandb
 depend:
   requirements:
-    - wandb
     - spacy>=3.0.0,<4.0.0
     - https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.0.0/en_core_web_md-3.0.0.tar.gz#egg=en_core_web_md
     - Pillow
@@ -46,6 +43,9 @@ assert:
   - :wandb:runs[0][summary][bad_encoding][nrows]: 20
   - :wandb:runs[0][summary][nyt_dep][nrows]: 112
   - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 12  # prodigy
 """
 
 import os
