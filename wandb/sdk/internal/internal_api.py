@@ -284,11 +284,18 @@ class Api(object):
     def server_info_introspection(self):
 
         query_string = """
-            {
-                __type(name: "LocalVersionInfo") {
-                        fields {
-                        name
-                    }
+           query ProbeServerCapabilities {
+               QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+               ServerInfoType: __type(name: "ServerInfo") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
                 }
             }
         """
@@ -362,20 +369,28 @@ class Api(object):
             _CLI_QUERY_
         }
         """
+        query_types, server_info_types = self.server_info_introspection()
+
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+
+        local_version_exists = (
+            "serverInfo" in query_types
+            and "latestLocalVersionInfo" in server_info_types
+        )
+
+        cli_query_string = "" if not cli_version_exists else cli_query
+        local_query_string = "" if not local_version_exists else local_query
+
         queries = []
         queries.append(
             gql(
-                query_str.replace("_CLI_QUERY_", cli_query).replace(
-                    "_LOCAL_QUERY_", local_query
+                query_str.replace("_CLI_QUERY_", cli_query_string).replace(
+                    "_LOCAL_QUERY_", local_query_string
                 )
             )
         )
-        queries.append(
-            gql(
-                query_str.replace("_CLI_QUERY_", cli_query).replace("_LOCAL_QUERY_", "")
-            )
-        )
-        queries.append(gql(query_str.replace("_CLI_QUERY_", "")))
         for query in queries:
             try:
                 res = self.gql(query)
@@ -738,11 +753,7 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={
-                "entity": entity,
-                "project": project_name,
-                "name": name,
-            },
+            variable_values={"entity": entity, "project": project_name, "name": name,},
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1295,12 +1306,7 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query,
-            variable_values={
-                "name": project,
-                "run": run,
-                "entity": entity,
-            },
+            query, variable_values={"name": project, "run": run, "entity": entity,},
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -2217,8 +2223,7 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self,
-        client_id,
+        self, client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2233,12 +2238,7 @@ class Api(object):
             }
         """
         )
-        response = self.gql(
-            query,
-            variable_values={
-                "clientID": client_id,
-            },
-        )
+        response = self.gql(query, variable_values={"clientID": client_id,},)
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")
