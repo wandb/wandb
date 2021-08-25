@@ -349,6 +349,7 @@ class FileStreamApi(object):
                 del files[filename]
 
         for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
+            logger.info("streaming data: {}".format(fs.keys()))
             self._handle_response(
                 request_with_retry(
                     self._client.post,

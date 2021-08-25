@@ -289,15 +289,15 @@ class TBDirWatcher(object):
 
             def Load(self):
                 for event in super(EventFileLoader, self).Load():
-                    debug_log("EventFileLoader - a {}".format(event))
+                    debug_log("EventFileLoader - a {}".format("event"))
                     event = data_compat.migrate_event(event)
-                    debug_log("EventFileLoader - b {}".format(event))
+                    debug_log("EventFileLoader - b {}".format("event"))
                     events = dataclass_compat.migrate_event(
                         event, self._initial_metadata
                     )
                     debug_log("EventFileLoader - c {}".format(events))
                     for event in events:
-                        debug_log("EventFileLoader - d {}".format(event))
+                        debug_log("EventFileLoader - d {}".format("event"))
                         yield event
 
         return EventFileLoader
@@ -305,7 +305,7 @@ class TBDirWatcher(object):
     def _process_events(self, shutdown_call: bool = False) -> None:
         try:
             for event in self._generator.Load():
-                debug_log("_process_events.LOAD(), {}".format(event))
+                debug_log("_process_events.LOAD(), {}".format("event"))
                 self.process_event(event)
         except (
             self.directory_watcher.DirectoryDeletedError,
@@ -337,17 +337,17 @@ class TBDirWatcher(object):
 
     def process_event(self, event: "ProtoEvent") -> None:
         # print("\nEVENT:::", self._logdir, self._namespace, event, "\n")
-        debug_log("tb_watcher.process_event - a: {} {} {}".format(self._logdir, self._namespace, event))
+        debug_log("tb_watcher.process_event - a: {} {} {}".format(self._logdir, self._namespace, "event"))
         if self._first_event_timestamp is None:
-            debug_log("tb_watcher.process_event - b: {} {} {}".format(self._logdir, self._namespace, event))
+            debug_log("tb_watcher.process_event - b: {} {} {}".format(self._logdir, self._namespace, "event"))
             self._first_event_timestamp = event.wall_time
 
         if event.HasField("file_version"):
-            debug_log("tb_watcher.process_event - c: {} {} {}".format(self._logdir, self._namespace, event))
+            debug_log("tb_watcher.process_event - c: {} {} {}".format(self._logdir, self._namespace, "event"))
             self._file_version = event.file_version
 
         if event.HasField("summary"):
-            debug_log("tb_watcher.process_event - d: {} {} {}".format(self._logdir, self._namespace, event))
+            debug_log("tb_watcher.process_event - d: {} {} {}".format(self._logdir, self._namespace, "event"))
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self) -> None:
@@ -450,7 +450,7 @@ class TBEventConsumer(object):
             self._save_row(item)
 
     def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
-        debug_log("tb_watcher._handle_event - a: {} {}".format(history, event))
+        debug_log("tb_watcher._handle_event - a: {} {}".format(history, "event"))
         wandb.tensorboard.log(
             event.event,
             step=event.event.step,
