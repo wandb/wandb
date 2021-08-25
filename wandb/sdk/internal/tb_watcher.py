@@ -18,8 +18,6 @@ from wandb import util
 from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
-from tensorboard import data_compat
-from tensorboard import dataclass_compat
 
 if TYPE_CHECKING:
     from ..interface.interface import BackendSender
@@ -37,11 +35,6 @@ SHUTDOWN_DELAY = 5
 ERROR_DELAY = 5
 REMOTE_FILE_TOKEN = "://"
 logger = logging.getLogger(__name__)
-
-
-def debug_log(text):
-    logger.info(text)
-    print(text)
 
 
 def _link_and_save_file(
@@ -74,9 +67,7 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     if not path:
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
-    if path.endswith(".sagemaker-uploaded"):
-        return False
-    if basename.endswith(".profile-empty"):
+    if basename.endswith(".profile-empty") or basename.endswith(".sagemaker-uploaded"):
         return False
     fname_components = basename.split(".")
     try:
@@ -153,33 +144,23 @@ class TBWatcher(object):
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
-        debug_log("tb_watcher.add - a: {} {} {}".format(logdir, save, root_dir))
         logdir = util.to_forward_slash_path(logdir)
-        debug_log("tb_watcher.add - b: {} {} {}".format(logdir, save, root_dir))
         root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:
-            debug_log("tb_watcher.add - c: {} {} {}".format(logdir, save, root_dir))
             return
-        debug_log("tb_watcher.add - d: {} {} {}".format(logdir, save, root_dir))
         namespace = self._calculate_namespace(logdir, root_dir)
-        debug_log("tb_watcher.add - e: {} {} {} {}".format(logdir, save, root_dir, namespace))
         # TODO(jhr): implement the deferred tbdirwatcher to find namespace
 
         if not self._consumer:
-            debug_log("tb_watcher.add - f: {} {} {} {}".format(logdir, save, root_dir, namespace))
             self._consumer = TBEventConsumer(
                 self, self._watcher_queue, self._run_proto, self._settings
             )
-            debug_log("tb_watcher.add - g: {} {} {} {}".format(logdir, save, root_dir, namespace))
             self._consumer.start()
 
-        debug_log("tb_watcher.add - h: {} {} {} {}".format(logdir, save, root_dir, namespace))
         tbdir_watcher = TBDirWatcher(
             self, logdir, save, namespace, self._watcher_queue, self._force
         )
-        debug_log("tb_watcher.add - i: {} {} {} {}".format(logdir, save, root_dir, namespace))
         self._logdirs[logdir] = tbdir_watcher
-        debug_log("tb_watcher.add - j: {} {} {} {}".format(logdir, save, root_dir, namespace))
         tbdir_watcher.start()
 
     def finish(self) -> None:
@@ -237,11 +218,9 @@ class TBDirWatcher(object):
             return True
         path = self.tf_compat.tf.compat.as_str_any(path)
 
-        res = is_tfevents_file_created_by(
+        return is_tfevents_file_created_by(
             path, self._hostname, self._tbwatcher._settings._start_time
         )
-        debug_log("_is_our_tfevents_file - c: {} {} {} {}".format(path, self._hostname, self._tbwatcher._settings._start_time, res))
-        return res
 
     def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
@@ -252,10 +231,9 @@ class TBDirWatcher(object):
         except ImportError:
             raise Exception("Please install tensorboard package")
 
-        class EventFileLoader(event_file_loader.LegacyEventFileLoader):
+        class EventFileLoader(event_file_loader.EventFileLoader):
             def __init__(self, file_path: str) -> None:
                 super(EventFileLoader, self).__init__(file_path)
-                self._initial_metadata = {}
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
                         logger.warning(
@@ -275,21 +253,11 @@ class TBDirWatcher(object):
                             settings=_loader_settings,
                         )
 
-            def Load(self):
-                for event in super(EventFileLoader, self).Load():
-                    event = data_compat.migrate_event(event)
-                    events = dataclass_compat.migrate_event(
-                        event, self._initial_metadata
-                    )
-                    for event in events:
-                        yield event
-
         return EventFileLoader
 
     def _process_events(self, shutdown_call: bool = False) -> None:
         try:
             for event in self._generator.Load():
-                debug_log("_process_events.LOAD(), {}".format("event"))
                 self.process_event(event)
         except (
             self.directory_watcher.DirectoryDeletedError,
@@ -302,28 +270,24 @@ class TBDirWatcher(object):
             if not self._shutdown.is_set() and not shutdown_call:
                 time.sleep(ERROR_DELAY)
 
-    def _thread_except_body(self):
+    def _thread_except_body(self) -> None:
         try:
             self._thread_body()
         except Exception as e:
             logger.exception("generic exception in TBDirWatcher thread")
             raise e
 
-
     def _thread_body(self) -> None:
         """Check for new events every second"""
         shutdown_time: "Optional[float]" = None
         while True:
-            try:
-                self._process_events()
-                if self._shutdown.is_set():
-                    now = time.time()
-                    if not shutdown_time:
-                        shutdown_time = now + SHUTDOWN_DELAY
-                    elif now > shutdown_time:
-                        break
-            except Exception as e:
-                debug_log("Error in tensorboard watcher thread: {}".format(e))
+            self._process_events()
+            if self._shutdown.is_set():
+                now = time.time()
+                if not shutdown_time:
+                    shutdown_time = now + SHUTDOWN_DELAY
+                elif now > shutdown_time:
+                    break
             time.sleep(1)
 
     def process_event(self, event: "ProtoEvent") -> None:
@@ -335,7 +299,6 @@ class TBDirWatcher(object):
             self._file_version = event.file_version
 
         if event.HasField("summary"):
-            debug_log("tb_watcher.queueing_event {} {} {}".format(self._logdir, self._namespace, "event"))
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self) -> None:
@@ -410,7 +373,7 @@ class TBEventConsumer(object):
                 self._save_row(item,)
         self._thread.join()
 
-    def _thread_except_body(self):
+    def _thread_except_body(self) -> None:
         try:
             self._thread_body()
         except Exception as e:
@@ -421,23 +384,19 @@ class TBEventConsumer(object):
         while True:
             try:
                 event = self._queue.get(True, 1)
-                debug_log("tb_consumer._thread_body - found_event")
                 # Wait self._delay seconds from consumer start before logging events
                 if (
                     time.time() < self._start_time + self._delay
                     and not self._shutdown.is_set()
                 ):
-                    debug_log("tb_consumer._thread_body - delaying")
                     self._queue.put(event)
                     time.sleep(0.1)
                     continue
             except queue.Empty:
-                debug_log("tb_consumer._thread_body - empty queue")
                 event = None
                 if self._shutdown.is_set():
                     break
             if event:
-                debug_log("tb_consumer._thread_body - handling")
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
@@ -449,7 +408,6 @@ class TBEventConsumer(object):
             self._save_row(item)
 
     def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
-        debug_log("tb_watcher._handle_event - a: {} {}".format(history, "event"))
         wandb.tensorboard.log(
             event.event,
             step=event.event.step,
