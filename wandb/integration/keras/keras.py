@@ -8,17 +8,22 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import copy
+import logging
+import numpy as np
 import operator
 import os
-import numpy as np
-import wandb
 import sys
-from wandb.util import add_import_hook
-from importlib import import_module
+
 from itertools import chain
+from pkg_resources import parse_version
+
+import wandb
+from wandb.util import add_import_hook
+
 
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+
+logger = logging.getLogger(__name__)
 
 
 def is_dataset(data):
@@ -48,22 +53,46 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
-    from tensorflow.python.eager import context
-    from tensorflow.python.keras.engine import training
 
-    try:
-        from tensorflow.python.keras.engine import training_arrays
-        from tensorflow.python.keras.engine import training_generator
-    except ImportError:
-        from tensorflow.python.keras.engine import training_arrays_v1 as training_arrays
-        from tensorflow.python.keras.engine import (
-            training_generator_v1 as training_generator,
-        )
+    from tensorflow.python.eager import context
+
+    from tensorflow import __version__ as tf_version
+
+    if parse_version(tf_version) >= parse_version("2.6.0"):
+        keras_engine = "keras.engine"
+        try:
+            from keras.engine import training
+            from keras.engine import training_arrays_v1 as training_arrays
+            from keras.engine import training_generator_v1 as training_generator
+        except (ImportError, AttributeError):
+            wandb.termerror("Unable to patch Tensorflow/Keras")
+            logger.exception("exception while trying to patch_tf_keras")
+            return
+    else:
+        keras_engine = "tensorflow.python.keras.engine"
+
+        from tensorflow.python.keras.engine import training
+
+        try:
+            from tensorflow.python.keras.engine import (
+                training_arrays_v1 as training_arrays,
+            )
+            from tensorflow.python.keras.engine import (
+                training_generator_v1 as training_generator,
+            )
+        except (ImportError, AttributeError):
+            try:
+                from tensorflow.python.keras.engine import training_arrays
+                from tensorflow.python.keras.engine import training_generator
+            except (ImportError, AttributeError):
+                wandb.termerror("Unable to patch Tensorflow/Keras")
+                logger.exception("exception while trying to patch_tf_keras")
+                return
 
     # Tensorflow 2.1
     training_v2_1 = wandb.util.get_module("tensorflow.python.keras.engine.training_v2")
     # Tensorflow 2.2
-    training_v2_2 = wandb.util.get_module("tensorflow.python.keras.engine.training_v1")
+    training_v2_2 = wandb.util.get_module(f"{keras_engine}.training_v1")
 
     if training_v2_1:
         old_v2 = training_v2_1.Loop.fit
@@ -124,11 +153,9 @@ def patch_tf_keras():
     training_arrays.fit_loop = new_arrays
     training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
+    wandb.patched["keras"].append([f"{keras_engine}.training_arrays", "fit_loop"])
     wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"]
-    )
-    wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_generator", "fit_generator"]
+        [f"{keras_engine}.training_generator", "fit_generator"]
     )
 
     if training_v2_1:
@@ -138,20 +165,15 @@ def patch_tf_keras():
         )
     elif training_v2_2:
         training.Model.fit = new_v2
-        wandb.patched["keras"].append(
-            ["tensorflow.python.keras.engine.training.Model", "fit"]
-        )
+        wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
 def _check_keras_version():
-    import keras
+    from keras import __version__ as keras_version
 
-    keras_version = keras.__version__
-    major, minor, patch = keras_version.split(".")
-    if int(major) < 2 or int(minor) < 4:
+    if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(
-            "Keras version %s is not fully supported. Required keras >= 2.4.0"
-            % (keras_version)
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
 
 
@@ -165,7 +187,6 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
 tf_logger = tf.get_logger()
-
 
 patch_tf_keras()
 
@@ -221,14 +242,14 @@ class WandbCallback(keras.callbacks.Callback):
         ```
 
     `WandbCallback` will automatically log history data from any
-    metrics collected by keras: loss and anything passed into `keras_model.compile()`. 
+    metrics collected by keras: loss and anything passed into `keras_model.compile()`.
 
     `WandbCallback` will set summary metrics for the run associated with the "best" training
     step, where "best" is defined by the `monitor` and `mode` attribues.  This defaults
-    to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model 
+    to the epoch with the minimum `val_loss`. `WandbCallback` will by default save the model
     associated with the best `epoch`.
 
-    `WandbCallback` can optionally log gradient and parameter histograms. 
+    `WandbCallback` can optionally log gradient and parameter histograms.
 
     `WandbCallback` can optionally save training and validation data for wandb to visualize.
 
@@ -247,9 +268,9 @@ class WandbCallback(keras.callbacks.Callback):
             is saved (`model.save(filepath)`).
         log_weights: (boolean) if True save histograms of the model's layer's weights.
         log_gradients: (boolean) if True log histograms of the training gradients
-        training_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  This is needed 
+        training_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  This is needed
             for calculating gradients - this is mandatory if `log_gradients` is `True`.
-        validate_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data 
+        validation_data: (tuple) Same format `(X,y)` as passed to `model.fit`.  A set of data
             for wandb to visualize.  If this is set, every epoch, wandb will
             make a small number of predictions and save the results for later visualization.
         generator: (generator) a generator that returns validation data for wandb to visualize.  This
@@ -257,34 +278,34 @@ class WandbCallback(keras.callbacks.Callback):
             be set for wandb to visualize specific data examples.
         validation_steps: (int) if `validation_data` is a generator, how many
             steps to run the generator for the full validation set.
-        labels: (list) If you are visualizing your data with wandb this list of labels 
+        labels: (list) If you are visualizing your data with wandb this list of labels
             will convert numeric output to understandable string if you are building a
             multiclass classifier.  If you are making a binary classifier you can pass in
             a list of two labels ["label for false", "label for true"].  If `validate_data`
             and generator are both false, this won't do anything.
-        predictions: (int) the number of predictions to make for visualization each epoch, max 
+        predictions: (int) the number of predictions to make for visualization each epoch, max
             is 100.
         input_type: (string) type of the model input to help visualization. can be one of:
             (`image`, `images`, `segmentation_mask`).
         output_type: (string) type of the model output to help visualziation. can be one of:
-            (`image`, `images`, `segmentation_mask`).  
-        log_evaluation: (boolean) if True, save a Table containing validation data and the 
-            model's preditions at each epoch. See `validation_indexes`, 
+            (`image`, `images`, `segmentation_mask`).
+        log_evaluation: (boolean) if True, save a Table containing validation data and the
+            model's preditions at each epoch. See `validation_indexes`,
             `validation_row_processor`, and `output_row_processor` for additional details.
-        class_colors: ([float, float, float]) if the input or output is a segmentation mask, 
+        class_colors: ([float, float, float]) if the input or output is a segmentation mask,
             an array containing an rgb tuple (range 0-1) for each class.
         log_batch_frequency: (integer) if None, callback will log every epoch.
-            If set to integer, callback will log training metrics every `log_batch_frequency` 
+            If set to integer, callback will log training metrics every `log_batch_frequency`
             batches.
         log_best_prefix: (string) if None, no extra summary metrics will be saved.
             If set to a string, the monitored metric and epoch will be prepended with this value
             and stored as summary metrics.
-        validation_indexes: ([wandb.data_types._TableLinkMixin]) an ordered list of index keys to associate 
+        validation_indexes: ([wandb.data_types._TableLinkMixin]) an ordered list of index keys to associate
             with each validation example.  If log_evaluation is True and `validation_indexes` is provided,
             then a Table of validation data will not be created and instead each prediction will
             be associated with the row represented by the `TableLinkMixin`. The most common way to obtain
             such keys are is use `Table.get_index()` which will return a list of row keys.
-        validation_row_processor: (Callable) a function to apply to the validation data, commonly used to visualize the data. 
+        validation_row_processor: (Callable) a function to apply to the validation data, commonly used to visualize the data.
             The function will receive an `ndx` (int) and a `row` (dict). If your model has a single input,
             then `row["input"]` will be the input data for the row. Else, it will be keyed based on the name of the
             input slot. If your fit function takes a single target, then `row["target"]` will be the target data for the row. Else,
@@ -293,7 +314,7 @@ class WandbCallback(keras.callbacks.Callback):
             as the processor. Ignored if log_evaluation is False or `validation_indexes` are present.
         output_row_processor: (Callable) same as `validation_row_processor`, but applied to the model's output. `row["output"]` will contain
             the results of the model output.
-        infer_missing_processors: (bool) Determines if `validation_row_processor` and `output_row_processor` 
+        infer_missing_processors: (bool) Determines if `validation_row_processor` and `output_row_processor`
             should be inferred if missing. Defaults to True. If `labels` are provided, we will attempt to infer classification-type
             processors where appropriate.
         log_evaluation_frequency: (int) Determines the frequency which evaluation results will be logged. Default 0 (only at the end of training).
@@ -333,7 +354,6 @@ class WandbCallback(keras.callbacks.Callback):
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
-
         self.validation_data = None
         # This is kept around for legacy reasons
         if validation_data is not None:
