@@ -1,4 +1,4 @@
-id: 3.0.1
+id: 0.mp.1-sequential
 plugin:
   - wandb
 assert:

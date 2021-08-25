@@ -1,4 +1,4 @@
-id: 3.0.2
+id: 0.mp.2-pool
 plugin:
   - wandb
 parametrize:

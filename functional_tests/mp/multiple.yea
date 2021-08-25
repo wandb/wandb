@@ -1,15 +1,9 @@
-id: 0.mp.3-parentchild
+id: 0.mp.4-multiple
+tag:
+  # this test is broken because we dont support multiple concurrent runs an a thread/process
+  skip: true
 plugin:
   - wandb
-env:
-  - WANDB_CONSOLE: "off"
-parametrize:
-  permute:
-    - :yea:start_method:
-      # fork mode not working right now, disable temporarily
-      # - fork
-      - spawn
-      - forkserver
 assert:
   - :wandb:runs_len: 2
   - :wandb:runs[0][config]: {id: parent}
