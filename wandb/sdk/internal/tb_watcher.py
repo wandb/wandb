@@ -19,6 +19,7 @@ from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
 
+
 if TYPE_CHECKING:
     from ..interface.interface import BackendSender
     from .settings_static import SettingsStatic
@@ -217,7 +218,6 @@ class TBDirWatcher(object):
         if self._force:
             return True
         path = self.tf_compat.tf.compat.as_str_any(path)
-
         return is_tfevents_file_created_by(
             path, self._hostname, self._tbwatcher._settings._start_time
         )
