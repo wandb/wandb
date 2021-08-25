@@ -4,6 +4,7 @@ from functools import wraps
 from pathlib import Path
 
 import wandb
+from wandb.sdk.lib import telemetry as wb_telemetry
 from fastcore.all import typedispatch
 
 from metaflow import current
@@ -237,6 +238,8 @@ def wandb_log(
             settings.run_job_type = coalesce(settings.run_job_type, current.step_name)
 
             with wandb.init(settings=settings) as run:
+                with wb_telemetry.context(run=run) as tel:
+                    tel.feature.metaflow = True
                 proxy = ArtifactProxy(self)
                 run.config.update(proxy.params)
                 func(proxy, *args, **kwargs)
