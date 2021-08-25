@@ -585,6 +585,7 @@ class HandleManager(object):
     def handle_tbrecord(self, record: Record) -> None:
         logger.info("handling tbrecord: %s", record)
         if self._tb_watcher:
+            logger.info("Successfully entered block tbrecord: %s", record)
             tbrecord = record.tbrecord
             self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)

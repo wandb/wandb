@@ -38,6 +38,11 @@ REMOTE_FILE_TOKEN = "://"
 logger = logging.getLogger(__name__)
 
 
+def debug_log(text):
+    logger.info(text)
+    print(text)
+
+
 def _link_and_save_file(
     path: str, base_path: str, interface: "BackendSender", settings: "SettingsStatic"
 ) -> None:
@@ -145,23 +150,33 @@ class TBWatcher(object):
         return namespace
 
     def add(self, logdir: str, save: bool, root_dir: str) -> None:
+        debug_log("tb_watcher.add - a: {} {} {}".format(logdir, save, root_dir))
         logdir = util.to_forward_slash_path(logdir)
+        debug_log("tb_watcher.add - b: {} {} {}".format(logdir, save, root_dir))
         root_dir = util.to_forward_slash_path(root_dir)
         if logdir in self._logdirs:
+            debug_log("tb_watcher.add - c: {} {} {}".format(logdir, save, root_dir))
             return
+        debug_log("tb_watcher.add - d: {} {} {}".format(logdir, save, root_dir))
         namespace = self._calculate_namespace(logdir, root_dir)
+        debug_log("tb_watcher.add - e: {} {} {} {}".format(logdir, save, root_dir, namespace))
         # TODO(jhr): implement the deferred tbdirwatcher to find namespace
 
         if not self._consumer:
+            debug_log("tb_watcher.add - f: {} {} {} {}".format(logdir, save, root_dir, namespace))
             self._consumer = TBEventConsumer(
                 self, self._watcher_queue, self._run_proto, self._settings
             )
+            debug_log("tb_watcher.add - g: {} {} {} {}".format(logdir, save, root_dir, namespace))
             self._consumer.start()
 
+        debug_log("tb_watcher.add - h: {} {} {} {}".format(logdir, save, root_dir, namespace))
         tbdir_watcher = TBDirWatcher(
             self, logdir, save, namespace, self._watcher_queue, self._force
         )
+        debug_log("tb_watcher.add - i: {} {} {} {}".format(logdir, save, root_dir, namespace))
         self._logdirs[logdir] = tbdir_watcher
+        debug_log("tb_watcher.add - j: {} {} {} {}".format(logdir, save, root_dir, namespace))
         tbdir_watcher.start()
 
     def finish(self) -> None:
@@ -285,13 +300,17 @@ class TBDirWatcher(object):
 
     def process_event(self, event: "ProtoEvent") -> None:
         # print("\nEVENT:::", self._logdir, self._namespace, event, "\n")
+        debug_log("tb_watcher.process_event - a: {} {} {}".format(self._logdir, self._namespace, event))
         if self._first_event_timestamp is None:
+            debug_log("tb_watcher.process_event - b: {} {} {}".format(self._logdir, self._namespace, event))
             self._first_event_timestamp = event.wall_time
 
         if event.HasField("file_version"):
+            debug_log("tb_watcher.process_event - c: {} {} {}".format(self._logdir, self._namespace, event))
             self._file_version = event.file_version
 
         if event.HasField("summary"):
+            debug_log("tb_watcher.process_event - d: {} {} {}".format(self._logdir, self._namespace, event))
             self._queue.put(Event(event, self._namespace))
 
     def shutdown(self) -> None:
@@ -394,6 +413,7 @@ class TBEventConsumer(object):
             self._save_row(item)
 
     def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
+        debug_log("tb_watcher._handle_event - a: {} {}".format(history, event))
         wandb.tensorboard.log(
             event.event,
             step=event.event.step,
