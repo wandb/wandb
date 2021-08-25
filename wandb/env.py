@@ -171,10 +171,10 @@ def get_ignore(default=None, env=None):
     if env is None:
         env = os.environ
 
-    if env.get(IGNORE, default):
-        return env.get(IGNORE, default).split(",")
+    if env.get(IGNORE):
+        return env.get(IGNORE).split(",")
     else:
-        return []
+        return default
 
 
 def get_project(default=None, env=None):
