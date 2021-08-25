@@ -1,3 +1,14 @@
+"""W&B Integration for Metaflow.
+
+This integration lets users apply decorators to Metaflow flows and steps to automatically log parameters and artifacts to W&B by type dispatch.
+
+- Decorating a step will enable or disable logging for certain types within that step
+- Decorating the flow is equivalent to decorating all steps with a default
+- Decorating a step after decorating the flow will overwrite the flow decoration
+
+Examples can be found at wandb/client/functional_tests/metaflow
+"""
+
 import inspect
 import pickle
 from functools import wraps
@@ -5,9 +16,21 @@ from pathlib import Path
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
-from fastcore.all import typedispatch
 
-from metaflow import current
+try:
+    from metaflow import current
+except ImportError as e:
+    raise Exception(
+        "Error: `metaflow` not installed >> This integration requires metaflow!  To fix, please `pip install -Uqq metaflow`"
+    ) from e
+
+try:
+    from fastcore.all import typedispatch
+except ImportError as e:
+    raise Exception(
+        "Error: `fastcore` not installed >> This integration requires fastcore!  To fix, please `pip install -Uqq fastcore`"
+    ) from e
+
 
 try:
     import pandas as pd
@@ -212,6 +235,21 @@ def wandb_log(
     others=False,
     settings=None,
 ):
+    """Automatically log parameters and artifacts to W&B by type dispatch.
+
+    This decorator can be applied to a flow, step, or both.
+    - Decorating a step will enable or disable logging for certain types within that step
+    - Decorating the flow is equivalent to decorating all steps with a default
+    - Decorating a step after decorating the flow will overwrite the flow decoration
+
+    Arguments:
+        func: (`Callable`). The method or class being decorated (if decorating a step or flow respectively).
+        datasets: (`bool`). If `True`, log datasets.  Datasets can be a `pd.DataFrame` or `pathlib.Path`.  The default value is `False`, so datasets are not logged.
+        models: (`bool`). If `True`, log models.  Models can be a `nn.Module` or `sklearn.base.BaseEstimator`.  The default value is `False`, so models are not logged.
+        others: (`bool`). If `True`, log anything pickle-able.  The default value is `False`, so files are not logged.
+        settings: (`wandb.sdk.wandb_settings.Settings`). Custom settings passed to `wandb.init`.  The default value is `None`, and is the same as passing `wandb.Settings()`.  If `settings.run_group` is `None`, it will be set to `{flow_name}/{run_id}.  If `settings.run_job_type` is `None`, it will be set to `{run_job_type}/{step_name}`
+    """
+
     @wraps(func)
     def decorator(func):
         # If you decorate a class, apply the decoration to all methods in that class
