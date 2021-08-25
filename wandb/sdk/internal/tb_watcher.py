@@ -70,33 +70,43 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     tensorflow tfevents fielname format:
         https://github.com/tensorflow/tensorflow/blob/8f597046dc30c14b5413813d02c0e0aed399c177/tensorflow/core/util/events_writer.cc#L68
     """
+    debug_log("is_tfevents_file_created_by - a: {} {} {}".format(path, hostname, start_time))
     if not path:
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
+    debug_log("is_tfevents_file_created_by - b: {} {} {} {}".format(path, hostname, start_time, basename))
     if basename.endswith(".profile-empty"):
         return False
     fname_components = basename.split(".")
+    debug_log("is_tfevents_file_created_by - c: {} {} {} {} {}".format(path, hostname, start_time, basename, fname_components))
     try:
         tfevents_idx = fname_components.index("tfevents")
     except ValueError:
         return False
     # check the hostname, which may have dots
+    debug_log("is_tfevents_file_created_by - d: {} {} {} {}".format(path, hostname, start_time, tfevents_idx))
     for i, part in enumerate(hostname.split(".")):
         try:
+            debug_log("is_tfevents_file_created_by - e: {} {} {}".format(fname_components, tfevents_idx, i))
             fname_component_part = fname_components[tfevents_idx + 2 + i]
         except IndexError:
+            debug_log("is_tfevents_file_created_by - f: {} {} {}".format(fname_components, tfevents_idx, i))
             return False
+        debug_log("is_tfevents_file_created_by - g: {}".format(fname_component_part))
         if part != fname_component_part:
+            debug_log("is_tfevents_file_created_by - h: {} {} {}".format(fname_component_part))
             return False
     try:
         created_time = int(fname_components[tfevents_idx + 1])
     except (ValueError, IndexError):
+        debug_log("is_tfevents_file_created_by - i: {} {}".format(fname_components, tfevents_idx))
         return False
     # Ensure that the file is newer then our start time, and that it was
     # created from the same hostname.
     # TODO: we should also check the PID (also contained in the tfevents
     #     filename). Can we assume that our parent pid is the user process
     #     that wrote these files?
+    debug_log("is_tfevents_file_created_by - k: {} {}".format(created_time, int(start_time), created_time >= int(start_time)))
     return created_time >= int(start_time)  # noqa: W503
 
 
@@ -227,15 +237,20 @@ class TBDirWatcher(object):
         self._thread.start()
 
     def _is_our_tfevents_file(self, path: str) -> bool:
+        debug_log("_is_our_tfevents_file - a: {}".format(path))
         """Checks if a path has been modified since launch and contains tfevents"""
         if not path:
             raise ValueError("Path must be a nonempty string")
         if self._force:
+            debug_log("_is_our_tfevents_file - b: {}".format(path))
             return True
         path = self.tf_compat.tf.compat.as_str_any(path)
-        return is_tfevents_file_created_by(
+
+        res = is_tfevents_file_created_by(
             path, self._hostname, self._tbwatcher._settings._start_time
         )
+        debug_log("_is_our_tfevents_file - c: {} {} {} {}".format(path, self._hostname, self._tbwatcher._settings._start_time, res))
+        return res
 
     def _loader(self, save: bool = True, namespace: str = None) -> "EventFileLoader":
         """Incredibly hacky class generator to optionally save / prefix tfevent files"""
