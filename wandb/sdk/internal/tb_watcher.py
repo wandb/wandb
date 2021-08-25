@@ -421,19 +421,23 @@ class TBEventConsumer(object):
         while True:
             try:
                 event = self._queue.get(True, 1)
+                debug_log("tb_consumer._thread_body - found_event")
                 # Wait self._delay seconds from consumer start before logging events
                 if (
                     time.time() < self._start_time + self._delay
                     and not self._shutdown.is_set()
                 ):
+                    debug_log("tb_consumer._thread_body - delaying")
                     self._queue.put(event)
                     time.sleep(0.1)
                     continue
             except queue.Empty:
+                debug_log("tb_consumer._thread_body - empty queue")
                 event = None
                 if self._shutdown.is_set():
                     break
             if event:
+                debug_log("tb_consumer._thread_body - handling")
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:

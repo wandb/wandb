@@ -267,15 +267,15 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
 
     # Commit our existing data if this namespace increased its step
     commit = False
-    logger.info("tensorboard.log - b: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, last_step["step"]))
+    # logger.info("tensorboard.log - b: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, last_step["step"]))
     if last_step["step"] < step:
-        logger.info("tensorboard.log - c: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, last_step["step"]))
+        # logger.info("tensorboard.log - c: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, last_step["step"]))
         commit = True
 
     log_dict = tf_summary_to_dict(tf_summary_str_or_pb, namespace)
-    logger.info("tensorboard.log - d: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, log_dict))
+    # logger.info("tensorboard.log - d: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, log_dict))
     if log_dict is None:
-        logger.info("tensorboard.log - e: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, log_dict))
+        # logger.info("tensorboard.log - e: {} {} {} {} {}".format("tf_summary_str_or_pb", history, step, namespace, log_dict))
         # not an event, just return
         return
 
@@ -285,34 +285,35 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     if STEPS["global"]["last_log"] is None:
         STEPS["global"]["last_log"] = timestamp
     # Rollup events that share the same step across namespaces
-    logger.info("tensorboard.log - f: {} {} {}".format(commit, step, STEPS["global"]["step"]))
+    # logger.info("tensorboard.log - f: {} {} {}".format(commit, step, STEPS["global"]["step"]))
     if commit and step == STEPS["global"]["step"]:
-        logger.info("tensorboard.log - g: {} {} {}".format(commit, step, STEPS["global"]["step"]))
+        # logger.info("tensorboard.log - g: {} {} {}".format(commit, step, STEPS["global"]["step"]))
         commit = False
     # Always add the biggest global_step key for non-default namespaces
-    logger.info("tensorboard.log - h: {} {}".format(step, STEPS["global"]["step"]))
+    # logger.info("tensorboard.log - h: {} {}".format(step, STEPS["global"]["step"]))
     if step > STEPS["global"]["step"]:
-        logger.info("tensorboard.log - i: {} {}".format(step, STEPS["global"]["step"]))
+        # logger.info("tensorboard.log - i: {} {}".format(step, STEPS["global"]["step"]))
         STEPS["global"]["step"] = step
-    logger.info("tensorboard.log - j: {}".format(namespace))
+    # logger.info("tensorboard.log - j: {}".format(namespace))
     if namespace != "":
-        logger.info("tensorboard.log - k: {}".format(namespace))
+        # logger.info("tensorboard.log - k: {}".format(namespace))
         log_dict["global_step"] = STEPS["global"]["step"]
 
     # Keep internal step counter
     STEPS[namespace] = {"step": step}
 
-    logger.info("tensorboard.log - l: {}".format(commit))
+    # logger.info("tensorboard.log - l: {}".format(commit))
     if commit:
         # Only commit our data if we're below the rate limit or don't have one
-        logger.info("tensorboard.log - m: {} {} {} {} {}".format(RATE_LIMIT_SECONDS, timestamp, STEPS["global"]["last_log"], RATE_LIMIT_SECONDS, timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS))
+        # logger.info("tensorboard.log - m: {} {} {} {} {}".format(RATE_LIMIT_SECONDS, timestamp, STEPS["global"]["last_log"], RATE_LIMIT_SECONDS, timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS))
         if (
             RATE_LIMIT_SECONDS is None
             or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS
         ):
-            logger.info("tensorboard.log - n: {}".format(kwargs))
+            logger.info("tensorboard.log - adding")
             history.add({}, **kwargs)
-        logger.info("tensorboard.log - o: {}".format(timestamp))
+        # logger.info("tensorboard.log - o: {}".format(timestamp))
         STEPS["global"]["last_log"] = timestamp
-    logger.info("tensorboard.log - p: {}".format(log_dict))
+    # logger.info("tensorboard.log - p: {}".format(log_dict))
+    logger.info("tensorboard.log - updating")
     history._row_update(log_dict)
