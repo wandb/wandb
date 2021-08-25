@@ -76,6 +76,8 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
     debug_log("is_tfevents_file_created_by - b: {} {} {} {}".format(path, hostname, start_time, basename))
+    if path.endswith(".sagemaker-uploaded"):
+        return False
     if basename.endswith(".profile-empty"):
         return False
     fname_components = basename.split(".")
