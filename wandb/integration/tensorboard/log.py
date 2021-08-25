@@ -290,9 +290,9 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
         logger.info("tensorboard.log - g: {} {} {}".format(commit, step, STEPS["global"]["step"]))
         commit = False
     # Always add the biggest global_step key for non-default namespaces
-    logger.info("tensorboard.log - h: {} {} {}".format(step, STEPS["global"]["step"]))
+    logger.info("tensorboard.log - h: {} {}".format(step, STEPS["global"]["step"]))
     if step > STEPS["global"]["step"]:
-        logger.info("tensorboard.log - i: {} {} {}".format(step, STEPS["global"]["step"]))
+        logger.info("tensorboard.log - i: {} {}".format(step, STEPS["global"]["step"]))
         STEPS["global"]["step"] = step
     logger.info("tensorboard.log - j: {}".format(namespace))
     if namespace != "":
