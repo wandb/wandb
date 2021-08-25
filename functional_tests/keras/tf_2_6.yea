@@ -6,7 +6,7 @@ command:
 depend:
     requirements:
         - pillow
-        - tensorflow==2.6.0
+        - tensorflow>=2.6.0
 assert:
     - :wandb:runs_len: 1
     - :op:contains:
