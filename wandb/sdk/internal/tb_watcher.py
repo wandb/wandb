@@ -322,13 +322,17 @@ class TBDirWatcher(object):
         """Check for new events every second"""
         shutdown_time: "Optional[float]" = None
         while True:
-            self._process_events()
-            if self._shutdown.is_set():
-                now = time.time()
-                if not shutdown_time:
-                    shutdown_time = now + SHUTDOWN_DELAY
-                elif now > shutdown_time:
-                    break
+            debug_log("tb_watcher._thread_body()")
+            try:
+                self._process_events()
+                if self._shutdown.is_set():
+                    now = time.time()
+                    if not shutdown_time:
+                        shutdown_time = now + SHUTDOWN_DELAY
+                    elif now > shutdown_time:
+                        break
+            except Exception as e:
+                debug_log("Error in tensorboard watcher thread: {}".format(e))
             time.sleep(1)
 
     def process_event(self, event: "ProtoEvent") -> None:
