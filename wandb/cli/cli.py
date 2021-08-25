@@ -980,7 +980,7 @@ def launch(
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning"
+        "W&B launch is in an experimental state and usage APIs may change without warning. See wandb.me/wandb-launch."
     )
     api = _get_cling_api()
 
@@ -1059,7 +1059,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning"
+        "W&B launch is in an experimental state and usage APIs may change without warning. See wandb.me/wandb-launch"
     )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
