@@ -31,7 +31,7 @@ class _Requires(object):
 
     def require_launch(self) -> None:
         wandb.termwarn(
-            "W&B launch is in an early experimental state, and can change with minimal notice. See wandb.me/wandb-launch"
+            "W&B launch is in an early experimental state, and can change with minimal notice. See wandb.me/launch"
         )
 
     def apply(self) -> None:
