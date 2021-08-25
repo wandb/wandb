@@ -1,14 +1,13 @@
 id: 0.keras.tf115
+tag:
+    shard: tf115
 plugin:
     - wandb
 command:
     program: test_keras.py
 depend:
-    uninstall:
-        - tensorflow
-        - keras
-        - keras-nightly
     requirements:
+        - pillow
         - tensorflow==1.15.0
 assert:
     - :wandb:runs_len: 1
