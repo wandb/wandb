@@ -430,6 +430,8 @@ class Run(object):
             imp.transformers_huggingface = True
         if mods.get("jax"):
             imp.jax = True
+        if mods.get("metaflow"):
+            imp.metaflow = True
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
