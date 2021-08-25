@@ -43,6 +43,12 @@ class RequireError(Error):
     pass
 
 
+class InputTimeoutError(Error):
+    """Raised when user input times out"""
+
+    pass
+
+
 class ExecutionError(Error):
     """Generic execution exception"""
 
@@ -62,6 +68,7 @@ __all__ = [
     "LogError",
     "LogMultiprocessError",
     "RequireError",
+    "InputTimeoutError",
     "ExecutionError",
     "LaunchError",
 ]

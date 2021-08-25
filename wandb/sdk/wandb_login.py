@@ -36,7 +36,7 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
-def login(anonymous=None, key=None, relogin=None, host=None, force=None):
+def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout=None):
     """
     Log in to W&B.
 
@@ -48,6 +48,8 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None):
         key: (string, optional) authentication key.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
+        timeout: (float, optional) Set timeout period. Wait `timeout` seconds
+            for user response then defaults to dryrun mode if no response.
 
     Returns:
         bool: if key is configured
@@ -191,6 +193,7 @@ def _login(
     _backend=None,
     _silent=None,
     _disable_warning=None,
+    timeout=None,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)
@@ -212,7 +215,6 @@ def _login(
 
     # configure login object
     wlogin.setup(kwargs)
-
     if wlogin._settings._offline:
         return False
     elif wandb.util._is_kaggle() and not wandb.util._has_internet():

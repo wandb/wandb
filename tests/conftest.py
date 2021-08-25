@@ -244,8 +244,12 @@ def mocked_run(runner, test_settings):
 def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
-    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
-    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(
+        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
+    )
+    monkeypatch.setattr(
+        wandb.wandb_lib.apikey, "prompt_choices", lambda x, input_timeout=None: x[0]
+    )
     monkeypatch.setattr(click, "launch", lambda x: 1)
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)

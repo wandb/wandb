@@ -45,8 +45,10 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled
 
 import wandb
-from wandb.errors import CommError, term
+from wandb.errors import CommError, term, InputTimeoutError
 from wandb.old.core import wandb_dir
+from wandb.sdk.lib.stdin_timeout import stdin_timeout, TIMEOUT_CODE
+
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -1053,16 +1055,39 @@ def _prompt_choice():
         return -1
 
 
-def prompt_choices(choices, allow_manual=False):
+def _prompt_choice_with_timeout(input_timeout=None):
+    timeout_log = (
+        "Input timeout occured! run `wandb login` to enable logging runs to W&B"
+    )
+    try:
+        choice = stdin_timeout(
+            prompt="%s: Enter your choice: " % term.LOG_STRING,
+            timeout=input_timeout,
+            timeout_log=timeout_log,
+        )
+        return int(choice) - 1
+    except ValueError:
+        return -1
+    except InputTimeoutError as timeoutError:
+        wandb.termlog(timeoutError.message)
+        return TIMEOUT_CODE
+
+
+def prompt_choices(choices, allow_manual=False, input_timeout=None):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
-
-    idx = -1
+    idx = (
+        _prompt_choice_with_timeout(input_timeout)
+        if input_timeout
+        else _prompt_choice()
+    )
     while idx < 0 or idx > len(choices) - 1:
-        idx = _prompt_choice()
+        if idx == TIMEOUT_CODE:
+            return len(choices) - 1  # LOGIN_CHOICE_DRYRUN
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
+        idx = _prompt_choice()
     result = choices[idx]
     wandb.termlog("You chose '%s'" % result)
     return result
