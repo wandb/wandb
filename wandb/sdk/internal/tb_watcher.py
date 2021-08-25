@@ -226,7 +226,7 @@ class TBDirWatcher(object):
         self._generator = self.directory_watcher.DirectoryWatcher(
             logdir, self._loader(save, namespace), self._is_our_tfevents_file
         )
-        self._thread = threading.Thread(target=self._thread_body)
+        self._thread = threading.Thread(target=self._thread_except_body)
         self._first_event_timestamp = None
         self._shutdown = threading.Event()
         self._queue = queue
@@ -289,15 +289,11 @@ class TBDirWatcher(object):
 
             def Load(self):
                 for event in super(EventFileLoader, self).Load():
-                    debug_log("EventFileLoader - a {}".format("event"))
                     event = data_compat.migrate_event(event)
-                    debug_log("EventFileLoader - b {}".format("event"))
                     events = dataclass_compat.migrate_event(
                         event, self._initial_metadata
                     )
-                    debug_log("EventFileLoader - c {}".format(events))
                     for event in events:
-                        debug_log("EventFileLoader - d {}".format("event"))
                         yield event
 
         return EventFileLoader
@@ -317,6 +313,14 @@ class TBDirWatcher(object):
             logger.debug("Encountered tensorboard directory watcher error: %s", e)
             if not self._shutdown.is_set() and not shutdown_call:
                 time.sleep(ERROR_DELAY)
+
+    def _thread_except_body(self):
+        try:
+            self._thread_body()
+        except Exception as e:
+            logger.exception("generic exception in TBDirWatcher thread")
+            raise e
+
 
     def _thread_body(self) -> None:
         """Check for new events every second"""
@@ -390,7 +394,7 @@ class TBEventConsumer(object):
     ) -> None:
         self._tbwatcher = tbwatcher
         self._queue = queue
-        self._thread = threading.Thread(target=self._thread_body)
+        self._thread = threading.Thread(target=self._thread_except_body)
         self._shutdown = threading.Event()
         self.tb_history = TBHistory()
         self._delay = delay
@@ -421,6 +425,13 @@ class TBEventConsumer(object):
             for item in items:
                 self._save_row(item,)
         self._thread.join()
+
+    def _thread_except_body(self):
+        try:
+            self._thread_body()
+        except Exception as e:
+            logger.exception("generic exception in TBEventConsumer thread")
+            raise e
 
     def _thread_body(self) -> None:
         while True:
