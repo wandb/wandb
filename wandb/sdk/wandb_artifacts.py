@@ -91,6 +91,7 @@ class Artifact(ArtifactInterface):
         type: (str) The type of the artifact, which is used to organize and differentiate
             artifacts. Common types include `dataset` or `model`, but you can use any string
             containing letters, numbers, underscores, hyphens, and dots.
+        aliases: (list, optional) The list of aliases to associate with this artifact.
         description: (str, optional) Free text that offers a description of the artifact. The
             description is markdown rendered in the UI, so this is a good place to place tables,
             links, etc.
@@ -119,6 +120,7 @@ class Artifact(ArtifactInterface):
     _added_local_paths: Dict[str, ArtifactEntry]
     _distributed_id: Optional[str]
     _metadata: dict
+    _aliases: list
     _logged_artifact: Optional[ArtifactInterface]
     _incremental: bool
     _client_id: str
@@ -128,6 +130,7 @@ class Artifact(ArtifactInterface):
         name: str,
         type: str,
         description: Optional[str] = None,
+        aliases: Optional[list] = None,
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
     ) -> None:
@@ -164,6 +167,7 @@ class Artifact(ArtifactInterface):
         self._name = name
         self._description = description
         self._metadata = metadata or {}
+        self._aliases = aliases or []
         self._distributed_id = None
         self._logged_artifact = None
         self._incremental = False
@@ -247,7 +251,6 @@ class Artifact(ArtifactInterface):
     def size(self) -> int:
         if self._logged_artifact:
             return self._logged_artifact.size
-        sizes: List[int]
         sizes = []
         for entry in self._manifest.entries:
             e_size = self._manifest.entries[entry].size
@@ -299,9 +302,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.aliases
 
-        raise ValueError(
-            "Cannot call aliases on an artifact before it has been logged or in offline mode"
-        )
+        return self._aliases
 
     @aliases.setter
     def aliases(self, aliases: List[str]) -> None:
@@ -313,9 +314,7 @@ class Artifact(ArtifactInterface):
             self._logged_artifact.aliases = aliases
             return
 
-        raise ValueError(
-            "Cannot set aliases on an artifact before it has been logged or in offline mode"
-        )
+        self._aliases = aliases
 
     @property
     def distributed_id(self) -> Optional[str]:

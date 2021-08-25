@@ -2263,7 +2263,7 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
-        artifact, aliases = self._prepare_artifact(
+        artifact = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
         artifact.distributed_id = distributed_id
@@ -2273,7 +2273,6 @@ class Run(object):
                 future = self._backend.interface.communicate_artifact(
                     self,
                     artifact,
-                    aliases,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -2327,8 +2326,8 @@ class Run(object):
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-    ) -> Tuple[wandb_artifacts.Artifact, List[str]]:
-        aliases = aliases or ["latest"]
+    ) -> wandb_artifacts.Artifact:
+        aliases = aliases or []
         if isinstance(artifact_or_path, str):
             if name is None:
                 name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
@@ -2353,8 +2352,10 @@ class Run(object):
             )
         if isinstance(aliases, str):
             aliases = [aliases]
+
+        artifact.aliases = [alias for alias in set(artifact.aliases + aliases + ['latest'])]
         artifact.finalize()
-        return artifact, aliases
+        return artifact
 
     def alert(
         self,
