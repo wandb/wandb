@@ -1030,17 +1030,21 @@ class SendManager(object):
 
         latest_local_version = "latest"
 
-        # Assuming the query is succesful if the result is empty it indicates that
-        # the backend is out of date since it doesn't have the desired field
-        server_info = self.get_server_info()
-        latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
-        if latest_local_version_info is None:
-            local_info.out_of_date = False
+        if len(self._api.server_info_introspection()) == 0:
+            local_info.out_of_date = True
+            local_info.version = latest_local_version
         else:
-            local_info.out_of_date = latest_local_version_info.get("outOfDate", True)
-            local_info.version = latest_local_version_info.get(
-                "latestVersionString", latest_local_version
-            )
+            server_info = self.get_server_info()
+            latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
+            if latest_local_version_info is None:
+                local_info.out_of_date = False
+            else:
+                local_info.out_of_date = latest_local_version_info.get(
+                    "outOfDate", False
+                )
+                local_info.version = latest_local_version_info.get(
+                    "latestVersionString", latest_local_version
+                )
         return local_info
 
     def __next__(self):
