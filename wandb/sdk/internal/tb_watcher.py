@@ -18,7 +18,8 @@ from wandb import util
 from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
-
+from tensorboard import data_compat
+from tensorboard import dataclass_compat
 
 if TYPE_CHECKING:
     from ..interface.interface import BackendSender
@@ -261,9 +262,10 @@ class TBDirWatcher(object):
         except ImportError:
             raise Exception("Please install tensorboard package")
 
-        class EventFileLoader(event_file_loader.EventFileLoader):
+        class EventFileLoader(event_file_loader.LegacyEventFileLoader):
             def __init__(self, file_path: str) -> None:
                 super(EventFileLoader, self).__init__(file_path)
+                self._initial_metadata = {}
                 if save:
                     if REMOTE_FILE_TOKEN in file_path:
                         logger.warning(
@@ -283,11 +285,25 @@ class TBDirWatcher(object):
                             settings=_loader_settings,
                         )
 
+            def Load(self):
+                for event in super(EventFileLoader, self).Load():
+                    debug_log("EventFileLoader - a {}".format(event))
+                    event = data_compat.migrate_event(event)
+                    debug_log("EventFileLoader - b {}".format(event))
+                    events = dataclass_compat.migrate_event(
+                        event, self._initial_metadata
+                    )
+                    debug_log("EventFileLoader - c {}".format(events))
+                    for event in events:
+                        debug_log("EventFileLoader - d {}".format(event))
+                        yield event
+
         return EventFileLoader
 
     def _process_events(self, shutdown_call: bool = False) -> None:
         try:
             for event in self._generator.Load():
+                debug_log("_process_events.LOAD(), {}".format(event))
                 self.process_event(event)
         except (
             self.directory_watcher.DirectoryDeletedError,
