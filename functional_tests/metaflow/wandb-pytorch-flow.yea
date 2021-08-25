@@ -1,0 +1,30 @@
+id: metaflow.pytorch.base
+plugin:
+  - wandb
+command:
+    args:
+        - --no-pylint
+        - run
+assert:
+    - :wandb:runs_len: 5
+    - :wandb:runs[0][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
+    - :wandb:runs[1][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
+    - :wandb:runs[2][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
+    - :wandb:runs[3][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
+    - :wandb:runs[4][config]: {"batch_size": 64, "test_batch_size": 1000, "epochs": 1, "lr": 1.0, "gamma": 0.7, "no_cuda": False, "dry_run": False, "seed": 1, "log_interval": 10, "save_model": False}
+    - :wandb:runs[0][summary]: {"test_kwargs": {"batch_size": 1000}, "train_kwargs": {"batch_size": 64}, "use_cuda": False}
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[1][exitcode]: 0
+    - :wandb:runs[2][exitcode]: 0
+    - :wandb:runs[3][exitcode]: 0
+    - :wandb:runs[4][exitcode]: 0
+    - :op:contains: [":wandb:runs[0][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[1][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[2][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[3][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[4][telemetry][1]", 13]  # imports metaflow
+    - :op:contains: [":wandb:runs[0][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[1][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[2][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[3][telemetry][3]", 11]  # feature metaflow
+    - :op:contains: [":wandb:runs[4][telemetry][3]", 11]  # feature metaflow
