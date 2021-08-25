@@ -8,3 +8,4 @@ filename =
     ./wandb/sdk/wandb_init.py
     ./wandb/sdk/launch/*
     ./wandb/integration/metaflow/metaflow.py
+    
