@@ -332,9 +332,7 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog(
-            "Which team should we use?",
-        )
+        wandb.termlog("Which team should we use?",)
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -865,9 +863,9 @@ def _check_launch_imports():
 
 
 @cli.command(
-    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
-    "or a git uri pointing to a remote repository, or path to a local directory."
+    "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri")
 @click.option(
@@ -1051,7 +1049,7 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
 @click.argument("project", nargs=1)
 @click.option(
@@ -1471,9 +1469,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(
-            path=artifact_path,
-        ),
+        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
         prefix=False,
     )
 

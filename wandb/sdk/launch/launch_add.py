@@ -29,6 +29,7 @@ def launch_add(
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
 ) -> "public.QueuedJob":
+    wandb.require("launch@1.0")
     api = Api()
     return _launch_add(
         api,
