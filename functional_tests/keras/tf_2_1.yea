@@ -1,14 +1,13 @@
 id: 0.keras.tf21
+tag:
+    shard: tf21
 plugin:
     - wandb
 command:
     program: test_keras.py
 depend:
-    uninstall:
-        - tensorflow
-        - keras
-        - keras-nightly
     requirements:
+        - pillow
         - tensorflow==2.1.0
 assert:
     - :wandb:runs_len: 1
