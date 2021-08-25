@@ -980,7 +980,7 @@ def launch(
     from wandb.sdk.launch import launch as wandb_launch
 
     wandb.termlog(
-        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch."
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
     )
     api = _get_cling_api()
 
