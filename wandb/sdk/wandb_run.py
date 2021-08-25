@@ -2263,9 +2263,7 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
-        artifact = self._prepare_artifact(
-            artifact_or_path, name, type, aliases
-        )
+        artifact = self._prepare_artifact(artifact_or_path, name, type, aliases)
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
@@ -2353,7 +2351,9 @@ class Run(object):
         if isinstance(aliases, str):
             aliases = [aliases]
 
-        artifact.aliases = [alias for alias in set(artifact.aliases + aliases + ['latest'])]
+        artifact.aliases = [
+            alias for alias in set(artifact.aliases + aliases + ["latest"])
+        ]
         artifact.finalize()
         return artifact
 
