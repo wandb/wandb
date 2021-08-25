@@ -4,6 +4,10 @@ plugin:
 command:
     program: test_keras.py
 depend:
+    uninstall:
+        - tensorflow
+        - keras
+        - keras-nightly
     requirements:
         - tensorflow==2.5.0
 assert:

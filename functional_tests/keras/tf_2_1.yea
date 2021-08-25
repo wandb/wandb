@@ -1,4 +1,4 @@
-id: 0.keras.tf115
+id: 0.keras.tf21
 plugin:
     - wandb
 command:
@@ -9,10 +9,13 @@ depend:
         - keras
         - keras-nightly
     requirements:
-        - tensorflow==1.15.0
+        - tensorflow==2.1.0
 assert:
     - :wandb:runs_len: 1
     - :op:contains:
-      - :wandb:runs[0][summary]
-      - examples
+        - :wandb:runs[0][summary]
+        - examples
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 8  # keras
     - :wandb:runs[0][exitcode]: 0
