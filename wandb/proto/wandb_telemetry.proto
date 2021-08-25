@@ -45,6 +45,7 @@ message Feature {
   bool sagemaker = 9; // User is using sagemaker
   bool artifact_incremental = 10; // Artifact(incremental=True) used
   bool metaflow = 11; // Using metaflow integration
+  bool prodigy = 12; // Using prodigy integration
 }
 
 message Env {
