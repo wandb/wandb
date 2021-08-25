@@ -532,26 +532,36 @@ def create_app(user_ctx=None):
                 }
             }
 
-            if ctx["local_none"]:
+            if ctx["empty_query"]:
+                server_info["serverInfo"].pop("latestLocalVersionInfo")
+            elif ctx["local_none"]:
                 server_info["serverInfo"]["latestLocalVersionInfo"] = None
 
             viewer_dict["data"].update(server_info)
 
             return json.dumps(viewer_dict)
 
-        if '__type(name: "LocalVersionInfo"' in body["query"]:
+        if "query ProbeServerCapabilities" in body["query"]:
             if ctx["empty_query"]:
-                return json.dumps({"data": {}})
+                return json.dumps(
+                    {
+                        "data": {
+                            "QueryType": {"fields": [{"name": "serverInfo"},]},
+                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
+                        }
+                    }
+                )
 
             return json.dumps(
                 {
                     "data": {
-                        "__type": {
+                        "QueryType": {"fields": [{"name": "serverInfo"},]},
+                        "ServerInfoType": {
                             "fields": [
-                                {"name": "outOfDate"},
-                                {"name": "latestVersionString"},
+                                {"name": "cliVersionInfo"},
+                                {"name": "latestLocalVersionInfo"},
                             ]
-                        }
+                        },
                     }
                 }
             )

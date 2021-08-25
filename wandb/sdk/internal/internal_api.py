@@ -282,19 +282,34 @@ class Api(object):
     def server_info_introspection(self):
 
         query_string = """
-            {
-                __type(name: "LocalVersionInfo") {
-                        fields {
-                        name
-                    }
+           query ProbeServerCapabilities {
+               QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+               ServerInfoType: __type(name: "ServerInfo") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
                 }
             }
         """
         query = gql(query_string)
 
         res = self.gql(query)
-        logger.info(res)
-        return res or {}
+
+        query_types = [
+            field.get("name", "")
+            for field in res.get("QueryType", {}).get("fields", [{}])
+        ]
+        server_info_types = [
+            field.get("name", "")
+            for field in res.get("ServerInfoType", {}).get("fields", [{}])
+        ]
+        return (query_types, server_info_types)
 
     @normalize_exceptions
     def viewer(self):
@@ -351,20 +366,28 @@ class Api(object):
             _CLI_QUERY_
         }
         """
+        query_types, server_info_types = self.server_info_introspection()
+
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+
+        local_version_exists = (
+            "serverInfo" in query_types
+            and "latestLocalVersionInfo" in server_info_types
+        )
+
+        cli_query_string = "" if not cli_version_exists else cli_query
+        local_query_string = "" if not local_version_exists else local_query
+
         queries = []
         queries.append(
             gql(
-                query_str.replace("_CLI_QUERY_", cli_query).replace(
-                    "_LOCAL_QUERY_", local_query
+                query_str.replace("_CLI_QUERY_", cli_query_string).replace(
+                    "_LOCAL_QUERY_", local_query_string
                 )
             )
         )
-        queries.append(
-            gql(
-                query_str.replace("_CLI_QUERY_", cli_query).replace("_LOCAL_QUERY_", "")
-            )
-        )
-        queries.append(gql(query_str.replace("_CLI_QUERY_", "")))
         for query in queries:
             try:
                 res = self.gql(query)
