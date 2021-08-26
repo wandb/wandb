@@ -5,13 +5,13 @@ meta.
 """
 
 from datetime import datetime
-from urllib.parse import unquote
 import json
 import logging
 import multiprocessing
 import os
 from shutil import copyfile
 import sys
+from urllib.parse import unquote
 
 from wandb import util
 from wandb.vendor.pynvml import pynvml
@@ -222,7 +222,8 @@ class Meta(object):
                     if "fileId=" in self._settings._jupyter_path:
                         unescaped = unquote(self._settings._jupyter_path)
                         self.data["colab"] = (
-                            "https://colab.research.google.com/notebook#" + unescaped # noqa
+                            "https://colab.research.google.com/notebook#"
+                            + unescaped  # noqa
                         )
                         self.data["program"] = self._settings._jupyter_name
                     else:
