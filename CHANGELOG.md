@@ -7,7 +7,6 @@
 - Fix `WANDB_IGNORE_GLOBS` environment variable handling
 - Fix handling when sys.stdout is configured to a custom logger
 - Fix sklearn feature importance plots not matching feature names properly
-- Fix an issue where colab urls were not being captured
 - Save program commandline if run executable was outside cwd
 
 #### :nail_care: Enhancement
