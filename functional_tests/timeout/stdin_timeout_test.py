@@ -2,8 +2,9 @@
 """Test stdin timeout
 
 ---
-id: 0.0.6
+id: 0.timeout.1
 """
+
 from wandb.errors import InputTimeoutError
 from wandb.sdk.lib.stdin_timeout import stdin_timeout, TIMEOUT_CODE
 from wandb.util import _prompt_choice_with_timeout
