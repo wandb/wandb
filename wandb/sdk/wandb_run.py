@@ -2327,7 +2327,7 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if isinstance(aliases, str):
             aliases = [aliases]
-        aliases = [alias for alias in aliases] or []
+        aliases = [alias for alias in aliases or []]
 
         if isinstance(artifact_or_path, str):
             if name is None:

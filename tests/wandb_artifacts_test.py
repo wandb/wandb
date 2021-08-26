@@ -117,6 +117,21 @@ def md5_string(string):
     return base64.b64encode(hash_md5.digest()).decode("ascii")
 
 
+def test_initialize_with_aliases(runner):
+    artifact = wandb.Artifact(
+        type="dataset", name="my-arty", aliases=["bongiorno", "arrivederci"]
+    )
+    assert artifact.aliases == ["bongiorno", "arrivederci"]
+
+
+def test_manipulate_aliases(runner):
+    artifact = wandb.Artifact(
+        type="dataset", name="my-arty", aliases=["bongiorno", "arrivederci"]
+    )
+    artifact.aliases = ["arrivederci"]
+    assert artifact.aliases == ["arrivederci"]
+
+
 def test_add_one_file(runner):
     with runner.isolated_filesystem():
         with open("file1.txt", "w") as f:

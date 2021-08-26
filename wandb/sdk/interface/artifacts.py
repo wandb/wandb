@@ -8,6 +8,7 @@ import random
 from typing import (
     Callable,
     Dict,
+    Iterable,
     List,
     Optional,
     Sequence,
@@ -516,6 +517,26 @@ class Artifact(object):
             ```
             artifact = wandb.use_artifact('my_table:latest')
             table = artifact.get("my_table")
+            ```
+        """
+        raise NotImplementedError
+
+    def items(self) -> Iterable[Tuple[str, ArtifactEntry]]:
+        """
+        Iterates through all the entries added to this artifact.
+
+        Raises:
+            Exception: if problem
+
+        Examples:
+            Basic usage
+            ```
+            with wandb.init() as r:
+                artifact = wandb.Artifact('my_dataset', type='dataset')
+                artifact.add_file('path/to/file.txt')
+                for path, entry in artifact.items():
+                    print(path)
+                    print(entry.digest)
             ```
         """
         raise NotImplementedError

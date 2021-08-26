@@ -10,6 +10,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    Iterable,
     Generator,
     IO,
     List,
@@ -527,6 +528,12 @@ class Artifact(ArtifactInterface):
                 os.remove(file_path)
 
         return entry
+
+    def items(self) -> Iterable[Tuple[str, ArtifactEntry]]:
+        if self._logged_artifact:
+            return self._logged_artifact.items()
+
+        return self.manifest.entries.items()
 
     def get_path(self, name: str) -> ArtifactEntry:
         if self._logged_artifact:
