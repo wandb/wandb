@@ -1849,8 +1849,10 @@ class Run(object):
             max_len = max([len(k) for k in self._final_summary.keys()])
             format_str = "  {:>%s} {}" % max_len
             summary_rows = []
-            for k, v in iteritems(self._final_summary):
+            for k, v in sorted(iteritems(self._final_summary)):
                 # arrays etc. might be too large. for now we just don't print them
+                if k.startswith("_"):
+                    continue
                 if isinstance(v, string_types):
                     if len(v) >= 20:
                         v = v[:20] + "..."
@@ -1859,6 +1861,8 @@ class Run(object):
                     if isinstance(v, float):
                         v = round(v, 5)
                     summary_rows.append((k, v))
+            if not summary_rows:
+                return
             if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 summary_table = ipython.STYLED_TABLE_HTML
                 for row in summary_rows:
@@ -1886,12 +1890,16 @@ class Run(object):
         logger.info("rendering history")
         max_len = max([len(k) for k in self._sampled_history])
         history_rows = []
-        for key in self._sampled_history:
+        for key in sorted(self._sampled_history):
+            if key.startswith("_"):
+                continue
             vals = wandb.util.downsample(self._sampled_history[key], 40)
             if any((not isinstance(v, numbers.Number) for v in vals)):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
+        if not history_rows:
+            return
         if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             history_table = ipython.STYLED_TABLE_HTML
             for row in history_rows:
