@@ -3052,6 +3052,10 @@ class Artifact(artifacts.Artifact):
                 return entry, wb_class
         return None, None
 
+    def items(self):
+        manifest = self._load_manifest()
+        return manifest.entries.items()
+
     def get_path(self, name):
         manifest = self._load_manifest()
         entry = manifest.entries.get(name)
