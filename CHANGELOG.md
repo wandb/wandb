@@ -1,3 +1,22 @@
+## 0.12.1 (August 26, 2021)
+
+#### :bug: Bug Fix
+
+- Fix metrics logged through tensorboard not supporting time on x-axis
+- Fix `WANDB_IGNORE_GLOBS` environment variable handling
+- Fix handling when sys.stdout is configured to a custom logger
+- Fix sklearn feature importance plots not matching feature names properly
+- Fix an issue where colab urls were not being captured
+- Save program commandline if run executable was outside cwd
+
+#### :nail_care: Enhancement
+
+- Add Prodigy integration to upload annotated datasets to W&B Tables
+- Add initial Metaflow support
+- Add experimental wandb launch support
+- Add warnings that public API requests are timing out and allow override
+- Improve error handling in local controller sweeps engine
+
 ## 0.12.0 (August 10, 2021)
 
 #### :hourglass: No Longer Supported
