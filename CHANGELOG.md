@@ -2,6 +2,7 @@
 
 #### :bug: Bug Fix
 
+- Fix tensorflow/keras 2.6 not logging validation examples
 - Fix metrics logged through tensorboard not supporting time on x-axis
 - Fix `WANDB_IGNORE_GLOBS` environment variable handling
 - Fix handling when sys.stdout is configured to a custom logger
