@@ -97,8 +97,9 @@ def plot_classifier(
                         'RandomForest', ['barks', 'drools, 'plays_fetch', 'breed'])
     """
     wandb.termlog("\nPlotting %s." % model_name)
-    plot_feature_importances(model, feature_names)
-    wandb.termlog("Logged feature importances.")
+    if not isinstance(model, naive_bayes.MultinomialNB):
+        plot_feature_importances(model, feature_names)
+        wandb.termlog("Logged feature importances.")
     plot_learning_curve(model, X_train, y_train)
     wandb.termlog("Logged learning curve.")
     plot_confusion_matrix(y_test, y_pred, labels)
@@ -109,7 +110,7 @@ def plot_classifier(
     wandb.termlog("Logged class proportions.")
     if not isinstance(model, naive_bayes.MultinomialNB):
         plot_calibration_curve(model, X_train, y_train, model_name)
-    wandb.termlog("Logged calibration curve.")
+        wandb.termlog("Logged calibration curve.")
     plot_roc(y_test, y_probas, labels)
     wandb.termlog("Logged roc curve.")
     plot_precision_recall(y_test, y_probas, labels)
@@ -600,7 +601,7 @@ def plot_feature_importances(
     Example:
         wandb.sklearn.plot_feature_importances(model, ['width', 'height, 'length'])
     """
-    attributes_to_check = ["feature_importances_", "coef_"]
+    attributes_to_check = ["feature_importances_", "feature_log_prob_", "coef_"]
 
     def get_attributes_as_formatted_string():
         result = ""
@@ -629,10 +630,27 @@ def plot_feature_importances(
     if test_missing(model=model) and test_types(model=model) and test_fitted(model):
         if found_attribute == "feature_importances_":
             importances = model.feature_importances_
-        if found_attribute == "coef_":  # ElasticNet or ElasticNetCV like models
+        elif found_attribute == "coef_":  # ElasticNet or ElasticNetCV like models
             importances = model.coef_
+        elif found_attribute == "feature_log_prob_":
+            # coef_ was deprecated in sklearn 0.24, replaced with
+            # feature_log_prob_
+            importances = model.feature_log_prob_
+
+        if len(importances.shape) > 1:
+            if np.prod(importances.shape) > importances.shape[0]:
+                nd = len(importances.shape)
+                wandb.termwarn(
+                    f"{nd}-dimensional feature importances array passed to plot_feature_importances. "
+                    f"{nd}-dimensional and higher feature importances arrays are not currently supported. "
+                    f"These importances will not be plotted."
+                )
+                return
+            else:
+                importances = np.squeeze(importances)
 
         indices = np.argsort(importances)[::-1]
+        importances = importances[indices]
 
         if not feature_names:
             feature_names = indices
