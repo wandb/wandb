@@ -1086,7 +1086,7 @@ def prompt_choices(choices, allow_manual=False, input_timeout=None):
         if idx == TIMEOUT_CODE:
             return len(choices) - 1  # LOGIN_CHOICE_DRYRUN
         if idx < 0 or idx > len(choices) - 1:
-            wandb.termwarn("Invalid choice")
+            wandb.termwarn(f"Invalid choice ({idx})")
         idx = _prompt_choice()
     result = choices[idx]
     wandb.termlog("You chose '%s'" % result)
