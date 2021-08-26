@@ -2325,7 +2325,10 @@ class Run(object):
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> wandb_artifacts.Artifact:
-        aliases = aliases or []
+        if isinstance(aliases, str):
+            aliases = [aliases]
+        aliases = [alias for alias in aliases] or []
+
         if isinstance(artifact_or_path, str):
             if name is None:
                 name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
@@ -2348,8 +2351,6 @@ class Run(object):
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
-        if isinstance(aliases, str):
-            aliases = [aliases]
 
         artifact.aliases = [
             alias for alias in set(artifact.aliases + aliases + ["latest"])
