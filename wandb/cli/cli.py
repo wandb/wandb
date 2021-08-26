@@ -848,24 +848,17 @@ def sweep(
 
 
 def _check_launch_imports():
-    _ = util.get_module(
-        "docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    _ = util.get_module(
-        "repo2docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    _ = util.get_module(
-        "chardet",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
+    req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
+    _ = util.get_module("docker", required=req_string,)
+    _ = util.get_module("repo2docker", required=req_string,)
+    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module("iso8601", required=req_string)
 
 
 @cli.command(
-    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
-    "or a git uri pointing to a remote repository, or path to a local directory."
+    "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri")
 @click.option(
@@ -986,6 +979,9 @@ def launch(
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
     api = _get_cling_api()
 
     args_dict = util._user_args_to_dict(args_list)
@@ -1046,7 +1042,7 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
 @click.argument("project", nargs=1)
 @click.option(
@@ -1062,6 +1058,9 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     from wandb.sdk.launch import launch as wandb_launch
 
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
