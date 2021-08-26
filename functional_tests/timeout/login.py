@@ -3,6 +3,8 @@
 
 ---
 id: 0.timeout.2
+plugin:
+  - wandb
 """
 
 import time

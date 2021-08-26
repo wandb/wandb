@@ -3,6 +3,8 @@
 
 ---
 id: 0.timeout.1
+plugin:
+  - wandb
 """
 
 from wandb.errors import InputTimeoutError
