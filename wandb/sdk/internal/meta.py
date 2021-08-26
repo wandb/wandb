@@ -5,6 +5,7 @@ meta.
 """
 
 from datetime import datetime
+from urllib.parse import unquote
 import json
 import logging
 import multiprocessing
@@ -219,9 +220,9 @@ class Meta(object):
                     self.data["program"] = self._settings.notebook_name
                 elif self._settings._jupyter_path:
                     if "fileId=" in self._settings._jupyter_path:
+                        unescaped = unquote(self._settings._jupyter_path)
                         self.data["colab"] = (
-                            "https://colab.research.google.com/drive/"
-                            + self._settings._jupyter_path.split("fileId=")[1]  # noqa
+                            "https://colab.research.google.com/notebook#" + unescaped # noqa
                         )
                         self.data["program"] = self._settings._jupyter_name
                     else:
