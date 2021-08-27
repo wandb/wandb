@@ -407,10 +407,7 @@ class Api(object):
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
-        parsed = path.strip("/ ").split("/")
-        if len(parsed) != 2:
-            raise ValueError("path must follow the format 'entity/project'")
-        entity, project = parsed
+        entity, project, _ = self._parse_path(path + "/fake_run")
 
         if name:
             name = urllib.parse.unquote(name)

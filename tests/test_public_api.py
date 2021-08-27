@@ -288,13 +288,6 @@ def test_projects(mock_server, api):
 
 
 def test_reports(mock_server, api):
-    error_paths = ["", "entity", "entity/ ", "entity/project/blah", "entity//"]
-
-    for path in error_paths:
-        with pytest.raises(ValueError) as e_info:
-            reports = api.reports(path)
-            assert str(e_info.value) == "path must follow the format 'entity/project'"
-
     path = "test-entity/test-project"
     reports = api.reports(path)
     # calling __len__, __getitem__, or __next__ on a Reports object
