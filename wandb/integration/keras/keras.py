@@ -160,7 +160,8 @@ def _update_if_numeric(metrics, key, values):
         metrics[key] = wandb.Histogram(values)
     else:
         wandb.termwarn(
-            "Non-numeric values found in layer: {}, not logging this layer".format(key)
+            "Non-numeric values found in layer: {}, not logging this layer".format(key),
+            repeat=False,
         )
 
 
@@ -805,18 +806,13 @@ class WandbCallback(keras.callbacks.Callback):
     def _log_weights(self):
         metrics = {}
         for layer in self.model.layers:
-            weights = layer.get_weights()
-            if len(weights) == 1:
+            weights = layer.weights
+            for w in weights:
+                weight_string = w.name.replace("kernel", "weights")
                 _update_if_numeric(
-                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                    metrics, f"parameters/{layer.name}.{weight_string}", w
                 )
-            elif len(weights) == 2:
-                _update_if_numeric(
-                    metrics, "parameters/" + layer.name + ".weights", weights[0]
-                )
-                _update_if_numeric(
-                    metrics, "parameters/" + layer.name + ".bias", weights[1]
-                )
+
         return metrics
 
     def _log_gradients(self):
