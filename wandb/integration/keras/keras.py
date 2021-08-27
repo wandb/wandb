@@ -808,7 +808,7 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.weights
             for w in weights:
-                weight_string = w.name.replace("kernel", "weights")
+                weight_string = w.name.replace("kernel", "weights").strip(":0")
                 _update_if_numeric(
                     metrics, f"parameters/{layer.name}.{weight_string}", w
                 )
