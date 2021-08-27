@@ -2263,6 +2263,11 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
+        if aliases is not None:
+            if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
+                raise ValueError(
+                    "Aliases must not contain any of the following characters: /, :"
+                )
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
