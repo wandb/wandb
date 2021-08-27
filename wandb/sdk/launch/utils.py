@@ -181,15 +181,15 @@ def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     return result
 
 
-def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
-    """Fetches project diff from wandb servers."""
+def fetch_run_diff_and_metadata(uri: str, api: Api) -> Optional[str]:
+    """Fetches run diff from wandb servers."""
     patch = None
     try:
         entity, project, name = parse_wandb_uri(uri)
-        (_, _, patch, _) = api.run_config(project, name, entity)
+        (_, _, patch, metadata) = api.run_config(project, name, entity)
     except CommError:
         pass
-    return patch
+    return patch, metadata
 
 
 def apply_patch(patch_string: str, dst_dir: str) -> None:

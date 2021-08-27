@@ -125,14 +125,23 @@ class LaunchProject(object):
             utils._fetch_git_repo(
                 self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
             )
-            patch = utils.fetch_project_diff(self.uri, api)
+            patch, metadata = utils.fetch_run_diff_and_metadata(self.uri, api)
             if run_info.get("python"):
                 self._runtime = "python-{}".format(run_info["python"])
             if patch:
                 utils.apply_patch(patch, self.project_dir)
 
             if not self._entry_points:
-                self.add_entry_point(run_info["program"])
+                entrypoint = (
+                    metadata.get("programRelpath")
+                    or metadata.get("codePath")
+                    or run_info["program"]
+                )
+                if not os.path.exists(os.path.join(self.project_dir, entrypoint)):
+                    raise LaunchError(
+                        f"Program {entrypoint} could not be found, please specify script to be run"
+                    )
+                self.add_entry_point(entrypoint)
 
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]

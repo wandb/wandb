@@ -212,6 +212,8 @@ class Meta(object):
         self._setup_sys()
         if self._settings.program is not None:
             self.data["program"] = self._settings.program
+        if self._settings.program_relpath:
+            self.data["programRelpath"] = self._settings.program_relpath
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
