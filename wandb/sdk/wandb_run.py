@@ -1912,7 +1912,7 @@ class Run(object):
             format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
-            wandb.termlog(history_lines)
+            wandb.termlog(history_lines.rstrip())
 
     def _show_files(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
