@@ -369,25 +369,25 @@ class Api(object):
             _CLI_QUERY_
         }
         """
-        query_types, server_info_types = self.server_info_introspection()
+        # query_types, server_info_types = self.server_info_introspection()
 
-        cli_version_exists = (
-            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
-        )
+        # cli_version_exists = (
+        #     "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        # )
 
-        local_version_exists = (
-            "serverInfo" in query_types
-            and "latestLocalVersionInfo" in server_info_types
-        )
+        # local_version_exists = (
+        #     "serverInfo" in query_types
+        #     and "latestLocalVersionInfo" in server_info_types
+        # )
 
-        cli_query_string = "" if not cli_version_exists else cli_query
-        local_query_string = "" if not local_version_exists else local_query
+        # cli_query_string = "" if not cli_version_exists else cli_query
+        # local_query_string = "" if not local_version_exists else local_query
 
         queries = []
         queries.append(
             gql(
-                query_str.replace("_CLI_QUERY_", cli_query_string).replace(
-                    "_LOCAL_QUERY_", local_query_string
+                query_str.replace("_CLI_QUERY_", cli_query).replace(
+                    "_LOCAL_QUERY_", local_query
                 )
             )
         )
