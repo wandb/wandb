@@ -189,6 +189,10 @@ def test_add_dir(runner):
             "size": 5,
         }
 
+def test_items(runner):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+
 
 def test_add_named_dir(runner):
     with runner.isolated_filesystem():

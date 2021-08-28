@@ -533,6 +533,8 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.items()
 
+        # Ideally we would return an immutable copy of the artifact entries,
+        # as manipulating the artifact entry directly can cause problems.
         return self.manifest.entries.items()
 
     def get_path(self, name: str) -> ArtifactEntry:

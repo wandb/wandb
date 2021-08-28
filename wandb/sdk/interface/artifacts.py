@@ -109,13 +109,44 @@ class ArtifactManifest(object):
 
 
 class ArtifactEntry(object):
-    path: str
-    ref: Optional[str]
-    digest: str
     birth_artifact_id: Optional[str]
     size: Optional[int]
     extra: Dict
     local_path: Optional[str]
+
+    @property
+    def path(self) -> str:
+        """
+        The logical path of this artifact entry within the artifact.
+
+        Returns:
+            (str): The logical path for this artifact entry
+
+        """
+        raise NotImplementedError
+
+    @property
+    def ref(self) -> Optional[str]:
+        """
+        The reference URL of this artifact entry. If none, this artifact
+        entry does not represent a reference.
+
+        Returns:
+            (str, optional): The reference URL of this artifact entry
+        """
+        raise NotImplementedError
+
+    @property
+    def digest(self) -> str:
+        """
+        The digest of this artifact entry. Files added to the artifact will
+        use an MD5 digest. Reference digest algorithms depend on the underlying
+        reference scheme.
+
+        Returns:
+            (str): The digest of this artifact entry
+        """
+        raise NotImplementedError
 
     def parent_artifact(self) -> "Artifact":
         """
