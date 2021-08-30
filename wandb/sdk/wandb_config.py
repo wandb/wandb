@@ -137,16 +137,29 @@ class Config(object):
         if self._check_locked(key):
             return
 
+        if not (
+            isinstance(val, wandb.Artifact)
+            or isinstance(val, wandb.apis.public.Artifact)
+        ):
+            key, val = self._sanitize(key, val)
+        self._items[key] = val
         if isinstance(val, wandb.Artifact) or isinstance(
             val, wandb.apis.public.Artifact
         ):
             if type(self._items.get("artifacts")) is dict:
                 for config_key in self._items["artifacts"].keys():
                     if self._items["artifacts"][config_key]["name"] == val.name:
-                        wandb.termwarn(
-                            f"Artifact already in config under name: {config_key}, not adding to config at key {key}"
-                        )
-                        return
+                        if config_key.split(":")[0] == val.name.split(":")[0]:
+                            self._items["artifacts"][key] = val
+                            del self._items["artifacts"][config_key]
+                            wandb.termwarn(
+                                f"Artifact already in config under name: {config_key}, modifying key to be {key}"
+                            )
+                        else:
+                            wandb.termwarn(
+                                f"Artifact already in config under name: {config_key}, not adding to config at key {key}"
+                            )
+                            return
             val = {
                 key: {
                     "type": val.type,
@@ -161,13 +174,6 @@ class Config(object):
                 }
             }
             key = "artifacts"
-        if not (
-            isinstance(val, wandb.Artifact)
-            or isinstance(val, wandb.apis.public.Artifact)
-        ):
-            key, val = self._sanitize(key, val)
-
-        self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
             self._callback(key=key, val=val)
