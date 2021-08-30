@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 import wandb
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError, ExecutionException, LaunchException
+from wandb.errors import CommError, ExecutionError, LaunchError
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -91,7 +91,7 @@ def set_project_entity_defaults(
 def construct_launch_spec(
     uri: str,
     api: Api,
-    experiment_name: Optional[str],
+    name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
@@ -100,17 +100,22 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
-        uri, api, project, entity, launch_config,
+        uri,
+        api,
+        project,
+        entity,
+        launch_config,
     )
     launch_spec["entity"] = entity
 
     launch_spec["project"] = project
-    if experiment_name:
-        launch_spec["name"] = experiment_name
+    if name:
+        launch_spec["name"] = name
     if "docker" not in launch_spec:
         launch_spec["docker"] = {}
     if docker_image:
@@ -146,6 +151,7 @@ def construct_launch_spec(
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
+    """Parses wandb uri to retrieve entity, project and run name."""
     uri = uri.split("?")[0]  # remove any possible query params (eg workspace)
     stripped_uri = re.sub(_WANDB_URI_REGEX, "", uri)
     stripped_uri = re.sub(
@@ -163,7 +169,10 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
-    result = api.get_run_info(entity, project, name)
+    try:
+        result = api.get_run_info(entity, project, name)
+    except CommError:
+        result = None
     if result is None:
         raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
     if result.get("codePath") is None:
@@ -210,6 +219,7 @@ def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
 
 
 def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
+    """Fetches project diff from wandb servers."""
     patch = None
     try:
         entity, project, name = parse_wandb_uri(uri)
@@ -220,9 +230,7 @@ def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
 
 
 def apply_patch(patch_string: str, dst_dir: str) -> None:
-    """
-    Applies a patch file to a directory.
-    """
+    """Applies a patch file to a directory."""
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
@@ -241,11 +249,11 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
 
 
 def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
-    """
-    Clone the git repo at ``uri`` into ``dst_dir``, checking out commit ``version`` (or defaulting
-    to the head commit of the repository's master branch if version is unspecified).
-    Assumes authentication parameters are specified by the environment, e.g. by a Git credential
-    helper.
+    """Clones the git repo at ``uri`` into ``dst_dir``.
+
+    checks out commit ``version`` (or defaults to the head commit of the repository's
+    master branch if version is unspecified). Assumes authentication parameters are
+    specified by the environment, e.g. by a Git credential helper.
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
@@ -258,7 +266,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
         try:
             repo.git.checkout(version)
         except git.exc.GitCommandError as e:
-            raise ExecutionException(
+            raise ExecutionError(
                 "Unable to checkout version '%s' of git repo %s"
                 "- please ensure that the version exists in the repo. "
                 "Error: %s" % (version, uri, e)
@@ -272,7 +280,5 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
 def merge_parameters(
     higher_priority_params: Dict[str, Any], lower_priority_params: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """
-    Merge the contents of two dicts, keeping values from higher_priority_params if there are conflicts
-    """
+    """Merge the contents of two dicts, keeping values from higher_priority_params if there are conflicts."""
     return {**lower_priority_params, **higher_priority_params}

@@ -9,6 +9,7 @@ import sys
 
 import wandb
 import wandb.sdk.launch.launch as launch
+from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
     PROJECT_DOCKER_ARGS,
@@ -54,7 +55,13 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
+    project_spec,
+    api,
+    uri,
+    project=None,
+    entity=None,
+    config=None,
+    parameters=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -118,12 +125,20 @@ def test_launch_base_case(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
+def test_launch_add_base(live_mock_server):
+    queuedJob = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
+    assert queuedJob._run_queue_item_id == "1"
+
+
 @pytest.mark.skipif(
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -265,7 +280,7 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(240)
+@pytest.mark.timeout(320)
 def test_launch_agent(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):

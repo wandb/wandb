@@ -28,3 +28,6 @@ stable_baselines3
 tensorboard
 gym
 jax[cpu]
+fastcore
+pyarrow
+metaflow>=2.3.5

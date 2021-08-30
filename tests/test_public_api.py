@@ -395,6 +395,15 @@ def test_artifact_run_logged(runner, mock_server, api):
     assert arts[0].name == "mnist:v0"
 
 
+def test_artifact_run_logged_cursor(runner, mock_server, api):
+    artifacts = api.run("test/test/test").logged_artifacts()
+    count = 0
+    for artifact in artifacts:
+        count += 1
+
+    assert len(artifacts) == count
+
+
 def test_artifact_manual_use(runner, mock_server, api):
     run = api.run("test/test/test")
     art = api.artifact("entity/project/mnist:v0", type="dataset")
@@ -478,3 +487,17 @@ def test_sweep(runner, mock_server, api):
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
     assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
+
+
+def test_run_wait_until_finished(runner, mock_server, api, capsys):
+    run = api.run("test/test/test")
+    run.wait_until_finished()
+    out, _ = capsys.readouterr()
+    status = mock_server.ctx["run_state"]
+    assert f"Run finished with status: {status}" in out
+
+
+def test_queued_job(runner, mock_server, api):
+    queued_job = api.queued_job("test/test/test/test")
+    queued_job.wait_until_running()
+    assert queued_job._run_id == "test"

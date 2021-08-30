@@ -51,7 +51,12 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     RunRecord,
 )
-from wandb.util import add_import_hook, sentry_set_scope, to_forward_slash_path
+from wandb.util import (
+    add_import_hook,
+    is_unicode_safe,
+    sentry_set_scope,
+    to_forward_slash_path,
+)
 from wandb.viz import (
     create_custom_chart,
     custom_chart_panel_config,
@@ -425,6 +430,8 @@ class Run(object):
             imp.transformers_huggingface = True
         if mods.get("jax"):
             imp.jax = True
+        if mods.get("metaflow"):
+            imp.metaflow = True
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -1430,7 +1437,7 @@ class Run(object):
                 "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
             )
             emojis = dict(star="", broom="", rocket="")
-            if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
+            if platform.system() != "Windows" and is_unicode_safe(sys.stdout):
                 emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
 
             wandb.termlog(
@@ -1842,8 +1849,10 @@ class Run(object):
             max_len = max([len(k) for k in self._final_summary.keys()])
             format_str = "  {:>%s} {}" % max_len
             summary_rows = []
-            for k, v in iteritems(self._final_summary):
+            for k, v in sorted(iteritems(self._final_summary)):
                 # arrays etc. might be too large. for now we just don't print them
+                if k.startswith("_"):
+                    continue
                 if isinstance(v, string_types):
                     if len(v) >= 20:
                         v = v[:20] + "..."
@@ -1852,6 +1861,8 @@ class Run(object):
                     if isinstance(v, float):
                         v = round(v, 5)
                     summary_rows.append((k, v))
+            if not summary_rows:
+                return
             if self._settings._jupyter and ipython._get_python_type() == "jupyter":
                 summary_table = ipython.STYLED_TABLE_HTML
                 for row in summary_rows:
@@ -1879,12 +1890,16 @@ class Run(object):
         logger.info("rendering history")
         max_len = max([len(k) for k in self._sampled_history])
         history_rows = []
-        for key in self._sampled_history:
+        for key in sorted(self._sampled_history):
+            if key.startswith("_"):
+                continue
             vals = wandb.util.downsample(self._sampled_history[key], 40)
             if any((not isinstance(v, numbers.Number) for v in vals)):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
+        if not history_rows:
+            return
         if self._settings._jupyter and ipython._get_python_type() == "jupyter":
             history_table = ipython.STYLED_TABLE_HTML
             for row in history_rows:
@@ -1897,7 +1912,7 @@ class Run(object):
             format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
-            wandb.termlog(history_lines)
+            wandb.termlog(history_lines.rstrip())
 
     def _show_files(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
@@ -2256,6 +2271,11 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
+        if aliases is not None:
+            if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
+                raise ValueError(
+                    "Aliases must not contain any of the following characters: /, :"
+                )
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )

@@ -8,6 +8,7 @@ import re
 import shutil
 import tempfile
 import time
+from typing import Optional
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
@@ -21,7 +22,7 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
-from wandb.errors import LaunchException
+from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
@@ -174,7 +175,17 @@ class RetryingClient(object):
         retryable_exceptions=(RetryError, requests.RequestException),
     )
     def execute(self, *args, **kwargs):
-        return self._client.execute(*args, **kwargs)
+        try:
+            return self._client.execute(*args, **kwargs)
+        except requests.exceptions.ReadTimeout:
+            if "timeout" not in kwargs:
+                timeout = self._client.transport.default_timeout
+                wandb.termwarn(
+                    f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
+                    f"Create a new API with an integer timeout larger than {timeout}, e.g., `api = wandb.Api(timeout={timeout + 10})` "
+                    f"to increase the graphql timeout."
+                )
+            raise
 
 
 class Api(object):
@@ -211,7 +222,7 @@ class Api(object):
     """
     )
 
-    def __init__(self, overrides={}):
+    def __init__(self, overrides={}, timeout: Optional[int] = None):
         self.settings = InternalApi().settings()
         if self.api_key is None:
             wandb.login()
@@ -226,13 +237,14 @@ class Api(object):
         self._sweeps = {}
         self._reports = {}
         self._default_entity = None
+        self._timeout = timeout if timeout is not None else self._HTTP_TIMEOUT
         self._base_client = Client(
             transport=RequestsHTTPTransport(
                 headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
                 # https://bugs.python.org/issue22889
-                timeout=self._HTTP_TIMEOUT,
+                timeout=self._timeout,
                 auth=("api", self.api_key),
                 url="%s/graphql" % self.settings["base_url"],
             )
@@ -900,7 +912,7 @@ class QueuedJob(Attrs):
     @property
     def run(self):
         if self._run_id is None:
-            raise LaunchException("Tried to fetch run without having run_id")
+            raise LaunchError("Tried to fetch run without having run_id")
         return Run(self.client, self._entity, self.project, self._run_id)
 
 
@@ -1105,7 +1117,7 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print("Run finished with status : {}".format(state))
+                print("Run finished with status: {}".format(state))
                 self._attrs["state"] = state
                 self.state = state
                 return
@@ -1608,7 +1620,7 @@ class Sweep(Attrs):
         sid=None,
         order=None,
         query=None,
-        **kwargs
+        **kwargs,
     ):
         """Execute a query against the cloud backend"""
         if query is None:
@@ -2346,11 +2358,11 @@ class RunArtifacts(Paginator):
     OUTPUT_QUERY = gql(
         """
         query RunArtifacts(
-            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    outputArtifacts(after: $cursor) {
+                    outputArtifacts(after: $cursor, first: $perPage) {
                         totalCount
                         edges {
                             node {
@@ -2374,11 +2386,11 @@ class RunArtifacts(Paginator):
     INPUT_QUERY = gql(
         """
         query RunArtifacts(
-            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    inputArtifacts(after: $cursor) {
+                    inputArtifacts(after: $cursor, first: $perPage) {
                         totalCount
                         edges {
                             node {
@@ -2437,12 +2449,11 @@ class RunArtifacts(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["edges"]["cursor"]
+            return self.last_response["project"]["run"][self.run_key]["edges"][-1][
+                "cursor"
+            ]
         else:
             return None
-
-    def update_variables(self):
-        self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
         return [
@@ -2765,7 +2776,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -2981,7 +2995,10 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={
+                "id": self.id,
+            },
         )
         return True
 
@@ -3237,7 +3254,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -3406,7 +3426,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -3444,7 +3467,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(
