@@ -55,7 +55,13 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
+    project_spec,
+    api,
+    uri,
+    project=None,
+    entity=None,
+    config=None,
+    parameters=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -129,7 +135,10 @@ def test_launch_add_base(live_mock_server):
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -226,19 +235,19 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
 
 def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_settings):
     arti = {"project": "test", "name": "test", "entity": "test", "version": "v0"}
-    blah = {"overrides": {"run_config": {"epochs": 10, "artifacts": {"dataset": arti}}}}
+    overrides = {
+        "overrides": {"run_config": {"epochs": 10, "artifacts": {"dataset": arti}}}
+    }
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
         with open(path, "w") as fp:
-            json.dump(blah, fp)
+            json.dump(overrides, fp)
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
-        print(run.config.artifacts)
         assert run.config.artifacts["dataset"] == arti
-        assert False
         run.finish()
 
 
