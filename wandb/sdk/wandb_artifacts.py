@@ -533,9 +533,20 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.items()
 
-        # Ideally we would return an immutable copy of the artifact entries,
-        # as manipulating the artifact entry directly can cause problems.
-        return self.manifest.entries.items()
+        def iter():
+            for k, v in self.manifest.entries.items():
+                yield k, ArtifactManifestEntry(
+                    path=v.path,
+                    digest=v.digest,
+                    size=v.size,
+                    extra=v.extra,
+                    ref=v.ref,
+                    birth_artifact_id=v.birth_artifact_id,
+                    local_path=v.local_path,
+                    locked=True,
+                )
+
+        return iter()
 
     def get_path(self, name: str) -> ArtifactEntry:
         if self._logged_artifact:
