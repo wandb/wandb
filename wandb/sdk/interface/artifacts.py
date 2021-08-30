@@ -109,11 +109,6 @@ class ArtifactManifest(object):
 
 
 class ArtifactEntry(object):
-    birth_artifact_id: Optional[str]
-    size: Optional[int]
-    extra: Dict
-    local_path: Optional[str]
-
     @property
     def path(self) -> str:
         """
@@ -122,6 +117,39 @@ class ArtifactEntry(object):
         Returns:
             (str): The logical path for this artifact entry
 
+        """
+        raise NotImplementedError
+
+    @property
+    def digest(self) -> str:
+        """
+        The digest of this artifact entry. Files added to the artifact will
+        use an MD5 digest. Reference digest algorithms depend on the underlying
+        reference scheme.
+
+        Returns:
+            (str): The digest of this artifact entry
+        """
+        raise NotImplementedError
+
+    @property
+    def size(self) -> Optional[int]:
+        """
+        The size of the data this artifact entry represents. Sizes of references
+        are obtained in a best-effort manner.
+
+        Returns:
+            (int, optional): The size of this artifact entry, if it can be determined
+        """
+        raise NotImplementedError
+
+    @property
+    def extra(self) -> Dict:
+        """
+        Any additional metadata associated with this artifact entry.
+
+        Returns:
+            (dict): A dict representing additional artifact entry metadata
         """
         raise NotImplementedError
 
@@ -136,15 +164,48 @@ class ArtifactEntry(object):
         """
         raise NotImplementedError
 
-    @property
-    def digest(self) -> str:
+    @ref.setter
+    def ref(self, value: Optional[str]):
         """
-        The digest of this artifact entry. Files added to the artifact will
-        use an MD5 digest. Reference digest algorithms depend on the underlying
-        reference scheme.
+        Arguments:
+            value: The reference URL for this artifact entry.
+        """
+        raise NotImplementedError
+
+    @property
+    def birth_artifact_id(self) -> Optional[str]:
+        """
+        The ID of the artifact that first introduced this artifact entry.
 
         Returns:
-            (str): The digest of this artifact entry
+            (str): The ID of the artifact that first introduced this entry
+        """
+        raise NotImplementedError
+
+    @birth_artifact_id.setter
+    def birth_artifact_id(self, value: Optional[str]):
+        """
+        Arguments:
+            value: The ID of the artifact to first introduce this entry
+        """
+        raise NotImplementedError
+
+    @property
+    def local_path(self) -> Optional[str]:
+        """
+        The machine local path of this artifact entry. For references, this will be
+        `None`.
+
+        Returns:
+            (str, optional): The machine local path of this artifact entry
+        """
+        raise NotImplementedError
+
+    @local_path.setter
+    def local_path(self, value: Optional[str]):
+        """
+        Arguments:
+            value: The local path to use for this artifact entry.
         """
         raise NotImplementedError
 

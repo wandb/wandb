@@ -2277,9 +2277,7 @@ class Run(object):
                 raise ValueError(
                     "Aliases must not contain any of the following characters: /, :"
                 )
-        artifact  = self._prepare_artifact(
-            artifact_or_path, name, type, aliases
-        )
+        artifact = self._prepare_artifact(artifact_or_path, name, type, aliases)
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:

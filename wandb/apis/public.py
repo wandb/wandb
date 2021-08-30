@@ -8,7 +8,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional
+from typing import Optional, Dict
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
@@ -2620,13 +2620,53 @@ class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
 
         # Have to copy over a bunch of variables to get this ArtifactEntry interface
         # to work properly
-        self.path = entry.path
-        self.ref = entry.ref
-        self.digest = entry.digest
-        self.birth_artifact_id = entry.birth_artifact_id
-        self.size = entry.size
-        self.extra = entry.extra
-        self.local_path = entry.local_path
+        self._path = entry.path
+        self._digest = entry.digest
+        self._size = entry.size
+        self._extra = entry.extra
+        self._ref = entry.ref
+        self._birth_artifact_id = entry.birth_artifact_id
+        self._local_path = entry.local_path
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def digest(self) -> str:
+        return self._digest
+
+    @property
+    def size(self) -> Optional[int]:
+        return self._size
+
+    @property
+    def extra(self) -> Dict:
+        return self._extra
+
+    @property
+    def ref(self) -> Optional[str]:
+        return self._ref
+
+    @ref.setter
+    def ref(self, value: Optional[str]) -> None:
+        self._ref = value
+
+    @property
+    def birth_artifact_id(self) -> Optional[str]:
+        return self._birth_artifact_id
+
+    @birth_artifact_id.setter
+    def birth_artifact_id(self, value: Optional[str]) -> None:
+        self._birth_artifact_id = value
+
+    @property
+    def local_path(self) -> Optional[str]:
+        return self._local_path
+
+    @local_path.setter
+    def local_path(self, value: Optional[str]) -> None:
+        self._local_path = value
 
     def parent_artifact(self):
         return self._parent_artifact

@@ -800,20 +800,82 @@ class ArtifactManifestEntry(ArtifactEntry):
         size: Optional[int] = None,
         extra: Dict = None,
         local_path: Optional[str] = None,
+        locked: bool = False,
     ):
         if local_path is not None and size is None:
             raise AssertionError(
                 "programming error, size required when local_path specified"
             )
-        self.path = util.to_forward_slash_path(path)
-        self.ref = ref  # This is None for files stored in the artifact.
-        self.digest = digest
-        self.birth_artifact_id = birth_artifact_id
-        self.size = size
-        self.extra = extra or {}
+        self._path = util.to_forward_slash_path(path)
+        self._digest = digest
+        self._size = size
+        self._extra = extra or {}
+
+        self._ref = ref  # This is None for files stored in the artifact.
+        self._birth_artifact_id = birth_artifact_id
         # This is not stored in the manifest json, it's only used in the process
         # of saving
-        self.local_path = local_path
+        self._local_path = local_path
+        self._locked = locked
+
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def digest(self) -> str:
+        return self._digest
+
+    @property
+    def size(self) -> Optional[int]:
+        return self._size
+
+    @property
+    def extra(self) -> Dict:
+        return self._extra
+
+    @property
+    def ref(self) -> Optional[str]:
+        return self._ref
+
+    @ref.setter
+    def ref(self, value: Optional[str]) -> None:
+        self._ensure_unlocked()
+        self._ref = value
+
+    @property
+    def birth_artifact_id(self) -> Optional[str]:
+        return self._birth_artifact_id
+
+    @birth_artifact_id.setter
+    def birth_artifact_id(self, value: Optional[str]) -> None:
+        self._ensure_unlocked()
+        self._birth_artifact_id = value
+
+    @property
+    def local_path(self) -> Optional[str]:
+        return self._local_path
+
+    @local_path.setter
+    def local_path(self, value: Optional[str]) -> None:
+        self._ensure_unlocked()
+        self._local_path = value
+
+    def lock(self) -> "ArtifactManifestEntry":
+        return ArtifactManifestEntry(
+            path=self.path,
+            digest=self.digest,
+            size=self.size,
+            extra=self.extra,
+            ref=self.ref,
+            birth_artifact_id=self.birth_artifact_id,
+            local_path=self.local_path,
+            locked=True,
+        )
+
+    def _ensure_unlocked(self) -> None:
+        if self._locked:
+            raise ValueError("Cannot mutate locked entry.")
 
     def ref_target(self) -> str:
         if self.ref is None:

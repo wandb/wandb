@@ -1188,7 +1188,7 @@ def parse_sweep_id(parts_dict):
     parts_dict.update(dict(name=sweep_id, project=project, entity=entity))
 
 
-def to_forward_slash_path(path):
+def to_forward_slash_path(path: str) -> str:
     if platform.system() == "Windows":
         path = path.replace("\\", "/")
     return path

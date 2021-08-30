@@ -189,9 +189,20 @@ def test_add_dir(runner):
             "size": 5,
         }
 
+
 def test_items(runner):
     with runner.isolated_filesystem():
-        open("file1.txt", "w").write("hello")
+        open("file1.txt", "w").write("bongiorno")
+        open("file2.txt", "w").write("arrivederci")
+
+        artifact = wandb.Artifact(type="dataset", name="my-arty")
+        artifact.add_dir(".")
+
+        assert artifact.digest == "3ec78769fba793a50f5c1b25e3f2eddb"
+        assert {k: v.digest for k, v in artifact.items()} == {
+            "file1.txt": "8bkgkZV78ZoJ8gHgZdlZog==",
+            "file2.txt": "WGgVwL9R7TKn+fcli01TUA==",
+        }
 
 
 def test_add_named_dir(runner):
