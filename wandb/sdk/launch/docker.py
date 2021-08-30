@@ -1,9 +1,6 @@
-import getpass
 import json
 import logging
 import os
-import posixpath
-import re
 import shutil
 import subprocess
 import sys
@@ -11,13 +8,11 @@ import tempfile
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 
-from docker.models.resource import Model  # type: ignore
 from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
-from wandb.env import DOCKER
-from wandb.errors import ExecutionError, LaunchError
+from wandb.errors import DockerError, ExecutionError, LaunchError
 from wandb.util import get_module
 from yaspin import yaspin  # type: ignore
 
@@ -97,7 +92,7 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
         return True
-    except (DockerException, ValueError) as e:
+    except (DockerError, ValueError) as e:
         if should_raise:
             raise e
         return False
@@ -114,8 +109,8 @@ def pull_docker_image(docker_image: str) -> None:
     """Pulls the requested docker image"""
     try:
         docker.run(["docker", "pull", docker_image])
-    except DockerException as e:
-        raise LaunchException("Docker server returned error: {}".format(e))
+    except DockerError as e:
+        raise LaunchError("Docker server returned error: {}".format(e))
 
 
 def build_docker_image_if_needed(
@@ -186,8 +181,8 @@ def build_docker_image_if_needed(
         image = docker.build(
             tags=[image_uri], file=dockerfile, context_path=build_ctx_path
         )
-    except DockerException as e:
-        raise LaunchException("Error communicating with docker client: {}".format(e))
+    except DockerError as e:
+        raise LaunchError("Error communicating with docker client: {}".format(e))
 
     try:
         os.remove(build_ctx_path)

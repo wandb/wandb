@@ -7,7 +7,7 @@ import requests
 import six
 from wandb.docker import auth
 from wandb.docker import www_authenticate
-from wandb.errors import DockerException
+from wandb.errors import DockerError
 
 
 entrypoint = os.path.join(
@@ -83,7 +83,7 @@ def run(
         args, input=input, stdout=stdout_dest, stderr=stderr_dest, env=subprocess_env
     )
     if completed_process.returncode != 0:
-        raise DockerException(
+        raise DockerError(
             args,
             completed_process.returncode,
             completed_process.stdout,
