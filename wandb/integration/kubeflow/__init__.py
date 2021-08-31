@@ -1,9 +1,9 @@
-import os
-import wandb
 from typing import Optional
 
+import wandb
 
-def add_metadata(existing: Optional["UI_metadata"]) -> "UI_metadata":
+
+def add_metadata(existing: Optional["UI_metadata"]) -> "UI_metadata":  # noqa: F821
     if wandb.run is not None:
         metadata = {
             "type": "web-app",
