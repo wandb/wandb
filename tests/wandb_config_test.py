@@ -4,7 +4,7 @@ config tests.
 
 import pytest
 import yaml
-from wandb import wandb_sdk
+from wandb import Artifact, wandb_sdk
 
 
 def get_callback(d):
@@ -106,3 +106,37 @@ def test_load_config_default():
         yaml.dump(yaml_dict, f, default_flow_style=False)
     config = wandb_sdk.Config()
     assert dict(config) == dict(epochs=32, size_batch=32)
+
+
+def test_no_set_artifacts_key():
+    config = wandb_sdk.Config()
+    try:
+        config.artifacts = "blah"
+        assert False, "Should raise error when setting config.artifacts"
+    except KeyError:
+        assert config.get("artifacts") is None
+
+
+def test_set_artifacts_key():
+    config = wandb_sdk.Config()
+    art = Artifact("blah", "dataset")
+    config.artifacts = {"dataset": art}
+
+
+def test_set_artifacts_update():
+    config = wandb_sdk.Config()
+    art = Artifact("blah", "dataset")
+    config.update({"dataset": art})
+    assert config.dataset == art
+    assert config.artifacts["dataset"] == art
+
+
+def test_set_artifacts_update_nested():
+    config = wandb_sdk.Config()
+    art = Artifact("blah", "dataset")
+    try:
+        config.update({"blah": {"dataset": art}})
+        assert False
+    except KeyError as e:
+        print(e)
+        assert False

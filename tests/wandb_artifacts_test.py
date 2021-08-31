@@ -1192,6 +1192,46 @@ def test_reference_download(runner, live_mock_server, test_settings):
         run.finish()
 
 
+def test_use_artifact_config(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run.log_artifact(artifact)
+        run.finish()
+
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact("my-test_reference_download:latest")
+        run.config.reference = artifact
+        assert run.config.reference == artifact
+        run.finish()
+
+
+def test_use_artifact_ds_slot_name(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run.log_artifact(artifact)
+        run.finish()
+
+        run = wandb.init(settings=test_settings)
+        artifact = run.use_artifact(
+            "my-test_reference_download:latest", ds_slot_name="reference"
+        )
+        run.config.reference = artifact
+        assert run.config.artifacts["reference"] == artifact
+        run.finish()
+
+
 def test_communicate_artifact(publish_util, mocked_run):
     artifact = wandb.Artifact("comms_test_PENDING", "dataset")
     artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])

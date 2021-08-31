@@ -90,6 +90,7 @@ class Config(object):
 
     def __init__(self):
         object.__setattr__(self, "_items", dict())
+        object.__setattr__(self, "_artifact_items_map", dict())
         object.__setattr__(self, "_locked", dict())
         object.__setattr__(self, "_users", dict())
         object.__setattr__(self, "_users_inv", dict())
@@ -119,6 +120,8 @@ class Config(object):
         return dict(self)
 
     def __getitem__(self, key):
+        if self._artifact_items_map.get(key) is not None:
+            return self._items["artifacts"][key]
         return self._items[key]
 
     def _check_locked(self, key, ignore_locked=False) -> bool:
@@ -140,34 +143,51 @@ class Config(object):
             wandb.termerror(
                 "Cannot set wandb.run.config key artifacts except as dictionary containing artifacts"
             )
-        if not (
-            isinstance(val, wandb.Artifact)
-            or isinstance(val, wandb.apis.public.Artifact)
-        ):
-            key, val = self._sanitize(key, val)
-        self._items[key] = val
+            raise KeyError
         if isinstance(val, wandb.Artifact) or isinstance(
             val, wandb.apis.public.Artifact
         ):
-            if type(self._items.get("artifacts")) is dict:
-                for config_key in self._items["artifacts"].keys():
-                    if self._items["artifacts"][config_key]["name"] == val.name:
-                        if config_key.split(":")[0] == val.name.split(":")[0]:
-                            self._items["artifacts"][key] = val
-                            del self._items["artifacts"][config_key]
-                            wandb.termwarn(
-                                f"Artifact already in config under name: {config_key}, modifying key to be {key}"
-                            )
-                        else:
-                            wandb.termwarn(
-                                f"Artifact already in config under name: {config_key}, not adding to config at key {key}"
-                            )
-                            return
-            val = {key: val}
-            key = "artifacts"
+            key, val = self._set_artifact_in_config(key, val)
+        else:
+            key, val = self._sanitize(key, val)
+            self._items[key] = val
+
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
             self._callback(key=key, val=val)
+
+    def _set_artifact_in_config(self, key, val):
+        if isinstance(self._items.get("artifacts"), dict):
+            set_artifact = False
+            for config_key in self._items["artifacts"].keys():
+                if (
+                    isinstance(self._items["artifacts"][config_key], wandb.Artifact)
+                    or isinstance(
+                        self._items["artifacts"][config_key],
+                        wandb.apis.public.Artifact,
+                    )
+                ) and self._items["artifacts"][config_key].id == val.id:
+                    self._items["artifacts"][key] = val
+                    del self._items["artifacts"][config_key]
+                    if self._artifact_items_map.get(config_key) is not None:
+                        del self._artifact_items_map[config_key]
+                    wandb.termwarn(
+                        f"Artifact already in config under name: {config_key}, modifying key to be {key}"
+                    )
+                    self._artifact_items_map[key] = self._items["artifacts"][key]
+                    set_artifact = True
+                    break
+            if not set_artifact:
+                self._items["artifacts"][key] = val
+                self._artifact_items_map[key] = self._items["artifacts"][key]
+
+        else:
+            self._items["artifacts"] = {key: val}
+            self._artifact_items_map[key] = self._items["artifacts"][key]
+
+        val = {key: val}
+        key = "artifacts"
+        return key, val
 
     def items(self):
         return [(k, v) for k, v in self._items.items() if not k.startswith("_")]
@@ -186,13 +206,17 @@ class Config(object):
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
                 locked_keys.add(key)
-        sanitized = self._sanitize_dict(
+        sanitized, artifacts = self._sanitize_dict(
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
         self._items.update(sanitized)
         return sanitized
 
     def update(self, d, allow_val_change=None):
+        if check_artifacts_dict(d):
+            raise KeyError(
+                "Cannot update wandb config with nested artifacts. Please update config with artifacts at top level of dictionary."
+            )
         sanitized = self._update(d, allow_val_change)
         if self._callback:
             self._callback(data=sanitized)
@@ -209,7 +233,7 @@ class Config(object):
         d = wandb_helper.parse_config(d)
         # strip out keys already configured
         d = {k: v for k, v in six.iteritems(d) if k not in self._items}
-        d = self._sanitize_dict(d)
+        d, artifacts = self._sanitize_dict(d)
         self._items.update(d)
         if self._callback:
             self._callback(data=d)
@@ -239,12 +263,18 @@ class Config(object):
         self, config_dict, allow_val_change=None, ignore_keys: set = None
     ):
         sanitized = {}
+        artifacts = {}
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
             k, v = self._sanitize(k, v, allow_val_change)
-            sanitized[k] = v
-        return sanitized
+            if isinstance(v, wandb.Artifact) or isinstance(
+                v, wandb.apis.public.Artifact
+            ):
+                artifacts[k] = v
+            else:
+                sanitized[k] = v
+        return sanitized, artifacts
 
     def _sanitize(self, key, val, allow_val_change=None):
         # Let jupyter change config freely by default
