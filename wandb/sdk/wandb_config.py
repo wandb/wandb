@@ -8,7 +8,7 @@ import logging
 
 import six
 import wandb
-from wandb.util import json_friendly_val
+from wandb.util import json_friendly_ignore_artifacts
 
 from . import wandb_helper
 from .lib import config_util
@@ -136,7 +136,6 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
-
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
@@ -160,19 +159,7 @@ class Config(object):
                                 f"Artifact already in config under name: {config_key}, not adding to config at key {key}"
                             )
                             return
-            val = {
-                key: {
-                    "type": val.type,
-                    "sequence_name": val._sequence_name,
-                    "commit_hash": val.commit_hash,
-                    "version": val.version,
-                    "entity": val.entity,
-                    "project": val.project,
-                    "name": val.name,
-                    "_type": "artifact_version",
-                    "version_id": val.id,
-                }
-            }
+            val = {key: val}
             key = "artifacts"
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
@@ -191,6 +178,7 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        print("parsed dict", parsed_dict)
         locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
@@ -247,12 +235,14 @@ class Config(object):
     def _sanitize_dict(
         self, config_dict, allow_val_change=None, ignore_keys: set = None
     ):
+        print("config dict", config_dict)
         sanitized = {}
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
+        print("sanitized", sanitized)
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
@@ -261,13 +251,13 @@ class Config(object):
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
 
-        # if isinstance(val, wandb.Artifact) or isinstance(
-        #     val, wandb.apis.public.Artifact
-        # ):
-        #     return key, val
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        val = json_friendly_val(val)
+        print("key val 1", key, val, type(val))
+        if not isinstance(val, wandb.Artifact) and not isinstance(
+            val, wandb.apis.public.Artifact
+        ):
+            val = json_friendly_ignore_artifacts(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
@@ -278,6 +268,7 @@ class Config(object):
                         " allow_val_change=True to config.update()"
                     ).format(key, self._items[key], val)
                 )
+        print("key, val2", key, val, type(val))
         return key, val
 
 

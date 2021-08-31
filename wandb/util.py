@@ -553,6 +553,17 @@ def json_friendly(obj):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
+    elif isinstance(obj, wandb.wandb_sdk.wandb_artifacts.Artifact) or isinstance(
+        obj, wandb.apis.public.Artifact
+    ):
+        obj = convert_artifact_to_json_config(obj)
+    elif isinstance(obj, dict):
+        converted = False
+        for key, item in six.iteritems(obj):
+            new_item, was_converted = json_friendly(item)
+            if was_converted:
+                obj[key] = new_item
+                converted = True
     elif callable(obj):
         obj = (
             "{}.{}".format(obj.__module__, obj.__qualname__)
@@ -595,6 +606,31 @@ def json_friendly_val(val):
         if val.__class__.__module__ not in ("builtins", "__builtin__"):
             val = str(val)
         return val
+
+
+def json_friendly_ignore_artifacts(val):
+    if isinstance(val, wandb.Artifact) or isinstance(val, wandb.apis.public.Artifact):
+        return val
+    if isinstance(val, dict):
+        converted = {}
+        for key, value in six.iteritems(val):
+            converted[key] = json_friendly_ignore_artifacts(value)
+        return converted
+    return json_friendly_val(val)
+
+
+def convert_artifact_to_json_config(arti):
+    return {
+        "type": arti.type,
+        "sequence_name": arti._sequence_name,
+        "commit_hash": arti.commit_hash,
+        "version": arti.version,
+        "entity": arti.entity,
+        "project": arti.project,
+        "name": arti.name,
+        "_type": "artifact_version",
+        "version_id": arti.id,
+    }
 
 
 def convert_plots(obj):
@@ -683,6 +719,7 @@ class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
+        print(obj, type(obj))
         if hasattr(obj, "json_encode"):
             return obj.json_encode()
         # if hasattr(obj, 'to_json'):

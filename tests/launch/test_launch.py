@@ -224,7 +224,7 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
         with open(path, "w") as fp:
-            json.dump({"overrides": {"epochs": 10}}, fp)
+            json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
@@ -236,7 +236,7 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
 def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_settings):
     arti = {"project": "test", "name": "test", "entity": "test", "version": "v0"}
     overrides = {
-        "overrides": {"run_config": {"epochs": 10, "artifacts": {"dataset": arti}}}
+        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}}
     }
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
@@ -245,10 +245,12 @@ def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_set
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        arti_inst = run.use_artifact("test", ds_slot_name="dataset")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
-        assert run.config.artifacts["dataset"] == arti
+        assert run.config.artifacts["dataset"] == arti_inst
         run.finish()
+        assert False
 
 
 def test_push_to_runqueue(live_mock_server, test_settings):

@@ -683,7 +683,11 @@ class Artifact(ArtifactInterface):
                 shutil.copyfile(path, f.name)
 
         entry = ArtifactManifestEntry(
-            name, None, digest=digest, size=size, local_path=cache_path,
+            name,
+            None,
+            digest=digest,
+            size=size,
+            local_path=cache_path,
         )
 
         self._manifest.add_entry(entry)
@@ -852,7 +856,15 @@ class WandbStoragePolicy(StoragePolicy):
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, http, https, artifact, local_artifact, file_handler,],
+            handlers=[
+                s3,
+                gcs,
+                http,
+                https,
+                artifact,
+                local_artifact,
+                file_handler,
+            ],
             default_handler=TrackingHandler(),
         )
 
@@ -991,7 +1003,11 @@ class __S3BucketPolicy(StoragePolicy):
         local = LocalFileHandler()
 
         self._handler = MultiHandler(
-            handlers=[s3, local,], default_handler=TrackingHandler()
+            handlers=[
+                s3,
+                local,
+            ],
+            default_handler=TrackingHandler(),
         )
 
     def config(self) -> Dict[str, str]:
@@ -1246,7 +1262,10 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                name, path, size=os.path.getsize(local_path), digest=md5(local_path),
+                name,
+                path,
+                size=os.path.getsize(local_path),
+                digest=md5(local_path),
             )
             entries.append(entry)
         else:
@@ -1840,7 +1859,10 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path), path, size=0, digest=entry.digest,
+                name or os.path.basename(path),
+                path,
+                size=0,
+                digest=entry.digest,
             )
         ]
 

@@ -299,10 +299,12 @@ class BackendSender(object):
         obj: pb.ConfigRecord = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
+        print("_make_config data", data, key, val)
         if data:
             for k, v in six.iteritems(data):
                 update = config.update.add()
                 update.key = k
+                print("V", v)
                 update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
         if key:
             update = config.update.add()
@@ -389,7 +391,8 @@ class BackendSender(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
