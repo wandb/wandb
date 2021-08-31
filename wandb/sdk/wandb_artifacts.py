@@ -991,7 +991,7 @@ class __S3BucketPolicy(StoragePolicy):
         local = LocalFileHandler()
 
         self._handler = MultiHandler(
-            handlers=[s3, local,], default_handler=TrackingHandler(),
+            handlers=[s3, local,], default_handler=TrackingHandler()
         )
 
     def config(self) -> Dict[str, str]:

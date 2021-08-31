@@ -299,7 +299,6 @@ class BackendSender(object):
         obj: pb.ConfigRecord = None,
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
-        print("_make_config data", data, key, val)
         if data:
             for k, v in six.iteritems(data):
                 update = config.update.add()
