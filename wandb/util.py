@@ -553,6 +553,10 @@ def json_friendly(obj):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
+    elif isinstance(obj, wandb.wandb_sdk.wandb_artifacts.Artifact) or isinstance(
+        obj, wandb.apis.public.Artifact
+    ):
+        obj = convert_artifact_to_json_config(obj)
     elif callable(obj):
         obj = (
             "{}.{}".format(obj.__module__, obj.__qualname__)
@@ -774,6 +778,20 @@ def make_safe_for_json(obj):
         elif obj == float("-inf"):
             return "-Infinity"
     return obj
+
+
+def convert_artifact_to_json_config(arti):
+    return {
+        "type": arti.type,
+        "sequence_name": arti._sequence_name,
+        "commit_hash": arti.commit_hash,
+        "version": arti.version,
+        "entity": arti.entity,
+        "project": arti.project,
+        "name": arti.name,
+        "_type": "artifact_version",
+        "version_id": arti.id,
+    }
 
 
 def mkdir_exists_ok(path):

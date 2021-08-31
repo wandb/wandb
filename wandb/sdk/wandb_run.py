@@ -366,6 +366,7 @@ class Run(object):
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
+        self._launch_artifact_mapping = None
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -382,9 +383,18 @@ class Run(object):
         ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
-            self._config.update_locked(
-                launch_config, user="launch", _allow_val_change=True
-            )
+            if launch_config.get("overrides", {}).get("artifacts") is not None:
+                self._launch_artifact_mapping = {}
+                for key, item in (
+                    launch_config.get("overrides").get("artifacts").items()
+                ):
+                    self._launch_artifact_mapping[key] = item
+                del launch_config["overrides"]["artifacts"]
+            launch_run_config = launch_config.get("overrides", {}).get("run_config")
+            if launch_run_config:
+                self._config.update_locked(
+                    launch_run_config, user="launch", _allow_val_change=True
+                )
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False
@@ -757,7 +767,7 @@ class Run(object):
         code: str = None,
         repo: str = None,
         code_version: str = None,
-        **kwargs: str
+        **kwargs: str,
     ) -> None:
         if self._settings.label_disable:
             return
@@ -1884,7 +1894,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1937,10 +1950,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1949,8 +1967,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -1975,7 +1998,7 @@ class Run(object):
         summary: str = None,
         goal: str = None,
         overwrite: bool = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Define metric properties which will later be logged with `wandb.log()`.
 
@@ -2065,7 +2088,7 @@ class Run(object):
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, ds_slot_name=None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2080,6 +2103,7 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
+            ds_slot_name: (string, optional) Optional slot name to refer to the artifact to in the run config
         Returns:
             An `Artifact` object.
         """
@@ -2090,8 +2114,23 @@ class Run(object):
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
+        if ds_slot_name and self._launch_artifact_mapping is not None:
+            artifact_or_name = ds_slot_name
+
         if isinstance(artifact_or_name, str):
-            name = artifact_or_name
+            new_name = None
+            if self._launch_artifact_mapping is not None:
+                new_name = self._launch_artifact_mapping.get(
+                    ds_slot_name or artifact_or_name
+                )["name"]
+                if new_name is None:
+                    wandb.termwarn(
+                        f"Could not find {artifact_or_name} in mapping list."
+                    )
+                else:
+                    name = new_name
+            else:
+                name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
@@ -2100,7 +2139,17 @@ class Run(object):
                         type, artifact.type, artifact.name
                     )
                 )
-            api.use_artifact(artifact.id)
+            api.use_artifact(
+                artifact.id, entity_name=artifact.entity, project_name=artifact.project
+            )
+            if self.config["_wandb"].get("artifacts") is None:
+                self.config["_wandb"]["artifacts"] = {
+                    ds_slot_name or name: artifact.name
+                }
+            else:
+                self.config["_wandb"]["artifacts"].update(
+                    {ds_slot_name or name: artifact.name}
+                )
             return artifact
         else:
             artifact = artifact_or_name

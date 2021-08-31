@@ -136,7 +136,13 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
-        key, val = self._sanitize(key, val)
+
+        if isinstance(val, wandb.Artifact) or isinstance(
+            val, wandb.apis.public.Artifact
+        ):
+            key, _ = self._sanitize(key, val)
+        else:
+            key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
         if self._callback:
