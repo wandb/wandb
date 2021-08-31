@@ -138,5 +138,7 @@ def test_set_artifacts_update_nested():
         config.update({"blah": {"dataset": art}})
         assert False
     except KeyError as e:
-        print(e)
-        assert False
+        assert (
+            str(e)
+            == "'Cannot update wandb config with nested artifacts. Please update config with artifacts at top level of dictionary'"
+        )

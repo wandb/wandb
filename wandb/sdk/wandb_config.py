@@ -210,16 +210,22 @@ class Config(object):
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
         self._items.update(sanitized)
+        self._update_artifact_dict(artifacts)
         return sanitized
 
     def update(self, d, allow_val_change=None):
-        if check_artifacts_dict(d):
-            raise KeyError(
-                "Cannot update wandb config with nested artifacts. Please update config with artifacts at top level of dictionary."
-            )
+        for _, item in six.iteritems(d):
+            if check_artifacts_dict(item):
+                raise KeyError(
+                    "Cannot update wandb config with nested artifacts. Please update config with artifacts at top level of dictionary"
+                )
         sanitized = self._update(d, allow_val_change)
         if self._callback:
             self._callback(data=sanitized)
+
+    def _update_artifact_dict(self, d):
+        self._artifact_items_map.update(d)
+        self._items.update({"artifacts": d})
 
     def get(self, *args):
         return self._items.get(*args)

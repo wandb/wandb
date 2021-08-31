@@ -641,7 +641,8 @@ def check_artifacts_dict(val):
         return False
     for _, item in six.iteritems(val):
         if not (
-            isinstance(item, wandb.Artifact) or isinstance(wandb.apis.public.Artifact)
+            isinstance(item, wandb.Artifact)
+            or isinstance(item, wandb.apis.public.Artifact)
         ):
             return False
     return True
