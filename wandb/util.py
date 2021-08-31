@@ -636,6 +636,17 @@ def convert_artifact_to_json_config(arti):
     }
 
 
+def check_artifacts_dict(val):
+    if not isinstance(val, dict):
+        return False
+    for _, item in six.iteritems(val):
+        if not (
+            isinstance(item, wandb.Artifact) or isinstance(wandb.apis.public.Artifact)
+        ):
+            return False
+    return True
+
+
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(

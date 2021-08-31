@@ -8,7 +8,7 @@ import logging
 
 import six
 import wandb
-from wandb.util import json_friendly_ignore_artifacts
+from wandb.util import check_artifacts_dict, json_friendly_ignore_artifacts
 
 from . import wandb_helper
 from .lib import config_util
@@ -136,6 +136,10 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
+        if key == "artifacts" and not check_artifacts_dict(val):
+            wandb.termerror(
+                "Cannot set wandb.run.config key artifacts except as dictionary containing artifacts"
+            )
         if not (
             isinstance(val, wandb.Artifact)
             or isinstance(val, wandb.apis.public.Artifact)
