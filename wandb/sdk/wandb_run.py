@@ -367,7 +367,7 @@ class Run(object):
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping = None
-        self._used_artifacts = {}
+        self._used_artifacts: Dict[str, str] = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -1895,7 +1895,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1948,10 +1951,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1960,8 +1968,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",

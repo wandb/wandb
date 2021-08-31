@@ -215,7 +215,7 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
         with open(path, "w") as fp:
-            json.dump({"epochs": 10}, fp)
+            json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
