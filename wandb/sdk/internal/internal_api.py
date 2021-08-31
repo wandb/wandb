@@ -13,6 +13,8 @@ import click
 import logging
 import requests
 import sys
+import threading
+from typing import Dict, Optional
 
 if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
@@ -63,7 +65,10 @@ class Api(object):
         retry_timedelta=datetime.timedelta(days=7),
         environ=os.environ,
         retry_callback=None,
+        send_lock: Optional[threading.RLock] = None,
     ):
+
+        self._send_lock = send_lock
         self._environ = environ
         self.default_settings = {
             "section": "default",
@@ -114,7 +119,7 @@ class Api(object):
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
-        self._client_id_mapping = {}
+        self._client_id_mapping: Dict = {}
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -126,14 +131,22 @@ class Api(object):
 
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
-        try:
-            return self.client.execute(*args, **kwargs)
-        except requests.exceptions.HTTPError as err:
-            res = err.response
-            logger.error("%s response executing GraphQL." % res.status_code)
-            logger.error(res.text)
-            self.display_gorilla_error_if_found(res)
-            six.reraise(*sys.exc_info())
+
+        def _do():
+            try:
+                return self.client.execute(*args, **kwargs)
+            except requests.exceptions.HTTPError as err:
+                res = err.response
+                logger.error("%s response executing GraphQL." % res.status_code)
+                logger.error(res.text)
+                self.display_gorilla_error_if_found(res)
+                six.reraise(*sys.exc_info())
+
+        if self._send_lock:
+            with self._send_lock:
+                return _do()
+        else:
+            return _do()
 
     def display_gorilla_error_if_found(self, res):
         try:

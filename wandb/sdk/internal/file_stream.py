@@ -9,6 +9,7 @@ import random
 import requests
 import threading
 import time
+from typing import Dict, Optional
 
 import wandb
 from wandb import util
@@ -158,10 +159,18 @@ class FileStreamApi(object):
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
-    def __init__(self, api, run_id, start_time, settings=None):
+    def __init__(
+        self,
+        api,
+        run_id,
+        start_time,
+        send_lock: Optional[threading.RLock] = None,
+        settings=None,
+    ):
         if settings is None:
             settings = dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
+        self._send_lock = send_lock
         self._exc_info = None
         self._settings = settings
         self._api = api
@@ -169,7 +178,7 @@ class FileStreamApi(object):
         self._start_time = start_time
         self._client = requests.Session()
         self._client.auth = ("api", api.api_key)
-        self._client.timeout = self.HTTP_TIMEOUT
+        self._client.timeout = self.HTTP_TIMEOUT  # type: ignore
         self._client.headers.update(
             {
                 "User-Agent": api.user_agent,
@@ -177,9 +186,9 @@ class FileStreamApi(object):
                 "X-WANDB-USER-EMAIL": env.get_user_email(),
             }
         )
-        self._file_policies = {}
+        self._file_policies: Dict = {}
         self._dropped_chunks = 0
-        self._queue = queue.Queue()
+        self._queue: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
@@ -250,16 +259,24 @@ class FileStreamApi(object):
                 if isinstance(item, self.Finish):
                     finished = item
                 elif isinstance(item, self.Preempting):
-                    request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "preempting": True,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(uploaded),
-                        },
-                    )
+
+                    def _do():
+                        request_with_retry(
+                            self._client.post,
+                            self._endpoint,
+                            json={
+                                "complete": False,
+                                "preempting": True,
+                                "dropped": self._dropped_chunks,
+                                "uploaded": list(uploaded),
+                            },
+                        )
+
+                    if self._send_lock:
+                        with self._send_lock:
+                            _do()
+                    else:
+                        _do()
                     uploaded = set()
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
@@ -279,8 +296,9 @@ class FileStreamApi(object):
 
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
-                self._handle_response(
-                    request_with_retry(
+
+                def _do():
+                    response = request_with_retry(
                         self._client.post,
                         self._endpoint,
                         json={
@@ -290,19 +308,35 @@ class FileStreamApi(object):
                             "uploaded": list(uploaded),
                         },
                     )
-                )
+                    return response
+
+                if self._send_lock:
+                    with self._send_lock:
+                        response = _do()
+                else:
+                    response = _do()
+
+                self._handle_response(response)
                 uploaded = set()
         # post the final close message. (item is self.Finish instance now)
-        request_with_retry(
-            self._client.post,
-            self._endpoint,
-            json={
-                "complete": True,
-                "exitcode": int(finished.exitcode),
-                "dropped": self._dropped_chunks,
-                "uploaded": list(uploaded),
-            },
-        )
+
+        def _do():
+            request_with_retry(
+                self._client.post,
+                self._endpoint,
+                json={
+                    "complete": True,
+                    "exitcode": int(finished.exitcode),
+                    "dropped": self._dropped_chunks,
+                    "uploaded": list(uploaded),
+                },
+            )
+
+        if self._send_lock:
+            with self._send_lock:
+                _do()
+        else:
+            _do()
 
     def _thread_except_body(self):
         # TODO: Consolidate with internal_util.ExceptionThread
@@ -349,14 +383,22 @@ class FileStreamApi(object):
                 del files[filename]
 
         for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
-            self._handle_response(
-                request_with_retry(
+
+            def _do():
+                return request_with_retry(
                     self._client.post,
                     self._endpoint,
                     json={"files": fs, "dropped": self._dropped_chunks},
                     retry_callback=self._api.retry_callback,
                 )
-            )
+
+            if self._send_lock:
+                with self._send_lock:
+                    response = _do()
+            else:
+                response = _do()
+
+            self._handle_response(response)
 
     def stream_file(self, path):
         name = path.split("/")[-1]

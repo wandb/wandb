@@ -11,6 +11,7 @@ from datetime import datetime
 import json
 import logging
 import os
+import threading
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
@@ -91,6 +92,7 @@ class SendManager(object):
         self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
+        self._send_lock = threading.RLock()
 
         # State updated by resuming
         self._resume_state = {
@@ -111,7 +113,9 @@ class SendManager(object):
         self._exit_result = None
 
         self._api = internal_api.Api(
-            default_settings=settings, retry_callback=self.retry_callback
+            send_lock=self._send_lock,
+            default_settings=settings,
+            retry_callback=self.retry_callback,
         )
         self._api_settings = dict()
 
@@ -710,6 +714,7 @@ class SendManager(object):
             self._api,
             self._run.run_id,
             self._run.start_time.ToSeconds(),
+            send_lock=self._send_lock,
             settings=self._api_settings,
         )
         # Ensure the streaming polices have the proper offsets
