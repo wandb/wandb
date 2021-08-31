@@ -243,17 +243,12 @@ class Config(object):
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
-
         # Let jupyter change config freely by default
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
-
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        if not isinstance(val, wandb.Artifact) and not isinstance(
-            val, wandb.apis.public.Artifact
-        ):
-            val = json_friendly_ignore_artifacts(val)
+        val = json_friendly_ignore_artifacts(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
