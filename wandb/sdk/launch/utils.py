@@ -174,7 +174,7 @@ def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     except CommError:
         result = None
     if result is None:
-        raise LaunchException("Run info is invalid or doesn't exist for {}".format(uri))
+        raise LaunchError("Run info is invalid or doesn't exist for {}".format(uri))
     if result.get("codePath") is None:
         # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
         # it from wandb-metadata.json if we can.

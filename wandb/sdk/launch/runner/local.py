@@ -89,7 +89,7 @@ class LocalRunner(AbstractRunner):
             # TODO: potentially pull the base_image
             if not docker_image_exists(launch_project.base_image):
                 if generate_docker_base_image(launch_project, entry_cmd) is None:
-                    raise LaunchException("Unable to build base image")
+                    raise LaunchError("Unable to build base image")
             else:
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
