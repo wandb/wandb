@@ -52,17 +52,12 @@ class RequireError(Error):
     pass
 
 
-<<<<<<< HEAD
-class ExecutionException(Error):
-=======
 class ExecutionError(Error):
->>>>>>> master
     """Generic execution exception"""
 
     pass
 
 
-<<<<<<< HEAD
 class DockerException(Error):
     """Raised when attempting to execute a docker command"""
 
@@ -95,12 +90,8 @@ class DockerException(Error):
         super().__init__(error_msg)
 
 
-class LaunchException(Error):
-    """Raised when a known error occurs in wandb launch """
-=======
 class LaunchError(Error):
     """Raised when a known error occurs in wandb launch"""
->>>>>>> master
 
     pass
 
@@ -113,11 +104,6 @@ __all__ = [
     "LogMultiprocessError",
     "ShellCommandException",
     "RequireError",
-<<<<<<< HEAD
-    "ExecutionException",
-    "LaunchException",
-=======
     "ExecutionError",
     "LaunchError",
->>>>>>> master
 ]
