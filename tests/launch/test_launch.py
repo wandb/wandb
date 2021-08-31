@@ -224,6 +224,26 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
         run.finish()
 
 
+def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_settings):
+    arti = {"project": "test", "name": "test", "entity": "test", "version": "v0"}
+    overrides = {
+        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}}
+    }
+    with runner.isolated_filesystem():
+        path = _project_spec.DEFAULT_CONFIG_PATH
+        with open(path, "w") as fp:
+            json.dump(overrides, fp)
+        test_settings.launch = True
+        test_settings.launch_config_path = path
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        arti_inst = run.use_artifact("blah", ds_slot_name="dataset")
+        run.config.dataset = arti_inst
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+        assert run.config.dataset == arti_inst
+        run.finish()
+
+
 def test_push_to_runqueue(live_mock_server, test_settings):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
