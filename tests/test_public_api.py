@@ -501,3 +501,50 @@ def test_queued_job(runner, mock_server, api):
     queued_job = api.queued_job("test/test/test/test")
     queued_job.wait_until_running()
     assert queued_job._run_id == "test"
+
+
+def test_query_team(mock_server, api):
+    t = api.team("test")
+    assert t.name == "test"
+    assert t.members[0].account_type == "MEMBER"
+    assert repr(t.members[0]) == "<Member test (MEMBER)>"
+
+
+def test_create_service_account(mock_server, api):
+    t = api.team("test")
+    assert t.create_service_account("My service account") == "Y" * 40
+
+
+def test_create_team(mock_server, api):
+    t = api.create_team("test")
+    assert t.name == "test"
+    assert repr(t) == "<Team test>"
+
+
+def test_invite_user(mock_server, api):
+    t = api.team("test")
+    assert t.invite("test@test.com")
+    assert t.invite("test")
+
+
+def test_delete_member(mock_server, api):
+    t = api.team("test")
+    assert t.members[0].delete()
+
+
+def test_query_user(mock_server, api):
+    u = api.user("test@test.com")
+    assert u.email == "test@test.com"
+    assert u.api_keys == ["Y" * 40]
+    assert u.teams == ["test"]
+    assert repr(u) == "<User test@test.com>"
+
+
+def test_delete_api_key(mock_server, api):
+    u = api.user("test@test.com")
+    assert u.delete_api_key("Y" * 40)
+
+
+def test_generate_api_key(mock_server, api):
+    u = api.user("test@test.com")
+    assert u.generate_api_key()

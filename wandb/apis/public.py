@@ -238,6 +238,7 @@ class Api(object):
                     apiKeys {
                         edges {
                             node {
+                                id
                                 name
                                 description
                             }
@@ -256,39 +257,6 @@ class Api(object):
     }
         """
     )
-    CREATE_TEAM_MUTATION = gql(
-        """
-    mutation createTeam($teamName: String!, $teamAdminUserName: String) {
-        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
-            entity {
-                id
-                name
-                available
-                photoUrl
-                limits
-            }
-        }
-    }
-    """
-    )
-    CREATE_INVITE_MUTATION = gql(
-        """
-    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
-        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
-            invite {
-                id
-                name
-                email
-                createdAt
-                toUser {
-                    name
-                }
-            }
-        }
-    }
-    """
-    )
-
 
     def __init__(self, overrides={}, timeout: Optional[int] = None):
         self.settings = InternalApi().settings()
@@ -495,29 +463,42 @@ class Api(object):
         return self._reports[key]
 
     def create_team(self, team, admin_username=None):
-        self._client.execute(self.CREATE_TEAM_MUTATION, {"teamName": team, "teamAdminUserName": admin_username})
-        return True
+        """Creates a new team
 
-    def invite_user(self, team, username_or_email, admin=False):
-        variables = {
-            "entityName": team,
-            "admin": admin
-        }
-        if "@" in username_or_email:
-            variables["email"] = username_or_email
-        else:
-            variables["username"] = username_or_email
-        self._client.execute(self.CREATE_INVITE_MUTATION, variables)
-        return True
+        Arguments:
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+
+        Raises:
+            requests.exceptions.HTTPError if the team already exists
+        """
+        return Team.create(self.client, team, admin_username)
+
+    def team(self, team):
+        return Team(self.client, team)
 
     def user(self, username_or_email):
-        """Return a user from a username or email address"""
+        """Return a user from a username or email address
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user
+
+        Returns:
+            A `User` object or None if a user couldn't be found
+        """
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         if len(res["users"]["edges"]) == 0:
             return None
         elif len(res["users"]["edges"]) > 1:
-            wandb.termwarn("Found multiple users, returning the first user matching {}".format(username_or_email))
-        return User(res["users"]["edges"][0]["node"])
+            wandb.termwarn(
+                "Found multiple users, returning the first user matching {}".format(
+                    username_or_email
+                )
+            )
+        return User(self._client, res["users"]["edges"][0]["node"])
 
     def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
@@ -755,16 +736,264 @@ class Paginator(object):
 
 
 class User(Attrs):
-    def init(self, attrs):
+    DELETE_API_KEY_MUTATION = gql(
+        """
+    mutation DeleteApiKey($id: String!) {
+        deleteApiKey(input: {id: $id}) {
+            success
+        }
+    }
+        """
+    )
+    GENERATE_API_KEY_MUTATION = gql(
+        """
+    mutation GenerateApiKey($description: String) {
+        generateApiKey(input: {description: $description}) {
+            apiKey {
+                id
+                name
+            }
+        }
+    }
+        """
+    )
+
+    def __init__(self, client, attrs):
         super(User, self).__init__(attrs)
+        self._client = client
 
     @property
     def api_keys(self):
+        if self._attrs["apiKeys"] is None:
+            return []
         return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
 
     @property
     def teams(self):
+        if self._attrs["teams"] is None:
+            return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
+
+    def delete_api_key(self, api_key):
+        """Delete a users api key
+
+        Returns:
+            Boolean indicating success
+
+        Raises:
+            requests.exceptions.HTTPError if the request was invalid
+            ValueError if the api_key couldn't be found
+        """
+        idx = self.api_keys.index(api_key)
+        self._client.execute(self.DELETE_API_KEY_MUTATION, {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]})
+        return True
+
+    def generate_api_key(self, description=None):
+        """Generates a new api key
+
+        Returns:
+            The new api key
+
+        Raises:
+            requests.exceptions.HTTPError if the request was invalid
+        """
+        return self._client.execute(self.GENERATE_API_KEY_MUTATION, {"description": description})["generateApiKey"]["apiKey"]["name"]
+
+    def __repr__(self):
+        return "<User {}>".format(self.email)
+
+
+class Member(Attrs):
+    DELETE_MEMBER_MUTATION = gql(
+        """
+    mutation DeleteInvite($id: String, $entityName: String) {
+        deleteInvite(input: {id: $id, entityName: $entityName}) {
+            success
+        }
+    }
+  """
+    )
+
+    def __init__(self, client, team, attrs):
+        super(Member, self).__init__(attrs)
+        self._client = client
+        self.team = team
+
+    def delete(self):
+        """Remove a member from a team
+
+        Returns:
+            Boolean indicating success
+
+        Raises:
+            requests.exceptions.HTTPError if the request was invalid
+        """
+        return self._client.execute(
+            self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
+        )["deleteInvite"]["success"]
+
+    def __repr__(self):
+        return "<Member {} ({})>".format(self.name, self.account_type)
+
+
+class Team(Attrs):
+    CREATE_TEAM_MUTATION = gql(
+        """
+    mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
+        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
+            entity {
+                id
+                name
+                available
+                photoUrl
+                limits
+            }
+        }
+    }
+    """
+    )
+    CREATE_INVITE_MUTATION = gql(
+        """
+    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
+        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
+            invite {
+                id
+                name
+                email
+                createdAt
+                toUser {
+                    name
+                }
+            }
+        }
+    }
+    """
+    )
+    TEAM_QUERY = gql(
+        """
+    query Entity($name: String!) {
+        entity(name: $name) {
+            id
+            name
+            available
+            photoUrl
+            readOnly
+            readOnlyAdmin
+            isTeam
+            privateOnly
+            storageBytes
+            codeSavingEnabled
+            defaultAccess
+            isPaid
+            members {
+                id
+                admin
+                pending
+                email
+                username
+                name
+                photoUrl
+                accountType
+                apiKey
+            }
+        }
+    }
+    """
+    )
+    CREATE_SERVICE_ACCOUNT_MUTATION = gql(
+        """
+    mutation CreateServiceAccount($entityName: String!, $description: String!) {
+        createServiceAccount(
+            input: {description: $description, entityName: $entityName}
+        ) {
+            user {
+                id
+            }
+        }
+    }
+    """
+    )
+
+    def __init__(self, client, name, attrs=None):
+        super(Team, self).__init__(attrs or {})
+        self._client = client
+        self.name = name
+        self.load()
+
+    @classmethod
+    def create(cls, api, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            api: (`Api`) The api instance to use
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+
+        Raises:
+            requests.exceptions.HTTPError if the team already exists
+        """
+        api.execute(
+            cls.CREATE_TEAM_MUTATION,
+            {"teamName": team, "teamAdminUserName": admin_username},
+        )
+        return Team(api, team)
+
+    def invite(self, username_or_email, admin=False):
+        """Invites a user to a team
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user you want to invite
+            admin: (bool) Whether to make this user a team admin, defaults to False
+
+        Returns:
+            True on success
+
+        Raises:
+            requests.exceptions.HTTPError if the user couldn't be found
+        """
+        variables = {"entityName": self.name, "admin": admin}
+        if "@" in username_or_email:
+            variables["email"] = username_or_email
+        else:
+            variables["username"] = username_or_email
+        self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        return True
+
+    def create_service_account(self, description):
+        """Creates a service account for the team
+
+        Arguments:
+            description: (str) A description for this service account
+
+        Returns:
+            The service account `Member` object
+
+        Raises:
+            requests.exceptions.HTTPError if creation was unsuccessful
+        """
+        self._client.execute(
+            self.CREATE_SERVICE_ACCOUNT_MUTATION,
+            {"description": description, "entityName": self.name},
+        )
+        self.load(True)
+        return self.members[-1].api_key
+
+    def load(self, force=False):
+        if force or not self._attrs:
+            response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
+            self._attrs = response["entity"]
+            self._attrs["members"] = [
+                Member(self._client, self.name, member)
+                for member in self._attrs["members"]
+            ]
+        return self._attrs
+
+    def __repr__(self):
+        return "<Team {}>".format(self.name)
+
 
 class Projects(Paginator):
     """
@@ -1187,7 +1416,7 @@ class Run(Attrs):
             else {}
         )
         if self._attrs.get("user"):
-            self.user = User(self._attrs["user"])
+            self.user = User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
         for key, value in six.iteritems(json.loads(self._attrs.get("config") or "{}")):
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
@@ -2876,7 +3105,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -3092,7 +3324,10 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={
+                "id": self.id,
+            },
         )
         return True
 
@@ -3348,7 +3583,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -3517,7 +3755,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -3555,7 +3796,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(

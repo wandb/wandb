@@ -147,7 +147,7 @@ def write_netrc(host, entity, key):
         return None
     try:
         try:
-            normalized_host = urlparse(host).netloc
+            normalized_host = urlparse(host).netloc.split(":")[0]
         except ValueError:
             pass
         if normalized_host != "localhost" and "." not in normalized_host:

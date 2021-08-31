@@ -795,7 +795,7 @@ def no_retry_auth(e):
     if e.response is None:
         return True
     # Don't retry bad request errors; raise immediately
-    if e.response.status_code == 400:
+    if e.response.status_code in (400, 409):
         return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):

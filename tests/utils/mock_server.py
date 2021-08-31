@@ -144,7 +144,11 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [{"node": fileNode,}]
+            "edges": [
+                {
+                    "node": fileNode,
+                }
+            ]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -199,7 +203,9 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {"name": collection_name,},
+        "artifactSequence": {
+            "name": collection_name,
+        },
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -587,14 +593,24 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
+                {
+                    "data": {
+                        "createAgent": {
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            }
+                        }
+                    }
+                }
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {"id": "mock-server-agent-93xy",},
+                            "agent": {
+                                "id": "mock-server-agent-93xy",
+                            },
                             "commands": json.dumps(
                                 [
                                     {
@@ -740,7 +756,13 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
             for c in ctx, run_ctx:
                 c["manifests_created"].append(manifest)
-            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "createArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -757,7 +779,13 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
+            return {
+                "data": {
+                    "updateArtifactManifest": {
+                        "artifactManifest": manifest,
+                    }
+                }
+            }
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -1017,6 +1045,64 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
+        # Admin apis
+        if "mutation DeleteApiKey" in body["query"]:
+            return {"data": {"deleteApiKey": {"success": True}}}
+        if "mutation GenerateApiKey" in body["query"]:
+            return {
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+            }
+        if "mutation DeleteInvite" in body["query"]:
+            return {"data": {"deleteInvite": {"success": True}}}
+        if "mutation CreateInvite" in body["query"]:
+            return {"data": {"createInvite": {"invite": {"id": "XXX"}}}}
+        if "mutation CreateServiceAccount" in body["query"]:
+            return {"data": {"createServiceAccount": {"user": {"id": "XXX"}}}}
+        if "mutation CreateTeam" in body["query"]:
+            return {
+                "data": {
+                    "createTeam": {
+                        "entity": {"id": "XXX", "name": body["variables"]["teamName"]}
+                    }
+                }
+            }
+        if "query SearchUsers" in body["query"]:
+            return {
+                "data": {
+                    "users": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "XXX",
+                                    "email": body["variables"]["query"],
+                                    "apiKeys": {
+                                        "edges": [
+                                            {"node": {"id": "YYY", "name": "Y" * 40}}
+                                        ]
+                                    },
+                                    "teams": {
+                                        "edges": [
+                                            {"node": {"id": "TTT", "name": "test"}}
+                                        ]
+                                    },
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        if "query Entity(" in body["query"]:
+            return {
+                "data": {
+                    "entity": {
+                        "id": "XXX",
+                        "members": [
+                            {"id": "YYY", "name": "test", "accountType": "MEMBER", "apiKey": None},
+                            {"id": "SSS", "name": "Service account", "accountType": "SERVICE", "apiKey": "Y" * 40},
+                        ],
+                    }
+                }
+            }
         if "stopped" in body["query"]:
             return json.dumps(
                 {
