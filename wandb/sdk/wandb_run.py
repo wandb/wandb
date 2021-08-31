@@ -30,7 +30,6 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
-from wandb.env import ENTITY
 
 import click
 import requests
@@ -54,7 +53,6 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.util import (
     add_import_hook,
-    convert_artifact_to_json_config,
     is_unicode_safe,
     sentry_set_scope,
     to_forward_slash_path,
@@ -853,7 +851,6 @@ class Run(object):
         data: Dict[str, object] = None,
     ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
-
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
@@ -2093,6 +2090,7 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
+            ds_slot_name: (str, optional) Optional slot name for artiact in wandb.run.config.artifacts
         Returns:
             An `Artifact` object.
         """
@@ -2128,26 +2126,8 @@ class Run(object):
             api.use_artifact(
                 artifact.id, entity_name=artifact.entity, project_name=artifact.project
             )
-            print("Aboutto update with artifact", artifact, name, ds_slot_name)
-            self.config.update(
-                {
-                    "artifacts": {
-                        ds_slot_name
-                        or name: artifact
-                        # {
-                        #     "type": artifact.type,
-                        #     "sequence_name": artifact._sequence_name,
-                        #     "commit_hash": artifact.commit_hash,
-                        #     "version": artifact.version,
-                        #     "entity": artifact.entity,
-                        #     "project": artifact.project,
-                        #     "name": artifact.name,
-                        #     "_type": "artifactVersion",
-                        #     "version_id": artifact.id,
-                        # }
-                    }
-                }
-            )
+            # put used artifacts in run.config.artifacts
+            self.config.update({"artifacts": {ds_slot_name or name: artifact}})
 
             return artifact
         else:

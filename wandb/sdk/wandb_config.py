@@ -134,7 +134,6 @@ class Config(object):
         return False
 
     def __setitem__(self, key, val):
-        print("CALLING SETITEM")
         if self._check_locked(key):
             return
         if not (
@@ -179,7 +178,6 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
-        print("parsed dict", parsed_dict)
         locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
@@ -188,7 +186,6 @@ class Config(object):
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
         self._items.update(sanitized)
-        print("SET ITEMS WITH SANITIZED", self._items)
         return sanitized
 
     def update(self, d, allow_val_change=None):

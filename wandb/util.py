@@ -722,7 +722,6 @@ class WandBJSONEncoder(json.JSONEncoder):
     """A JSON Encoder that handles some extra types."""
 
     def default(self, obj):
-        print(obj, type(obj))
         if hasattr(obj, "json_encode"):
             return obj.json_encode()
         # if hasattr(obj, 'to_json'):
