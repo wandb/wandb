@@ -648,6 +648,20 @@ def check_artifacts_dict(val):
     return True
 
 
+def check_dict_contains_artifact(d):
+    if isinstance(d, dict):
+        for _, item in six.iteritems(d):
+            if isinstance(item, dict):
+                contains_artifacts = check_dict_contains_artifact(item)
+                if contains_artifacts:
+                    return True
+            elif isinstance(item, wandb.Artifact) or isinstance(
+                item, wandb.apis.public.Artifact
+            ):
+                return True
+    return False
+
+
 def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(

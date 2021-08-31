@@ -851,6 +851,7 @@ class Run(object):
         data: Dict[str, object] = None,
     ) -> None:
         logger.info("config_cb %s %s %s", key, val, data)
+        print("Callback data", data, key, val)
         if not self._backend or not self._backend.interface:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
@@ -1894,7 +1895,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1947,10 +1951,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1959,8 +1968,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2126,8 +2140,11 @@ class Run(object):
             api.use_artifact(
                 artifact.id, entity_name=artifact.entity, project_name=artifact.project
             )
-            # put used artifacts in run.config.artifacts
-            self.config.update({"artifacts": {ds_slot_name or name: artifact}})
+
+            if self.config.get("artifacts") is None:
+                self.config["artifacts"] = {ds_slot_name or name: artifact}
+            else:
+                self.config.artifacts.update({ds_slot_name or name: artifact})
 
             return artifact
         else:

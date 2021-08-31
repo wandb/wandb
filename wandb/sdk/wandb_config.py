@@ -8,7 +8,11 @@ import logging
 
 import six
 import wandb
-from wandb.util import check_artifacts_dict, json_friendly_ignore_artifacts
+from wandb.util import (
+    check_artifacts_dict,
+    json_friendly_ignore_artifacts,
+    check_dict_contains_artifact,
+)
 
 from . import wandb_helper
 from .lib import config_util
@@ -141,7 +145,7 @@ class Config(object):
             return
         if key == "artifacts" and not check_artifacts_dict(val):
             wandb.termerror(
-                "Cannot set wandb.run.config key artifacts except as dictionary containing artifacts"
+                'Cannot set wandb.run.config key "artifacts" except as dictionary containing artifacts'
             )
             raise KeyError
         if isinstance(val, wandb.Artifact) or isinstance(
@@ -184,8 +188,8 @@ class Config(object):
         else:
             self._items["artifacts"] = {key: val}
             self._artifact_items_map[key] = self._items["artifacts"][key]
-
-        val = {key: val}
+        old_artifacts = self._items.get("artifacts", {})
+        val = {**old_artifacts, key: val}
         key = "artifacts"
         return key, val
 
@@ -211,11 +215,25 @@ class Config(object):
         )
         self._items.update(sanitized)
         self._update_artifact_dict(artifacts)
+        if artifacts:
+            old_artifacts = self._items.get("artifacts", {})
+            sanitized = {**sanitized, "artifacts": {**old_artifacts, **artifacts}}
         return sanitized
 
     def update(self, d, allow_val_change=None):
-        for _, item in six.iteritems(d):
-            if check_artifacts_dict(item):
+        print(d)
+        # don't allow nested dictionary updates of artifacts
+        for key, item in six.iteritems(d):
+            if key == "artifacts" and not check_artifacts_dict(item):
+                print(item, type(item))
+                raise KeyError(
+                    "Cannot update wandb config artifacts key with non artifacts."
+                )
+            elif (
+                key != "artifacts"
+                and isinstance(item, dict)
+                and check_dict_contains_artifact(item)
+            ):
                 raise KeyError(
                     "Cannot update wandb config with nested artifacts. Please update config with artifacts at top level of dictionary"
                 )
@@ -225,7 +243,8 @@ class Config(object):
 
     def _update_artifact_dict(self, d):
         self._artifact_items_map.update(d)
-        self._items.update({"artifacts": d})
+        artis_dict = self._items.get("artifacts", {})
+        self._items.update({"artifacts": {**artis_dict, **d}})
 
     def get(self, *args):
         return self._items.get(*args)
