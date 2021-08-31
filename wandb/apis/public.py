@@ -210,6 +210,7 @@ class Api(object):
             id
             flags
             entity
+            username
             teams {
                 edges {
                     node {
@@ -221,6 +222,73 @@ class Api(object):
     }
     """
     )
+    USERS_QUERY = gql(
+        """
+    query SearchUsers($query: String) {
+        users(query: $query) {
+            edges {
+                node {
+                    id
+                    flags
+                    entity
+                    admin
+                    email
+                    deletedAt
+                    username
+                    apiKeys {
+                        edges {
+                            node {
+                                name
+                                description
+                            }
+                        }
+                    }
+                    teams {
+                        edges {
+                            node {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+        """
+    )
+    CREATE_TEAM_MUTATION = gql(
+        """
+    mutation createTeam($teamName: String!, $teamAdminUserName: String) {
+        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
+            entity {
+                id
+                name
+                available
+                photoUrl
+                limits
+            }
+        }
+    }
+    """
+    )
+    CREATE_INVITE_MUTATION = gql(
+        """
+    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
+        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
+            invite {
+                id
+                name
+                email
+                createdAt
+                toUser {
+                    name
+                }
+            }
+        }
+    }
+    """
+    )
+
 
     def __init__(self, overrides={}, timeout: Optional[int] = None):
         self.settings = InternalApi().settings()
@@ -425,6 +493,31 @@ class Api(object):
                 per_page=per_page,
             )
         return self._reports[key]
+
+    def create_team(self, team, admin_username=None):
+        self._client.execute(self.CREATE_TEAM_MUTATION, {"teamName": team, "teamAdminUserName": admin_username})
+        return True
+
+    def invite_user(self, team, username_or_email, admin=False):
+        variables = {
+            "entityName": team,
+            "admin": admin
+        }
+        if "@" in username_or_email:
+            variables["email"] = username_or_email
+        else:
+            variables["username"] = username_or_email
+        self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        return True
+
+    def user(self, username_or_email):
+        """Return a user from a username or email address"""
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        if len(res["users"]["edges"]) == 0:
+            return None
+        elif len(res["users"]["edges"]) > 1:
+            wandb.termwarn("Found multiple users, returning the first user matching {}".format(username_or_email))
+        return User(res["users"]["edges"][0]["node"])
 
     def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
@@ -665,6 +758,13 @@ class User(Attrs):
     def init(self, attrs):
         super(User, self).__init__(attrs)
 
+    @property
+    def api_keys(self):
+        return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
+
+    @property
+    def teams(self):
+        return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
 class Projects(Paginator):
     """
