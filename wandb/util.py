@@ -45,8 +45,7 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled
 
 import wandb
-from wandb.errors import CommError, ShellCommandException, term
-from wandb.old.core import wandb_dir
+from wandb.errors import CommError, term
 
 logger = logging.getLogger(__name__)
 _not_importable = set()

@@ -40,7 +40,7 @@ class LogMultiprocessError(LogError):
     pass
 
 
-class ShellCommandException(Error):
+class ShellCommandError(Error):
     """Shell command Error"""
 
     pass
@@ -58,7 +58,7 @@ class ExecutionError(Error):
     pass
 
 
-class DockerException(Error):
+class DockerError(Error):
     """Raised when attempting to execute a docker command"""
 
     def __init__(
@@ -101,8 +101,9 @@ __all__ = [
     "UsageError",
     "CommError",
     "LogError",
+    "DockerError",
     "LogMultiprocessError",
-    "ShellCommandException",
+    "ShellCommandError",
     "RequireError",
     "ExecutionError",
     "LaunchError",
