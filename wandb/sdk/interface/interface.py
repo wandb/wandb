@@ -304,7 +304,6 @@ class BackendSender(object):
             for k, v in six.iteritems(data):
                 update = config.update.add()
                 update.key = k
-                print("V", v)
                 update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
         if key:
             update = config.update.add()

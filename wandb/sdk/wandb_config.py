@@ -134,6 +134,7 @@ class Config(object):
         return False
 
     def __setitem__(self, key, val):
+        print("CALLING SETITEM")
         if self._check_locked(key):
             return
         if not (
@@ -187,6 +188,7 @@ class Config(object):
             parsed_dict, allow_val_change, ignore_keys=locked_keys
         )
         self._items.update(sanitized)
+        print("SET ITEMS WITH SANITIZED", self._items)
         return sanitized
 
     def update(self, d, allow_val_change=None):
@@ -235,14 +237,12 @@ class Config(object):
     def _sanitize_dict(
         self, config_dict, allow_val_change=None, ignore_keys: set = None
     ):
-        print("config dict", config_dict)
         sanitized = {}
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
-        print("sanitized", sanitized)
         return sanitized
 
     def _sanitize(self, key, val, allow_val_change=None):
@@ -253,7 +253,6 @@ class Config(object):
 
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        print("key val 1", key, val, type(val))
         if not isinstance(val, wandb.Artifact) and not isinstance(
             val, wandb.apis.public.Artifact
         ):
@@ -268,7 +267,6 @@ class Config(object):
                         " allow_val_change=True to config.update()"
                     ).format(key, self._items[key], val)
                 )
-        print("key, val2", key, val, type(val))
         return key, val
 
 

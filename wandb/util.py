@@ -559,11 +559,14 @@ def json_friendly(obj):
         obj = convert_artifact_to_json_config(obj)
     elif isinstance(obj, dict):
         converted = False
-        for key, item in six.iteritems(obj):
+        # make a copy, so we don't modify the dictionary held in the actual wandb config
+        new_obj = {**obj}
+        for key, item in six.iteritems(new_obj):
             new_item, was_converted = json_friendly(item)
             if was_converted:
-                obj[key] = new_item
+                new_obj[key] = new_item
                 converted = True
+        obj = new_obj
     elif callable(obj):
         obj = (
             "{}.{}".format(obj.__module__, obj.__qualname__)

@@ -250,7 +250,6 @@ def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_set
         assert run.config.lr == 0.004
         assert run.config.artifacts["dataset"] == arti_inst
         run.finish()
-        assert False
 
 
 def test_push_to_runqueue(live_mock_server, test_settings):
