@@ -345,7 +345,7 @@ def serve(
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
             InternalServiceServicer(server, backend), server
         )
-        port = server.add_insecure_port("localhost:{}".format(port))
+        port = server.add_insecure_port("127.0.0.1:{}".format(port))
         server.start()
 
         if port_filename:

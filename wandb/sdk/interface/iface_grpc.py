@@ -7,6 +7,7 @@ Manage backend sender.
 """
 
 import logging
+import os
 from typing import Optional
 from typing import TYPE_CHECKING
 

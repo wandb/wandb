@@ -88,6 +88,20 @@ class Backend(object):
         if self._settings.start_method == "thread":
             return
         if self._settings._concurrency:
+            # fork not supported:
+            # https://github.com/grpc/grpc/tree/master/examples/python/multiprocessing#multiprocessing-with-grpc-python
+            current_method = multiprocessing.get_start_method(allow_none=True)
+            if current_method:
+                if current_method == "fork":
+                    wandb.termerror("Unsupported start_method fork with concurrency, see:")
+                    sys.exit(-1)
+                logger.info(f"start method already configured: {current_method}")
+            else:
+                start_method = self._settings.start_method or "spawn"
+                if start_method == "fork":
+                    logger.info(f"start method fork ignored due to concurrency requirements")
+                    start_method = "spawn"
+                multiprocessing.set_start_method(method=start_method)
             return
 
         # defaulting to spawn for now, fork needs more testing
