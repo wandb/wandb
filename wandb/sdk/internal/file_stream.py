@@ -340,7 +340,6 @@ class FileStreamApi(object):
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
             logging.exception("dropped chunk %s" % response)
-            logging.exception("\n".join(tb.format_tb(response.__traceback__)))
             self._dropped_chunks += 1
         else:
             parsed: dict = None
@@ -445,7 +444,6 @@ def request_with_retry(func, *args, **kwargs):
     while True:
         try:
             response = func(*args, **kwargs)
-            print(response.content)
             response.raise_for_status()
             return response
         except (
