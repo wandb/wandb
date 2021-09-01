@@ -182,11 +182,6 @@ class FileStreamApi(object):
         self._file_policies = {}
         self._dropped_chunks = 0
         self._queue = queue.Queue()
-        self._thread = threading.Thread(target=self._thread_except_body)
-        # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
-        # cleans this thread up.
-        self._thread.name = "FileStreamThread"
-        self._thread.daemon = True
 
         self.uploaded: Iterable[str] = set()
         self.posted_data_time: float = time.time()
