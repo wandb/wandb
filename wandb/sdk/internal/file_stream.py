@@ -160,7 +160,7 @@ class FileStreamApi(object):
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
-    def __init__(self, api, run_id, start_time, settings=None, sync=False):
+    def __init__(self, api, run_id, start_time, settings=None):
         if settings is None:
             settings = dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
@@ -187,7 +187,6 @@ class FileStreamApi(object):
         # cleans this thread up.
         self._thread.name = "FileStreamThread"
         self._thread.daemon = True
-        self._async = not sync
 
         self.uploaded: Iterable[str] = set()
         self.posted_data_time: float = time.time()
@@ -209,9 +208,6 @@ class FileStreamApi(object):
 
     def start(self):
         self._init_endpoint()
-
-        if self._async:
-            self._thread.start()
 
     def set_default_file_policy(self, filename, file_policy):
         """Set an upload policy for a file unless one has already been set.
@@ -316,21 +312,6 @@ class FileStreamApi(object):
                 },
             )
 
-    def _thread_body(self):
-        while self.finished is None:
-            self.process_queue()
-
-    def _thread_except_body(self):
-        # TODO: Consolidate with internal_util.ExceptionThread
-        try:
-            self._thread_body()
-        except Exception as e:
-            exc_info = sys.exc_info()
-            self._exc_info = exc_info
-            logger.exception("generic exception in filestream thread")
-            util.sentry_exc(exc_info, delay=True)
-            raise e
-
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
@@ -412,10 +393,7 @@ class FileStreamApi(object):
         self._queue.put(self.Finish(exitcode))
         # TODO(jhr): join on a thread which exited with an exception is a noop, clean up this path
 
-        if self._async:
-            self._thread.join()
-        else:
-            self.process_queue()
+        self.process_queue()
 
         if self._exc_info:
             logger.error("FileStream exception", exc_info=self._exc_info)
