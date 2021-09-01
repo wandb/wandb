@@ -243,6 +243,8 @@ class SendManager(object):
     def debounce(self) -> None:
         if self._config_needs_debounce:
             self._debounce_config()
+        if self._fs:
+            self._fs.do_one()
 
     def _debounce_config(self):
         config_value_dict = self._config_format(self._consolidated_config)
@@ -350,6 +352,7 @@ class SendManager(object):
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
+            self.debounce()
             transition_state()
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
@@ -711,6 +714,7 @@ class SendManager(object):
             self._run.run_id,
             self._run.start_time.ToSeconds(),
             settings=self._api_settings,
+            sync=True,
         )
         # Ensure the streaming polices have the proper offsets
         self._fs.set_file_policy("wandb-summary.json", file_stream.SummaryFilePolicy())

@@ -9,6 +9,8 @@ import random
 import requests
 import threading
 import time
+import traceback as tb
+from typing import Iterable, List, Optional
 
 import wandb
 from wandb import util
@@ -158,7 +160,7 @@ class FileStreamApi(object):
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
-    def __init__(self, api, run_id, start_time, settings=None):
+    def __init__(self, api, run_id, start_time, settings=None, sync=False):
         if settings is None:
             settings = dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
@@ -185,6 +187,14 @@ class FileStreamApi(object):
         # cleans this thread up.
         self._thread.name = "FileStreamThread"
         self._thread.daemon = True
+        self._async = not sync
+
+        self.uploaded: Iterable[str] = set()
+        self.posted_data_time: float = time.time()
+        self.posted_anything_time: float = time.time()
+        self.ready_chunks: List[collections.namedtuple] = []
+        self.finished: Optional[FileStreamApi.Finish] = None
+
         self._init_endpoint()
 
     def _init_endpoint(self):
@@ -199,7 +209,9 @@ class FileStreamApi(object):
 
     def start(self):
         self._init_endpoint()
-        self._thread.start()
+
+        if self._async:
+            self._thread.start()
 
     def set_default_file_policy(self, filename, file_policy):
         """Set an upload policy for a file unless one has already been set.
@@ -238,71 +250,77 @@ class FileStreamApi(object):
             self._queue, self.MAX_ITEMS_PER_PUSH, self.rate_limit_seconds()
         )
 
-    def _thread_body(self):
-        posted_data_time = time.time()
-        posted_anything_time = time.time()
-        ready_chunks = []
-        uploaded = set()
-        finished = None
-        while finished is None:
-            items = self._read_queue()
-            for item in items:
-                if isinstance(item, self.Finish):
-                    finished = item
-                elif isinstance(item, self.Preempting):
-                    request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "preempting": True,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(uploaded),
-                        },
-                    )
-                    uploaded = set()
-                elif isinstance(item, self.PushSuccess):
-                    uploaded.add(item.save_name)
-                else:
-                    # item is Chunk
-                    ready_chunks.append(item)
+    def do_one(self):
 
-            cur_time = time.time()
-
-            if ready_chunks and (
-                finished or cur_time - posted_data_time > self.rate_limit_seconds()
-            ):
-                posted_data_time = cur_time
-                posted_anything_time = cur_time
-                self._send(ready_chunks)
-                ready_chunks = []
-
-            if cur_time - posted_anything_time > self.heartbeat_seconds:
-                posted_anything_time = cur_time
-                self._handle_response(
-                    request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "failed": False,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(uploaded),
-                        },
-                    )
+        items = self._read_queue()
+        for item in items:
+            if isinstance(item, self.Finish):
+                self.finished = item
+            elif isinstance(item, self.Preempting):
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "preempting": True,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": list(self.uploaded),
+                    },
                 )
-                uploaded = set()
-        # post the final close message. (item is self.Finish instance now)
-        request_with_retry(
-            self._client.post,
-            self._endpoint,
-            json={
-                "complete": True,
-                "exitcode": int(finished.exitcode),
-                "dropped": self._dropped_chunks,
-                "uploaded": list(uploaded),
-            },
-        )
+                self.uploaded = set()
+            elif isinstance(item, self.PushSuccess):
+                self.uploaded.add(item.save_name)
+            else:
+                # item is Chunk
+                self.ready_chunks.append(item)
+
+        cur_time = time.time()
+
+        if self.ready_chunks and (
+            self.finished
+            or cur_time - self.posted_data_time > self.rate_limit_seconds()
+        ):
+            self.posted_data_time = cur_time
+            self.posted_anything_time = cur_time
+            self._send(self.ready_chunks)
+            self.ready_chunks = []
+
+        if (
+            self.posted_anything_time
+            and self.posted_anything_time > self.heartbeat_seconds
+        ):
+            self.posted_anything_time = cur_time
+            self._handle_response(
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "failed": False,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": list(self.uploaded),
+                    },
+                )
+            )
+            self.uploaded = set()
+
+        if self.finished:
+            # post the final close message. (item is self.Finish instance now)
+            request_with_retry(
+                self._client.post,
+                self._endpoint,
+                json={
+                    "complete": True,
+                    "exitcode": int(self.finished.exitcode),
+                    "dropped": self._dropped_chunks,
+                    "uploaded": list(self.uploaded),
+                },
+            )
+
+    def _thread_body(self):
+
+        while self.finished is None:
+            self.do_one()
 
     def _thread_except_body(self):
         # TODO: Consolidate with internal_util.ExceptionThread
@@ -322,6 +340,7 @@ class FileStreamApi(object):
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
             logging.exception("dropped chunk %s" % response)
+            logging.exception("\n".join(tb.format_tb(response.__traceback__)))
             self._dropped_chunks += 1
         else:
             parsed: dict = None
@@ -395,7 +414,12 @@ class FileStreamApi(object):
         """
         self._queue.put(self.Finish(exitcode))
         # TODO(jhr): join on a thread which exited with an exception is a noop, clean up this path
-        self._thread.join()
+
+        if self._async:
+            self._thread.join()
+        else:
+            self.do_one()
+
         if self._exc_info:
             logger.error("FileStream exception", exc_info=self._exc_info)
             # reraising the original exception, will get recaught in internal.py for the sender thread
@@ -421,6 +445,7 @@ def request_with_retry(func, *args, **kwargs):
     while True:
         try:
             response = func(*args, **kwargs)
+            print(response.content)
             response.raise_for_status()
             return response
         except (

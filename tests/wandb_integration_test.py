@@ -383,18 +383,13 @@ def test_version_retired(
 def test_end_to_end_preempting(live_mock_server, test_settings, disable_console):
     run = wandb.init(settings=test_settings)
     run.mark_preempting()
+    run.finish()
 
     # poll for message arrival
     ok = False
-    for _ in range(3):
-        ctx = live_mock_server.get_ctx()
-        if "file_stream" in ctx:
-            ok = any(
-                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
-            )
-            if ok:
-                break
-        time.sleep(1)
+    ctx = live_mock_server.get_ctx()
+    if "file_stream" in ctx:
+        ok = any(["preempting" in request_dict for request_dict in ctx["file_stream"]])
     assert ok
 
 
@@ -404,18 +399,13 @@ def test_end_to_end_preempting_via_module_func(
     wandb.init(settings=test_settings)
     wandb.log({"a": 1})
     wandb.mark_preempting()
+    wandb.finish()
 
     # poll for message arrival
+    ctx = live_mock_server.get_ctx()
     ok = False
-    for _ in range(3):
-        ctx = live_mock_server.get_ctx()
-        if "file_stream" in ctx:
-            ok = any(
-                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
-            )
-            if ok:
-                break
-        time.sleep(1)
+    if "file_stream" in ctx:
+        ok = any(["preempting" in request_dict for request_dict in ctx["file_stream"]])
     assert ok
 
 
