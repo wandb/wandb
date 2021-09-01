@@ -251,58 +251,57 @@ class FileStreamApi(object):
         )
 
     def process_queue(self):
-        while self._queue.not_empty:
-            items = self._read_queue()
-            for item in items:
-                if isinstance(item, self.Finish):
-                    self.finished = item
-                elif isinstance(item, self.Preempting):
-                    request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "preempting": True,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(self.uploaded),
-                        },
-                    )
-                    self.uploaded = set()
-                elif isinstance(item, self.PushSuccess):
-                    self.uploaded.add(item.save_name)
-                else:
-                    # item is Chunk
-                    self.ready_chunks.append(item)
-
-            cur_time = time.time()
-
-            if self.ready_chunks and (
-                self.finished
-                or cur_time - self.posted_data_time > self.rate_limit_seconds()
-            ):
-                self.posted_data_time = cur_time
-                self.posted_anything_time = cur_time
-                self._send(self.ready_chunks)
-                self.ready_chunks = []
-
-            if (
-                self.posted_anything_time
-                and self.posted_anything_time > self.heartbeat_seconds
-            ):
-                self.posted_anything_time = cur_time
-                self._handle_response(
-                    request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "failed": False,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(self.uploaded),
-                        },
-                    )
+        items = self._read_queue()
+        for item in items:
+            if isinstance(item, self.Finish):
+                self.finished = item
+            elif isinstance(item, self.Preempting):
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "preempting": True,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": list(self.uploaded),
+                    },
                 )
                 self.uploaded = set()
+            elif isinstance(item, self.PushSuccess):
+                self.uploaded.add(item.save_name)
+            else:
+                # item is Chunk
+                self.ready_chunks.append(item)
+
+        cur_time = time.time()
+
+        if self.ready_chunks and (
+            self.finished
+            or cur_time - self.posted_data_time > self.rate_limit_seconds()
+        ):
+            self.posted_data_time = cur_time
+            self.posted_anything_time = cur_time
+            self._send(self.ready_chunks)
+            self.ready_chunks = []
+
+        if (
+            self.posted_anything_time
+            and self.posted_anything_time > self.heartbeat_seconds
+        ):
+            self.posted_anything_time = cur_time
+            self._handle_response(
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "failed": False,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": list(self.uploaded),
+                    },
+                )
+            )
+            self.uploaded = set()
 
         if self.finished:
             # post the final close message. (item is self.Finish instance now)
