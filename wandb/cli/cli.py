@@ -738,7 +738,7 @@ def sweep(
         sweep_id = parts.get("name") or update
 
         has_project = (project or api.settings("project")) is not None
-        has_entity = entity or api.settings("entity") is not None
+        has_entity = (entity or api.settings("entity")) is not None
 
         termerror_msg = (
             "Sweep lookup requires a valid %s, and none was specified. \n"
