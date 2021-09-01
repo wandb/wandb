@@ -737,20 +737,22 @@ def sweep(
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
 
-        has_project = (project or api.settings('project')) is not None
-        has_entity = (entity or api.settings('entity') is not None)
+        has_project = (project or api.settings("project")) is not None
+        has_entity = entity or api.settings("entity") is not None
 
-        termerror_msg = "Sweep lookup requires a valid %s, and none was specified. " \
-                        "Either set a default %s in wandb/settings, or, if invoking `wandb sweep` " \
-                        "from the command line, specify the full sweep path via: \n\n" \
-                        "    wandb sweep {username}/{projectname}/{sweepid}"
+        termerror_msg = (
+            "Sweep lookup requires a valid %s, and none was specified. \n"
+            "Either set a default %s in wandb/settings, or, if invoking \n`wandb sweep` "
+            "from the command line, specify the full sweep path via: \n\n"
+            "    wandb sweep {username}/{projectname}/{sweepid}\n\n"
+        )
 
         if not has_entity:
-            wandb.termerror(termerror_msg % ('entity',) * 2)
+            wandb.termerror(termerror_msg % (("entity",) * 2))
             return
 
         if not has_project:
-            wandb.termerror(termerror_msg % ('project',) * 2)
+            wandb.termerror(termerror_msg % (("project",) * 2))
             return
 
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
