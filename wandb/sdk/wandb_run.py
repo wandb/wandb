@@ -2104,15 +2104,15 @@ class Run(object):
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping is not None:
                 new_name = self._launch_artifact_mapping.get(
-                    slot_name or artifact_or_name
-                )
+                    slot_name or artifact_or_name, {}
+                ).get("name")
                 if new_name is None:
                     wandb.termwarn(
                         f"Could not find {slot_name or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
                     )
                     name = artifact_or_name
                 else:
-                    name = new_name["name"]
+                    name = new_name
             else:
                 name = artifact_or_name
             public_api = self._public_api()
@@ -2151,7 +2151,7 @@ class Run(object):
             elif isinstance(artifact, public.Artifact):
                 if self._launch_artifact_mapping is not None:
                     new_name = self._launch_artifact_mapping.get(
-                        f"{slot_name or artifact.name}"
+                        f"{slot_name or artifact.name}", {}
                     ).get("name")
                     if new_name is None:
                         wandb.termwarn(
