@@ -40,6 +40,7 @@ def is_buildx_installed() -> bool:
     if _buildx_installed is not None:
         return _buildx_installed
     help_output = shell(["buildx", "--help"])
+    print(help_output)
     _buildx_installed = help_output is not None and "buildx" in help_output
     return _buildx_installed
 

@@ -12,6 +12,7 @@ from dockerpycreds.utils import find_executable  # type: ignore
 from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
+import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
 from wandb.util import get_module
 from yaspin import yaspin  # type: ignore
