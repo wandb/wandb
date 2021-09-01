@@ -102,7 +102,7 @@ def test_fstream_status_max_retries(
 
     match = inject_requests.Match(path_suffix="/file_stream")
     inject_requests.add(match=match, http_status=500)
-    assert_history(publish_util, dropped=1)
+    assert_history(publish_util, dropped=3)
     stdout, stderr = capsys.readouterr()
     assert "Dropped streaming file chunk" in stderr
 
