@@ -43,7 +43,7 @@ import yaml
 
 
 # Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
-_wandb_dir = util.wandb_dir(env.get_dir())
+_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = nativetempfile.gettempdir()
 logging.basicConfig(
