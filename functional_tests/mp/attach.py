@@ -21,7 +21,6 @@ assert:
 """
 
 import multiprocessing as mp
-import time
 
 import wandb
 import yea

@@ -93,13 +93,15 @@ class Backend(object):
             current_method = multiprocessing.get_start_method(allow_none=True)
             if current_method:
                 if current_method == "fork":
-                    wandb.termerror("Unsupported start_method fork with concurrency, see:")
+                    print("Unsupported start_method fork with concurrency, see:")
                     sys.exit(-1)
                 logger.info(f"start method already configured: {current_method}")
             else:
                 start_method = self._settings.start_method or "spawn"
                 if start_method == "fork":
-                    logger.info(f"start method fork ignored due to concurrency requirements")
+                    logger.info(
+                        "start method fork ignored due to concurrency requirements"
+                    )
                     start_method = "spawn"
                 multiprocessing.set_start_method(method=start_method)
             return
@@ -172,7 +174,7 @@ class Backend(object):
                 # "true",
             ],
             env=os.environ,
-            **kwargs
+            **kwargs,
         )
 
         port = self._grpc_wait_for_port(fname, proc=internal_proc)
