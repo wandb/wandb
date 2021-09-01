@@ -250,13 +250,6 @@ def test_run_in_launch_context_with_artifact_string_no_slot(
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
-        assert run._used_artifacts["test:v0"] == {
-            "slot": None,
-            "requestName": "old_name",
-            "id": "0",
-            "_type": "artifactVersion",
-            "_version": "v0",
-        }
 
 
 def test_run_in_launch_context_with_artifact_string_slot(
@@ -284,13 +277,6 @@ def test_run_in_launch_context_with_artifact_string_slot(
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
-        assert run._used_artifacts["test:v0"] == {
-            "slot": "dataset",
-            "requestName": "old_name",
-            "id": "0",
-            "_type": "artifactVersion",
-            "_version": "v0",
-        }
 
 
 def test_run_in_launch_context_with_artifacts_api(
@@ -321,13 +307,6 @@ def test_run_in_launch_context_with_artifacts_api(
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
-        assert run._used_artifacts["test:v0"] == {
-            "slot": None,
-            "requestName": "old_name:v0",
-            "id": "0",
-            "_type": "artifactVersion",
-            "_version": "v0",
-        }
 
 
 def test_run_in_launch_context_with_artifacts_api_no_match(
@@ -361,13 +340,6 @@ def test_run_in_launch_context_with_artifacts_api_no_match(
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "old_name:v0"
-        assert run._used_artifacts["old_name:v0"] == {
-            "slot": None,
-            "requestName": "old_name:v0",
-            "id": "0",
-            "_type": "artifactVersion",
-            "_version": "v0",
-        }
 
 
 def test_run_in_launch_context_with_artifacts_no_match(
@@ -398,13 +370,6 @@ def test_run_in_launch_context_with_artifacts_no_match(
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "old_name:v0"
-        assert run._used_artifacts["old_name:v0"] == {
-            "requestName": "old_name",
-            "slot": None,
-            "id": "0",
-            "_type": "artifactVersion",
-            "_version": "v0",
-        }
 
 
 def test_push_to_runqueue(live_mock_server, test_settings):

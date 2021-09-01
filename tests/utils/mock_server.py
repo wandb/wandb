@@ -207,6 +207,8 @@ def artifact(
                 + "/storage?file=wandb_manifest.json&id={}".format(_id)
             }
         },
+        "usedName": "",
+        "slotName": "",
     }
 
 
