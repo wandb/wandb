@@ -1895,10 +1895,7 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in (
-            "UTF_8",
-            "UTF-8",
-        ):
+        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
             return
 
         logger.info("rendering history")
@@ -1951,15 +1948,10 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
+        envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
+            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1968,13 +1960,8 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
+        artifactsdict = dict(dataset="v1",)
+        inputdict = dict(config=configdict, artifacts=artifactsdict,)
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2089,7 +2076,7 @@ class Run(object):
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, ds_slot_name=None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, slot_name=None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2104,7 +2091,7 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            ds_slot_name: (string, optional) Optional slot name to refer to the artifact to in the run config
+            slot_name: (string, optional) Optional slot name to refer to the artifact to in the run config
         Returns:
             An `Artifact` object.
         """
@@ -2115,25 +2102,33 @@ class Run(object):
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
-        if ds_slot_name and self._launch_artifact_mapping is not None:
-            artifact_or_name = ds_slot_name
+        # if slot_name and self._launch_artifact_mapping is not None:
+        #     artifact_or_name = slot_name
 
         if isinstance(artifact_or_name, str):
             new_name = None
-            if self._launch_artifact_mapping is not None:
-                new_name = self._launch_artifact_mapping.get(
-                    ds_slot_name or artifact_or_name
-                )["name"]
-                if new_name is None:
+            if self._launch_artifact_mapping is not None and slot_name is not None:
+                new_arti = self._launch_artifact_mapping.get(slot_name)
+                if new_arti is None:
                     wandb.termwarn(
-                        f"Could not find {artifact_or_name} in mapping list."
+                        f"Could not find {slot_name} in launch artifact mapping. Using {artifact_or_name}"
                     )
                 else:
-                    name = new_name
+                    name = new_arti["name"]
             else:
                 name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
+            if slot_name is None and self._launch_artifact_mapping is not None:
+                new_name = self._launch_artifact_mapping.get(f"{artifact.name}")
+                if new_name is None:
+                    wandb.termwarn(
+                        f"Could not find {artifact_or_name} in launch artifact mapping. This could happen if the "
+                        "original run used an older version of wandb, and the artifact alias has since been updated. "
+                        f"Using: {artifact.name}"
+                    )
+                else:
+                    artifact = public_api.artifact(type=type, name=new_name)
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
@@ -2143,8 +2138,17 @@ class Run(object):
             api.use_artifact(
                 artifact.id, entity_name=artifact.entity, project_name=artifact.project
             )
-            self._used_artifacts[ds_slot_name or name] = artifact.id
-            self._set_config_wandb("artifacts", self._used_artifacts)
+
+            self._used_artifacts[f"{artifact._sequence_name}:{artifact.version}"] = {
+                "slot": slot_name,
+                "requestName": artifact_or_name,
+                "_type": "artifactVersion",
+                "id": artifact.id,
+                "version": artifact.version,
+                "name": artifact.name,
+            }
+
+            # self._set_config_wandb("artifacts", self._used_artifacts)
             return artifact
         else:
             artifact = artifact_or_name
@@ -2158,7 +2162,25 @@ class Run(object):
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
+                # maybe replace artifact
+                if self._launch_artifact_mapping is not None:
+                    new_name = self._launch_artifact_mapping.get(f"{artifact.name}")
+                    if new_name is not None:
+                        public_api = self._public_api()
+                        artifact = public_api.artifact(name=new_name)
                 api.use_artifact(artifact.id)
+                self._used_artifacts[
+                    f"{artifact._sequence_name}:{artifact.version}"
+                ] = {
+                    "slot": slot_name,
+                    "requestName": artifact_or_name.name,
+                    "_type": "artifactVersion",
+                    "id": artifact.id,
+                    "version": artifact.version,
+                    "name": artifact.name,
+                }
+
+                # self._set_config_wandb("artifacts", self._used_artifacts)
                 return artifact
             else:
                 raise ValueError(
