@@ -630,7 +630,7 @@ class SendManager(object):
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
 
-            resp.run_result.run.CopyFrom(self._run)  # type ignore
+            resp.run_result.run.CopyFrom(self._run)  # type: ignore
             self._result_q.put(resp)
 
         # Only spin up our threads on the first run message
