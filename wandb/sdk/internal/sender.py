@@ -352,7 +352,6 @@ class SendManager(object):
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
-            self.debounce()
             transition_state()
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
