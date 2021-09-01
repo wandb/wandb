@@ -227,7 +227,8 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
 def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_settings):
     arti = {"project": "test", "name": "test", "entity": "test", "version": "v0"}
     overrides = {
-        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}}
+        "overrides": {"run_config": {"epochs": 10}},
+        "artifacts": {"dataset": arti},
     }
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
@@ -236,12 +237,19 @@ def test_run_in_launch_context_with_artifacts(runner, live_mock_server, test_set
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("blah", ds_slot_name="dataset")
-        run.config.dataset = arti_inst
+        arti_inst = run.use_artifact("blah", slot_name="dataset")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
-        assert run.config.dataset == arti_inst
         run.finish()
+        assert run._used_artifacts["mnist:v0"] == {
+            "slot": "dataset",
+            "requestName": "blah",
+            "id": "QXJ0aWZhY3Q6NTI1MDk4",
+            "version": "v0",
+            "name": "mnist:v0",
+            "_type": "artifactVersion",
+            "_version": "v0",
+        }
 
 
 def test_push_to_runqueue(live_mock_server, test_settings):

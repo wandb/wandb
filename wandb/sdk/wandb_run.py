@@ -2102,29 +2102,20 @@ class Run(object):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact_or_name, str):
-            new_name = None
-            if self._launch_artifact_mapping is not None and slot_name is not None:
-                new_arti = self._launch_artifact_mapping.get(slot_name)
-                if new_arti is None:
+            if self._launch_artifact_mapping is not None:
+                new_name = self._launch_artifact_mapping.get(
+                    slot_name or artifact_or_name
+                )
+                if new_name is None:
                     wandb.termwarn(
                         f"Could not find {slot_name} in launch artifact mapping. Using {artifact_or_name}"
                     )
                 else:
-                    name = new_arti["name"]
+                    name = new_name["name"]
             else:
                 name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
-            if slot_name is None and self._launch_artifact_mapping is not None:
-                new_name = self._launch_artifact_mapping.get(f"{artifact_or_name}")
-                if new_name is None:
-                    wandb.termwarn(
-                        f"Could not find {artifact_or_name} in launch artifact mapping. This could happen if the "
-                        "original run used an older version of wandb, and the artifact alias has since been updated. "
-                        f"Using: {artifact.name}"
-                    )
-                else:
-                    artifact = public_api.artifact(type=type, name=new_name)
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
@@ -2138,10 +2129,11 @@ class Run(object):
             self._used_artifacts[f"{artifact._sequence_name}:{artifact.version}"] = {
                 "slot": slot_name,
                 "requestName": artifact_or_name,
-                "_type": "artifactVersion",
                 "id": artifact.id,
                 "version": artifact.version,
                 "name": artifact.name,
+                "_type": "artifactVersion",
+                "_version": "v0",
             }
 
             self._set_config_wandb("artifacts", self._used_artifacts)
@@ -2158,7 +2150,6 @@ class Run(object):
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                # maybe replace artifact
                 if self._launch_artifact_mapping is not None:
                     new_name = self._launch_artifact_mapping.get(f"{artifact.name}")
                     if new_name is not None:
@@ -2170,10 +2161,11 @@ class Run(object):
                 ] = {
                     "slot": slot_name,
                     "requestName": artifact_or_name.name,
-                    "_type": "artifactVersion",
                     "id": artifact.id,
                     "version": artifact.version,
                     "name": artifact.name,
+                    "_type": "artifactVersion",
+                    "_version": "v0",
                 }
 
                 self._set_config_wandb("artifacts", self._used_artifacts)
