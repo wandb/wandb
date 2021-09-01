@@ -637,20 +637,21 @@ class SendManager(object):
 
         self._init_run(run, config_value_dict)
 
-        if self._run is not None:
-            if data.control.req_resp:
-                resp = wandb_internal_pb2.Result(uuid=data.uuid)
-                # TODO: we could do self._interface.publish_defer(resp) to notify
-                # the handler not to actually perform server updates for this uuid
-                # because the user process will send a summary update when we resume
+        if data.control.req_resp:
+            resp = wandb_internal_pb2.Result(uuid=data.uuid)
+            # TODO: we could do self._interface.publish_defer(resp) to notify
+            # the handler not to actually perform server updates for this uuid
+            # because the user process will send a summary update when we resume
 
+            if self._run is not None:
                 resp.run_result.run.CopyFrom(self._run)
-                self._result_q.put(resp)
+            self._result_q.put(resp)
 
-            # Only spin up our threads on the first run message
-            if is_wandb_init:
-                self._start_run_threads(file_dir)
-            else:
+        # Only spin up our threads on the first run message
+        if is_wandb_init:
+            self._start_run_threads(file_dir)
+        else:
+            if self._run is not None:
                 logger.info("updated run: %s", self._run.run_id)
 
     def _init_run(self, run, config_dict):
