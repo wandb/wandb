@@ -241,58 +241,63 @@ class FileStreamApi(object):
         )
 
     def process_queue(self):
-        items = self._read_queue()
-        for item in items:
-            if isinstance(item, self.Finish):
-                self.finished = item
-            elif isinstance(item, self.PushSuccess):
-                self.uploaded.add(item.save_name)
-            else:
-                # item is Chunk
-                self.ready_chunks.append(item)
+        while True:
+            items = self._read_queue()
+            if len(items) == 0:
+                break
 
-        cur_time = time.time()
+            for item in items:
+                if isinstance(item, self.Finish):
+                    self.finished = item
+                elif isinstance(item, self.PushSuccess):
+                    self.uploaded.add(item.save_name)
+                else:
+                    # item is Chunk
+                    self.ready_chunks.append(item)
 
-        if self.ready_chunks and (
-            self.finished
-            or cur_time - self.posted_data_time > self.rate_limit_seconds()
-        ):
-            self.posted_data_time = cur_time
-            self.posted_anything_time = cur_time
-            self._send(self.ready_chunks)
-            self.ready_chunks = []
+            cur_time = time.time()
 
-        if (
-            self.posted_anything_time
-            and self.posted_anything_time > self.heartbeat_seconds
-        ):
-            self.posted_anything_time = cur_time
-            self._handle_response(
+            if self.ready_chunks and (
+                self.finished
+                or cur_time - self.posted_data_time > self.rate_limit_seconds()
+            ):
+                self.posted_data_time = cur_time
+                self.posted_anything_time = cur_time
+                self._send(self.ready_chunks)
+                self.ready_chunks = []
+
+            if (
+                self.posted_anything_time
+                and self.posted_anything_time > self.heartbeat_seconds
+            ):
+                self.posted_anything_time = cur_time
+                self._handle_response(
+                    request_with_retry(
+                        self._client.post,
+                        self._endpoint,
+                        json={
+                            "complete": False,
+                            "failed": False,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(self.uploaded),
+                        },
+                    )
+                )
+                self.uploaded = set()
+
+            if self.finished:
+                # post the final close message. (item is self.Finish instance now)
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
                     json={
-                        "complete": False,
-                        "failed": False,
+                        "complete": True,
+                        "exitcode": int(self.finished.exitcode),
                         "dropped": self._dropped_chunks,
                         "uploaded": list(self.uploaded),
                     },
                 )
-            )
-            self.uploaded = set()
-
-        if self.finished:
-            # post the final close message. (item is self.Finish instance now)
-            request_with_retry(
-                self._client.post,
-                self._endpoint,
-                json={
-                    "complete": True,
-                    "exitcode": int(self.finished.exitcode),
-                    "dropped": self._dropped_chunks,
-                    "uploaded": list(self.uploaded),
-                },
-            )
+                break
 
     def _handle_response(self, response):
         """Logs dropped chunks and updates dynamic settings"""
