@@ -67,6 +67,7 @@ def default_ctx():
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "swappable_artifacts": False,
+        "used_artifact_info": None,
     }
 
 
@@ -207,8 +208,6 @@ def artifact(
                 + "/storage?file=wandb_manifest.json&id={}".format(_id)
             }
         },
-        "usedName": "",
-        "slotName": "",
     }
 
 
@@ -815,6 +814,12 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation UseArtifact(" in body["query"]:
+            used_name = body.get("variables", {}).get("usedName", None)
+            slot_name = body.get("variables", {}).get("slotName", None)
+            ctx["used_artifact_info"] = {
+                "used_name": used_name,
+                "slot_name": slot_name,
+            }
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {
@@ -917,9 +922,9 @@ def create_app(user_ctx=None):
                 art["artifactType"] = {"id": 1, "name": "dataset"}
                 return {"data": {"artifact": art}}
             if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
-                collection_name = body.get("variables", {}).get("name", None)
-                if collection_name is not None:
-                    collection_name = collection_name.split(":")[0]
+                full_name = body.get("variables", {}).get("name", None)
+                if full_name is not None:
+                    collection_name = full_name.split(":")[0]
                 art = artifact(
                     ctx, collection_name=collection_name, request_url_root=base_url,
                 )

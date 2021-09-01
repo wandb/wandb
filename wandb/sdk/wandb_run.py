@@ -367,7 +367,6 @@ class Run(object):
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping = None
-        self._used_artifacts: Dict[str, str] = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -2130,16 +2129,6 @@ class Run(object):
                 used_name=artifact_or_name,
                 slot_name=slot_name,
             )
-
-            # self._used_artifacts[f"{artifact._sequence_name}:{artifact.version}"] = {
-            #     "slot": slot_name,
-            #     "requestName": artifact_or_name,
-            #     "id": artifact.id,
-            #     "_type": "artifactVersion",
-            #     "_version": "v0",
-            # }
-
-            self._set_config_wandb("artifacts", self._used_artifacts)
             return artifact
         else:
             artifact = artifact_or_name
@@ -2153,31 +2142,19 @@ class Run(object):
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
+                used_name = artifact._used_name
                 if self._launch_artifact_mapping is not None:
                     new_name = self._launch_artifact_mapping.get(
-                        f"{slot_name or artifact.name}", {}
+                        f"{slot_name or used_name}", {}
                     ).get("name")
                     if new_name is None:
                         wandb.termwarn(
-                            f"Could not find {slot_name or artifact.name} in launch artifact mapping. Using {artifact.name}"
+                            f"Could not find {slot_name or used_name} in launch artifact mapping. Using {slot_name or used_name}"
                         )
                     else:
                         public_api = self._public_api()
                         artifact = public_api.artifact(name=new_name)
-                api.use_artifact(
-                    artifact.id, used_name=artifact.name, slot_name=slot_name
-                )
-                # self._used_artifacts[
-                #     f"{artifact._sequence_name}:{artifact.version}"
-                # ] = {
-                #     "slot": slot_name,
-                #     "requestName": artifact_or_name.name,
-                #     "id": artifact.id,
-                #     "_type": "artifactVersion",
-                #     "_version": "v0",
-                # }
-
-                self._set_config_wandb("artifacts", self._used_artifacts)
+                api.use_artifact(artifact.id, used_name=used_name, slot_name=slot_name)
                 return artifact
             else:
                 raise ValueError(

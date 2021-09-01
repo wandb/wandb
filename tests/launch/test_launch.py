@@ -245,11 +245,14 @@ def test_run_in_launch_context_with_artifact_string_no_slot(
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name")
+        arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "old_name:v0"
+        assert arti_info["slot_name"] == None
 
 
 def test_run_in_launch_context_with_artifact_string_slot(
@@ -272,14 +275,17 @@ def test_run_in_launch_context_with_artifact_string_slot(
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name", slot_name="dataset")
+        arti_inst = run.use_artifact("old_name:latest", slot_name="dataset")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "old_name:latest"
+        assert arti_info["slot_name"] == "dataset"
 
 
-def test_run_in_launch_context_with_artifacts_api(
+def test_run_in_launch_context_with_artifacts_api1(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
@@ -290,7 +296,10 @@ def test_run_in_launch_context_with_artifacts_api(
         "id": "QXJ0aWZhY3Q6NTI1MDk4",
     }
     overrides = {
-        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
+        "overrides": {
+            "run_config": {"epochs": 10},
+            "artifacts": {"old_name:v0": arti},
+        },
     }
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
@@ -300,13 +309,17 @@ def test_run_in_launch_context_with_artifacts_api(
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         public_api = PublicApi()
-        art = public_api.artifact("test/test/old_name:v0")
+        art = public_api.artifact("old_name:v0")
+        print("ART NAME", art.name)
         arti_inst = run.use_artifact(art)
-
+        print("FUCK", arti_inst.name)
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "old_name:v0"
+        assert arti_info["slot_name"] == None
 
 
 def test_run_in_launch_context_with_artifacts_api_no_match(
@@ -340,6 +353,9 @@ def test_run_in_launch_context_with_artifacts_api_no_match(
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "old_name:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "test/test/old_name:v0"
+        assert arti_info["slot_name"] == None
 
 
 def test_run_in_launch_context_with_artifacts_no_match(
@@ -365,11 +381,14 @@ def test_run_in_launch_context_with_artifacts_no_match(
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name")
+        arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "old_name:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "old_name:v0"
+        assert arti_info["slot_name"] == None
 
 
 def test_push_to_runqueue(live_mock_server, test_settings):
