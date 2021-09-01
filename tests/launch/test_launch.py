@@ -236,7 +236,7 @@ def test_run_in_launch_context_with_artifact_string_no_slot(
         "id": "QXJ0aWZhY3Q6NTI1MDk4",
     }
     overrides = {
-        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name": arti}},
+        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
         path = _project_spec.DEFAULT_CONFIG_PATH
