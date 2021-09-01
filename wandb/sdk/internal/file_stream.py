@@ -9,7 +9,6 @@ import random
 import requests
 import threading
 import time
-import traceback as tb
 from typing import Iterable, List, Optional
 
 import wandb
