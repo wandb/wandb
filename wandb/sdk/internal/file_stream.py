@@ -347,7 +347,7 @@ class FileStreamApi(object):
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
 
-    def handle_preempting(self):
+    def immediately_send_preempting(self):
         request_with_retry(
             self._client.post,
             self._endpoint,

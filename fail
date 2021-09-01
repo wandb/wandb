@@ -1,0 +1,8 @@
+FAILED tests/test_file_stream.py::test_fstream_status_max_retries - assert 3 == 1
+FAILED tests/wandb_integration_test.py::test_end_to_end_preempting_via_module_func - assert False
+FAILED tests/wandb_run_test.py::test_log_code_settings - IndexError: list index out of range
+FAILED tests/wandb_run_test.py::test_log_code - AttributeError: 'NoneType' object has no attribute 'manifest'
+FAILED tests/wandb_run_test.py::test_log_code_include - AttributeError: 'NoneType' object has no attribute 'manifest'
+FAILED tests/wandb_run_test.py::test_log_code_custom_root - AttributeError: 'NoneType' object has no attribute 'manifest'
+FAILED tests/wandb_tensorflow_test.py::test_compat_tensorboard - KeyError: 'files'
+FAILED tests/wandb_integration_test.py::test_end_to_end_preempting - assert False
