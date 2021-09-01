@@ -285,7 +285,7 @@ def test_run_in_launch_context_with_artifact_string_slot(
         assert arti_info["slot_name"] == "dataset"
 
 
-def test_run_in_launch_context_with_artifacts_api1(
+def test_run_in_launch_context_with_artifacts_api(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
@@ -310,9 +310,7 @@ def test_run_in_launch_context_with_artifacts_api1(
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         public_api = PublicApi()
         art = public_api.artifact("old_name:v0")
-        print("ART NAME", art.name)
         arti_inst = run.use_artifact(art)
-        print("FUCK", arti_inst.name)
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
