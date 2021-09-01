@@ -154,7 +154,6 @@ class FileStreamApi(object):
     """
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
-    Preempting = collections.namedtuple("Preempting", ())
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
@@ -246,18 +245,6 @@ class FileStreamApi(object):
         for item in items:
             if isinstance(item, self.Finish):
                 self.finished = item
-            elif isinstance(item, self.Preempting):
-                request_with_retry(
-                    self._client.post,
-                    self._endpoint,
-                    json={
-                        "complete": False,
-                        "preempting": True,
-                        "dropped": self._dropped_chunks,
-                        "uploaded": list(self.uploaded),
-                    },
-                )
-                self.uploaded = set()
             elif isinstance(item, self.PushSuccess):
                 self.uploaded.add(item.save_name)
             else:
@@ -355,8 +342,18 @@ class FileStreamApi(object):
         with open(path) as f:
             self._send([Chunk(name, line) for line in f])
 
-    def enqueue_preempting(self):
-        self._queue.put(self.Preempting())
+    def handle_preempting(self):
+        request_with_retry(
+            self._client.post,
+            self._endpoint,
+            json={
+                "complete": False,
+                "preempting": True,
+                "dropped": self._dropped_chunks,
+                "uploaded": list(self.uploaded),
+            },
+        )
+        self.uploaded = set()
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.

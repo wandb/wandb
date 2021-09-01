@@ -185,7 +185,7 @@ class SendManager(object):
 
     def send_preempting(self, record):
         if self._fs:
-            self._fs.enqueue_preempting()
+            self._fs.handle_preempting()
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
