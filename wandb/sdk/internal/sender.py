@@ -244,7 +244,7 @@ class SendManager(object):
         if self._config_needs_debounce:
             self._debounce_config()
         if self._fs:
-            self._fs.do_one()
+            self._fs.process_queue()
 
     def _debounce_config(self):
         config_value_dict = self._config_format(self._consolidated_config)
