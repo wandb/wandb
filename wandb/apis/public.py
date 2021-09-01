@@ -1387,12 +1387,13 @@ class Run(Attrs):
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
-    def use_artifact(self, artifact):
+    def use_artifact(self, artifact, slot_name=None):
         """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
+            slot_name (string, optional): A string identifying how the artifact is used.
         Returns:
             A `Artifact` object.
         """
@@ -1403,7 +1404,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id)
+            api.use_artifact(artifact.id, used_name=artifact.name, slot_name=slot_name)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
@@ -1414,13 +1415,14 @@ class Run(Attrs):
             raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
 
     @normalize_exceptions
-    def log_artifact(self, artifact, aliases=None):
+    def log_artifact(self, artifact, aliases=None, slot_name=None):
         """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
             aliases (list, optional): Aliases to apply to this artifact
+            slot_name (string, optional): string identifying how the artifact was used
         Returns:
             A `Artifact` object.
         """
@@ -1437,6 +1439,8 @@ class Run(Attrs):
                 artifact_collection_name,
                 artifact.digest,
                 aliases=aliases,
+                used_name=artifact.name,
+                slot_name=slot_name,
             )
             return artifact
         elif isinstance(artifact, wandb.Artifact):

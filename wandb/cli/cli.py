@@ -1389,6 +1389,7 @@ def artifact():
 @click.option(
     "--name", "-n", help="The name of the artifact to push: project/artifact_name"
 )
+@click.option("--slot-name", "-s", help="The slot name of the artifact to push")
 @click.option("--description", "-d", help="A description of this artifact")
 @click.option("--type", "-t", default="dataset", help="The type of the artifact")
 @click.option(
@@ -1399,7 +1400,7 @@ def artifact():
     help="An alias to apply to this artifact",
 )
 @display_error
-def put(path, name, description, type, alias):
+def put(path, name, description, type, slot_name, alias):
     if name is None:
         name = os.path.basename(path)
     public_api = PublicApi()
@@ -1453,6 +1454,8 @@ def put(path, name, description, type, alias):
         run_name=run.id,
         description=description,
         aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias],
+        used_name=name,
+        slot_name=slot_name,
     )
     artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed

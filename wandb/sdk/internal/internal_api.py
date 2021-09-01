@@ -1792,7 +1792,13 @@ class Api(object):
         return responses
 
     def use_artifact(
-        self, artifact_id, entity_name=None, project_name=None, run_name=None
+        self,
+        artifact_id,
+        entity_name=None,
+        project_name=None,
+        run_name=None,
+        used_name=None,
+        slot_name=None,
     ):
         query = gql(
             """
@@ -1801,12 +1807,16 @@ class Api(object):
             $projectName: String!,
             $runName: String!,
             $artifactID: ID!
+            $usedName: String,
+            $slotName: String,
         ) {
             useArtifact(input: {
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                artifactID: $artifactID
+                artifactID: $artifactID,
+                usedName: $usedName,
+                slotName: $slotName
             }) {
                 artifact {
                     id
@@ -1832,6 +1842,8 @@ class Api(object):
                 "projectName": project_name,
                 "runName": run_name,
                 "artifactID": artifact_id,
+                "usedName": used_name,
+                "slotName": slot_name,
             },
         )
 
@@ -1892,6 +1904,8 @@ class Api(object):
         aliases=None,
         distributed_id=None,
         is_user_created=False,
+        used_name=None,
+        slot_name=None,
     ):
         # TODO: Ignore clientID and sequenceClientID if server can't handle it
         _, server_info = self.viewer_server_info()
@@ -1915,6 +1929,8 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
+            $usedName: String,
+            $slotName: String,
             %s
             %s
             %s
@@ -1931,6 +1947,8 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                usedName: $usedName,
+                slotName: $slotName,
                 %s
                 %s
                 %s
@@ -1994,6 +2012,8 @@ class Api(object):
                 if metadata
                 else None,
                 "distributedID": distributed_id,
+                "usedName": used_name,
+                "slotName": slot_name,
             },
         )
         av = response["createArtifact"]["artifact"]

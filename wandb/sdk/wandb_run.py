@@ -2124,16 +2124,20 @@ class Run(object):
                     )
                 )
             api.use_artifact(
-                artifact.id, entity_name=artifact.entity, project_name=artifact.project
+                artifact.id,
+                entity_name=artifact.entity,
+                project_name=artifact.project,
+                used_name=artifact_or_name,
+                slot_name=slot_name,
             )
 
-            self._used_artifacts[f"{artifact._sequence_name}:{artifact.version}"] = {
-                "slot": slot_name,
-                "requestName": artifact_or_name,
-                "id": artifact.id,
-                "_type": "artifactVersion",
-                "_version": "v0",
-            }
+            # self._used_artifacts[f"{artifact._sequence_name}:{artifact.version}"] = {
+            #     "slot": slot_name,
+            #     "requestName": artifact_or_name,
+            #     "id": artifact.id,
+            #     "_type": "artifactVersion",
+            #     "_version": "v0",
+            # }
 
             self._set_config_wandb("artifacts", self._used_artifacts)
             return artifact
@@ -2160,16 +2164,18 @@ class Run(object):
                     else:
                         public_api = self._public_api()
                         artifact = public_api.artifact(name=new_name)
-                api.use_artifact(artifact.id)
-                self._used_artifacts[
-                    f"{artifact._sequence_name}:{artifact.version}"
-                ] = {
-                    "slot": slot_name,
-                    "requestName": artifact_or_name.name,
-                    "id": artifact.id,
-                    "_type": "artifactVersion",
-                    "_version": "v0",
-                }
+                api.use_artifact(
+                    artifact.id, used_name=artifact.name, slot_name=slot_name
+                )
+                # self._used_artifacts[
+                #     f"{artifact._sequence_name}:{artifact.version}"
+                # ] = {
+                #     "slot": slot_name,
+                #     "requestName": artifact_or_name.name,
+                #     "id": artifact.id,
+                #     "_type": "artifactVersion",
+                #     "_version": "v0",
+                # }
 
                 self._set_config_wandb("artifacts", self._used_artifacts)
                 return artifact
