@@ -390,7 +390,6 @@ class Run(object):
                     launch_config.get("overrides").get("artifacts").items()
                 ):
                     self._launch_artifact_mapping[key] = item
-                del launch_config["overrides"]["artifacts"]
             launch_run_config = launch_config.get("overrides", {}).get("run_config")
             if launch_run_config:
                 self._config.update_locked(
@@ -2102,9 +2101,6 @@ class Run(object):
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
-        # if slot_name and self._launch_artifact_mapping is not None:
-        #     artifact_or_name = slot_name
-
         if isinstance(artifact_or_name, str):
             new_name = None
             if self._launch_artifact_mapping is not None and slot_name is not None:
@@ -2120,7 +2116,7 @@ class Run(object):
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if slot_name is None and self._launch_artifact_mapping is not None:
-                new_name = self._launch_artifact_mapping.get(f"{artifact.name}")
+                new_name = self._launch_artifact_mapping.get(f"{artifact_or_name}")
                 if new_name is None:
                     wandb.termwarn(
                         f"Could not find {artifact_or_name} in launch artifact mapping. This could happen if the "
@@ -2148,7 +2144,7 @@ class Run(object):
                 "name": artifact.name,
             }
 
-            # self._set_config_wandb("artifacts", self._used_artifacts)
+            self._set_config_wandb("artifacts", self._used_artifacts)
             return artifact
         else:
             artifact = artifact_or_name
@@ -2180,7 +2176,7 @@ class Run(object):
                     "name": artifact.name,
                 }
 
-                # self._set_config_wandb("artifacts", self._used_artifacts)
+                self._set_config_wandb("artifacts", self._used_artifacts)
                 return artifact
             else:
                 raise ValueError(
