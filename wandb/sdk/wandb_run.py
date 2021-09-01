@@ -2142,19 +2142,13 @@ class Run(object):
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                used_name = artifact._used_name
                 if self._launch_artifact_mapping is not None:
-                    new_name = self._launch_artifact_mapping.get(
-                        f"{slot_name or used_name}", {}
-                    ).get("name")
-                    if new_name is None:
-                        wandb.termwarn(
-                            f"Could not find {slot_name or used_name} in launch artifact mapping. Using {slot_name or used_name}"
-                        )
-                    else:
-                        public_api = self._public_api()
-                        artifact = public_api.artifact(name=new_name)
-                api.use_artifact(artifact.id, used_name=used_name, slot_name=slot_name)
+                    wandb.termwarn(
+                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                    )
+                api.use_artifact(
+                    artifact.id, used_name=artifact.name, slot_name=slot_name
+                )
                 return artifact
             else:
                 raise ValueError(
