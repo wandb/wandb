@@ -143,10 +143,8 @@ def build_docker_image_if_needed(
     if copy_code:
         copy_code_line = "COPY ./src/ {}\n".format(workdir)
         if docker.is_buildx_installed():
-            requirements_line = (
-                "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
-                    homedir, launch_project.docker_user_id
-                )
+            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                homedir, launch_project.docker_user_id
             )
         else:
             wandb.termwarn(
@@ -303,8 +301,7 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str) -> str:
 
 
 def _create_docker_build_ctx(
-    launch_project: _project_spec.LaunchProject,
-    dockerfile_contents: str,
+    launch_project: _project_spec.LaunchProject, dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
