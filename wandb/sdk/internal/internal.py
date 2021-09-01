@@ -101,8 +101,7 @@ def wandb_internal(
         result_q=result_q,
         stopped=stopped,
         interface=publish_interface,
-        debounce_interval_ms=1000,
-        config_debounce_interval_ms=30000,
+        debounce_interval_ms=30000,
     )
     threads.append(record_sender_thread)
 
@@ -266,7 +265,6 @@ class SenderThread(internal_util.RecordLoopThread):
         stopped: "Event",
         interface: "BackendSender",
         debounce_interval_ms: "float" = 5000,
-        config_debounce_interval_ms: float = 30000,
     ) -> None:
         super(SenderThread, self).__init__(
             input_record_q=record_q,
@@ -279,7 +277,6 @@ class SenderThread(internal_util.RecordLoopThread):
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
-        self._config_debounce_interval_ms = config_debounce_interval_ms
 
     def _setup(self) -> None:
         self._sm = sender.SendManager(
@@ -287,7 +284,6 @@ class SenderThread(internal_util.RecordLoopThread):
             record_q=self._record_q,
             result_q=self._result_q,
             interface=self._interface,
-            config_debounce_interval_ms=self._config_debounce_interval_ms,
         )
 
     def _process(self, record: "Record") -> None:

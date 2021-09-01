@@ -63,18 +63,12 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self,
-        settings,
-        record_q,
-        result_q,
-        interface,
-        config_debounce_interval_ms: float = 30000,
+        self, settings, record_q, result_q, interface,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
-        self._config_debounce_interval_ms = config_debounce_interval_ms
 
         self._fs = None
         self._pusher = None
@@ -125,7 +119,6 @@ class SendManager(object):
         self._retry_q: "Queue[HttpResponse]" = queue.Queue()
 
         # do we need to debounce?
-        self._config_last_debounce = time.time()
         self._config_needs_debounce: bool = False
 
         # TODO(jhr): do something better, why do we need to send full lines?
@@ -248,14 +241,8 @@ class SendManager(object):
         self._result_q.put(result)
 
     def debounce(self) -> None:
-
-        if (
-            self._config_needs_debounce
-            and time.time() - self._config_last_debounce
-            > self._config_debounce_interval_ms / 1000.0
-        ):
+        if self._config_needs_debounce:
             self._debounce_config()
-            self._config_last_debounce = time.time()
         if self._fs:
             self._fs.process_queue()
 
