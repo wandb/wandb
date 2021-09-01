@@ -66,6 +66,7 @@ def default_ctx():
         "emulate_artifacts": None,
         "run_state": "running",
         "run_queue_item_check_count": 0,
+        "swappable_artifacts": False,
     }
 
 
@@ -913,6 +914,13 @@ def create_app(user_ctx=None):
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
                 return {"data": {"artifact": art}}
+            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                collection_name = body.get("variables", {}).get("name", None)
+                if collection_name is not None:
+                    collection_name = collection_name.split(":")[0]
+                art = artifact(
+                    ctx, collection_name=collection_name, request_url_root=base_url,
+                )
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
             if "source" not in body["variables"]["name"]:

@@ -2108,7 +2108,7 @@ class Run(object):
                 )
                 if new_name is None:
                     wandb.termwarn(
-                        f"Could not find {slot_name} in launch artifact mapping. Using {artifact_or_name}"
+                        f"Could not find {slot_name or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
                     )
                 else:
                     name = new_name["name"]
