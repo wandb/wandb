@@ -1,6 +1,5 @@
 import re
 import time
-from wandb.util import sanitize_keys
 
 import six
 import wandb
@@ -266,7 +265,6 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
         commit = True
 
     log_dict = tf_summary_to_dict(tf_summary_str_or_pb, namespace)
-    log_dict = sanitize_keys(log_dict)
     if log_dict is None:
         # not an event, just return
         return

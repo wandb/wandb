@@ -84,6 +84,8 @@ env_settings: Dict[str, Optional[str]] = dict(
     base_url=None,
     api_key=None,
     sweep_id=None,
+    launch=None,
+    launch_config_path=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -216,6 +218,8 @@ class Settings(object):
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None
+    launch: Optional[bool] = None
+    launch_config_path: Optional[str] = None
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
     log_dir_spec: Optional[str] = None
@@ -307,6 +311,8 @@ class Settings(object):
         magic: Union[Dict, str, bool] = False,
         run_tags: Sequence = None,
         sweep_id: str = None,
+        launch: bool = None,
+        launch_config_path: str = None,
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
@@ -573,6 +579,10 @@ class Settings(object):
     @property
     def settings_workspace(self) -> Optional[str]:
         return self._path_convert(self.settings_workspace_spec)
+
+    @property
+    def is_local(self) -> bool:
+        return self.base_url != "https://api.wandb.ai/"
 
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
@@ -959,12 +969,13 @@ class Settings(object):
         pass
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name not in self.__dict__:
-            raise AttributeError(name)
-        if self.__frozen:
-            raise TypeError("Settings object is frozen")
-        value = self._perform_preprocess(name, value)
-        self._check_invalid(name, value)
+        # using source.SETUP is a temporary hack here that should be replaced by
+        # having _apply_init() apply SOURCE.INIT to settings added via mutations
+        # to settings object
+        try:
+            self._update({name: value}, _source=self.Source.SETUP)
+        except KeyError as e:
+            raise AttributeError(str(e))
         object.__setattr__(self, name, value)
 
     @classmethod
@@ -1040,6 +1051,14 @@ class Settings(object):
                 if val:
                     wandb.termwarn(
                         "Ignored wandb.init() arg %s when running a sweep" % key
+                    )
+        if self.launch:
+            for key in ("project", "entity", "id"):
+                val = args.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Project, entity and id are ignored when running from wandb launch context. Ignored wandb.init() arg %s when running running from launch"
+                        % key
                     )
 
         # strip out items where value is None

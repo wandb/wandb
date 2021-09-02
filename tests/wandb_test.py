@@ -24,14 +24,6 @@ def test_log_custom_chart(wandb_init_run):
     assert wandb.run._backend.history[0].get("my_custom_chart_table")
 
 
-def test_log_bad_key(wandb_init_run):
-    wandb.log({"  my:bad:key/": wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"])})
-    if sys.platform == "win32":
-        assert wandb.run._backend.history[0].get("mybadkey")
-    else:
-        assert wandb.run._backend.history[0].get("my:bad:key")
-
-
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
 @pytest.mark.skip(reason="We haven't implemented wandb silent yet")
 def test_log_silent(wandb_init_run, capsys):

@@ -8,7 +8,7 @@ CODEMOD_DEST_SUFFIX="_py27"
 CODEMOD_DEST_SUFFIX_TMP="_tmp"
 
 # Hack for check
-CODEMOD_SDK_EXCLUDES="--exclude internal --exclude interface --exclude backend --exclude lib --exclude verify --exclude integration_utils"
+CODEMOD_SDK_EXCLUDES="--exclude internal --exclude interface --exclude backend --exclude lib --exclude verify --exclude integration_utils --exclude sdk/launch"
 
 check=false
 if [ "$1" == "--check" ]; then
