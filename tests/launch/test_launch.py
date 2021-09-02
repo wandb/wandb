@@ -354,18 +354,13 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
             def json(self):
                 if self.url == "urlForCodePath":
                     return {"codePath": "main2.py"}
-                elif self.url == "code/main2.py":
-                    return None
-                elif self.url == "requirements":
-                    return None
 
             def iter_content(self, chunk_size):
                 if self.url == "requirements":
-                    return [b"wandb\n", b"numpy\n", b"pandas\n"]
+                    return [b"wandb\n", b"numpy\n"]
                 elif self.url == "main2.py":
                     return [
                         b"import wandb\n",
-                        b"import pandas\n",
                         b"print('ran server fetched code')\n",
                     ]
 
@@ -376,6 +371,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
         "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"test",
     )
     assert str(run.get_status()) == "finished"
+    assert False
 
 
 def patched_pop_from_queue(self, queue):
