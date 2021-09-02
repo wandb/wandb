@@ -736,6 +736,25 @@ def sweep(
         entity = parts.get("entity") or entity
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
+
+        has_project = (project or api.settings("project")) is not None
+        has_entity = (entity or api.settings("entity")) is not None
+
+        termerror_msg = (
+            "Sweep lookup requires a valid %s, and none was specified. \n"
+            "Either set a default %s in wandb/settings, or, if invoking \n`wandb sweep` "
+            "from the command line, specify the full sweep path via: \n\n"
+            "    wandb sweep {username}/{projectname}/{sweepid}\n\n"
+        )
+
+        if not has_entity:
+            wandb.termerror(termerror_msg % (("entity",) * 2))
+            return
+
+        if not has_project:
+            wandb.termerror(termerror_msg % (("project",) * 2))
+            return
+
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(
@@ -856,9 +875,9 @@ def _check_launch_imports():
 
 
 @cli.command(
-    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
-    "or a git uri pointing to a remote repository, or path to a local directory."
+    "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri")
 @click.option(
@@ -979,6 +998,9 @@ def launch(
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
     api = _get_cling_api()
 
     args_dict = util._user_args_to_dict(args_list)
@@ -1039,7 +1061,7 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
 @click.argument("project", nargs=1)
 @click.option(
@@ -1055,6 +1077,9 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     from wandb.sdk.launch import launch as wandb_launch
 
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:

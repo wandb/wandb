@@ -287,6 +287,18 @@ def test_projects(mock_server, api):
     assert count == 2
 
 
+def test_reports(mock_server, api):
+    path = "test-entity/test-project"
+    reports = api.reports(path)
+    # calling __len__, __getitem__, or __next__ on a Reports object
+    # triggers the actual API call to fetch data w/ pagination.
+    length = len(reports)
+    assert length == 1
+    assert reports[0].description == "test-description"
+    assert reports[0].pageCount == 0
+    assert reports[1].pageCount == 1
+
+
 def test_delete_file(runner, mock_server, api):
     run = api.run("test/test/test")
     file = run.files()[0]
@@ -393,6 +405,15 @@ def test_artifact_run_logged(runner, mock_server, api):
     arts = run.logged_artifacts()
     assert len(arts) == 2
     assert arts[0].name == "mnist:v0"
+
+
+def test_artifact_run_logged_cursor(runner, mock_server, api):
+    artifacts = api.run("test/test/test").logged_artifacts()
+    count = 0
+    for artifact in artifacts:
+        count += 1
+
+    assert len(artifacts) == count
 
 
 def test_artifact_manual_use(runner, mock_server, api):

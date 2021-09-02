@@ -11,6 +11,7 @@ import multiprocessing
 import os
 from shutil import copyfile
 import sys
+from urllib.parse import unquote
 
 from wandb import util
 from wandb.vendor.pynvml import pynvml
@@ -218,10 +219,11 @@ class Meta(object):
                 if self._settings.notebook_name:
                     self.data["program"] = self._settings.notebook_name
                 elif self._settings._jupyter_path:
-                    if "fileId=" in self._settings._jupyter_path:
+                    if self._settings._jupyter_path.startswith("fileId="):
+                        unescaped = unquote(self._settings._jupyter_path)
                         self.data["colab"] = (
-                            "https://colab.research.google.com/drive/"
-                            + self._settings._jupyter_path.split("fileId=")[1]  # noqa
+                            "https://colab.research.google.com/notebook#"
+                            + unescaped  # noqa
                         )
                         self.data["program"] = self._settings._jupyter_name
                     else:
