@@ -53,3 +53,17 @@ def test_telemetry_imports_jax(live_mock_server, parse_ctx):
     # jax in finish modules but not in init modules
     assert telemetry and 12 in telemetry.get("1", [])
     assert telemetry and 12 in telemetry.get("2", [])
+
+
+def test_telemetry_set_in_wandb_init(live_mock_server, parse_ctx):
+    wandb.init(name="test_name", tags=["my-tag"], config={"abc": 123}, id="mynewid")
+    wandb.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+
+    # jax in finish modules but not in init modules
+    assert telemetry and 11 in telemetry.get("3", [])  # name
+    assert telemetry and 12 in telemetry.get("3", [])  # id
+    assert telemetry and 13 in telemetry.get("3", [])  # tags
+    assert telemetry and 14 in telemetry.get("3", [])  # config

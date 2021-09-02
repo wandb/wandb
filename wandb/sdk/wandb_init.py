@@ -117,7 +117,7 @@ class _WandbInit(object):
 
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
-        if len(init_config.keys()) > 0:
+        if init_config != {}:
             self._use_init_config = True
 
         if kwargs.get("name"):
