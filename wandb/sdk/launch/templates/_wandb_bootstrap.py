@@ -43,7 +43,6 @@ def install_deps(deps, failed=None):
             failed = set()
         num_failed = len(failed)
         for line in e.output.decode("utf8"):
-            print(line)
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
         if len(failed) > num_failed:
@@ -60,7 +59,6 @@ def main():
             reqs = []
             failed = set()
             for req in f:
-                print(req, ONLY_INCLUDE)
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     reqs.append(req.strip())
                 else:
