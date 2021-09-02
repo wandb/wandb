@@ -438,3 +438,23 @@ def test_upgrade_removed(
 
 
 # TODO: test other sender methods
+
+
+@pytest.mark.parametrize("empty_query", [True, False])
+@pytest.mark.parametrize("local_none", [True, False])
+@pytest.mark.parametrize("outdated", [True, False])
+def test_exit_poll_local(
+    publish_util, mock_server, collect_responses, empty_query, local_none, outdated
+):
+    mock_server.ctx["out_of_date"] = outdated
+    mock_server.ctx["empty_query"] = empty_query
+    mock_server.ctx["local_none"] = local_none
+    publish_util()
+
+    out_of_date = collect_responses.local_info.out_of_date
+    if empty_query:
+        assert out_of_date
+    elif local_none:
+        assert not out_of_date
+    else:
+        assert out_of_date == outdated
