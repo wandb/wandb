@@ -1409,6 +1409,4 @@ def _log_thread_stacks():
 
 
 def check_windows_valid_filename(path):
-    if platform.system() == "Windows":
-        return not bool(re.search(r"[<>:\"/\?*]", path))
-    return False
+    return not bool(re.search(r"[<>:\"/\?*]", path))

@@ -4,6 +4,7 @@ import json
 import logging
 import numbers
 import os
+import platform
 import re
 import shutil
 import sys
@@ -488,7 +489,9 @@ class Media(WBValue):
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
 
-        if not util.check_windows_valid_filename(key):
+        if platform.system() == "Windows" and not util.check_windows_valid_filename(
+            key
+        ):
             raise ValueError(
                 f"Media {key} is invalid. Please remove invalid filename characters"
             )
