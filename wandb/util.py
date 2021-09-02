@@ -1406,3 +1406,9 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def check_windows_valid_filename(path):
+    if platform.system() == "Windows":
+        return not bool(re.search(r"[<>:\"/\?*]", path))
+    return False

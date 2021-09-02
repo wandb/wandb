@@ -1016,8 +1016,8 @@ def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
 def test_fail_to_make_file(mocked_run):
     wb_image = wandb.Image(image)
     try:
-        wb_image.bind_to_run(mocked_run, "a:a", 0)
+        wb_image.bind_to_run(mocked_run, "my key: an identifier", 0)
         if platform.system() == "Windows":
             assert False
-    except FileNotFoundError as e:
-        assert "Failed to create file " in str(e)
+    except ValueError as e:
+        assert " is invalid. Please remove invalid filename characters" in str(e)
