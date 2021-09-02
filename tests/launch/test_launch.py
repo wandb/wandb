@@ -368,9 +368,10 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
         return 200, MockedFileResponder(url)
 
     api.download_file = MagicMock(side_effect=mocked_file_download_request)
-    launch.run(
+    run = launch.run(
         "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"test",
     )
+    assert str(run.get_status()) == "Finished"
 
 
 def patched_pop_from_queue(self, queue):
