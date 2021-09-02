@@ -120,12 +120,7 @@ class _WandbInit(object):
         if init_config != {}:
             self._use_init_config = True
 
-        if kwargs.get("name"):
-            self._set_run_name = True
-        if kwargs.get("id"):
-            self._set_run_id = True
-        if kwargs.get("tags"):
-            self._set_run_tags = True
+        self._set_init_telemetry_attrs(kwargs)
 
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
@@ -586,6 +581,14 @@ class _WandbInit(object):
         run._freeze()
         logger.info("run started, returning control to user process")
         return run
+
+    def _set_init_telemetry_attrs(self, kwargs):
+        if kwargs.get("name"):
+            self._set_run_name = True
+        if kwargs.get("id"):
+            self._set_run_id = True
+        if kwargs.get("tags"):
+            self._set_run_tags = True
 
 
 def getcaller():
