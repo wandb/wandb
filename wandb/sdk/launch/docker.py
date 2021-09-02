@@ -131,7 +131,7 @@ def build_docker_image_if_needed(
         name=launch_project.image_name, work_dir=launch_project.project_dir
     )
     launch_project.docker_image = image_uri
-    if docker_image_exists(image_uri):
+    if docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
         return image_uri
     container_inspect = docker_image_inspect(launch_project.base_image)

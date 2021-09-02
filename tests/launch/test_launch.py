@@ -312,6 +312,7 @@ def test_launch_use_server_reqs(
     pass
 
 
+@pytest.mark.timeout(320)
 def test_launch_no_server_info(
     live_mock_server, test_settings, mocked_fetchable_git_repo
 ):
@@ -331,6 +332,7 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
+@pytest.mark.timeout(320)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
