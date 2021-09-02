@@ -9,6 +9,7 @@ import sys
 
 import wandb
 import wandb.sdk.launch.launch as launch
+from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
 from wandb.sdk.launch.utils import (
     PROJECT_DOCKER_ARGS,
@@ -116,6 +117,11 @@ def test_launch_base_case(
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+def test_launch_add_base(live_mock_server):
+    queuedJob = launch_add("https://wandb.ai/mock_server_entity/tests/runs/1")
+    assert queuedJob._run_queue_item_id == "1"
 
 
 @pytest.mark.skipif(
@@ -265,7 +271,7 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
-@pytest.mark.timeout(280)
+@pytest.mark.timeout(320)
 def test_launch_agent(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):

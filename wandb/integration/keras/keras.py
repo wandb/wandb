@@ -8,17 +8,21 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import copy
+import logging
+import numpy as np
 import operator
 import os
-import numpy as np
-import wandb
 import sys
-from wandb.util import add_import_hook, is_numeric_array
-from importlib import import_module
 from itertools import chain
+from pkg_resources import parse_version
+
+import wandb
+from wandb.util import add_import_hook
+
 
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+
+logger = logging.getLogger(__name__)
 
 
 def is_dataset(data):
@@ -48,22 +52,46 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():
-    from tensorflow.python.eager import context
-    from tensorflow.python.keras.engine import training
 
-    try:
-        from tensorflow.python.keras.engine import training_arrays
-        from tensorflow.python.keras.engine import training_generator
-    except ImportError:
-        from tensorflow.python.keras.engine import training_arrays_v1 as training_arrays
-        from tensorflow.python.keras.engine import (
-            training_generator_v1 as training_generator,
-        )
+    from tensorflow.python.eager import context
+
+    from tensorflow import __version__ as tf_version
+
+    if parse_version(tf_version) >= parse_version("2.6.0"):
+        keras_engine = "keras.engine"
+        try:
+            from keras.engine import training
+            from keras.engine import training_arrays_v1 as training_arrays
+            from keras.engine import training_generator_v1 as training_generator
+        except (ImportError, AttributeError):
+            wandb.termerror("Unable to patch Tensorflow/Keras")
+            logger.exception("exception while trying to patch_tf_keras")
+            return
+    else:
+        keras_engine = "tensorflow.python.keras.engine"
+
+        from tensorflow.python.keras.engine import training
+
+        try:
+            from tensorflow.python.keras.engine import (
+                training_arrays_v1 as training_arrays,
+            )
+            from tensorflow.python.keras.engine import (
+                training_generator_v1 as training_generator,
+            )
+        except (ImportError, AttributeError):
+            try:
+                from tensorflow.python.keras.engine import training_arrays
+                from tensorflow.python.keras.engine import training_generator
+            except (ImportError, AttributeError):
+                wandb.termerror("Unable to patch Tensorflow/Keras")
+                logger.exception("exception while trying to patch_tf_keras")
+                return
 
     # Tensorflow 2.1
     training_v2_1 = wandb.util.get_module("tensorflow.python.keras.engine.training_v2")
     # Tensorflow 2.2
-    training_v2_2 = wandb.util.get_module("tensorflow.python.keras.engine.training_v1")
+    training_v2_2 = wandb.util.get_module(f"{keras_engine}.training_v1")
 
     if training_v2_1:
         old_v2 = training_v2_1.Loop.fit
@@ -124,11 +152,9 @@ def patch_tf_keras():
     training_arrays.fit_loop = new_arrays
     training_generator.orig_fit_generator = old_generator
     training_generator.fit_generator = new_generator
+    wandb.patched["keras"].append([f"{keras_engine}.training_arrays", "fit_loop"])
     wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_arrays", "fit_loop"]
-    )
-    wandb.patched["keras"].append(
-        ["tensorflow.python.keras.engine.training_generator", "fit_generator"]
+        [f"{keras_engine}.training_generator", "fit_generator"]
     )
 
     if training_v2_1:
@@ -138,20 +164,15 @@ def patch_tf_keras():
         )
     elif training_v2_2:
         training.Model.fit = new_v2
-        wandb.patched["keras"].append(
-            ["tensorflow.python.keras.engine.training.Model", "fit"]
-        )
+        wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
 def _check_keras_version():
-    import keras
+    from keras import __version__ as keras_version
 
-    keras_version = keras.__version__
-    major, minor, patch = keras_version.split(".")
-    if int(major) < 2 or int(minor) < 4:
+    if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(
-            "Keras version %s is not fully supported. Required keras >= 2.4.0"
-            % (keras_version)
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
         )
 
 
@@ -175,7 +196,6 @@ import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
 tf_logger = tf.get_logger()
-
 
 patch_tf_keras()
 
@@ -343,7 +363,6 @@ class WandbCallback(keras.callbacks.Callback):
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
-
         self.validation_data = None
         # This is kept around for legacy reasons
         if validation_data is not None:
@@ -489,11 +508,15 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
