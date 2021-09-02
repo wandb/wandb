@@ -63,7 +63,8 @@ def main():
                 print(req, ONLY_INCLUDE)
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     reqs.append(req.strip())
-                    print(reqs)
+                else:
+                    print(f"Ignoring requirement: {req} from frozen requirements")
                 if len(reqs) >= CORES:
                     deps_failed = install_deps(reqs)
                     reqs = []
