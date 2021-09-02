@@ -1016,7 +1016,7 @@ def test_joined_table_logging(mocked_run, live_mock_server, test_settings, api):
 def test_fail_to_make_file(mocked_run):
     wb_image = wandb.Image(image)
     try:
-        wb_image.bind_to_run(mocked_run, "  a\sd/a:sd", 0)
+        wb_image.bind_to_run(mocked_run, "a:a", 0)
         if platform.system() == "Windows":
             assert False
     except FileNotFoundError as e:
