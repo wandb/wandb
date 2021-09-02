@@ -361,9 +361,13 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
 
             def iter_content(self, chunk_size):
                 if self.url == "requirements":
-                    return [b"wandb", b"numpy"]
+                    return [b"wandb\n", b"numpy\n", b"pandas\n"]
                 elif self.url == "main2.py":
-                    return [b"import wandb\n", b"print('ran server fetched code')\n"]
+                    return [
+                        b"import wandb\n",
+                        b"import pandas\n",
+                        b"print('ran server fetched code')\n",
+                    ]
 
         return 200, MockedFileResponder(url)
 
@@ -371,7 +375,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
     run = launch.run(
         "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"test",
     )
-    assert str(run.get_status()) == "Finished"
+    assert str(run.get_status()) == "finished"
 
 
 def patched_pop_from_queue(self, queue):
