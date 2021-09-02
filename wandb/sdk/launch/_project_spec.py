@@ -44,6 +44,8 @@ class LaunchProject(object):
     ):
 
         self.uri = uri
+        self.source_tag = uri.split("/")[-1]
+        self.build_image = False
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
@@ -95,7 +97,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return "{}_launch".format(self.target_project)
+        return "{}_{}_launch".format(self.target_project, self.source_tag)
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the overide run config values if a matching key exists in the override arguments."""
@@ -157,6 +159,9 @@ class LaunchProject(object):
             entry_point = run_info.get("codePath", run_info["program"])
             if not os.path.exists(os.path.join(self.project_dir, entry_point)):
                 utils.download_entry_point(self.uri, api, entry_point, self.project_dir)
+                # if the entrypoint is downloaded and inserted into the project dir
+                # need to rebuild image with new code
+                self.build_image = True
 
             # Download any frozen requirements
             utils.download_wandb_python_deps(self.uri, api, self.project_dir)

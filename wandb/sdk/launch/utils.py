@@ -191,7 +191,6 @@ def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool
     metadata = api.download_url(project, f"code/{entry_point}", run=name, entity=entity)
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
-
         with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
             for data in response.iter_content(chunk_size=1024):
                 file.write(data)

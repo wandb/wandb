@@ -1,5 +1,6 @@
 import json
 import os
+from unittest.mock import MagicMock
 from wandb.sdk.launch.docker import pull_docker_image
 
 try:
@@ -291,7 +292,7 @@ def test_launch_agent(
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
 def test_launch_full_build_new_image(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, capsys
+    live_mock_server, test_settings, mocked_fetchable_git_repo
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -303,6 +304,73 @@ def test_launch_full_build_new_image(
         project=f"new-test-{random_id}",
     )
     assert str(run.get_status()) == "finished"
+
+
+def test_launch_use_server_reqs(
+    live_mock_server, test_settings, mocked_fetchable_git_repo
+):
+    pass
+
+
+def test_launch_no_server_info(
+    live_mock_server, test_settings, mocked_fetchable_git_repo
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    api.get_run_info = MagicMock(
+        return_value=None, side_effect=wandb.CommError("test comm error")
+    )
+    try:
+        launch.run(
+            "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"new-test",
+        )
+        assert False
+    except wandb.errors.LaunchError as e:
+        assert "Run info is invalid or doesn't exist" in str(e)
+
+
+def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    def mocked_download_url(*args, **kwargs):
+        if args[1] == "wandb-metadata.json":
+            return {"url": "urlForCodePath"}
+        elif args[1] == "code/main2.py":
+            return {"url": "main2.py"}
+        elif args[1] == "requirements.txt":
+            return {"url": "requirements"}
+
+    api.download_url = MagicMock(side_effect=mocked_download_url)
+
+    def mocked_file_download_request(url):
+        class MockedFileResponder:
+            def __init__(self, url):
+                self.url: str = url
+
+            def json(self):
+                if self.url == "urlForCodePath":
+                    return {"codePath": "main2.py"}
+                elif self.url == "code/main2.py":
+                    return None
+                elif self.url == "requirements":
+                    return None
+
+            def iter_content(self, chunk_size):
+                if self.url == "requirements":
+                    return [b"wandb", b"numpy"]
+                elif self.url == "main2.py":
+                    return [b"import wandb\n", b"print('ran server fetched code')\n"]
+
+        return 200, MockedFileResponder(url)
+
+    api.download_file = MagicMock(side_effect=mocked_file_download_request)
+    launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"test",
+    )
 
 
 def patched_pop_from_queue(self, queue):
