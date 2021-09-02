@@ -306,12 +306,6 @@ def test_launch_full_build_new_image(
     assert str(run.get_status()) == "finished"
 
 
-def test_launch_use_server_reqs(
-    live_mock_server, test_settings, mocked_fetchable_git_repo
-):
-    pass
-
-
 @pytest.mark.timeout(320)
 def test_launch_no_server_info(
     live_mock_server, test_settings, mocked_fetchable_git_repo
@@ -359,10 +353,11 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
 
             def iter_content(self, chunk_size):
                 if self.url == "requirements":
-                    return [b"wandb\n", b"numpy\n"]
+                    return [b"torch\n", b"wandb\n", b"numpy\n"]
                 elif self.url == "main2.py":
                     return [
                         b"import wandb\n",
+                        b"import numpy\n",
                         b"print('ran server fetched code')\n",
                     ]
 
@@ -370,7 +365,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
 
     api.download_file = MagicMock(side_effect=mocked_file_download_request)
     run = launch.run(
-        "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"test",
+        "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"tesasdtasd12",
     )
     assert str(run.get_status()) == "finished"
 

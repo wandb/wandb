@@ -43,6 +43,7 @@ def install_deps(deps, failed=None):
             failed = set()
         num_failed = len(failed)
         for line in e.output.decode("utf8"):
+            print(line)
             if line.startswith("ERROR:"):
                 failed.add(line.split(" ")[-1])
         if len(failed) > num_failed:
@@ -59,8 +60,10 @@ def main():
             reqs = []
             failed = set()
             for req in f:
+                print(req, ONLY_INCLUDE)
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     reqs.append(req.strip())
+                    print(reqs)
                 if len(reqs) >= CORES:
                     deps_failed = install_deps(reqs)
                     reqs = []
@@ -72,8 +75,11 @@ def main():
                     failed = failed.union(deps_failed)
             with open("_wandb_bootstrap_errors.json", "w") as f:
                 f.write(json.dumps({"pip": list(failed)}))
-            sys.stderr.write("ERROR: Failed to install: {}".format(",".join(failed)))
-            sys.stderr.flush()
+            if len(failed) > 0:
+                sys.stderr.write(
+                    "ERROR: Failed to install: {}".format(",".join(failed))
+                )
+                sys.stderr.flush()
     else:
         print("No frozen requirements found")
 
