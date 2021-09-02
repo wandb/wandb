@@ -509,6 +509,7 @@ message PollExitResponse {
   RunExitResult   exit_result = 2;
   FileCounts      file_counts = 3;
   FilePusherStats pusher_stats = 4;
+  LocalInfo local_info = 5;
 }
 
 message FileCounts {
@@ -522,6 +523,11 @@ message FilePusherStats {
   int64 uploaded_bytes = 1;
   int64 total_bytes = 2;
   int64 deduped_bytes = 3;
+}
+
+message LocalInfo {
+  string version = 1;
+  bool out_of_date = 2;
 }
 
 /*
