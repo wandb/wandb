@@ -407,16 +407,14 @@ class Api(object):
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
-        entity, project, run = self._parse_path(path)
-        if entity is None:
-            entity = self.settings["entity"] or self.default_entity
-            if entity is None:
-                raise ValueError(
-                    "entity must be passed as a parameter, or set in settings"
-                )
+        entity, project, _ = self._parse_path(path + "/fake_run")
+
         if name:
             name = urllib.parse.unquote(name)
-        key = "/".join([entity, project, str(name)])
+            key = "/".join([entity, project, str(name)])
+        else:
+            key = "/".join([entity, project])
+
         if key not in self._reports:
             self._reports[key] = Reports(
                 self.client,
@@ -1834,7 +1832,7 @@ class Reports(Paginator):
     QUERY = gql(
         """
         query Run($project: String!, $entity: String!, $reportCursor: String,
-            $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
+            $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
                 allViews(viewType: $viewType, viewName: $viewName, first:
                     $reportLimit, after: $reportCursor) {
@@ -1851,6 +1849,11 @@ class Reports(Paginator):
                         }
                         cursor
                     }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+
                 }
             }
         }
@@ -1870,14 +1873,15 @@ class Reports(Paginator):
     @property
     def length(self):
         # TODO: Add the count the backend
-        return self.per_page
+        if self.last_response:
+            return len(self.objects)
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
-            return (
-                len(self.last_response["project"]["allViews"]["edges"]) == self.per_page
-            )
+            return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
         else:
             return True
 
@@ -1894,6 +1898,10 @@ class Reports(Paginator):
         )
 
     def convert_objects(self):
+        if self.last_response["project"] is None:
+            raise ValueError(
+                f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
+            )
         return [
             BetaReport(
                 self.client,
