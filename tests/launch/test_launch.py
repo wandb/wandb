@@ -1,5 +1,6 @@
 import json
 import os
+from wandb.sdk.launch.docker import pull_docker_image
 
 try:
     from unittest import mock
@@ -8,6 +9,7 @@ except ImportError:  # TODO: this is only for python2
 import sys
 
 import wandb
+import wandb.util as util
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
@@ -285,6 +287,25 @@ def test_launch_agent(
     assert ctx["num_acked"] == 1
 
 
+# this test includes building a docker container which can take some time.
+# hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.timeout(320)
+def test_launch_full_build_new_image(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, capsys
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    random_id = util.generate_id()
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/1",
+        api,
+        project=f"new-test-{random_id}",
+    )
+    assert str(run.get_status()) == "finished"
+    assert False
+
+
 def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
@@ -292,3 +313,10 @@ def patched_pop_from_queue(self, queue):
     if ups is None:
         raise KeyboardInterrupt
     return ups
+
+
+def test_fail_pull_docker_image():
+    try:
+        pull_docker_image("not an image")
+    except wandb.errors.LaunchError as e:
+        assert "Docker server returned error" in str(e)

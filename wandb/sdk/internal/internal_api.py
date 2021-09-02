@@ -1896,7 +1896,7 @@ class Api(object):
                 "artifactID": artifact_id,
             },
         )
-
+        print(response)
         if response["useArtifact"]["artifact"]:
             return response["useArtifact"]["artifact"]
         return None

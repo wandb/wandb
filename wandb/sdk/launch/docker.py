@@ -1,15 +1,15 @@
 import json
 import logging
 import os
-import pkg_resources
 import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
+import pkg_resources
 from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
@@ -91,6 +91,8 @@ def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     optionally raising an exception"""
     try:
         data = docker.run(["docker", "image", "inspect", docker_image])
+        # always true, since return stderr defaults to false
+        assert isinstance(data, str)
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
         return True
