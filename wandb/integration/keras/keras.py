@@ -508,15 +508,11 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if (
-            self.input_type
-            in (
-                "image",
-                "images",
-                "segmentation_mask",
-            )
-            or self.output_type in ("image", "images", "segmentation_mask")
-        ):
+        if self.input_type in (
+            "image",
+            "images",
+            "segmentation_mask",
+        ) or self.output_type in ("image", "images", "segmentation_mask"):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
@@ -831,10 +827,8 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.weights
             for w in weights:
-                weight_string = w.name.replace("kernel", "weights").strip(":0")
-                _update_if_numeric(
-                    metrics, f"parameters/{layer.name}.{weight_string}", w
-                )
+                weight_string = w.name.replace("/kernel", ".weights").strip(":0")
+                _update_if_numeric(metrics, f"parameters/{weight_string}", w)
 
         return metrics
 
