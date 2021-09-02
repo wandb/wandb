@@ -373,7 +373,6 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
         "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"test",
     )
     assert str(run.get_status()) == "finished"
-    assert False
 
 
 def patched_pop_from_queue(self, queue):
