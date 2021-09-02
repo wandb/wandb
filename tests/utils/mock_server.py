@@ -452,6 +452,30 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "reportCursor" in body["query"]:
+            page_count = ctx["page_count"]
+            return json.dumps(
+                {
+                    "data": {
+                        "project": {
+                            "allViews": paginated(
+                                {
+                                    "name": "test-report",
+                                    "description": "test-description",
+                                    "user": {
+                                        "username": body["variables"]["entity"],
+                                        "photoUrl": "test-url",
+                                    },
+                                    "spec": '{"version": 5}',
+                                    "updatedAt": datetime.now().isoformat(),
+                                    "pageCount": page_count,
+                                },
+                                ctx,
+                            )
+                        }
+                    }
+                }
+            )
         if "query Run(" in body["query"]:
             # if querying state of run, change context from running to finished
             if "RunFragment" not in body["query"] and "state" in body["query"]:
