@@ -303,7 +303,6 @@ def test_launch_full_build_new_image(
         project=f"new-test-{random_id}",
     )
     assert str(run.get_status()) == "finished"
-    assert False
 
 
 def patched_pop_from_queue(self, queue):
