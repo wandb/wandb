@@ -17,7 +17,7 @@ from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, is_numeric_array
 
 
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
