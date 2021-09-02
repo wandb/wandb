@@ -826,10 +826,15 @@ class WandbCallback(keras.callbacks.Callback):
         metrics = {}
         for layer in self.model.layers:
             weights = layer.weights
-            for w in weights:
-                weight_string = w.name.replace("/kernel", ".weights").strip(":0")
-                _update_if_numeric(metrics, f"parameters/{weight_string}", w)
-
+            for index, w in enumerate(weights):
+                if hasattr(w, "name"):
+                    weight_string = w.name.replace("/kernel", ".weights").strip(":0")
+                    _update_if_numeric(metrics, f"parameters/{weight_string}", w)
+                else:
+                    # handle case where weight does not have name by logging the layer name
+                    # and weight index. Happens with all TrackableWeightHandler weights
+                    # eg. https://github.com/tensorflow/tensorboard/issues/4530
+                    _update_if_numeric(metrics, f"parameters/{layer.name}:{index}", w)
         return metrics
 
     def _log_gradients(self):
