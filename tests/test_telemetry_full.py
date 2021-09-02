@@ -64,8 +64,8 @@ def test_telemetry_run_organization(live_mock_server, parse_ctx):
     telemetry = ctx_util.telemetry
 
     # jax in finish modules but not in init modules
-    assert telemetry and 11 in telemetry.get("3", [])  # name
-    assert telemetry and 12 in telemetry.get("3", [])  # id
-    assert telemetry and 13 in telemetry.get("3", [])  # tags
-    assert telemetry and 14 in telemetry.get("3", [])  # config
-    assert telemetry and 15 in telemetry.get("3", [])  # config dot update
+    assert telemetry and 13 in telemetry.get("3", [])  # name
+    assert telemetry and 14 in telemetry.get("3", [])  # id
+    assert telemetry and 15 in telemetry.get("3", [])  # tags
+    assert telemetry and 16 in telemetry.get("3", [])  # config
+    assert telemetry and 17 in telemetry.get("3", [])  # config dot update
