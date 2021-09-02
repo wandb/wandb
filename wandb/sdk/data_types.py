@@ -488,7 +488,7 @@ class Media(WBValue):
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
 
-        if util.check_windows_valid_filename(key):
+        if not util.check_windows_valid_filename(key):
             raise ValueError(
                 f"Media {key} is invalid. Please remove invalid filename characters"
             )
