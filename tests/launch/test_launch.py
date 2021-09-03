@@ -16,7 +16,7 @@ from wandb.sdk.launch.utils import (
     PROJECT_SYNCHRONOUS,
 )
 
-from ..utils import fixture_open
+from ..utils import fixture_open, notebook_path
 
 import pytest
 
@@ -28,6 +28,24 @@ def mocked_fetchable_git_repo():
     def populate_dst_dir(dst_dir):
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo_ipython():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
+            f.write(open(notebook_path("one_cell.ipynb"), "r").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
@@ -283,6 +301,22 @@ def test_launch_agent(
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1
+
+
+@pytest.mark.timeout(320)
+def test_launch_notebook(
+    live_mock_server, test_settings, mocked_fetchable_git_repo_ipython
+):
+    live_mock_server.set_ctx({"return_jupyter_in_run_info": True})
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/jupyter1",
+        api,
+        project=f"new-test",
+    )
+    assert str(run.get_status()) == "finished"
 
 
 def patched_pop_from_queue(self, queue):

@@ -247,7 +247,7 @@ def merge_parameters(
     return {**lower_priority_params, **higher_priority_params}
 
 
-def convert_jupyter_notebook_to_script(fname, project_dir):
+def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     nbformat = wandb.util.get_module(
         "nbformat", "nbformat is required to use launch with jupyter notebooks"
     )

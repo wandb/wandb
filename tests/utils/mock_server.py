@@ -69,6 +69,7 @@ def default_ctx():
         "emulate_artifacts": None,
         "run_state": "running",
         "run_queue_item_check_count": 0,
+        "return_jupyter_in_run_info": False,
     }
 
 
@@ -126,7 +127,10 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-
+    if ctx["return_jupyter_in_run_info"]:
+        program_name = "one_cell.ipynb"
+    else:
+        program_name = "train.py"
     return {
         "id": "test",
         "name": "test",
@@ -160,7 +164,7 @@ def run(ctx):
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
-            "program": "train.py",
+            "program": program_name,
             "args": [],
             "os": platform.system(),
             "python": platform.python_version(),
