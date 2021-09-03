@@ -331,7 +331,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    # TODO: Switch from mocks, to mock server
+    # for now using mocks instead of mock server
     def mocked_download_url(*args, **kwargs):
         if args[1] == "wandb-metadata.json":
             return {"url": "urlForCodePath"}
