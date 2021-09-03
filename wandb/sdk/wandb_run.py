@@ -909,12 +909,17 @@ class Run(object):
             self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(
-        self, logdir: str, save: bool = None, root_logdir: str = None
+        self,
+        logdir: str,
+        save: bool = None,
+        root_logdir: str = None,
+        log_type: str = None,
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
+        log_type = "tfevents" if log_type is None else log_type
         if self._backend:
-            self._backend.interface.publish_tbdata(logdir, save, root_logdir)
+            self._backend.interface.publish_tbdata(logdir, save, root_logdir, log_type)
 
     def _set_library(self, library: _WandbSetup) -> None:
         self._wl = library
@@ -1880,7 +1885,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1929,10 +1937,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1941,8 +1954,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
