@@ -183,7 +183,10 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
+        d = dict(
+            _start_time=time.time(),
+            _start_datetime=datetime.datetime.now(),
+        )
         settings.update(d)
 
         if not settings._noop:
@@ -464,8 +467,8 @@ class _WandbInit(object):
             run._telemetry_imports(tel.imports_init)
             if self._use_sagemaker:
                 tel.feature.sagemaker = True
-            if self._use_init_config:
-                tel.feature.config_wandb_init = True
+            if self._set_init_config:
+                tel.feature.set_init_config = True
             if self._set_init_name:
                 tel.feature.set_init_name = True
             if self._set_init_id:
