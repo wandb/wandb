@@ -4,6 +4,7 @@ footer tests.
 
 import pytest
 
+import numpy as np
 import wandb
 
 LINE_PREFIX = "wandb: "
@@ -89,6 +90,17 @@ def test_footer_summary_array(live_mock_server, test_settings, check_output_fn):
     run.log(dict(b="b", d="d"))
     run.log(dict(a="a", b="b", skipthisbecausearray=[1, 2, 3]))
     run.log(dict(a="a"))
+    run.finish()
+    check_output_fn(exp_summary=["a", "b", "d"], exp_history=[])
+
+
+def test_footer_summary_image(live_mock_server, test_settings, check_output_fn):
+    run = wandb.init(settings=test_settings)
+    run.log(dict(d="d"))
+    run.log(dict(b="b", d="d"))
+    run.log(dict(a="a", b="b"))
+    run.log(dict(a="a"))
+    run.summary["this-is-ignored"] = wandb.Image(np.random.rand(10, 10))
     run.finish()
     check_output_fn(exp_summary=["a", "b", "d"], exp_history=[])
 
