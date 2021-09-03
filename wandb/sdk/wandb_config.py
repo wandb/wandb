@@ -136,6 +136,8 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
+        with wandb.wandb_lib.telemetry.context() as tel:
+            tel.feature.set_config_item = True
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
