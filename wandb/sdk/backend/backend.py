@@ -6,7 +6,7 @@ Manage backend.
 
 """
 
-import importlib
+import importlib.machinery
 import logging
 import multiprocessing
 import os
@@ -22,12 +22,6 @@ import wandb
 from ..interface import interface
 from ..internal.internal import wandb_internal
 from ..wandb_settings import Settings
-
-# Using exception block for pre py3.4 and to preservee type info
-try:
-    from importlib import machinery as imp_mach
-except ImportError:
-    imp_mach = None  # type: ignore
 
 
 if TYPE_CHECKING:
@@ -191,14 +185,11 @@ class Backend(object):
         main_mod_spec = getattr(main_module, "__spec__", None)
         main_mod_path = getattr(main_module, "__file__", None)
         if main_mod_spec is None:  # hack for pdb
-            if sys.version_info[0] > 2:
-                # Note: typing has trouble with BuiltinImporter
-                loader: "Loader" = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
-                main_mod_spec = importlib.machinery.ModuleSpec(
-                    name="wandb.mpmain", loader=loader
-                )
-            else:
-                main_mod_spec = None
+            # Note: typing has trouble with BuiltinImporter
+            loader: "Loader" = importlib.machinery.BuiltinImporter  # type: ignore # noqa: F821
+            main_mod_spec = importlib.machinery.ModuleSpec(
+                name="wandb.mpmain", loader=loader
+            )
             main_module.__spec__ = main_mod_spec
         else:
             self._save_mod_spec = main_mod_spec
