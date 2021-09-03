@@ -282,6 +282,7 @@ class GrpcBackend:
         files_dir = os.path.join(run_dir, "files")
         sync_file = os.path.join(run_dir, "run-{}.wandb".format(start_time))
         os.makedirs(files_dir)
+        # TODO: use a real Settings object
         settings = dict(
             log_internal=os.path.join(run_dir, "internal.log"),
             files_dir=files_dir,
