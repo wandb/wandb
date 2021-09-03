@@ -507,6 +507,8 @@ class Run(object):
 
     @name.setter
     def name(self, name: str) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_run_name = True
         self._name = name
         if self._backend:
             self._backend.interface.publish_run(self)
@@ -542,6 +544,8 @@ class Run(object):
 
     @tags.setter
     def tags(self, tags: Sequence) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend:
             self._backend.interface.publish_run(self)

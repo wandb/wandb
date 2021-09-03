@@ -55,9 +55,8 @@ def test_telemetry_imports_jax(live_mock_server, parse_ctx):
     assert telemetry and 12 in telemetry.get("2", [])
 
 
-def test_telemetry_run_organization(live_mock_server, parse_ctx):
+def test_telemetry_run_organizing_init(live_mock_server, parse_ctx):
     wandb.init(name="test_name", tags=["my-tag"], config={"abc": 123}, id="mynewid")
-    wandb.config.update = True
     wandb.finish()
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
@@ -68,4 +67,19 @@ def test_telemetry_run_organization(live_mock_server, parse_ctx):
     assert telemetry and 14 in telemetry.get("3", [])  # id
     assert telemetry and 15 in telemetry.get("3", [])  # tags
     assert telemetry and 16 in telemetry.get("3", [])  # config
-    assert telemetry and 17 in telemetry.get("3", [])  # config dot update
+
+
+def test_telemetry_run_organizing_set(live_mock_server, parse_ctx):
+    run = wandb.init()
+    run.name = "test-name"
+    run.tags = ["tag1"]
+    wandb.config.update = True
+    wandb.finish()
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+
+    # jax in finish modules but not in init modules
+    assert telemetry and 17 in telemetry.get("3", [])  # name
+    assert telemetry and 18 in telemetry.get("3", [])  # tags
+    assert telemetry and 19 in telemetry.get("3", [])  # config update

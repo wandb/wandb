@@ -74,10 +74,11 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self._use_sagemaker = None
-        self._use_init_config = None
-        self._set_run_name = None
-        self._set_run_tags = None
-        self._set_run_id = None
+
+        self._set_init_name = None
+        self._set_init_tags = None
+        self._set_init_id = None
+        self._set_init_config = None
         self.notebook = None
 
     def setup(self, kwargs) -> None:
@@ -114,13 +115,9 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             settings._apply_setup(sm_run)
             self._use_sagemaker = True
-
+        self._set_init_telemetry_attrs(kwargs)
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
-        if init_config != {}:
-            self._use_init_config = True
-
-        self._set_init_telemetry_attrs(kwargs)
 
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
@@ -469,12 +466,12 @@ class _WandbInit(object):
                 tel.feature.sagemaker = True
             if self._use_init_config:
                 tel.feature.config_wandb_init = True
-            if self._set_run_name:
-                tel.feature.set_run_name = True
-            if self._set_run_id:
-                tel.feature.set_run_id = True
-            if self._set_run_tags:
-                tel.feature.set_run_tags = True
+            if self._set_init_name:
+                tel.feature.set_init_name = True
+            if self._set_init_id:
+                tel.feature.set_init_id = True
+            if self._set_init_tags:
+                tel.feature.set_init_tags = True
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -583,12 +580,15 @@ class _WandbInit(object):
         return run
 
     def _set_init_telemetry_attrs(self, kwargs):
+        # config not set here because the
         if kwargs.get("name"):
-            self._set_run_name = True
+            self._set_init_name = True
         if kwargs.get("id"):
-            self._set_run_id = True
+            self._set_init_id = True
         if kwargs.get("tags"):
-            self._set_run_tags = True
+            self._set_init_tags = True
+        if kwargs.get("config"):
+            self._set_init_config = True
 
 
 def getcaller():
