@@ -495,7 +495,7 @@ class Run(object):
     def _attach_child_runs(self) -> None:
         pass
 
-    def __getstate__(self) -> None:
+    def __getstate__(self) -> Any:
         """Custom pickler."""
 
         # We only pickle in concurrency mode
