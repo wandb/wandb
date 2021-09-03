@@ -31,3 +31,4 @@ jax[cpu]
 fastcore
 pyarrow
 metaflow>=2.3.5
+.[launch]
