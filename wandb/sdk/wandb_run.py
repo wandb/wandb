@@ -496,10 +496,28 @@ class Run(object):
         pass
 
     def __getstate__(self) -> None:
-        pass
+        """Custom pickler."""
+
+        # We only pickle in concurrency mode
+        if not self._settings or not self._settings._concurrency:
+            return
+
+        _attach_id = self._attach_id
+        if not _attach_id:
+            return
+
+        return dict(_attach_id=_attach_id)
 
     def __setstate__(self, state: Any) -> None:
-        pass
+        """Custom unpickler."""
+        if not state:
+            return
+
+        _attach_id = state.get("_attach_id")
+        if not _attach_id:
+            return
+
+        self._attach_id = _attach_id
 
     def _auto_attach(self, method: str = None) -> bool:
         """Attach to our backend process (could block)"""
