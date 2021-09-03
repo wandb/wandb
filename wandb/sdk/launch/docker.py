@@ -192,8 +192,7 @@ def build_docker_image_if_needed(
         _logger.info(
             "Temporary docker context file %s was not deleted.", build_ctx_path
         )
-    # TODO: mypy isn't picking up types from wandb.docker
-    return str(image)
+    return image
 
 
 def get_docker_command(
