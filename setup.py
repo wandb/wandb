@@ -34,10 +34,7 @@ media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotl
 launch_requirements = [
     "docker",
     "jupyter-repo2docker",
-    "chardet",
-    "iso8601",
     "nbconvert",
-    "nbformat",
 ]
 
 setup(
