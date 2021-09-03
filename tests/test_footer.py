@@ -44,6 +44,10 @@ def check_output_fn(capsys):
     def check_fn(exp_summary, exp_history):
         captured = capsys.readouterr()
         lines = captured.err.splitlines()
+        # for l in captured.err.splitlines():
+        #     print("ERR =", l)
+        # for l in captured.out.splitlines():
+        #     print("OUT =", l)
         lines = [remove_prefix(l, LINE_PREFIX).strip() for l in lines]
 
         footer_end = next(iter([l for l in lines if l.startswith(FOOTER_END_PREFIX)]))
