@@ -6,11 +6,7 @@ import pytest
 import os
 import sys
 
-_PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if _PY3:
-    from wandb.sdk.interface._dtypes import *
-else:
-    from wandb.sdk_py27.interface._dtypes import *
+from wandb.sdk.interface._dtypes import *
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))
@@ -770,6 +766,5 @@ def test_table_typing_pandas():
 
     table = wandb.Table(dataframe=pd.DataFrame([["42"], ["42"]]).astype("string"))
     table.add_data("42")
-    if _PY3:
-        table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
-        table.add_data(True)
+    table = wandb.Table(dataframe=pd.DataFrame([[True], [False]]).astype("boolean"))
+    table.add_data(True)

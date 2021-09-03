@@ -9,6 +9,7 @@ import socket
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import six
 from six.moves import queue
@@ -18,21 +19,17 @@ from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
 
-if wandb.TYPE_CHECKING:
-    from typing import TYPE_CHECKING
 
-    if TYPE_CHECKING:
-        from ..interface.interface import BackendSender
-        from .settings_static import SettingsStatic
-        from typing import Dict, List, Optional
-        from wandb.proto.wandb_internal_pb2 import RunRecord
-        from six.moves.queue import PriorityQueue
-        from tensorboard.compat.proto.event_pb2 import ProtoEvent
-        from tensorboard.backend.event_processing.event_file_loader import (
-            EventFileLoader,
-        )
+if TYPE_CHECKING:
+    from ..interface.interface import BackendSender
+    from .settings_static import SettingsStatic
+    from typing import Dict, List, Optional
+    from wandb.proto.wandb_internal_pb2 import RunRecord
+    from six.moves.queue import PriorityQueue
+    from tensorboard.compat.proto.event_pb2 import ProtoEvent
+    from tensorboard.backend.event_processing.event_file_loader import EventFileLoader
 
-        HistoryDict = Dict[str, object]
+    HistoryDict = Dict[str, object]
 
 # Give some time for tensorboard data to be flushed
 SHUTDOWN_DELAY = 5
@@ -71,7 +68,7 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     if not path:
         raise ValueError("Path must be a nonempty string")
     basename = os.path.basename(path)
-    if basename.endswith(".profile-empty"):
+    if basename.endswith(".profile-empty") or basename.endswith(".sagemaker-uploaded"):
         return False
     fname_components = basename.split(".")
     try:

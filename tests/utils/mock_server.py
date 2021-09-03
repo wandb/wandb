@@ -5,6 +5,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 import json
+import platform
 import yaml
 import six
 
@@ -16,7 +17,24 @@ sys.path[0:0] = save_path
 import logging
 from six.moves import urllib
 import threading
-from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+
+RequestsMock = None
+InjectRequestsParse = None
+ArtifactEmulator = None
+
+
+def load_modules(use_yea=False):
+    global RequestsMock, InjectRequestsParse, ArtifactEmulator
+    if use_yea:
+        from yea_wandb.mock_requests import RequestsMock, InjectRequestsParse
+        from yea_wandb.artifact_emu import ArtifactEmulator
+    else:
+        from tests.utils.mock_requests import RequestsMock, InjectRequestsParse
+        from tests.utils.artifact_emu import ArtifactEmulator
+
+
+# global (is this safe?)
+ART_EMU = None
 
 
 def default_ctx():
@@ -30,16 +48,32 @@ def default_ctx():
         "current_run": None,
         "files": {},
         "k8s": False,
-        "resume": False,
+        "resume": None,
         "file_bytes": {},
         "manifests_created": [],
+        "artifacts": {},
         "artifacts_by_id": {},
+        "artifacts_created": {},
         "upsert_bucket_count": 0,
-        "max_cli_version": "0.10.33",
+        "out_of_date": False,
+        "empty_query": False,
+        "local_none": False,
+        "run_queues_return_default": True,
+        "run_queues": {"1": []},
+        "num_popped": 0,
+        "num_acked": 0,
+        "max_cli_version": "0.12.0",
+        "runs": {},
+        "run_ids": [],
+        "file_names": [],
+        "emulate_artifacts": None,
+        "run_state": "running",
+        "run_queue_item_check_count": 0,
     }
 
 
 def mock_server(mocker):
+    load_modules()
     ctx = default_ctx()
     app = create_app(ctx)
     mock = RequestsMock(app, ctx)
@@ -50,7 +84,6 @@ def mock_server(mocker):
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
-    mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
@@ -126,6 +159,21 @@ def run(ctx):
         "sweepName": None,
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
+        "runInfo": {
+            "program": "train.py",
+            "args": [],
+            "os": platform.system(),
+            "python": platform.python_version(),
+            "colab": None,
+            "executable": None,
+            "codeSaved": False,
+            "cpuCount": 12,
+            "gpuCount": 0,
+            "git": {
+                "remote": "https://foo:bar@github.com/FooTest/Foo.git",
+                "commit": "HEAD",
+            },
+        },
     }
 
 
@@ -217,6 +265,12 @@ def get_ctx():
     return g.ctx.get()
 
 
+def get_run_ctx(run_id):
+    glob_ctx = get_ctx()
+    run_ctx = glob_ctx["runs"][run_id]
+    return run_ctx
+
+
 def set_ctx(ctx):
     get_ctx()
     g.ctx.set(ctx)
@@ -306,6 +360,7 @@ def create_app(user_ctx=None):
         if test_name:
             app.logger.info("Test request from: %s", test_name)
         app.logger.info("graphql post")
+
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
@@ -314,18 +369,22 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+
+        # Setup artifact emulator (should this be somewhere else?)
+        emulate_random_str = ctx["emulate_artifacts"]
+        global ART_EMU
+        if emulate_random_str:
+            if ART_EMU is None or ART_EMU._random_str != emulate_random_str:
+                ART_EMU = ArtifactEmulator(
+                    random_str=emulate_random_str, ctx=ctx, base_url=base_url
+                )
+        else:
+            ART_EMU = None
+
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
-        if "mutation UpsertBucket(" in body["query"]:
-            param_config = body["variables"].get("config")
-            if param_config:
-                ctx.setdefault("config", []).append(json.loads(param_config))
-            param_summary = body["variables"].get("summaryMetrics")
-            if param_summary:
-                ctx.setdefault("summary", []).append(json.loads(param_summary))
-            ctx["upsert_bucket_count"] += 1
 
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
@@ -368,7 +427,7 @@ def create_app(user_ctx=None):
                                     "displayName": "funky-town-13",
                                     "id": "test",
                                     "config": '{"epochs": {"value": 10}}',
-                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5}',
+                                    "summaryMetrics": '{"acc": 10, "best_val_loss": 0.5, "_wandb": {"runtime": 50}}',
                                     "logLineCount": 14,
                                     "historyLineCount": 15,
                                     "eventsLineCount": 0,
@@ -393,7 +452,38 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "reportCursor" in body["query"]:
+            page_count = ctx["page_count"]
+            return json.dumps(
+                {
+                    "data": {
+                        "project": {
+                            "allViews": paginated(
+                                {
+                                    "name": "test-report",
+                                    "description": "test-description",
+                                    "user": {
+                                        "username": body["variables"]["entity"],
+                                        "photoUrl": "test-url",
+                                    },
+                                    "spec": '{"version": 5}',
+                                    "updatedAt": datetime.now().isoformat(),
+                                    "pageCount": page_count,
+                                },
+                                ctx,
+                            )
+                        }
+                    }
+                }
+            )
         if "query Run(" in body["query"]:
+            # if querying state of run, change context from running to finished
+            if "RunFragment" not in body["query"] and "state" in body["query"]:
+                ret_val = json.dumps(
+                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                )
+                ctx["run_state"] = "finished"
+                return ret_val
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
@@ -445,26 +535,61 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Viewer " in body["query"]:
+            viewer_dict = {
+                "data": {
+                    "viewer": {
+                        "entity": "mock_server_entity",
+                        "flags": '{"code_saving_enabled": true}',
+                        "teams": {"edges": []},  # TODO make configurable for cli_test
+                    },
+                },
+            }
+            server_info = {
+                "serverInfo": {
+                    "cliVersionInfo": {
+                        "max_cli_version": str(ctx.get("max_cli_version", "0.10.33"))
+                    },
+                    "latestLocalVersionInfo": {
+                        "outOfDate": ctx.get("out_of_date", False),
+                        "latestVersionString": str(ctx.get("latest_version", "0.9.42")),
+                    },
+                }
+            }
+
+            if ctx["empty_query"]:
+                server_info["serverInfo"].pop("latestLocalVersionInfo")
+            elif ctx["local_none"]:
+                server_info["serverInfo"]["latestLocalVersionInfo"] = None
+
+            viewer_dict["data"].update(server_info)
+
+            return json.dumps(viewer_dict)
+
+        if "query ProbeServerCapabilities" in body["query"]:
+            if ctx["empty_query"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "QueryType": {"fields": [{"name": "serverInfo"},]},
+                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
+                        }
+                    }
+                )
+
             return json.dumps(
                 {
                     "data": {
-                        "viewer": {
-                            "entity": "mock_server_entity",
-                            "flags": '{"code_saving_enabled": true}',
-                            "teams": {
-                                "edges": []  # TODO make configurable for cli_test
-                            },
-                        },
-                        "serverInfo": {
-                            "cliVersionInfo": {
-                                "max_cli_version": str(
-                                    ctx.get("max_cli_version", "0.10.33")
-                                )
-                            }
+                        "QueryType": {"fields": [{"name": "serverInfo"},]},
+                        "ServerInfoType": {
+                            "fields": [
+                                {"name": "cliVersionInfo"},
+                                {"name": "latestLocalVersionInfo"},
+                            ]
                         },
                     }
                 }
             )
+
         if "query Sweep(" in body["query"]:
             return json.dumps(
                 {
@@ -476,7 +601,21 @@ def create_app(user_ctx=None):
                                 "state": "running",
                                 "bestLoss": 0.33,
                                 "config": yaml.dump(
-                                    {"metric": {"name": "loss", "value": "minimize"}}
+                                    {
+                                        "controller": {"type": "local"},
+                                        "method": "random",
+                                        "parameters": {
+                                            "param1": {
+                                                "values": [1, 2, 3],
+                                                "distribution": "categorical",
+                                            },
+                                            "param2": {
+                                                "values": [1, 2, 3],
+                                                "distribution": "categorical",
+                                            },
+                                        },
+                                        "program": "train-dummy.py",
+                                    }
                                 ),
                                 "createdAt": datetime.now().isoformat(),
                                 "heartbeatAt": datetime.now().isoformat(),
@@ -532,19 +671,53 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation UpsertBucket(" in body["query"]:
+            run_id_default = "abc123"
+            run_id = body["variables"].get("name", run_id_default)
+            run_num = len(ctx["runs"])
+            inserted = run_id not in ctx["runs"]
+            if inserted:
+                ctx["run_ids"].append(run_id)
+            run_ctx = ctx["runs"].setdefault(run_id, default_ctx())
+
+            r = run_ctx.setdefault("run", {})
+            r.setdefault("display_name", "lovely-dawn-{}".format(run_num + 32))
+            r.setdefault("storage_id", "storageid{}".format(run_num))
+            r.setdefault("project_name", "test")
+            r.setdefault("entity_name", "mock_server_entity")
+
+            param_config = body["variables"].get("config")
+            if param_config:
+                for c in ctx, run_ctx:
+                    c.setdefault("config", []).append(json.loads(param_config))
+
+            param_summary = body["variables"].get("summaryMetrics")
+            if param_summary:
+                for c in ctx, run_ctx:
+                    c.setdefault("summary", []).append(json.loads(param_summary))
+
+            for c in ctx, run_ctx:
+                c["upsert_bucket_count"] += 1
+
+            # Update run context
+            ctx["runs"][run_id] = run_ctx
+
+            # support legacy tests which pass resume
+            if ctx["resume"] is True:
+                inserted = False
+
             response = {
                 "data": {
                     "upsertBucket": {
                         "bucket": {
-                            "id": "storageid",
-                            "name": body["variables"].get("name", "abc123"),
-                            "displayName": "lovely-dawn-32",
+                            "id": r["storage_id"],
+                            "name": run_id,
+                            "displayName": r["display_name"],
                             "project": {
-                                "name": "test",
-                                "entity": {"name": "mock_server_entity"},
+                                "name": r["project_name"],
+                                "entity": {"name": r["entity_name"]},
                             },
                         },
-                        "inserted": ctx["resume"] is False,
+                        "inserted": inserted,
                     }
                 }
             }
@@ -583,6 +756,9 @@ def create_app(user_ctx=None):
                 )
             return json.dumps({"data": {"prepareFiles": {"files": {"edges": nodes}}}})
         if "mutation CreateArtifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create(variables=body["variables"])
+
             collection_name = body["variables"]["artifactCollectionNames"][0]
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
@@ -622,7 +798,10 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            ctx["manifests_created"].append(manifest)
+            run_name = body.get("variables", {}).get("runName", "unknown")
+            run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
+            for c in ctx, run_ctx:
+                c["manifests_created"].append(manifest)
             return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
@@ -642,6 +821,8 @@ def create_app(user_ctx=None):
             }
             return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation CreateArtifactFiles" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.create_files(variables=body["variables"])
             return {
                 "data": {
                     "files": [
@@ -757,6 +938,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "query Artifact(" in body["query"]:
+            if ART_EMU:
+                return ART_EMU.query(variables=body.get("variables", {}))
             art = artifact(
                 ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
             )
@@ -792,6 +975,108 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query Project" in body["query"] and "runQueues" in body["query"]:
+            if ctx["run_queues_return_default"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueues": [
+                                    {
+                                        "id": 1,
+                                        "name": "default",
+                                        "createdBy": "mock_server_entity",
+                                        "access": "PROJECT",
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {"project": {"runQueues": []}}})
+
+        if "query GetRunQueueItem" in body["query"]:
+            ctx["run_queue_item_check_count"] += 1
+            if ctx["run_queue_item_check_count"] > 1:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": "test",
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": None,
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+        if "mutation createRunQueue" in body["query"]:
+            ctx["run_queues_return_default"] = True
+            return json.dumps(
+                {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
+            )
+        if "mutation popFromRunQueue" in body["query"]:
+            if ctx["num_popped"] != 0:
+                return json.dumps({"data": {"popFromRunQueue": None}})
+            ctx["num_popped"] += 1
+            return json.dumps(
+                {
+                    "data": {
+                        "popFromRunQueue": {
+                            "runQueueItemId": 1,
+                            "runSpec": {
+                                "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                "project": "test_project",
+                                "entity": "mock_server_entity",
+                                "resource": "local",
+                            },
+                        }
+                    }
+                }
+            )
+        if "mutation pushToRunQueue" in body["query"]:
+            if ctx["run_queues"].get(body["variables"]["queueID"]):
+                ctx["run_queues"][body["variables"]["queueID"]].append(
+                    body["variables"]["queueID"]
+                )
+            else:
+                ctx["run_queues"][body["variables"]["queueID"]] = [
+                    body["variables"]["queueID"]
+                ]
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+        if "mutation ackRunQueueItem" in body["query"]:
+            ctx["num_acked"] += 1
+            return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
@@ -826,14 +1111,25 @@ def create_app(user_ctx=None):
         if request.method == "GET" and size:
             return os.urandom(size), 200
         # make sure to read the data
-        request.get_data()
+        request.get_data(as_text=True)
+        run_ctx = ctx["runs"].setdefault(run, default_ctx())
+        for c in ctx, run_ctx:
+            c["file_names"].append(request.args.get("file"))
+
+        inject = InjectRequestsParse(ctx).find(request=request)
+        if inject:
+            if inject.response:
+                response = inject.response
+            if inject.http_status:
+                # print("INJECT", inject, inject.http_status)
+                raise HttpException("some error", status_code=inject.http_status)
+
         if request.method == "PUT":
-            curr = ctx["file_bytes"].get(file)
-            if curr is None:
-                ctx["file_bytes"].setdefault(file, 0)
-                ctx["file_bytes"][file] += request.content_length
-            else:
-                ctx["file_bytes"][file] += request.content_length
+            for c in ctx, run_ctx:
+                c["file_bytes"].setdefault(file, 0)
+                c["file_bytes"][file] += request.content_length
+        if ART_EMU:
+            return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
             if _id in ctx.get("artifacts_by_id"):
                 art = ctx["artifacts_by_id"][_id]
@@ -1041,6 +1337,8 @@ index 30d74d2..9a2c773 100644
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
     def artifact_file(entity, digest):
+        if ART_EMU:
+            return ART_EMU.file(entity=entity, digest=digest)
         if entity == "entity" or entity == "mock_server_entity":
             if (
                 digest == "d1a69a69a69a69a69a69a69a69a69a69"
@@ -1125,8 +1423,10 @@ index 30d74d2..9a2c773 100644
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     def file_stream(entity, project, run):
         ctx = get_ctx()
-        ctx["file_stream"] = ctx.get("file_stream", [])
-        ctx["file_stream"].append(request.get_json())
+        run_ctx = get_run_ctx(run)
+        for c in ctx, run_ctx:
+            c["file_stream"] = c.get("file_stream", [])
+            c["file_stream"].append(request.get_json())
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)
@@ -1177,11 +1477,9 @@ index 30d74d2..9a2c773 100644
                     "88.1.2rc3": [],
                     "88.1.2rc4": [],
                     "0.11.0": [],
-                    "0.11.2": [],
                     "0.10.32": [],
                     "0.10.31": [],
                     "0.10.30": [],
-                    "0.12.0": [],
                     "0.0.8rc6": [],
                     "0.0.8rc2": [],
                     "0.0.8rc3": [],
@@ -1204,8 +1502,9 @@ index 30d74d2..9a2c773 100644
 
 
 class ParseCTX(object):
-    def __init__(self, ctx):
-        self._ctx = ctx
+    def __init__(self, ctx, run_id=None):
+        self._ctx = ctx["runs"][run_id] if run_id else ctx
+        self._run_id = run_id
 
     def get_filestream_file_updates(self):
         data = {}
@@ -1228,7 +1527,9 @@ class ParseCTX(object):
                 content = d.get("content")
                 assert offset is not None
                 assert content is not None
-                assert offset == 0 or offset == len(l), (k, v, l, d)
+                # this check isnt valid right now.
+                # TODO: lets just assume it is fine, look into this later
+                # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
                 if k == u"output.log":
@@ -1240,14 +1541,45 @@ class ParseCTX(object):
         return data
 
     @property
+    def run_ids(self):
+        return self._ctx.get("run_ids", [])
+
+    @property
+    def file_names(self):
+        return self._ctx.get("file_names", [])
+
+    @property
+    def files(self):
+        files_sizes = self._ctx.get("file_bytes", {})
+        files_dict = {}
+        for fname, size in files_sizes.items():
+            files_dict.setdefault(fname, {})
+            files_dict[fname]["size"] = size
+        return files_dict
+
+    @property
     def dropped_chunks(self):
         return self._ctx.get("file_stream", [{"dropped": 0}])[-1]["dropped"]
 
     @property
-    def summary(self):
+    def summary_raw(self):
         fs_files = self.get_filestream_file_items()
-        summary = fs_files.get("wandb-summary.json", [])[-1]
+        summary = fs_files.get("wandb-summary.json", [{}])[-1]
         return summary
+
+    @property
+    def summary_user(self):
+        return {k: v for k, v in self.summary_raw.items() if not k.startswith("_")}
+
+    @property
+    def summary(self):
+        # TODO: move this to config_user eventually
+        return {k: v for k, v in self.summary_raw.items() if k != "_wandb"}
+
+    @property
+    def summary_wandb(self):
+        # TODO: move this to config_user eventually
+        return self.summary_raw["_wandb"]
 
     @property
     def history(self):
@@ -1256,12 +1588,31 @@ class ParseCTX(object):
         return history
 
     @property
-    def config(self):
+    def exit_code(self):
+        exit_code = None
+        fs_list = self._ctx.get("file_stream")
+        if fs_list:
+            exit_code = fs_list[-1].get("exitcode")
+        return exit_code
+
+    @property
+    def config_raw(self):
         return self._ctx["config"][-1]
 
     @property
+    def config_user(self):
+        return {
+            k: v["value"] for k, v in self.config_raw.items() if not k.startswith("_")
+        }
+
+    @property
+    def config(self):
+        # TODO: move this to config_user eventually
+        return self.config_raw
+
+    @property
     def config_wandb(self):
-        return self.config["_wandb"]["value"]
+        return self.config.get("_wandb", {}).get("value", {})
 
     @property
     def telemetry(self):
@@ -1279,8 +1630,30 @@ class ParseCTX(object):
     def manifests_created_ids(self):
         return [m["id"] for m in self.manifests_created]
 
+    @property
+    def artifacts(self):
+        return self._ctx.get("artifacts_created") or {}
+
+    def _debug(self):
+        if not self._run_id:
+            items = {"run_ids": "run_ids", "artifacts": "artifacts"}
+        else:
+            items = {
+                "config": "config_user",
+                "summary": "summary_user",
+                "exit_code": "exit_code",
+                "telemetry": "telemetry",
+            }
+        d = {}
+        for k, v in items.items():
+            d[k] = getattr(self, v)
+        return d
+
 
 if __name__ == "__main__":
+    use_yea = "--yea" in sys.argv[1:]
+    load_modules(use_yea=use_yea)
+
     app = create_app()
     app.logger.setLevel(logging.INFO)
     app.run(debug=False, port=int(os.environ.get("PORT", 8547)))

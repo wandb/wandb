@@ -1,7 +1,7 @@
 #!/bin/bash
 
 set -e
-PYTHON_VERSIONS="3.5 3.6 3.7 3.8 3.9"
+PYTHON_VERSIONS="3.6 3.7 3.8 3.9"
 
 echo "Configuring test environment..."
 full_all=""
@@ -14,7 +14,10 @@ done
 echo "Setting local pyenv versions to: $full_all"
 pyenv local $full_all
 echo "Installing dependencies: tox..."
-pip install -qq tox==3.7
+pip install -qq tox==3.24.0
+echo "Configuring submodules..."
+make submodule-update
+git config submodule.recurse true
 echo "Development environment setup!"
 echo ""
 echo "Run all unittests with:"

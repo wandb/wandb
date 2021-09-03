@@ -29,6 +29,8 @@ message Imports {
   bool pytorch_lightning = 9;
   bool pytorch_ignite = 10;
   bool transformers_huggingface = 11;
+  bool jax = 12;
+  bool metaflow = 13;
 }
 
 message Feature {
@@ -42,6 +44,8 @@ message Feature {
   bool keras = 8;    // Keras WandbCallback used
   bool sagemaker = 9; // User is using sagemaker
   bool artifact_incremental = 10; // Artifact(incremental=True) used
+  bool metaflow = 11; // Using metaflow integration
+  bool prodigy = 12; // Using prodigy integration
 }
 
 message Env {

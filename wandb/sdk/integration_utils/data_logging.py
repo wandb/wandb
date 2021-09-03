@@ -2,17 +2,15 @@
 #
 # Contains common utility functions that enable
 # logging datasets and predictions to wandb.
+from collections.abc import Sequence
 import sys
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Union
 
 import wandb
 
-if wandb.TYPE_CHECKING:
 
-    from typing import TYPE_CHECKING, Callable, Dict, Union, Optional, List, Any
-    from collections.abc import Sequence
-
-    if TYPE_CHECKING:
-        from wandb.data_types import _TableIndex
+if TYPE_CHECKING:
+    from wandb.data_types import _TableIndex
 
 CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.minor >= 5
 

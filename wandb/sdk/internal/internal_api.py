@@ -116,6 +116,8 @@ class Api(object):
         )
         self._client_id_mapping = {}
 
+        self.query_types, self.server_info_types = None, None
+
     def reauth(self):
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
@@ -186,6 +188,10 @@ class Api(object):
     @property
     def app_url(self):
         return wandb.util.app_url(self.api_url)
+
+    @property
+    def default_entity(self):
+        return self.viewer().get("entity")
 
     def settings(self, key=None, section=None):
         """The settings overridden from the wandb/settings file.
@@ -275,6 +281,40 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
+    def server_info_introspection(self):
+
+        query_string = """
+           query ProbeServerCapabilities {
+               QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+               ServerInfoType: __type(name: "ServerInfo") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
+                }
+            }
+        """
+
+        if self.query_types is None or self.server_info_types is None:
+            query = gql(query_string)
+            res = self.gql(query)
+
+            self.query_types = [
+                field.get("name", "")
+                for field in res.get("QueryType", {}).get("fields", [{}])
+            ]
+            self.server_info_types = [
+                field.get("name", "")
+                for field in res.get("ServerInfoType", {}).get("fields", [{}])
+            ]
+        return (self.query_types, self.server_info_types)
+
+    @normalize_exceptions
     def viewer(self):
         query = gql(
             """
@@ -299,9 +339,16 @@ class Api(object):
 
     @normalize_exceptions
     def viewer_server_info(self):
+        local_query = """
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                }
+        """
         cli_query = """
             serverInfo {
                 cliVersionInfo
+                _LOCAL_QUERY_
             }
         """
         query_str = """
@@ -322,10 +369,29 @@ class Api(object):
             _CLI_QUERY_
         }
         """
-        query_new = gql(query_str.replace("_CLI_QUERY_", cli_query))
-        query_old = gql(query_str.replace("_CLI_QUERY_", ""))
+        query_types, server_info_types = self.server_info_introspection()
 
-        for query in query_new, query_old:
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+
+        local_version_exists = (
+            "serverInfo" in query_types
+            and "latestLocalVersionInfo" in server_info_types
+        )
+
+        cli_query_string = "" if not cli_version_exists else cli_query
+        local_query_string = "" if not local_version_exists else local_query
+
+        queries = []
+        queries.append(
+            gql(
+                query_str.replace("_CLI_QUERY_", cli_query_string).replace(
+                    "_LOCAL_QUERY_", local_query_string
+                )
+            )
+        )
+        for query in queries:
             try:
                 res = self.gql(query)
             except UsageError as e:
@@ -373,7 +439,7 @@ class Api(object):
 
     @normalize_exceptions
     def project(self, project, entity=None):
-        """Retrive project
+        """Retrieve project
 
         Arguments:
             project (str): The project to get details for
@@ -770,11 +836,144 @@ class Api(object):
         return response["upsertModel"]["model"]
 
     @normalize_exceptions
-    def pop_from_run_queue(self, entity=None, project=None):
+    def get_project_run_queues(self, entity, project):
+        query = gql(
+            """
+        query Project($entity: String!, $projectName: String!){
+            project(entityName: $entity, name: $projectName) {
+                runQueues {
+                    id
+                    name
+                    createdBy
+                    access
+                }
+            }
+        }
+        """
+        )
+        variable_values = {
+            "projectName": project,
+            "entity": entity,
+        }
+
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise Exception(
+                "Error fetching run queues for {}/{} check that you have access to this entity and project".format(
+                    entity, project
+                )
+            )
+
+        return res["project"]["runQueues"]
+
+    @normalize_exceptions
+    def create_run_queue(self, entity, project, queue_name, access):
+        query = gql(
+            """
+        mutation createRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!){
+            createRunQueue(
+                input: {
+                    entityName: $entity,
+                    projectName: $project,
+                    queueName: $queueName,
+                    access: $access
+                }
+            ) {
+                success
+                queueID
+            }
+            
+        }
+        """
+        )
+        variable_values = {
+            "project": project,
+            "entity": entity,
+            "access": access,
+            "queueName": queue_name,
+        }
+        return self.gql(query, variable_values)["createRunQueue"]
+
+    @normalize_exceptions
+    def push_to_run_queue(self, queue_name, launch_spec):
+        # TODO(kdg): add pushToRunQueueByName to avoid this extra query
+        entity = launch_spec["entity"]
+        project = launch_spec["project"]
+        queues_found = self.get_project_run_queues(entity, project)
+        matching_queues = [
+            q
+            for q in queues_found
+            if q["name"] == queue_name
+            # ensure user has access to queue
+            and (q["access"] == "PROJECT" or q["createdBy"] == self.default_entity)
+        ]
+        if not matching_queues:
+            # in the case of a missing default queue. create it
+            if queue_name == "default":
+                wandb.termlog(
+                    "No default queue existing for {}/{} creating one.".format(
+                        entity, project
+                    )
+                )
+                res = self.create_run_queue(
+                    launch_spec["entity"],
+                    launch_spec["project"],
+                    queue_name,
+                    access="PROJECT",
+                )
+
+                if res is None or res.get("queueID") is None:
+                    wandb.termerror(
+                        "Unable to create default queue for {}/{}. Run could not be added to a queue".format(
+                            entity, project
+                        )
+                    )
+                    return
+                queue_id = res["queueID"]
+
+            else:
+                wandb.termwarn(
+                    "Unable to push to run queue {}. Queue not found.".format(
+                        queue_name
+                    )
+                )
+                return None
+        elif len(matching_queues) > 1:
+            wandb.termerror(
+                "Unable to push to run queue {}. More than one queue found with this name.".format(
+                    queue_name
+                )
+            )
+            return None
+        else:
+            queue_id = matching_queues[0]["id"]
+
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project }) {
+        mutation pushToRunQueue($queueID: ID!, $runSpec: JSONString!) {
+            pushToRunQueue(
+                input: {
+                    queueID: $queueID,
+                    runSpec: $runSpec
+                }
+            ) {
+                runQueueItemId
+            }
+        }
+        """
+        )
+        spec_json = json.dumps(launch_spec)
+        response = self.gql(
+            mutation, variable_values={"queueID": queue_id, "runSpec": spec_json}
+        )
+        return response["pushToRunQueue"]
+
+    @normalize_exceptions
+    def pop_from_run_queue(self, queue_name, entity=None, project=None):
+        mutation = gql(
+            """
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!)  {
+            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName }) {
                 runQueueItemId
                 runSpec
             }
@@ -782,9 +981,34 @@ class Api(object):
         """
         )
         response = self.gql(
-            mutation, variable_values={"entity": entity, "project": project}
+            mutation,
+            variable_values={
+                "entity": entity,
+                "project": project,
+                "queueName": queue_name,
+            },
         )
         return response["popFromRunQueue"]
+
+    @normalize_exceptions
+    def ack_run_queue_item(self, item_id, run_id=None):
+        mutation = gql(
+            """
+        mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
+            ackRunQueueItem(input: { runQueueItemId: $itemId, runName: $runId }) {
+                success
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
+        )
+        if not response["ackRunQueueItem"]["success"]:
+            raise CommError(
+                "Error acking run queue item. Item may have already been acknowledged by another process"
+            )
+        return response["ackRunQueueItem"]["success"]
 
     @normalize_exceptions
     def upsert_run(
@@ -933,6 +1157,50 @@ class Api(object):
                 self.set_setting("entity", entity["name"])
 
         return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+
+    @normalize_exceptions
+    def get_run_info(self, entity, project, name):
+        query = gql(
+            """
+        query Run($project: String!, $entity: String!, $name: String!) {
+            project(name: $project, entityName: $entity) {
+                run(name: $name) {
+                    runInfo {
+                        program
+                        args
+                        os
+                        python
+                        colab
+                        executable
+                        codeSaved
+                        cpuCount
+                        gpuCount
+                        gpu
+                        git {
+                            remote
+                            commit
+                        }
+                    }
+                }
+            }
+        }
+        """
+        )
+        variable_values = {"project": project, "entity": entity, "name": name}
+        res = self.gql(query, variable_values)
+        if res.get("project") is None:
+            raise CommError(
+                "Error fetching run info for {}/{}/{}. Check that this project exists and you have access to this entity and project".format(
+                    entity, project, name
+                )
+            )
+        elif res["project"].get("run") is None:
+            raise CommError(
+                "Error fetching run info for {}/{}/{}. Check that this run id exists".format(
+                    entity, project, name
+                )
+            )
+        return res["project"]["run"]["runInfo"]
 
     @normalize_exceptions
     def upload_urls(self, project, files, run=None, entity=None, description=None):
@@ -1162,7 +1430,8 @@ class Api(object):
             if status_code in (308, 408, 409, 429, 500, 502, 503, 504) or isinstance(
                 e, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
             ):
-                util.sentry_reraise(retry.TransientError(exc=e))
+                e = retry.TransientError(exc=e)
+                six.reraise(type(e), e, sys.exc_info()[2])
             else:
                 util.sentry_reraise(e)
 
@@ -1286,6 +1555,11 @@ class Api(object):
         # avoid modifying the original config dict in
         # case it is reused outside the calling func
         config = deepcopy(config)
+
+        # explicitly cast to dict in case config was passed as a sweepconfig
+        # sweepconfig does not serialize cleanly to yaml and breaks graphql
+        # but it is a subclass of dict, so this conversion is clean
+        config = dict(config)
 
         if "parameters" not in config:
             raise ValueError("sweep config must have a parameters section")

@@ -8,8 +8,16 @@ from __future__ import print_function
 from functools import partial
 import getpass
 import os
-import sys
 import time
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import click
 from gql import gql  # type: ignore
@@ -17,33 +25,15 @@ from pkg_resources import parse_version  # type: ignore
 import requests
 import wandb
 
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import (
-        Any,
-        Callable,
-        Dict,
-        List,
-        Optional,
-        Tuple,
-        Union,
-    )
-
-    from ..wandb_artifacts import Artifact
-    from ...apis.public import Artifact as ArtifactAPI
-    from ...apis.internal import Api
+from ..wandb_artifacts import Artifact
+from ...apis.internal import Api
+from ...apis.public import Artifact as ArtifactAPI
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    CHECKMARK = u"\u2705"
-    RED_X = u"\u274C"
-
-else:
-    CHECKMARK = u"\u2705".encode("utf8")
-    RED_X = u"\u274C".encode("utf8")
+CHECKMARK = u"\u2705"
+RED_X = u"\u274C"
 
 
 def print_results(

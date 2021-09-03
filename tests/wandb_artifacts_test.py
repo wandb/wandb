@@ -453,7 +453,9 @@ def test_add_gs_reference_path(runner, mocker, capsys):
 def test_add_http_reference_path(runner):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        mock_http(artifact, headers={"ETag": '"abc"', "Content-Length": "256",})
+        mock_http(
+            artifact, headers={"ETag": '"abc"', "Content-Length": "256",},
+        )
         artifact.add_reference("http://example.com/file1.txt")
 
         assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
@@ -522,6 +524,24 @@ def test_artifact_log_with_network_error(live_mock_server, test_settings):
     live_mock_server.set_ctx({"fail_graphql_times": 15})
     run.log_artifact(artifact)
     live_mock_server.set_ctx({"fail_graphql_times": 0})
+    run.finish()
+
+
+def test_artifact_error_for_invalid_aliases(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("test-artifact", "dataset")
+    error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
+    for aliases in error_aliases:
+        with pytest.raises(ValueError) as e_info:
+            run.log_artifact(artifact, aliases=aliases)
+            assert (
+                str(e_info.value)
+                == "Aliases must not contain any of the following characters: /, :"
+            )
+
+    for aliases in [["latest", "boom_test-q"]]:
+        run.log_artifact(artifact, aliases=aliases)
+
     run.finish()
 
 
@@ -942,34 +962,27 @@ def test_interface_commit_hash(runner):
 
 
 def test_artifact_incremental_internal(
-    mocked_run,
-    mock_server,
-    internal_sender,
-    internal_sm,
-    start_backend,
-    stop_backend,
-    parse_ctx,
+    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
     artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
-    start_backend()
 
-    proto_run = internal_sender._make_run(mocked_run)
-    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+    with backend_interface() as interface:
+        proto_run = interface._make_run(mocked_run)
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
 
-    proto_artifact = internal_sender._make_artifact(artifact)
-    proto_artifact.run_id = proto_run.run_id
-    proto_artifact.project = proto_run.project
-    proto_artifact.entity = proto_run.entity
-    proto_artifact.user_created = False
-    proto_artifact.use_after_commit = False
-    proto_artifact.finalize = True
-    for alias in ["latest"]:
-        proto_artifact.aliases.append(alias)
-    log_artifact = pb.LogArtifactRequest()
-    log_artifact.artifact.CopyFrom(proto_artifact)
+        proto_artifact = interface._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = False
+        proto_artifact.use_after_commit = False
+        proto_artifact.finalize = True
+        for alias in ["latest"]:
+            proto_artifact.aliases.append(alias)
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
 
-    art = internal_sm.send_artifact(log_artifact)
-    stop_backend()
+        art = internal_sm.send_artifact(log_artifact)
 
     manifests_created = parse_ctx(mock_server.ctx).manifests_created
     assert manifests_created[0]["type"] == "INCREMENTAL"
@@ -992,14 +1005,7 @@ def test_local_references(runner, live_mock_server, test_settings):
 
 
 def test_artifact_references_internal(
-    mocked_run,
-    mock_server,
-    internal_sender,
-    internal_sm,
-    start_backend,
-    stop_backend,
-    parse_ctx,
-    test_settings,
+    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx, test_settings,
 ):
     mock_server.set_context("max_cli_version", "0.11.0")
     run = wandb.init(settings=test_settings)
@@ -1011,25 +1017,24 @@ def test_artifact_references_internal(
 
     art = wandb.Artifact("A_PENDING", "dataset")
     art.add(t1, "t1")
-    start_backend()
 
-    proto_run = internal_sender._make_run(mocked_run)
-    r = internal_sm.send_run(internal_sender._make_record(run=proto_run))
+    with backend_interface() as interface:
+        proto_run = interface._make_run(mocked_run)
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
 
-    proto_artifact = internal_sender._make_artifact(art)
-    proto_artifact.run_id = proto_run.run_id
-    proto_artifact.project = proto_run.project
-    proto_artifact.entity = proto_run.entity
-    proto_artifact.user_created = False
-    proto_artifact.use_after_commit = False
-    proto_artifact.finalize = True
-    for alias in ["latest"]:
-        proto_artifact.aliases.append(alias)
-    log_artifact = pb.LogArtifactRequest()
-    log_artifact.artifact.CopyFrom(proto_artifact)
+        proto_artifact = interface._make_artifact(art)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = False
+        proto_artifact.use_after_commit = False
+        proto_artifact.finalize = True
+        for alias in ["latest"]:
+            proto_artifact.aliases.append(alias)
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
 
-    art = internal_sm.send_artifact(log_artifact)
-    stop_backend()
+        art = internal_sm.send_artifact(log_artifact)
 
 
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):

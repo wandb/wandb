@@ -7,6 +7,20 @@ import os
 import re
 import shutil
 import sys
+from typing import (
+    Any,
+    cast,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    Union,
+)
 
 from pkg_resources import parse_version
 import six
@@ -19,50 +33,35 @@ from wandb.util import has_num
 
 from .interface import _dtypes
 
-if wandb.TYPE_CHECKING:
-    from typing import (
-        TYPE_CHECKING,
-        ClassVar,
-        Dict,
-        Optional,
-        Type,
-        Union,
-        Sequence,
-        Tuple,
-        Set,
-        Any,
-        List,
-        cast,
-    )
 
-    if TYPE_CHECKING:  # pragma: no cover
-        from .wandb_artifacts import Artifact as LocalArtifact
-        from .wandb_run import Run as LocalRun
-        from wandb.apis.public import Artifact as PublicArtifact
-        import numpy as np  # type: ignore
-        import pandas as pd  # type: ignore
-        import matplotlib  # type: ignore
-        import plotly  # type: ignore
-        import PIL  # type: ignore
-        import torch  # type: ignore
-        from typing import TextIO
+if TYPE_CHECKING:  # pragma: no cover
+    from .wandb_artifacts import Artifact as LocalArtifact
+    from .wandb_run import Run as LocalRun
+    from wandb.apis.public import Artifact as PublicArtifact
+    import numpy as np  # type: ignore
+    import pandas as pd  # type: ignore
+    import matplotlib  # type: ignore
+    import plotly  # type: ignore
+    import PIL  # type: ignore
+    import torch  # type: ignore
+    from typing import TextIO
 
-        TypeMappingType = Dict[str, Type["WBValue"]]
-        NumpyHistogram = Tuple[np.ndarray, np.ndarray]
-        ValToJsonType = Union[
-            dict,
-            "WBValue",
-            Sequence["WBValue"],
-            "plotly.Figure",
-            "matplotlib.artist.Artist",
-            "pd.DataFrame",
-            object,
-        ]
-        ImageDataType = Union[
-            "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
-        ]
-        ImageDataOrPathType = Union[str, "Image", ImageDataType]
-        TorchTensorType = Union["torch.Tensor", "torch.Variable"]
+    TypeMappingType = Dict[str, Type["WBValue"]]
+    NumpyHistogram = Tuple[np.ndarray, np.ndarray]
+    ValToJsonType = Union[
+        dict,
+        "WBValue",
+        Sequence["WBValue"],
+        "plotly.Figure",
+        "matplotlib.artist.Artist",
+        "pd.DataFrame",
+        object,
+    ]
+    ImageDataType = Union[
+        "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
+    ]
+    ImageDataOrPathType = Union[str, "Image", ImageDataType]
+    TorchTensorType = Union["torch.Tensor", "torch.Variable"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -354,7 +353,7 @@ class Histogram(WBValue):
 
     Arguments:
         sequence: (array_like) input data for histogram
-        np_histogram: (numpy histogram) alternative input of a precoomputed histogram
+        np_histogram: (numpy histogram) alternative input of a precomputed histogram
         num_bins: (int) Number of bins for the histogram.  The default number of bins
             is 64.  The maximum number of bins is 512
 
@@ -778,7 +777,7 @@ class Object3D(BatchableMedia):
             # which would cause a runtime error if the user's machine did
             # not have numpy installed.
 
-            if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            if TYPE_CHECKING:
                 assert isinstance(np_data, np.ndarray)
 
             if len(np_data.shape) != 2 or np_data.shape[1] not in {3, 4, 6}:
@@ -1121,7 +1120,7 @@ class Video(BatchableMedia):
         filename = os.path.join(
             _MEDIA_TMP.name, util.generate_id() + "." + self._format
         )
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}
         try:  # older versions of moviepy do not support logger argument
             kwargs = {"logger": None}
@@ -2093,7 +2092,7 @@ class Image(BatchableMedia):
         """
         Combines a list of images into a meta dictionary object describing the child images.
         """
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
 
         jsons = [obj.to_json(run) for obj in seq]
@@ -2351,7 +2350,7 @@ def val_to_json(
             and all(isinstance(v, type(val[0])) for v in val)
         ):
 
-            if wandb.TYPE_CHECKING and TYPE_CHECKING:
+            if TYPE_CHECKING:
                 val = cast(Sequence["BatchableMedia"], val)
 
             items = _prune_max_seq(val)
@@ -2429,7 +2428,7 @@ def _numpy_arrays_to_lists(
     elif isinstance(payload, SixSequence) and not isinstance(payload, six.string_types):
         return [_numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
         return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
     # Protects against logging non serializable objects
@@ -2451,7 +2450,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
 
 
 def _data_frame_to_json(
-    df: "pd.DataFraome", run: "LocalRun", key: str, step: Union[int, str]
+    df: "pd.DataFrame", run: "LocalRun", key: str, step: Union[int, str]
 ) -> dict:
     """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 

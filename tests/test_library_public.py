@@ -58,11 +58,9 @@ SYMBOLS_ROOT_OTHER = {
     "Config",
     "Error",
     "InternalApi",
-    "PY3",
     "PublicApi",
     "START_TIME",
     "Settings",
-    "TYPE_CHECKING",
     "UsageError",
     "absolute_import",
     "agents",
@@ -101,7 +99,6 @@ SYMBOLS_ROOT_OTHER = {
     "set_trace",
     "setup",
     "sklearn",
-    "superagent",
     "sys",
     "tensorboard",
     "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
@@ -124,7 +121,7 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_torch",
     "xgboost",
     "sync",
-    "sweeps",
+    "sweeps_engine",
     "cli",
 }
 

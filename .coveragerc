@@ -1,10 +1,10 @@
 [paths]
 canonicalsrc =
     wandb/
-    .tox/func-py37/lib/python3.6/site-packages/wandb/
-    .tox/func-py37/lib/python3.7/site-packages/wandb/
-    .tox/func-py37/lib/python3.8/site-packages/wandb/
-    .tox/func-py37/lib/python3.9/site-packages/wandb/
+    .tox/func-s_base-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_tf115-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_tf21-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_tf25-py37/lib/python3.7/site-packages/wandb/
 
 [run]
 # TODO(jhr): enable this in the future
@@ -15,8 +15,8 @@ source =
     wandb/
 
 omit =
-    wandb/sdk_py27/*
     wandb/sweeps/*
+    wandb/sweeps_engine/*
     wandb/vendor/*
 
 [report]
@@ -25,6 +25,6 @@ exclude_lines =
     if TYPE_CHECKING:
 
 omit =
-    wandb/sdk_py27/*
     wandb/sweeps/*
+    wandb/sweeps_engine/*
     wandb/vendor/*

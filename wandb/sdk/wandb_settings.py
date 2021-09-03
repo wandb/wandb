@@ -37,37 +37,36 @@ import socket
 import sys
 import tempfile
 import time
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    Union,
+)
 
 import six
 import wandb
 from wandb import util
+from wandb.sdk.wandb_config import Config
+from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
 
-if wandb.TYPE_CHECKING:
-    from wandb.sdk.wandb_config import Config
-    from wandb.sdk.wandb_setup import _EarlyLogger
-    from typing import (  # noqa: F401 pylint: disable=unused-import
-        cast,
-        Any,
-        Dict,
-        List,
-        Set,
-        Callable,
-        Generator,
-        Iterable,
-        Iterator,
-        Optional,
-        Sequence,
-        Tuple,
-        Type,
-        Union,
-        TYPE_CHECKING,
-    )
 
-    Defaults = Dict[str, Union[str, int, bool, Tuple]]
+Defaults = Dict[str, Union[str, int, bool, Tuple]]
 
 defaults: Defaults = dict(
     base_url="https://api.wandb.ai",
@@ -85,6 +84,8 @@ env_settings: Dict[str, Optional[str]] = dict(
     base_url=None,
     api_key=None,
     sweep_id=None,
+    launch=None,
+    launch_config_path=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -217,6 +218,8 @@ class Settings(object):
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None
+    launch: Optional[bool] = None
+    launch_config_path: Optional[str] = None
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
     log_dir_spec: Optional[str] = None
@@ -308,6 +311,8 @@ class Settings(object):
         magic: Union[Dict, str, bool] = False,
         run_tags: Sequence = None,
         sweep_id: str = None,
+        launch: bool = None,
+        launch_config_path: str = None,
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
@@ -464,7 +469,7 @@ class Settings(object):
     @property
     def _kaggle(self) -> bool:
         is_kaggle = util._is_likely_kaggle()
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert isinstance(is_kaggle, bool)
         return is_kaggle
 
@@ -516,7 +521,7 @@ class Settings(object):
     @property
     def resume_fname(self) -> str:
         resume_fname = self._path_convert(self.resume_fname_spec)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert isinstance(resume_fname, str)
         return resume_fname
 
@@ -543,7 +548,7 @@ class Settings(object):
     @property
     def files_dir(self) -> str:
         file_path = self._path_convert(self.files_dir_spec)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             assert isinstance(file_path, str)
         return file_path
 
@@ -574,6 +579,10 @@ class Settings(object):
     @property
     def settings_workspace(self) -> Optional[str]:
         return self._path_convert(self.settings_workspace_spec)
+
+    @property
+    def is_local(self) -> bool:
+        return self.base_url != "https://api.wandb.ai/"
 
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
@@ -834,7 +843,7 @@ class Settings(object):
     def update(self, __d: Dict = None, **kwargs: Any) -> None:
         _source = kwargs.pop("_source", None)
         _override = kwargs.pop("_override", None)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             _source = cast(Optional[int], _source)
             _override = cast(Optional[int], _override)
 
@@ -960,12 +969,13 @@ class Settings(object):
         pass
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name not in self.__dict__:
-            raise AttributeError(name)
-        if self.__frozen:
-            raise TypeError("Settings object is frozen")
-        value = self._perform_preprocess(name, value)
-        self._check_invalid(name, value)
+        # using source.SETUP is a temporary hack here that should be replaced by
+        # having _apply_init() apply SOURCE.INIT to settings added via mutations
+        # to settings object
+        try:
+            self._update({name: value}, _source=self.Source.SETUP)
+        except KeyError as e:
+            raise AttributeError(str(e))
         object.__setattr__(self, name, value)
 
     @classmethod
@@ -1042,6 +1052,14 @@ class Settings(object):
                     wandb.termwarn(
                         "Ignored wandb.init() arg %s when running a sweep" % key
                     )
+        if self.launch:
+            for key in ("project", "entity", "id"):
+                val = args.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Project, entity and id are ignored when running from wandb launch context. Ignored wandb.init() arg %s when running running from launch"
+                        % key
+                    )
 
         # strip out items where value is None
         param_map = dict(
@@ -1055,7 +1073,7 @@ class Settings(object):
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg
-        if args.get("resume") is not None:
+        if args.get("resume"):
             if isinstance(args["resume"], six.string_types):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
                     if args.get("run_id") is None:

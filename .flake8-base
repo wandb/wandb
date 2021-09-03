@@ -1,5 +1,7 @@
 [flake8]
 
+min_python_version = 3.6.0
+
 exclude =
     .tox/
     .git/
@@ -9,11 +11,11 @@ exclude =
     tests/
     codemod/
     standalone_tests/
-    wandb/sdk_py27/
     *.pyc
     *.egg-info
     .cache
     .eggs
+    ./functional_tests/metaflow/
     ./wandb/__init__.py
     ./wandb/wandb_torch.py
     ./wandb/bin
@@ -25,12 +27,14 @@ exclude =
     ./wandb/util.py
     ./wandb/env.py
     ./wandb/sweeps/
+    ./wandb/sweeps_engine/    
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
     ./wandb/integration/tensorboard/
     ./wandb/integration/lightgbm/
     ./wandb/integration/xgboost/
     ./wandb/integration/fastai/
+    ./wandb/integration/metaflow/
     ./wandb/filesync/
     ./wandb/sdk/internal/internal_api.py
     ./wandb/sdk/internal/file_pusher.py

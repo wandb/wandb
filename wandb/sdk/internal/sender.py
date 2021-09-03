@@ -6,19 +6,23 @@ sender.
 
 from __future__ import print_function
 
+from collections import defaultdict
 from datetime import datetime
 import json
 import logging
 import os
 import time
+from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
 from pkg_resources import parse_version
 import requests
 from six.moves import queue
+from six.moves.queue import Queue
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
+from wandb.proto.wandb_internal_pb2 import HttpResponse
 
 from . import artifacts
 from . import file_stream
@@ -33,13 +37,9 @@ from ..lib.git import GitRepo
 
 logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:  # TYPE_CHECKING
-    from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
-    from six.moves.queue import Queue
-    from wandb.proto.wandb_internal_pb2 import HttpResponse
 
-    DictWithValues = NewType("DictWithValues", Dict[str, Any])
-    DictNoValues = NewType("DictNoValues", Dict[str, Any])
+DictWithValues = NewType("DictWithValues", Dict[str, Any])
+DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 
 def _framework_priority(
@@ -84,10 +84,16 @@ class SendManager(object):
 
         # keep track of config from key/val updates
         self._consolidated_config: DictNoValues = dict()
+        self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
+        self._metadata_summary: Dict[str, Any] = defaultdict()
+        self._cached_summary: Dict[str, Any] = dict()
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
+
+        self._cached_server_info: Dict[str, Any] = dict()
+        self._cached_viewer: Dict[str, Any] = dict()
 
         # State updated by resuming
         self._resume_state = {
@@ -244,9 +250,10 @@ class SendManager(object):
     def _debounce_config(self):
         config_value_dict = self._config_format(self._consolidated_config)
         # TODO(jhr): check result of upsert_run?
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
+        if self._run:
+            self._api.upsert_run(
+                name=self._run.run_id, config=config_value_dict, **self._api_settings
+            )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
@@ -268,10 +275,10 @@ class SendManager(object):
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         self._api.reauth()
-        viewer_tuple = self._api.viewer_server_info()
+        viewer = self.get_viewer_info()
+        server_info = self.get_server_info()
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
-        viewer, server_info = viewer_tuple
         if server_info:
             logger.info("Login server info: {}".format(server_info))
         self._entity = viewer.get("entity")
@@ -285,6 +292,10 @@ class SendManager(object):
         exit = data.exit
         self._exit_code = exit.exit_code
         logger.info("handling exit code: %s", exit.exit_code)
+        runtime = exit.runtime
+        logger.info("handling runtime: %s", exit.runtime)
+        self._metadata_summary["runtime"] = runtime
+        self._update_summary()
 
         # Pass the responsibility to respond to handle_request_defer()
         if data.control.req_resp:
@@ -397,6 +408,9 @@ class SendManager(object):
             if self._pusher:
                 self._pusher.join()
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
+            result.response.poll_exit_response.local_info.CopyFrom(
+                self.get_local_info()
+            )
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
 
@@ -451,6 +465,12 @@ class SendManager(object):
                 events_rt = events.get("_runtime", 0)
             config = json.loads(resume_status["config"] or "{}")
             summary = json.loads(resume_status["summaryMetrics"] or "{}")
+            new_runtime = summary.get("_wandb", {}).get("runtime", None)
+            if new_runtime is not None:
+                if "_wandb" not in self._resume_state:
+                    self._resume_state["_wandb"] = {}
+                self._resume_state["_wandb"].update({"runtime": new_runtime})
+
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
@@ -509,6 +529,8 @@ class SendManager(object):
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
+        config_dict[wandb_key]["start_time"] = self._start_time
+
         t: Dict[int, Any] = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
 
@@ -554,6 +576,9 @@ class SendManager(object):
         run = data.run
         error = None
         is_wandb_init = self._run is None
+
+        # save start time of a run
+        self._start_time = run.start_time.seconds
 
         # update telemetry
         if run.telemetry:
@@ -642,6 +667,11 @@ class SendManager(object):
         self._run = run
         if self._resume_state.get("resumed"):
             self._run.resumed = True
+            if (
+                "_wandb" in self._resume_state
+                and "runtime" in self._resume_state["_wandb"]
+            ):
+                self._run.runtime = self._resume_state["_wandb"]["runtime"]
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -730,6 +760,14 @@ class SendManager(object):
 
     def send_summary(self, data):
         summary_dict = proto_util.dict_from_proto_list(data.summary.update)
+        self._cached_summary = summary_dict
+        self._update_summary()
+
+    def _update_summary(self):
+        summary_dict = self._cached_summary.copy()
+        summary_dict.pop("_wandb", None)
+        if self._metadata_summary:
+            summary_dict["_wandb"] = self._metadata_summary
         json_summary = json.dumps(summary_dict)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
@@ -959,11 +997,51 @@ class SendManager(object):
             self._fs = None
 
     def _max_cli_version(self):
-        _, server_info = self._api.viewer_server_info()
+        server_info = self.get_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
         return max_cli_version
+
+    def get_viewer_server_info(self):
+        if not self._cached_server_info or not self._cached_viewer:
+            (
+                self._cached_viewer,
+                self._cached_server_info,
+            ) = self._api.viewer_server_info()
+
+    def get_viewer_info(self):
+        if not self._cached_viewer:
+            self.get_viewer_server_info()
+        return self._cached_viewer
+
+    def get_server_info(self):
+        if not self._cached_server_info:
+            self.get_viewer_server_info()
+        return self._cached_server_info
+
+    def get_local_info(self):
+        """
+        This is a helper function that queries the server to get the the local version information.
+        First, we perform an introspection, if it returns empty we deduce that the docker image is
+        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
+        """
+        local_info = wandb_internal_pb2.LocalInfo()
+
+        latest_local_version = "latest"
+
+        # Assuming the query is succesful if the result is empty it indicates that
+        # the backend is out of date since it doesn't have the desired field
+        server_info = self.get_server_info()
+        latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
+        if latest_local_version_info is None:
+            local_info.out_of_date = False
+        else:
+            local_info.out_of_date = latest_local_version_info.get("outOfDate", True)
+            local_info.version = latest_local_version_info.get(
+                "latestVersionString", latest_local_version
+            )
+        return local_info
 
     def __next__(self):
         return self._record_q.get(block=True)

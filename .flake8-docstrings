@@ -4,3 +4,7 @@ filename =
     ./wandb/sdk/wandb_watch.py
     ./wandb/sdk/integration_utils/data_logging.py
     ./wandb/sdk/wandb_require.py
+    ./wandb/sdk/wandb_run.py
+    ./wandb/sdk/wandb_init.py
+    ./wandb/sdk/launch/*
+    ./wandb/integration/metaflow/metaflow.py

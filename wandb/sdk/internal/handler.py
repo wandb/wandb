@@ -9,47 +9,44 @@ import logging
 import math
 import numbers
 import os
+from threading import Event
+import time
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+)
 
 import six
-import wandb
+from six.moves.queue import Queue
 from wandb.proto import wandb_internal_pb2
+from wandb.proto.wandb_internal_pb2 import Record, Result
 
 from . import meta, sample, stats
 from . import tb_watcher
+from .settings_static import SettingsStatic
+from ..interface.interface import BackendSender
 from ..lib import handler_util, proto_util
 
-
-if wandb.TYPE_CHECKING:
-    from typing import (
-        TYPE_CHECKING,
-        Any,
-        Callable,
-        Dict,
-        List,
-        Tuple,
-        Sequence,
-        Iterable,
-        Optional,
-        cast,
-    )
-    from .settings_static import SettingsStatic
-    from six.moves.queue import Queue
-    from threading import Event
-    from ..interface.interface import BackendSender
-    from wandb.proto.wandb_internal_pb2 import Record, Result
-
-    SummaryDict = Dict[str, Any]
-
+SummaryDict = Dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
 
 def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) -> None:
     # recurse down the dictionary structure:
+
     for k in key_list[:-1]:
         target.setdefault(k, {})
         new_target = target.get(k)
-        if wandb.TYPE_CHECKING and TYPE_CHECKING:
+        if TYPE_CHECKING:
             new_target = cast(Dict[str, Any], new_target)
         target = new_target
     # use the last element of the key to write the leaf:
@@ -57,7 +54,6 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
 
 
 class HandleManager(object):
-
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
     _settings: SettingsStatic
@@ -73,6 +69,8 @@ class HandleManager(object):
     _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_track: Dict[Tuple[str, ...], float]
     _metric_copy: Dict[Tuple[str, ...], Any]
+    _track_time: Optional[float]
+    _accumulate_time: float
 
     def __init__(
         self,
@@ -95,6 +93,10 @@ class HandleManager(object):
         self._tb_watcher = None
         self._system_stats = None
         self._step = 0
+
+        self._track_time = None
+        self._accumulate_time = 0
+        self._run_start_time = 0
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
@@ -436,6 +438,12 @@ class HandleManager(object):
 
     def handle_history(self, record: Record) -> None:
         history_dict = proto_util.dict_from_proto_list(record.history.item)
+
+        # Inject _runtime if it is not present
+        if history_dict is not None:
+            if "_runtime" not in history_dict:
+                self._history_assign_runtime(record, history_dict)
+
         self._history_update(record, history_dict)
         self._dispatch_record(record)
         self._save_history(record)
@@ -446,7 +454,6 @@ class HandleManager(object):
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary
-
         for item in summary.update:
             if len(item.nested_key) > 0:
                 # we use either key or nested_key -- not both
@@ -488,6 +495,9 @@ class HandleManager(object):
         self._save_summary(self._consolidated_summary)
 
     def handle_exit(self, record: Record) -> None:
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+        record.exit.runtime = int(self._accumulate_time)
         self._dispatch_record(record, always_send=True)
 
     def handle_final(self, record: Record) -> None:
@@ -516,6 +526,14 @@ class HandleManager(object):
         assert run_start
         assert run_start.run
 
+        self._run_start_time = run_start.run.start_time.ToSeconds()
+
+        self._track_time = time.time()
+        if run_start.run.resumed and run_start.run.runtime:
+            self._accumulate_time = run_start.run.runtime
+        else:
+            self._accumulate_time = 0
+
         if not self._settings._disable_stats:
             pid = os.getpid()
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
@@ -540,10 +558,17 @@ class HandleManager(object):
             logger.info("starting system metrics thread")
             self._system_stats.start()
 
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+        self._track_time = time.time()
+
     def handle_request_pause(self, record: Record) -> None:
         if self._system_stats is not None:
             logger.info("stopping system metrics thread")
             self._system_stats.shutdown()
+        if self._track_time is not None:
+            self._accumulate_time += time.time() - self._track_time
+            self._track_time = None
 
     def handle_request_poll_exit(self, record: Record) -> None:
         self._dispatch_record(record, always_send=True)
@@ -663,3 +688,18 @@ class HandleManager(object):
         return self._record_q.get(block=True)
 
     next = __next__
+
+    def _history_assign_runtime(self, record: Record, history_dict: Dict) -> None:
+        # _runtime calculation is meaningless if there is no _timestamp
+        if "_timestamp" not in history_dict:
+            return
+        # if it is offline sync, self._run_start_time is 0
+        # in that case set it to the first tfevent timestamp
+        if self._run_start_time == 0:
+            self._run_start_time = history_dict["_timestamp"]
+        history_dict["_runtime"] = int(
+            history_dict["_timestamp"] - self._run_start_time
+        )
+        item = record.history.item.add()
+        item.key = "_runtime"
+        item.value_json = json.dumps(history_dict[item.key])
