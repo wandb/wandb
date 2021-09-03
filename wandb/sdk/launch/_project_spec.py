@@ -163,7 +163,7 @@ class LaunchProject(object):
                 )
                 if not downloaded_entrypoint:
                     raise LaunchError(
-                        f"Entrypoint retrieved from run {entry_point} does not exist, "
+                        f"Entrypoint: {entry_point} does not exist, "
                         "and could not be downloaded. Please specify the entrypoint for this run."
                     )
                 # if the entrypoint is downloaded and inserted into the project dir
