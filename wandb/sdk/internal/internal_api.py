@@ -351,7 +351,7 @@ class Api(object):
                 _LOCAL_QUERY_
             }
         """
-        query_str = """
+        query_template = """
         query Viewer{
             viewer {
                 id
@@ -383,27 +383,11 @@ class Api(object):
         cli_query_string = "" if not cli_version_exists else cli_query
         local_query_string = "" if not local_version_exists else local_query
 
-        queries = []
-        queries.append(
-            gql(
-                query_str.replace("_CLI_QUERY_", cli_query_string).replace(
-                    "_LOCAL_QUERY_", local_query_string
-                )
-            )
+        query_string = query_template.replace("_CLI_QUERY_", cli_query_string).replace(
+            "_LOCAL_QUERY_", local_query_string
         )
-        for query in queries:
-            try:
-                res = self.gql(query)
-            except UsageError as e:
-                raise (e)
-            except Exception as e:
-                # graphql schema exception is generic
-                err = e
-                continue
-            err = None
-            break
-        if err:
-            raise (err)
+        query = gql(query_string)
+        res = self.gql(query)
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions
