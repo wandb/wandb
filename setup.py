@@ -39,6 +39,7 @@ launch_requirements = [
     "yaspin",
 ]
 
+
 setup(
     name="wandb",
     version="0.12.2.dev1",

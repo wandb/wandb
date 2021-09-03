@@ -40,12 +40,6 @@ class LogMultiprocessError(LogError):
     pass
 
 
-class ShellCommandError(Error):
-    """Shell command Error"""
-
-    pass
-
-
 class RequireError(Error):
     """Raised when wandb.require() fails"""
 
@@ -103,7 +97,6 @@ __all__ = [
     "LogError",
     "DockerError",
     "LogMultiprocessError",
-    "ShellCommandError",
     "RequireError",
     "ExecutionError",
     "LaunchError",
