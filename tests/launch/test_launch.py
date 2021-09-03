@@ -331,7 +331,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-
+    # TODO: Switch from mocks, to mock server
     def mocked_download_url(*args, **kwargs):
         if args[1] == "wandb-metadata.json":
             return {"url": "urlForCodePath"}
@@ -353,7 +353,7 @@ def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_r
 
             def iter_content(self, chunk_size):
                 if self.url == "requirements":
-                    return [b"torch\n", b"wandb\n", b"numpy\n"]
+                    return [b"numpy==1.19.5\n"]
                 elif self.url == "main2.py":
                     return [
                         b"import wandb\n",

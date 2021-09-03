@@ -97,7 +97,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return "{}_{}_launch".format(self.target_project, self.source_tag)
+        return "{}_launch".format(self.target_project)
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the overide run config values if a matching key exists in the override arguments."""
@@ -167,7 +167,7 @@ class LaunchProject(object):
             utils.download_wandb_python_deps(self.uri, api, self.project_dir)
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
-
+            print("ENTRYPOINT", entry_point)
             if not self._entry_points:
                 self.add_entry_point(entry_point)
 
