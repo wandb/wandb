@@ -130,9 +130,19 @@ class LaunchProject(object):
                 self._runtime = "python-{}".format(run_info["python"])
             if patch:
                 utils.apply_patch(patch, self.project_dir)
+            entry_point = run_info["program"]
+            if not os.path.exists(os.path.join(self.project_dir, entry_point)):
+                raise LaunchError(
+                    f"Could not find entry point: {entry_point} in project directory"
+                )
+
+            if run_info["program"].endswith("ipynb"):
+                entry_point = utils.convert_jupyter_notebook_to_script(
+                    entry_point, self.project_dir
+                )
 
             if not self._entry_points:
-                self.add_entry_point(run_info["program"])
+                self.add_entry_point(entry_point)
 
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
