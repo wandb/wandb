@@ -62,7 +62,6 @@ def test_telemetry_run_organizing_init(live_mock_server, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     telemetry = ctx_util.telemetry
 
-    # jax in finish modules but not in init modules
     assert telemetry and 13 in telemetry.get("3", [])  # name
     assert telemetry and 14 in telemetry.get("3", [])  # id
     assert telemetry and 15 in telemetry.get("3", [])  # tags
@@ -79,7 +78,6 @@ def test_telemetry_run_organizing_set(live_mock_server, parse_ctx):
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     telemetry = ctx_util.telemetry
 
-    # jax in finish modules but not in init modules
     assert telemetry and 17 in telemetry.get("3", [])  # name
     assert telemetry and 18 in telemetry.get("3", [])  # tags
     assert telemetry and 19 in telemetry.get("3", [])  # config update
