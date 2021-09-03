@@ -158,7 +158,14 @@ class LaunchProject(object):
             # For cases where the entry point wasn't checked into git
             entry_point = run_info.get("codePath", run_info["program"])
             if not os.path.exists(os.path.join(self.project_dir, entry_point)):
-                utils.download_entry_point(self.uri, api, entry_point, self.project_dir)
+                downloaded_entrypoint = utils.download_entry_point(
+                    self.uri, api, entry_point, self.project_dir
+                )
+                if not downloaded_entrypoint:
+                    raise LaunchError(
+                        f"Entrypoint retrieved from run {entry_point} does not exist, "
+                        "and could not be downloaded. Please specify the entrypoint for this run."
+                    )
                 # if the entrypoint is downloaded and inserted into the project dir
                 # need to rebuild image with new code
                 self.build_image = True
@@ -167,7 +174,7 @@ class LaunchProject(object):
             utils.download_wandb_python_deps(self.uri, api, self.project_dir)
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
-            print("ENTRYPOINT", entry_point)
+
             if not self._entry_points:
                 self.add_entry_point(entry_point)
 
