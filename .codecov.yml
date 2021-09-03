@@ -9,6 +9,7 @@ codecov:
 
 ignore:
   - "wandb/vendor"
+  - "wandb/proto"
 
 coverage:
   precision: 2

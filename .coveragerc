@@ -18,7 +18,7 @@ omit =
     wandb/sweeps/*
     wandb/sweeps_engine/*
     wandb/vendor/*
-    wandb/proto/wandb_internal_codegen.py
+    wandb/proto/*
 
 [report]
 exclude_lines =
@@ -29,3 +29,4 @@ omit =
     wandb/sweeps/*
     wandb/sweeps_engine/*
     wandb/vendor/*
+    wandb/proto/*
