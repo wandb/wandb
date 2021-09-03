@@ -31,7 +31,7 @@ class _Requires(object):
         pass
 
     def _require_concurrency(self) -> None:
-        os.environ["WANDB__CONCURRENCY"] = "True"
+        os.environ["WANDB_REQUIRE_CONCURRENCY"] = "True"
 
     def require_concurrency(self) -> None:
         self._require_concurrency()
