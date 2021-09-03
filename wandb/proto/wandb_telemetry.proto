@@ -46,6 +46,7 @@ message Feature {
   bool artifact_incremental = 10; // Artifact(incremental=True) used
   bool metaflow = 11; // Using metaflow integration
   bool prodigy = 12; // Using prodigy integration
+  bool launch = 18; // Run used wandb launch
 }
 
 message Env {
