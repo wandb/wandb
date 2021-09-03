@@ -1125,12 +1125,9 @@ def create_app(user_ctx=None):
                 raise HttpException("some error", status_code=inject.http_status)
 
         if request.method == "PUT":
-            curr = ctx["file_bytes"].get(file)
-            if curr is None:
-                ctx["file_bytes"].setdefault(file, 0)
-                ctx["file_bytes"][file] += request.content_length
-            else:
-                ctx["file_bytes"][file] += request.content_length
+            for c in ctx, run_ctx:
+                c["file_bytes"].setdefault(file, 0)
+                c["file_bytes"][file] += request.content_length
         if ART_EMU:
             return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
@@ -1550,6 +1547,15 @@ class ParseCTX(object):
     @property
     def file_names(self):
         return self._ctx.get("file_names", [])
+
+    @property
+    def files(self):
+        files_sizes = self._ctx.get("file_bytes", {})
+        files_dict = {}
+        for fname, size in files_sizes.items():
+            files_dict.setdefault(fname, {})
+            files_dict[fname]["size"] = size
+        return files_dict
 
     @property
     def dropped_chunks(self):
