@@ -111,7 +111,7 @@ workflows:
          toxenv: "py39"
       - test:
          name: "lin-py310"
-         image: "python:3.10"
+         image: "python:3.10rc1"
          toxenv: "py310"
       - test:
          name: "func-s_base-lin-py37"
