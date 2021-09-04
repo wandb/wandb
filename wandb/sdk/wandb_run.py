@@ -575,6 +575,8 @@ class Run(object):
 
     @name.setter
     def name(self, name: str) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_run_name = True
         self._name = name
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
@@ -610,6 +612,8 @@ class Run(object):
 
     @tags.setter
     def tags(self, tags: Sequence) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_run_tags = True
         self._tags = tuple(tags)
         if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
@@ -1919,8 +1923,7 @@ class Run(object):
     def _show_summary(self) -> None:
         if self._final_summary:
             logger.info("rendering summary")
-            max_len = max([len(k) for k in self._final_summary.keys()])
-            format_str = "  {:>%s} {}" % max_len
+            max_len = 0
             summary_rows = []
             for k, v in sorted(iteritems(self._final_summary)):
                 # arrays etc. might be too large. for now we just don't print them
@@ -1934,6 +1937,9 @@ class Run(object):
                     if isinstance(v, float):
                         v = round(v, 5)
                     summary_rows.append((k, v))
+                else:
+                    continue
+                max_len = max(max_len, len(k))
             if not summary_rows:
                 return
             if self._settings._jupyter and ipython._get_python_type() == "jupyter":
@@ -1943,6 +1949,7 @@ class Run(object):
                 summary_table += "</table>"
                 ipython.display_html("<h3>Run summary:</h3><br/>" + summary_table)
             else:
+                format_str = "  {:>%s} {}" % max_len
                 summary_lines = "\n".join(
                     [format_str.format(k, v) for k, v in summary_rows]
                 )
@@ -1961,7 +1968,7 @@ class Run(object):
             return
 
         logger.info("rendering history")
-        max_len = max([len(k) for k in self._sampled_history])
+        max_len = 0
         history_rows = []
         for key in sorted(self._sampled_history):
             if key.startswith("_"):
@@ -1971,6 +1978,7 @@ class Run(object):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
+            max_len = max(max_len, len(key))
         if not history_rows:
             return
         if self._settings._jupyter and ipython._get_python_type() == "jupyter":
