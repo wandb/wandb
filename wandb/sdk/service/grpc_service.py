@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""WIP wandb grpc server."""
+"""wandb grpc server."""
 
 from concurrent import futures
 import datetime

@@ -6,8 +6,6 @@ env:
 parametrize:
   permute:
     - :yea:start_method:
-      # fork mode not working right now, disable temporarily
-      # - fork
       - spawn
       - forkserver
 assert:
