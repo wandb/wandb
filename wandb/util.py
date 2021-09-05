@@ -45,6 +45,7 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled
 
 import wandb
+from wandb import env
 from wandb.errors import CommError, term
 from wandb.old.core import wandb_dir
 
@@ -276,7 +277,7 @@ def app_url(api_url):
         # onprem cloud
         return api_url.replace("://api.", "://app.")
     # wandb/local
-    return api_url
+    return env.get_ui_url(api_url)
 
 
 def get_full_typename(o):
