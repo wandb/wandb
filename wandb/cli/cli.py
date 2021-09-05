@@ -1913,6 +1913,7 @@ def verify(host):
             "Checking requests made over signed URLs",
             "Signed URL requests not made over https. SSL is required for secure communications.",
         )
+        wandb_verify.check_cors_configuration(url, host)
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
@@ -1922,4 +1923,5 @@ def verify(host):
         and large_post_success
         and url_success
     ):
+        print("Find detailed logs at: {}".format(os.path.join(tmp_dir.name, "wandb")))
         sys.exit(1)
