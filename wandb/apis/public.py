@@ -1804,6 +1804,19 @@ class Run(Attrs):
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
 
+    def _get_run_url(self):
+        return self.url
+
+    def _get_sweep_url(self):
+        if self.sweep:
+            return self.sweep.url
+        return ""
+
+    def _get_project_url(self):
+        path = self.path
+        path.pop()
+        return self.client.app_url + "/".join(path)
+
     @property
     def lastHistoryStep(self):  # noqa: N802
         query = gql(
@@ -3110,7 +3123,10 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
-        response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
+        response = client.execute(
+            Artifact.QUERY,
+            variable_values={"id": artifact_id},
+        )
 
         name = None
         if response.get("artifact") is not None:
@@ -3326,7 +3342,10 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={
+                "id": self.id,
+            },
         )
         return True
 
@@ -3582,7 +3601,10 @@ class Artifact(artifacts.Artifact):
                 "description": self.description,
                 "metadata": util.json_dumps_safer(self.metadata),
                 "aliases": [
-                    {"artifactCollectionName": self._sequence_name, "alias": alias,}
+                    {
+                        "artifactCollectionName": self._sequence_name,
+                        "alias": alias,
+                    }
                     for alias in self._aliases
                 ],
             },
@@ -3751,7 +3773,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         # yes, "name" is actually id
         runs = [
             Run(
@@ -3789,7 +3814,10 @@ class Artifact(artifacts.Artifact):
             }
         """
         )
-        response = self.client.execute(query, variable_values={"id": self.id},)
+        response = self.client.execute(
+            query,
+            variable_values={"id": self.id},
+        )
         run_obj = response.get("artifact", {}).get("createdBy", {})
         if run_obj is not None:
             return Run(

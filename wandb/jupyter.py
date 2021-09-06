@@ -40,6 +40,8 @@ logger = logging.getLogger(__name__)
 class Run(object):
     def __init__(self, run=None, opts=None):
         self.run = run or wandb.run
+        if isinstance(self.run, str):
+            self.run = wandb.Api().run(self.run)
         self.opts = opts or {}
         self.height = self.opts.get("height", 420)
 
@@ -67,6 +69,12 @@ class WandBMagics(Magics):
 
     @magic_arguments()
     @argument(
+        "-r",
+        "--run",
+        default=None,
+        help="The run to display i.e. username/project/run_id",
+    )
+    @argument(
         "-p",
         "--project",
         default=False,
@@ -81,7 +89,7 @@ class WandBMagics(Magics):
         self.options["height"] = args.height
         self.options["project"] = args.project
         # Register events
-        display(Run(self.options))
+        display(Run(args.run, opts=self.options))
         if cell is not None:
             get_ipython().run_cell(cell)
 
