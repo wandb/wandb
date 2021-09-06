@@ -41,7 +41,7 @@ class Run(object):
     def __init__(self, run=None, opts=None):
         self.run = run or wandb.run
         self.opts = opts or {}
-        self.height = opts.get("height", 420)
+        self.height = self.opts.get("height", 420)
 
     def _repr_html_(self):
         try:
