@@ -46,7 +46,7 @@ class Run(object):
     def _repr_html_(self):
         try:
             sweep_url = self._get_sweep_url()
-            if self.opts.workspace:
+            if self.opts.get("project"):
                 url = self._get_project_url()
             elif sweep_url:
                 url = sweep_url
@@ -67,7 +67,11 @@ class WandBMagics(Magics):
 
     @magic_arguments()
     @argument(
-        "-w", "--workspace", default=False, help="Display the entire run workspace"
+        "-p",
+        "--project",
+        default=False,
+        is_flag=True,
+        help="Display the entire run project",
     )
     @argument("-h", "--height", default=420, help="The height of the iframe in pixels")
     @line_cell_magic
@@ -75,7 +79,7 @@ class WandBMagics(Magics):
         # Record options
         args = parse_argstring(self.wandb, line)
         self.options["height"] = args.height
-        self.options["workspace"] = args.workspace
+        self.options["project"] = args.project
         # Register events
         display(Run(self.options))
         if cell is not None:
