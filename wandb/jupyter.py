@@ -47,13 +47,20 @@ class Run(object):
 
     def _repr_html_(self):
         try:
-            sweep_url = self.run._get_sweep_url()
-            if self.opts.get("project"):
-                url = self.run._get_project_url()
-            elif sweep_url:
-                url = sweep_url
-            else:
-                url = self.run._get_run_url()
+            url = None
+            if self.run is None:
+                if wandb.Api().api_key is None:
+                    return "You must be logged in to render wandb in jupyter, run `wandb.login()`"
+                else:
+                    url = "/".join([wandb.Api().default_entity, wandb.util.auto_project_name(None), "workspace"])
+            if url is None:
+                sweep_url = self.run._get_sweep_url()
+                if self.opts.get("project"):
+                    url = self.run._get_project_url()
+                elif sweep_url:
+                    url = sweep_url
+                else:
+                    url = self.run._get_run_url()
             url += "?jupyter"
             return f"""<iframe src="{url}" style="border:none;width:100%;height:{self.height}px">
                 </iframe>"""

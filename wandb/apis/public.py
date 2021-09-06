@@ -471,9 +471,6 @@ class Api(object):
 
         Returns:
             A `Team` object
-
-        Raises:
-            requests.exceptions.HTTPError if the team already exists
         """
         return Team.create(self.client, team, admin_username)
 
@@ -781,28 +778,30 @@ class User(Attrs):
             Boolean indicating success
 
         Raises:
-            requests.exceptions.HTTPError if the request was invalid
             ValueError if the api_key couldn't be found
         """
         idx = self.api_keys.index(api_key)
-        self._client.execute(
-            self.DELETE_API_KEY_MUTATION,
-            {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
-        )
+        try:
+            self._client.execute(
+                self.DELETE_API_KEY_MUTATION,
+                {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
+            )
+        except requests.exceptions.HTTPError:
+            return False
         return True
 
     def generate_api_key(self, description=None):
         """Generates a new api key
 
         Returns:
-            The new api key
-
-        Raises:
-            requests.exceptions.HTTPError if the request was invalid
+            The new api key, or None on failure
         """
-        return self._client.execute(
-            self.GENERATE_API_KEY_MUTATION, {"description": description}
-        )["generateApiKey"]["apiKey"]["name"]
+        try:
+            return self._client.execute(
+                self.GENERATE_API_KEY_MUTATION, {"description": description}
+            )["generateApiKey"]["apiKey"]["name"]
+        except requests.exceptions.HTTPError:
+            return None
 
     def __repr__(self):
         return "<User {}>".format(self.email)
@@ -829,13 +828,13 @@ class Member(Attrs):
 
         Returns:
             Boolean indicating success
-
-        Raises:
-            requests.exceptions.HTTPError if the request was invalid
         """
-        return self._client.execute(
-            self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
-        )["deleteInvite"]["success"]
+        try:
+            return self._client.execute(
+                self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
+            )["deleteInvite"]["success"]
+        except requests.exceptions.HTTPError:
+            return False
 
     def __repr__(self):
         return "<Member {} ({})>".format(self.name, self.account_type)
@@ -936,14 +935,14 @@ class Team(Attrs):
 
         Returns:
             A `Team` object
-
-        Raises:
-            requests.exceptions.HTTPError if the team already exists
         """
-        api.execute(
-            cls.CREATE_TEAM_MUTATION,
-            {"teamName": team, "teamAdminUserName": admin_username},
-        )
+        try:
+            api.execute(
+                cls.CREATE_TEAM_MUTATION,
+                {"teamName": team, "teamAdminUserName": admin_username},
+            )
+        except requests.exceptions.HTTPError:
+            return api.team(team)
         return Team(api, team)
 
     def invite(self, username_or_email, admin=False):
@@ -954,17 +953,17 @@ class Team(Attrs):
             admin: (bool) Whether to make this user a team admin, defaults to False
 
         Returns:
-            True on success
-
-        Raises:
-            requests.exceptions.HTTPError if the user couldn't be found
+            True on success, False if user was already invited or didn't exist
         """
         variables = {"entityName": self.name, "admin": admin}
         if "@" in username_or_email:
             variables["email"] = username_or_email
         else:
             variables["username"] = username_or_email
-        self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        try:
+            self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        except requests.exceptions.HTTPError:
+            return False
         return True
 
     def create_service_account(self, description):
@@ -974,17 +973,17 @@ class Team(Attrs):
             description: (str) A description for this service account
 
         Returns:
-            The service account `Member` object
-
-        Raises:
-            requests.exceptions.HTTPError if creation was unsuccessful
+            The service account `Member` object, or None on failure
         """
-        self._client.execute(
-            self.CREATE_SERVICE_ACCOUNT_MUTATION,
-            {"description": description, "entityName": self.name},
-        )
-        self.load(True)
-        return self.members[-1].api_key
+        try:
+            self._client.execute(
+                self.CREATE_SERVICE_ACCOUNT_MUTATION,
+                {"description": description, "entityName": self.name},
+            )
+            self.load(True)
+            return self.members[-1]
+        except requests.exceptions.HTTPError:
+            return None
 
     def load(self, force=False):
         if force or not self._attrs:
@@ -1815,7 +1814,7 @@ class Run(Attrs):
     def _get_project_url(self):
         path = self.path
         path.pop()
-        return self.client.app_url + "/".join(path)
+        return self.client.app_url + "/".join(path + ["workspace"])
 
     @property
     def lastHistoryStep(self):  # noqa: N802

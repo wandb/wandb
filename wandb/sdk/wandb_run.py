@@ -1336,7 +1336,7 @@ class Run(object):
             return ""
         app_url = wandb.util.app_url(s.base_url)
         qs = self._get_url_query_string()
-        url = "{}/{}/{}{}".format(
+        url = "{}/{}/{}/workspace{}".format(
             app_url, url_quote(r.entity), url_quote(r.project), qs
         )
         return url
