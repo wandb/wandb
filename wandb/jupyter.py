@@ -70,7 +70,7 @@ class WandBMagics(Magics):
         "-p",
         "--project",
         default=False,
-        is_flag=True,
+        action="store_true",
         help="Display the entire run project",
     )
     @argument("-h", "--height", default=420, help="The height of the iframe in pixels")
