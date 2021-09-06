@@ -45,9 +45,9 @@ class Run(object):
 
     def _repr_html_(self):
         try:
-            sweep_url = self._get_sweep_url()
+            sweep_url = self.run._get_sweep_url()
             if self.opts.get("project"):
-                url = self._get_project_url()
+                url = self.run._get_project_url()
             elif sweep_url:
                 url = sweep_url
             else:
