@@ -11,7 +11,7 @@ import logging
 from multiprocessing import Process
 import threading
 import typing as t
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 from typing import cast
 from typing import TYPE_CHECKING
 import uuid
