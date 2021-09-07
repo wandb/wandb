@@ -2557,13 +2557,35 @@ class ArtifactCollection(object):
 
     @normalize_exceptions
     def versions(self, per_page=50):
-        """Artifact versions"""
+        """
+        A list of the individual versions that comprise this artifact collection.
+
+        Arguments:
+            per_page: The number of results per page. Defaults to 50.
+        """
         return ArtifactVersions(
             self.client,
             self.entity,
             self.project,
             self.name,
             self.type,
+            per_page=per_page,
+        )
+
+    @normalize_exceptions
+    def aliases(self, per_page=50):
+        """
+        A list of all aliases associated with this artifact collection.
+
+        Arguments:
+            per_page: The number of results per page. Defaults to 50.
+        """
+        return ArtifactCollectionAliases(
+            self.client,
+            self.entity,
+            self.project,
+            self.type,
+            self.name,
             per_page=per_page,
         )
 
@@ -3558,7 +3580,7 @@ class ArtifactVersions(Paginator):
         project,
         collection_name,
         type,
-        filters={},
+        filters=None,
         order=None,
         per_page=50,
     ):
@@ -3566,7 +3588,7 @@ class ArtifactVersions(Paginator):
         self.collection_name = collection_name
         self.type = type
         self.project = project
-        self.filters = filters
+        self.filters = filters or {}
         self.order = order
         variables = {
             "project": self.project,
@@ -3694,3 +3716,134 @@ class ArtifactFiles(Paginator):
 
     def __repr__(self):
         return "<ArtifactFiles {} ({})>".format("/".join(self.artifact.path), len(self))
+
+
+class ArtifactCollectionAliases(Paginator):
+    QUERY = gql(
+        """
+        query ArtifactCollectionAliases(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $artifactCollectionName: String!
+            $cursor: String
+            $perPage: Int = 50
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactSequence(name: $artifactCollectionName) {
+                        id
+                        name
+                        description
+                        createdAt
+                        aliases(
+                            after: $cursor,
+                            first: $perPage
+                        ) {
+                            pageInfo {
+                                endCursor
+                                hasNextPage
+                            }
+                            edges {
+                                cursor
+                                node {
+                                    id
+                                    artifact {
+                                        id
+                                    }
+                                    artifactCollectionName
+                                    alias
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+    )
+
+    def __init__(
+        self, client, entity, project, artifact_type, artifact_collection, per_page=50,
+    ):
+        self.entity_name = entity
+        self.project_name = project
+        self.artifact_type_name = artifact_type
+        self.artifact_collection_name = artifact_collection
+        variables = {
+            "entityName": self.entity_name,
+            "projectName": self.project_name,
+            "artifactTypeName": self.artifact_type_name,
+            "artifactCollectionName": self.artifact_collection_name,
+        }
+        super(ArtifactCollectionAliases, self).__init__(client, variables, per_page)
+
+    @property
+    def length(self):
+        return None
+
+    @property
+    def more(self):
+        if self.last_response:
+            return self.last_response["project"]["artifactType"]["artifactSequence"][
+                "aliases"
+            ]["pageInfo"]["hasNextPage"]
+        else:
+            return True
+
+    @property
+    def cursor(self):
+        if self.last_response:
+            return self.last_response["project"]["artifactType"]["artifactSequence"][
+                "aliases"
+            ]["edges"][-1]["cursor"]
+        else:
+            return None
+
+    def convert_objects(self):
+        return [
+            ArtifactAlias(client=self.client, attrs=edge["node"])
+            for edge in self.last_response["project"]["artifactType"][
+                "artifactSequence"
+            ]["aliases"]["edges"]
+        ]
+
+
+class ArtifactAlias(object):
+    def __init__(self, client, attrs=None):
+        self.client = client
+        self._attrs = attrs
+
+    @property
+    def id(self):
+        """
+        Returns:
+            (str): The ID of this artifact alias.
+        """
+        return self._attrs["id"]
+
+    @property
+    def artifact_name(self):
+        """
+        Returns:
+            (str): The artifact name associated with this alias.
+        """
+        return self._attrs["artifact_collection_name"]
+
+    @property
+    def artifact_version(self):
+        """
+        Returns:
+            Artifact: The specific artifact version associated with this alias.
+        """
+        if "artifact" in self._attrs:
+            return Artifact.from_id(self._attrs["artifact"]["id"], self.client)
+        return None
+
+    @property
+    def alias(self):
+        """
+        Returns:
+            (str): The name of this alias, e.g.: "latest".
+        """
+        return self._attrs["alias"]

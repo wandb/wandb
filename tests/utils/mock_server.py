@@ -209,7 +209,8 @@ def artifact(
     }
 
 
-def paginated(node, ctx, extra={}):
+def paginated(node, ctx, extra=None):
+    extra = extra or {}
     next_page = False
     ctx["page_count"] += 1
     if ctx["page_count"] < ctx["page_times"]:
@@ -847,6 +848,25 @@ def create_app(user_ctx=None):
                                 "description": "",
                                 "createdAt": datetime.now().isoformat(),
                             }
+                        }
+                    }
+                }
+            }
+        if "query ArtifactCollectionAliases(" in body["query"]:
+            art = artifact(ctx)
+            aliases = paginated(
+                {
+                    "id": art.get("id"),
+                    "artifactCollectionName": "mnist",
+                    "alias": "latest",
+                },
+                ctx,
+            )
+            return {
+                "data": {
+                    "project": {
+                        "artifactType": {
+                            "artifactSequence": {"name": "mnist", "aliases": aliases,}
                         }
                     }
                 }

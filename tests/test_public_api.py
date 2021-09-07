@@ -501,3 +501,13 @@ def test_queued_job(runner, mock_server, api):
     queued_job = api.queued_job("test/test/test/test")
     queued_job.wait_until_running()
     assert queued_job._run_id == "test"
+
+
+def test_artifact_collection_aliases(runner, mock_server, api):
+    atype = api.artifact_type("dataset")
+    col = atype.collection("mnist")
+    aliases = {a.alias for a in col.aliases()}
+
+    assert atype.name == "dataset"
+    assert col.name == "mnist"
+    assert aliases == {"latest"}
