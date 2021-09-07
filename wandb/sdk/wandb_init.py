@@ -813,9 +813,8 @@ def init(
                 pass
             # TODO(jhr): figure out how to make this RunDummy
             run = None
-    except UsageError as e:
-        wandb.termerror(str(e))
-        raise e
+    except UsageError:
+        raise
     except KeyboardInterrupt as e:
         assert logger
         logger.warning("interrupted", exc_info=e)

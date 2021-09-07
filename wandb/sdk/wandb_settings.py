@@ -58,7 +58,6 @@ from typing import (
 import six
 import wandb
 from wandb import util
-from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -592,8 +591,10 @@ class Settings(object):
             return
         invalid_chars = set([char for char in invalid_chars_list if char in value])
         if invalid_chars:
-            raise UsageError(
-                f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
+            raise SystemExit(
+                wandb.termerror(
+                    f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
+                )
             )
 
     def _validate_start_method(self, value: str) -> Optional[str]:
