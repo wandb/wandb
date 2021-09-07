@@ -828,15 +828,29 @@ class Run(object):
         if lines:
             self._label_probe_lines(lines)
 
+    def display(self, height=420, hidden=False) -> bool:
+        """Display this run in jupyter"""
+        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
+            ipython.display_html(self.to_html(height, hidden))
+            return True
+        else:
+            wandb.termwarn(".display() only works in jupyter environments")
+            return False
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying the current run"""
+        url = self._get_run_url() + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = '<button onClick="function() {this.nextSibling.style.display = "block"}">Display run</button>'
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
     def _repr_mimebundle_(
         self, include: Any = None, exclude: Any = None
     ) -> Dict[str, str]:
-        url = self._get_run_url()
-        style = "border:none;width:100%;height:400px"
-        s = '<h1>Run({})</h1><iframe src="{}" style="{}"></iframe>'.format(
-            self._run_id, url, style
-        )
-        return {"text/html": s}
+        return {"text/html": self.to_html(hidden=True)}
 
     def _config_callback(
         self,

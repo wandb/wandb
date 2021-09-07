@@ -290,10 +290,9 @@ class _WandbInit(object):
         del ipython.display_pub._orig_publish
 
     def _jupyter_setup(self, settings):
-        """Add magic, hooks, and session history saving."""
+        """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
-        ipython.register_magics(wandb.jupyter.WandBMagics)
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):
