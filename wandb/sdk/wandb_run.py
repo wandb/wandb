@@ -2377,7 +2377,7 @@ class Run(object):
 
         artifact.aliases = [
             alias
-            for alias in {artifact.aliases + aliases + ["latest"] if latest else []}
+            for alias in set(artifact.aliases + aliases + ["latest"] if latest else [])
         ]
         artifact.finalize()
         return artifact
