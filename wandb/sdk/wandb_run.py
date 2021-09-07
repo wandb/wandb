@@ -1824,17 +1824,7 @@ class Run(object):
                     final_logs += f"More errors...{lb}"
 
         if not self._quiet:
-            if as_html:
-                final_logs += ipython.TABLE_STYLES
-                final_logs += '<div class="wandb-row"><div class="wandb-col">\n'
-            final_logs = self._append_history(final_logs, as_html)
-            if as_html:
-                final_logs += '</div><div class="wandb-col">\n'
-            final_logs = self._append_summary(final_logs, as_html)
-
-            if as_html:
-                final_logs += "</div></div>\n"
-            final_logs = self._append_files(final_logs, as_html)
+            final_logs += self._append_details(final_logs, as_html)
 
         if self._run_obj:
             run_url = self._get_run_url()
@@ -1884,6 +1874,19 @@ class Run(object):
         if not footer or package_problem:
             if self._upgraded_version_message:
                 wandb.termlog(self._upgraded_version_message)
+
+    def _append_details(self, logs, as_html=False) -> str:
+        if as_html:
+            logs += ipython.TABLE_STYLES
+            logs += '<div class="wandb-row"><div class="wandb-col">\n'
+        logs = self._append_history(logs, as_html)
+        if as_html:
+            logs += '</div><div class="wandb-col">\n'
+        logs = self._append_summary(logs, as_html)
+
+        if as_html:
+            logs += "</div></div>\n"
+        return self._append_files(logs, as_html)
 
     def _append_summary(self, logs, as_html=False) -> str:
         if self._final_summary:
