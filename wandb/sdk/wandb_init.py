@@ -821,7 +821,7 @@ def init(
         raise e
     except Exception as e:
         error_seen = e
-        traceback.print_exc()
+        # traceback.print_exc()
         assert logger
         logger.error("error", exc_info=e)
         # Need to build delay into this sentry capture because our exit hooks
@@ -831,7 +831,7 @@ def init(
         # six.raise_from(Exception("problem"), e)
     finally:
         if error_seen:
-            wandb.termerror("Abnormal program exit")
+            wandb.termerror(str(error_seen))
             if except_exit:
                 os._exit(-1)
             six.raise_from(Exception("problem"), error_seen)

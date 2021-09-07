@@ -584,6 +584,14 @@ class Settings(object):
     def is_local(self) -> bool:
         return self.base_url != "https://api.wandb.ai/"
 
+    def _validate_project(self, value: Optional[str]) -> Optional[str]:
+        invalid_chars_list = list("/\\#?%:")
+        if value is not None:
+            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            if invalid_chars:
+                return f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
+            return None
+
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):
@@ -812,7 +820,7 @@ class Settings(object):
         __d: Dict[str, Any] = None,
         _source: Optional[int] = None,
         _override: Optional[int] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
