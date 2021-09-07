@@ -287,6 +287,18 @@ def test_projects(mock_server, api):
     assert count == 2
 
 
+def test_reports(mock_server, api):
+    path = "test-entity/test-project"
+    reports = api.reports(path)
+    # calling __len__, __getitem__, or __next__ on a Reports object
+    # triggers the actual API call to fetch data w/ pagination.
+    length = len(reports)
+    assert length == 1
+    assert reports[0].description == "test-description"
+    assert reports[0].pageCount == 0
+    assert reports[1].pageCount == 1
+
+
 def test_delete_file(runner, mock_server, api):
     run = api.run("test/test/test")
     file = run.files()[0]
