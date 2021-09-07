@@ -38,32 +38,17 @@ logger = logging.getLogger(__name__)
 
 
 class Run(object):
-    def __init__(self, run=None, opts=None):
+    def __init__(self, run=None):
         self.run = run or wandb.run
-        if isinstance(self.run, str):
-            self.run = wandb.Api().run(self.run)
-        self.opts = opts or {}
-        self.height = self.opts.get("height", 420)
 
     def _repr_html_(self):
         try:
-            url = None
-            if self.run is None:
-                if wandb.Api().api_key is None:
-                    return "You must be logged in to render wandb in jupyter, run `wandb.login()`"
-                else:
-                    url = "/".join([wandb.Api().default_entity, wandb.util.auto_project_name(None), "workspace"])
-            if url is None:
-                sweep_url = self.run._get_sweep_url()
-                if self.opts.get("project"):
-                    url = self.run._get_project_url()
-                elif sweep_url:
-                    url = sweep_url
-                else:
-                    url = self.run._get_run_url()
-            url += "?jupyter"
-            return f"""<iframe src="{url}" style="border:none;width:100%;height:{self.height}px">
+            url = self.run._get_run_url() + "?jupyter=true"
+            return (
+                """<iframe src="%s" style="border:none;width:100%%;height:420px">
                 </iframe>"""
+                % url
+            )
         except wandb.Error as e:
             return "Can't display wandb interface<br/>{}".format(e)
 
@@ -76,27 +61,19 @@ class WandBMagics(Magics):
 
     @magic_arguments()
     @argument(
-        "-r",
-        "--run",
-        default=None,
-        help="The run to display i.e. username/project/run_id",
+        "-d",
+        "--display",
+        default=True,
+        help="Display the wandb interface automatically",
     )
-    @argument(
-        "-p",
-        "--project",
-        default=False,
-        action="store_true",
-        help="Display the entire run project",
-    )
-    @argument("-h", "--height", default=420, help="The height of the iframe in pixels")
     @line_cell_magic
     def wandb(self, line, cell=None):
         # Record options
         args = parse_argstring(self.wandb, line)
-        self.options["height"] = args.height
-        self.options["project"] = args.project
+        self.options["body"] = ""
+        self.options["wandb_display"] = args.display
         # Register events
-        display(Run(args.run, opts=self.options))
+        display(Run())
         if cell is not None:
             get_ipython().run_cell(cell)
 
