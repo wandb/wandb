@@ -218,11 +218,8 @@ def test_use_artifact_offline(live_mock_server, test_settings):
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
 
 
-def test_invalid_project_name(live_mock_server):
-    project_name = "test:?"
+@pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
+def test_invalid_project_name(live_mock_server, project_name):
     with pytest.raises(SystemExit) as e:
         _ = wandb.init(project=project_name)
-        assert (
-            'Invalid project name "{project_name}", cannot contain characters'
-            in str(e.value)
-        )
+        assert 'Invalid project name "{project_name}"' in str(e.value)

@@ -589,6 +589,12 @@ class Settings(object):
         invalid_chars_list = list("/\\#?%:")
         if value is None:
             return
+        if len(value) > 128:
+            raise SystemExit(
+                wandb.termerror(
+                    f'Invalid project name "{value}", exceeded 128 characters'
+                )
+            )
         invalid_chars = set([char for char in invalid_chars_list if char in value])
         if invalid_chars:
             raise SystemExit(
