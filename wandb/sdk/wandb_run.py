@@ -2065,7 +2065,7 @@ class Run(object):
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, latest=True):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2110,7 +2110,11 @@ class Run(object):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
                 self._log_artifact(
-                    artifact, aliases, is_user_created=True, use_after_commit=True
+                    artifact,
+                    aliases,
+                    is_user_created=True,
+                    use_after_commit=True,
+                    latest=latest,
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -2127,6 +2131,7 @@ class Run(object):
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        latest: bool = True,
     ) -> wandb_artifacts.Artifact:
         """Declare an artifact as an output of a run.
 
@@ -2148,11 +2153,12 @@ class Run(object):
             type: (str) The type of artifact to log, examples include `dataset`, `model`
             aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
+            latest: (bool, optional) Whether or not to apply `latest` to this artifact.
 
         Returns:
             An `Artifact` object.
         """
-        return self._log_artifact(artifact_or_path, name, type, aliases)
+        return self._log_artifact(artifact_or_path, name, type, aliases, latest=latest)
 
     def upsert_artifact(
         self,
@@ -2268,6 +2274,7 @@ class Run(object):
         finalize: bool = True,
         is_user_created: bool = False,
         use_after_commit: bool = False,
+        latest: bool = False,
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
@@ -2277,7 +2284,9 @@ class Run(object):
                 raise ValueError(
                     "Aliases must not contain any of the following characters: /, :"
                 )
-        artifact = self._prepare_artifact(artifact_or_path, name, type, aliases)
+        artifact = self._prepare_artifact(
+            artifact_or_path, name, type, aliases, latest=latest
+        )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
         if self._backend:
@@ -2294,7 +2303,6 @@ class Run(object):
                 self._backend.interface.publish_artifact(
                     self,
                     artifact,
-                    aliases,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -2338,6 +2346,7 @@ class Run(object):
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        latest: bool = True,
     ) -> wandb_artifacts.Artifact:
         if isinstance(aliases, str):
             aliases = [aliases]
@@ -2367,7 +2376,8 @@ class Run(object):
             )
 
         artifact.aliases = [
-            alias for alias in set(artifact.aliases + aliases + ["latest"])
+            alias
+            for alias in {artifact.aliases + aliases + ["latest"] if latest else []}
         ]
         artifact.finalize()
         return artifact

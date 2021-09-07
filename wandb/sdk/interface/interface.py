@@ -698,7 +698,6 @@ class BackendSender(object):
         self,
         run: "Run",
         artifact: Artifact,
-        aliases: Iterable[str],
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -711,7 +710,7 @@ class BackendSender(object):
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
+        for alias in artifact.aliases:
             proto_artifact.aliases.append(alias)
         rec = self._make_record(artifact=proto_artifact)
         self._publish(rec)

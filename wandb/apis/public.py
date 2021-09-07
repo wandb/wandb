@@ -8,7 +8,7 @@ import re
 import shutil
 import tempfile
 import time
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
