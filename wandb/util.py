@@ -266,6 +266,11 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
+    # TODO: move me to settings
+    app_url = os.getenv("WANDB_APP_URL")
+    if app_url is not None:
+        # TODO: parse this sucker
+        return app_url + "/"
     if "://api.wandb.test" in api_url:
         # dev mode
         return api_url.replace("://api.", "://app.")

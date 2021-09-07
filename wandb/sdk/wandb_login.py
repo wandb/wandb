@@ -15,7 +15,7 @@ from wandb.errors import UsageError
 from wandb.old.settings import Settings as OldSettings
 
 from .internal.internal_api import Api
-from .lib import apikey
+from .lib import apikey, ipython
 from .wandb_settings import Settings
 from ..apis import InternalApi
 
@@ -104,7 +104,7 @@ class _WandbLogin(object):
         if not apikey_configured:
             return False
 
-        if not self._silent:
+        if not self._silent and not ipython.in_jupyter():
             self.login_display()
 
         return apikey_configured

@@ -27,9 +27,17 @@ def test_one_cell(notebook):
 def test_magic(notebook):
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
-        output = nb.cell_output(1)
-        print(output)
-        assert notebook.base_url in output[0]["data"]["text/html"]
+        iframes = 0
+        for c, cell in enumerate(nb.cells):
+            for i, out in enumerate(cell["outputs"]):
+                print(f"CELL {c} output {i}: ", out)
+                if not out.get("data", {}).get("text/html"):
+                    continue
+                if c == 0 and i == 0:
+                    assert "display:none" in out
+                assert notebook.base_url in out["data"]["text/html"]
+            iframes += 1
+        assert iframes == 4
 
 
 def test_code_saving(notebook, live_mock_server):

@@ -235,6 +235,7 @@ class Settings(object):
     settings_system_spec: Optional[str] = None
     settings_workspace_spec: Optional[str] = None
     silent: str = "False"
+    quiet: str = "False"
     show_info: str = "True"
     show_warnings: str = "True"
     show_errors: str = "True"
@@ -380,6 +381,7 @@ class Settings(object):
         show_colors: bool = None,
         show_emoji: bool = None,
         silent: bool = None,
+        quiet: bool = None,
         show_info: bool = None,
         show_warnings: bool = None,
         show_errors: bool = None,
@@ -433,6 +435,12 @@ class Settings(object):
         if not self.silent:
             return None
         return _str_as_bool(self.silent)
+
+    @property
+    def _quiet(self) -> Optional[bool]:
+        if not self.quiet:
+            return None
+        return _str_as_bool(self.quiet)
 
     @property
     def _strict(self) -> Optional[bool]:

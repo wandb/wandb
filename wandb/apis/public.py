@@ -643,7 +643,7 @@ class Attrs(object):
         if html is None:
             wandb.termwarn("This object does not support `.display()`")
             return False
-        if ipython._get_python_type() == "jupyter":
+        if ipython.in_jupyter():
             ipython.display_html(html)
             return True
         else:
@@ -829,7 +829,7 @@ class Project(Attrs):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = '<button onClick="function() {this.nextSibling.style.display = "block"}">Display project</button>'
+            prefix = ipython.toggle_button("project")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_html_(self) -> str:
@@ -1593,7 +1593,7 @@ class Run(Attrs):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = '<button onClick="function() {this.nextSibling.style.display = "block"}">Display run</button>'
+            prefix = ipython.toggle_button()
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_html_(self) -> str:
@@ -1766,7 +1766,7 @@ class Sweep(Attrs):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = '<button onClick="function() {this.nextSibling.style.display = "block"}">Display sweep</button>'
+            prefix = ipython.toggle_button("sweep")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_html_(self) -> str:
@@ -2212,7 +2212,7 @@ class BetaReport(Attrs):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = '<button onClick="function() {this.nextSibling.style.display = "block"}">Display report</button>'
+            prefix = ipython.toggle_button("report")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_html_(self) -> str:

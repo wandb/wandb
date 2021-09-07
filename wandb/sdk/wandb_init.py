@@ -402,11 +402,7 @@ class _WandbInit(object):
                         last_id
                     )
                 )
-                jupyter = (
-                    s._jupyter
-                    and not s._silent
-                    and ipython._get_python_type() == "jupyter"
-                )
+                jupyter = s._jupyter and not s._silent and ipython.in_jupyter()
                 if jupyter:
                     ipython.display_html(
                         "Finishing last run (ID:{}) before initializing another...".format(
@@ -418,7 +414,7 @@ class _WandbInit(object):
 
                 if jupyter:
                     ipython.display_html(
-                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                        "Successfully finished last run (ID:{}). Initializing new run:<br/>".format(
                             last_id
                         )
                     )

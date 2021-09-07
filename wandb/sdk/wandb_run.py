@@ -264,6 +264,7 @@ class Run(object):
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
     _output_writer: Optional["filesystem.CRDedupedFile"]
+    _quiet: bool
 
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
@@ -330,7 +331,8 @@ class Run(object):
         self._final_summary = None
         self._sampled_history = None
         self._jupyter_progress = None
-        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
+        self._quiet = self._settings._quiet
+        if self._settings._jupyter and ipython.in_jupyter():
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
@@ -830,7 +832,7 @@ class Run(object):
 
     def display(self, height=420, hidden=False) -> bool:
         """Display this run in jupyter"""
-        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
+        if self._settings._jupyter and ipython.in_jupyter():
             ipython.display_html(self.to_html(height, hidden))
             return True
         else:
@@ -844,7 +846,7 @@ class Run(object):
         prefix = ""
         if hidden:
             style += "display:none;"
-            prefix = '<button onClick="function() {this.nextSibling.style.display = "block"}">Display run</button>'
+            prefix = ipython.toggle_button()
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
 
     def _repr_mimebundle_(
@@ -1277,12 +1279,17 @@ class Run(object):
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
-    def finish(self, exit_code: int = None) -> None:
+    def finish(self, exit_code: int = None, quiet=False) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
         call this method when your script exits or if you use the run context manager.
+
+        Arguments:
+            exit_code (int): set to something other than 0 to mark a run as failed
+            quite (bool): set to true to minimize log output
         """
+        self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
@@ -1412,45 +1419,47 @@ class Run(object):
         else:
             run_state_str = "Syncing run"
         run_name = self._get_run_name()
-        app_url = wandb.util.app_url(self._settings.base_url)
 
         sync_dir = self._settings._sync_dir
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
-        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-            sweep_line = (
-                'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
-                    sweep_url, sweep_url
+        if self._settings._jupyter and ipython.in_jupyter():
+            if not wandb.jupyter.maybe_display():
+                # TODO: make settings the source of truth
+                self._quiet = wandb.jupyter.quiet()
+                sweep_line = (
+                    'Sweep page: <a href="{}" target="_blank">{}</a><br/>\n'.format(
+                        sweep_url, sweep_url
+                    )
+                    if sweep_url and not self._quiet
+                    else ""
                 )
-                if sweep_url
-                else ""
-            )
-            docs_html = '<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">(Documentation)</a>'  # noqa: E501
-            ipython.display_html(
-                """
-                {}<br/>
-                {} <strong style="color:{}">{}</strong> to <a href="{}" target="_blank">Weights & Biases</a> {}.<br/>
-                Project page: <a href="{}" target="_blank">{}</a><br/>
-                {}Run page: <a href="{}" target="_blank">{}</a><br/>
-                {}<br/><br/>
-            """.format(  # noqa: E501
-                    version_str,
-                    run_state_str,
-                    RUN_NAME_COLOR,
-                    run_name,
-                    app_url,
-                    docs_html,
-                    project_url,
-                    project_url,
-                    sweep_line,
-                    run_url,
-                    run_url,
-                    dir_str,
+                docs_html = (
+                    ""
+                    if self._quiet
+                    else '(<a href="https://docs.wandb.com/integrations/jupyter.html" target="_blank">docs</a>)'
+                )  # noqa: E501
+                project_html = (
+                    ""
+                    if self._quiet
+                    else f'<a href="{project_url}" target="_blank">Weights & Biases</a>'
                 )
-            )
+                ipython.display_html(
+                    """
+                    {} <strong><a href="{}" target="_blank">{}</a></strong> to {} {}.<br/>\n{}
+                """.format(  # noqa: E501
+                        run_state_str,
+                        run_url,
+                        run_name,
+                        project_html,
+                        docs_html,
+                        sweep_line,
+                    )
+                )
         else:
-            wandb.termlog(version_str)
+            if not self._quiet:
+                wandb.termlog(version_str)
             wandb.termlog(
                 "{} {}".format(run_state_str, click.style(run_name, fg="yellow"))
             )
@@ -1458,28 +1467,30 @@ class Run(object):
             if platform.system() != "Windows" and is_unicode_safe(sys.stdout):
                 emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
 
-            wandb.termlog(
-                "{} View project at {}".format(
-                    emojis.get("star", ""),
-                    click.style(project_url, underline=True, fg="blue"),
-                )
-            )
-            if sweep_url:
+            if not self._quiet:
                 wandb.termlog(
-                    "{} View sweep at {}".format(
-                        emojis.get("broom", ""),
-                        click.style(sweep_url, underline=True, fg="blue"),
+                    "{} View project at {}".format(
+                        emojis.get("star", ""),
+                        click.style(project_url, underline=True, fg="blue"),
                     )
                 )
+                if sweep_url:
+                    wandb.termlog(
+                        "{} View sweep at {}".format(
+                            emojis.get("broom", ""),
+                            click.style(sweep_url, underline=True, fg="blue"),
+                        )
+                    )
             wandb.termlog(
                 "{} View run at {}".format(
                     emojis.get("rocket", ""),
                     click.style(run_url, underline=True, fg="blue"),
                 )
             )
-            wandb.termlog(dir_str)
-            if not self._settings._offline:
-                wandb.termlog("Run `wandb offline` to turn off syncing.")
+            if not self._quiet:
+                wandb.termlog(dir_str)
+                if not self._settings._offline:
+                    wandb.termlog("Run `wandb offline` to turn off syncing.")
             print("")
 
     def _redirect(
@@ -1640,13 +1651,16 @@ class Run(object):
 
     def _on_start(self) -> None:
         # TODO: make offline mode in jupyter use HTML
-        if self._settings._offline:
-            wandb.termlog(
-                (
-                    "W&B syncing is set to `offline` in this directory.  "
-                    "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
-                )
+        if self._settings._offline and not self._quiet:
+            message = (
+                "W&B syncing is set to `offline` in this directory.  "
+                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
             )
+            if self._settings._jupyter and ipython.in_jupyter():
+                ipython.display_html("<br/>\n".join(message))
+            else:
+                wandb.termlog(message)
+
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
@@ -1734,17 +1748,25 @@ class Run(object):
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
         if not self._settings._silent:
+            as_html = self._settings._jupyter and ipython.in_jupyter()
             if self._backend:
                 pid = self._backend._internal_pid
-                status_str = "Waiting for W&B process to finish, PID {}".format(pid)
+                status_str = "Waiting for W&B process to finish, PID {}... ".format(pid)
             if not self._exit_code:
-                status_str += "\nProgram ended successfully."
+                status = "(success)."
+                if as_html:
+                    status = f'<strong style="color:green">{status}</strong>'
+                status_str += status
             else:
-                status_str += "\nProgram failed with code {}. ".format(self._exit_code)
+                status += "(failed {}).".format(self._exit_code)
+                if as_html:
+                    status = f'<strong style="color:red">{status}</strong>'
+                status_str += status
                 if not self._settings._offline:
                     status_str += " Press ctrl-c to abort syncing."
-            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-                ipython.display_html("<br/>" + status_str.replace("\n", "<br/>"))
+            if as_html:
+                sep = "<br/>" if not self._quiet else ""
+                ipython.display_html(sep + status_str)
             else:
                 print("")
                 wandb.termlog(status_str)
@@ -1777,77 +1799,78 @@ class Run(object):
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
+        as_html = self._settings._jupyter and ipython.in_jupyter()
+        if as_html:
+            lb = "<br/>\n"
+        else:
+            lb = "\n"
         # check for warnings and errors, show log file locations
-        if self._reporter:
-            # TODO: handle warnings and errors nicely in jupyter
+        final_logs = ""
+        if self._reporter and not self._quiet:
             warning_lines = self._reporter.warning_lines
             if warning_lines:
-                wandb.termlog("Warnings:")
+                final_logs += f"Warnings:{lb}"
                 for line in warning_lines:
-                    wandb.termlog(line)
+                    final_logs += f"{line}{lb}"
                 if len(warning_lines) < self._reporter.warning_count:
-                    wandb.termlog("More warnings")
+                    final_logs += f"More warnings...{lb}"
 
             error_lines = self._reporter.error_lines
             if error_lines:
-                wandb.termlog("Errors:")
+                final_logs += f"Errors:{lb}"
                 for line in error_lines:
-                    wandb.termlog(line)
+                    final_logs += f"{line}{lb}"
                 if len(error_lines) < self._reporter.error_count:
-                    wandb.termlog("More errors")
-        if self._settings.log_user:
-            log_user = self._settings.log_user
-            if self._settings._jupyter:
-                log_user = "<code>{}</code>".format(log_user)
-            log_str = "Find user logs for this run at: {}".format(log_user)
-            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-                ipython.display_html(log_str)
-            else:
-                wandb.termlog(log_str)
-        if self._settings.log_internal:
-            log_internal = self._settings.log_internal
-            if self._settings._jupyter:
-                log_internal = "<code>{}</code>".format(log_internal)
-            log_str = "Find internal logs for this run at: {}".format(log_internal)
-            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-                ipython.display_html(log_str)
-            else:
-                wandb.termlog(log_str)
+                    final_logs += f"More errors...{lb}"
 
-        self._show_summary()
-        self._show_history()
-        self._show_files()
+        if not self._quiet:
+            if as_html:
+                final_logs += ipython.TABLE_STYLES
+                final_logs += '<div class="wandb-row"><div class="wandb-col">\n'
+            final_logs = self._append_history(final_logs, as_html)
+            if as_html:
+                final_logs += '</div><div class="wandb-col">\n'
+            final_logs = self._append_summary(final_logs, as_html)
+
+            if as_html:
+                final_logs += "</div></div>\n"
+            final_logs = self._append_files(final_logs, as_html)
 
         if self._run_obj:
             run_url = self._get_run_url()
             run_name = self._get_run_name()
-            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-                ipython.display_html(
-                    """
-                    <br/>Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a><br/>
-                """.format(
-                        RUN_NAME_COLOR, run_name, run_url, run_url
-                    )
+            if as_html:
+                final_logs += 'Synced <strong style="color:{}">{}</strong>: <a href="{}" target="_blank">{}</a>{}'.format(
+                    RUN_NAME_COLOR, run_name, run_url, run_url, lb
                 )
             else:
-                wandb.termlog(
-                    "\nSynced {}: {}".format(
-                        click.style(run_name, fg="yellow"),
-                        click.style(run_url, fg="blue"),
-                    )
+                final_logs += "Synced {}: {}{}".format(
+                    click.style(run_name, fg="yellow"),
+                    click.style(run_url, fg="blue"),
+                    lb,
                 )
 
-        if self._settings._offline:
-            # TODO: handle jupyter offline messages
-            wandb.termlog("You can sync this run to the cloud by running:")
-            wandb.termlog(
-                click.style(
-                    "wandb sync {}".format(self._settings._sync_dir), fg="yellow"
-                )
+        if self._settings._offline and not self._quiet:
+            final_logs += f"You can sync this run to the cloud by running:{lb}"
+            final_logs += click.style(
+                f"wandb sync {self._settings._sync_dir}{lb}", fg="yellow"
             )
 
-        self._show_version_info(footer=True)
-        self._show_local_warning()
+        if not self._quiet and (self._settings.log_user or self._settings.log_internal):
+            log_dir = self._settings.log_user or self._settings.log_internal
+            log_dir = log_dir.replace(os.getcwd(), ".")
+            if as_html:
+                log_dir = "<code>{}</code>".format(os.path.dirname(log_dir))
+            final_logs += "Find logs at: {}{}".format(log_dir, lb)
+
+        if as_html:
+            ipython.display_html(final_logs)
+        else:
+            wandb.termlog(final_logs)
+
+        if not self._quiet:
+            self._show_version_info(footer=True)
+            self._show_local_warning()
 
     def _show_version_info(self, footer: bool = None) -> None:
         package_problem = False
@@ -1862,7 +1885,7 @@ class Run(object):
             if self._upgraded_version_message:
                 wandb.termlog(self._upgraded_version_message)
 
-    def _show_summary(self) -> None:
+    def _append_summary(self, logs, as_html=False) -> str:
         if self._final_summary:
             logger.info("rendering summary")
             max_len = 0
@@ -1884,30 +1907,30 @@ class Run(object):
                 max_len = max(max_len, len(k))
             if not summary_rows:
                 return
-            if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-                summary_table = ipython.STYLED_TABLE_HTML
+            if as_html:
+                summary_table = '<table class="wandb">'
                 for row in summary_rows:
                     summary_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
-                summary_table += "</table>"
-                ipython.display_html("<h3>Run summary:</h3><br/>" + summary_table)
+                summary_table += "</table>\n"
+                logs += "<h3>Run summary:</h3><br/>" + summary_table
             else:
                 format_str = "  {:>%s} {}" % max_len
                 summary_lines = "\n".join(
                     [format_str.format(k, v) for k, v in summary_rows]
                 )
-                wandb.termlog("Run summary:")
-                wandb.termlog(summary_lines)
+                logs += f"Run summary:\n{summary_lines}\n"
+        return logs
 
-    def _show_history(self) -> None:
+    def _append_history(self, logs, as_html=False) -> str:
         if not self._sampled_history:
-            return
+            return logs
 
         # Only print sparklines if the terminal is utf-8
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
         if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
-            return
+            return logs
 
         logger.info("rendering history")
         max_len = 0
@@ -1923,19 +1946,20 @@ class Run(object):
             max_len = max(max_len, len(key))
         if not history_rows:
             return
-        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-            history_table = ipython.STYLED_TABLE_HTML
+        if as_html:
+            history_table = '<table class="wandb">'
             for row in history_rows:
                 history_table += "<tr><td>{}</td><td>{}</td></tr>".format(*row)
             history_table += "</table>"
-            ipython.display_html("<h3>Run history:</h3><br/>" + history_table + "<br/>")
+            logs += "<h3>Run history:</h3><br/>" + history_table + "<br/>"
         else:
-            wandb.termlog("Run history:")
+            logs += "Run history:\n"
             history_lines = ""
             format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
-            wandb.termlog(history_lines.rstrip())
+            logs += history_lines.rstrip()
+        return logs
 
     def _show_local_warning(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.local_info:
@@ -1952,27 +1976,26 @@ class Run(object):
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: http://wandb.me/local-upgrade"
                 )
 
-    def _show_files(self) -> None:
+    def _append_files(self, logs, as_html=False) -> str:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
-            return
+            return logs
         if self._settings._offline:
-            return
+            return logs
 
         logger.info("logging synced files")
 
         if self._settings._silent:
-            return
+            return logs
 
-        file_str = "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s)".format(  # noqa:E501
+        file_str = "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s){}".format(  # noqa:E501
             self._poll_exit_response.file_counts.wandb_count,
             self._poll_exit_response.file_counts.media_count,
             self._poll_exit_response.file_counts.artifact_count,
             self._poll_exit_response.file_counts.other_count,
+            "\n<br/>" if as_html else "\n",
         )
-        if self._settings._jupyter and ipython._get_python_type() == "jupyter":
-            ipython.display_html(file_str)
-        else:
-            wandb.termlog(file_str)
+        logs += file_str
+        return logs
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
@@ -2532,14 +2555,18 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int = None) -> None:
+def finish(exit_code: int = None, quiet=False) -> None:
     """Marks a run as finished, and finishes uploading all data.
 
     This is used when creating multiple runs in the same process.
     We automatically call this method when your script exits.
+
+    Arguments:
+        exit_code (int): set to something other than 0 to mark a run as failed
+        quite (bool): set to true to minimize log output
     """
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code)
+        wandb.run.finish(exit_code=exit_code, quiet=quiet)
 
 
 # propagate our doc string to the runs restore method
