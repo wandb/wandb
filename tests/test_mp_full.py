@@ -10,6 +10,7 @@ import platform
 import pytest
 import time
 import wandb
+from wandb.errors import UsageError
 import sys
 
 
@@ -94,7 +95,7 @@ def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
 
 
 def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         test_settings.strict = "bad"
 
 
