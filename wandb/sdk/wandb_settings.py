@@ -590,18 +590,10 @@ class Settings(object):
         if value is None:
             return
         if len(value) > 128:
-            raise SystemExit(
-                wandb.termerror(
-                    f'Invalid project name "{value}", exceeded 128 characters'
-                )
-            )
+            return f'Invalid project name "{value}", exceeded 128 characters'
         invalid_chars = set([char for char in invalid_chars_list if char in value])
         if invalid_chars:
-            raise SystemExit(
-                wandb.termerror(
-                    f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
-                )
-            )
+            return f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
 
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
@@ -817,7 +809,9 @@ class Settings(object):
             return
         invalid = f(v)
         if invalid:
-            raise TypeError("Settings field {}: {}".format(k, invalid))
+            raise SystemExit(
+                wandb.termerror("Settings field `{}`: {}".format(k, invalid))
+            )
 
     def _perform_preprocess(self, k: str, v: Any) -> Optional[Any]:
         f = getattr(self, "_preprocess_" + k, None)
