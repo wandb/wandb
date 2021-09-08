@@ -66,6 +66,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
+SYS_PLATFORM = platform.system()
 
 
 def _get_max_cli_version() -> Union[str, None]:
@@ -489,9 +490,7 @@ class Media(WBValue):
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
 
-        if platform.system() == "Windows" and not util.check_windows_valid_filename(
-            key
-        ):
+        if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
             raise ValueError(
                 f"Media {key} is invalid. Please remove invalid filename characters"
             )
