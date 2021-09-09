@@ -32,7 +32,6 @@ grpc_requirements = ["grpcio==1.27.2"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
 launch_requirements = [
-    "docker",
     "jupyter-repo2docker",
     "nbconvert",
 ]
