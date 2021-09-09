@@ -9,7 +9,10 @@ import torchvision.transforms as T
 
 import wandb
 
-wandb.init()
+wandb.init(mode="offline")
+wandb.log({'test': 5})
+
+'''
 
 transform = T.Compose(
     [T.Resize(224),
@@ -45,3 +48,4 @@ with torch.profiler.profile(
             break
         train(batch_data)
         prof.step()
+'''
