@@ -47,7 +47,6 @@ SYMBOLS_ROOT_SDK = {
     "sweep",
     "mark_preempting",
     "require",
-    "profiler",
 }
 
 # Look into these and see what we can remove / hide
