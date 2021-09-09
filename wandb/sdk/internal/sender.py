@@ -645,7 +645,6 @@ class SendManager(object):
     def _init_run(self, run, config_dict):
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state["runtime"]
-        repo = GitRepo(remote=self._settings.git_remote)
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
         server_run, inserted = self._api.upsert_run(
@@ -661,8 +660,8 @@ class SendManager(object):
             sweep_name=run.sweep_id or None,
             host=run.host or None,
             program_path=self._settings.program or None,
-            repo=repo.remote_url,
-            commit=repo.last_commit,
+            repo=run.git.remote_url or None,
+            commit=run.git.last_commit or None,
         )
         self._run = run
         if self._resume_state.get("resumed"):
