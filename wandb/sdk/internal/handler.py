@@ -30,7 +30,7 @@ from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import Record, Result
 
 from . import meta, sample, stats
-from . import tb_watcher, profiler
+from . import tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface import BackendSender
 from ..lib import handler_util, proto_util
@@ -91,7 +91,6 @@ class HandleManager(object):
         self._interface = interface
 
         self._tb_watcher = None
-        self._prof_watcher = None
         self._system_stats = None
         self._step = 0
 
@@ -545,7 +544,7 @@ class HandleManager(object):
             run_meta.probe()
             run_meta.write()
 
-        self._prof_watcher = profiler.ProfilerWatcher(
+        self._prof_watcher = tb_watcher.ProfilerWatcher(
             interface=self._interface, settings=self._settings
         )
 

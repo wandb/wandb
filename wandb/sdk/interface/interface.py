@@ -65,14 +65,6 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyTypeValue") -> str:
     return policy
 
 
-def log_type_to_enum(log_type: str) -> "pb.TBRecord.LogTypeValue":
-    if log_type == "tfevents":
-        enum = pb.TBRecord.LogType.TFEVENTS
-    elif log_type == "profiler":
-        enum = pb.TBRecord.LogType.PROFILER
-    return enum
-
-
 class _Future(object):
     _object: Optional[pb.Result]
 
@@ -197,13 +189,12 @@ class BackendSender(object):
         self._publish(rec)
 
     def publish_tbdata(
-        self, log_dir: str, save: bool, root_logdir: Optional[str], log_type: str
+        self, log_dir: str, save: bool, root_logdir: Optional[str]
     ) -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
         tbrecord.save = save
         tbrecord.root_dir = root_logdir or ""
-        tbrecord.log_type = log_type_to_enum(log_type)
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
@@ -398,8 +389,7 @@ class BackendSender(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value,
-                cls=WandBJSONEncoderOld,
+                json_value, cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
