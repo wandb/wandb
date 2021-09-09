@@ -183,10 +183,7 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(
-            _start_time=time.time(),
-            _start_datetime=datetime.datetime.now(),
-        )
+        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
         if not settings._noop:
