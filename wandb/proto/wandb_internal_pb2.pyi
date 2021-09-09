@@ -854,30 +854,17 @@ type___StoragePolicyConfigItem = StoragePolicyConfigItem
 
 class TBRecord(google___protobuf___message___Message):
     DESCRIPTOR: google___protobuf___descriptor___Descriptor = ...
-    LogTypeValue = typing___NewType('LogTypeValue', builtin___int)
-    type___LogTypeValue = LogTypeValue
-    LogType: _LogType
-    class _LogType(google___protobuf___internal___enum_type_wrapper____EnumTypeWrapper[TBRecord.LogTypeValue]):
-        DESCRIPTOR: google___protobuf___descriptor___EnumDescriptor = ...
-        TFEVENTS = typing___cast(TBRecord.LogTypeValue, 0)
-        PROFILER = typing___cast(TBRecord.LogTypeValue, 1)
-    TFEVENTS = typing___cast(TBRecord.LogTypeValue, 0)
-    PROFILER = typing___cast(TBRecord.LogTypeValue, 1)
-    type___LogType = LogType
-
     log_dir: typing___Text = ...
     save: builtin___bool = ...
     root_dir: typing___Text = ...
-    log_type: type___TBRecord.LogTypeValue = ...
 
     def __init__(self,
         *,
         log_dir : typing___Optional[typing___Text] = None,
         save : typing___Optional[builtin___bool] = None,
         root_dir : typing___Optional[typing___Text] = None,
-        log_type : typing___Optional[type___TBRecord.LogTypeValue] = None,
         ) -> None: ...
-    def ClearField(self, field_name: typing_extensions___Literal[u"log_dir",b"log_dir",u"log_type",b"log_type",u"root_dir",b"root_dir",u"save",b"save"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions___Literal[u"log_dir",b"log_dir",u"root_dir",b"root_dir",u"save",b"save"]) -> None: ...
 type___TBRecord = TBRecord
 
 class AlertRecord(google___protobuf___message___Message):

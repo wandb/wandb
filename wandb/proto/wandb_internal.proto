@@ -370,14 +370,9 @@ message StoragePolicyConfigItem {
  * TBRecord: store tb locations
  */
 message TBRecord {
-  enum LogType {
-    TFEVENTS = 0;
-    PROFILER = 1;  
-  }
   string log_dir = 1;
   bool   save = 2;
   string root_dir = 3;
-  LogType log_type = 4;
 }
 
 /*

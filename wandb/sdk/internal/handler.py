@@ -544,10 +544,6 @@ class HandleManager(object):
             run_meta.probe()
             run_meta.write()
 
-        self._prof_watcher = tb_watcher.ProfilerWatcher(
-            interface=self._interface, settings=self._settings
-        )
-
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
         )
@@ -596,11 +592,7 @@ class HandleManager(object):
         logger.info("handling tbrecord: %s", record)
         if self._tb_watcher:
             tbrecord = record.tbrecord
-            if tbrecord.log_type == 1:
-                self._prof_watcher.add(tbrecord.log_dir)
-                self._prof_watcher.start()
-            else:
-                self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
+            self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)
 
     def _handle_defined_metric(self, record: wandb_internal_pb2.Record) -> None:
@@ -691,8 +683,6 @@ class HandleManager(object):
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
-        if self._prof_watcher:
-            self._prof_watcher.finish()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)

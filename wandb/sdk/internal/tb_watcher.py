@@ -8,7 +8,6 @@ import os
 import socket
 import sys
 import threading
-import glob
 import time
 from typing import TYPE_CHECKING
 
@@ -19,7 +18,6 @@ from wandb import util
 from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
-from wandb.sdk import internal
 
 
 if TYPE_CHECKING:
@@ -95,44 +93,6 @@ def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> 
     #     filename). Can we assume that our parent pid is the user process
     #     that wrote these files?
     return created_time >= int(start_time)  # noqa: W503
-
-
-class ProfilerWatcher(object):
-    def __init__(self, interface: "BackendSender", settings: "SettingsStatic"):
-        self._logdir = None
-        self._interface = interface
-        self._settings = settings
-        self._thread = threading.Thread(target=self._thread_body)
-        self._polling_interval = 5
-        self._shutdown = threading.Event()
-        self._seen = set()
-
-    def start(self) -> None:
-        self._thread.start()
-
-    def add(self, logdir: str):
-        self._logdir = logdir
-
-    def _thread_body(self) -> None:
-        while True:
-            files = glob.glob(os.path.join(self._logdir, "*trace.json"))
-            if len(files) > len(self._seen):
-                new_files = set(files) - self._seen
-                for path in new_files:
-                    self._seen.add(path)
-                    _link_and_save_file(
-                        path=path,
-                        base_path=os.path.dirname(path),
-                        interface=self._interface,
-                        settings=self._settings,
-                    )
-            if self._shutdown.is_set():
-                break
-            time.sleep(self._polling_interval)
-
-    def finish(self) -> None:
-        self._shutdown.set()
-        self._thread.join()
 
 
 class TBWatcher(object):
@@ -403,9 +363,7 @@ class TBEventConsumer(object):
             self._handle_event(event, history=self.tb_history)
             items = self.tb_history._get_and_reset()
             for item in items:
-                self._save_row(
-                    item,
-                )
+                self._save_row(item,)
         self._thread.join()
 
     def _thread_body(self) -> None:
@@ -428,9 +386,7 @@ class TBEventConsumer(object):
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
-                    self._save_row(
-                        item,
-                    )
+                    self._save_row(item,)
         # flush uncommitted data
         self.tb_history._flush()
         items = self.tb_history._get_and_reset()
