@@ -33,6 +33,7 @@ kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
 launch_requirements = [
     "jupyter-repo2docker",
+    "nbconvert",
     "chardet",
     "iso8601",
     "typing_extensions",
