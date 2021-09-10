@@ -1320,13 +1320,16 @@ def create_app(user_ctx=None):
             return {
                 "docker": "test/docker",
                 "program": "train.py",
+                "codePath": "train.py",
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+        elif file == "requirements.txt":
+            return "numpy==1.19.5\n"
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return r"""
+            return """
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt

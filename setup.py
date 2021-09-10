@@ -34,7 +34,12 @@ media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotl
 launch_requirements = [
     "jupyter-repo2docker",
     "nbconvert",
+    "chardet",
+    "iso8601",
+    "typing_extensions",
+    "yaspin",
 ]
+
 
 setup(
     name="wandb",
