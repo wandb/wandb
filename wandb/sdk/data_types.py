@@ -675,7 +675,7 @@ class Object3D(BatchableMedia):
             Object3D can be initialized from a file or a numpy array.
 
             You can pass a path to a file or an io object and a file_type
-            which must be one of `"obj", "gltf", "glb", "babylon", "stl", "pts.json".
+            which must be one of `"obj"`, `"gltf"`, `"glb"`, `"babylon"`, `"stl"`, `"pts.json"`.
 
     The shape of the numpy array must be one of either:
     ```python
