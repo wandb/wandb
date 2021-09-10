@@ -126,3 +126,4 @@ def test_commit_hash_not_sent_when_disable(test_settings, git_repo):
     assert git_repo.last_commit
     assert run._last_commit is None
     run.finish()
+    os.environ["WANDB_DISABLE_CODE"] = "false"
