@@ -133,7 +133,7 @@ def build_docker_image_if_needed(
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
         work_dir=launch_project.project_dir,
-        image_id=launch_project.image_id,
+        image_id=launch_project.run_id,
     )
     launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:

@@ -66,12 +66,10 @@ class LaunchProject(object):
 
         if utils._is_wandb_uri(self.uri):
             self.source = LaunchSource.WANDB
-            self.image_id = uri.split("/")[-1] if self.build_image else self.run_id
             self.project_dir = tempfile.mkdtemp()
         elif utils._is_git_uri(self.uri):
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
-            self.image_id = self.run_id
         else:
             # assume local
             if not os.path.exists(self.uri):
@@ -79,7 +77,6 @@ class LaunchProject(object):
                     "Assumed URI supplied is a local path but path is not valid"
                 )
             self.source = LaunchSource.LOCAL
-            self.image_id = self.run_id
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
