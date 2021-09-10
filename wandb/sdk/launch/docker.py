@@ -319,10 +319,6 @@ def _create_docker_build_ctx(
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(src=launch_project.project_dir, dst=dst_path)
-    # if launch_project.override_config:
-    #     config_path = os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH)
-    #     with open(config_path, "w") as fp:
-    #         json.dump(launch_project.override_config, fp)
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
         with open(runtime_path, "w") as fp:
