@@ -241,6 +241,8 @@ class Settings(object):
     username: Optional[str]
     email: Optional[str] = None
     save_code: Optional[bool] = None
+    disable_code: Optional[bool] = None
+    git_remote: Optional[str] = None
     code_dir: Optional[str] = None
     program_relpath: Optional[str] = None
     program: Optional[str]

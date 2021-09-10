@@ -84,8 +84,8 @@ from .lib import (
     sparkline,
     telemetry,
 )
-from .lib.reporting import Reporter
 from .lib.git import GitRepo
+from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup

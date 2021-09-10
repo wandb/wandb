@@ -111,6 +111,7 @@ def test_jupyter_path(meta, mocked_ipython):
 # TODO: test actual code saving
 def test_commmit_hash_sent_correctly(test_settings, git_repo):
     test_settings.save_code = True
+    # run object should be initialized with git info, if save_code is True
     run = wandb.init(settings=test_settings)
     assert run._last_commit is not None
     assert run._last_commit == git_repo.last_commit

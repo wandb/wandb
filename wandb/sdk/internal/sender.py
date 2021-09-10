@@ -32,7 +32,6 @@ from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
 from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib.git import GitRepo
 
 
 logger = logging.getLogger(__name__)
