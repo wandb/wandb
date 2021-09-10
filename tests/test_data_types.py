@@ -8,7 +8,6 @@ import six
 import sys
 import glob
 import platform
-import pandas as pd
 from click.testing import CliRunner
 from . import utils
 from .utils import dummy_data
@@ -63,7 +62,10 @@ def test_wb_value(live_mock_server, test_settings):
     assert wbvalue != data_types.WBValue()
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_log_dataframe(live_mock_server, test_settings):
+    import pandas as pd
+
     run = wandb.init(settings=test_settings)
     cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
     run.log({"results_df": cv_results})
@@ -577,7 +579,10 @@ def test_table_eq_debug():
     assert a == b
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_custom():
+    import pandas as pd
+
     table = wandb.Table(["Foo", "Bar"])
     table.add_data("So", "Cool")
     table.add_row("&", "Rad")
@@ -757,7 +762,10 @@ def test_table_from_numpy():
         table = wandb.Table(dataframe=np_data)
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_from_pandas():
+    import pandas as pd
+
     pd_data = pd.DataFrame(table_data)
     table = wandb.Table(data=pd_data)
     assert table.data == table_data
