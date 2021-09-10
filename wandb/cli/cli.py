@@ -47,9 +47,9 @@ _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = nativetempfile.gettempdir()
 logging.basicConfig(
-    filename=os.path.join(_wandb_dir, "debug-cli.log"), level=logging.DEBUG,
+    filename=os.path.join(_wandb_dir, "debug-cli.log"), level=logging.INFO,
 )
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
 
 CONTEXT = dict(default_map={})
@@ -999,6 +999,7 @@ def launch(
     Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
     `wandb launch [URI] --queue [optional queuename]`.
     """
+    logger.info(f"=== Launch called with kwargs {locals()} ===")
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
@@ -1077,6 +1078,7 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
+    logger.info(f"=== Launch-agent called with kwargs {locals()} ===")
     _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
