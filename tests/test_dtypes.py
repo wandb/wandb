@@ -1,7 +1,6 @@
 import wandb
 from wandb import data_types
 import numpy as np
-import pandas as pd
 import pytest
 import os
 import sys
@@ -568,7 +567,10 @@ def test_table_specials():
     )
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_nan_non_float():
+    import pandas as pd
+
     wandb.Table(dataframe=pd.DataFrame(data=[["A"], [np.nan]], columns=["a"]))
 
 
@@ -671,7 +673,10 @@ def test_table_typing_numpy():
     table.add_data(np.array([[[[1, 2, 3]]]]))
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_table_typing_pandas():
+    import pandas as pd
+
     # TODO: Pandas https://pandas.pydata.org/pandas-docs/stable/user_guide/basics.html#basics-dtypes
 
     # Numerics

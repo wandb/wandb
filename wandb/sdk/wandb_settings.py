@@ -582,6 +582,10 @@ class Settings(object):
     def settings_workspace(self) -> Optional[str]:
         return self._path_convert(self.settings_workspace_spec)
 
+    @property
+    def is_local(self) -> bool:
+        return self.base_url != "https://api.wandb.ai/"
+
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):

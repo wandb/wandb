@@ -109,6 +109,11 @@ workflows:
          name: "lin-py39"
          image: "python:3.9"
          toxenv: "py39"
+# Enable when circle offers python 3.10 image
+#      - test:
+#         name: "lin-py310"
+#         image: "python:3.10"
+#         toxenv: "py310"
       - test:
          name: "func-s_base-lin-py37"
          image: "python:3.7"
