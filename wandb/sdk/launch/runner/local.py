@@ -139,17 +139,20 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
-            if launch_project.override_config:
-                with open(
-                    os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
-                ) as fp:
-                    json.dump(launch_project.override_config, fp)
             command_str = command_separator.join(command_args)
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
+            with open(
+                os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
+            ) as fp:
+                json.dump(
+                    {**launch_project.launch_spec, "command": sanitized_command_str,},
+                    fp,
+                )
 
             wandb.termlog(
-                "Launching run in docker with command: {}".format(
-                    re.sub(r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str)
-                )
+                "Launching run in docker with command: {}".format(sanitized_command_str)
             )
             run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()

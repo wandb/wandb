@@ -34,15 +34,16 @@ class LaunchProject(object):
 
     def __init__(
         self,
-        uri: str,
-        target_entity: str,
-        target_project: str,
-        name: Optional[str],
-        docker_config: Dict[str, Any],
-        git_info: Dict[str, str],
-        overrides: Dict[str, Any],
+        launch_spec
+        # uri: str,
+        # target_entity: str,
+        # target_project: str,
+        # name: Optional[str],
+        # docker_config: Dict[str, Any],
+        # git_info: Dict[str, str],
+        # overrides: Dict[str, Any],
     ):
-
+        self.launch_spec = launch_spec
         self.uri = uri
         self.target_entity = target_entity
         self.target_project = target_project

@@ -169,7 +169,7 @@ def build_docker_image_if_needed(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
-    dockerfile = (
+    dockerfile_contents = (
         "FROM {imagename}\n" "{copy_code_line}" "{requirements_line}" "{name_line}"
     ).format(
         imagename=launch_project.base_image,
@@ -177,7 +177,8 @@ def build_docker_image_if_needed(
         requirements_line=requirements_line,
         name_line=name_line,
     )
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile)
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
+
     _logger.info("=== Building docker image %s ===", image_uri)
 
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
