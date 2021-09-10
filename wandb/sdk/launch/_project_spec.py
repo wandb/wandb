@@ -169,7 +169,7 @@ class LaunchProject(object):
                 # need to rebuild image with new code
                 self.build_image = True
 
-            if run_info["program"].endswith("ipynb"):
+            if entry_point.endswith("ipynb"):
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )
