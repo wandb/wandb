@@ -104,7 +104,7 @@ class _WandbLogin(object):
         if not apikey_configured:
             return False
 
-        if not self._silent and not ipython.in_jupyter():
+        if not self._silent:
             self.login_display()
 
         return apikey_configured

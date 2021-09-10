@@ -164,7 +164,12 @@ class _WandbInit(object):
         settings._apply_init_login(kwargs)
 
         if not settings._offline and not settings._noop:
-            wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
+            wandb_login._login(
+                anonymous=anonymous,
+                force=force,
+                _disable_warning=True,
+                _silent=settings._quiet or settings._silent is True,
+            )
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)

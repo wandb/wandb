@@ -1279,7 +1279,20 @@ class Run(object):
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
-    def finish(self, exit_code: int = None, quiet=False) -> None:
+    def shh(self):
+        """Tell a run to be quiet.
+
+        This will make a run print less output to your terminal or jupyter session.
+        """
+        self._quiet = True
+
+    def huh(self):
+        """Tell a run to be louder.
+
+        This will make the run print more output to your terminal or jupyter session."""
+        self._quiet = False
+
+    def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
         This is used when creating multiple runs in the same process. We automatically
@@ -1289,7 +1302,8 @@ class Run(object):
             exit_code (int): set to something other than 0 to mark a run as failed
             quite (bool): set to true to minimize log output
         """
-        self._quiet = quiet
+        if quiet is not None:
+            self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         # detach logger, other setup cleanup
