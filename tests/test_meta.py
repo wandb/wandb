@@ -116,7 +116,7 @@ def test_commmit_hash_sent_correctly(test_settings, git_repo):
     assert run._last_commit is not None
     assert run._last_commit == git_repo.last_commit
     assert run._remote_url is None
-    wandb.finish()
+    run.finish()
 
 
 def test_commit_hash_not_sent_when_disable(test_settings, git_repo):
@@ -125,4 +125,4 @@ def test_commit_hash_not_sent_when_disable(test_settings, git_repo):
     run = wandb.init(settings=test_settings)
     assert git_repo.last_commit
     assert run._last_commit is None
-    wandb.finish()
+    run.finish()
