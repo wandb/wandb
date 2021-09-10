@@ -1279,19 +1279,6 @@ class Run(object):
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
-    def shh(self):
-        """Tell a run to be quiet.
-
-        This will make a run print less output to your terminal or jupyter session.
-        """
-        self._quiet = True
-
-    def huh(self):
-        """Tell a run to be louder.
-
-        This will make the run print more output to your terminal or jupyter session."""
-        self._quiet = False
-
     def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         """Marks a run as finished, and finishes uploading all data.
 

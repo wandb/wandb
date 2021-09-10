@@ -15,7 +15,7 @@ from wandb.errors import UsageError
 from wandb.old.settings import Settings as OldSettings
 
 from .internal.internal_api import Api
-from .lib import apikey, ipython
+from .lib import apikey
 from .wandb_settings import Settings
 from ..apis import InternalApi
 
