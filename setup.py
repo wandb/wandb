@@ -31,7 +31,14 @@ aws_requirements = ["boto3"]
 grpc_requirements = ["grpcio==1.27.2"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
-launch_requirements = ["docker", "jupyter-repo2docker", "chardet", "iso8601"]
+launch_requirements = [
+    "jupyter-repo2docker",
+    "chardet",
+    "iso8601",
+    "typing_extensions",
+    "yaspin",
+]
+
 
 setup(
     name="wandb",
