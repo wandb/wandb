@@ -8,6 +8,7 @@ import sys
 import six
 import pytest
 import wandb
+from wandb.errors import UsageError
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def test_default(run_full):
 
 
 def test_junk(run_full):
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         run_full(settings=wandb.Settings(start_method="junk"))
 
 
