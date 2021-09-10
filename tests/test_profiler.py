@@ -1,16 +1,25 @@
 from wandb.sdk import internal
 import time
+import os
 import wandb
 import torch
 import torch.nn.functional as F
+from wandb.sdk.internal import profiler
 
 from wandb.sdk.internal.profiler import ProfilerWatcher
 
 
-def test_profiler_end_to_end(mock_server, runner, test_settings):
+def test_profiler_watcher(
+    runner, mock_server, test_settings, backend_interface, internal_hm
+):
     """
-    We simulate a pytorch profiler use-case here.
-    Toy data (random 28x28 grayscale "images") along with a toy model.
+    This test simulates a typical use-case for PyTorch Profiler: training performance.
+    It generates random noise and trains a simple conv net on this noise
+    using the torch profiler api.
+
+    Doing so dumps a "pt.trace.json" file in the given logdir.
+
+    This unittest then ensures that ProfilerWatcher syncs this file to the backend.
     """
 
     def random_batch_generator():
@@ -50,29 +59,37 @@ def test_profiler_end_to_end(mock_server, runner, test_settings):
         optimizer.step()
 
     with runner.isolated_filesystem():
+        logdir = "./boom"
         wandb.util.mkdir_exists_ok("boom")
-        wandb.init(settings=test_settings)
+        # wandb.init(settings=test_settings)
 
-        with torch.profiler.profile(
-            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
-            on_trace_ready=wandb.profiler.trace_handler("./boom/"),
-            record_shapes=True,
-            with_stack=True,
-        ) as prof:
-            for step, batch_data in random_batch_generator():
-                if step >= (1 + 1 + 3) * 1:
-                    break
-                train(batch_data)
-                prof.step()
-        # spits out pt.trace.json in boom/
-        wandb.finish()
-        # sends files to backend
-        time.sleep(3)
-        print(mock_server.ctx.items())
-        files = [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")]
-        print(
-            "CTX:",
-            [(k, v) for k, v in mock_server.ctx.items() if k.startswith("storage")],
-        )
-        assert len(files) == 1
-        assert "pt.trace.json" in files[0]
+        # Watch `logdir` for `*trace.json` files
+        with backend_interface() as interface:
+            prof_watcher = ProfilerWatcher(interface=interface, settings=test_settings)
+            prof_watcher._polling_interval = 0.1
+            prof_watcher.add(logdir)
+            prof_watcher.start()
+
+            with torch.profiler.profile(
+                schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler(logdir),
+                record_shapes=True,
+                with_stack=True,
+            ) as prof:
+                for step, batch_data in random_batch_generator():
+                    if step >= (1 + 1 + 3) * 1:
+                        break
+                    train(batch_data)
+                    prof.step()
+
+            time.sleep(1)
+            files = [
+                (k, v)
+                for k, v in mock_server.ctx.items()
+                if k.startswith("storage") and "pt.trace.json" in k
+            ]
+            print("BOOMDAWG")
+            print("BOOMDAWG")
+            print(files)
+            print(os.listdir(logdir))
+            assert len(files) == 1

@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from .settings_static import SettingsStatic
 
 PYTORCH_PROFILER_MODULE = "torch.profiler"
-POLLING_INTERVAL = 5
 
 
 def trace_handler(
@@ -41,6 +40,7 @@ class ProfilerWatcher(object):
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
         self._seen = set()
+        self._polling_interval = 5
 
     def start(self) -> None:
         self._thread.start()
@@ -63,7 +63,7 @@ class ProfilerWatcher(object):
                     )
             if self._shutdown.is_set():
                 break
-            time.sleep(POLLING_INTERVAL)
+            time.sleep(self._polling_interval)
 
     def finish(self) -> None:
         self._shutdown.set()
