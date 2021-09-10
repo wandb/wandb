@@ -118,7 +118,11 @@ def pull_docker_image(docker_image: str) -> None:
 
 
 def build_docker_image_if_needed(
-    launch_project: _project_spec.LaunchProject, api: Api, copy_code: bool
+    launch_project: _project_spec.LaunchProject,
+    api: Api,
+    copy_code: bool,
+    workdir: str,
+    container_env: List[str],
 ) -> str:
     """
     Build a docker image containing the project in `work_dir`, using the base image.
@@ -126,22 +130,21 @@ def build_docker_image_if_needed(
     :param api: instance of wandb.apis.internal Api
     :param copy_code: boolean indicating if code should be copied into the docker container
     """
-
     image_uri = _get_docker_image_uri(
-        name=launch_project.image_name, work_dir=launch_project.project_dir
+        name=launch_project.image_name,
+        work_dir=launch_project.project_dir,
+        image_id=launch_project.image_id,
     )
     launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
         return image_uri
-    container_inspect = docker_image_inspect(launch_project.base_image)
     copy_code_line = ""
     requirements_line = ""
-    workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
     # TODO: we currently assume the home directory holds the pip cache
     homedir = workdir
     # for custom base_images we attempt to introspect the homedir
-    for env in container_inspect["ContainerConfig"]["Env"]:
+    for env in container_env:
         if env.startswith("HOME="):
             homedir = env.split("=", 1)[1]
     if copy_code:
@@ -199,6 +202,7 @@ def get_docker_command(
     image: str,
     launch_project: _project_spec.LaunchProject,
     api: Api,
+    workdir: str,
     docker_args: Dict[str, Any] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
@@ -233,13 +237,18 @@ def get_docker_command(
         "--env",
         f"WANDB_LAUNCH={True}",
         "--env",
-        f"WANDB_LAUNCH_CONFIG_PATH={_project_spec.DEFAULT_CONFIG_PATH}",
+        f"WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
         "--env",
         f"WANDB_RUN_ID={launch_project.run_id or None}",
         "--env",
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]
 
+    if launch_project.override_config:
+        cmd += [
+            "-v",
+            f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
+        ]
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -287,7 +296,7 @@ def _parse_existing_requirements(launch_project: _project_spec.LaunchProject) ->
     return requirements_line
 
 
-def _get_docker_image_uri(name: Optional[str], work_dir: str) -> str:
+def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> str:
     """
     Returns an appropriate Docker image URI for a project based on the git hash of the specified
     working directory.
@@ -299,7 +308,7 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str) -> str:
     # Optionally include first 7 digits of git SHA in tag name, if available.
 
     git_commit = GitRepo(work_dir).last_commit
-    version_string = ":" + str(git_commit[:7]) if git_commit else ""
+    version_string = ":" + str(git_commit[:7]) + image_id if git_commit else image_id
     return name + version_string
 
 
@@ -310,10 +319,10 @@ def _create_docker_build_ctx(
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(src=launch_project.project_dir, dst=dst_path)
-    if launch_project.override_config:
-        config_path = os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH)
-        with open(config_path, "w") as fp:
-            json.dump(launch_project.override_config, fp)
+    # if launch_project.override_config:
+    #     config_path = os.path.join(dst_path, _project_spec.DEFAULT_CONFIG_PATH)
+    #     with open(config_path, "w") as fp:
+    #         json.dump(launch_project.override_config, fp)
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
         with open(runtime_path, "w") as fp:

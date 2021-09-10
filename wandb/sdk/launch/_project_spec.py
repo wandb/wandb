@@ -44,11 +44,10 @@ class LaunchProject(object):
     ):
 
         self.uri = uri
-        self.source_tag = uri.split("/")[-1]
-        self.build_image = False
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
+        self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
@@ -58,6 +57,7 @@ class LaunchProject(object):
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self._runtime: Optional[str] = None
+        self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -66,10 +66,12 @@ class LaunchProject(object):
 
         if utils._is_wandb_uri(self.uri):
             self.source = LaunchSource.WANDB
+            self.image_id = uri.split("/")[-1] if self.build_image else self.run_id
             self.project_dir = tempfile.mkdtemp()
         elif utils._is_git_uri(self.uri):
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
+            self.image_id = self.run_id
         else:
             # assume local
             if not os.path.exists(self.uri):
@@ -77,9 +79,10 @@ class LaunchProject(object):
                     "Assumed URI supplied is a local path but path is not valid"
                 )
             self.source = LaunchSource.LOCAL
+            self.image_id = self.run_id
             self.project_dir = self.uri
 
-        self.run_id = generate_id()
+        self.aux_dir = tempfile.mkdtemp()
 
         self.clear_parameter_run_config_collisions()
 

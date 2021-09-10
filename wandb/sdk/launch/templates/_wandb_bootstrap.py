@@ -29,7 +29,7 @@ def install_deps(deps, failed=None):
         deps (str[], None): The dependencies that failed to install
     """
     try:
-        print("{}...".format(", ".join(deps)))
+        print("installing {}...".format(", ".join(deps)))
         sys.stdout.flush()
         subprocess.check_output(
             ["pip", "install"] + OPTS + deps, stderr=subprocess.STDOUT

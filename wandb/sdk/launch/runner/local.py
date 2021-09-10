@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -10,10 +11,11 @@ import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import DEFAULT_CONFIG_PATH, get_entry_point_command, LaunchProject
 from ..docker import (
     build_docker_image_if_needed,
     docker_image_exists,
+    docker_image_inspect,
     generate_docker_base_image,
     get_docker_command,
     pull_docker_image,
@@ -97,9 +99,18 @@ class LocalRunner(AbstractRunner):
 
         command_args = []
         command_separator = " "
+
+        container_inspect = docker_image_inspect(launch_project.base_image)
+        container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
+        container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
+
         if launch_project.docker_image is None or launch_project.build_image:
             image = build_docker_image_if_needed(
-                launch_project=launch_project, api=self._api, copy_code=copy_code,
+                launch_project=launch_project,
+                api=self._api,
+                copy_code=copy_code,
+                workdir=container_workdir,
+                container_env=container_env,
             )
         else:
             image = launch_project.docker_image
@@ -107,6 +118,7 @@ class LocalRunner(AbstractRunner):
             image=image,
             launch_project=launch_project,
             api=self._api,
+            workdir=container_workdir,
             docker_args=docker_args,
         )
         if self.backend_config.get("runQueueItemId"):
@@ -127,6 +139,11 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
+            if launch_project.override_config:
+                with open(
+                    os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
+                ) as fp:
+                    json.dump(launch_project.override_config, fp)
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
