@@ -167,7 +167,7 @@ class RetryingClient(object):
 
     @property
     def app_url(self):
-        return util.app_url(self._client.transport.url).replace("/graphql", "/")
+        return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
 
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
