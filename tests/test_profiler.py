@@ -88,8 +88,4 @@ def test_profiler_watcher(
                 for k, v in mock_server.ctx.items()
                 if k.startswith("storage") and "pt.trace.json" in k
             ]
-            print("BOOMDAWG")
-            print("BOOMDAWG")
-            print(files)
-            print(os.listdir(logdir))
             assert len(files) == 1
