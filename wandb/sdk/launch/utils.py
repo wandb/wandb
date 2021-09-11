@@ -277,3 +277,23 @@ def merge_parameters(
 ) -> Dict[str, Any]:
     """Merge the contents of two dicts, keeping values from higher_priority_params if there are conflicts."""
     return {**lower_priority_params, **higher_priority_params}
+
+
+def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
+    nbformat = wandb.util.get_module(
+        "nbformat", "nbformat is required to use launch with jupyter notebooks"
+    )
+    nbconvert = wandb.util.get_module(
+        "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
+    )
+
+    new_name = fname.rstrip(".ipynb") + ".py"
+    with open(os.path.join(project_dir, fname), "r") as fh:
+        nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
+
+    exporter = nbconvert.PythonExporter()
+    source, meta = exporter.from_notebook_node(nb)
+
+    with open(os.path.join(project_dir, new_name), "w+") as fh:
+        fh.writelines(source)
+    return new_name
