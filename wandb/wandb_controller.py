@@ -52,11 +52,13 @@ from __future__ import print_function
 
 import json
 import os
+import pkg_resources
 import random
 import string
 import time
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
+import wandb
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
@@ -71,11 +73,24 @@ import yaml
 # TODO(jhr): Add print_space
 # TODO(jhr): Add print_summary
 
-sweeps = get_module(
-    "wandb.sweeps_engine",
-    required="This module requires wandb to be built with the local "
-    "controller. Please run pip install wandb[sweeps].",
-)
+
+REQUIRED_SWEEPS_VERSION = "sweeps>=0.0.1"
+
+
+try:
+    _ = pkg_resources.require(REQUIRED_SWEEPS_VERSION)
+except pkg_resources.VersionConflict as e:
+    raise wandb.Error(
+        f"Using the local controller requires {REQUIRED_SWEEPS_VERSION}, but {e.dist} is installed.\n\n"
+        f"Please run `pip install --upgrade wandb[sweeps]`."
+    )
+except pkg_resources.DistributionNotFound as e:
+    raise wandb.Error(
+        f"Using the local controller requires {REQUIRED_SWEEPS_VERSION}, but no matching "
+        f"distribution was found.\n\nPlease run `pip install --upgrade wandb[sweeps]`."
+    )
+import sweeps
+
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
 SWEEP_INITIAL_RUN_STATE = sweeps.RunState.pending
