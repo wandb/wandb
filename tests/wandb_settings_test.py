@@ -6,6 +6,7 @@ import pytest  # type: ignore
 
 import wandb
 from wandb import Settings
+from wandb.errors import UsageError
 import os
 import copy
 
@@ -136,9 +137,9 @@ def test_freeze():
 
 def test_bad_choice():
     s = Settings()
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.mode = "goodprojo"
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(mode="badpro")
 
 
@@ -229,11 +230,11 @@ def test_prio_context_over_ignore():
 
 def test_validate_base_url():
     s = Settings()
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(base_url="https://wandb.ai")
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(base_url="https://app.wandb.ai")
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(base_url="http://api.wandb.ai")
     s.update(base_url="https://api.wandb.ai")
     assert s.base_url == "https://api.wandb.ai"
