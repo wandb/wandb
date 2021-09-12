@@ -58,6 +58,7 @@ from typing import (
 import six
 import wandb
 from wandb import util
+from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -127,7 +128,7 @@ def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, st
 
 
 def _error_choices(value: str, choices: Set[str]) -> str:
-    return "{} not in {}".format(value, ",".join(list(choices)))
+    return "{} not in [{}]".format(value, ", ".join(list(choices)))
 
 
 def _get_program() -> Optional[Any]:
@@ -586,6 +587,16 @@ class Settings(object):
     def is_local(self) -> bool:
         return self.base_url != "https://api.wandb.ai/"
 
+    def _validate_project(self, value: Optional[str]) -> Optional[str]:
+        invalid_chars_list = list("/\\#?%:")
+        if value is not None:
+            if len(value) > 128:
+                return f'Invalid project name "{value}", exceeded 128 characters'
+            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            if invalid_chars:
+                return f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
+        return None
+
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):
@@ -800,7 +811,7 @@ class Settings(object):
             return
         invalid = f(v)
         if invalid:
-            raise TypeError("Settings field {}: {}".format(k, invalid))
+            raise UsageError("Settings field `{}`: {}".format(k, invalid))
 
     def _perform_preprocess(self, k: str, v: Any) -> Optional[Any]:
         f = getattr(self, "_preprocess_" + k, None)
@@ -814,7 +825,7 @@ class Settings(object):
         __d: Dict[str, Any] = None,
         _source: Optional[int] = None,
         _override: Optional[int] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
