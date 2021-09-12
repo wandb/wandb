@@ -253,7 +253,7 @@ jobs:
         - run:
             name: Install python dependencies, build r2d
             command: |
-                pip3 install tox
+                pip3 install tox==3.24.0
                 pip3 install chardet
                 pip3 install iso8601
                 pip3 install jupyter-repo2docker
