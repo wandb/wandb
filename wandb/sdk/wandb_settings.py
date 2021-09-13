@@ -107,6 +107,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
@@ -317,6 +318,7 @@ class Settings(object):
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
+        login_timeout: float = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
         strict: str = None,
@@ -1043,7 +1045,7 @@ class Settings(object):
     def _apply_login(
         self, args: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
-        param_map = dict(key="api_key", host="base_url")
+        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
 
