@@ -1055,6 +1055,7 @@ def _prompt_choice(input_timeout: int = None):
         input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
     try:
         data = input_fn("%s: Enter your choice: " % term.LOG_STRING)
+        print(f"DEBUG, input read: '{data}'")
         return int(data) - 1  # noqa: W503
     except ValueError:
         return -1
