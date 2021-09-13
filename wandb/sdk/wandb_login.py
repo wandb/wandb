@@ -157,7 +157,13 @@ class _WandbLogin(object):
     ) -> None:
         _logger = wandb.setup()._get_logger()
         settings: Settings = wandb.Settings()
-        login_settings = dict(api_key=key) if key else dict(mode="offline")
+        login_settings = dict()
+        if status == ApiKeyStatus.OFFLINE:
+            login_settings = dict(mode="offline")
+        elif status == ApiKeyStatus.DISABLED:
+            login_settings = dict(mode="disabled")
+        elif key:
+            login_settings = dict(api_key=key)
         settings._apply_source_login(login_settings, _logger=_logger)
         self._wl._update(settings=settings)
         # Whenever the key changes, make sure to pull in user settings
@@ -175,12 +181,12 @@ class _WandbLogin(object):
                 no_create=self._settings.force if self._settings else None,
             )
         except TimeoutError:
-            print("Timed out... Disabling wandb for this session.")
+            print("Timed out... wandb will be disabled for this session.")
             return None, ApiKeyStatus.DISABLED
         if key is False:
             return None, ApiKeyStatus.NOTTY
-        if key is None:
-            return key, ApiKeyStatus.OFFLINE
+        if not key:
+            return None, ApiKeyStatus.OFFLINE
         return key, ApiKeyStatus.VALID
 
     def prompt_api_key(self):

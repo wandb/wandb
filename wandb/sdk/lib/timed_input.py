@@ -22,7 +22,7 @@ def _posix_timed_input(prompt: str, timeout: float) -> str:
     sel.register(sys.stdin, selectors.EVENT_READ, data=sys.stdin.readline)
     events = sel.select(timeout=timeout)
 
-    for key, mask in events:
+    for key, _ in events:
         input_callback = key.data
         input_data: str = input_callback().rstrip(LF)
         return input_data
