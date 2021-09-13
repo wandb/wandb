@@ -4,8 +4,6 @@ import os
 import wandb
 import pytest
 import sys
-import torch
-import torch.nn.functional as F
 from wandb.sdk.internal import profiler
 
 from wandb.sdk.internal.profiler import ProfilerWatcher
@@ -26,6 +24,8 @@ def test_profiler_watcher(
 
     This unittest then ensures that ProfilerWatcher syncs this file to the backend.
     """
+    import torch
+    import torch.nn.functional as F
 
     def random_batch_generator():
         for i in range(10):
