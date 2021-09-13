@@ -1922,7 +1922,7 @@ class Run(object):
                 summary_lines = "\n".join(
                     [format_str.format(k, v) for k, v in summary_rows]
                 )
-                logs += f"Run summary:\n{summary_lines}\n"
+                logs += f"Run summary:\n{summary_lines}\n\n"
         return logs
 
     def _append_history(self, logs: str, as_html: bool = False) -> str:
@@ -1962,7 +1962,7 @@ class Run(object):
             format_str = "  {:>%s} {}\n" % max_len
             for row in history_rows:
                 history_lines += format_str.format(*row)
-            logs += history_lines.rstrip()
+            logs += history_lines.rstrip() + "\n\n"
         return logs
 
     def _show_local_warning(self) -> None:
