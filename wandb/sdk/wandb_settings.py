@@ -217,6 +217,7 @@ class Settings(object):
     start_method: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
+    force: Optional[bool] = None
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None

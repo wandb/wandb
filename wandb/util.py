@@ -1046,19 +1046,15 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(input_timeout: int = None):
+def _prompt_choice(input_timeout: int = None) -> str:
     input_fn = input
     if input_timeout:
         # delayed import to mitigate risk of timed_input complexity
         from wandb.sdk.lib import timed_input
 
         input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-    try:
-        data = input_fn("%s: Enter your choice: " % term.LOG_STRING)
-        print(f"DEBUG, input read: '{data}'")
-        return int(data) - 1  # noqa: W503
-    except ValueError:
-        return -1
+    choice = input_fn("%s: Enter your choice: " % term.LOG_STRING)
+    return choice
 
 
 def prompt_choices(choices, allow_manual=False, input_timeout: int = None):
@@ -1068,7 +1064,14 @@ def prompt_choices(choices, allow_manual=False, input_timeout: int = None):
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
-        idx = _prompt_choice(input_timeout=input_timeout)
+        choice = _prompt_choice(input_timeout=input_timeout)
+        if not choice:
+            continue
+        idx = -1
+        try:
+            idx = int(choice) - 1
+        except ValueError:
+            pass
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]

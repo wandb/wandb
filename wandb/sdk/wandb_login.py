@@ -6,8 +6,9 @@ account.
 """
 from __future__ import print_function
 
+import enum
 import os
-from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
+from typing import Dict, Optional, Tuple
 
 import click
 import wandb
@@ -63,6 +64,13 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout
     kwargs = dict(locals())
     configured = _login(**kwargs)
     return True if configured else False
+
+
+class ApiKeyStatus(enum.Enum):
+    VALID = 1
+    NOTTY = 2
+    OFFLINE = 3
+    DISABLED = 4
 
 
 class _WandbLogin(object):
@@ -144,7 +152,9 @@ class _WandbLogin(object):
         self.update_session(key)
         self._key = key
 
-    def update_session(self, key):
+    def update_session(
+        self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
+    ) -> None:
         _logger = wandb.setup()._get_logger()
         settings: Settings = wandb.Settings()
         login_settings = dict(api_key=key) if key else dict(mode="offline")
@@ -155,15 +165,27 @@ class _WandbLogin(object):
         if not self._wl.settings._offline:
             self._wl._update_user_settings()
 
-    def prompt_api_key(self):
+    def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
         api = Api(self._settings)
-        key = apikey.prompt_api_key(
-            self._settings,
-            api=api,
-            no_offline=self._settings.force,
-            no_create=self._settings.force,
-        )
+        try:
+            key = apikey.prompt_api_key(
+                self._settings,
+                api=api,
+                no_offline=self._settings.force if self._settings else None,
+                no_create=self._settings.force if self._settings else None,
+            )
+        except TimeoutError:
+            print("Timed out... Disabling wandb for this session.")
+            return None, ApiKeyStatus.DISABLED
         if key is False:
+            return None, ApiKeyStatus.NOTTY
+        if key is None:
+            return key, ApiKeyStatus.OFFLINE
+        return key, ApiKeyStatus.VALID
+
+    def prompt_api_key(self):
+        key, status = self._prompt_api_key()
+        if status == ApiKeyStatus.NOTTY:
             directive = (
                 "wandb login [your_api_key]"
                 if self._settings._cli_only_mode
@@ -171,7 +193,7 @@ class _WandbLogin(object):
             )
             raise UsageError("api_key not configured (no-tty). call " + directive)
 
-        self.update_session(key)
+        self.update_session(key, status=status)
         self._key = key
 
     def propogate_login(self):
