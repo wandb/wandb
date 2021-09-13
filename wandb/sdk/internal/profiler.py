@@ -40,7 +40,7 @@ class ProfilerWatcher(object):
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
         self._seen = set()
-        self._polling_interval = 5
+        self._polling_interval = 1
 
     def start(self) -> None:
         self._thread.start()
