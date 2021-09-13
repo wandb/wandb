@@ -2,6 +2,8 @@ from wandb.sdk import internal
 import time
 import os
 import wandb
+import pytest
+import sys
 import torch
 import torch.nn.functional as F
 from wandb.sdk.internal import profiler
@@ -9,6 +11,9 @@ from wandb.sdk.internal import profiler
 from wandb.sdk.internal.profiler import ProfilerWatcher
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 9), reason="PyTorch not currently stable for 3.9"
+)
 def test_profiler_watcher(
     runner, mock_server, test_settings, backend_interface, internal_hm
 ):
