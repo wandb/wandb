@@ -2,16 +2,18 @@
 """
 pytorch profiler
 """
-import os
-import time
-import threading
 import glob
+import os
+import threading
+import time
 from typing import TYPE_CHECKING
+
 import wandb
+
 from . import tb_watcher
 
 if TYPE_CHECKING:
-    from typing import Dict, List, Optional
+    from typing import Optional, Set
     from ..interface.interface import BackendSender
     from .settings_static import SettingsStatic
 
@@ -34,12 +36,12 @@ def _notify_tensorboard_logdir(logdir, save=None, root_logdir=None, log_type=Non
 
 class ProfilerWatcher(object):
     def __init__(self, interface: "BackendSender", settings: "SettingsStatic"):
-        self._logdir = None
+        self._logdir = ""
         self._interface = interface
         self._settings = settings
         self._thread = threading.Thread(target=self._thread_body)
         self._shutdown = threading.Event()
-        self._seen = set()
+        self._seen: Set[str] = set()
         self._polling_interval = 1
 
     def start(self) -> None:

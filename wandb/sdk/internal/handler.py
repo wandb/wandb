@@ -30,7 +30,7 @@ from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import Record, Result
 
 from . import meta, sample, stats
-from . import tb_watcher, profiler
+from . import profiler, tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface import BackendSender
 from ..lib import handler_util, proto_util
@@ -65,6 +65,7 @@ class HandleManager(object):
     _interface: BackendSender
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
+    _prof_watcher: Optional[profiler.ProfilerWatcher]
     _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
     _metric_track: Dict[Tuple[str, ...], float]
@@ -597,7 +598,7 @@ class HandleManager(object):
         logger.info("handling tbrecord: %s", record)
         if self._tb_watcher:
             tbrecord = record.tbrecord
-            if tbrecord.log_type == 1:
+            if tbrecord.log_type == 1 and self._prof_watcher:
                 self._prof_watcher.add(tbrecord.log_dir)
                 self._prof_watcher.start()
             else:
