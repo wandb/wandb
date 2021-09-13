@@ -23,11 +23,9 @@ def _posix_timed_input(prompt: str, timeout: float) -> str:
     events = sel.select(timeout=timeout)
 
     for key, mask in events:
-        if not mask & selectors.EVENT_READ:
-            continue
-        callback = key.data
-        data: str = callback().rstrip(LF)
-        return data
+        input_callback = key.data
+        input_data: str = input_callback().rstrip(LF)
+        return input_data
 
     _echo(LF)
     termios.tcflush(sys.stdin, termios.TCIFLUSH)
