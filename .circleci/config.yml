@@ -55,11 +55,7 @@ commands:
       - restore_cache:
               keys:
               - v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
               - v0.24-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.24-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.24-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
   save-test-results:
     description: "Save test results"
     steps:
