@@ -264,7 +264,7 @@ class Run(object):
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
     _output_writer: Optional["filesystem.CRDedupedFile"]
-    _quiet: bool
+    _quiet: Optional[bool]
 
     _atexit_cleanup_called: bool
     _hooks: Optional[ExitHooks]
@@ -830,7 +830,7 @@ class Run(object):
         if lines:
             self._label_probe_lines(lines)
 
-    def display(self, height=420, hidden=False) -> bool:
+    def display(self, height: int = 420, hidden: bool = False) -> bool:
         """Display this run in jupyter"""
         if self._settings._jupyter and ipython.in_jupyter():
             ipython.display_html(self.to_html(height, hidden))
@@ -839,7 +839,7 @@ class Run(object):
             wandb.termwarn(".display() only works in jupyter environments")
             return False
 
-    def to_html(self, height=420, hidden=False):
+    def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying the current run"""
         url = self._get_run_url() + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
@@ -1848,7 +1848,7 @@ class Run(object):
             )
 
         if not self._quiet and (self._settings.log_user or self._settings.log_internal):
-            log_dir = self._settings.log_user or self._settings.log_internal
+            log_dir = self._settings.log_user or self._settings.log_internal or "."
             log_dir = log_dir.replace(os.getcwd(), ".")
             if as_html:
                 log_dir = "<code>{}</code>".format(os.path.dirname(log_dir))
@@ -1876,7 +1876,7 @@ class Run(object):
             if self._upgraded_version_message:
                 wandb.termlog(self._upgraded_version_message)
 
-    def _append_details(self, logs, as_html=False) -> str:
+    def _append_details(self, logs: str, as_html: bool = False) -> str:
         if as_html:
             logs += ipython.TABLE_STYLES
             logs += '<div class="wandb-row"><div class="wandb-col">\n'
@@ -1889,7 +1889,7 @@ class Run(object):
             logs += "</div></div>\n"
         return self._append_files(logs, as_html)
 
-    def _append_summary(self, logs, as_html=False) -> str:
+    def _append_summary(self, logs: str, as_html: bool = False) -> str:
         if self._final_summary:
             logger.info("rendering summary")
             max_len = 0
@@ -1910,7 +1910,7 @@ class Run(object):
                     continue
                 max_len = max(max_len, len(k))
             if not summary_rows:
-                return
+                return logs
             if as_html:
                 summary_table = '<table class="wandb">'
                 for row in summary_rows:
@@ -1925,7 +1925,7 @@ class Run(object):
                 logs += f"Run summary:\n{summary_lines}\n"
         return logs
 
-    def _append_history(self, logs, as_html=False) -> str:
+    def _append_history(self, logs: str, as_html: bool = False) -> str:
         if not self._sampled_history:
             return logs
 
@@ -1949,7 +1949,7 @@ class Run(object):
             history_rows.append((key, line))
             max_len = max(max_len, len(key))
         if not history_rows:
-            return
+            return logs
         if as_html:
             history_table = '<table class="wandb">'
             for row in history_rows:
@@ -1980,7 +1980,7 @@ class Run(object):
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: http://wandb.me/local-upgrade"
                 )
 
-    def _append_files(self, logs, as_html=False) -> str:
+    def _append_files(self, logs: str, as_html: bool = False) -> str:
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
             return logs
         if self._settings._offline:
@@ -2559,7 +2559,7 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int = None, quiet=False) -> None:
+def finish(exit_code: int = None, quiet: bool = False) -> None:
     """Marks a run as finished, and finishes uploading all data.
 
     This is used when creating multiple runs in the same process.
