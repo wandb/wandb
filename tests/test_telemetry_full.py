@@ -2,6 +2,7 @@
 telemetry full tests.
 """
 import platform
+import sys
 
 import pytest
 import wandb
@@ -41,6 +42,7 @@ def test_telemetry_imports_hf(live_mock_server, parse_ctx):
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
 )
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="jax has no py3.10 wheel")
 def test_telemetry_imports_jax(live_mock_server, parse_ctx):
     import jax
 

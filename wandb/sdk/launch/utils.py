@@ -1,8 +1,10 @@
 # heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import logging
 import os
+import platform
 import re
 import subprocess
+import sys
 from typing import Any, Dict, Optional, Tuple
 
 import wandb
@@ -74,21 +76,15 @@ def set_project_entity_defaults(
         if launch_config:
             config_project = launch_config.get("project")
         project = config_project or uri_project or UNCATEGORIZED_PROJECT
-        wandb.termlog(
-            "Target project for this run not specified, defaulting to project {}".format(
-                project
-            )
-        )
     if entity is None:
         config_entity = None
         if launch_config:
             config_entity = launch_config.get("entity")
         entity = config_entity or api.default_entity
-        wandb.termlog(
-            "Target entity for this run not specified, defaulting to current logged-in user {}".format(
-                entity
-            )
-        )
+    prefix = ""
+    if platform.system() != "Windows" and sys.stdout.encoding == "UTF-8":
+        prefix = "🚀 "
+    wandb.termlog("{}Launching run into {}/{}".format(prefix, entity, project))
     return project, entity
 
 
@@ -168,17 +164,53 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
-    """Fetches wandb run info."""
     entity, project, name = parse_wandb_uri(uri)
     try:
         result = api.get_run_info(entity, project, name)
-    except CommError as e:
-        raise LaunchError(e)
+    except CommError:
+        result = None
     if result is None:
         raise LaunchError("Run info is invalid or doesn't exist for {}".format(uri))
+    if result.get("codePath") is None:
+        # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
+        # it from wandb-metadata.json if we can.
+        metadata = api.download_url(
+            project, "wandb-metadata.json", run=name, entity=entity
+        )
+        if metadata is not None:
+            _, response = api.download_file(metadata["url"])
+            data = response.json()
+            result["codePath"] = data.get("codePath")
     if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     return result
+
+
+def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool:
+    entity, project, name = parse_wandb_uri(uri)
+    metadata = api.download_url(project, f"code/{entry_point}", run=name, entity=entity)
+    if metadata is not None:
+        _, response = api.download_file(metadata["url"])
+        with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return True
+    return False
+
+
+def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
+    entity, project, name = parse_wandb_uri(uri)
+    metadata = api.download_url(project, "requirements.txt", run=name, entity=entity)
+    if metadata is not None:
+        _, response = api.download_file(metadata["url"])
+
+        with util.fsync_open(
+            os.path.join(dir, "requirements.frozen.txt"), "wb"
+        ) as file:
+            for data in response.iter_content(chunk_size=1024):
+                file.write(data)
+        return "requirements.frozen.txt"
+    return None
 
 
 def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
@@ -245,3 +277,23 @@ def merge_parameters(
 ) -> Dict[str, Any]:
     """Merge the contents of two dicts, keeping values from higher_priority_params if there are conflicts."""
     return {**lower_priority_params, **higher_priority_params}
+
+
+def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
+    nbformat = wandb.util.get_module(
+        "nbformat", "nbformat is required to use launch with jupyter notebooks"
+    )
+    nbconvert = wandb.util.get_module(
+        "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
+    )
+
+    new_name = fname.rstrip(".ipynb") + ".py"
+    with open(os.path.join(project_dir, fname), "r") as fh:
+        nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
+
+    exporter = nbconvert.PythonExporter()
+    source, meta = exporter.from_notebook_node(nb)
+
+    with open(os.path.join(project_dir, new_name), "w+") as fh:
+        fh.writelines(source)
+    return new_name
