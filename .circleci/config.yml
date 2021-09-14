@@ -48,18 +48,14 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.25-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.24-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-
-              - v0.24-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.24-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-
-              - v0.24-toxenv-master-{{ .Environment.CIRCLE_JOB }}-
+              - v0.25-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.25-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   save-test-results:
     description: "Save test results"
     steps:
@@ -109,6 +105,11 @@ workflows:
          name: "lin-py39"
          image: "python:3.9"
          toxenv: "py39"
+# Enable when circle offers python 3.10 image
+#      - test:
+#         name: "lin-py310"
+#         image: "python:3.10"
+#         toxenv: "py310"
       - test:
          name: "func-s_base-lin-py37"
          image: "python:3.7"
@@ -248,7 +249,7 @@ jobs:
         - run:
             name: Install python dependencies, build r2d
             command: |
-                pip3 install tox
+                pip3 install tox==3.24.0
                 pip3 install chardet
                 pip3 install iso8601
                 pip3 install jupyter-repo2docker

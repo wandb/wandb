@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import pytest
 import time
+import platform
+import tempfile
 import datetime
 import requests
 import os
@@ -244,8 +246,12 @@ def mocked_run(runner, test_settings):
 def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
-    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
-    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(
+        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
+    )
+    monkeypatch.setattr(
+        wandb.wandb_lib.apikey, "prompt_choices", lambda x, input_timeout=None: x[0]
+    )
     monkeypatch.setattr(click, "launch", lambda x: 1)
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
@@ -438,7 +444,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
         mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
         run = wandb.init(
             settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
-            **args["wandb_init"]
+            **args["wandb_init"],
         )
         yield run
         wandb.join()
@@ -463,7 +469,7 @@ def wandb_init(request, runner, mocker, mock_server):
                     console="off", mode="offline", _except_exit=False
                 ),
                 *args,
-                **kwargs
+                **kwargs,
             )
         finally:
             unset_globals()
@@ -751,6 +757,7 @@ def _stop_backend(
     _internal_sender,
     start_handle_thread,
     start_send_thread,
+    collect_responses,
 ):
     def stop_backend_func(threads=None):
         threads = threads or ()
@@ -761,6 +768,7 @@ def _stop_backend(
             if poll_exit_resp:
                 done = poll_exit_resp.done
                 if done:
+                    collect_responses.local_info = poll_exit_resp.local_info
                     break
             time.sleep(1)
         _internal_sender.join()
@@ -815,7 +823,6 @@ def publish_util(
                 interface.publish_files(**f)
             if end_cb:
                 end_cb(interface)
-
         ctx_util = parse_ctx(mock_server.ctx, run_id=mocked_run.id)
         return ctx_util
 
@@ -857,3 +864,72 @@ def inject_requests(mock_server):
 
     # TODO(jhr): make this compatible with live_mock_server
     return utils.InjectRequests(ctx=mock_server.ctx)
+
+
+class Responses:
+    pass
+
+
+@pytest.fixture
+def collect_responses():
+    responses = Responses()
+    yield responses
+
+
+@pytest.fixture
+def mock_tty(monkeypatch):
+    class WriteThread(threading.Thread):
+        def __init__(self, fname):
+            threading.Thread.__init__(self)
+            self._fname = fname
+            self._q = queue.Queue()
+
+        def run(self):
+            with open(self._fname, "w") as fp:
+                while True:
+                    data = self._q.get()
+                    if data == "_DONE_":
+                        break
+                    fp.write(data)
+                    fp.flush()
+
+        def add(self, input_str):
+            self._q.put(input_str)
+
+        def stop(self):
+            self.add("_DONE_")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fds = dict()
+
+        def setup_fn(input_str):
+            fname = os.path.join(tmpdir, "file.txt")
+            if platform.system() != "Windows":
+                os.mkfifo(fname, 0o600)
+                writer = WriteThread(fname)
+                writer.start()
+                writer.add(input_str)
+                fds["writer"] = writer
+                monkeypatch.setattr("termios.tcflush", lambda x, y: None)
+            else:
+                # windows doesn't support named pipes, just write it
+                # TODO: emulate msvcrt to support input on windows
+                with open(fname, "w") as fp:
+                    fp.write(input_str)
+            fds["stdin"] = open(fname, "r")
+            monkeypatch.setattr("sys.stdin", fds["stdin"])
+            sys.stdin.isatty = lambda: True
+            sys.stdout.isatty = lambda: True
+
+        yield setup_fn
+
+        writer = fds.get("writer")
+        if writer:
+            writer.stop()
+            writer.join()
+        stdin = fds.get("stdin")
+        if stdin:
+            stdin.close()
+
+    del sys.stdin.isatty
+    del sys.stdout.isatty
