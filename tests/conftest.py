@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import pytest
 import time
+import tempfile
 import datetime
 import requests
 import os
