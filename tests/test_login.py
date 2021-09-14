@@ -2,6 +2,8 @@
 login tests.
 """
 
+import platform
+import pytest
 import time
 
 import wandb
@@ -15,3 +17,18 @@ def test_login_timeout(mock_tty):
     assert 2 < elapsed < 6
     assert ret is False
     assert wandb.api.api_key is None
+    assert wandb.setup().settings.mode == "disabled"
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="mock_tty doesnt support windows input yet",
+)
+def test_login_timeout_choose(mock_tty):
+    mock_tty("3\n")
+    start_time = time.time()
+    ret = wandb.login(timeout=8)
+    elapsed = time.time() - start_time
+    assert elapsed < 6
+    assert ret is False
+    assert wandb.api.api_key is None
+    assert wandb.setup().settings.mode == "offline"
