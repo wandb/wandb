@@ -115,6 +115,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_job_type="WANDB_JOB_TYPE",
 )
 
+
 env_convert: Dict[str, Callable[[str], List[str]]] = dict(
     run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(",")
 )
@@ -671,6 +672,23 @@ class Settings(object):
             elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
                 return "http is not secure, please use https://api.wandb.ai"
         return None
+
+    def _validate_login_timeout(self, value: str) -> Optional[str]:
+        try:
+            _ = float(value)
+        except ValueError:
+            return "{} is not a float".format(value)
+        return None
+
+    def _preprocess_login_timeout(self, s: Optional[str]) -> Union[None, float, str]:
+        # TODO: refactor validate to happen before preprocess so we dont have to do this
+        if s is None:
+            return s
+        try:
+            val = float(s)
+        except ValueError:
+            return s
+        return val
 
     def _preprocess_base_url(self, value: Optional[str]) -> Optional[str]:
         if value is not None:
