@@ -36,7 +36,7 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
-from .wandb_run import Run
+from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
 
@@ -168,7 +168,7 @@ class _WandbInit(object):
                 anonymous=anonymous,
                 force=force,
                 _disable_warning=True,
-                _silent=settings._quiet or settings._silent is True,
+                _silent=(settings._quiet or settings._silent) is True,
             )
 
         # apply updated global state after login was handled
@@ -204,7 +204,7 @@ class _WandbInit(object):
         # normally this happens on the run object
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
-            hook()
+            hook.call()
 
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
@@ -239,7 +239,10 @@ class _WandbInit(object):
         # TODO: make me configurable
         logger.setLevel(logging.DEBUG)
         self._teardown_hooks.append(
-            lambda: (handler.close(), logger.removeHandler(handler))
+            TeardownHook(
+                lambda: (handler.close(), logger.removeHandler(handler)),
+                TeardownStage.LATE,
+            )
         )
 
     def _safe_symlink(self, base, target, name, delete=False):
@@ -307,7 +310,9 @@ class _WandbInit(object):
 
             ipython.events.register("pre_run_cell", self._resume_backend)
             ipython.events.register("post_run_cell", self._pause_backend)
-            self._teardown_hooks.append(self._jupyter_teardown)
+            self._teardown_hooks.append(
+                TeardownHook(self._jupyter_teardown, TeardownStage.EARLY)
+            )
 
         def publish(data, metadata=None, **kwargs):
             ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)

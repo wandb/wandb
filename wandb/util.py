@@ -42,7 +42,7 @@ from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from wandb.env import error_reporting_enabled
+from wandb.env import error_reporting_enabled, get_app_url
 
 import wandb
 from wandb.errors import CommError, term
@@ -267,7 +267,7 @@ VALUE_BYTES_LIMIT = 100000
 def app_url(api_url):
     """Returns the frontend app url without a trailing slash."""
     # TODO: move me to settings
-    app_url = os.getenv("WANDB_APP_URL")
+    app_url = get_app_url()
     if app_url is not None:
         return app_url.strip("/")
     if "://api.wandb.test" in api_url:

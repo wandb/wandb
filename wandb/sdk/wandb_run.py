@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import atexit
 from datetime import timedelta
+from enum import IntEnum
 import glob
 import json
 import logging
@@ -22,6 +23,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    NamedTuple,
     Optional,
     Sequence,
     TextIO,
@@ -105,6 +107,16 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
+
+
+class TeardownStage(IntEnum):
+    EARLY = 1
+    LATE = 2
+
+
+class TeardownHook(NamedTuple):
+    call: Callable[[], None]
+    stage: TeardownStage
 
 
 class ExitHooks(object):
@@ -240,7 +252,7 @@ class Run(object):
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
-    _teardown_hooks: List[Callable[[], None]]
+    _teardown_hooks: List[TeardownHook]
     _tags: Optional[Tuple[Any, ...]]
 
     _entity: Optional[str]
@@ -945,7 +957,7 @@ class Run(object):
     def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
 
-    def _set_teardown_hooks(self, hooks: List[Callable[[], None]]) -> None:
+    def _set_teardown_hooks(self, hooks: List[TeardownHook]) -> None:
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
@@ -1294,12 +1306,17 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
         logger.info("finishing run %s", self.path)
+        # detach jupyter hooks / others that needs to happen before backend shutdown
+        for hook in self._teardown_hooks:
+            if hook.stage == TeardownStage.EARLY:
+                hook.call()
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
-        # detach logger, other setup cleanup as late as possible
+        # detach logger / others meant to be run after we've shutdown the backend
         for hook in self._teardown_hooks:
-            hook()
+            if hook.stage == TeardownStage.LATE:
+                hook.call()
         self._teardown_hooks = []
         module.unset_globals()
 
@@ -2559,7 +2576,7 @@ except AttributeError:
     pass
 
 
-def finish(exit_code: int = None, quiet: bool = False) -> None:
+def finish(exit_code: int = None, quiet: bool = None) -> None:
     """Marks a run as finished, and finishes uploading all data.
 
     This is used when creating multiple runs in the same process.
