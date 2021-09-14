@@ -82,12 +82,12 @@ try:
 except pkg_resources.VersionConflict as e:
     raise wandb.Error(
         f"Using the local controller requires {REQUIRED_SWEEPS_VERSION}, but {e.dist} is installed.\n\n"
-        f"Please run `pip install --upgrade wandb[sweeps]`."
+        f"Please run `pip install wandb[sweeps]`."
     )
 except pkg_resources.DistributionNotFound as e:
     raise wandb.Error(
         f"Using the local controller requires {REQUIRED_SWEEPS_VERSION}, but no matching "
-        f"distribution was found.\n\nPlease run `pip install --upgrade wandb[sweeps]`."
+        f"distribution was found.\n\nPlease run `pip install wandb[sweeps]`."
     )
 import sweeps
 
