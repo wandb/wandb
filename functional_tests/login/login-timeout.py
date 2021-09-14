@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Test stdin timeout
 ---
-id: 0.timeout.1
+id: 0.login.1-timeout
 plugin:
   - wandb
 assert:
