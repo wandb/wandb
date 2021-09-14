@@ -1,18 +1,11 @@
 import os
-import platform
 import subprocess
 import pytest
 import json
 import sys
 import wandb
-import pickle
 
 from wandb.errors import UsageError
-
-pytestmark = pytest.mark.skipif(
-    sys.version_info < (3, 5) or platform.system() == "Windows",
-    reason="Our notebook fixture only works in py3, windows was flaking",
-)
 
 
 def test_one_cell(notebook):
@@ -138,3 +131,48 @@ def test_notebook_exits(live_mock_server, test_settings):
     cmd = [ipython, script_fname]
 
     subprocess.check_call(cmd)
+
+
+def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ipython):
+    with wandb.init(settings=test_settings) as run:
+        run.log({"acc": 99, "loss": 0})
+    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+    print(displayed_html)
+    assert len(displayed_html) == 3
+    assert "lovely-dawn-32" in displayed_html[0]
+    assert "(success)" in displayed_html[1]
+    assert "Run history:" in displayed_html[2]
+
+
+def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipython):
+    run = wandb.init(settings=test_settings)
+    run.log({"acc": 99, "loss": 0})
+    run.finish(quiet=True)
+    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+    print(displayed_html)
+    assert len(displayed_html) == 3
+    assert "lovely-dawn-32" in displayed_html[0]
+    assert "(success)" in displayed_html[1]
+    assert "Run history:" not in displayed_html[2]
+
+
+def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipython):
+    with wandb.init(settings=test_settings) as run:
+        run.display()
+    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+    print(displayed_html)
+    assert len(displayed_html) == 4
+    assert "<iframe" in displayed_html[1]
+
+
+def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
+    # iframe = wandb.jupyter.IFrame()
+    magic = wandb.jupyter.WandBMagics(None)
+    magic.wandb("", 'print("Hello world!")')
+    with wandb.init(settings=test_settings):
+        wandb.log({"a": 1})
+    wandb.jupyter.__IFrame = None
+    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+    print(displayed_html)
+    assert len(displayed_html) == 3
+    assert "<iframe" in displayed_html[0]

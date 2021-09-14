@@ -185,8 +185,10 @@ def get_wandb_dir(root_dir: str) -> str:
     return path
 
 
-def _str_as_bool(val: str) -> Optional[bool]:
+def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
     ret_val = None
+    if isinstance(val, bool):
+        return val
     try:
         ret_val = bool(strtobool(val))
     except (AttributeError, ValueError):
@@ -236,7 +238,7 @@ class Settings(object):
     settings_system_spec: Optional[str] = None
     settings_workspace_spec: Optional[str] = None
     silent: str = "False"
-    quiet: str = "False"
+    quiet: Optional[Union[str, bool]] = None
     show_info: str = "True"
     show_warnings: str = "True"
     show_errors: str = "True"
@@ -439,7 +441,9 @@ class Settings(object):
 
     @property
     def _quiet(self) -> Optional[bool]:
-        if not self.quiet:
+        # TODO: we should probably make the rest of these bool methods handle
+        # users passing bool's to the settings object
+        if self.quiet is None:
             return None
         return _str_as_bool(self.quiet)
 
