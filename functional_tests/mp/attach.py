@@ -2,7 +2,7 @@
 """Test attaach runs.
 
 ---
-id: 0.mp.attach
+id: 0.mp.4-attach
 plugin:
     - wandb
 parametrize:
