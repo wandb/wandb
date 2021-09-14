@@ -473,6 +473,9 @@ class _WandbInit(object):
             if self._set_init_tags:
                 tel.feature.set_init_tags = True
 
+            if self.settings.launch:
+                tel.feature.launch = True
+
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
             elif active_start_method == "fork":
