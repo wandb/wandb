@@ -914,7 +914,7 @@ def mock_tty(monkeypatch):
             else:
                 # windows doesn't support named pipes, just write it
                 # TODO: emulate msvcrt to support input on windows
-                with open(fname) as fp:
+                with open(fname, "w") as fp:
                     fp.write(input_str)
             fds["stdin"] = open(fname, "r")
             monkeypatch.setattr("sys.stdin", fds["stdin"])
