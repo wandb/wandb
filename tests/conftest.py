@@ -872,3 +872,22 @@ class Responses:
 def collect_responses():
     responses = Responses()
     yield responses
+
+
+@pytest.fixture
+def mock_tty(monkeypatch):
+    def setup_fn(input_str):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fname = os.path.join(tmpdir, "file.txt")
+            with open(fname, "w") as fp:
+                fp.write(input_str)
+            f = open(fname)
+            monkeypatch.setattr("termios.tcflush", lambda x, y: None)
+            monkeypatch.setattr("sys.stdin", f)
+            sys.stdin.isatty = lambda: True
+            sys.stdout.isatty = lambda: True
+
+    yield setup_fn
+
+    del sys.stdin.isatty
+    del sys.stdout.isatty
