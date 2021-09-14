@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import pytest
 import time
+import platform
 import tempfile
 import datetime
 import requests
@@ -878,22 +879,24 @@ def collect_responses():
 @pytest.fixture
 def mock_tty(monkeypatch):
     with tempfile.TemporaryDirectory() as tmpdir:
-        f = None
+        fds = dict()
 
         def setup_fn(input_str):
+            # TODO: mock msvcrt to support input_str
             fname = os.path.join(tmpdir, "file.txt")
             with open(fname, "w") as fp:
                 fp.write(input_str)
-            f = open(fname)
-            monkeypatch.setattr("termios.tcflush", lambda x, y: None)
-            monkeypatch.setattr("sys.stdin", f)
+            fds["stdin"] = open(fname)
+            if platform.system() != "Windows":
+                monkeypatch.setattr("termios.tcflush", lambda x, y: None)
+            monkeypatch.setattr("sys.stdin", fds["stdin"])
             sys.stdin.isatty = lambda: True
             sys.stdout.isatty = lambda: True
 
         yield setup_fn
 
-        if f:
-            f.close()
+        if fds["stdin"]:
+            fds["stdin"].close()
 
     del sys.stdin.isatty
     del sys.stdout.isatty
