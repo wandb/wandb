@@ -8,7 +8,7 @@ import wandb
 
 
 def test_login_timeout(mock_tty):
-    mock_tty("test\nnothing\n")
+    mock_tty("junk\nmore\n")
     start_time = time.time()
     ret = wandb.login(timeout=4)
     elapsed = time.time() - start_time

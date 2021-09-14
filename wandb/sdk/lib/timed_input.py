@@ -24,8 +24,10 @@ def _posix_timed_input(prompt: str, timeout: float) -> str:
 
     for key, _ in events:
         input_callback = key.data
-        input_data: str = input_callback().rstrip(LF)
-        return input_data
+        input_data: str = input_callback()
+        if not input_data:  # end-of-file - treat as timeout
+            raise TimeoutError
+        return input_data.rstrip(LF)
 
     _echo(LF)
     termios.tcflush(sys.stdin, termios.TCIFLUSH)

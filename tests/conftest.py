@@ -878,25 +878,58 @@ def collect_responses():
 
 @pytest.fixture
 def mock_tty(monkeypatch):
+    class WriteThread(threading.Thread):
+        def __init__(self, fname):
+            threading.Thread.__init__(self)
+            self._fname = fname
+            self._q = queue.Queue()
+
+        def run(self):
+            with open(self._fname, "w") as fp:
+                while True:
+                    data = self._q.get()
+                    if data == "_DONE_":
+                        break
+                    fp.write(data)
+                    fp.flush()
+
+        def add(self, input_str):
+            self._q.put(input_str)
+
+        def stop(self):
+            self.add("_DONE_")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         fds = dict()
 
         def setup_fn(input_str):
-            # TODO: mock msvcrt to support input_str
             fname = os.path.join(tmpdir, "file.txt")
-            with open(fname, "w") as fp:
-                fp.write(input_str)
-            fds["stdin"] = open(fname)
             if platform.system() != "Windows":
+                os.mkfifo(fname, 0o600)
+                writer = WriteThread(fname)
+                writer.start()
+                writer.add(input_str)
+                fds["writer"] = writer
                 monkeypatch.setattr("termios.tcflush", lambda x, y: None)
+            else:
+                # windows doesn't support named pipes, just write it
+                # TODO: emulate msvcrt to support input on windows
+                with open(fname) as fp:
+                    fp.write(input_str)
+            fds["stdin"] = open(fname, "r")
             monkeypatch.setattr("sys.stdin", fds["stdin"])
             sys.stdin.isatty = lambda: True
             sys.stdout.isatty = lambda: True
 
         yield setup_fn
 
-        if fds["stdin"]:
-            fds["stdin"].close()
+        writer = fds.get("writer")
+        if writer:
+            writer.stop()
+            writer.join()
+        stdin = fds.get("stdin")
+        if stdin:
+            stdin.close()
 
     del sys.stdin.isatty
     del sys.stdout.isatty
