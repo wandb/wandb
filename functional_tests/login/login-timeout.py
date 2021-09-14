@@ -21,4 +21,4 @@ tm_elapsed = time.time() - tm_start
 print(f"time elapsed: {tm_elapsed}")
 print(f"result: {result}")
 assert tm_elapsed > timeout * (1 - slop) and tm_elapsed < timeout * (1 + slop)
-assert result is True
+assert result is False
