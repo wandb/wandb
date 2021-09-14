@@ -7,13 +7,14 @@ import sys
 from wandb.sdk.internal import profiler
 
 from wandb.sdk.internal.profiler import ProfilerWatcher
+from wandb.proto import wandb_internal_pb2 as pb
 
 
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="PyTorch not currently stable for 3.9"
 )
-def test_profiler_watcher(
-    runner, mock_server, test_settings, backend_interface, internal_hm
+def test_profiler_watcher_v1(
+    runner, mock_server, test_settings, backend_interface, internal_hm, mocked_run
 ):
     """
     This test simulates a typical use-case for PyTorch Profiler: training performance.
@@ -66,14 +67,24 @@ def test_profiler_watcher(
     with runner.isolated_filesystem():
         logdir = "./boom"
         wandb.util.mkdir_exists_ok("boom")
-        # wandb.init(settings=test_settings)
 
-        # Watch `logdir` for `*trace.json` files
         with backend_interface() as interface:
-            prof_watcher = ProfilerWatcher(interface=interface, settings=test_settings)
-            prof_watcher._polling_interval = 0.1
-            prof_watcher.add(logdir)
-            prof_watcher.start()
+            proto_run = pb.RunRecord()
+            mocked_run._make_proto_run(proto_run)
+
+            run_start = pb.RunStartRequest()
+            run_start.run.CopyFrom(proto_run)
+
+            request = pb.Request()
+            request.run_start.CopyFrom(run_start)
+
+            record = pb.Record()
+            record.request.CopyFrom(request)
+            internal_hm.handle_request_run_start(record)
+
+            interface.publish_tbdata(
+                log_dir=logdir, save=False, root_logdir=None, log_type="profiler"
+            )
 
             with torch.profiler.profile(
                 schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
@@ -87,7 +98,7 @@ def test_profiler_watcher(
                     train(batch_data)
                     prof.step()
 
-            time.sleep(1)
+            time.sleep(3)
             files = [
                 (k, v)
                 for k, v in mock_server.ctx.items()
