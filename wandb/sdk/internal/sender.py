@@ -915,7 +915,8 @@ class SendManager(object):
     def send_artifact(self, data):
         artifact = data.artifact
         try:
-            self._send_artifact(artifact)
+            res = self._send_artifact(artifact)
+            logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
