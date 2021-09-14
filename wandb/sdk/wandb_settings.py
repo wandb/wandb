@@ -103,6 +103,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    quiet=None,
     sagemaker_disable=None,
     start_method=None,
     strict=None,
