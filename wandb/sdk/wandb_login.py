@@ -81,6 +81,7 @@ class _WandbLogin(object):
         self._silent = None
         self._wl = None
         self._key = None
+        self._relogin = None
 
     def setup(self, kwargs):
         self.kwargs = kwargs
@@ -91,6 +92,8 @@ class _WandbLogin(object):
         if settings_param:
             login_settings._apply_settings(settings_param)
         _logger = wandb.setup()._get_logger()
+        # Do not save relogin into settings as we just want to relogin once
+        self._relogin = kwargs.pop("relogin", None)
         login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
@@ -108,7 +111,7 @@ class _WandbLogin(object):
 
     def login(self):
         apikey_configured = self.is_apikey_configured()
-        if self._settings.relogin:
+        if self._settings.relogin or self._relogin:
             apikey_configured = False
         if not apikey_configured:
             return False
