@@ -877,8 +877,10 @@ def collect_responses():
 
 @pytest.fixture
 def mock_tty(monkeypatch):
-    def setup_fn(input_str):
-        with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        f = None
+
+        def setup_fn(input_str):
             fname = os.path.join(tmpdir, "file.txt")
             with open(fname, "w") as fp:
                 fp.write(input_str)
@@ -888,7 +890,10 @@ def mock_tty(monkeypatch):
             sys.stdin.isatty = lambda: True
             sys.stdout.isatty = lambda: True
 
-    yield setup_fn
+        yield setup_fn
+
+        if f:
+            f.close()
 
     del sys.stdin.isatty
     del sys.stdout.isatty
