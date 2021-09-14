@@ -1293,14 +1293,14 @@ class Run(object):
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        # detach logger, other setup cleanup
         logger.info("finishing run %s", self.path)
-        for hook in self._teardown_hooks:
-            hook()
-        self._teardown_hooks = []
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
+        # detach logger, other setup cleanup as late as possible
+        for hook in self._teardown_hooks:
+            hook()
+        self._teardown_hooks = []
         module.unset_globals()
 
     def join(self, exit_code: int = None) -> None:
@@ -1759,7 +1759,7 @@ class Run(object):
                     status = f'<strong style="color:green">{status}</strong>'
                 status_str += status
             else:
-                status += "(failed {}).".format(self._exit_code)
+                status = "(failed {}).".format(self._exit_code)
                 if as_html:
                     status = f'<strong style="color:red">{status}</strong>'
                 status_str += status
