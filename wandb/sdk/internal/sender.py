@@ -902,9 +902,9 @@ class SendManager(object):
         artifact = record.request.log_artifact.artifact
 
         try:
-            result.response.log_artifact_response.artifact_id = self._send_artifact(
-                artifact
-            ).get("id")
+            res = self._send_artifact(artifact)
+            result.response.log_artifact_response.artifact_id = res.get("id")
+            logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -916,7 +916,7 @@ class SendManager(object):
         artifact = data.artifact
         try:
             res = self._send_artifact(artifact)
-            logger.info("logged artifact {} - {}".format(artifact.name, res))
+            logger.info("sent artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
