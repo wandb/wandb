@@ -181,7 +181,7 @@ class _WandbLogin(object):
                 no_create=self._settings.force if self._settings else None,
             )
         except TimeoutError:
-            print("Timed out... wandb will be disabled for this session.")
+            wandb.termlog("W&B disabled due to login timeout.")
             return None, ApiKeyStatus.DISABLED
         if key is False:
             return None, ApiKeyStatus.NOTTY

@@ -1048,12 +1048,16 @@ def class_colors(class_count):
 
 def _prompt_choice(input_timeout: int = None) -> str:
     input_fn = input
+    prompt = term.LOG_STRING
     if input_timeout:
         # delayed import to mitigate risk of timed_input complexity
         from wandb.sdk.lib import timed_input
 
         input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
-    choice = input_fn("%s: Enter your choice: " % term.LOG_STRING)
+        # timed_input doesnt handle enhanced prompts
+        if platform.system() == "Windows":
+            prompt = "wandb"
+    choice = input_fn(f"{prompt}: Enter your choice: ")
     return choice
 
 
