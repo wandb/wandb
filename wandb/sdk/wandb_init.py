@@ -284,8 +284,8 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            self.run.log_code(root=None)
-            logger.info("saved code and history")
+            res = self.run.log_code(root=None)
+            logger.info("saved code and history: %s", res)
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
         for hook in ipython.events.callbacks["pre_run_cell"]:
