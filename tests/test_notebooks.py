@@ -39,6 +39,7 @@ def test_code_saving(notebook, live_mock_server):
         nb.execute_all()
         server_ctx = live_mock_server.get_ctx()
         artifact_name = list(server_ctx["artifacts"].keys())[0]
+        print("Artifacts: ", server_ctx["artifacts"][artifact_name])
         # We run 3 cells after calling wandb.init
         assert len(server_ctx["artifacts"][artifact_name]) == 3
 
