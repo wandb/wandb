@@ -134,6 +134,8 @@ def test_notebook_exits(live_mock_server, test_settings):
 
 
 def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ipython):
+    wandb.load_ipython_extension(mocked_ipython)
+    mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
     with wandb.init(settings=test_settings) as run:
         run.log({"acc": 99, "loss": 0})
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
@@ -176,3 +178,6 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
     print(displayed_html)
     assert len(displayed_html) == 3
     assert "<iframe" in displayed_html[0]
+    magic.wandb("test/test/runs/test")
+    displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+    assert "test/test/runs/test?jupyter=true" in displayed_html[-1]

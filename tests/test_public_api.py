@@ -118,7 +118,9 @@ def test_to_html(mock_server, api):
     sweep = api.from_path("test/test/sweeps/test")
     assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()
     report = api.from_path("test/test/reports/My-Report--XXX")
-    assert "test/test/reports/My-Report--XXX" in report.to_html()
+    report_html = report.to_html(hidden=True)
+    assert "test/test/reports/My-Report--XXX" in report_html
+    assert "<button" in report_html
 
 
 def test_display(mock_server, api):

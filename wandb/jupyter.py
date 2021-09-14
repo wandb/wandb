@@ -71,10 +71,6 @@ class IFrame(object):
             if self.opts.get("workspace", False):
                 if self.path is None and wandb.run:
                     self.path = wandb.run.path
-                if self.path:
-                    parts = self.path.split("/")
-                    if len(parts) > 2:
-                        self.path = "/".join(parts[:2])
             if isinstance(self.path, str):
                 object = self.api.from_path(self.path)
             else:
