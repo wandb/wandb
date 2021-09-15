@@ -93,7 +93,15 @@ def test_parallel_runs(request, live_mock_server, test_settings, test_name):
         num_runs += 1
         print("Files from server", files)
         assert (
-            sorted([f for f in files if not f.endswith(".patch") and f != "output.log"])
+            sorted(
+                [
+                    f
+                    for f in files
+                    if not f.endswith(".patch")
+                    and not f.endswith("pt.trace.json")
+                    and f != "output.log"
+                ]
+            )
             == files_sorted
         )
     assert num_runs == 2
@@ -211,7 +219,13 @@ def test_ignore_globs_wandb_files(live_mock_server, test_settings):
         f
         for f in sorted(ctx["storage"][run.id])
         if not f.endswith(".patch") and not f.endswith(".py")
-    ] == sorted(["wandb-metadata.json", "config.yaml", "wandb-summary.json",])
+    ] == sorted(
+        [
+            "wandb-metadata.json",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
 
 
 # TODO(jhr): look into why this timeout needed to be extend for windows
