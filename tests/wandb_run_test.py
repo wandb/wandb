@@ -10,6 +10,7 @@ import pytest
 
 import wandb
 from wandb import wandb_sdk
+from wandb.errors import UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
@@ -216,3 +217,10 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     with pytest.raises(Exception) as e_info:
         artifact = run.use_artifact("boom-data")
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
+
+
+@pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
+def test_invalid_project_name(live_mock_server, project_name):
+    with pytest.raises(UsageError) as e:
+        _ = wandb.init(project=project_name)
+        assert 'Invalid project name "{project_name}"' in str(e.value)

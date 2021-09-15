@@ -473,6 +473,9 @@ class _WandbInit(object):
             if self._set_init_tags:
                 tel.feature.set_init_tags = True
 
+            if self.settings.launch:
+                tel.feature.launch = True
+
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
             elif active_start_method == "fork":
@@ -813,7 +816,8 @@ def init(
                 pass
             # TODO(jhr): figure out how to make this RunDummy
             run = None
-    except UsageError:
+    except UsageError as e:
+        wandb.termerror(str(e))
         raise
     except KeyboardInterrupt as e:
         assert logger

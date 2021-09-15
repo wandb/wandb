@@ -69,6 +69,7 @@ def default_ctx():
         "emulate_artifacts": None,
         "run_state": "running",
         "run_queue_item_check_count": 0,
+        "return_jupyter_in_run_info": False,
     }
 
 
@@ -126,7 +127,10 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-
+    if ctx["return_jupyter_in_run_info"]:
+        program_name = "one_cell.ipynb"
+    else:
+        program_name = "train.py"
     return {
         "id": "test",
         "name": "test",
@@ -160,7 +164,7 @@ def run(ctx):
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
-            "program": "train.py",
+            "program": program_name,
             "args": [],
             "os": platform.system(),
             "python": platform.python_version(),
@@ -1384,13 +1388,16 @@ def create_app(user_ctx=None):
             return {
                 "docker": "test/docker",
                 "program": "train.py",
+                "codePath": "train.py",
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+        elif file == "requirements.txt":
+            return "numpy==1.19.5\n"
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return r"""
+            return """
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
