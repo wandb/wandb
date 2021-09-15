@@ -956,9 +956,30 @@ class Api(object):
     @normalize_exceptions
     def create_launch_agent(self, entity, project, queues):
         project_queues = self.get_project_run_queues(entity, project)
-        queue_ids = [
+        if not project_queues:
+            # create default queue if it doesn't already exist
+            default = self.create_run_queue(
+                entity, project, "default", access="PROJECT"
+            )
+            if default is None or default.get("queueID") is None:
+                wandb.termerror(
+                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
+                        entity, project
+                    )
+                )
+                return
+            project_queues = [{"id": default["queueID"], "name": "default"}]
+        polling_queue_ids = [
             q["id"] for q in project_queues if q["name"] in queues
         ]  # filter to poll specified queues
+        if len(polling_queue_ids) != len(queues):
+            wandb.termerror(
+                "Could not start launch agent: Not all of requested queues {} found. Available queues for this project: {}".format(
+                    queues, [q["name"] for q in project_queues]
+                )
+            )
+            return
+
         hostname = socket.gethostname()
 
         mutation = gql(
@@ -980,7 +1001,7 @@ class Api(object):
         variable_values = {
             "entity": entity,
             "project": project,
-            "queues": queue_ids,
+            "queues": polling_queue_ids,
             "hostname": hostname,
         }
         return self.gql(mutation, variable_values)["createLaunchAgent"]
