@@ -321,6 +321,7 @@ class HttpException(Exception):
 
 def create_app(user_ctx=None):
     app = Flask(__name__)
+    lock = threading.Lock()
     # When starting in live mode, user_ctx is a fancy object
     if isinstance(user_ctx, dict):
         with app.app_context():
@@ -765,14 +766,16 @@ def create_app(user_ctx=None):
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
             app.logger.info("Creating artifact {}".format(collection_name))
-            ctx["artifacts"] = ctx.get("artifacts", {})
-            ctx["artifacts"][collection_name] = ctx["artifacts"].get(
-                collection_name, []
-            )
-            ctx["artifacts"][collection_name].append(body["variables"])
-            _id = body.get("variables", {}).get("digest", "")
-            if _id != "":
-                ctx.get("artifacts_by_id")[_id] = body["variables"]
+            # Attempting to lock this as Windows was failing...
+            with lock:
+                ctx["artifacts"] = ctx.get("artifacts", {})
+                ctx["artifacts"][collection_name] = ctx["artifacts"].get(
+                    collection_name, []
+                )
+                ctx["artifacts"][collection_name].append(body["variables"])
+                _id = body.get("variables", {}).get("digest", "")
+                if _id != "":
+                    ctx.get("artifacts_by_id")[_id] = body["variables"]
             return {
                 "data": {
                     "createArtifact": {
