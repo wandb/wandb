@@ -3,6 +3,7 @@ import subprocess
 import pytest
 import json
 import sys
+import time
 import wandb
 
 from wandb.errors import UsageError
@@ -33,10 +34,13 @@ def test_magic(notebook):
         assert iframes == 4
 
 
+@pytest.mark.timeout(90)
 def test_code_saving(notebook, live_mock_server):
     # TODO: this is awfully slow, we should likely run these in parallel
     with notebook("code_saving.ipynb") as nb:
         nb.execute_all()
+        # Rather unfortunately we need to sleep in windows for some insane reason
+        time.sleep(3)
         server_ctx = live_mock_server.get_ctx()
         artifact_name = list(server_ctx["artifacts"].keys())[0]
         print("Artifacts: ", server_ctx["artifacts"][artifact_name])
