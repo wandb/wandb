@@ -108,12 +108,14 @@ env_settings: Dict[str, Optional[str]] = dict(
     strict=None,
     label_disable=None,
     _concurrency="WANDB_REQUIRE_CONCURRENCY",
+    login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
 )
+
 
 env_convert: Dict[str, Callable[[str], List[str]]] = dict(
     run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(",")
@@ -218,6 +220,7 @@ class Settings(object):
     _concurrency: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
+    force: Optional[bool] = None
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None
@@ -321,6 +324,7 @@ class Settings(object):
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
+        login_timeout: float = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
         strict: str = None,
@@ -673,6 +677,23 @@ class Settings(object):
             elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
                 return "http is not secure, please use https://api.wandb.ai"
         return None
+
+    def _validate_login_timeout(self, value: str) -> Optional[str]:
+        try:
+            _ = float(value)
+        except ValueError:
+            return "{} is not a float".format(value)
+        return None
+
+    def _preprocess_login_timeout(self, s: Optional[str]) -> Union[None, float, str]:
+        # TODO: refactor validate to happen before preprocess so we dont have to do this
+        if s is None:
+            return s
+        try:
+            val = float(s)
+        except ValueError:
+            return s
+        return val
 
     def _preprocess_base_url(self, value: Optional[str]) -> Optional[str]:
         if value is not None:
@@ -1048,7 +1069,7 @@ class Settings(object):
     def _apply_login(
         self, args: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
-        param_map = dict(key="api_key", host="base_url")
+        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
 

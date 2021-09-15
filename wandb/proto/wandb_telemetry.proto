@@ -56,6 +56,7 @@ message Feature {
   bool set_run_name = 17; // user sets run name via wandb.run.name = ...
   bool set_run_tags = 18; // user sets run name via wandb.run.tags = ...
   bool set_config_item = 19;  // users set key in run config via run.config.key or run.config["key"]
+  bool launch = 20; // run is created through wandb launch
 }
 
 message Env {
