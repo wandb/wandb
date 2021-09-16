@@ -5,6 +5,7 @@ include wandb/bin/apple_gpu_stats
 include wandb/sweeps/config/schema.json
 include requirements.sweeps.txt
 include .sweeps_ref
+include tools/verify_sweeps.sh
 
 recursive-include wandb *.py
 recursive-include wandb *.sh

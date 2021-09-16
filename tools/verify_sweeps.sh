@@ -22,11 +22,13 @@ git checkout --quiet $SWEEPS_REF
 
 if ! diff requirements.txt $CLIENT_ROOT/requirements.sweeps.txt; then
     echo >&2 "ERROR: vendored sweeps does not match ref $SWEEPS_REF"
+    echo >&2 "please run `make vendor-sweeps ref=$SWEEPS_REF` and commit the result"
     exit 1
 fi
 
 if ! diff -r src/sweeps $CLIENT_ROOT/wandb/sweeps; then
     echo >&2 "ERROR: vendored sweeps does not match ref $SWEEPS_REF"
+    echo >&2 "please run `make vendor-sweeps ref=$SWEEPS_REF` and commit the result"
     exit 1
 fi
 
