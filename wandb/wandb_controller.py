@@ -52,13 +52,11 @@ from __future__ import print_function
 
 import json
 import os
-import pkg_resources
 import random
 import string
 import time
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import wandb
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.sdk import wandb_sweep
@@ -74,12 +72,11 @@ import yaml
 # TODO(jhr): Add print_summary
 
 
-try:
-    from . import sweeps
-except ImportError as e:
-    raise wandb.Error(
-        f"Could not import sweeps, error was: {e}. Please run `pip install --upgrade wandb[sweeps]`."
-    )
+sweeps = get_module(
+    "wandb.sweeps",
+    required="wandb[sweeps] is required to use the local controller. "
+    "Please run `pip install --upgrade wandb[sweeps]`.",
+)
 
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)

@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 """wandb setup."""
 
-import warnings
-
 from setuptools import setup
 
 

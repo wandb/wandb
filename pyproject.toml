@@ -1,4 +1,4 @@
-[0;95;0c[tool.black]
+[tool.black]
 line-length = 88
 exclude = '''
   wandb/vendor/
