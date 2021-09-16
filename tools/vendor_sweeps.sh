@@ -26,6 +26,7 @@ if [ -d $CLIENT_ROOT/wandb/sweeps ]; then
     rm -rf $CLIENT_ROOT/wandb/sweeps
 fi
 cp -rv src/sweeps $CLIENT_ROOT/wandb
+cp -rv requirements.txt $CLIENT_ROOT/requirements.sweeps.txt
 
 # record the pegged ref
-echo $1 > $CLIENT_ROOT/wandb/.sweeps_ref
+echo $1 > $CLIENT_ROOT/.sweeps_ref

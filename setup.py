@@ -13,11 +13,8 @@ with open("package_readme.md") as readme_file:
 with open("requirements.txt") as requirements_file:
     requirements = requirements_file.read().splitlines()
 
-sweeps_requirements = []
-with open("wandb/wandb_controller.py") as wbc:
-    for line in wbc:
-        if line.startswith("REQUIRED_SWEEPS_VERSION"):
-            sweeps_requirements.append(line.split("=")[-1].strip())
+with open("requirements.sweeps.txt") as sweeps_requirements_file:
+    sweeps_requirements = sweeps_requirements_file.read().splitlines()
 
 
 test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]

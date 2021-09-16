@@ -74,22 +74,12 @@ import yaml
 # TODO(jhr): Add print_summary
 
 
-REQUIRED_SWEEPS_VERSION = "sweeps>=0.0.1"
-
-
 try:
-    _ = pkg_resources.require(REQUIRED_SWEEPS_VERSION)
-except pkg_resources.VersionConflict as e:
+    from . import sweeps
+except ImportError as e:
     raise wandb.Error(
-        f"Using the local controller requires {REQUIRED_SWEEPS_VERSION}, but {e.dist} is installed.\n\n"
-        f"Please run `pip install wandb[sweeps]`."
+        f"Could not import sweeps, error was: {e}. Please run `pip install --upgrade wandb[sweeps]`."
     )
-except pkg_resources.DistributionNotFound as e:
-    raise wandb.Error(
-        f"Using the local controller requires {REQUIRED_SWEEPS_VERSION}, but no matching "
-        f"distribution was found.\n\nPlease run `pip install wandb[sweeps]`."
-    )
-import sweeps
 
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
