@@ -543,6 +543,9 @@ def create_app(user_ctx=None):
                 "data": {
                     "viewer": {
                         "entity": "mock_server_entity",
+                        "admin": False,
+                        "email": "mock@server.test",
+                        "username": "mock",
                         "flags": '{"code_saving_enabled": true}',
                         "teams": {"edges": []},  # TODO make configurable for cli_test
                     },

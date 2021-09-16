@@ -211,6 +211,8 @@ class Api(object):
             flags
             entity
             username
+            email
+            admin
             teams {
                 edges {
                     node {
@@ -268,6 +270,7 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self._viewer = None
         self._projects = {}
         self._runs = {}
         self._sweeps = {}
@@ -341,6 +344,15 @@ class Api(object):
             res = self._client.execute(self.VIEWER_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
+
+    @property
+    def viewer(self):
+        if self._viewer is None:
+            self._viewer = User(
+                self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
+            )
+            self._default_entity = self._viewer.entity
+        return self._viewer
 
     def flush(self):
         """

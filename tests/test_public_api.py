@@ -522,9 +522,15 @@ def test_query_team(mock_server, api):
     assert repr(t.members[0]) == "<Member test (MEMBER)>"
 
 
+def test_viewer(mock_server, api):
+    v = api.viewer
+    assert v.admin is False
+    assert v.username == "mock"
+
+
 def test_create_service_account(mock_server, api):
     t = api.team("test")
-    assert t.create_service_account("My service account") == "Y" * 40
+    assert t.create_service_account("My service account").api_key == "Y" * 40
 
 
 def test_create_team(mock_server, api):
