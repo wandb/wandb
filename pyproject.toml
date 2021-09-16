@@ -1,4 +1,4 @@
-[tool.black]
+[0;95;0c[tool.black]
 line-length = 88
 exclude = '''
   wandb/vendor/
@@ -20,6 +20,7 @@ exclude = '''
 | tools/setup_dev_environment.sh
 | tools/loop.sh
 | tools/vendor_sweeps.sh
+| tools/verify_sweeps.sh
 | .sweeps_ref
 '''
 include = '''
