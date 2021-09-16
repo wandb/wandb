@@ -149,5 +149,8 @@ class Api(object):
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
 
+    def update_launch_agent_status(self, *args, **kwargs):
+        return self.api.update_launch_agent_status(*args, **kwargs)
+
 
 __all__ = ["Api"]

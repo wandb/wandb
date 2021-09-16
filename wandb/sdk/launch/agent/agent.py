@@ -19,6 +19,10 @@ from ..utils import (
 
 AGENT_POLLING_INTERVAL = 10
 
+AGENT_POLLING = "POLLING"
+AGENT_RUNNING = "RUNNING"
+AGENT_KILLED = "KILLED"
+
 
 def _convert_access(access: str) -> str:
     """Converts access string to a value accepted by wandb."""
@@ -110,6 +114,13 @@ class LaunchAgent(object):
         # TODO:  keep logs or something for the finished jobs
         del self._jobs[job_id]
         self._running -= 1
+        # update status back to polling if no jobs are running
+        if self._running == 0:
+            update_ret = self._api.update_launch_agent_status(
+                self._id, None, AGENT_POLLING
+            )
+            if not update_ret["success"]:
+                wandb.termerror("Failed to update agent status to polling")
 
     def _update_finished(self, job_id: int) -> None:
         """Check our status enum."""
@@ -120,6 +131,13 @@ class LaunchAgent(object):
         """Sets up project and runs the job."""
         # TODO: logger
         print("agent: got job", job)
+        # update agent status
+        update_ret = self._api.update_launch_agent_status(
+            self._id, job["runQueueItemId"], AGENT_RUNNING
+        )
+        if not update_ret["success"]:
+            wandb.termerror("Failed to update agent status while running new job")
+
         # parse job
         launch_spec = job["runSpec"]
         if launch_spec.get("overrides") and isinstance(
@@ -178,5 +196,10 @@ class LaunchAgent(object):
                     continue
                 self.run_job(job)
         except KeyboardInterrupt:
+            shutdown_update = self._api.update_launch_agent_status(
+                self._id, None, AGENT_KILLED
+            )
+            if not shutdown_update["success"]:
+                wandb.termerror("Failed to update agent status during shutdown")
             wandb.termlog("Shutting down, active jobs:")
             self.print_status()

@@ -1007,6 +1007,30 @@ class Api(object):
         return self.gql(mutation, variable_values)["createLaunchAgent"]
 
     @normalize_exceptions
+    def update_launch_agent_status(self, agent_id, current_job, status):
+        mutation = gql(
+            """
+            mutation updateLaunchAgent($agentId: ID!, $currentJob: ID, $agentStatus: String){
+                updateLaunchAgent(
+                    input: {
+                        launchAgentId: $agentId
+                        currentJob: $currentJob
+                        agentStatus: $agentStatus
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+            "currentJob": current_job,
+            "agentStatus": status,
+        }
+        return self.gql(mutation, variable_values)["updateLaunchAgent"]
+
+    @normalize_exceptions
     def upsert_run(
         self,
         id=None,
