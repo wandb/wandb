@@ -7,10 +7,16 @@ import wandb
 logger = logging.getLogger(__name__)
 
 
-STYLED_TABLE_HTML = """<style>
+TABLE_STYLES = """<style>
     table.wandb td:nth-child(1) { padding: 0 10px; text-align: right }
-    </style><table class="wandb">
+    .wandb-row { display: flex; flex-direction: row; flex-wrap: wrap; width: 100% }
+    .wandb-col { display: flex; flex-direction: column; flex-basis: 100%; flex: 1; padding: 10px; }
+    </style>
 """
+
+
+def toggle_button(what="run"):
+    return f"<button onClick=\"this.nextSibling.style.display='block';this.style.display='none';\">Display W&B {what}</button>"
 
 
 def _get_python_type():
@@ -26,6 +32,10 @@ def _get_python_type():
         return "ipython"
     else:
         return "jupyter"
+
+
+def in_jupyter():
+    return _get_python_type() == "jupyter"
 
 
 def display_html(html):

@@ -128,6 +128,11 @@ def test_log_code_custom_root(test_settings):
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
 
 
+def test_display(test_settings):
+    run = wandb.init(mode="offline", settings=test_settings)
+    assert run.display() == False
+
+
 def test_mark_preempting(fake_run, record_q, records_util):
     run = fake_run()
     run.log(dict(this=1))
