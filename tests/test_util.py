@@ -216,6 +216,16 @@ def test_image_from_docker_args_sha():
     assert image == dsha
 
 
+def test_app_url():
+    os.environ["WANDB_APP_URL"] = "https://foo.com/bar/"
+    assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
+    del os.environ["WANDB_APP_URL"]
+    assert util.app_url("http://api.wandb.test") == "http://app.wandb.test"
+    assert util.app_url("https://api.wandb.ai") == "https://wandb.ai"
+    assert util.app_url("https://api.foo/bar") == "https://app.foo/bar"
+    assert util.app_url("https://wandb.foo") == "https://wandb.foo"
+
+
 def test_safe_for_json():
     res = util.make_safe_for_json(
         {
