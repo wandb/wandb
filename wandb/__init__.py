@@ -84,6 +84,7 @@ from wandb.viz import visualize
 from wandb import plot
 from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
+from wandb.sdk.internal import profiler
 
 
 # Used to make sure we don't use some code in the incorrect process context
