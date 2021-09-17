@@ -7,3 +7,5 @@ filename =
     ./wandb/sdk/wandb_run.py
     ./wandb/sdk/wandb_init.py
     ./wandb/sdk/launch/*
+    ./wandb/sdk/lib/timed_input.py
+    ./wandb/integration/metaflow/metaflow.py

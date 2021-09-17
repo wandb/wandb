@@ -1,3 +1,7 @@
+"""
+Implementation of launch agent.
+"""
+
 import os
 import sys
 import time

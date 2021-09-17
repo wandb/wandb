@@ -31,11 +31,19 @@ aws_requirements = ["boto3"]
 grpc_requirements = ["grpcio==1.27.2"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
-launch_requirements = ["docker", "jupyter-repo2docker", "chardet"]
+launch_requirements = [
+    "jupyter-repo2docker",
+    "nbconvert",
+    "chardet",
+    "iso8601",
+    "typing_extensions",
+    "yaspin",
+]
+
 
 setup(
     name="wandb",
-    version="0.12.1.dev1",
+    version="0.12.3.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

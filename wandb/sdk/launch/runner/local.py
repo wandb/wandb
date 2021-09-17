@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -9,13 +11,14 @@ import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import get_entry_point_command, LaunchProject
+from .._project_spec import DEFAULT_CONFIG_PATH, get_entry_point_command, LaunchProject
 from ..docker import (
-    build_docker_image,
-    generate_docker_image,
+    build_docker_image_if_needed,
+    docker_image_exists,
+    docker_image_inspect,
+    generate_docker_base_image,
     get_docker_command,
     pull_docker_image,
-    validate_docker_env,
     validate_docker_installation,
 )
 from ..utils import (
@@ -70,37 +73,52 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    """Runner class, uses a project to create a LocallySubmittedRun."""
+    """Runner class, uses a project to create a LocallySubmittedRun"""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+        validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
 
         entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        copy_code = False
+        copy_code = True
         if launch_project.docker_image:
             pull_docker_image(launch_project.docker_image)
-            copy_code = True
+            copy_code = False
         else:
-            launch_project.docker_image = generate_docker_image(
-                launch_project, entry_cmd
-            )
+            # TODO: potentially pull the base_image
+            if not docker_image_exists(launch_project.base_image):
+                if generate_docker_base_image(launch_project, entry_cmd) is None:
+                    raise LaunchError("Unable to build base image")
+            else:
+                wandb.termlog(
+                    "Using existing base image: {}".format(launch_project.base_image)
+                )
 
         command_args = []
         command_separator = " "
-        validate_docker_env(launch_project)
-        validate_docker_installation()
-        image = build_docker_image(
-            launch_project=launch_project,
-            base_image=launch_project.docker_image,
-            copy_code=copy_code,
-        )
+
+        container_inspect = docker_image_inspect(launch_project.base_image)
+        container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
+        container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
+
+        if launch_project.docker_image is None or launch_project.build_image:
+            image = build_docker_image_if_needed(
+                launch_project=launch_project,
+                api=self._api,
+                copy_code=copy_code,
+                workdir=container_workdir,
+                container_env=container_env,
+            )
+        else:
+            image = launch_project.docker_image
         command_args += get_docker_command(
             image=image,
             launch_project=launch_project,
             api=self._api,
+            workdir=container_workdir,
             docker_args=docker_args,
         )
         if self.backend_config.get("runQueueItemId"):
@@ -121,10 +139,17 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
+            if launch_project.override_config:
+                with open(
+                    os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
+                ) as fp:
+                    json.dump(launch_project.override_config, fp)
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
-                "Launching run in docker with command: {}".format(command_str)
+                "Launching run in docker with command: {}".format(
+                    re.sub(r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str)
+                )
             )
             run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()
@@ -177,7 +202,10 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)

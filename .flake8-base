@@ -15,6 +15,7 @@ exclude =
     *.egg-info
     .cache
     .eggs
+    ./functional_tests/metaflow/
     ./wandb/__init__.py
     ./wandb/wandb_torch.py
     ./wandb/bin
@@ -33,6 +34,7 @@ exclude =
     ./wandb/integration/lightgbm/
     ./wandb/integration/xgboost/
     ./wandb/integration/fastai/
+    ./wandb/integration/metaflow/
     ./wandb/filesync/
     ./wandb/sdk/internal/internal_api.py
     ./wandb/sdk/internal/file_pusher.py
