@@ -857,12 +857,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation UseArtifact(" in body["query"]:
-            used_name = body.get("variables", {}).get("usedName", None)
-            slot_name = body.get("variables", {}).get("slotName", None)
-            ctx["used_artifact_info"] = {
-                "used_name": used_name,
-                "slot_name": slot_name,
-            }
+            used_name = body.get("variables", {}).get("usedAs", None)
+            ctx["used_artifact_info"] = {"used_name": used_name}
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {

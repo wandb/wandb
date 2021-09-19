@@ -1500,7 +1500,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id, used_name=artifact.name, use_as=use_as)
+            api.use_artifact(artifact.id, use_as=use_as)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
