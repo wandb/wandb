@@ -691,7 +691,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1244,7 +1248,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -1797,8 +1806,7 @@ class Api(object):
         entity_name=None,
         project_name=None,
         run_name=None,
-        used_name=None,
-        slot_name=None,
+        use_as=None,
     ):
         query = gql(
             """
@@ -1807,16 +1815,14 @@ class Api(object):
             $projectName: String!,
             $runName: String!,
             $artifactID: ID!
-            $usedName: String,
-            $slotName: String,
+            $usedAs: String,
         ) {
             useArtifact(input: {
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
                 artifactID: $artifactID,
-                usedName: $usedName,
-                slotName: $slotName
+                usedAs: $usedAs,
             }) {
                 artifact {
                     id
@@ -1842,8 +1848,7 @@ class Api(object):
                 "projectName": project_name,
                 "runName": run_name,
                 "artifactID": artifact_id,
-                "usedName": used_name,
-                "slotName": slot_name,
+                "usedAs": use_as,
             },
         )
 
@@ -1904,8 +1909,6 @@ class Api(object):
         aliases=None,
         distributed_id=None,
         is_user_created=False,
-        used_name=None,
-        slot_name=None,
     ):
         # TODO: Ignore clientID and sequenceClientID if server can't handle it
         _, server_info = self.viewer_server_info()
@@ -1929,8 +1932,7 @@ class Api(object):
             $labels: JSONString,
             $aliases: [ArtifactAliasInput!],
             $metadata: JSONString,
-            $usedName: String,
-            $slotName: String,
+            $usedAs: String,
             %s
             %s
             %s
@@ -1947,8 +1949,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
-                usedName: $usedName,
-                slotName: $slotName,
+                usedAs: $usedAs,
                 %s
                 %s
                 %s
@@ -2012,8 +2013,6 @@ class Api(object):
                 if metadata
                 else None,
                 "distributedID": distributed_id,
-                "usedName": used_name,
-                "slotName": slot_name,
             },
         )
         av = response["createArtifact"]["artifact"]
@@ -2181,7 +2180,8 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2196,7 +2196,12 @@ class Api(object):
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")

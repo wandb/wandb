@@ -332,7 +332,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -868,9 +870,18 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module(
+        "docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "chardet",
+        required=req_string,
+    )
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -1408,7 +1419,6 @@ def artifact():
 @click.option(
     "--name", "-n", help="The name of the artifact to push: project/artifact_name"
 )
-@click.option("--slot-name", "-s", help="The slot name of the artifact to push")
 @click.option("--description", "-d", help="A description of this artifact")
 @click.option("--type", "-t", default="dataset", help="The type of the artifact")
 @click.option(
@@ -1419,7 +1429,7 @@ def artifact():
     help="An alias to apply to this artifact",
 )
 @display_error
-def put(path, name, description, type, slot_name, alias):
+def put(path, name, description, type, alias):
     if name is None:
         name = os.path.basename(path)
     public_api = PublicApi()
@@ -1473,8 +1483,6 @@ def put(path, name, description, type, slot_name, alias):
         run_name=run.id,
         description=description,
         aliases=[{"artifactCollectionName": artifact_name, "alias": a} for a in alias],
-        used_name=name,
-        slot_name=slot_name,
     )
     artifact_path = artifact_path.split(":")[0] + ":" + res.get("version", "latest")
     # Re-create the artifact and actually upload any files needed
@@ -1484,7 +1492,9 @@ def put(path, name, description, type, slot_name, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

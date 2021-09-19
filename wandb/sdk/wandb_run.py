@@ -1893,7 +1893,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return
 
         logger.info("rendering history")
@@ -1946,10 +1949,15 @@ class Run(object):
             wandb.termlog(file_str)
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1958,8 +1966,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2074,7 +2087,7 @@ class Run(object):
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, slot_name=None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2089,7 +2102,7 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            slot_name: (string, optional) Optional slot name to refer to the artifact to in the run config
+            use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
         Returns:
             An `Artifact` object.
         """
@@ -2102,12 +2115,13 @@ class Run(object):
 
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping is not None:
+                # TODO: handle case where artifact_or_name's sequence name has only one match
                 new_name = self._launch_artifact_mapping.get(
-                    slot_name or artifact_or_name, {}
+                    use_as or artifact_or_name, {}
                 ).get("name")
                 if new_name is None:
                     wandb.termwarn(
-                        f"Could not find {slot_name or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
+                        f"Could not find {use_as or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
                     )
                     name = artifact_or_name
                 else:
@@ -2126,8 +2140,7 @@ class Run(object):
                 artifact.id,
                 entity_name=artifact.entity,
                 project_name=artifact.project,
-                used_name=artifact_or_name,
-                slot_name=slot_name,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2146,9 +2159,7 @@ class Run(object):
                     wandb.termwarn(
                         f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
                     )
-                api.use_artifact(
-                    artifact.id, used_name=artifact.name, slot_name=slot_name
-                )
+                api.use_artifact(artifact.id, used_name=artifact.name, use_as=use_as)
                 return artifact
             else:
                 raise ValueError(
