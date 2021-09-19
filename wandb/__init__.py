@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.12.2.dev1"
+__version__ = "0.12.3.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -185,6 +185,15 @@ def set_trace():
     #  frame = sys._getframe().f_back
     pdb.set_trace()  # TODO: pass the parent stack...
 
+
+def load_ipython_extension(ipython):
+    ipython.register_magics(wandb.jupyter.WandBMagics)
+
+
+if wandb_sdk.lib.ipython.in_jupyter():
+    from IPython import get_ipython
+
+    load_ipython_extension(get_ipython())
 
 __all__ = [
     "__version__",

@@ -116,6 +116,8 @@ class Api(object):
         )
         self._client_id_mapping = {}
 
+        self.query_types, self.server_info_types = None, None
+
     def reauth(self):
         """Ensures the current api key is set in the transport"""
         self.client.transport.auth = ("api", self.api_key or "")
@@ -279,6 +281,40 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
+    def server_info_introspection(self):
+
+        query_string = """
+           query ProbeServerCapabilities {
+               QueryType: __type(name: "Query") {
+                   ...fieldData
+                }
+               ServerInfoType: __type(name: "ServerInfo") {
+                   ...fieldData
+                }
+            }
+
+            fragment fieldData on __Type {
+                fields {
+                    name
+                }
+            }
+        """
+
+        if self.query_types is None or self.server_info_types is None:
+            query = gql(query_string)
+            res = self.gql(query)
+
+            self.query_types = [
+                field.get("name", "")
+                for field in res.get("QueryType", {}).get("fields", [{}])
+            ]
+            self.server_info_types = [
+                field.get("name", "")
+                for field in res.get("ServerInfoType", {}).get("fields", [{}])
+            ]
+        return (self.query_types, self.server_info_types)
+
+    @normalize_exceptions
     def viewer(self):
         query = gql(
             """
@@ -303,12 +339,19 @@ class Api(object):
 
     @normalize_exceptions
     def viewer_server_info(self):
+        local_query = """
+                latestLocalVersionInfo {
+                    outOfDate
+                    latestVersionString
+                }
+        """
         cli_query = """
             serverInfo {
                 cliVersionInfo
+                _LOCAL_QUERY_
             }
         """
-        query_str = """
+        query_template = """
         query Viewer{
             viewer {
                 id
@@ -326,22 +369,25 @@ class Api(object):
             _CLI_QUERY_
         }
         """
-        query_new = gql(query_str.replace("_CLI_QUERY_", cli_query))
-        query_old = gql(query_str.replace("_CLI_QUERY_", ""))
+        query_types, server_info_types = self.server_info_introspection()
 
-        for query in query_new, query_old:
-            try:
-                res = self.gql(query)
-            except UsageError as e:
-                raise (e)
-            except Exception as e:
-                # graphql schema exception is generic
-                err = e
-                continue
-            err = None
-            break
-        if err:
-            raise (err)
+        cli_version_exists = (
+            "serverInfo" in query_types and "cliVersionInfo" in server_info_types
+        )
+
+        local_version_exists = (
+            "serverInfo" in query_types
+            and "latestLocalVersionInfo" in server_info_types
+        )
+
+        cli_query_string = "" if not cli_version_exists else cli_query
+        local_query_string = "" if not local_version_exists else local_query
+
+        query_string = query_template.replace("_CLI_QUERY_", cli_query_string).replace(
+            "_LOCAL_QUERY_", local_query_string
+        )
+        query = gql(query_string)
+        res = self.gql(query)
         return res.get("viewer") or {}, res.get("serverInfo") or {}
 
     @normalize_exceptions

@@ -1,5 +1,6 @@
 Click>=7.0,!=8.0.0
 GitPython>=1.0.0
+yaspin>=1.0.0
 python-dateutil>=2.6.1
 requests>=2.0.0,<3
 promise>=2.0,<3

@@ -1,6 +1,8 @@
 import json
 import os
 from wandb.apis import PublicApi
+from unittest.mock import MagicMock
+from wandb.sdk.launch.docker import pull_docker_image
 
 try:
     from unittest import mock
@@ -9,6 +11,7 @@ except ImportError:  # TODO: this is only for python2
 import sys
 
 import wandb
+import wandb.util as util
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
@@ -17,7 +20,7 @@ from wandb.sdk.launch.utils import (
     PROJECT_SYNCHRONOUS,
 )
 
-from ..utils import fixture_open
+from ..utils import fixture_open, notebook_path
 
 import pytest
 
@@ -29,6 +32,24 @@ def mocked_fetchable_git_repo():
     def populate_dst_dir(dst_dir):
         with open(os.path.join(dst_dir, "train.py"), "w") as f:
             f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo_ipython():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
+            f.write(open(notebook_path("one_cell.ipynb"), "r").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
@@ -56,7 +77,13 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
+    project_spec,
+    api,
+    uri,
+    project=None,
+    entity=None,
+    config=None,
+    parameters=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -130,7 +157,10 @@ def test_launch_add_base(live_mock_server):
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -419,6 +449,108 @@ def test_launch_agent(
     assert ctx["num_acked"] == 1
 
 
+@pytest.mark.timeout(320)
+def test_launch_notebook(
+    live_mock_server, test_settings, mocked_fetchable_git_repo_ipython
+):
+    live_mock_server.set_ctx({"return_jupyter_in_run_info": True})
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/jupyter1",
+        api,
+        project="new-test",
+    )
+    assert str(run.get_status()) == "finished"
+
+
+# this test includes building a docker container which can take some time.
+# hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.timeout(320)
+def test_launch_full_build_new_image(
+    live_mock_server, test_settings, mocked_fetchable_git_repo
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    random_id = util.generate_id()
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/1",
+        api,
+        project=f"new-test-{random_id}",
+    )
+    assert str(run.get_status()) == "finished"
+
+
+@pytest.mark.timeout(320)
+def test_launch_no_server_info(
+    live_mock_server, test_settings, mocked_fetchable_git_repo
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    api.get_run_info = MagicMock(
+        return_value=None, side_effect=wandb.CommError("test comm error")
+    )
+    try:
+        launch.run(
+            "https://wandb.ai/mock_server_entity/test/runs/1",
+            api,
+            project=f"new-test",
+        )
+        assert False
+    except wandb.errors.LaunchError as e:
+        assert "Run info is invalid or doesn't exist" in str(e)
+
+
+@pytest.mark.timeout(320)
+def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    # for now using mocks instead of mock server
+    def mocked_download_url(*args, **kwargs):
+        if args[1] == "wandb-metadata.json":
+            return {"url": "urlForCodePath"}
+        elif args[1] == "code/main2.py":
+            return {"url": "main2.py"}
+        elif args[1] == "requirements.txt":
+            return {"url": "requirements"}
+
+    api.download_url = MagicMock(side_effect=mocked_download_url)
+
+    def mocked_file_download_request(url):
+        class MockedFileResponder:
+            def __init__(self, url):
+                self.url: str = url
+
+            def json(self):
+                if self.url == "urlForCodePath":
+                    return {"codePath": "main2.py"}
+
+            def iter_content(self, chunk_size):
+                if self.url == "requirements":
+                    return [b"numpy==1.19.5\n"]
+                elif self.url == "main2.py":
+                    return [
+                        b"import wandb\n",
+                        b"import numpy\n",
+                        b"print('ran server fetched code')\n",
+                    ]
+
+        return 200, MockedFileResponder(url)
+
+    api.download_file = MagicMock(side_effect=mocked_file_download_request)
+    run = launch.run(
+        "https://wandb.ai/mock_server_entity/test/runs/1",
+        api,
+        project="test-another-new-project",
+    )
+    assert str(run.get_status()) == "finished"
+
+
 def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
@@ -426,3 +558,10 @@ def patched_pop_from_queue(self, queue):
     if ups is None:
         raise KeyboardInterrupt
     return ups
+
+
+def test_fail_pull_docker_image():
+    try:
+        pull_docker_image("not an image")
+    except wandb.errors.LaunchError as e:
+        assert "Docker server returned error" in str(e)

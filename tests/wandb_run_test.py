@@ -10,6 +10,7 @@ import pytest
 
 import wandb
 from wandb import wandb_sdk
+from wandb.errors import UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
@@ -127,6 +128,11 @@ def test_log_code_custom_root(test_settings):
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
 
 
+def test_display(test_settings):
+    run = wandb.init(mode="offline", settings=test_settings)
+    assert run.display() == False
+
+
 def test_mark_preempting(fake_run, record_q, records_util):
     run = fake_run()
     run.log(dict(this=1))
@@ -188,8 +194,38 @@ def test_offline_resume(test_settings, capsys, resume, found):
     assert assertion(run.id, found, captured.err)
 
 
+@pytest.mark.parametrize("empty_query", [True, False])
+@pytest.mark.parametrize("local_none", [True, False])
+@pytest.mark.parametrize("outdated", [True, False])
+def test_local_warning(
+    live_mock_server, test_settings, capsys, outdated, empty_query, local_none
+):
+    live_mock_server.set_ctx(
+        {"out_of_date": outdated, "empty_query": empty_query, "local_none": local_none}
+    )
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    captured = capsys.readouterr().err
+
+    msg = "version of W&B Local to get the latest features"
+
+    if empty_query:
+        assert msg in captured
+    elif local_none:
+        assert msg not in captured
+    else:
+        assert msg in captured if outdated else msg not in captured
+
+
 def test_use_artifact_offline(live_mock_server, test_settings):
     run = wandb.init(mode="offline")
     with pytest.raises(Exception) as e_info:
         artifact = run.use_artifact("boom-data")
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
+
+
+@pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
+def test_invalid_project_name(live_mock_server, project_name):
+    with pytest.raises(UsageError) as e:
+        _ = wandb.init(project=project_name)
+        assert 'Invalid project name "{project_name}"' in str(e.value)

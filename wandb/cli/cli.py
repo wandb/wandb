@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile as nativetempfile
 import textwrap
 import time
 import traceback
@@ -41,18 +42,18 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# TODO: turn this on in a cleaner way
-# right now we will litter the filesystem with wandb dirs
-#
-# _wandb_dir = wandb_dir(env.get_dir())
-# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
-# logging.basicConfig(
-#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
-#     level=logging.DEBUG,
-# )
-# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+if not os.path.exists(_wandb_dir):
+    _wandb_dir = nativetempfile.gettempdir()
+logging.basicConfig(
+    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-
 CONTEXT = dict(default_map={})
 
 
@@ -87,6 +88,11 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
+            wandb.termerror(
+                "Find detailed error logs at: {}".format(
+                    os.path.join(_wandb_dir, "debug-cli.log")
+                )
+            )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
@@ -1006,6 +1012,9 @@ def launch(
     Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
     `wandb launch [URI] --queue [optional queuename]`.
     """
+    logger.info(
+        f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
+    )
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
@@ -1084,6 +1093,9 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
+    logger.info(
+        f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
+    )
     _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
