@@ -1959,10 +1959,7 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in (
-            "UTF_8",
-            "UTF-8",
-        ):
+        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
             return logs
 
         logger.info("rendering history")
@@ -2031,15 +2028,10 @@ class Run(object):
         return logs
 
     def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
+        envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
+            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2048,13 +2040,8 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
+        artifactsdict = dict(dataset="v1",)
+        inputdict = dict(config=configdict, artifacts=artifactsdict,)
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",

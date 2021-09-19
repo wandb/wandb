@@ -153,11 +153,7 @@ def run(ctx):
         "events": ['{"cpu": 10}', '{"cpu": 20}', '{"cpu": 30}'],
         "files": {
             # Special weights url by default, if requesting upload we set the name
-            "edges": [
-                {
-                    "node": fileNode,
-                }
-            ]
+            "edges": [{"node": fileNode,}]
         },
         "sampledHistory": [[{"loss": 0, "acc": 100}, {"loss": 1, "acc": 0}]],
         "shouldStop": False,
@@ -212,9 +208,7 @@ def artifact(
                 "alias": "v%i" % ctx["page_count"],
             }
         ],
-        "artifactSequence": {
-            "name": collection_name,
-        },
+        "artifactSequence": {"name": collection_name,},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -582,16 +576,8 @@ def create_app(user_ctx=None):
                 return json.dumps(
                     {
                         "data": {
-                            "QueryType": {
-                                "fields": [
-                                    {"name": "serverInfo"},
-                                ]
-                            },
-                            "ServerInfoType": {
-                                "fields": [
-                                    {"name": "cliVersionInfo"},
-                                ]
-                            },
+                            "QueryType": {"fields": [{"name": "serverInfo"},]},
+                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
                         }
                     }
                 )
@@ -599,11 +585,7 @@ def create_app(user_ctx=None):
             return json.dumps(
                 {
                     "data": {
-                        "QueryType": {
-                            "fields": [
-                                {"name": "serverInfo"},
-                            ]
-                        },
+                        "QueryType": {"fields": [{"name": "serverInfo"},]},
                         "ServerInfoType": {
                             "fields": [
                                 {"name": "cliVersionInfo"},
@@ -673,24 +655,14 @@ def create_app(user_ctx=None):
             )
         if "mutation CreateAgent(" in body["query"]:
             return json.dumps(
-                {
-                    "data": {
-                        "createAgent": {
-                            "agent": {
-                                "id": "mock-server-agent-93xy",
-                            }
-                        }
-                    }
-                }
+                {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
             )
         if "mutation Heartbeat(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
-                            "agent": {
-                                "id": "mock-server-agent-93xy",
-                            },
+                            "agent": {"id": "mock-server-agent-93xy",},
                             "commands": json.dumps(
                                 [
                                     {
@@ -837,13 +809,7 @@ def create_app(user_ctx=None):
             run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
             for c in ctx, run_ctx:
                 c["manifests_created"].append(manifest)
-            return {
-                "data": {
-                    "createArtifactManifest": {
-                        "artifactManifest": manifest,
-                    }
-                }
-            }
+            return {"data": {"createArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation UpdateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -860,13 +826,7 @@ def create_app(user_ctx=None):
                     "uploadHeaders": "",
                 },
             }
-            return {
-                "data": {
-                    "updateArtifactManifest": {
-                        "artifactManifest": manifest,
-                    }
-                }
-            }
+            return {"data": {"updateArtifactManifest": {"artifactManifest": manifest,}}}
         if "mutation CreateArtifactFiles" in body["query"]:
             if ART_EMU:
                 return ART_EMU.create_files(variables=body["variables"])
@@ -1009,9 +969,7 @@ def create_app(user_ctx=None):
                 if full_name is not None:
                     collection_name = full_name.split(":")[0]
                 art = artifact(
-                    ctx,
-                    collection_name=collection_name,
-                    request_url_root=base_url,
+                    ctx, collection_name=collection_name, request_url_root=base_url,
                 )
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
