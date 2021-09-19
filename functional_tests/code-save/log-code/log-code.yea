@@ -1,0 +1,15 @@
+id: 0.code-save.3-log_code
+plugin:
+  - wandb
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]: {}
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[0][config_wandb][code_path]: code/functional_tests/code-save/log-code/log-code.py
+  - :op:contains:
+    - :wandb:runs[0][files]
+    - code/functional_tests/code-save/log-code/log-code.py
+  - :op:contains_regex:
+    - :wandb:artifacts
+    - ^source-[a-z1-9]{8}$
