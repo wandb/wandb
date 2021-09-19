@@ -381,7 +381,7 @@ class Run(object):
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping = None
-        self._unique_launch_artifact_sequence_names = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, str] = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
