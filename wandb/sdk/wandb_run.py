@@ -381,6 +381,7 @@ class Run(object):
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
         self._launch_artifact_mapping = None
+        self._unique_launch_artifact_sequence_names = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -403,6 +404,20 @@ class Run(object):
                     launch_config.get("overrides").get("artifacts").items()
                 ):
                     self._launch_artifact_mapping[key] = item
+                    artifact_sequence_tuple_or_slot = key.split(":")
+                    if len(artifact_sequence_tuple_or_slot) > 1:
+                        sequence_name = artifact_sequence_tuple_or_slot[0]
+                        if self._unique_launch_artifact_sequence_names.get(
+                            sequence_name
+                        ):
+                            self._unique_launch_artifact_sequence_names.pop(
+                                sequence_name
+                            )
+                        else:
+                            self._unique_launch_artifact_sequence_names[
+                                sequence_name
+                            ] = item
+
             launch_run_config = launch_config.get("overrides", {}).get("run_config")
             if launch_run_config:
                 self._config.update_locked(
@@ -1959,7 +1974,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return logs
 
         logger.info("rendering history")
@@ -2028,10 +2046,15 @@ class Run(object):
         return logs
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2040,8 +2063,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2184,10 +2212,14 @@ class Run(object):
 
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping is not None:
-                # TODO: handle case where artifact_or_name's sequence name has only one match
                 new_name = self._launch_artifact_mapping.get(
                     use_as or artifact_or_name, {}
                 ).get("name")
+                if new_name is None:
+                    sequence_name = artifact_or_name.split(":")[0].split("/")[-1]
+                    new_name = self._unique_launch_artifact_sequence_names.get(
+                        sequence_name
+                    )
                 if new_name is None:
                     wandb.termwarn(
                         f"Could not find {use_as or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
