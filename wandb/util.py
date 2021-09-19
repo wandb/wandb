@@ -8,6 +8,7 @@ import colorsys
 import contextlib
 import codecs
 import errno
+import functools
 import gzip
 import hashlib
 import json
@@ -42,11 +43,10 @@ from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from wandb.env import error_reporting_enabled
+from wandb.env import error_reporting_enabled, get_app_url
 
 import wandb
 from wandb.errors import CommError, term
-from wandb.old.core import wandb_dir
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -269,17 +269,22 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
+    """Returns the frontend app url without a trailing slash."""
+    # TODO: move me to settings
+    app_url = get_app_url()
+    if app_url is not None:
+        return app_url.strip("/")
     if "://api.wandb.test" in api_url:
         # dev mode
-        return api_url.replace("://api.", "://app.")
+        return api_url.replace("://api.", "://app.").strip("/")
     elif "://api.wandb." in api_url:
         # cloud
-        return api_url.replace("://api.", "://")
+        return api_url.replace("://api.", "://").strip("/")
     elif "://api." in api_url:
         # onprem cloud
-        return api_url.replace("://api.", "://app.")
+        return api_url.replace("://api.", "://app.").strip("/")
     # wandb/local
-    return api_url
+    return api_url.strip("/")
 
 
 def get_full_typename(o):
@@ -1049,21 +1054,36 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice():
-    try:
-        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503
-    except ValueError:
-        return -1
+def _prompt_choice(input_timeout: int = None) -> str:
+    input_fn = input
+    prompt = term.LOG_STRING
+    if input_timeout:
+        # delayed import to mitigate risk of timed_input complexity
+        from wandb.sdk.lib import timed_input
+
+        input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
+        # timed_input doesnt handle enhanced prompts
+        if platform.system() == "Windows":
+            prompt = "wandb"
+    choice = input_fn(f"{prompt}: Enter your choice: ")
+    return choice
 
 
-def prompt_choices(choices, allow_manual=False):
+def prompt_choices(choices, allow_manual=False, input_timeout: int = None):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
-        idx = _prompt_choice()
+        choice = _prompt_choice(input_timeout=input_timeout)
+        if not choice:
+            continue
+        idx = -1
+        try:
+            idx = int(choice) - 1
+        except ValueError:
+            pass
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]

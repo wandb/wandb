@@ -34,7 +34,7 @@ def check_keys(lines, start, end, exp_keys):
     assert start in lines
     start_idx = lines.index(start)
     end_idx = lines.index(end, start_idx)
-    found_lines = lines[start_idx + 1 : end_idx]
+    found_lines = lines[start_idx + 1 : end_idx - 1]
     found_keys = [l.split()[0] for l in found_lines]
     assert found_keys == exp_keys
 
@@ -51,9 +51,9 @@ def check_output_fn(capsys):
         lines = [remove_prefix(l, LINE_PREFIX).strip() for l in lines]
 
         footer_end = next(iter([l for l in lines if l.startswith(FOOTER_END_PREFIX)]))
-        summary_end = RUN_HISTORY if exp_history else footer_end
-        check_keys(lines, RUN_SUMMARY, summary_end, exp_summary)
-        check_keys(lines, RUN_HISTORY, footer_end, exp_history)
+        history_end = RUN_SUMMARY if exp_summary else footer_end
+        check_keys(lines, RUN_HISTORY, history_end, exp_history)
+        check_keys(lines, RUN_SUMMARY, footer_end, exp_summary)
 
     yield check_fn
 

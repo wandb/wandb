@@ -1,12 +1,17 @@
 import pytest
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import ElasticNet
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.datasets import make_regression, make_hastie_10_2
 import sys
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+
+if sys.version_info >= (3, 10):
+    pytest.importorskip("sklearn")
+
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import ElasticNet
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.datasets import make_regression, make_hastie_10_2
+
 from tensorflow.keras.layers import Dense, Flatten, Reshape
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
