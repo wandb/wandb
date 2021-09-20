@@ -2,6 +2,7 @@
 pytorch profiler
 """
 import os
+
 import wandb
 
 PYTORCH_PROFILER_MODULE = "torch.profiler"
