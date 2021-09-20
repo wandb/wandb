@@ -1,6 +1,5 @@
 import pytest
 import sys
-import torch
 import wandb
 
 
@@ -8,6 +7,8 @@ import wandb
     sys.version_info >= (3, 9), reason="PyTorch profiler table in 3.9? to verify"
 )
 def test_profiler_without_init():
+    import torch
+
     with pytest.raises(Exception):
         with torch.profiler.profile(
             schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
