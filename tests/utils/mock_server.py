@@ -1637,6 +1637,10 @@ class ParseCTX(object):
         return exit_code
 
     @property
+    def run_id(self):
+        return self._run_id
+
+    @property
     def config_raw(self):
         return self._ctx["config"][-1]
 

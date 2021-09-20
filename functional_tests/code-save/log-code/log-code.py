@@ -8,5 +8,6 @@ log_code()
 import wandb
 
 run = wandb.init()
+print(f"RUN_ID={run.id}")
 run.log_code()
 run.finish()
