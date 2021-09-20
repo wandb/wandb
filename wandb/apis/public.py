@@ -1019,7 +1019,7 @@ class Run(Attrs):
         url (str): the url of this run
         id (str): unique identifier for the run (defaults to eight characters)
         name (str): the name of the run
-        state (str): one of: running, finished, crashed, aborted
+        state (str): one of: running, finished, crashed, killed, preempting, preempted
         config (dict): a dict of hyperparameters associated with the run
         created_at (str): ISO timestamp when the run was started
         system_metrics (dict): the latest system metrics recorded for the run
@@ -1053,9 +1053,13 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self.state = attrs.get("state", "not found")
+        self._state = attrs.get("state", "not found")
 
         self.load(force=not attrs)
+
+    @property
+    def state(self):
+        return self._state
 
     @property
     def entity(self):
