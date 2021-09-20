@@ -58,6 +58,7 @@ from typing import (
 import six
 import wandb
 from wandb import util
+from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
@@ -84,6 +85,8 @@ env_settings: Dict[str, Optional[str]] = dict(
     base_url=None,
     api_key=None,
     sweep_id=None,
+    launch=None,
+    launch_config_path=None,
     mode=None,
     run_group=None,
     problem=None,
@@ -100,16 +103,19 @@ env_settings: Dict[str, Optional[str]] = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    quiet=None,
     sagemaker_disable=None,
     start_method=None,
     strict=None,
     label_disable=None,
+    login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
 )
+
 
 env_convert: Dict[str, Callable[[str], List[str]]] = dict(
     run_tags=lambda s: s.split(","), ignore_globs=lambda s: s.split(",")
@@ -125,7 +131,7 @@ def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, st
 
 
 def _error_choices(value: str, choices: Set[str]) -> str:
-    return "{} not in {}".format(value, ",".join(list(choices)))
+    return "{} not in [{}]".format(value, ", ".join(list(choices)))
 
 
 def _get_program() -> Optional[Any]:
@@ -182,8 +188,10 @@ def get_wandb_dir(root_dir: str) -> str:
     return path
 
 
-def _str_as_bool(val: str) -> Optional[bool]:
+def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
     ret_val = None
+    if isinstance(val, bool):
+        return val
     try:
         ret_val = bool(strtobool(val))
     except (AttributeError, ValueError):
@@ -213,9 +221,12 @@ class Settings(object):
     start_method: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
+    force: Optional[bool] = None
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
     sweep_id: Optional[str] = None
+    launch: Optional[bool] = None
+    launch_config_path: Optional[str] = None
     resume_fname_spec: Optional[str] = None
     root_dir: Optional[str] = None
     log_dir_spec: Optional[str] = None
@@ -231,6 +242,7 @@ class Settings(object):
     settings_system_spec: Optional[str] = None
     settings_workspace_spec: Optional[str] = None
     silent: str = "False"
+    quiet: Optional[Union[str, bool]] = None
     show_info: str = "True"
     show_warnings: str = "True"
     show_errors: str = "True"
@@ -310,9 +322,12 @@ class Settings(object):
         magic: Union[Dict, str, bool] = False,
         run_tags: Sequence = None,
         sweep_id: str = None,
+        launch: bool = None,
+        launch_config_path: str = None,
         allow_val_change: bool = None,
         force: bool = None,
         relogin: bool = None,
+        login_timeout: float = None,
         # compatibility / error handling
         # compat_version=None,  # set to "0.8" for safer defaults for older users
         strict: str = None,
@@ -377,6 +392,7 @@ class Settings(object):
         show_colors: bool = None,
         show_emoji: bool = None,
         silent: bool = None,
+        quiet: bool = None,
         show_info: bool = None,
         show_warnings: bool = None,
         show_errors: bool = None,
@@ -432,6 +448,14 @@ class Settings(object):
         if not self.silent:
             return None
         return _str_as_bool(self.silent)
+
+    @property
+    def _quiet(self) -> Optional[bool]:
+        # TODO: we should probably make the rest of these bool methods handle
+        # users passing bool's to the settings object
+        if self.quiet is None:
+            return None
+        return _str_as_bool(self.quiet)
 
     @property
     def _strict(self) -> Optional[bool]:
@@ -579,6 +603,20 @@ class Settings(object):
     def settings_workspace(self) -> Optional[str]:
         return self._path_convert(self.settings_workspace_spec)
 
+    @property
+    def is_local(self) -> bool:
+        return self.base_url != "https://api.wandb.ai/"
+
+    def _validate_project(self, value: Optional[str]) -> Optional[str]:
+        invalid_chars_list = list("/\\#?%:")
+        if value is not None:
+            if len(value) > 128:
+                return f'Invalid project name "{value}", exceeded 128 characters'
+            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            if invalid_chars:
+                return f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
+        return None
+
     def _validate_start_method(self, value: str) -> Optional[str]:
         available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):
@@ -652,6 +690,23 @@ class Settings(object):
             elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
                 return "http is not secure, please use https://api.wandb.ai"
         return None
+
+    def _validate_login_timeout(self, value: str) -> Optional[str]:
+        try:
+            _ = float(value)
+        except ValueError:
+            return "{} is not a float".format(value)
+        return None
+
+    def _preprocess_login_timeout(self, s: Optional[str]) -> Union[None, float, str]:
+        # TODO: refactor validate to happen before preprocess so we dont have to do this
+        if s is None:
+            return s
+        try:
+            val = float(s)
+        except ValueError:
+            return s
+        return val
 
     def _preprocess_base_url(self, value: Optional[str]) -> Optional[str]:
         if value is not None:
@@ -793,7 +848,7 @@ class Settings(object):
             return
         invalid = f(v)
         if invalid:
-            raise TypeError("Settings field {}: {}".format(k, invalid))
+            raise UsageError("Settings field `{}`: {}".format(k, invalid))
 
     def _perform_preprocess(self, k: str, v: Any) -> Optional[Any]:
         f = getattr(self, "_preprocess_" + k, None)
@@ -807,7 +862,7 @@ class Settings(object):
         __d: Dict[str, Any] = None,
         _source: Optional[int] = None,
         _override: Optional[int] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         if self.__frozen and (__d or kwargs):
             raise TypeError("Settings object is frozen")
@@ -964,12 +1019,13 @@ class Settings(object):
         pass
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name not in self.__dict__:
-            raise AttributeError(name)
-        if self.__frozen:
-            raise TypeError("Settings object is frozen")
-        value = self._perform_preprocess(name, value)
-        self._check_invalid(name, value)
+        # using source.SETUP is a temporary hack here that should be replaced by
+        # having _apply_init() apply SOURCE.INIT to settings added via mutations
+        # to settings object
+        try:
+            self._update({name: value}, _source=self.Source.SETUP)
+        except KeyError as e:
+            raise AttributeError(str(e))
         object.__setattr__(self, name, value)
 
     @classmethod
@@ -1026,7 +1082,7 @@ class Settings(object):
     def _apply_login(
         self, args: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
-        param_map = dict(key="api_key", host="base_url")
+        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         self._apply_source_login(args, _logger=_logger)
 
@@ -1045,6 +1101,14 @@ class Settings(object):
                 if val:
                     wandb.termwarn(
                         "Ignored wandb.init() arg %s when running a sweep" % key
+                    )
+        if self.launch:
+            for key in ("project", "entity", "id"):
+                val = args.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Project, entity and id are ignored when running from wandb launch context. Ignored wandb.init() arg %s when running running from launch"
+                        % key
                     )
 
         # strip out items where value is None

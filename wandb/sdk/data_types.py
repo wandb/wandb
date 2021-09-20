@@ -353,7 +353,7 @@ class Histogram(WBValue):
 
     Arguments:
         sequence: (array_like) input data for histogram
-        np_histogram: (numpy histogram) alternative input of a precoomputed histogram
+        np_histogram: (numpy histogram) alternative input of a precomputed histogram
         num_bins: (int) Number of bins for the histogram.  The default number of bins
             is 64.  The maximum number of bins is 512
 
@@ -2450,7 +2450,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
 
 
 def _data_frame_to_json(
-    df: "pd.DataFraome", run: "LocalRun", key: str, step: Union[int, str]
+    df: "pd.DataFrame", run: "LocalRun", key: str, step: Union[int, str]
 ) -> dict:
     """!NODOC Encode a Pandas DataFrame into the JSON/backend format.
 

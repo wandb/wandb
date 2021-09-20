@@ -21,6 +21,7 @@ SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
 SHOW_RUN = "WANDB_SHOW_RUN"
 DEBUG = "WANDB_DEBUG"
 SILENT = "WANDB_SILENT"
+QUIET = "WANDB_QUIET"
 INITED = "WANDB_INITED"
 DIR = "WANDB_DIR"
 # Deprecate DESCRIPTION in a future release
@@ -33,6 +34,7 @@ USER_EMAIL = "WANDB_USER_EMAIL"
 PROJECT = "WANDB_PROJECT"
 ENTITY = "WANDB_ENTITY"
 BASE_URL = "WANDB_BASE_URL"
+APP_URL = "WANDB_APP_URL"
 PROGRAM = "WANDB_PROGRAM"
 ARGS = "WANDB_ARGS"
 MODE = "WANDB_MODE"
@@ -171,10 +173,10 @@ def get_ignore(default=None, env=None):
     if env is None:
         env = os.environ
 
-    if env.get(IGNORE, default):
-        return env.get(IGNORE, default).split(",")
+    if env.get(IGNORE):
+        return env.get(IGNORE).split(",")
     else:
-        return []
+        return default
 
 
 def get_project(default=None, env=None):
@@ -210,6 +212,13 @@ def get_base_url(default=None, env=None):
         env = os.environ
 
     return env.get(BASE_URL, default)
+
+
+def get_app_url(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(APP_URL, default)
 
 
 def get_show_run(default=None, env=None):

@@ -87,15 +87,53 @@ def test_parse_path_proj(mock_server, api):
     assert r == "proj"
 
 
-def test_run_from_path(mock_server, api):
+def test_from_path(mock_server, api):
+    project = api.from_path("test")
+    assert isinstance(project, wandb.apis.public.Project)
+    project = api.from_path("test/test")
+    assert isinstance(project, wandb.apis.public.Project)
+    run = api.from_path("test/test/test")
+    assert isinstance(run, wandb.apis.public.Run)
+    run = api.from_path("test/test/runs/test")
+    assert isinstance(run, wandb.apis.public.Run)
+    sweep = api.from_path("test/test/sweeps/test")
+    assert isinstance(sweep, wandb.apis.public.Sweep)
+    report = api.from_path("test/test/reports/XXX")
+    assert isinstance(report, wandb.apis.public.BetaReport)
+    report = api.from_path("test/test/reports/Name-foo--XXX")
+    assert isinstance(report, wandb.apis.public.BetaReport)
+    with pytest.raises(wandb.Error):
+        api.from_path("test/test/barf/test")
+    with pytest.raises(wandb.Error):
+        api.from_path("test/test/test/test/test")
+    with pytest.raises(wandb.Error):
+        api.from_path("test/test/reports/test-foo")
+
+
+def test_to_html(mock_server, api):
+    project = api.from_path("test")
+    assert "mock_server_entity/test/workspace?jupyter=true" in project.to_html()
+    run = api.from_path("test/test/test")
+    assert "test/test/runs/test?jupyter=true" in run.to_html()
+    sweep = api.from_path("test/test/sweeps/test")
+    assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()
+    report = api.from_path("test/test/reports/My-Report--XXX")
+    report_html = report.to_html(hidden=True)
+    assert "test/test/reports/My-Report--XXX" in report_html
+    assert "<button" in report_html
+
+
+def test_display(mock_server, api):
+    run = api.from_path("test/test/test")
+    assert not run.display()
+
+
+def test_run_load(mock_server, api):
     run = api.run("test/test/test")
     assert run.summary_metrics == {"acc": 100, "loss": 0}
     assert run.url == "https://wandb.ai/test/test/runs/test"
 
 
-@pytest.mark.skipif(
-    sys.version_info >= (3, 9), reason="Tensorboard not currently built for 3.9"
-)
 def test_run_from_tensorboard(runner, mock_server, api):
     with runner.isolated_filesystem():
         utils.fixture_copy("events.out.tfevents.1585769947.cvp")
@@ -287,6 +325,18 @@ def test_projects(mock_server, api):
     assert count == 2
 
 
+def test_reports(mock_server, api):
+    path = "test-entity/test-project"
+    reports = api.reports(path)
+    # calling __len__, __getitem__, or __next__ on a Reports object
+    # triggers the actual API call to fetch data w/ pagination.
+    length = len(reports)
+    assert length == 1
+    assert reports[0].description == "test-description"
+    assert reports[0].pageCount == 0
+    assert reports[1].pageCount == 1
+
+
 def test_delete_file(runner, mock_server, api):
     run = api.run("test/test/test")
     file = run.files()[0]
@@ -395,6 +445,15 @@ def test_artifact_run_logged(runner, mock_server, api):
     assert arts[0].name == "mnist:v0"
 
 
+def test_artifact_run_logged_cursor(runner, mock_server, api):
+    artifacts = api.run("test/test/test").logged_artifacts()
+    count = 0
+    for artifact in artifacts:
+        count += 1
+
+    assert len(artifacts) == count
+
+
 def test_artifact_manual_use(runner, mock_server, api):
     run = api.run("test/test/test")
     art = api.artifact("entity/project/mnist:v0", type="dataset")
@@ -478,3 +537,17 @@ def test_sweep(runner, mock_server, api):
     assert sweep.entity == "test"
     assert sweep.best_run().name == "beast-bug-33"
     assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
+
+
+def test_run_wait_until_finished(runner, mock_server, api, capsys):
+    run = api.run("test/test/test")
+    run.wait_until_finished()
+    out, _ = capsys.readouterr()
+    status = mock_server.ctx["run_state"]
+    assert f"Run finished with status: {status}" in out
+
+
+def test_queued_job(runner, mock_server, api):
+    queued_job = api.queued_job("test/test/test/test")
+    queued_job.wait_until_running()
+    assert queued_job._run_id == "test"

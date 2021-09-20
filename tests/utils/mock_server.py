@@ -3,8 +3,10 @@
 from flask import Flask, request, g, jsonify
 import os
 import sys
+import re
 from datetime import datetime, timedelta
 import json
+import platform
 import yaml
 import six
 
@@ -54,11 +56,21 @@ def default_ctx():
         "artifacts_by_id": {},
         "artifacts_created": {},
         "upsert_bucket_count": 0,
+        "out_of_date": False,
+        "empty_query": False,
+        "local_none": False,
+        "run_queues_return_default": True,
+        "run_queues": {"1": []},
+        "num_popped": 0,
+        "num_acked": 0,
         "max_cli_version": "0.12.0",
         "runs": {},
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "run_state": "running",
+        "run_queue_item_check_count": 0,
+        "return_jupyter_in_run_info": False,
     }
 
 
@@ -74,7 +86,6 @@ def mock_server(mocker):
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
-    mocker.patch("wandb.apis.internal_runqueue.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
@@ -117,7 +128,10 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-
+    if ctx["return_jupyter_in_run_info"]:
+        program_name = "one_cell.ipynb"
+    else:
+        program_name = "train.py"
     return {
         "id": "test",
         "name": "test",
@@ -150,6 +164,21 @@ def run(ctx):
         "sweepName": None,
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
+        "runInfo": {
+            "program": program_name,
+            "args": [],
+            "os": platform.system(),
+            "python": platform.python_version(),
+            "colab": None,
+            "executable": None,
+            "codeSaved": False,
+            "cpuCount": 12,
+            "gpuCount": 0,
+            "git": {
+                "remote": "https://foo:bar@github.com/FooTest/Foo.git",
+                "commit": "HEAD",
+            },
+        },
     }
 
 
@@ -336,6 +365,7 @@ def create_app(user_ctx=None):
         if test_name:
             app.logger.info("Test request from: %s", test_name)
         app.logger.info("graphql post")
+
         if "fail_graphql_times" in ctx:
             if ctx["fail_graphql_count"] < ctx["fail_graphql_times"]:
                 ctx["fail_graphql_count"] += 1
@@ -427,7 +457,38 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "reportCursor" in body["query"]:
+            page_count = ctx["page_count"]
+            return json.dumps(
+                {
+                    "data": {
+                        "project": {
+                            "allViews": paginated(
+                                {
+                                    "name": "test-report",
+                                    "description": "test-description",
+                                    "user": {
+                                        "username": body["variables"]["entity"],
+                                        "photoUrl": "test-url",
+                                    },
+                                    "spec": '{"version": 5}',
+                                    "updatedAt": datetime.now().isoformat(),
+                                    "pageCount": page_count,
+                                },
+                                ctx,
+                            )
+                        }
+                    }
+                }
+            )
         if "query Run(" in body["query"]:
+            # if querying state of run, change context from running to finished
+            if "RunFragment" not in body["query"] and "state" in body["query"]:
+                ret_val = json.dumps(
+                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                )
+                ctx["run_state"] = "finished"
+                return ret_val
             return json.dumps({"data": {"project": {"run": run(ctx)}}})
         if "query Model(" in body["query"]:
             if "project(" in body["query"]:
@@ -479,26 +540,61 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Viewer " in body["query"]:
+            viewer_dict = {
+                "data": {
+                    "viewer": {
+                        "entity": "mock_server_entity",
+                        "flags": '{"code_saving_enabled": true}',
+                        "teams": {"edges": []},  # TODO make configurable for cli_test
+                    },
+                },
+            }
+            server_info = {
+                "serverInfo": {
+                    "cliVersionInfo": {
+                        "max_cli_version": str(ctx.get("max_cli_version", "0.10.33"))
+                    },
+                    "latestLocalVersionInfo": {
+                        "outOfDate": ctx.get("out_of_date", False),
+                        "latestVersionString": str(ctx.get("latest_version", "0.9.42")),
+                    },
+                }
+            }
+
+            if ctx["empty_query"]:
+                server_info["serverInfo"].pop("latestLocalVersionInfo")
+            elif ctx["local_none"]:
+                server_info["serverInfo"]["latestLocalVersionInfo"] = None
+
+            viewer_dict["data"].update(server_info)
+
+            return json.dumps(viewer_dict)
+
+        if "query ProbeServerCapabilities" in body["query"]:
+            if ctx["empty_query"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "QueryType": {"fields": [{"name": "serverInfo"},]},
+                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
+                        }
+                    }
+                )
+
             return json.dumps(
                 {
                     "data": {
-                        "viewer": {
-                            "entity": "mock_server_entity",
-                            "flags": '{"code_saving_enabled": true}',
-                            "teams": {
-                                "edges": []  # TODO make configurable for cli_test
-                            },
-                        },
-                        "serverInfo": {
-                            "cliVersionInfo": {
-                                "max_cli_version": str(
-                                    ctx.get("max_cli_version", "0.10.33")
-                                )
-                            }
+                        "QueryType": {"fields": [{"name": "serverInfo"},]},
+                        "ServerInfoType": {
+                            "fields": [
+                                {"name": "cliVersionInfo"},
+                                {"name": "latestLocalVersionInfo"},
+                            ]
                         },
                     }
                 }
             )
+
         if "query Sweep(" in body["query"]:
             return json.dumps(
                 {
@@ -594,6 +690,14 @@ def create_app(user_ctx=None):
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
+            git_remote = body["variables"].get("repo")
+            git_commit = body["variables"].get("commit")
+            if git_commit or git_remote:
+                for c in ctx, run_ctx:
+                    c.setdefault("git", {})
+                    c["git"]["remote"] = git_remote
+                    c["git"]["commit"] = git_commit
+
             param_config = body["variables"].get("config")
             if param_config:
                 for c in ctx, run_ctx:
@@ -669,6 +773,7 @@ def create_app(user_ctx=None):
                 return ART_EMU.create(variables=body["variables"])
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
+            app.logger.info("Creating artifact {}".format(collection_name))
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
                 collection_name, []
@@ -884,6 +989,108 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
+        if "query Project" in body["query"] and "runQueues" in body["query"]:
+            if ctx["run_queues_return_default"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueues": [
+                                    {
+                                        "id": 1,
+                                        "name": "default",
+                                        "createdBy": "mock_server_entity",
+                                        "access": "PROJECT",
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {"project": {"runQueues": []}}})
+
+        if "query GetRunQueueItem" in body["query"]:
+            ctx["run_queue_item_check_count"] += 1
+            if ctx["run_queue_item_check_count"] > 1:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": "test",
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps(
+                    {
+                        "data": {
+                            "project": {
+                                "runQueue": {
+                                    "runQueueItems": {
+                                        "edges": [
+                                            {
+                                                "node": {
+                                                    "id": "test",
+                                                    "resultingRunId": None,
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+        if "mutation createRunQueue" in body["query"]:
+            ctx["run_queues_return_default"] = True
+            return json.dumps(
+                {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
+            )
+        if "mutation popFromRunQueue" in body["query"]:
+            if ctx["num_popped"] != 0:
+                return json.dumps({"data": {"popFromRunQueue": None}})
+            ctx["num_popped"] += 1
+            return json.dumps(
+                {
+                    "data": {
+                        "popFromRunQueue": {
+                            "runQueueItemId": 1,
+                            "runSpec": {
+                                "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                "project": "test_project",
+                                "entity": "mock_server_entity",
+                                "resource": "local",
+                            },
+                        }
+                    }
+                }
+            )
+        if "mutation pushToRunQueue" in body["query"]:
+            if ctx["run_queues"].get(body["variables"]["queueID"]):
+                ctx["run_queues"][body["variables"]["queueID"]].append(
+                    body["variables"]["queueID"]
+                )
+            else:
+                ctx["run_queues"][body["variables"]["queueID"]] = [
+                    body["variables"]["queueID"]
+                ]
+            return json.dumps({"data": {"pushToRunQueue": {"runQueueItemId": 1}}})
+        if "mutation ackRunQueueItem" in body["query"]:
+            ctx["num_acked"] += 1
+            return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
         if "stopped" in body["query"]:
@@ -932,12 +1139,9 @@ def create_app(user_ctx=None):
                 raise HttpException("some error", status_code=inject.http_status)
 
         if request.method == "PUT":
-            curr = ctx["file_bytes"].get(file)
-            if curr is None:
-                ctx["file_bytes"].setdefault(file, 0)
-                ctx["file_bytes"][file] += request.content_length
-            else:
-                ctx["file_bytes"][file] += request.content_length
+            for c in ctx, run_ctx:
+                c["file_bytes"].setdefault(file, 0)
+                c["file_bytes"][file] += request.content_length
         if ART_EMU:
             return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
@@ -1126,13 +1330,16 @@ def create_app(user_ctx=None):
             return {
                 "docker": "test/docker",
                 "program": "train.py",
+                "codePath": "train.py",
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+        elif file == "requirements.txt":
+            return "numpy==1.19.5\n"
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return r"""
+            return """
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
@@ -1311,6 +1518,17 @@ index 30d74d2..9a2c773 100644
     return app
 
 
+RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+
+
+def strip_datetime(s):
+    # 2021-09-18T17:28:07.059270
+    m = RE_DATETIME.match(s)
+    if m:
+        return m.group("rest")
+    return s
+
+
 class ParseCTX(object):
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
@@ -1343,7 +1561,7 @@ class ParseCTX(object):
                 if not offset:
                     l = []
                 if k == u"output.log":
-                    lines = [content]
+                    lines = content
                 else:
                     lines = map(json.loads, content)
                 l.extend(lines)
@@ -1357,6 +1575,15 @@ class ParseCTX(object):
     @property
     def file_names(self):
         return self._ctx.get("file_names", [])
+
+    @property
+    def files(self):
+        files_sizes = self._ctx.get("file_bytes", {})
+        files_dict = {}
+        for fname, size in files_sizes.items():
+            files_dict.setdefault(fname, {})
+            files_dict[fname]["size"] = size
+        return files_dict
 
     @property
     def dropped_chunks(self):
@@ -1389,12 +1616,42 @@ class ParseCTX(object):
         return history
 
     @property
+    def output(self):
+        fs_files = self.get_filestream_file_items()
+        output_items = fs_files.get("output.log", [])
+        err_prefix = "ERROR "
+        stdout_items = []
+        stderr_items = []
+        for item in output_items:
+            if item.startswith(err_prefix):
+                err_item = item[len(err_prefix) :]
+                stderr_items.append(err_item)
+            else:
+                stdout_items.append(item)
+        stdout = "".join(stdout_items)
+        stderr = "".join(stderr_items)
+        stdout_lines = stdout.splitlines()
+        stderr_lines = stderr.splitlines()
+        stdout = list(map(strip_datetime, stdout_lines))
+        stderr = list(map(strip_datetime, stderr_lines))
+        return dict(stdout=stdout, stderr=stderr)
+
+    @property
     def exit_code(self):
         exit_code = None
         fs_list = self._ctx.get("file_stream")
         if fs_list:
             exit_code = fs_list[-1].get("exitcode")
         return exit_code
+
+    @property
+    def run_id(self):
+        return self._run_id
+
+    @property
+    def git(self):
+        git_info = self._ctx.get("git")
+        return git_info or dict(commit=None, remote=None)
 
     @property
     def config_raw(self):
@@ -1413,15 +1670,15 @@ class ParseCTX(object):
 
     @property
     def config_wandb(self):
-        return self.config["_wandb"]["value"]
+        return self.config.get("_wandb", {}).get("value", {})
 
     @property
     def telemetry(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("t")
+        return self.config.get("_wandb", {}).get("value", {}).get("t", {})
 
     @property
     def metrics(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("m")
+        return self.config.get("_wandb", {}).get("value", {}).get("m", {})
 
     @property
     def manifests_created(self):

@@ -46,6 +46,7 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "load_ipython_extension",
     "require",
 }
 
@@ -99,7 +100,6 @@ SYMBOLS_ROOT_OTHER = {
     "set_trace",
     "setup",
     "sklearn",
-    "superagent",
     "sys",
     "tensorboard",
     "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
@@ -173,6 +173,8 @@ SYMBOLS_RUN = {
     "notes",
     "tags",
     "mark_preempting",
+    "to_html",
+    "display",
 }
 
 # symbols having to do with resuming, we should clean this up

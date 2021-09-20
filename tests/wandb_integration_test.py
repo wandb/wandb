@@ -14,7 +14,6 @@ import sys
 import shutil
 from .utils import fixture_open, first_filestream
 import sys
-import six
 import time
 
 try:
@@ -35,7 +34,6 @@ else:
         import imp
 
         reloadFn = imp.reload
-
 
 # TODO: better debugging, if the backend process fails to start we currently
 # don't get any debug information even in the internal logs.  For now I'm writing
@@ -199,6 +197,19 @@ def test_network_fault_files(live_mock_server, test_settings):
             "wandb-summary.json",
         ]
     )
+
+
+def test_ignore_globs_wandb_files(live_mock_server, test_settings):
+    test_settings.ignore_globs = ["requirements.txt"]
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    print(ctx)
+    assert [
+        f
+        for f in sorted(ctx["storage"][run.id])
+        if not f.endswith(".patch") and not f.endswith(".py")
+    ] == sorted(["wandb-metadata.json", "config.yaml", "wandb-summary.json",])
 
 
 # TODO(jhr): look into why this timeout needed to be extend for windows

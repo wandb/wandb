@@ -11,9 +11,11 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile as nativetempfile
 import textwrap
 import time
 import traceback
+
 
 import click
 from click.exceptions import ClickException
@@ -32,6 +34,7 @@ from wandb import wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
+from wandb.sdk.launch.launch_add import _launch_add
 
 # from wandb.old.core import wandb_dir
 import wandb.sdk.verify.verify as wandb_verify
@@ -39,18 +42,18 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# TODO: turn this on in a cleaner way
-# right now we will litter the filesystem with wandb dirs
-#
-# _wandb_dir = wandb_dir(env.get_dir())
-# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
-# logging.basicConfig(
-#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
-#     level=logging.DEBUG,
-# )
-# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+if not os.path.exists(_wandb_dir):
+    _wandb_dir = nativetempfile.gettempdir()
+logging.basicConfig(
+    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-
 CONTEXT = dict(default_map={})
 
 
@@ -85,6 +88,11 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
+            wandb.termerror(
+                "Find detailed error logs at: {}".format(
+                    os.path.join(_wandb_dir, "debug-cli.log")
+                )
+            )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
@@ -112,7 +120,6 @@ def prompt_for_project(ctx, entity):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
     api = _get_cling_api()
-
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
@@ -240,15 +247,6 @@ def grpc_server(project=None, entity=None, port=None):
     from wandb.server.grpc_server import main as grpc_server
 
     grpc_server(port=port)
-
-
-@cli.command(context_settings=CONTEXT, help="Run a SUPER agent", hidden=True)
-@click.option("--project", "-p", default=None, help="The project to use.")
-@click.option("--entity", "-e", default=None, help="The entity to use.")
-@click.argument("agent_spec", nargs=-1)
-@display_error
-def superagent(project=None, entity=None, agent_spec=None):
-    wandb.superagent.run_agent(agent_spec)
 
 
 @cli.command(
@@ -744,6 +742,25 @@ def sweep(
         entity = parts.get("entity") or entity
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
+
+        has_project = (project or api.settings("project")) is not None
+        has_entity = (entity or api.settings("entity")) is not None
+
+        termerror_msg = (
+            "Sweep lookup requires a valid %s, and none was specified. \n"
+            "Either set a default %s in wandb/settings, or, if invoking \n`wandb sweep` "
+            "from the command line, specify the full sweep path via: \n\n"
+            "    wandb sweep {username}/{projectname}/{sweepid}\n\n"
+        )
+
+        if not has_entity:
+            wandb.termerror(termerror_msg % (("entity",) * 2))
+            return
+
+        if not has_project:
+            wandb.termerror(termerror_msg % (("project",) * 2))
+            return
+
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(
@@ -853,6 +870,240 @@ def sweep(
 
         tuner = wandb_controller(sweep_id)
         tuner.run(verbose=verbose)
+
+
+def _check_launch_imports():
+    req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
+    _ = util.get_module("docker", required=req_string,)
+    _ = util.get_module("repo2docker", required=req_string,)
+    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module("iso8601", required=req_string)
+
+
+@cli.command(
+    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
+    "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
+    "or a git uri pointing to a remote repository, or path to a local directory.",
+)
+@click.argument("uri")
+@click.option(
+    "--entry-point",
+    "-E",
+    metavar="NAME",
+    default=None,
+    help="Entry point within project. [default: main]. If the entry point is not found, "
+    "attempts to run the project file with the specified name as a script, "
+    "using 'python' to run .py files and the default shell (specified by "
+    "environment variable $SHELL) to run .sh files. If passed in, will override the entrypoint value passed in using a config file.",
+)
+@click.option(
+    "--git-version",
+    "-g",
+    metavar="GIT-VERSION",
+    help="Version of the project to run, as a Git commit reference for Git projects.",
+)
+@click.option(
+    "--args-list",
+    "-a",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="An argument for the run, of the form -a name=value. Provided arguments that "
+    "are not in the list of arguments for an entry point will be passed to the "
+    "corresponding entry point as command-line arguments in the form `--name value`",
+)
+@click.option(  # todo: maybe take these out it's confusing with the docker image stuff
+    "--docker-args",
+    "-A",
+    metavar="NAME=VALUE",
+    multiple=True,
+    help="A `docker run` argument or flag, of the form -A name=value (e.g. -A gpus=all) "
+    "or -A name (e.g. -A t). The argument will then be passed as "
+    "`docker run --name value` or `docker run --name` respectively. ",
+)
+@click.option(
+    "--name",
+    envvar="WANDB_NAME",
+    help="Name of the run under which to launch the run. If not "
+    "specified, a random run name will be used to launch run. If passed in, will override the name passed in using a config file.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    metavar="<str>",
+    default=None,
+    help="Name of the target entity which the new run will be sent to. Defaults to using the entity set by local wandb/settings folder."
+    "If passed in, will override the entity value passed in using a config file.",
+)
+@click.option(
+    "--project",
+    "-p",
+    metavar="<str>",
+    default=None,
+    help="Name of the target project which the new run will be sent to. Defaults to using the project name given by the source uri "
+    "or for github runs, the git repo name. If passed in, will override the project value passed in using a config file.",
+)
+@click.option(
+    "--resource",
+    "-r",
+    metavar="BACKEND",
+    default="local",
+    help="Execution resource to use for run. Supported values: 'local'."
+    " If passed in, will override the resource value passed in using a config file."
+    " Defaults to 'local'.",
+)
+@click.option(
+    "--docker-image",
+    "-d",
+    default=None,
+    metavar="DOCKER IMAGE",
+    help="Specific docker image you'd like to use. In the form name:tag."
+    " If passed in, will override the docker image value passed in using a config file.",
+)
+@click.option(
+    "--config",
+    "-c",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as config to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
+)
+@click.option(
+    "--queue",
+    "-q",
+    is_flag=False,
+    flag_value="default",
+    default=None,
+    help="Name of run queue to push to. If none, launches single run directly. If supplied without "
+    "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
+    "project and entity supplied.",
+)
+@display_error
+def launch(
+    uri,
+    entry_point,
+    git_version,
+    args_list,
+    docker_args,
+    name,
+    resource,
+    entity,
+    project,
+    docker_image,
+    config,
+    queue,
+):
+    """
+    Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
+    In the case of a wandb URI the arguments used in the original run will be used by default.
+    These arguments can be overridden using the args option, or specifying those arguments
+    in the config's 'overrides' key, 'args' field as a list of strings.
+
+    Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
+    `wandb launch [URI] --queue [optional queuename]`.
+    """
+    logger.info(
+        f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
+    )
+    _check_launch_imports()
+    from wandb.sdk.launch import launch as wandb_launch
+
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
+    api = _get_cling_api()
+
+    args_dict = util._user_args_to_dict(args_list)
+    docker_args_dict = util._user_args_to_dict(docker_args)
+    if config is not None:
+        if os.path.splitext(config)[-1] == ".json":
+            with open(config, "r") as f:
+                config = json.load(f)
+        else:
+            # assume a json string
+            try:
+                config = json.loads(config)
+            except ValueError as e:
+                wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
+                raise
+    else:
+        config = {}
+
+    if queue is None:
+        # direct launch
+        try:
+            wandb_launch.run(
+                uri,
+                api,
+                entry_point,
+                git_version,
+                project=project,
+                entity=entity,
+                docker_image=docker_image,
+                name=name,
+                parameters=args_dict,
+                docker_args=docker_args_dict,
+                resource=resource,
+                config=config,
+                synchronous=resource in ("local")
+                or resource is None,  # todo currently always true
+            )
+        except wandb_launch.LaunchError as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+        except wandb_launch.ExecutionError as e:
+            logger.error("=== %s ===", e)
+            sys.exit(e)
+    else:
+        _launch_add(
+            api,
+            uri,
+            config,
+            project,
+            entity,
+            queue,
+            resource,
+            entry_point,
+            name,
+            git_version,
+            docker_image,
+            args_dict,
+        )
+
+
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
+@click.pass_context
+@click.argument("project", nargs=1)
+@click.option(
+    "--entity",
+    "-e",
+    default=None,
+    help="The entity to use. Defaults to current logged-in user",
+)
+@click.option("--queues", "-q", default="default", help="The queue names to poll")
+@display_error
+def launch_agent(ctx, project=None, entity=None, queues=None):
+    logger.info(
+        f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
+    )
+    _check_launch_imports()
+
+    from wandb.sdk.launch import launch as wandb_launch
+
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
+    api = _get_cling_api()
+    queues = queues.split(",")  # todo: check for none?
+    if api.api_key is None:
+        wandb.termlog("Login to W&B to use the launch agent feature")
+        ctx.invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    if entity is None:
+        entity = api.default_entity
+
+    wandb.termlog("Starting launch agent ✨")
+    wandb_launch.run_agent(entity, project, queues=queues)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

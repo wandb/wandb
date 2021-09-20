@@ -227,6 +227,7 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
         "\x1b[34m\x1b[1mwandb\x1b[0m: \x1b[33mWARNING\x1b[0m Step cannot be set when"
         " using syncing with tensorboard. Please log your step values as a metric such as 'global_step'"
     ) in term.PRINTED_MESSAGES
+    assert all("_runtime" in step for step in history)
     assert history[9]["wandb_logged_val"] == 81
     assert history[10]["wandb_logged_val_with_step"] == 9
     assert history[-1]["_step"] == 20
