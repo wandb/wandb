@@ -25,9 +25,9 @@ assert:
   - :wandb:runs[0][exitcode]: 0
 """
 
-import wandb
 import torch
-import torch.nn.functional as F
+from torch.nn.functional import log_softmax, max_pool2d, relu
+import wandb
 
 
 def test_profiler():
@@ -53,13 +53,13 @@ def test_profiler():
             self.fc2 = torch.nn.Linear(128, 10)
 
         def forward(self, x):
-            x = F.relu(self.conv1(x))
-            x = F.relu(self.conv2(x))
-            x = F.max_pool2d(x, 2)
+            x = relu(self.conv1(x))
+            x = relu(self.conv2(x))
+            x = max_pool2d(x, 2)
             x = torch.flatten(x, 1)
-            x = F.relu(self.fc1(x))
+            x = relu(self.fc1(x))
             x = self.fc2(x)
-            output = F.log_softmax(x, dim=1)
+            output = log_softmax(x, dim=1)
             return output
 
     model = Net()
