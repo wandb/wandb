@@ -533,7 +533,7 @@ class Artifact(ArtifactInterface):
         if self._logged_artifact:
             return self._logged_artifact.items()
 
-        def iter():
+        def iter() -> Iterable[Tuple[str, ArtifactEntry]]:
             for k, v in self.manifest.entries.items():
                 yield k, ArtifactManifestEntry(
                     path=v.path,
