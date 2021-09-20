@@ -3,7 +3,7 @@ coverage
 tox==3.24.0
 pip
 Pillow
-pandas
+pandas; python_version < '3.10'
 matplotlib<3.3.3
 soundfile
 boto3
@@ -14,7 +14,7 @@ ipython; python_version >= '3.5'
 ipython==5.4.1; python_version < '3.5'
 ipykernel
 nbclient; python_version >= '3.5'
-sklearn
+sklearn; python_version < '3.10'
 tensorflow>=1.15.2; python_version < '3.9'
 torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
 torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
@@ -24,10 +24,11 @@ plotly; python_version < '3.9'
 bokeh
 tqdm
 docker
-stable_baselines3
+stable_baselines3; python_version < '3.10'
 tensorboard
 gym
-jax[cpu]
-fastcore
-pyarrow
-metaflow>=2.3.5
+jax[cpu]; python_version < '3.10'
+fastcore; python_version < '3.10'
+pyarrow; python_version < '3.10'
+metaflow>=2.3.5; python_version < '3.10'
+.[launch]

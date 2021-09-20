@@ -26,7 +26,7 @@ from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
-from wandb.sdk.lib import retry
+from wandb.sdk.lib import ipython, retry
 import yaml
 
 
@@ -167,7 +167,7 @@ class RetryingClient(object):
 
     @property
     def app_url(self):
-        return util.app_url(self._client.transport.url).replace("/graphql", "/")
+        return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
 
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
@@ -314,6 +314,62 @@ class Api(object):
         """
         self._runs = {}
 
+    def from_path(self, path):
+        """Return a run, sweep, project or report from a path
+
+        Examples:
+            ```
+            project = api.from_path("my_project")
+            team_project = api.from_path("my_team/my_project")
+            run = api.from_path("my_team/my_project/runs/id")
+            sweep = api.from_path("my_team/my_project/sweeps/id")
+            report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
+            ```
+
+        Arguments:
+            path: (str) The path to the project, run, sweep or report
+
+        Returns:
+            A `Project`, `Run`, `Sweep`, or `BetaReport` instance.
+
+        Raises:
+            wandb.Error if path is invalid or the object doesn't exist
+        """
+        parts = path.strip("/ ").split("/")
+        if len(parts) == 1:
+            return self.project(path)
+        elif len(parts) == 2:
+            return self.project(parts[1], parts[0])
+        elif len(parts) == 3:
+            return self.run(path)
+        elif len(parts) == 4:
+            if parts[2].startswith("run"):
+                return self.run(path)
+            elif parts[2].startswith("sweep"):
+                return self.sweep(path)
+            elif parts[2].startswith("report"):
+                if "--" not in parts[-1]:
+                    if "-" in parts[-1]:
+                        raise wandb.Error(
+                            "Invalid report path, should be team/project/reports/Name--XXXX"
+                        )
+                    else:
+                        parts[-1] = "--" + parts[-1]
+                name, id = parts[-1].split("--")
+                return BetaReport(
+                    self.client,
+                    {
+                        "display_name": urllib.parse.unquote(name.replace("-", " ")),
+                        "id": id,
+                        "spec": "{}",
+                    },
+                    parts[0],
+                    parts[1],
+                )
+        raise wandb.Error(
+            "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
+        )
+
     def _parse_project_path(self, path):
         """Returns project and entity for project specified by path"""
         project = self.settings["project"]
@@ -328,23 +384,25 @@ class Api(object):
     def _parse_path(self, path):
         """Parses paths in the following formats:
 
-        url: entity/project/runs/run_id
-        path: entity/project/run_id
-        docker: entity/project:run_id
+        url: entity/project/runs/id
+        path: entity/project/id
+        docker: entity/project:id
 
         entity is optional and will fallback to the current logged in user.
         """
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
-        parts = path.replace("/runs/", "/").strip("/ ").split("/")
+        parts = (
+            path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")
+        )
         if ":" in parts[-1]:
-            run = parts[-1].split(":")[-1]
+            id = parts[-1].split(":")[-1]
             parts[-1] = parts[-1].split(":")[0]
         elif parts[-1]:
-            run = parts[-1]
+            id = parts[-1]
         if len(parts) > 1:
             project = parts[1]
-            if entity and run == project:
+            if entity and id == project:
                 project = parts[0]
             else:
                 entity = parts[0]
@@ -352,7 +410,7 @@ class Api(object):
                 entity = parts[0]
         else:
             project = parts[0]
-        return entity, project, run
+        return entity, project, id
 
     def _parse_artifact_path(self, path):
         """Returns project, entity and artifact name for project specified by path"""
@@ -393,6 +451,11 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
+    def project(self, name, entity=None):
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+        return Project(self.client, entity, name, {})
+
     def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
@@ -407,16 +470,14 @@ class Api(object):
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
-        entity, project, run = self._parse_path(path)
-        if entity is None:
-            entity = self.settings["entity"] or self.default_entity
-            if entity is None:
-                raise ValueError(
-                    "entity must be passed as a parameter, or set in settings"
-                )
+        entity, project, _ = self._parse_path(path + "/fake_run")
+
         if name:
             name = urllib.parse.unquote(name)
-        key = "/".join([entity, project, str(name)])
+            key = "/".join([entity, project, str(name)])
+        else:
+            key = "/".join([entity, project])
+
         if key not in self._reports:
             self._reports[key] = Reports(
                 self.client,
@@ -575,6 +636,22 @@ class Attrs(object):
     def snake_to_camel(self, string):
         camel = "".join([i.title() for i in string.split("_")])
         return camel[0].lower() + camel[1:]
+
+    def display(self, height=420, hidden=False) -> bool:
+        """Display this object in jupyter"""
+        html = self.to_html(height, hidden)
+        if html is None:
+            wandb.termwarn("This object does not support `.display()`")
+            return False
+        if ipython.in_jupyter():
+            ipython.display_html(html)
+            return True
+        else:
+            wandb.termwarn(".display() only works in jupyter environments")
+            return False
+
+    def to_html(self, *args, **kwargs):
+        return None
 
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
@@ -740,6 +817,23 @@ class Project(Attrs):
     @property
     def path(self):
         return [self.entity, self.name]
+
+    @property
+    def url(self):
+        return self.client.app_url + "/".join(self.path + ["workspace"])
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this project"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("project")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
     def __repr__(self):
         return "<Project {}>".format("/".join(self.path))
@@ -1492,6 +1586,19 @@ class Run(Attrs):
         history_keys = response["project"]["run"]["historyKeys"]
         return history_keys["lastStep"] if "lastStep" in history_keys else -1
 
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this run"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button()
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
@@ -1651,6 +1758,19 @@ class Sweep(Attrs):
         )
 
         return sweep
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this sweep"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("sweep")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
     def __repr__(self):
         return "<Sweep {}>".format("/".join(self.path))
@@ -1834,13 +1954,15 @@ class Reports(Paginator):
     QUERY = gql(
         """
         query Run($project: String!, $entity: String!, $reportCursor: String,
-            $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
+            $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
                 allViews(viewType: $viewType, viewName: $viewName, first:
                     $reportLimit, after: $reportCursor) {
                     edges {
                         node {
+                            id
                             name
+                            displayName
                             description
                             user {
                                 username
@@ -1851,6 +1973,11 @@ class Reports(Paginator):
                         }
                         cursor
                     }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+
                 }
             }
         }
@@ -1870,14 +1997,15 @@ class Reports(Paginator):
     @property
     def length(self):
         # TODO: Add the count the backend
-        return self.per_page
+        if self.last_response:
+            return len(self.objects)
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
-            return (
-                len(self.last_response["project"]["allViews"]["edges"]) == self.per_page
-            )
+            return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
         else:
             return True
 
@@ -1894,6 +2022,10 @@ class Reports(Paginator):
         )
 
     def convert_objects(self):
+        if self.last_response["project"] is None:
+            raise ValueError(
+                f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
+            )
         return [
             BetaReport(
                 self.client,
@@ -2056,6 +2188,35 @@ class BetaReport(Attrs):
     @property
     def updated_at(self):
         return self._attrs["updatedAt"]
+
+    @property
+    def url(self):
+        return self.client.app_url + "/".join(
+            [
+                self.entity,
+                self.project,
+                "reports",
+                "--".join(
+                    [
+                        urllib.parse.quote(self.display_name.replace(" ", "-")),
+                        self.id.replace("=", ""),
+                    ]
+                ),
+            ]
+        )
+
+    def to_html(self, height=1024, hidden=False):
+        """Generate HTML containing an iframe displaying this report"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("report")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
 
 class HistoryScan(object):
