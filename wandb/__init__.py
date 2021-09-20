@@ -186,6 +186,15 @@ def set_trace():
     pdb.set_trace()  # TODO: pass the parent stack...
 
 
+def load_ipython_extension(ipython):
+    ipython.register_magics(wandb.jupyter.WandBMagics)
+
+
+if wandb_sdk.lib.ipython.in_jupyter():
+    from IPython import get_ipython
+
+    load_ipython_extension(get_ipython())
+
 __all__ = [
     "__version__",
     "init",
