@@ -9,7 +9,7 @@ import wandb
 def test_profiler_without_init():
     import torch
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception) as e_info:
         with torch.profiler.profile(
             schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=1),
             on_trace_ready=wandb.profiler.trace(),
@@ -21,3 +21,7 @@ def test_profiler_without_init():
                     break
                 # train(batch_data)
                 prof.step()
+        assert (
+            str(e_info.value)
+            == "Please call wandb.init() before wandb.profiler.trace()"
+        )
