@@ -1091,22 +1091,23 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         "size",
         "description",
         "metadata",
+        "aliases",
     ]
 
     # These are valid even before waiting!
     testable_getters_always_valid = ["distributed_id"]
 
     # These properties should be valid only after logging
-    testable_getters_invalid = ["version", "commit_hash", "aliases"]
+    testable_getters_invalid = ["version", "commit_hash"]
 
     # These setters should be valid both before and after logging
-    testable_setters_valid = ["description", "metadata"]
+    testable_setters_valid = ["description", "metadata", "aliases"]
 
     # These are valid even before waiting!
     testable_setters_always_valid = ["distributed_id"]
 
     # These setters should be valid only after logging
-    testable_setters_invalid = ["aliases"]
+    testable_setters_invalid = []
 
     # These methods should be valid both before and after logging
     testable_methods_valid = []
@@ -1123,7 +1124,7 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
         "delete",
     ]
 
-    setter_data = {"metadata": {}}
+    setter_data = {"metadata": {}, "aliases": ["latest"]}
     params = {"get_path": ["t1.table.json"], "get": ["t1"]}
 
     # these are failures of mocking
@@ -1226,6 +1227,6 @@ def test_reference_download(runner, live_mock_server, test_settings):
 
 def test_communicate_artifact(publish_util, mocked_run):
     artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-    artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
+    artifact_publish = dict(run=mocked_run, artifact=artifact)
     ctx_util = publish_util(artifacts=[artifact_publish])
     assert len(set(ctx_util.manifests_created_ids)) == 1
