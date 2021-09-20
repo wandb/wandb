@@ -3,6 +3,7 @@
 from flask import Flask, request, g, jsonify
 import os
 import sys
+import re
 from datetime import datetime, timedelta
 import json
 import platform
@@ -688,6 +689,14 @@ def create_app(user_ctx=None):
             r.setdefault("storage_id", "storageid{}".format(run_num))
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
+
+            git_remote = body["variables"].get("repo")
+            git_commit = body["variables"].get("commit")
+            if git_commit or git_remote:
+                for c in ctx, run_ctx:
+                    c.setdefault("git", {})
+                    c["git"]["remote"] = git_remote
+                    c["git"]["commit"] = git_commit
 
             param_config = body["variables"].get("config")
             if param_config:
@@ -1509,6 +1518,17 @@ index 30d74d2..9a2c773 100644
     return app
 
 
+RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+
+
+def strip_datetime(s):
+    # 2021-09-18T17:28:07.059270
+    m = RE_DATETIME.match(s)
+    if m:
+        return m.group("rest")
+    return s
+
+
 class ParseCTX(object):
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
@@ -1541,7 +1561,7 @@ class ParseCTX(object):
                 if not offset:
                     l = []
                 if k == u"output.log":
-                    lines = [content]
+                    lines = content
                 else:
                     lines = map(json.loads, content)
                 l.extend(lines)
@@ -1596,12 +1616,42 @@ class ParseCTX(object):
         return history
 
     @property
+    def output(self):
+        fs_files = self.get_filestream_file_items()
+        output_items = fs_files.get("output.log", [])
+        err_prefix = "ERROR "
+        stdout_items = []
+        stderr_items = []
+        for item in output_items:
+            if item.startswith(err_prefix):
+                err_item = item[len(err_prefix) :]
+                stderr_items.append(err_item)
+            else:
+                stdout_items.append(item)
+        stdout = "".join(stdout_items)
+        stderr = "".join(stderr_items)
+        stdout_lines = stdout.splitlines()
+        stderr_lines = stderr.splitlines()
+        stdout = list(map(strip_datetime, stdout_lines))
+        stderr = list(map(strip_datetime, stderr_lines))
+        return dict(stdout=stdout, stderr=stderr)
+
+    @property
     def exit_code(self):
         exit_code = None
         fs_list = self._ctx.get("file_stream")
         if fs_list:
             exit_code = fs_list[-1].get("exitcode")
         return exit_code
+
+    @property
+    def run_id(self):
+        return self._run_id
+
+    @property
+    def git(self):
+        git_info = self._ctx.get("git")
+        return git_info or dict(commit=None, remote=None)
 
     @property
     def config_raw(self):
@@ -1624,11 +1674,11 @@ class ParseCTX(object):
 
     @property
     def telemetry(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("t")
+        return self.config.get("_wandb", {}).get("value", {}).get("t", {})
 
     @property
     def metrics(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("m")
+        return self.config.get("_wandb", {}).get("value", {}).get("m", {})
 
     @property
     def manifests_created(self):
