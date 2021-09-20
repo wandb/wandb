@@ -690,6 +690,14 @@ def create_app(user_ctx=None):
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
+            git_remote = body["variables"].get("repo")
+            git_commit = body["variables"].get("commit")
+            if git_commit or git_remote:
+                for c in ctx, run_ctx:
+                    c.setdefault("git", {})
+                    c["git"]["remote"] = git_remote
+                    c["git"]["commit"] = git_commit
+
             param_config = body["variables"].get("config")
             if param_config:
                 for c in ctx, run_ctx:
@@ -1639,6 +1647,11 @@ class ParseCTX(object):
     @property
     def run_id(self):
         return self._run_id
+
+    @property
+    def git(self):
+        git_info = self._ctx.get("git")
+        return git_info or dict(commit=None, remote=None)
 
     @property
     def config_raw(self):
