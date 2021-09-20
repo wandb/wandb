@@ -1161,7 +1161,7 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run %s" % self)
             self._attrs = response["project"]["run"]
-            self.state = self._attrs["state"]
+            self._state = self._attrs["state"]
 
             if self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -1217,7 +1217,7 @@ class Run(Attrs):
             if state in ["finished", "crashed", "failed"]:
                 print("Run finished with status: {}".format(state))
                 self._attrs["state"] = state
-                self.state = state
+                self._state = state
                 return
             time.sleep(5)
 
