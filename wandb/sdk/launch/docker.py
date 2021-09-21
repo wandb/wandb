@@ -168,7 +168,7 @@ def build_docker_image_if_needed(
         # requirements_line += _parse_existing_requirements(launch_project)
         # requirements_line += "python _wandb_bootstrap.py\n"
         print(os.listdir("./"))
-        requirements_line += "pip install --upgrade --no-cache-dir git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
+        # requirements_line += "pip install --upgrade --no-cache-dir git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
         print("REQ")
         print(requirements_line)
 
@@ -257,11 +257,11 @@ def get_docker_command(
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]
 
-    if launch_project.override_config:
-        cmd += [
-            "-v",
-            f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
-        ]
+    # if launch_project.override_config:
+    cmd += [
+        "-v",
+        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
+    ]
     # TODO: REMOVE
     cmd += ["-v", f"/Users/kyle/newcli/client:{os.path.join(workdir,'client')}"]
     # print(cmd)

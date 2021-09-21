@@ -35,6 +35,7 @@ class LaunchProject(object):
     def __init__(
         self,
         uri: str,
+        launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
         name: Optional[str],
@@ -44,6 +45,7 @@ class LaunchProject(object):
     ):
 
         self.uri = uri
+        self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
@@ -311,6 +313,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
 
     return LaunchProject(
         uri,
+        launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
         name,

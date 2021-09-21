@@ -390,7 +390,9 @@ class Run(object):
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
-        wandb.termlog("GOING THROUGH SETUP")
+        wandb.termlog(
+            f"GOING THROUGH SETUP {self._settings.launch_config_path} {os.path.exists(self._settings.launch_config_path)} {os.listdir(os.getcwd())}"
+        )
         if (
             self._settings.launch
             and self._settings.launch_config_path
@@ -2221,21 +2223,38 @@ class Run(object):
                 new_name = self._launch_artifact_mapping.get(
                     use_as or artifact_or_name, {}
                 ).get("name")
+                entity = self._launch_artifact_mapping.get(
+                    use_as or artifact_or_name, {}
+                ).get("entity")
+                project = self._launch_artifact_mapping.get(
+                    use_as or artifact_or_name, {}
+                ).get("project")
                 if new_name is None:
+                    # TODO: fix warning
+                    wandb.termwarn(
+                        f"Could not find {use_as or artifact_or_name} in launch artifact mapping. Searching for unique"
+                    )
                     sequence_name = artifact_or_name.split(":")[0].split("/")[-1]
                     new_name = self._unique_launch_artifact_sequence_names.get(
-                        sequence_name
-                    )
+                        sequence_name, {}
+                    ).get("name")
+                    entity = self._unique_launch_artifact_sequence_names.get(
+                        sequence_name, {}
+                    ).get("entity")
+                    project = self._unique_launch_artifact_sequence_names.get(
+                        sequence_name, {}
+                    ).get("project")
                 if new_name is None:
                     wandb.termwarn(
                         f"Could not find {use_as or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
                     )
                     name = artifact_or_name
                 else:
-                    name = new_name
+                    name = f"{entity}/{project}/{new_name}"
             else:
                 name = artifact_or_name
             public_api = self._public_api()
+            print("name", name)
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(

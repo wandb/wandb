@@ -136,15 +136,16 @@ class LocalRunner(AbstractRunner):
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
-            # command_args += ["pip3", "install", "-e", "./client"]
+            command_args += ["/bin/bash -c"]
+            command_args += ['"pip', "install", "-e", "./client", ";"]
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
-            if launch_project.override_config:
-                with open(
-                    os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
-                ) as fp:
-                    json.dump(launch_project.override_config, fp)
+            command_args += ['"']
+            with open(
+                os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
+            ) as fp:
+                json.dump(launch_project.launch_spec, fp)
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
