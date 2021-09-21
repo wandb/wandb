@@ -165,10 +165,10 @@ def build_docker_image_if_needed(
             os.path.join(launch_project.project_dir),
         )
         # TODO: make this configurable or change the default behavior...
-        requirements_line += _parse_existing_requirements(launch_project)
-        requirements_line += "python _wandb_bootstrap.py\n"
+        # requirements_line += _parse_existing_requirements(launch_project)
+        # requirements_line += "python _wandb_bootstrap.py\n"
         print(os.listdir("./"))
-        # requirements_line += "pip install --no-cache-dir git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
+        requirements_line += "pip install --upgrade --no-cache-dir git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
         print("REQ")
         print(requirements_line)
 
