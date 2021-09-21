@@ -71,11 +71,13 @@ import yaml
 # TODO(jhr): Add print_space
 # TODO(jhr): Add print_summary
 
+
 sweeps = get_module(
-    "wandb.sweeps_engine",
-    required="This module requires wandb to be built with the local "
-    "controller. Please run pip install wandb[sweeps].",
+    "wandb.sweeps",
+    required="wandb[sweeps] is required to use the local controller. "
+    "Please run `pip install wandb[sweeps]`.",
 )
+
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
 SWEEP_INITIAL_RUN_STATE = sweeps.RunState.pending
