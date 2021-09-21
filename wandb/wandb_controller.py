@@ -615,21 +615,19 @@ class _WandbController:
         if self._controller and self._controller.get("schedule"):
             return
 
-        if run is not None:
+        schedule_id = _id_generator()
+
+        if run is None:
+            schedule_list = [{"id": schedule_id, "data": {"args": None}}]
+        else:
             param_list = [
                 "%s=%s" % (k, v.get("value")) for k, v in sorted(run.config.items())
             ]
             self._log_actions.append(("schedule", ",".join(param_list)))
 
-        # schedule one run
-        schedule_list = []
-        schedule_id = _id_generator()
-        schedule_list.append(
-            {
-                "id": schedule_id,
-                "data": {"args": run.config if run is not None else None},
-            }
-        )
+            # schedule one run
+            schedule_list = [{"id": schedule_id, "data": {"args": run.config}}]
+
         self._controller["schedule"] = schedule_list
         self._sweep_object_sync_to_backend()
 
