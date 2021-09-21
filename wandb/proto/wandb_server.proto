@@ -3,26 +3,41 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_telemetry.proto";
 
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
+  rpc Attach(AttachRequest) returns (AttachResponse) {}
+  rpc TBSend(TBRecord) returns (TBResult) {}
+  rpc RunStart(RunStartRequest) returns (RunStartResponse) {}
+  rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse) {}
+  rpc SampledHistory(SampledHistoryRequest) returns (SampledHistoryResponse) {}
+  rpc PollExit(PollExitRequest) returns (PollExitResponse) {}
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
+  rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
+  rpc Metric(MetricRecord) returns (MetricResult) {}
   rpc Log(HistoryRecord) returns (HistoryResult) {}
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}
+  rpc Files(FilesRecord) returns (FilesResult) {}
   rpc Output(OutputRecord) returns (OutputResult) {}
-  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResult) {}
-  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResult) {}
+  rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
+  rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
+  rpc Pause(PauseRequest) returns (PauseResponse) {}
+  rpc Resume(ResumeRequest) returns (ResumeResponse) {}
+  rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
+  rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
 }
 
 message ServerShutdownRequest {
 }
 
-message ServerShutdownResult {
+message ServerShutdownResponse {
 }
 
 message ServerStatusRequest {
 }
 
-message ServerStatusResult {
+message ServerStatusResponse {
 }
