@@ -621,7 +621,7 @@ class _WandbController:
         # schedule one run
         schedule_list = []
         schedule_id = _id_generator()
-        schedule_list.append({"id": schedule_id, "data": {"args": run.config}})
+        schedule_list.append({"id": schedule_id, "data": {"args": run.config if run is not None else None}})
         self._controller["schedule"] = schedule_list
         self._sweep_object_sync_to_backend()
 
