@@ -136,7 +136,7 @@ def build_docker_image_if_needed(
         image_id=launch_project.run_id,
     )
     launch_project.docker_image = image_uri
-    if docker_image_exists(image_uri) and not launch_project.build_image:
+    if False:  # docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
         return image_uri
     copy_code_line = ""
@@ -150,8 +150,10 @@ def build_docker_image_if_needed(
     if copy_code:
         copy_code_line = "COPY ./src/ {}\n".format(workdir)
         if docker.is_buildx_installed():
-            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
-                homedir, launch_project.docker_user_id
+            requirements_line = (
+                "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                    homedir, launch_project.docker_user_id
+                )
             )
         else:
             wandb.termwarn(
@@ -170,9 +172,16 @@ def build_docker_image_if_needed(
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
     dockerfile = (
-        "FROM {imagename}\n" "{copy_code_line}" "{requirements_line}" "{name_line}"
+        "FROM {imagename}\n"
+        "RUN mkdir -p {homedir}/.cache\n"
+        "RUN chown {uid} {homedir}/.cache\n"
+        "{copy_code_line}"
+        "{requirements_line}"
+        "{name_line}"
     ).format(
         imagename=launch_project.base_image,
+        uid=launch_project.docker_user_id,
+        homedir=homedir,
         copy_code_line=copy_code_line,
         requirements_line=requirements_line,
         name_line=name_line,
@@ -220,7 +229,7 @@ def get_docker_command(
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
+        base_url = "http://host.docker.internal:9003"
     else:
         base_url = api.settings("base_url")
 
@@ -249,6 +258,7 @@ def get_docker_command(
             "-v",
             f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
         ]
+
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -313,7 +323,8 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: _project_spec.LaunchProject, dockerfile_contents: str,
+    launch_project: _project_spec.LaunchProject,
+    dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
