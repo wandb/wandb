@@ -390,7 +390,7 @@ class Run(object):
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
-
+        print("GOING THROUGH SETUP")
         if (
             self._settings.launch
             and self._settings.launch_config_path
