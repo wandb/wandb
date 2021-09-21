@@ -36,7 +36,6 @@ from . import summary_record as sr
 from .artifacts import ArtifactManifest
 from ..wandb_artifacts import Artifact
 
-
 if TYPE_CHECKING:
     from ..wandb_run import Run
     from six.moves.queue import Queue
@@ -45,7 +44,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyTypeValue":
+def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -55,7 +54,7 @@ def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyTypeValue":
     return enum
 
 
-def file_enum_to_policy(enum: "pb.FilesItem.PolicyTypeValue") -> str:
+def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     if enum == pb.FilesItem.PolicyType.NOW:
         policy = "now"
     elif enum == pb.FilesItem.PolicyType.END:
@@ -560,13 +559,13 @@ class BackendSender(object):
         assert login_response
         return login_response
 
-    def _publish_defer(self, state: "pb.DeferRequest.DeferStateValue") -> None:
+    def _publish_defer(self, state: "pb.DeferRequest.DeferState.V") -> None:
         defer = pb.DeferRequest(state=state)
         rec = self._make_request(defer=defer)
         self._publish(rec, local=True)
 
     def publish_defer(self, state: int = 0) -> None:
-        self._publish_defer(cast("pb.DeferRequest.DeferStateValue", state))
+        self._publish_defer(cast("pb.DeferRequest.DeferState.V", state))
 
     def publish_header(self) -> None:
         header = pb.HeaderRecord()
