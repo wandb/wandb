@@ -108,6 +108,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    _concurrency="WANDB_REQUIRE_CONCURRENCY",
     login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
@@ -219,6 +220,7 @@ class Settings(object):
 
     mode: str = "online"
     start_method: Optional[str] = None
+    _concurrency: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     force: Optional[bool] = None
@@ -257,6 +259,7 @@ class Settings(object):
     resume: str
     strict: Optional[str] = None
     label_disable: Optional[bool] = None
+    _attach_id: Optional[str] = None
 
     # Public attributes
     entity: Optional[str] = None
@@ -308,6 +311,7 @@ class Settings(object):
         anonymous: str = None,
         mode: str = None,
         start_method: str = None,
+        _concurrency: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
@@ -409,6 +413,7 @@ class Settings(object):
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
+        _attach_id: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
@@ -613,7 +618,7 @@ class Settings(object):
         return None
 
     def _validate_start_method(self, value: str) -> Optional[str]:
-        available_methods = ["thread"]
+        available_methods = ["thread", "grpc"]
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
         if value in available_methods:
@@ -1115,6 +1120,7 @@ class Settings(object):
             job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
+            attach="_attach_id",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg

@@ -16,9 +16,11 @@ import logging
 import os
 import sys
 import threading
+from typing import Optional
 
 import wandb
 
+from . import wandb_manager
 from . import wandb_settings
 from .lib import config_util, server
 
@@ -73,6 +75,8 @@ class _EarlyLogger(object):
 
 class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
+
+    _manager: Optional[wandb_manager._Manager]
 
     def __init__(self, settings=None, environ=None):
         self._settings = None
@@ -199,6 +203,8 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
+        self._setup_manager()
+
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
             self._sweep_config = config_util.dict_from_config_file(
@@ -217,6 +223,19 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
                     self._config.update(config_dict)
                 else:
                     self._config = config_dict
+
+    def _teardown(self):
+        self._teardown_manager()
+
+    def _setup_manager(self) -> None:
+        if not self._settings._concurrency:
+            return
+        self._manager = wandb_manager._Manager()
+
+    def _teardown_manager(self) -> None:
+        if not self._manager:
+            return
+        self._manager._teardown()
 
 
 class _WandbSetup(object):
@@ -237,6 +256,9 @@ class _WandbSetup(object):
 def _setup(settings=None, _reset=None):
     """Setup library context."""
     if _reset:
+        setup_instance = _WandbSetup._instance
+        if setup_instance:
+            setup_instance._teardown()
         _WandbSetup._instance = None
         return
     wl = _WandbSetup(settings=settings)
