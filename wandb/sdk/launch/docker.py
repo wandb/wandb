@@ -166,8 +166,10 @@ def build_docker_image_if_needed(
         )
         # TODO: make this configurable or change the default behavior...
         requirements_line += _parse_existing_requirements(launch_project)
-        requirements_line += "python _wandb_bootstrap.py\n"
-
+        # requirements_line += "python _wandb_bootstrap.py\n"
+        requirements_line += "pip install git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
+    print("REQ")
+    print(requirements_line)
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
@@ -288,6 +290,7 @@ def _parse_existing_requirements(launch_project: _project_spec.LaunchProject) ->
             while True:
                 try:
                     pkg = next(iter)
+                    print(pkg)
                     if hasattr(pkg, "name"):
                         name = pkg.name.lower()  # type: ignore
                     else:
