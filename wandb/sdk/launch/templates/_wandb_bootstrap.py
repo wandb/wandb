@@ -60,6 +60,10 @@ def main():
             failed = set()
             for req in f:
                 print(req)
+                subprocess.check_output(
+                    ["pip", "install", "-e", "./client"], stderr=subprocess.STDOUT
+                )
+                break
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     reqs.append(req.strip())
                 else:

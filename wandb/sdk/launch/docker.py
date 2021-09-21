@@ -166,10 +166,12 @@ def build_docker_image_if_needed(
         )
         # TODO: make this configurable or change the default behavior...
         requirements_line += _parse_existing_requirements(launch_project)
-        # requirements_line += "python _wandb_bootstrap.py\n"
-        requirements_line += "pip install git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
-    print("REQ")
-    print(requirements_line)
+        requirements_line += "python _wandb_bootstrap.py\n"
+        print(os.listdir("./"))
+        # requirements_line += "pip install --no-cache-dir git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
+        print("REQ")
+        print(requirements_line)
+
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
@@ -260,7 +262,9 @@ def get_docker_command(
             "-v",
             f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
         ]
-
+    # TODO: REMOVE
+    cmd += ["-v", f"/Users/kyle/newcli/client:{os.path.join(workdir,'client')}"]
+    # print(cmd)
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag

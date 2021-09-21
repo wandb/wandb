@@ -89,7 +89,7 @@ class LocalRunner(AbstractRunner):
             copy_code = False
         else:
             # TODO: potentially pull the base_image
-            if not docker_image_exists(launch_project.base_image):
+            if True:  # not docker_image_exists(launch_project.base_image):
                 if generate_docker_base_image(launch_project, entry_cmd) is None:
                     raise LaunchError("Unable to build base image")
             else:
@@ -136,6 +136,7 @@ class LocalRunner(AbstractRunner):
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
+            # command_args += ["pip3", "install", "-e", "./client"]
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
@@ -202,7 +203,10 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)
