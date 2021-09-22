@@ -738,11 +738,7 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={
-                "entity": entity,
-                "project": project_name,
-                "name": name,
-            },
+            variable_values={"entity": entity, "project": project_name, "name": name,},
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1378,12 +1374,7 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query,
-            variable_values={
-                "name": project,
-                "run": run,
-                "entity": entity,
-            },
+            query, variable_values={"name": project, "run": run, "entity": entity,},
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -2300,8 +2291,7 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self,
-        client_id,
+        self, client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2316,12 +2306,7 @@ class Api(object):
             }
         """
         )
-        response = self.gql(
-            query,
-            variable_values={
-                "clientID": client_id,
-            },
-        )
+        response = self.gql(query, variable_values={"clientID": client_id,},)
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")

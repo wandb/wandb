@@ -76,13 +76,7 @@ def mock_load_backend():
 
 
 def check_project_spec(
-    project_spec,
-    api,
-    uri,
-    project=None,
-    entity=None,
-    config=None,
-    parameters=None,
+    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -156,10 +150,7 @@ def test_launch_add_base(live_mock_server):
     reason="wandb launch is not available for python versions <3.5",
 )
 def test_launch_specified_project(
-    live_mock_server,
-    test_settings,
-    mocked_fetchable_git_repo,
-    mock_load_backend,
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend,
 ):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -362,9 +353,7 @@ def test_launch_no_server_info(
     )
     try:
         launch.run(
-            "https://wandb.ai/mock_server_entity/test/runs/1",
-            api,
-            project=f"new-test",
+            "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"new-test",
         )
         assert False
     except wandb.errors.LaunchError as e:
