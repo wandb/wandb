@@ -1,3 +1,0 @@
-[submodule "wandb/sweeps_engine"]
-	path = wandb/sweeps_engine
-	url = https://github.com/wandb/sweeps
