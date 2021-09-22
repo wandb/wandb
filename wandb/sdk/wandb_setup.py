@@ -84,6 +84,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._sweep_config = None
         self._config = None
         self._server = None
+        self._manager = None
 
         # keep track of multiple runs so we can unwind with join()s
         self._global_run_stack = []
