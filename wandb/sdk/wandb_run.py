@@ -390,9 +390,7 @@ class Run(object):
             self._config.update_locked(
                 sweep_config, user="sweep", _allow_val_change=True
             )
-        wandb.termlog(
-            f"GOING THROUGH SETUP {self._settings.launch_config_path} {os.path.exists(self._settings.launch_config_path)} {os.listdir(os.getcwd())}"
-        )
+
         if (
             self._settings.launch
             and self._settings.launch_config_path
@@ -2213,7 +2211,7 @@ class Run(object):
         """
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-
+        print("ARTIFACT OR NAME", artifact_or_name)
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)

@@ -558,6 +558,10 @@ def json_friendly(obj):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
+    elif isinstance(obj, wandb.wandb_sdk.wandb_artifacts.Artifact) or isinstance(
+        obj, wandb.apis.public.Artifact
+    ):
+        obj = convert_artifact_to_json_config(obj)
     elif callable(obj):
         obj = (
             "{}.{}".format(obj.__module__, obj.__qualname__)
@@ -1426,3 +1430,27 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def check_dict_contains_artifact(d):
+    if isinstance(d, dict):
+        for _, item in six.iteritems(d):
+            if isinstance(item, dict):
+                contains_artifacts = check_dict_contains_artifact(item)
+                if contains_artifacts:
+                    return True
+            elif isinstance(item, wandb.Artifact) or isinstance(
+                item, wandb.apis.public.Artifact
+            ):
+                return True
+    return False
+
+
+def convert_artifact_to_json_config(arti):
+    return {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": arti.id,
+        "version": arti.version,
+        "sequenceName": arti._sequence_name,
+    }

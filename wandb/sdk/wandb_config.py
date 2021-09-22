@@ -227,7 +227,11 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        val = json_friendly_val(val)
+        if not (
+            isinstance(val, wandb.Artifact)
+            or isinstance(val, wandb.apis.public.Artifact)
+        ):
+            val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
