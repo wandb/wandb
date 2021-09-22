@@ -163,7 +163,12 @@ class _WandbInit(object):
         # TODO: move above parameters into apply_init_login
         settings._apply_init_login(kwargs)
 
-        if not settings._offline and not settings._noop:
+        # TODO: Should we assume login isnt needed?  would be nice if login knew the settings
+        attach_intent = False
+        if "attach" in kwargs:
+            attach_intent = True
+
+        if not settings._offline and not settings._noop and not attach_intent:
             wandb_login._login(
                 anonymous=anonymous,
                 force=force,
@@ -429,12 +434,24 @@ class _WandbInit(object):
                         )
                     )
         elif isinstance(wandb.run, Run):
-            logger.info("wandb.init() called when a run is still active")
-            return wandb.run
+            if wandb.run._init_pid == os.getpid():
+                logger.info("wandb.init() called when a run is still active")
+                return wandb.run
+            elif s._concurrency and not s._attach_id:
+                logger.error(
+                    "wandb.init() called when a run is still active. Unsafe mp usage."
+                )
+                return wandb.run
+
+        if s._attach_id and not s._concurrency:
+            wandb.termwarn(
+                "Must use 'concurrency' feature to use `wandb.init(attach=)` See: http://wandb.me/experiment-concurrency"
+            )
 
         logger.info("starting backend")
 
-        backend = Backend(settings=s)
+        manager = self._wl._get_manager()
+        backend = Backend(settings=s, manager=manager)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
@@ -506,6 +523,7 @@ class _WandbInit(object):
         # run_synced = None
 
         backend._hack_set_run(run)
+        assert backend.interface
         backend.interface.publish_header()
 
         if s._offline:
@@ -520,18 +538,26 @@ class _WandbInit(object):
                 )
         else:
             logger.info("communicating current version")
-            ret = backend.interface.communicate_check_version(
+            check = backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
-            if ret:
-                logger.info("got version response {}".format(ret))
-                if ret.upgrade_message:
-                    run._set_upgraded_version_message(ret.upgrade_message)
-                if ret.delete_message:
-                    run._set_deleted_version_message(ret.delete_message)
-                if ret.yank_message:
-                    run._set_yanked_version_message(ret.yank_message)
+            if check:
+                logger.info("got version response {}".format(check))
+                if check.upgrade_message:
+                    run._set_upgraded_version_message(check.upgrade_message)
+                if check.delete_message:
+                    run._set_deleted_version_message(check.delete_message)
+                if check.yank_message:
+                    run._set_yanked_version_message(check.yank_message)
             run._on_init()
+        if not s._offline and s._attach_id:
+            resp = backend.interface.communicate_attach(s._attach_id)
+            if not resp:
+                raise UsageError("problem")
+            if resp and resp.error and resp.error.message:
+                raise UsageError("bad: {}".format(resp.error.message))
+            run._set_run_obj(resp.run)
+        if not s._offline and not s._attach_id:
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
 
@@ -553,6 +579,7 @@ class _WandbInit(object):
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
+            assert ret and ret.run
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
@@ -562,6 +589,8 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
+        assert backend.interface
+        assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
 
         self._wl._global_run_stack.append(run)
@@ -631,6 +660,7 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
+    attach: str = None,
 ) -> Union[Run, RunDisabled, None]:
     """Starts a new run to track and log to W&B.
 
@@ -770,6 +800,8 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
+            See https://docs.wandb.com/library/resuming
+        attach: (str, optional) internal id used for multiprocess training.
 
 
     Examples:

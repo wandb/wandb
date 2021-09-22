@@ -237,6 +237,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
             return
         self._manager._teardown()
 
+    def _get_manager(self) -> Optional[wandb_manager._Manager]:
+        return self._manager
+
 
 class _WandbSetup(object):
     """Wandb singleton class."""

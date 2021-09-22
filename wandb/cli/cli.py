@@ -260,9 +260,9 @@ def grpc_server(
         "grpc",
         required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
     )
-    from wandb.sdk.service.grpc_service import main as grpc_service
+    from wandb.sdk.service.grpc_server import main as grpc_server
 
-    grpc_service(
+    grpc_server(
         port=port,
         port_filename=port_filename,
         address=address,

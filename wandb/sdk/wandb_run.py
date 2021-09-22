@@ -41,7 +41,6 @@ from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
-from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -72,7 +71,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import BackendSender
+from .interface.interface import BackendSenderBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -91,11 +90,11 @@ from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
-
 if TYPE_CHECKING:
     from typing import NoReturn
 
     from .data_types import WBValue
+    from .wandb_alerts import AlertLevel
 
     from .interface.artifacts import (
         ArtifactEntry,
@@ -174,7 +173,7 @@ class RunStatusChecker(object):
 
     def __init__(
         self,
-        interface: BackendSender,
+        interface: BackendSenderBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -285,13 +284,15 @@ class Run(object):
     _run_status_checker: Optional[RunStatusChecker]
     _poll_exit_response: Optional[PollExitResponse]
 
-    _sampled_history: Optional[Dict[str, Union[List[int], List[float]]]]
+    _sampled_history: Optional[Dict[str, Union[Sequence[int], Sequence[float]]]]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
 
-    _pid: int
+    _init_pid: int
+    _iface_pid: Optional[int]
+    _iface_port: Optional[int]
 
     def __init__(
         self,
@@ -405,7 +406,19 @@ class Run(object):
         self._use_redirect = True
         self._progress_step = 0
 
-        self._pid = os.getpid()
+        # pid is set so we know if this run object was initialized by this process
+        self._init_pid = os.getpid()
+
+        # interface pid and port configured when backend is configured (See _hack_set_run)
+        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        self._iface_pid = None
+        self._iface_port = None
+
+    def _set_iface_pid(self, iface_pid: int) -> None:
+        self._iface_pid = iface_pid
+
+    def _set_iface_port(self, iface_port: int) -> None:
+        self._iface_port = iface_port
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -486,11 +499,29 @@ class Run(object):
             run.start_time.FromSeconds(int(self._start_time))
         # Note: run.config is set in interface/interface:_make_run()
 
-    def __getstate__(self) -> None:
-        pass
+    def __getstate__(self) -> Any:
+        """Custom pickler."""
+
+        # We only pickle in concurrency mode
+        if not self._settings or not self._settings._concurrency:
+            return
+
+        _attach_id = self._attach_id
+        if not _attach_id:
+            return
+
+        return dict(_attach_id=_attach_id)
 
     def __setstate__(self, state: Any) -> None:
-        pass
+        """Custom unpickler."""
+        if not state:
+            return
+
+        _attach_id = state.get("_attach_id")
+        if not _attach_id:
+            return
+
+        self._attach_id = _attach_id
 
     @property
     def dir(self) -> str:
@@ -524,7 +555,7 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
         self._name = name
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -543,7 +574,7 @@ class Run(object):
     @notes.setter
     def notes(self, notes: str) -> None:
         self._notes = notes
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -561,7 +592,7 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -796,8 +827,8 @@ class Run(object):
         self._label_internal(code=code, repo=repo, code_version=code_version)
 
         # update telemetry in the backend immediately for _label() callers
-        if self._backend:
-            self._backend.interface.publish_telemetry(self._telemetry_obj)
+        if self._backend and self._backend.interface:
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines: List[str]) -> None:
         if not lines:
@@ -881,21 +912,23 @@ class Run(object):
         self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
-        if not self._backend:
+        if not self._backend or not self._backend.interface:
             return {}
-        ret = self._backend.interface.communicate_summary()
+        ret = self._backend.interface.communicate_get_summary()
+        if not ret:
+            return {}
         return proto_util.dict_from_proto_list(ret.item)
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface._publish_metric(metric_record)
 
     def _datatypes_callback(self, fname: str) -> None:
-        if not self._backend:
+        if not self._backend or not self._backend.interface:
             return
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
@@ -929,7 +962,7 @@ class Run(object):
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
 
-        if self._backend:
+        if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
                 row, step, publish_step=not_using_tensorboard
@@ -937,7 +970,7 @@ class Run(object):
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(
@@ -945,7 +978,7 @@ class Run(object):
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library: _WandbSetup) -> None:
@@ -1142,18 +1175,8 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        current_pid = os.getpid()
-        if current_pid != self._pid:
-            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                current_pid, self._pid
-            )
-            if self._settings._strict:
-                wandb.termerror(message, repeat=False)
-                raise errors.LogMultiprocessError(
-                    "log() does not support multiprocessing"
-                )
-            wandb.termwarn(message, repeat=False)
-            return
+        # if not self._auto_attach(method="log"):
+        #     return
 
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
@@ -1278,7 +1301,7 @@ class Run(object):
                 % file_str
             )
         files_dict = dict(files=[(wandb_glob_str, policy)])
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
 
@@ -1428,6 +1451,9 @@ class Run(object):
         return r.display_name
 
     def _display_run(self) -> None:
+        if self._settings._attach_id:
+            # TODO: any message here? it could end up in console logs, so maybe not?
+            return
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
@@ -1645,6 +1671,10 @@ class Run(object):
             self._on_final()
 
     def _console_start(self) -> None:
+        if self._settings._attach_id:
+            logger.info("not installing exit hooks in attach mode")
+            return
+
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()
@@ -1683,7 +1713,7 @@ class Run(object):
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
-        if self._backend and not self._settings._offline:
+        if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
@@ -1738,7 +1768,7 @@ class Run(object):
 
     def _wait_for_finish(self) -> PollExitResponse:
         while True:
-            if self._backend:
+            if self._backend and self._backend.interface:
                 poll_exit_resp = self._backend.interface.communicate_poll_exit()
             logger.info("got exit ret: %s", poll_exit_resp)
 
@@ -1790,26 +1820,31 @@ class Run(object):
                 wandb.termlog(status_str)
 
         # telemetry could have changed, publish final data
-        if self._backend:
-            self._backend.interface.publish_telemetry(self._telemetry_obj)
+        if self._backend and self._backend.interface:
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_exit(self._exit_code)
 
         # Wait for data to be synced
         self._poll_exit_response = self._wait_for_finish()
 
-        if self._backend:
-            ret = self._backend.interface.communicate_summary()
-            self._final_summary = proto_util.dict_from_proto_list(ret.item)
+        if self._backend and self._backend.interface:
+            ret = self._backend.interface.communicate_get_summary()
+            if ret:
+                self._final_summary = proto_util.dict_from_proto_list(ret.item)
 
-        if self._backend:
-            ret = self._backend.interface.communicate_sampled_history()
-            d = {item.key: item.values_float or item.values_int for item in ret.item}
-            self._sampled_history = d
-
+        if self._backend and self._backend.interface:
+            sampled = self._backend.interface.communicate_sampled_history()
+            if sampled:
+                d: Dict[str, Union[Sequence[int], Sequence[float]]] = {}
+                for item in sampled.item:
+                    d[item.key] = (
+                        item.values_float if item.values_float else item.values_int
+                    )
+                self._sampled_history = d
         if self._backend:
             self._backend.cleanup()
 
@@ -2363,7 +2398,7 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        if self._backend:
+        if self._backend and self._backend.interface:
             if not self._settings._offline:
                 future = self._backend.interface.communicate_artifact(
                     self,
@@ -2455,7 +2490,7 @@ class Run(object):
         self,
         title: str,
         text: str,
-        level: Union[str, None] = None,
+        level: Union[str, "AlertLevel"] = None,
         wait_duration: Union[int, float, timedelta, None] = None,
     ) -> None:
         """Launch an alert with the given title and text.
@@ -2468,13 +2503,8 @@ class Run(object):
                 alert with this title.
         """
         level = level or wandb.AlertLevel.INFO
-        if isinstance(level, wandb.AlertLevel):
-            level = level.value
-        if level not in (
-            wandb.AlertLevel.INFO.value,
-            wandb.AlertLevel.WARN.value,
-            wandb.AlertLevel.ERROR.value,
-        ):
+        level_str: str = level.value if isinstance(level, wandb.AlertLevel) else level
+        if level_str not in {lev.value for lev in wandb.AlertLevel}:
             raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
 
         wait_duration = wait_duration or timedelta(minutes=1)
@@ -2486,8 +2516,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        if self._backend:
-            self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_alert(title, text, level_str, wait_duration)
 
     def __enter__(self) -> "Run":
         return self
@@ -2507,7 +2537,7 @@ class Run(object):
 
         Also tells the internal process to immediately report this to server.
         """
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
 
 

@@ -55,6 +55,8 @@ def wandb_internal(
     settings: "Dict[str, Union[str, float]]",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
+    port: int = None,
+    user_pid: int = None,
 ) -> None:
     """Internal process function entrypoint.
 
@@ -80,7 +82,8 @@ def wandb_internal(
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
-    parent_pid = os.getppid()
+    if user_pid == 0:
+        user_pid = os.getppid()
     pid = os.getpid()
 
     logger.info(
@@ -126,7 +129,7 @@ def wandb_internal(
     )
     threads.append(record_handler_thread)
 
-    process_check = ProcessCheck(settings=_settings, pid=parent_pid)
+    process_check = ProcessCheck(settings=_settings, user_pid=user_pid)
 
     for thread in threads:
         thread.start()
@@ -342,14 +345,14 @@ class ProcessCheck(object):
 
     check_process_last: "Optional[float]"
 
-    def __init__(self, settings: "SettingsStatic", pid: int) -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
         self.settings = settings
-        self.pid = pid
+        self.pid = user_pid
         self.check_process_last = None
         self.check_process_interval = settings._internal_check_process
 
     def is_dead(self) -> bool:
-        if not self.check_process_interval:
+        if not self.check_process_interval or not self.pid:
             return False
         time_now = time.time()
         if (
@@ -359,6 +362,7 @@ class ProcessCheck(object):
             return False
         self.check_process_last = time_now
 
+        # TODO(jhr): check for os.getppid on unix being 1?
         exists = psutil.pid_exists(self.pid)
         if not exists:
             logger.warning(
