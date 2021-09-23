@@ -2980,7 +2980,7 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, client, entity, project, name, use_as=None, attrs=None):
+    def __init__(self, client, entity, project, name, attrs=None, use_as=None):
         self.client = client
         self._entity = entity
         self._project = project
