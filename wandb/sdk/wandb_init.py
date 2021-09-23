@@ -515,7 +515,7 @@ class _WandbInit(object):
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
-            if s.resume:
+            if s.resume or (s._checkpointing and s.resume_from_checkpoint):
                 wandb.termwarn(
                     f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
                 )
@@ -533,6 +533,56 @@ class _WandbInit(object):
                 if ret.yank_message:
                     run._set_yanked_version_message(ret.yank_message)
             run._on_init()
+
+            if s._checkpointing:
+
+                if s.from_checkpoint and s.resume_from_checkpoint:
+                    wandb.termwarn(
+                        "`from_checkpoint` and `resume_from_checkpoint` both set, defaulting to `from_checkpoint` and creating new run."
+                    )
+
+                cp = None
+                resume = False
+                if s.from_checkpoint:
+                    cp = s.from_checkpoint
+                elif s.resume_from_checkpoint:
+                    cp = s.resume_from_checkpoint
+                    resume = True
+
+                if cp:
+                    # TODO: move this somewhere else
+                    # TODO: allow restore from different checkpoint, how?
+                    if ":" not in cp:
+                        cp = f"{cp}:latest"
+                    cp_art = run.use_artifact(cp)
+                    with tempfile.TemporaryDirectory() as tmpdirname:
+                        cp_art.download(root=tmpdirname)
+                        ckpt_metaname = "checkpoint.json"
+                        ckpt_fname = os.path.join(tmpdirname, ckpt_metaname)
+                        with open(ckpt_fname) as json_file:
+                            data = json.load(json_file)
+                            # TODO: these are not right
+
+                            if resume:
+                                # this tells the backend to begin resuming the run
+                                run_obj = ret.run
+                                run_obj.resumed = True
+
+                                # TODO: log keys info in artifact
+                                run_obj.keys_info = data["keys_info"]
+
+                                logger.info("run resumed")
+                                with telemetry.context(run=run) as tel:
+                                    tel.feature.resumed = True
+                            else:
+                                run_obj = run._run_obj
+                            assert run_obj
+
+                            run_obj.starting_step = max(data["step"] - 1, 0)
+                            run._set_run_obj(run_obj)
+                            run.config.update(data["config"])
+                            run.summary.update(data["summary"])
+
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
 
@@ -559,27 +609,6 @@ class _WandbInit(object):
                 with telemetry.context(run=run) as tel:
                     tel.feature.resumed = True
             run._set_run_obj(ret.run)
-
-        cp = s.from_checkpoint
-        if cp:
-            # TODO: move this somewhere else
-            # TODO: allow restore from different checkpoint, how?
-            if ":" not in cp:
-                cp = f"{cp}:latest"
-            cp_art = run.use_artifact(cp)
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                cp_art.download(root=tmpdirname)
-                ckpt_metaname = "checkpoint.json"
-                ckpt_fname = os.path.join(tmpdirname, ckpt_metaname)
-                with open(ckpt_fname) as json_file:
-                    data = json.load(json_file)
-                    # TODO: these are not right
-                    run.config.update(data["config"])
-                    run.summary.update(data["summary"])
-                    run_obj = run._run_obj
-                    assert run_obj
-                    run_obj.starting_step = max(data["step"] - 1, 0)
-                    run._set_run_obj(run_obj)
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)

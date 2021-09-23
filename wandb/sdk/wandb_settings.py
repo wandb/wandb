@@ -114,6 +114,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
+    _checkpointing="WANDB_REQUIRE_CHECKPOINTS",
 )
 
 
@@ -271,7 +272,9 @@ class Settings(object):
     base_url: Optional[str] = None
 
     # TODO: experimental?
+    _checkpointing: Optional[str] = None
     from_checkpoint: Optional[str]
+    resume_from_checkpoint: Optional[str]
 
     # Private attributes
     _start_time: Optional[float]

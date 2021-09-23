@@ -1016,6 +1016,7 @@ class Api(object):
         sweep_name=None,
         summary_metrics=None,
         num_retries=None,
+        keys_info=None,
     ):
         """Update a run
 
@@ -1033,6 +1034,7 @@ class Api(object):
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
+            keys_info (str, optional): Cached keys info for resuming from a checkpoint
         """
         mutation = gql(
             """
@@ -1056,6 +1058,7 @@ class Api(object):
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
+            $keysInfo: String,
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -1077,6 +1080,7 @@ class Api(object):
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
+                keysInfo: $keysInfo,
             }) {
                 bucket {
                     id
@@ -1128,6 +1132,7 @@ class Api(object):
             "state": state,
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
+            "keysInfo": keys_info,
         }
 
         response = self.gql(mutation, variable_values=variable_values, **kwargs)
