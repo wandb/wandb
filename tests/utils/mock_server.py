@@ -388,6 +388,7 @@ def create_app(user_ctx=None):
 
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
+
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
 
@@ -1103,6 +1104,33 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        # if "LaunchAgent" in body["query"]:
+        #     raise Exception("@@@@@@@@@@@@ %s".format(str(body["query"])))
+        #     print(body["query"])
+        #     print(ctx["num_launch_agents"], ctx["launch_agents"])
+        if "mutation createLaunchAgent(" in body["query"]:
+            if "num_launch_agents" not in ctx:
+                ctx["num_launch_agents"] = 1
+            agent_id = ctx["num_launch_agents"]
+            ctx["num_launch_agents"] += 1
+            if "launch_agents" not in ctx:
+                ctx["launch_agents"] = {}
+            ctx["launch_agents"][agent_id] = body["variables"]["agentStatus"]
+            return json.dumps(
+                {
+                    "data": {
+                        "createLaunchAgent": {
+                            "success": True,
+                            "launchAgentId": agent_id,
+                        }
+                    }
+                }
+            )
+        if "mutation updateLaunchAgent(" in body["query"]:
+            status = body["variables"]["agentStatus"]
+            agent_id = body["variables"]["launchAgentId"]
+            ctx["launch_agents"][agent_id] = status
+            return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
