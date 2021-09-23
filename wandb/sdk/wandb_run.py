@@ -399,7 +399,6 @@ class Run(object):
         ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
-            print("LAUNCH CONFIG", launch_config)
             if launch_config.get("overrides", {}).get("artifacts") is not None:
                 self._launch_artifact_mapping = {}
                 for key, item in (
@@ -407,8 +406,8 @@ class Run(object):
                 ):
                     self._launch_artifact_mapping[key] = item
                     artifact_sequence_tuple_or_slot = key.split(":")
+
                     if len(artifact_sequence_tuple_or_slot) > 1:
-                        # TODO: should we strip project entity here?
                         sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
                             -1
                         ]
@@ -422,8 +421,6 @@ class Run(object):
                             self._unique_launch_artifact_sequence_names[
                                 sequence_name
                             ] = item
-                print("MAPPING", self._launch_artifact_mapping)
-                print("UNIQUE", self._unique_launch_artifact_sequence_names)
 
             launch_run_config = launch_config.get("overrides", {}).get("run_config")
             if launch_run_config:

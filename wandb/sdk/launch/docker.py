@@ -163,12 +163,8 @@ def build_docker_image_if_needed(
             os.path.join(launch_project.project_dir),
         )
         # TODO: make this configurable or change the default behavior...
-        # requirements_line += _parse_existing_requirements(launch_project)
-        # requirements_line += "python _wandb_bootstrap.py\n"
-        print(os.listdir("./"))
-        # requirements_line += "pip install --upgrade --no-cache-dir git+https://github.com/wandb/client.git@kyle/launch-arti-integration2\n"
-        print("REQ")
-        print(requirements_line)
+        requirements_line += _parse_existing_requirements(launch_project)
+        requirements_line += "python _wandb_bootstrap.py\n"
 
     name_line = ""
     if launch_project.name:
@@ -176,6 +172,7 @@ def build_docker_image_if_needed(
     dockerfile = (
         "FROM {imagename}\n"
         "RUN mkdir -p {homedir}/.cache\n"
+        # need to chown this directory for artifacts caching
         "RUN chown {uid} {homedir}/.cache\n"
         "{copy_code_line}"
         "{requirements_line}"
@@ -232,6 +229,7 @@ def get_docker_command(
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
         base_url = "http://host.docker.internal:9003"
+        docker_args["network"] = "host"
     else:
         base_url = api.settings("base_url")
 
@@ -255,14 +253,11 @@ def get_docker_command(
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]
 
-    # if launch_project.override_config:
     cmd += [
         "-v",
         f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
     ]
-    # TODO: REMOVE
-    cmd += ["-v", f"/Users/kyle/newcli/client:{os.path.join(workdir,'client')}"]
-    # print(cmd)
+
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -292,7 +287,6 @@ def _parse_existing_requirements(launch_project: _project_spec.LaunchProject) ->
             while True:
                 try:
                     pkg = next(iter)
-                    print(pkg)
                     if hasattr(pkg, "name"):
                         name = pkg.name.lower()  # type: ignore
                     else:

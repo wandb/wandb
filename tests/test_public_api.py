@@ -347,7 +347,6 @@ def test_delete_file(runner, mock_server, api):
 
 def test_artifact_versions(runner, mock_server, api):
     versions = api.artifact_versions("dataset", "mnist")
-    print([version.name for version in versions])
     assert len(versions) == 2
     assert versions[0].name == "mnist:v0"
     assert versions[1].name == "mnist:v1"

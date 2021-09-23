@@ -137,16 +137,15 @@ class LaunchAgent(object):
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: True,
         }
-        print(_is_wandb_local_uri(self._base_url), self._base_url)
-        # if _is_wandb_local_uri(self._base_url):
-        if sys.platform == "win32":
-            backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
-        else:
-            backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
-        if sys.platform == "linux" or sys.platform == "linux2":
-            backend_config[PROJECT_DOCKER_ARGS][
-                "add-host"
-            ] = "host.docker.internal:host-gateway"
+        if _is_wandb_local_uri(self._base_url):
+            if sys.platform == "win32":
+                backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
+            else:
+                backend_config[PROJECT_DOCKER_ARGS]["network"] = "host"
+            if sys.platform == "linux" or sys.platform == "linux2":
+                backend_config[PROJECT_DOCKER_ARGS][
+                    "add-host"
+                ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
         backend = load_backend(resource, self._api, backend_config)
