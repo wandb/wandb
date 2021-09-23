@@ -5,7 +5,7 @@
 
 Checkout from github:
 ```
-git clone --recurse-submodules git@github.com:wandb/client.git
+git clone git@github.com:wandb/client.git
 cd client
 pip install -e .
 ```
@@ -34,14 +34,6 @@ wandb/cli                  - Handlers for command line functionality
 wandb/sweeps_engine        - Hyperparameter sweep engine (pin of https://github.com/wandb/sweeps)
 wandb/integration/keras    - keras integration
 wandb/integration/pytorch  - pytorch integration
-```
-
-The hyperparameter engine `wandb/sweeps_engine` is a submodule: https://github.com/wandb/sweeps.
-
-To check out the currently pinned version of the sweeps submodule, do:
-
-```
-make submodule-update
 ```
 
 ## Setup development environment
