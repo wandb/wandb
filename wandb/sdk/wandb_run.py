@@ -41,6 +41,7 @@ from six.moves.collections_abc import Mapping
 from six.moves.urllib.parse import quote as url_quote
 from six.moves.urllib.parse import urlencode
 import wandb
+from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
@@ -1175,8 +1176,19 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        # if not self._auto_attach(method="log"):
-        #     return
+        if not self._settings._concurrency:
+            current_pid = os.getpid()
+            if current_pid != self._init_pid:
+                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                    current_pid, self._init_pid
+                )
+                if self._settings._strict:
+                    wandb.termerror(message, repeat=False)
+                    raise errors.LogMultiprocessError(
+                        "log() does not support multiprocessing"
+                    )
+                wandb.termwarn(message, repeat=False)
+                return
 
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
