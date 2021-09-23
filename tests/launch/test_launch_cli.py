@@ -64,6 +64,7 @@ def test_launch_agent_base(
         ctx = live_mock_server.get_ctx()
         assert ctx["num_popped"] == 1
         assert ctx["num_acked"] == 1
+        assert ctx["num_launch_agents"] == 1
         assert "Shutting down, active jobs" in result.output
 
 

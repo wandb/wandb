@@ -1104,18 +1104,15 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        # if "LaunchAgent" in body["query"]:
-        #     raise Exception("@@@@@@@@@@@@ %s".format(str(body["query"])))
-        #     print(body["query"])
-        #     print(ctx["num_launch_agents"], ctx["launch_agents"])
         if "mutation createLaunchAgent(" in body["query"]:
             if "num_launch_agents" not in ctx:
                 ctx["num_launch_agents"] = 1
+            else:
+                ctx["num_launch_agents"] += 1
             agent_id = ctx["num_launch_agents"]
-            ctx["num_launch_agents"] += 1
             if "launch_agents" not in ctx:
                 ctx["launch_agents"] = {}
-            ctx["launch_agents"][agent_id] = body["variables"]["agentStatus"]
+            ctx["launch_agents"][agent_id] = "POLLING"
             return json.dumps(
                 {
                     "data": {
@@ -1128,7 +1125,9 @@ def create_app(user_ctx=None):
             )
         if "mutation updateLaunchAgent(" in body["query"]:
             status = body["variables"]["agentStatus"]
-            agent_id = body["variables"]["launchAgentId"]
+            agent_id = body["variables"]["agentId"]
+            if "launch_agents" not in ctx:
+                ctx["launch_agents"] = {}
             ctx["launch_agents"][agent_id] = status
             return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
 

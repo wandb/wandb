@@ -300,6 +300,9 @@ def test_launch_agent(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
     launch.run_agent(util.generate_id(), "mock_server_entity", "test_project")
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
