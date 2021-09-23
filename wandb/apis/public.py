@@ -606,7 +606,7 @@ class Api(object):
         return artifact_type.collection(collection_name).versions(per_page=per_page)
 
     @normalize_exceptions
-    def artifact(self, name, type=None):
+    def artifact(self, name, type=None, use_as=None):
         """
         Returns a single artifact by parsing path in the form `entity/project/run_id`.
 
@@ -623,7 +623,7 @@ class Api(object):
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = Artifact(self.client, entity, project, artifact_name)
+        artifact = Artifact(self.client, entity, project, artifact_name, use_as)
         if type is not None and artifact.type != type:
             raise ValueError("type %s specified but this artifact is of type %s")
         return artifact
@@ -2976,11 +2976,12 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, client, entity, project, name, attrs=None):
+    def __init__(self, client, entity, project, name, use_as, attrs=None):
         self.client = client
         self._entity = entity
         self._project = project
         self._artifact_name = name
+        self._use_as = use_as
         self._attrs = attrs
         if self._attrs is None:
             self._load()

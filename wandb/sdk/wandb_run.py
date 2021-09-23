@@ -1981,10 +1981,7 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in (
-            "UTF_8",
-            "UTF-8",
-        ):
+        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
             return logs
 
         logger.info("rendering history")
@@ -2053,15 +2050,10 @@ class Run(object):
         return logs
 
     def _save_job_spec(self) -> None:
-        envdict = dict(
-            python="python3.6",
-            requirements=[],
-        )
+        envdict = dict(python="python3.6", requirements=[],)
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git",
-            branch="master",
-            commit="bbd8d23",
+            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2070,13 +2062,8 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(
-            dataset="v1",
-        )
-        inputdict = dict(
-            config=configdict,
-            artifacts=artifactsdict,
-        )
+        artifactsdict = dict(dataset="v1",)
+        inputdict = dict(config=configdict, artifacts=artifactsdict,)
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2213,7 +2200,7 @@ class Run(object):
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
         if use_as:
-            if (use_as in self._artifact_slots):
+            if use_as in self._artifact_slots:
                 raise "Cannot call use_artifact with the same use_as argument more than once"
             self._artifact_slots.append(use_as)
         r = self._run_obj
@@ -2256,8 +2243,9 @@ class Run(object):
             else:
                 name = artifact_or_name
             public_api = self._public_api()
-            print("name", name)
-            artifact = public_api.artifact(type=type, name=name)
+            artifact = public_api.artifact(
+                type=type, name=name, use_as=use_as or artifact_or_name
+            )
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(

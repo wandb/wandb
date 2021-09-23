@@ -1447,10 +1447,14 @@ def check_dict_contains_artifact(d):
 
 
 def convert_artifact_to_json_config(arti):
+    used_as = None
+    if hasattr(arti, "_use_as"):
+        used_as = arti._use_as
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": arti.id,
         "version": arti.version,
         "sequenceName": arti._sequence_name,
+        "usedAs": used_as,
     }
