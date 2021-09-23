@@ -290,7 +290,7 @@ class Run(object):
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
-
+    _artifact_slots: List[str]
     _pid: int
 
     def __init__(
@@ -351,6 +351,7 @@ class Run(object):
         self._upgraded_version_message = None
         self._deleted_version_message = None
         self._yanked_version_message = None
+        self._artifact_slots = []
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -2211,7 +2212,10 @@ class Run(object):
         """
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-        print("ARTIFACT OR NAME", artifact_or_name)
+        if use_as:
+            if (use_as in self._artifact_slots):
+                raise "Cannot call use_artifact with the same use_as argument more than once"
+            self._artifact_slots.append(use_as)
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
