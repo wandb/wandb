@@ -2201,7 +2201,9 @@ class Run(object):
             raise TypeError("Cannot use artifact when in offline mode.")
         if use_as:
             if use_as in self._artifact_slots:
-                raise "Cannot call use_artifact with the same use_as argument more than once"
+                raise ValueError(
+                    "Cannot call use_artifact with the same use_as argument more than once"
+                )
             self._artifact_slots.append(use_as)
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})

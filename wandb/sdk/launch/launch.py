@@ -137,13 +137,13 @@ def run(
     if docker_args is None:
         docker_args = {}
 
-    # if _is_wandb_local_uri(api.settings("base_url")):
-    if sys.platform == "win32":
-        docker_args["net"] = "host"
-    else:
-        docker_args["network"] = "host"
-    if sys.platform == "linux" or sys.platform == "linux2":
-        docker_args["add-host"] = "host.docker.internal:host-gateway"
+    if _is_wandb_local_uri(api.settings("base_url")):
+        if sys.platform == "win32":
+            docker_args["net"] = "host"
+        else:
+            docker_args["network"] = "host"
+        if sys.platform == "linux" or sys.platform == "linux2":
+            docker_args["add-host"] = "host.docker.internal:host-gateway"
 
     if config is None:
         config = {}

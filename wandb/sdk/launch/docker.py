@@ -136,7 +136,7 @@ def build_docker_image_if_needed(
         image_id=launch_project.run_id,
     )
     launch_project.docker_image = image_uri
-    if False:  # docker_image_exists(image_uri) and not launch_project.build_image:
+    if docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
         return image_uri
     copy_code_line = ""

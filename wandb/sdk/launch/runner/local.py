@@ -89,7 +89,7 @@ class LocalRunner(AbstractRunner):
             copy_code = False
         else:
             # TODO: potentially pull the base_image
-            if True:  # not docker_image_exists(launch_project.base_image):
+            if not docker_image_exists(launch_project.base_image):
                 if generate_docker_base_image(launch_project, entry_cmd) is None:
                     raise LaunchError("Unable to build base image")
             else:
