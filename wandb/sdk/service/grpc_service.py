@@ -9,7 +9,6 @@ import sys
 import time
 from typing import Any, Dict, Optional
 
-import grpc
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 
 
@@ -87,6 +86,8 @@ class _Service:
         return port
 
     def connect(self, port: int) -> None:
+        import grpc
+
         channel = grpc.insecure_channel("localhost:{}".format(port))
         stub = pbgrpc.InternalServiceStub(channel)
         self._stub = stub
