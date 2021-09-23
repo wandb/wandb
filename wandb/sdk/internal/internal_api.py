@@ -116,7 +116,11 @@ class Api(object):
         )
         self._client_id_mapping = {}
 
-        self.query_types, self.server_info_types, self.server_artifact_info = (
+        (
+            self.query_types,
+            self.server_info_types,
+            self.server_use_artifact_input_info,
+        ) = (
             None,
             None,
             None,
@@ -318,33 +322,28 @@ class Api(object):
             ]
         return (self.query_types, self.server_info_types)
 
-    def server_artifact_introspection(self):
+    def server_use_artifact_input_introspection(self):
         query_string = """
            query ProbeServerCapabilities {
-               QueryType: __type(name: "Query") {
-                   ...fieldData
-                }
-               ArtifactInfoType: __type(name: "Artifact") {
-                   ...fieldData
-                }
-            }
-
-            fragment fieldData on __Type {
-                fields {
-                    name
+               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
+                   name
+                   inputFields {
+                       name
+                   }
                 }
             }
         """
 
-        if self.server_artifact_info is None:
+        if self.server_use_artifact_input_info is None:
             query = gql(query_string)
             res = self.gql(query)
-
-            self.server_artifact_info = [
+            self.server_use_artifact_input_info = [
                 field.get("name", "")
-                for field in res.get("ArtifactInfoType", {}).get("fields", [{}])
+                for field in res.get("UseArtifactInputInfoType", {}).get(
+                    "inputFields", [{}]
+                )
             ]
-        return self.server_artifact_info
+        return self.server_use_artifact_input_info
 
     @normalize_exceptions
     def viewer(self):
@@ -769,7 +768,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1322,7 +1325,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -1905,7 +1913,7 @@ class Api(object):
         }
         """
 
-        artifact_types = self.server_artifact_introspection()
+        artifact_types = self.server_use_artifact_input_introspection()
         if "usedAs" in artifact_types:
             query_template = query_template.replace(
                 "_USED_AS_TYPE_", "$usedAs: String"
@@ -2258,7 +2266,8 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2273,7 +2282,12 @@ class Api(object):
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")
