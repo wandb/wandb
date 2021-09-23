@@ -19,6 +19,9 @@ exclude = '''
 | tools/strip_type_annotations.sh
 | tools/setup_dev_environment.sh
 | tools/loop.sh
+| tools/vendor_sweeps.sh
+| tools/verify_sweeps.sh
+| .sweeps_ref
 '''
 include = '''
   wandb/
