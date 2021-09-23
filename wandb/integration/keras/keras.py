@@ -177,13 +177,14 @@ def _check_keras_version():
 
 
 def _update_if_numeric(metrics, key, values):
-    if is_numeric_array(values):
-        metrics[key] = wandb.Histogram(values)
-    else:
+    if not is_numeric_array(values):
         wandb.termwarn(
             "Non-numeric values found in layer: {}, not logging this layer".format(key),
             repeat=False,
         )
+        return
+
+    metrics[key] = wandb.Histogram(values)
 
 
 if "keras" in sys.modules:
@@ -508,11 +509,15 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
@@ -828,7 +833,11 @@ class WandbCallback(keras.callbacks.Callback):
             weights = layer.weights
             for index, w in enumerate(weights):
                 if hasattr(w, "name"):
-                    weight_string = w.name.replace("/kernel", ".weights").strip(":0")
+                    weight_string = (
+                        w.name.replace("/kernel", ".weights")
+                        .replace("/bias", ".bias")
+                        .strip(":0")
+                    )
                     _update_if_numeric(metrics, f"parameters/{weight_string}", w)
                 else:
                     # handle case where weight does not have name by logging the layer name
