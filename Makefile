@@ -19,22 +19,13 @@ coverage: ## check code coverage quickly with the default Python
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
-
-submodule-init: ## check if submodule has been initialized, if not, clone from remote
-	if ! git submodule foreach git status | grep sweeps > /dev/null; then \
-	git submodule update --init --remote; \
-	fi
-
-submodule-update: submodule-init  # checkout the pinned version of submodules
-	git submodule update
-
 release-test: dist ## package and upload test release
 	twine upload --repository testpypi dist/*
 
 release: dist ## package and upload release
 	twine upload dist/*
 
-dist: clean submodule-init ## builds source and wheel package
+dist: clean ## builds source and wheel package
 	python setup.py sdist bdist_wheel
 	ls -l dist
 
@@ -94,3 +85,5 @@ bumpversion-to-dev:
 bumpversion-from-dev:
 	tox -e bumpversion-from-dev
 
+vendor-sweeps:  # expects an argument called ref=,  example usage: make vendor-sweeps ref=master
+	bash tools/vendor_sweeps.sh $(ref)
