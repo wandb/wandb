@@ -617,6 +617,7 @@ class Api(object):
                     name:alias
                     digest
             type: (str, optional) The type of artifact to fetch.
+            type: (str, optional) The use of the artifact in the script. Used with use_artifact, ignored in log_artifact
         Returns:
             A `Artifact` object.
         """
@@ -1500,7 +1501,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id, use_as=use_as)
+            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
@@ -1511,14 +1512,13 @@ class Run(Attrs):
             raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
 
     @normalize_exceptions
-    def log_artifact(self, artifact, aliases=None, slot_name=None):
+    def log_artifact(self, artifact, aliases=None):
         """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
             aliases (list, optional): Aliases to apply to this artifact
-            slot_name (string, optional): string identifying how the artifact was used
         Returns:
             A `Artifact` object.
         """
@@ -2976,12 +2976,12 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, client, entity, project, name, use_as, attrs=None):
+    def __init__(self, client, entity, project, name, use_as=None, attrs=None):
         self.client = client
         self._entity = entity
         self._project = project
         self._artifact_name = name
-        self._use_as = use_as
+        self._use_as = use_as or name
         self._attrs = attrs
         if self._attrs is None:
             self._load()

@@ -83,7 +83,6 @@ class ArtifactSaver(object):
         labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
-        slot_name: Optional[str] = None,
     ) -> Optional[Dict]:
         aliases = aliases or []
         alias_specs = []

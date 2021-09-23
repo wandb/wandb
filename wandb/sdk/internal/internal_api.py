@@ -1906,7 +1906,7 @@ class Api(object):
         """
 
         artifact_types = self.server_artifact_introspection()
-        if True:  # "usedAs" in artifact_types:
+        if "usedAs" in artifact_types:
             query_template = query_template.replace(
                 "_USED_AS_TYPE_", "$usedAs: String"
             ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")

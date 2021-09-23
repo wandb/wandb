@@ -2275,7 +2275,7 @@ class Run(object):
                     wandb.termwarn(
                         f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
                     )
-                api.use_artifact(artifact.id, use_as=use_as)
+                api.use_artifact(artifact.id, use_as=use_as or artifact._use_as)
                 return artifact
             else:
                 raise ValueError(

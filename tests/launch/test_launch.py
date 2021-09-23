@@ -246,12 +246,14 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
         run.finish()
 
 
-def test_run_in_launch_context_with_artifact_string_no_slot(
+def test_run_in_launch_context_with_artifact_string_no_used_as(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
     arti = {
-        "name": "test/test/test:v0",
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
         "_version": "v0",
         "_type": "artifactVersion",
         "id": "QXJ0aWZhY3Q6NTI1MDk4",
@@ -273,15 +275,47 @@ def test_run_in_launch_context_with_artifact_string_no_slot(
         assert arti_inst.name == "test:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "old_name:v0"
-        assert arti_info["slot_name"] == None
 
 
-def test_run_in_launch_context_with_artifact_string_slot(
+def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
     arti = {
-        "name": "test/test/test:v0",
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
+        "_version": "v0",
+        "_type": "artifactVersion",
+        "id": "QXJ0aWZhY3Q6NTI1MDk4",
+    }
+    overrides = {
+        "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
+    }
+    with runner.isolated_filesystem():
+        path = _project_spec.DEFAULT_CONFIG_PATH
+        with open(path, "w") as fp:
+            json.dump(overrides, fp)
+        test_settings.launch = True
+        test_settings.launch_config_path = path
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        arti_inst = run.use_artifact("test/test/old_name:v0")
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+        run.finish()
+        assert arti_inst.name == "test:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "test/test/old_name:v0"
+
+
+def test_run_in_launch_context_with_artifact_string_used_as(
+    runner, live_mock_server, test_settings
+):
+    live_mock_server.set_ctx({"swappable_artifacts": True})
+    arti = {
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
         "_version": "v0",
         "_type": "artifactVersion",
         "id": "QXJ0aWZhY3Q6NTI1MDk4",
@@ -296,14 +330,13 @@ def test_run_in_launch_context_with_artifact_string_slot(
         test_settings.launch = True
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
-        arti_inst = run.use_artifact("old_name:latest", slot_name="dataset")
+        arti_inst = run.use_artifact("old_name:latest", use_as="dataset")
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()
         assert arti_inst.name == "test:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
-        assert arti_info["used_name"] == "old_name:latest"
-        assert arti_info["slot_name"] == "dataset"
+        assert arti_info["used_name"] == "dataset"
 
 
 def test_run_in_launch_context_with_artifacts_api(
@@ -311,7 +344,9 @@ def test_run_in_launch_context_with_artifacts_api(
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
     arti = {
-        "name": "test/test/test:v0",
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
         "_version": "v0",
         "_type": "artifactVersion",
         "id": "QXJ0aWZhY3Q6NTI1MDk4",
@@ -338,7 +373,6 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_inst.name == "old_name:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "old_name:v0"
-        assert arti_info["slot_name"] == None
         _, err = capsys.readouterr()
         assert (
             "Swapping artifacts does not support swapping artifacts used as an instance of"
@@ -376,7 +410,6 @@ def test_run_in_launch_context_with_artifacts_no_match(
         assert arti_inst.name == "old_name:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "old_name:v0"
-        assert arti_info["slot_name"] == None
 
 
 def test_push_to_runqueue(live_mock_server, test_settings):
