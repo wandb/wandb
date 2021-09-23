@@ -277,6 +277,40 @@ def test_run_in_launch_context_with_artifact_string_no_used_as(
         assert arti_info["used_name"] == "old_name:v0"
 
 
+def test_run_in_launch_context_with_artifact_unique(
+    runner, live_mock_server, test_settings
+):
+    live_mock_server.set_ctx({"swappable_artifacts": True})
+    arti = {
+        "name": "test:v0",
+        "project": "test",
+        "entity": "test",
+        "_version": "v0",
+        "_type": "artifactVersion",
+        "id": "QXJ0aWZhY3Q6NTI1MDk4",
+    }
+    overrides = {
+        "overrides": {
+            "run_config": {"epochs": 10},
+            "artifacts": {"old_name:latest": arti},
+        },
+    }
+    with runner.isolated_filesystem():
+        path = _project_spec.DEFAULT_CONFIG_PATH
+        with open(path, "w") as fp:
+            json.dump(overrides, fp)
+        test_settings.launch = True
+        test_settings.launch_config_path = path
+        run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
+        arti_inst = run.use_artifact("old_name:v0")
+        assert run.config.epochs == 10
+        assert run.config.lr == 0.004
+        run.finish()
+        assert arti_inst.name == "test:v0"
+        arti_info = live_mock_server.get_ctx()["used_artifact_info"]
+        assert arti_info["used_name"] == "old_name:v0"
+
+
 def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
     runner, live_mock_server, test_settings
 ):
@@ -308,7 +342,7 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         assert arti_info["used_name"] == "test/test/old_name:v0"
 
 
-def test_run_in_launch_context_with_artifact_string_used_as(
+def test_run_in_launch_context_with_artifact_string_used_as_config(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
@@ -331,6 +365,7 @@ def test_run_in_launch_context_with_artifact_string_used_as(
         test_settings.launch_config_path = path
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:latest", use_as="dataset")
+        run.config.dataset = arti_inst
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
         run.finish()

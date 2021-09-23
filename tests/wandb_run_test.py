@@ -229,3 +229,20 @@ def test_invalid_project_name(live_mock_server, project_name):
     with pytest.raises(UsageError) as e:
         _ = wandb.init(project=project_name)
         assert 'Invalid project name "{project_name}"' in str(e.value)
+
+
+def test_artifact_in_config(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+
+    artifact = run.use_artifact("boom-data")
+    run.config.dataset = artifact
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": "QXJ0aWZhY3Q6NTI1MDk4",
+        "version": "v0",
+        "sequenceName": "mnist",
+        "usedAs": "boom-data",
+    }
