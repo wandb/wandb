@@ -2217,10 +2217,9 @@ class Run(object):
                 project = self._launch_artifact_mapping.get(
                     use_as or artifact_or_name, {}
                 ).get("project")
-                if new_name is None:
-                    # TODO: fix warning
+                if new_name is None and use_as is None:
                     wandb.termwarn(
-                        f"Could not find {use_as or artifact_or_name} in launch artifact mapping. Searching for unique"
+                        f"Could not find {artifact_or_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_or_name}"
                     )
                     sequence_name = artifact_or_name.split(":")[0].split("/")[-1]
                     new_name = self._unique_launch_artifact_sequence_names.get(
