@@ -6,10 +6,12 @@ Create a grpc manager channel.
 import atexit
 import os
 import sys
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from wandb import env
-from wandb.sdk.service import grpc_service
+
+if TYPE_CHECKING:
+    from wandb.sdk.service import grpc_service
 
 
 class _ManagerToken:
@@ -55,6 +57,9 @@ class _Manager:
     _token: _ManagerToken
 
     def __init__(self) -> None:
+        # TODO: warn if user doesnt have grpc installed
+        from wandb.sdk.service import grpc_service
+
         self._token = _ManagerToken()
         self._service = grpc_service._Service()
         self._setup()
@@ -85,5 +90,5 @@ class _Manager:
     def _teardown(self) -> None:
         pass
 
-    def _get_service(self) -> grpc_service._Service:
+    def _get_service(self) -> "grpc_service._Service":
         return self._service
