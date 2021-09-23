@@ -2,8 +2,6 @@
 # -*- coding: utf-8 -*-
 """wandb setup."""
 
-import warnings
-
 from setuptools import setup
 
 
@@ -13,16 +11,9 @@ with open("package_readme.md") as readme_file:
 with open("requirements.txt") as requirements_file:
     requirements = requirements_file.read().splitlines()
 
-try:
-    with open("wandb/sweeps_engine/requirements.txt") as sweeps_requirements_file:
-        sweeps_requirements = sweeps_requirements_file.read().splitlines()
-except FileNotFoundError:
-    warnings.warn(
-        "Sweeps module is not present, unable to determine "
-        "extra requirements for sweeps. Will not be able to build "
-        "sweeps extras locally. Run `make submodule-update` to get module."
-    )
-    sweeps_requirements = []
+with open("requirements.sweeps.txt") as sweeps_requirements_file:
+    sweeps_requirements = sweeps_requirements_file.read().splitlines()
+
 
 test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]
 
@@ -52,7 +43,7 @@ setup(
     url="https://github.com/wandb/client",
     packages=["wandb"],
     package_dir={"wandb": "wandb"},
-    package_data={"wandb": ["py.typed", "sweeps_engine/requirements.txt"]},
+    package_data={"wandb": ["py.typed"]},
     entry_points={
         "console_scripts": [
             "wandb=wandb.cli.cli:cli",
