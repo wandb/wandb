@@ -13,7 +13,9 @@ PYTORCH_PROFILER_MODULE = "torch.profiler"
 def trace():
     torch = wandb.util.get_module(PYTORCH_MODULE, required=True)
     torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE, required=True)
-    version = tuple(map(lambda x: int(x), torch.__version__.split(".")))
+    version = tuple(
+        map(lambda x: int(x), torch.__version__.replace("+cpu", "").split("."))
+    )
 
     if version < (1, 9, 0):
         raise Error(
