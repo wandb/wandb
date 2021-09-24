@@ -1,0 +1,18 @@
+id: 0.keras.nonnumericlayers
+plugin:
+    - wandb
+command:
+    program: test_keras_nonnumeric.py
+depend:
+    requirements:
+        - pillow
+        - tensorflow==2.5.0
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains_regex:
+        - :wandb:runs[0][output][stderr]
+        - .*Non-numeric values found in layer.*parameters/lookupalone.*0, not logging this layer.*
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 8  # keras
+    - :wandb:runs[0][exitcode]: 0
