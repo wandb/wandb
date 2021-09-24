@@ -3,6 +3,7 @@ tag:
     shard: tf25
 plugin:
     - wandb
+    - pandas
 command:
     program: test_keras_nonnumeric.py
 depend:
