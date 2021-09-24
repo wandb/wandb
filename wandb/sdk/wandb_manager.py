@@ -92,3 +92,13 @@ class _Manager:
 
     def _get_service(self) -> "grpc_service._Service":
         return self._service
+
+    def _inform_init(self) -> None:
+        svc = self._service
+        assert svc
+        svc._svc_inform_init()
+
+    def _inform_finish(self) -> None:
+        svc = self._service
+        assert svc
+        svc._svc_inform_finish()

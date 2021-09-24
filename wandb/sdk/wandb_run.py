@@ -1345,6 +1345,11 @@ class Run(object):
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
+
+        manager = self._wl and self._wl._get_manager()
+        if manager:
+            manager._inform_finish()
+
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()

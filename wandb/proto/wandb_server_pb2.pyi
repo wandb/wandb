@@ -34,3 +34,31 @@ class ServerStatusResponse(google.protobuf.message.Message):
     def __init__(self,
         ) -> None: ...
 global___ServerStatusResponse = ServerStatusResponse
+
+class ServerInformInitRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerInformInitRequest = ServerInformInitRequest
+
+class ServerInformInitResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerInformInitResponse = ServerInformInitResponse
+
+class ServerInformFinishRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerInformFinishRequest = ServerInformFinishRequest
+
+class ServerInformFinishResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___ServerInformFinishResponse = ServerInformFinishResponse

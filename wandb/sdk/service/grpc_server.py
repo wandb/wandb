@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 from typing import TYPE_CHECKING
 
 import grpc
-import setproctitle
 from six.moves import queue
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
@@ -240,6 +239,24 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         result = wandb_server_pb2.ServerStatusResponse()
         return result
 
+    def ServerInformInit(  # noqa: N802
+        self,
+        request: wandb_server_pb2.ServerInformInitRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb_server_pb2.ServerInformInitResponse:
+        assert self._backend and self._backend._interface
+        result = wandb_server_pb2.ServerInformInitResponse()
+        return result
+
+    def ServerInformFinish(  # noqa: N802
+        self,
+        request: wandb_server_pb2.ServerInformFinishRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb_server_pb2.ServerInformFinishResponse:
+        assert self._backend and self._backend._interface
+        result = wandb_server_pb2.ServerInformFinishResponse()
+        return result
+
 
 # TODO(jhr): this should be merged with code in backend/backend.py ensure launched
 class GrpcBackend:
@@ -389,7 +406,9 @@ def main(
 
     backend = GrpcBackend(pid=pid, debug=debug)
     port = serve(backend, port or 0, port_filename=port_filename, address=address)
-    setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
+    setproctitle = wandb.util.get_module("setproctitle")
+    if setproctitle:
+        setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
     backend.run(port=port)
     backend.cleanup()
 

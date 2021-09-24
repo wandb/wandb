@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x17\n\x15ServerShutdownRequest\"\x18\n\x16ServerShutdownResponse\"\x15\n\x13ServerStatusRequest\"\x16\n\x14ServerStatusResponse2\xec\r\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x06\x41ttach\x12\x1d.wandb_internal.AttachRequest\x1a\x1e.wandb_internal.AttachResponse\"\x00\x12>\n\x06TBSend\x12\x18.wandb_internal.TBRecord\x1a\x18.wandb_internal.TBResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12[\n\rRunPreempting\x12#.wandb_internal.RunPreemptingRecord\x1a#.wandb_internal.RunPreemptingResult\"\x00\x12\x46\n\x06Metric\x12\x1c.wandb_internal.MetricRecord\x1a\x1c.wandb_internal.MetricResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x43\n\x05\x46iles\x12\x1b.wandb_internal.FilesRecord\x1a\x1b.wandb_internal.FilesResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x46\n\x05Pause\x12\x1c.wandb_internal.PauseRequest\x1a\x1d.wandb_internal.PauseResponse\"\x00\x12I\n\x06Resume\x12\x1d.wandb_internal.ResumeRequest\x1a\x1e.wandb_internal.ResumeResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x17\n\x15ServerShutdownRequest\"\x18\n\x16ServerShutdownResponse\"\x15\n\x13ServerStatusRequest\"\x16\n\x14ServerStatusResponse\"\x19\n\x17ServerInformInitRequest\"\x1a\n\x18ServerInformInitResponse\"\x1b\n\x19ServerInformFinishRequest\"\x1c\n\x1aServerInformFinishResponse2\xc4\x0f\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x06\x41ttach\x12\x1d.wandb_internal.AttachRequest\x1a\x1e.wandb_internal.AttachResponse\"\x00\x12>\n\x06TBSend\x12\x18.wandb_internal.TBRecord\x1a\x18.wandb_internal.TBResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12[\n\rRunPreempting\x12#.wandb_internal.RunPreemptingRecord\x1a#.wandb_internal.RunPreemptingResult\"\x00\x12\x46\n\x06Metric\x12\x1c.wandb_internal.MetricRecord\x1a\x1c.wandb_internal.MetricResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x43\n\x05\x46iles\x12\x1b.wandb_internal.FilesRecord\x1a\x1b.wandb_internal.FilesResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x46\n\x05Pause\x12\x1c.wandb_internal.PauseRequest\x1a\x1d.wandb_internal.PauseResponse\"\x00\x12I\n\x06Resume\x12\x1d.wandb_internal.ResumeRequest\x1a\x1e.wandb_internal.ResumeResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x12g\n\x10ServerInformInit\x12\'.wandb_internal.ServerInformInitRequest\x1a(.wandb_internal.ServerInformInitResponse\"\x00\x12m\n\x12ServerInformFinish\x12).wandb_internal.ServerInformFinishRequest\x1a*.wandb_internal.ServerInformFinishResponse\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__telemetry__pb2.DESCRIPTOR,])
 
@@ -127,10 +127,114 @@ _SERVERSTATUSRESPONSE = _descriptor.Descriptor(
   serialized_end=215,
 )
 
+
+_SERVERINFORMINITREQUEST = _descriptor.Descriptor(
+  name='ServerInformInitRequest',
+  full_name='wandb_internal.ServerInformInitRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=217,
+  serialized_end=242,
+)
+
+
+_SERVERINFORMINITRESPONSE = _descriptor.Descriptor(
+  name='ServerInformInitResponse',
+  full_name='wandb_internal.ServerInformInitResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=244,
+  serialized_end=270,
+)
+
+
+_SERVERINFORMFINISHREQUEST = _descriptor.Descriptor(
+  name='ServerInformFinishRequest',
+  full_name='wandb_internal.ServerInformFinishRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=272,
+  serialized_end=299,
+)
+
+
+_SERVERINFORMFINISHRESPONSE = _descriptor.Descriptor(
+  name='ServerInformFinishResponse',
+  full_name='wandb_internal.ServerInformFinishResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=301,
+  serialized_end=329,
+)
+
 DESCRIPTOR.message_types_by_name['ServerShutdownRequest'] = _SERVERSHUTDOWNREQUEST
 DESCRIPTOR.message_types_by_name['ServerShutdownResponse'] = _SERVERSHUTDOWNRESPONSE
 DESCRIPTOR.message_types_by_name['ServerStatusRequest'] = _SERVERSTATUSREQUEST
 DESCRIPTOR.message_types_by_name['ServerStatusResponse'] = _SERVERSTATUSRESPONSE
+DESCRIPTOR.message_types_by_name['ServerInformInitRequest'] = _SERVERINFORMINITREQUEST
+DESCRIPTOR.message_types_by_name['ServerInformInitResponse'] = _SERVERINFORMINITRESPONSE
+DESCRIPTOR.message_types_by_name['ServerInformFinishRequest'] = _SERVERINFORMFINISHREQUEST
+DESCRIPTOR.message_types_by_name['ServerInformFinishResponse'] = _SERVERINFORMFINISHRESPONSE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 ServerShutdownRequest = _reflection.GeneratedProtocolMessageType('ServerShutdownRequest', (_message.Message,), {
@@ -161,6 +265,34 @@ ServerStatusResponse = _reflection.GeneratedProtocolMessageType('ServerStatusRes
   })
 _sym_db.RegisterMessage(ServerStatusResponse)
 
+ServerInformInitRequest = _reflection.GeneratedProtocolMessageType('ServerInformInitRequest', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERINFORMINITREQUEST,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformInitRequest)
+  })
+_sym_db.RegisterMessage(ServerInformInitRequest)
+
+ServerInformInitResponse = _reflection.GeneratedProtocolMessageType('ServerInformInitResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERINFORMINITRESPONSE,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformInitResponse)
+  })
+_sym_db.RegisterMessage(ServerInformInitResponse)
+
+ServerInformFinishRequest = _reflection.GeneratedProtocolMessageType('ServerInformFinishRequest', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERINFORMFINISHREQUEST,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformFinishRequest)
+  })
+_sym_db.RegisterMessage(ServerInformFinishRequest)
+
+ServerInformFinishResponse = _reflection.GeneratedProtocolMessageType('ServerInformFinishResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SERVERINFORMFINISHRESPONSE,
+  '__module__' : 'wandb.proto.wandb_server_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.ServerInformFinishResponse)
+  })
+_sym_db.RegisterMessage(ServerInformFinishResponse)
+
 
 
 _INTERNALSERVICE = _descriptor.ServiceDescriptor(
@@ -170,8 +302,8 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=218,
-  serialized_end=1990,
+  serialized_start=332,
+  serialized_end=2320,
   methods=[
   _descriptor.MethodDescriptor(
     name='RunUpdate',
@@ -390,6 +522,26 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     containing_service=None,
     input_type=_SERVERSTATUSREQUEST,
     output_type=_SERVERSTATUSRESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='ServerInformInit',
+    full_name='wandb_internal.InternalService.ServerInformInit',
+    index=22,
+    containing_service=None,
+    input_type=_SERVERINFORMINITREQUEST,
+    output_type=_SERVERINFORMINITRESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='ServerInformFinish',
+    full_name='wandb_internal.InternalService.ServerInformFinish',
+    index=23,
+    containing_service=None,
+    input_type=_SERVERINFORMFINISHREQUEST,
+    output_type=_SERVERINFORMFINISHRESPONSE,
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
   ),

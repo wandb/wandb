@@ -166,7 +166,7 @@ def vendor_import(name):
     return module
 
 
-def get_module(name, required=None):
+def get_module(name, required=None) -> Optional[importlib.ModuleInterface]:
     """
     Return module or None. Absolute import is required.
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.

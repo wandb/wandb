@@ -10,6 +10,7 @@ import time
 from typing import Any, Dict, Optional
 
 import grpc
+from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 
 
@@ -90,6 +91,15 @@ class _Service:
         channel = grpc.insecure_channel("localhost:{}".format(port))
         stub = pbgrpc.InternalServiceStub(channel)
         self._stub = stub
+        # TODO: make sure service is up
 
     def _get_stub(self) -> Optional[pbgrpc.InternalServiceStub]:
         return self._stub
+
+    def _svc_inform_init(self) -> None:
+        assert self._stub
+        inform_init = spb.ServerInformInitRequest()
+        _ = self._stub.ServerInformInit(inform_init)
+
+    def _svc_inform_finish(self) -> None:
+        pass

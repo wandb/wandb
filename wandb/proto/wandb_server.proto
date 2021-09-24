@@ -28,6 +28,8 @@ service InternalService {
   rpc Resume(ResumeRequest) returns (ResumeResponse) {}
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
+  rpc ServerInformInit(ServerInformInitRequest) returns (ServerInformInitResponse) {}
+  rpc ServerInformFinish(ServerInformFinishRequest) returns (ServerInformFinishResponse) {}
 }
 
 message ServerShutdownRequest {
@@ -40,4 +42,16 @@ message ServerStatusRequest {
 }
 
 message ServerStatusResponse {
+}
+
+message ServerInformInitRequest {
+}
+
+message ServerInformInitResponse {
+}
+
+message ServerInformFinishRequest {
+}
+
+message ServerInformFinishResponse {
 }

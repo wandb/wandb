@@ -451,6 +451,9 @@ class _WandbInit(object):
         logger.info("starting backend")
 
         manager = self._wl._get_manager()
+        if manager:
+            manager._inform_init()
+
         backend = Backend(settings=s, manager=manager)
         backend.ensure_launched()
         backend.server_connect()
