@@ -1055,14 +1055,13 @@ class Api(object):
         return self.gql(mutation, variable_values)["createLaunchAgent"]
 
     @normalize_exceptions
-    def update_launch_agent_status(self, agent_id, current_job, status):
+    def update_launch_agent_status(self, agent_id, status):
         mutation = gql(
             """
-            mutation updateLaunchAgent($agentId: ID!, $currentJob: ID, $agentStatus: String){
+            mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
                 updateLaunchAgent(
                     input: {
                         launchAgentId: $agentId
-                        currentJob: $currentJob
                         agentStatus: $agentStatus
                     }
                 ) {
@@ -1073,7 +1072,6 @@ class Api(object):
         )
         variable_values = {
             "agentId": agent_id,
-            "currentJob": current_job,
             "agentStatus": status,
         }
         return self.gql(mutation, variable_values)["updateLaunchAgent"]

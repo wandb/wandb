@@ -98,7 +98,10 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue, entity=self._entity, project=self._project, agent_id=self._id,
+                queue,
+                entity=self._entity,
+                project=self._project,
+                agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
@@ -120,9 +123,7 @@ class LaunchAgent(object):
         self._running -= 1
         # update status back to polling if no jobs are running
         if self._running == 0:
-            update_ret = self._api.update_launch_agent_status(
-                self._id, None, AGENT_POLLING
-            )
+            update_ret = self._api.update_launch_agent_status(self._id, AGENT_POLLING)
             if not update_ret["success"]:
                 wandb.termerror("Failed to update agent status to polling")
 
@@ -136,9 +137,7 @@ class LaunchAgent(object):
         # TODO: logger
         print("agent: got job", job)
         # update agent status
-        update_ret = self._api.update_launch_agent_status(
-            self._id, job["runQueueItemId"], AGENT_RUNNING
-        )
+        update_ret = self._api.update_launch_agent_status(self._id, AGENT_RUNNING)
         if not update_ret["success"]:
             wandb.termerror("Failed to update agent status while running new job")
 
@@ -201,7 +200,7 @@ class LaunchAgent(object):
                 self.run_job(job)
         except KeyboardInterrupt:
             shutdown_update = self._api.update_launch_agent_status(
-                self._id, None, AGENT_KILLED
+                self._id, AGENT_KILLED
             )
             if not shutdown_update["success"]:
                 wandb.termerror("Failed to update agent status during shutdown")
