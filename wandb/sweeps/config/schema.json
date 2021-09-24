@@ -1,0 +1,631 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://dev.wandb.com/schema/config.json",
+  "title": "SweepConfig",
+  "description": "Weights & Biases Sweep Configuration.",
+  "type": "object",
+  "definitions": {
+    "param_categorical": {
+      "type": "object",
+      "description": "A categorical parameter with allowed values.",
+      "required": [
+        "values"
+      ],
+      "properties": {
+        "values": {
+          "type": "array",
+          "description": "Discrete values",
+          "minItems": 1
+        },
+        "distribution": {
+          "enum": [
+            "categorical"
+          ],
+          "default": "categorical"
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_single_value": {
+      "type": "object",
+      "description": "A constant parameter.",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "value": {
+          "description": "A constant"
+        },
+        "distribution": {
+          "enum": [
+            "constant"
+          ],
+          "default": "constant"
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_normal": {
+      "type": "object",
+      "required": [
+        "distribution"
+      ],
+      "description": "A normally distributed parameter.",
+      "properties": {
+        "distribution": {
+          "enum": [
+            "normal"
+          ]
+        },
+        "mu": {
+          "type": "number",
+          "description": "Mean for normal or lognormal distributions",
+          "default": 0.0
+        },
+        "sigma": {
+          "type": "number",
+          "description": "Std Dev for normal or lognormal distributions",
+          "default": 1.0,
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_lognormal": {
+      "type": "object",
+      "required": [
+        "distribution"
+      ],
+      "description": "A lognormally distributed parameter.",
+      "properties": {
+        "distribution": {
+          "enum": [
+            "log_normal"
+          ]
+        },
+        "mu": {
+          "type": "number",
+          "description": "Mean for normal or lognormal distributions",
+          "default": 0.0
+        },
+        "sigma": {
+          "type": "number",
+          "description": "Std Dev for normal or lognormal distributions",
+          "default": 1.0,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_qlognormal": {
+      "type": "object",
+      "description": "quantized log normal distribution.",
+      "required": [
+        "distribution"
+      ],
+      "properties": {
+        "q": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Quantization parameter for quantized distributions",
+          "exclusiveMinimum": 0
+        },
+        "mu": {
+          "type": "number",
+          "description": "Mean for normal or lognormal distributions",
+          "default": 0
+        },
+        "sigma": {
+          "type": "number",
+          "description": "Std Dev for normal or lognormal distributions",
+          "default": 1,
+          "minimum": 0
+        },
+        "distribution": {
+          "enum": [
+            "q_log_normal"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_qnormal": {
+      "type": "object",
+      "description": "quantized normal distribution",
+      "required": [
+        "distribution"
+      ],
+      "properties": {
+        "q": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Quantization parameter for quantized distributions",
+          "exclusiveMinimum": 0
+        },
+        "mu": {
+          "type": "number",
+          "description": "Mean for normal or lognormal distributions",
+          "default": 0
+        },
+        "sigma": {
+          "type": "number",
+          "description": "Std Dev for normal or lognormal distributions",
+          "default": 1,
+          "minimum": 0
+        },
+        "distribution": {
+          "enum": [
+            "q_normal"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_uniform": {
+      "anyOf": [
+        {
+          "type": "object",
+          "description": "uniform distribution on real numbers",
+          "required": [
+            "min",
+            "max",
+            "distribution"
+          ],
+          "properties": {
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            },
+            "distribution": {
+              "enum": [
+                "uniform"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "uniform distribution on real numbers",
+          "required": [
+            "min",
+            "max"
+          ],
+          "properties": {
+            "min": {
+              "type": "number",
+              "format": "float"
+            },
+            "max": {
+              "type": "number",
+              "format": "float"
+            },
+            "distribution": {
+              "enum": [
+                "uniform"
+              ],
+              "default": "uniform"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "uniform distribution on real numbers",
+          "required": [
+            "min",
+            "max"
+          ],
+          "properties": {
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number",
+              "format": "float"
+            },
+            "distribution": {
+              "enum": [
+                "uniform"
+              ],
+              "default": "uniform"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "description": "uniform distribution on real numbers",
+          "required": [
+            "min",
+            "max"
+          ],
+          "properties": {
+            "min": {
+              "type": "number",
+              "format": "float"
+            },
+            "max": {
+              "type": "number"
+            },
+            "distribution": {
+              "enum": [
+                "uniform"
+              ],
+              "default": "uniform"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "param_loguniform": {
+      "type": "object",
+      "description": "log uniform distribution.",
+      "required": [
+        "distribution",
+        "max",
+        "min"
+      ],
+      "properties": {
+        "min": {
+          "description": "float",
+          "type": "number"
+        },
+        "max": {
+          "description": "float",
+          "type": "number"
+        },
+        "distribution": {
+          "enum": [
+            "log_uniform"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_quniform": {
+      "type": "object",
+      "description": "quantized uniform distribution function.",
+      "required": [
+        "distribution",
+        "max",
+        "min"
+      ],
+      "properties": {
+        "min": {
+          "description": "float",
+          "type": "number"
+        },
+        "max": {
+          "description": "float",
+          "type": "number"
+        },
+        "q": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Quantization parameter for quantized distributions",
+          "exclusiveMinimum": 0
+        },
+        "distribution": {
+          "enum": [
+            "q_uniform"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_qloguniform": {
+      "type": "object",
+      "description": "quantized log uniform distribution",
+      "required": [
+        "distribution",
+        "max",
+        "min"
+      ],
+      "properties": {
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "q": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Quantization parameter for quantized distributions",
+          "exclusiveMinimum": 0
+        },
+        "distribution": {
+          "enum": [
+            "q_log_uniform"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_int_uniform": {
+      "type": "object",
+      "description": "Discrete uniform distribution on integers.",
+      "required": [
+        "min",
+        "max"
+      ],
+      "properties": {
+        "max": {
+          "type": "integer",
+          "format": "integer"
+        },
+        "min": {
+          "type": "integer",
+          "format": "integer"
+        },
+        "distribution": {
+          "enum": [
+            "int_uniform"
+          ],
+          "default": "int_uniform"
+        }
+      },
+      "additionalProperties": false
+    },
+    "param_beta": {
+      "type": "object",
+      "description": "beta distribution",
+      "properties": {
+        "a": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "b": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "distribution": {
+          "enum": [
+            "beta"
+          ]
+        }
+      },
+      "required": [
+        "distribution"
+      ],
+      "additionalProperties": false
+    },
+    "param_qbeta": {
+      "type": "object",
+      "description": "quantized beta distribution",
+      "properties": {
+        "a": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "b": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1
+        },
+        "q": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Quantization parameter for quantized distributions",
+          "exclusiveMinimum": 0
+        },
+        "distribution": {
+          "enum": [
+            "q_beta"
+          ]
+        }
+      },
+      "required": [
+        "distribution"
+      ],
+      "additionalProperties": false
+    },
+    "parameter": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/param_qbeta"
+        },
+        {
+          "$ref": "#/definitions/param_beta"
+        },
+        {
+          "$ref": "#/definitions/param_categorical"
+        },
+        {
+          "$ref": "#/definitions/param_int_uniform"
+        },
+        {
+          "$ref": "#/definitions/param_uniform"
+        },
+        {
+          "$ref": "#/definitions/param_lognormal"
+        },
+        {
+          "$ref": "#/definitions/param_loguniform"
+        },
+        {
+          "$ref": "#/definitions/param_normal"
+        },
+        {
+          "$ref": "#/definitions/param_qlognormal"
+        },
+        {
+          "$ref": "#/definitions/param_qloguniform"
+        },
+        {
+          "$ref": "#/definitions/param_qnormal"
+        },
+        {
+          "$ref": "#/definitions/param_quniform"
+        },
+        {
+          "$ref": "#/definitions/param_single_value"
+        }
+      ]
+    },
+    "hyperband_stopping": {
+      "type": "object",
+      "description": "Speed up hyperparameter search by killing off runs that appear to have lower performance than successful training runs",
+      "required": [
+        "type"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "max_iter",
+            "s"
+          ]
+        },
+        {
+          "required": [
+            "min_iter"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Possible values: hyperband",
+          "enum": [
+            "hyperband"
+          ]
+        },
+        "max_iter": {
+          "type": "integer",
+          "description": "Set the last epoch to finish trimming runs, and hyperband will automatically calculate the prior epochs to trim runs"
+        },
+        "min_iter": {
+          "type": "integer",
+          "description": "Set the first epoch to start trimming runs, and hyperband will automatically calculate the subsequent epochs to trim runs",
+          "minimum": 1
+        },
+        "s": {
+          "type": "number",
+          "description": "Set the number of steps you trim runs at, working backwards from the max_iter"
+        },
+        "eta": {
+          "type": "number",
+          "description": "At every eta^n steps, hyperband continues running the top 1/eta runs and stops all other runs",
+          "exclusiveMinimum": 1,
+          "default": 3
+        }
+      }
+    }
+  },
+  "required": [
+    "method",
+    "parameters"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "description": "Version"
+    },
+    "kind": {
+      "type": "string",
+      "description": "Possible values: sweep",
+      "enum": [
+        "sweep"
+      ]
+    },
+    "controller": {
+	"type": "object",
+	"properties": {
+	    "type": {
+		"type": "string",
+		"description": "Which controller to use, local or cloud",
+		"enum": ["local", "cloud"],
+		"default": "cloud"
+	    }
+	},
+	"required": ["type"]
+    },
+    "description": {
+      "type": "string",
+      "description": "Short package description"
+    },
+    "program": {
+      "type": "string",
+      "description": "Training script to run"
+    },
+    "entity": {
+      "type": "string",
+      "description": "The entity for this sweep"
+    },
+    "project": {
+      "type": "string",
+      "description": "The project for this sweep"
+    },
+    "method": {
+      "description": "Possible values: bayes, random, grid",
+      "enum": [
+        "bayes",
+        "random",
+        "grid",
+        "custom"
+      ]
+    },
+    "command": {
+      "type": "array",
+      "description": "Command used to launch the training script"
+    },
+    "name": {
+      "type": "string",
+      "description": "The name of the sweep, displayed in the W&B UI"
+    },
+    "metric": {
+      "type": "object",
+      "description": "Metric to optimize",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of metric"
+        },
+        "goal": {
+          "type": "string",
+          "description": "Possible values: minimize, maximize",
+          "enum": [
+            "minimize",
+            "maximize"
+          ],
+          "default": "minimize"
+        },
+        "target": {
+          "type": "number",
+          "description": "The sweep will finish once any run achieves this value"
+        }
+      }
+    },
+    "early_terminate": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/hyperband_stopping"
+        }
+      ]
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Config parameters to sweep",
+      "propertyNames": {
+        "pattern": "^^[A-Za-z_][A-Za-z0-9_.-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/parameter"
+      },
+      "minProperties": 1
+    }
+  }
+}

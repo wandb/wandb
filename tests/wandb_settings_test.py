@@ -73,6 +73,17 @@ def test_ignore_globs_env():
     assert s.ignore_globs == ("foo", "bar",)
 
 
+def test_quiet():
+    s = Settings()
+    assert s._quiet is None
+    s = Settings(quiet=True)
+    assert s._quiet
+    s = Settings()
+    s._apply_environ({"WANDB_QUIET": "false"})
+    s.setdefaults()
+    assert s._quiet == False
+
+
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
 def test_ignore_globs_settings(local_settings):
     with open(os.path.join(os.getcwd(), ".config", "wandb", "settings"), "w") as f:
