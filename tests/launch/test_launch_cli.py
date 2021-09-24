@@ -68,6 +68,25 @@ def test_launch_agent_base(
         assert "Shutting down, active jobs" in result.output
 
 
+@pytest.mark.timeout(320)
+def test_agent_queues_notfound(runner, test_settings, live_mock_server):
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch_agent,
+            [
+                "test_project",
+                "--entity",
+                "mock_server_entity",
+                "--queues",
+                "nonexistent_queue",
+            ],
+        )
+        assert result.exit_code != 0
+        assert (
+            "Not all of requested queues ['nonexistent_queue'] found" in result.output
+        )
+
+
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)

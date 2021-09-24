@@ -309,6 +309,24 @@ def test_launch_agent(
     assert ctx["num_acked"] == 1
 
 
+# @pytest.mark.timeout(320)
+# def test_agent_queues_notfound(test_settings, live_mock_server):
+#     api = wandb.sdk.internal.internal_api.Api(
+#         default_settings=test_settings, load_settings=False
+#     )
+#     try:
+#         launch.run_agent(
+#             util.generate_id(),
+#             "mock_server_entity",
+#             "test_project",
+#             ["nonexistent_queue"],
+#         )
+#     except Exception as e:
+#         assert "Error launching launch-agent: nonexistent_queue does not exist" in str(
+#             e
+#         )
+
+
 @pytest.mark.timeout(320)
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython
