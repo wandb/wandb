@@ -3,12 +3,12 @@ tag:
     shard: tf25
 plugin:
     - wandb
-    - pandas
 command:
     program: test_keras_nonnumeric.py
 depend:
     requirements:
         - tensorflow==2.5.0
+        - pandas
 assert:
     - :wandb:runs_len: 1
     - :op:contains_regex:
