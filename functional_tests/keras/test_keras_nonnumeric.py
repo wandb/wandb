@@ -1,4 +1,3 @@
-import pandas as pd
 import tensorflow as tf
 import wandb
 
@@ -20,7 +19,7 @@ for key in STRING_CATEGORICAL_COLUMNS:
         vocabulary=vocab, num_oov_indices=0, mask_token=None, name="lookup" + key
     )(keras_input)
     keras_preproc_input = tf.keras.layers.experimental.preprocessing.CategoryEncoding(
-        max_tokens=len(vocab), output_mode="count", sparse=True, name="encode" + key
+        num_tokens=len(vocab), output_mode="count", sparse=True, name="encode" + key
     )(keras_preproc_input)
     keras_preproc_inputs.append(keras_preproc_input)
 
@@ -32,7 +31,7 @@ for key in INT_CATEGORICAL_COLUMNS:
         vocabulary=vocab, num_oov_indices=0, mask_value=None, name="lookup" + key
     )(keras_input)
     keras_preproc_input = tf.keras.layers.experimental.preprocessing.CategoryEncoding(
-        max_tokens=len(vocab), output_mode="count", sparse=True, name="encode" + key
+        num_tokens=len(vocab), output_mode="count", sparse=True, name="encode" + key
     )(keras_preproc_input)
     keras_preproc_inputs.append(keras_preproc_input)
 
@@ -48,7 +47,7 @@ age_x_sex = tf.keras.layers.experimental.preprocessing.Hashing(
     num_bins=100, name="age_x_sex_hashing"
 )(age_x_sex)
 keras_output_age_x_sex = tf.keras.layers.experimental.preprocessing.CategoryEncoding(
-    max_tokens=100, output_mode="count", sparse=True, name="age_x_sex_encoding"
+    num_tokens=100, output_mode="count", sparse=True, name="age_x_sex_encoding"
 )(age_x_sex)
 keras_preproc_inputs.append(keras_output_age_x_sex)
 
