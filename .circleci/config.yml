@@ -126,6 +126,10 @@ workflows:
          name: "func-s_tf25-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_tf25-py37,func-covercircle"
+      - test:
+         name: "func-s_grpc-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_grpc-py37,func-covercircle"
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
