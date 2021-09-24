@@ -19,7 +19,7 @@ test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]
 
 gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
-grpc_requirements = ["grpcio>=1.27.2"]
+grpc_requirements = ["grpcio>=1.27.2", "setproctitle"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
 media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
 launch_requirements = [
