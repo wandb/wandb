@@ -130,7 +130,7 @@ class Artifact(ArtifactInterface):
         description: Optional[str] = None,
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
-        use_as=None,
+        use_as: Optional[str] = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -171,7 +171,7 @@ class Artifact(ArtifactInterface):
         self._client_id = util.generate_id(128)
         self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
-        self._use_as = use_as
+        self._use_as = use_as or name
 
         if incremental:
             self._incremental = incremental
