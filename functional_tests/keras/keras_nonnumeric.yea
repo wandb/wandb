@@ -1,6 +1,6 @@
 id: 0.keras.nonnumericlayers
 tag:
-    -shard tf25
+    shard: tf25
 plugin:
     - wandb
 command:
