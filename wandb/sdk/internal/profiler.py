@@ -4,17 +4,18 @@ pytorch profiler
 import os
 
 import wandb
+from wandb.errors import UsageError
 
 PYTORCH_PROFILER_MODULE = "torch.profiler"
 
 
 def trace():
-    torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE)
+    torch_profiler = wandb.util.get_module(PYTORCH_PROFILER_MODULE, required=True)
     try:
         logdir = os.path.join(wandb.run.dir, "pytorch_traces")
         os.mkdir(logdir)
     except AttributeError:
-        raise Exception(
+        raise UsageError(
             "Please call wandb.init() before wandb.profiler.trace()"
         ) from None
 
