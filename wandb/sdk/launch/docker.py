@@ -233,7 +233,7 @@ def get_docker_command(
         base_url = api.settings("base_url")
 
     # TODO: only add WANDB_DOCKER when we are pushing the image to a registry
-F    cmd += [
+    cmd += [
         "--env",
         f"WANDB_BASE_URL={base_url}",
         "--env",
