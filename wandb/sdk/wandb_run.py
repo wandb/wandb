@@ -2264,6 +2264,10 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
+                if use_as is not None:
+                    wandb.termwarn(
+                        "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
+                    )
                 self._log_artifact(
                     artifact, aliases, is_user_created=True, use_after_commit=True
                 )

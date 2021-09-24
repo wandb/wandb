@@ -1450,11 +1450,15 @@ def convert_artifact_to_json_config(arti):
     used_as = None
     if hasattr(arti, "_use_as"):
         used_as = arti._use_as
+    if hasattr(arti, "_sequence_name"):
+        sequence_name = arti._sequence_name
+    else:
+        sequence_name = arti._name
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": arti.id,
         "version": arti.version,
-        "sequenceName": arti._sequence_name,
+        "sequenceName": sequence_name,
         "usedAs": used_as,
     }

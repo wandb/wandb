@@ -130,6 +130,7 @@ class Artifact(ArtifactInterface):
         description: Optional[str] = None,
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
+        use_as=None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -170,6 +171,7 @@ class Artifact(ArtifactInterface):
         self._client_id = util.generate_id(128)
         self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
+        self._use_as = use_as
 
         if incremental:
             self._incremental = incremental
@@ -991,7 +993,7 @@ class __S3BucketPolicy(StoragePolicy):
         local = LocalFileHandler()
 
         self._handler = MultiHandler(
-            handlers=[s3, local,], default_handler=TrackingHandler()
+            handlers=[s3, local,], default_handler=TrackingHandler(),
         )
 
     def config(self) -> Dict[str, str]:

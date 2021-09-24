@@ -228,12 +228,12 @@ def get_docker_command(
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
+        base_url = "http://host.docker.internal:9003"
     else:
         base_url = api.settings("base_url")
 
     # TODO: only add WANDB_DOCKER when we are pushing the image to a registry
-    cmd += [
+F    cmd += [
         "--env",
         f"WANDB_BASE_URL={base_url}",
         "--env",
