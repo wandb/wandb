@@ -34,7 +34,7 @@ USER_EMAIL = "WANDB_USER_EMAIL"
 PROJECT = "WANDB_PROJECT"
 ENTITY = "WANDB_ENTITY"
 BASE_URL = "WANDB_BASE_URL"
-UI_URL = "WANDB_UI_URL"
+APP_URL = "WANDB_APP_URL"
 PROGRAM = "WANDB_PROGRAM"
 ARGS = "WANDB_ARGS"
 MODE = "WANDB_MODE"
@@ -214,10 +214,11 @@ def get_base_url(default=None, env=None):
     return env.get(BASE_URL, default)
 
 
-def get_ui_url(default=None, env=None):
+def get_app_url(default=None, env=None):
     if env is None:
         env = os.environ
-    return env.get(UI_URL, default)
+
+    return env.get(APP_URL, default)
 
 
 def get_show_run(default=None, env=None):
