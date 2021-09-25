@@ -570,6 +570,18 @@ class Api(object):
             )
         return User(self._client, res["users"]["edges"][0]["node"])
 
+    def users(self, username_or_email):
+        """Return all users from a partial username or email address query
+
+        Arguments:
+            username_or_email: (str) The prefix or suffix of the user you want to find
+
+        Returns:
+            An array of `User` objects
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
+
     def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
@@ -850,13 +862,13 @@ class User(Attrs):
 
     @property
     def api_keys(self):
-        if self._attrs["apiKeys"] is None:
+        if self._attrs.get("apiKeys") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
 
     @property
     def teams(self):
-        if self._attrs["teams"] is None:
+        if self._attrs.get("teams") is None:
             return []
         return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
 
@@ -1031,7 +1043,7 @@ class Team(Attrs):
                 {"teamName": team, "teamAdminUserName": admin_username},
             )
         except requests.exceptions.HTTPError:
-            return api.team(team)
+            pass
         return Team(api, team)
 
     def invite(self, username_or_email, admin=False):
@@ -1912,19 +1924,6 @@ class Run(Attrs):
         path = self.path
         path.insert(2, "runs")
         return self.client.app_url + "/".join(path)
-
-    def _get_run_url(self):
-        return self.url
-
-    def _get_sweep_url(self):
-        if self.sweep:
-            return self.sweep.url
-        return ""
-
-    def _get_project_url(self):
-        path = self.path
-        path.pop()
-        return self.client.app_url + "/".join(path + ["workspace"])
 
     @property
     def lastHistoryStep(self):  # noqa: N802

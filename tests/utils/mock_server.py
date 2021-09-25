@@ -43,6 +43,8 @@ def default_ctx():
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
         "fail_storage_count": 0,  # used via "fail_storage_times"
         "rate_limited_count": 0,  # used via "rate_limited_times"
+        "graphql_conflict": False,
+        "num_search_users": 1,
         "page_count": 0,
         "page_times": 2,
         "requested_file": "weights.h5",
@@ -374,6 +376,8 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+        if ctx["graphql_conflict"]:
+            return json.dumps({"error": "resource already exists"}), 409
 
         # Setup artifact emulator (should this be somewhere else?)
         emulate_random_str = ctx["emulate_artifacts"]
@@ -1118,6 +1122,7 @@ def create_app(user_ctx=None):
                 }
             }
         if "query SearchUsers" in body["query"]:
+
             return {
                 "data": {
                     "users": {
@@ -1139,6 +1144,7 @@ def create_app(user_ctx=None):
                                 }
                             }
                         ]
+                        * ctx["num_search_users"]
                     }
                 }
             }

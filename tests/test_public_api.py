@@ -9,7 +9,7 @@ import os
 import json
 import pytest
 import platform
-import sys
+import requests
 
 import wandb
 from wandb import Api
@@ -564,11 +564,15 @@ def test_viewer(mock_server, api):
     v = api.viewer
     assert v.admin is False
     assert v.username == "mock"
+    assert v.api_keys == []
+    assert v.teams == []
 
 
 def test_create_service_account(mock_server, api):
     t = api.team("test")
     assert t.create_service_account("My service account").api_key == "Y" * 40
+    mock_server.set_context("graphql_conflict", True)
+    assert t.create_service_account("My service account") is None
 
 
 def test_create_team(mock_server, api):
@@ -577,15 +581,25 @@ def test_create_team(mock_server, api):
     assert repr(t) == "<Team test>"
 
 
+def test_create_team_exists(mock_server, api):
+    mock_server.set_context("graphql_conflict", True)
+    with pytest.raises(requests.exceptions.HTTPError):
+        api.create_team("test")
+
+
 def test_invite_user(mock_server, api):
     t = api.team("test")
     assert t.invite("test@test.com")
     assert t.invite("test")
+    mock_server.set_context("graphql_conflict", True)
+    assert t.invite("conflict") == False
 
 
 def test_delete_member(mock_server, api):
     t = api.team("test")
     assert t.members[0].delete()
+    mock_server.set_context("graphql_conflict", True)
+    assert t.invite("conflict") == False
 
 
 def test_query_user(mock_server, api):
@@ -596,11 +610,23 @@ def test_query_user(mock_server, api):
     assert repr(u) == "<User test@test.com>"
 
 
+def test_query_user_multiple(mock_server, api):
+    mock_server.set_context("num_search_users", 2)
+    u = api.user("test@test.com")
+    assert u.email == "test@test.com"
+    users = api.users("test")
+    assert len(users) == 2
+
+
 def test_delete_api_key(mock_server, api):
     u = api.user("test@test.com")
     assert u.delete_api_key("Y" * 40)
+    mock_server.set_context("graphql_conflict", True)
+    assert u.delete_api_key("Y" * 40) == False
 
 
 def test_generate_api_key(mock_server, api):
     u = api.user("test@test.com")
     assert u.generate_api_key()
+    mock_server.set_context("graphql_conflict", True)
+    assert u.generate_api_key() is None
