@@ -71,11 +71,13 @@ import yaml
 # TODO(jhr): Add print_space
 # TODO(jhr): Add print_summary
 
+
 sweeps = get_module(
-    "wandb.sweeps_engine",
-    required="This module requires wandb to be built with the local "
-    "controller. Please run pip install wandb[sweeps].",
+    "wandb.sweeps",
+    required="wandb[sweeps] is required to use the local controller. "
+    "Please run `pip install wandb[sweeps]`.",
 )
+
 
 # This should be something like 'pending' (but we need to make sure everyone else is ok with that)
 SWEEP_INITIAL_RUN_STATE = sweeps.RunState.pending
@@ -606,22 +608,26 @@ class _WandbController:
         self._start_if_not_started()
         return self._stopping()
 
-    def schedule(self, run: sweeps.SweepRun) -> None:
+    def schedule(self, run: Optional[sweeps.SweepRun]) -> None:
         self._start_if_not_started()
 
         # only schedule one run at a time (for now)
         if self._controller and self._controller.get("schedule"):
             return
 
-        param_list = [
-            "%s=%s" % (k, v.get("value")) for k, v in sorted(run.config.items())
-        ]
-        self._log_actions.append(("schedule", ",".join(param_list)))
-
-        # schedule one run
-        schedule_list = []
         schedule_id = _id_generator()
-        schedule_list.append({"id": schedule_id, "data": {"args": run.config}})
+
+        if run is None:
+            schedule_list = [{"id": schedule_id, "data": {"args": None}}]
+        else:
+            param_list = [
+                "%s=%s" % (k, v.get("value")) for k, v in sorted(run.config.items())
+            ]
+            self._log_actions.append(("schedule", ",".join(param_list)))
+
+            # schedule one run
+            schedule_list = [{"id": schedule_id, "data": {"args": run.config}}]
+
         self._controller["schedule"] = schedule_list
         self._sweep_object_sync_to_backend()
 
