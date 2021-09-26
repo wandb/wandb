@@ -11,14 +11,11 @@ import json
 import logging
 from multiprocessing.process import BaseProcess
 import os
-import threading
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Iterable, Optional, Tuple, Union
 from typing import cast
 from typing import TYPE_CHECKING
-import uuid
 
 import six
-from six.moves import queue
 import wandb
 from wandb import data_types
 from wandb.proto import wandb_internal_pb2 as pb
@@ -35,6 +32,7 @@ from wandb.util import (
 
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
+from .router import MessageFuture, MessageRouter
 from ..wandb_artifacts import Artifact
 
 if TYPE_CHECKING:
@@ -63,83 +61,6 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     elif enum == pb.FilesItem.PolicyType.LIVE:
         policy = "live"
     return policy
-
-
-class _Future(object):
-    _object: Optional[pb.Result]
-
-    def __init__(self) -> None:
-        self._object = None
-        self._object_ready = threading.Event()
-        self._lock = threading.Lock()
-
-    def get(self, timeout: int = None) -> Optional[pb.Result]:
-        is_set = self._object_ready.wait(timeout)
-        if is_set and self._object:
-            return self._object
-        return None
-
-    def _set_object(self, obj: pb.Result) -> None:
-        self._object = obj
-        self._object_ready.set()
-
-
-class MessageRouter(object):
-    _pending_reqs: Dict[str, _Future]
-    _request_queue: "Queue[pb.Record]"
-    _response_queue: "Queue[pb.Result]"
-
-    def __init__(
-        self, request_queue: "Queue[pb.Record]", response_queue: "Queue[pb.Result]"
-    ) -> None:
-        self._request_queue = request_queue
-        self._response_queue = response_queue
-
-        self._pending_reqs = {}
-        self._lock = threading.Lock()
-
-        self._join_event = threading.Event()
-        self._thread = threading.Thread(target=self.message_loop)
-        self._thread.daemon = True
-        self._thread.start()
-
-    def message_loop(self) -> None:
-        while not self._join_event.is_set():
-            try:
-                msg = self._response_queue.get(timeout=1)
-            except queue.Empty:
-                continue
-            self._handle_msg_rcv(msg)
-
-    def send_and_receive(self, rec: pb.Record, local: Optional[bool] = None) -> _Future:
-        rec.control.req_resp = True
-        if local:
-            rec.control.local = local
-        rec.uuid = uuid.uuid4().hex
-        future = _Future()
-        with self._lock:
-            self._pending_reqs[rec.uuid] = future
-
-        self._request_queue.put(rec)
-
-        return future
-
-    def join(self) -> None:
-        self._join_event.set()
-        self._thread.join()
-
-    def _handle_msg_rcv(self, msg: pb.Result) -> None:
-        with self._lock:
-            future = self._pending_reqs.pop(msg.uuid, None)
-        if future is None:
-            # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
-            # could point to other issues.
-            if msg.uuid != "":
-                logger.warning(
-                    "No listener found for msg with uuid %s (%s)", msg.uuid, msg
-                )
-            return
-        future._set_object(msg)
 
 
 class BackendSenderBase(object):
@@ -475,7 +396,7 @@ class BackendSenderBase(object):
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
-    ) -> _Future:
+    ) -> MessageFuture:
         proto_run = self._make_run(run)
         proto_artifact = self._make_artifact(artifact)
         proto_artifact.run_id = proto_run.run_id
@@ -493,7 +414,9 @@ class BackendSenderBase(object):
         return resp
 
     @abstractmethod
-    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> _Future:
+    def _communicate_artifact(
+        self, log_artifact: pb.LogArtifactRequest
+    ) -> MessageFuture:
         raise NotImplementedError
 
     def publish_artifact(
@@ -834,7 +757,7 @@ class BackendSender(BackendSenderBase):
     ) -> Optional[pb.Result]:
         return self._communicate_async(rec, local=local).get(timeout=timeout)
 
-    def _communicate_async(self, rec: pb.Record, local: bool = None) -> _Future:
+    def _communicate_async(self, rec: pb.Record, local: bool = None) -> MessageFuture:
         assert self._router
         if self._process_check and self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")

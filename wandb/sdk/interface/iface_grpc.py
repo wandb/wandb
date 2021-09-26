@@ -14,7 +14,8 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .interface import _Future, BackendSenderBase
+from .interface import BackendSenderBase
+from .router import MessageFuture
 
 
 if TYPE_CHECKING:
@@ -123,10 +124,12 @@ class BackendGrpcSender(BackendSenderBase):
         # TODO: implement
         pass
 
-    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> _Future:
+    def _communicate_artifact(
+        self, log_artifact: pb.LogArtifactRequest
+    ) -> MessageFuture:
         # TODO: implement
         dummy = pb.Result()
-        future = _Future()
+        future = MessageFuture()
         future._set_object(dummy)
         return future
 
