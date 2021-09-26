@@ -29,6 +29,7 @@ import importlib
 import tarfile
 import tempfile
 import types
+from typing import Optional
 import yaml
 from datetime import date, datetime
 import platform
@@ -166,7 +167,7 @@ def vendor_import(name):
     return module
 
 
-def get_module(name, required=None) -> Optional[importlib.ModuleInterface]:
+def get_module(name, required=None):
     """
     Return module or None. Absolute import is required.
     :param (str) name: Dot-separated module path. E.g., 'scipy.stats'.
@@ -183,6 +184,10 @@ def get_module(name, required=None) -> Optional[importlib.ModuleInterface]:
                 logger.exception(msg)
     if required and name in _not_importable:
         raise wandb.Error(required)
+
+
+def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
+    return get_module(name)
 
 
 class LazyLoader(types.ModuleType):

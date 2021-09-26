@@ -38,11 +38,11 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     """Provides methods that implement functionality of route guide server."""
 
     _server: "GrpcServerType"
-    _backend: "GrpcBackend"
+    _servicer: "WandbServicer"
 
-    def __init__(self, server: "GrpcServerType", backend: "GrpcBackend") -> None:
+    def __init__(self, server: "GrpcServerType", servicer: "WandbServicer") -> None:
         self._server = server
-        self._backend = backend
+        self._servicer = servicer
 
     def RunUpdate(  # noqa: N802
         self, run_data: pb.RunRecord, context: grpc.ServicerContext
@@ -52,8 +52,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         # Record telemetry info about grpc server
         run_data.telemetry.feature.grpc = True
         run_data.telemetry.cli_version = wandb.__version__
-        assert self._backend and self._backend._interface
-        result = self._backend._interface._communicate_run(run_data)
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface._communicate_run(run_data)
         assert result  # TODO: handle errors
         return result
 
@@ -61,88 +61,88 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         self, run_start: pb.RunStartRequest, context: grpc.ServicerContext
     ) -> pb.RunStartResponse:
         # initiate run (stats and metadata probing)
-        assert self._backend and self._backend._interface
-        result = self._backend._interface._communicate_run_start(run_start)
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface._communicate_run_start(run_start)
         assert result  # TODO: handle errors
         return result
 
     def CheckVersion(  # noqa: N802
         self, check_version: pb.CheckVersionRequest, context: grpc.ServicerContext
     ) -> pb.CheckVersionResponse:
-        assert self._backend and self._backend._interface
-        result = self._backend._interface._communicate_check_version(check_version)
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface._communicate_check_version(check_version)
         assert result  # TODO: handle errors
         return result
 
     def Attach(  # noqa: N802
         self, attach: pb.AttachRequest, context: grpc.ServicerContext
     ) -> pb.AttachResponse:
-        assert self._backend and self._backend._interface
-        result = self._backend._interface._communicate_attach(attach)
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface._communicate_attach(attach)
         assert result  # TODO: handle errors
         return result
 
     def PollExit(  # noqa: N802
         self, poll_exit: pb.PollExitRequest, context: grpc.ServicerContext
     ) -> pb.PollExitResponse:
-        assert self._backend and self._backend._interface
-        result = self._backend._interface.communicate_poll_exit()
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface.communicate_poll_exit()
         assert result  # TODO: handle errors
         return result
 
     def GetSummary(  # noqa: N802
         self, get_summary: pb.GetSummaryRequest, context: grpc.ServicerContext
     ) -> pb.GetSummaryResponse:
-        assert self._backend and self._backend._interface
-        result = self._backend._interface.communicate_get_summary()
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface.communicate_get_summary()
         assert result  # TODO: handle errors
         return result
 
     def SampledHistory(  # noqa: N802
         self, sampled_history: pb.SampledHistoryRequest, context: grpc.ServicerContext
     ) -> pb.SampledHistoryResponse:
-        assert self._backend and self._backend._interface
-        result = self._backend._interface.communicate_sampled_history()
+        assert self._servicer and self._servicer._interface
+        result = self._servicer._interface.communicate_sampled_history()
         assert result  # TODO: handle errors
         return result
 
     def Shutdown(  # noqa: N802
         self, shutdown: pb.ShutdownRequest, context: grpc.ServicerContext
     ) -> pb.ShutdownResponse:
-        assert self._backend and self._backend._interface
-        self._backend._interface._communicate_shutdown()
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._communicate_shutdown()
         result = pb.ShutdownResponse()
         return result
 
     def RunExit(  # noqa: N802
         self, exit_data: pb.RunExitRecord, context: grpc.ServicerContext
     ) -> pb.RunExitResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface.publish_exit(exit_data.exit_code)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface.publish_exit(exit_data.exit_code)
         result = pb.RunExitResult()
         return result
 
     def RunPreempting(  # noqa: N802
         self, preempt: pb.RunPreemptingRecord, context: grpc.ServicerContext
     ) -> pb.RunPreemptingResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_preempting(preempt)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_preempting(preempt)
         result = pb.RunPreemptingResult()
         return result
 
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext
     ) -> pb.TBResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_tbdata(tb_data)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_tbdata(tb_data)
         result = pb.TBResult()
         return result
 
     def Log(  # noqa: N802
         self, history: pb.HistoryRecord, context: grpc.ServicerContext
     ) -> pb.HistoryResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_history(history)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_history(history)
         # make up a response even though this was async
         result = pb.HistoryResult()
         return result
@@ -150,8 +150,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Summary(  # noqa: N802
         self, summary: pb.SummaryRecord, context: grpc.ServicerContext
     ) -> pb.SummaryResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_summary(summary)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_summary(summary)
         # make up a response even though this was async
         result = pb.SummaryResult()
         return result
@@ -159,8 +159,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Telemetry(  # noqa: N802
         self, telem: tpb.TelemetryRecord, context: grpc.ServicerContext
     ) -> tpb.TelemetryResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_telemetry(telem)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_telemetry(telem)
         # make up a response even though this was async
         result = tpb.TelemetryResult()
         return result
@@ -168,8 +168,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Output(  # noqa: N802
         self, output_data: pb.OutputRecord, context: grpc.ServicerContext
     ) -> pb.OutputResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_output(output_data)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_output(output_data)
         # make up a response even though this was async
         result = pb.OutputResult()
         return result
@@ -177,8 +177,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Files(  # noqa: N802
         self, files_data: pb.FilesRecord, context: grpc.ServicerContext
     ) -> pb.FilesResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_files(files_data)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_files(files_data)
         # make up a response even though this was async
         result = pb.FilesResult()
         return result
@@ -186,8 +186,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Config(  # noqa: N802
         self, config_data: pb.ConfigRecord, context: grpc.ServicerContext
     ) -> pb.ConfigResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_config(config_data)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_config(config_data)
         # make up a response even though this was async
         result = pb.ConfigResult()
         return result
@@ -195,8 +195,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Metric(  # noqa: N802
         self, metric: pb.MetricRecord, context: grpc.ServicerContext
     ) -> pb.MetricResult:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_metric(metric)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_metric(metric)
         # make up a response even though this was async
         result = pb.MetricResult()
         return result
@@ -204,8 +204,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Pause(  # noqa: N802
         self, pause: pb.PauseRequest, context: grpc.ServicerContext
     ) -> pb.PauseResponse:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_pause(pause)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_pause(pause)
         # make up a response even though this was async
         result = pb.PauseResponse()
         return result
@@ -213,8 +213,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
     def Resume(  # noqa: N802
         self, resume: pb.ResumeRequest, context: grpc.ServicerContext
     ) -> pb.ResumeResponse:
-        assert self._backend and self._backend._interface
-        self._backend._interface._publish_resume(resume)
+        assert self._servicer and self._servicer._interface
+        self._servicer._interface._publish_resume(resume)
         # make up a response even though this was async
         result = pb.ResumeResponse()
         return result
@@ -224,8 +224,8 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         request: wandb_server_pb2.ServerShutdownRequest,
         context: grpc.ServicerContext,
     ) -> wandb_server_pb2.ServerShutdownResponse:
-        assert self._backend and self._backend._interface
-        self._backend.cleanup()
+        assert self._servicer and self._servicer._interface
+        self._servicer.cleanup()
         result = wandb_server_pb2.ServerShutdownResponse()
         self._server.stop(5)
         return result
@@ -235,7 +235,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         request: wandb_server_pb2.ServerStatusRequest,
         context: grpc.ServicerContext,
     ) -> wandb_server_pb2.ServerStatusResponse:
-        assert self._backend and self._backend._interface
+        assert self._servicer and self._servicer._interface
         result = wandb_server_pb2.ServerStatusResponse()
         return result
 
@@ -244,7 +244,7 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         request: wandb_server_pb2.ServerInformInitRequest,
         context: grpc.ServicerContext,
     ) -> wandb_server_pb2.ServerInformInitResponse:
-        assert self._backend and self._backend._interface
+        assert self._servicer and self._servicer._interface
         result = wandb_server_pb2.ServerInformInitResponse()
         return result
 
@@ -253,13 +253,44 @@ class InternalServiceServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         request: wandb_server_pb2.ServerInformFinishRequest,
         context: grpc.ServicerContext,
     ) -> wandb_server_pb2.ServerInformFinishResponse:
-        assert self._backend and self._backend._interface
+        assert self._servicer and self._servicer._interface
         result = wandb_server_pb2.ServerInformFinishResponse()
         return result
 
 
+class GrpcMultiplexer:
+    _settings: Dict[str, Any]
+    _record_q: "queue.Queue[pb.Record]"
+    _result_q: "queue.Queue[pb.Result]"
+    _port: int
+    _user_pid: Optional[int]
+
+    def __init__(
+        self,
+        settings: Dict[str, Any],
+        record_q: "queue.Queue[pb.Record]",
+        result_q: "queue.Queue[pb.Result]",
+        port: int,
+        user_pid: Optional[int],
+    ) -> None:
+        self._settings = settings
+        self._record_q = record_q
+        self._result_q = result_q
+        self._port = port
+        self._user_pid = user_pid
+
+    def loop(self) -> None:
+        wandb.wandb_sdk.internal.internal.wandb_internal(
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
+            port=self._port,
+            user_pid=self._user_pid,
+        )
+
+
 # TODO(jhr): this should be merged with code in backend/backend.py ensure launched
-class GrpcBackend:
+class WandbServicer:
     _interface: interface.BackendSender
     _settings: Dict[str, Any]
     _process: multiprocessing.process.BaseProcess
@@ -336,14 +367,15 @@ class GrpcBackend:
         return settings
 
     def run(self, port: int) -> None:
+        mux = GrpcMultiplexer(
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
+            port=port,
+            user_pid=self._monitor_pid,
+        )
         try:
-            wandb.wandb_sdk.internal.internal.wandb_internal(
-                settings=self._settings,
-                record_q=self._record_q,
-                result_q=self._result_q,
-                port=port,
-                user_pid=self._monitor_pid,
-            )
+            mux.loop()
         except KeyboardInterrupt:
             pass
 
@@ -356,12 +388,12 @@ class GrpcBackend:
 
 
 def serve(
-    backend: GrpcBackend, port: int, port_filename: str = None, address: str = None
+    servicer: WandbServicer, port: int, port_filename: str = None, address: str = None
 ) -> int:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     try:
         wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
-            InternalServiceServicer(server, backend), server
+            InternalServiceServicer(server, servicer), server
         )
         port = server.add_insecure_port("127.0.0.1:{}".format(port))
         server.start()
@@ -382,11 +414,11 @@ def serve(
 
         # server.wait_for_termination()
     except KeyboardInterrupt:
-        backend.cleanup()
+        servicer.cleanup()
         server.stop(0)
         raise
     except Exception:
-        backend.cleanup()
+        servicer.cleanup()
         server.stop(0)
         raise
     return port
@@ -404,13 +436,13 @@ def main(
     if debug:
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-    backend = GrpcBackend(pid=pid, debug=debug)
-    port = serve(backend, port or 0, port_filename=port_filename, address=address)
-    setproctitle = wandb.util.get_module("setproctitle")
+    servicer = WandbServicer(pid=pid, debug=debug)
+    port = serve(servicer, port or 0, port_filename=port_filename, address=address)
+    setproctitle = wandb.util.get_optional_module("setproctitle")
     if setproctitle:
         setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
-    backend.run(port=port)
-    backend.cleanup()
+    servicer.run(port=port)
+    servicer.cleanup()
 
 
 if __name__ == "__main__":
