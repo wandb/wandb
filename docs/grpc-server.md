@@ -8,9 +8,9 @@
                   |                                   |
 
                   |       Mux       ~   Internal*N    |
-                    [mgr_i] [mgr_o]   [rec_q] [rsp_q] 
+                    [mgr_i] [mgr_o]   [rec_q] [rsp_q]
                   |        .        ~                 |
- wandb.setup()      
+ wandb.setup()
                   |        .        ~                 |
  StartProcess  --[1]-->
                   |        .        ~                 |
