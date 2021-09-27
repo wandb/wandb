@@ -1425,35 +1425,3 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
-
-
-def check_dict_contains_artifact(d):
-    if isinstance(d, dict):
-        for _, item in six.iteritems(d):
-            if isinstance(item, dict):
-                contains_artifacts = check_dict_contains_artifact(item)
-                if contains_artifacts:
-                    return True
-            elif isinstance(item, wandb.Artifact) or isinstance(
-                item, wandb.apis.public.Artifact
-            ):
-                return True
-    return False
-
-
-def convert_artifact_to_json_config(arti):
-    used_as = None
-    if hasattr(arti, "_use_as"):
-        used_as = arti._use_as
-    if hasattr(arti, "_sequence_name"):
-        sequence_name = arti._sequence_name
-    else:
-        sequence_name = arti._name
-    return {
-        "_type": "artifactVersion",
-        "_version": "v0",
-        "id": arti.id,
-        "version": arti.version,
-        "sequenceName": sequence_name,
-        "usedAs": used_as,
-    }

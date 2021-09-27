@@ -3398,7 +3398,7 @@ class Artifact(artifacts.Artifact):
             "id": self.id,
             "version": self.version,
             "sequenceName": self._sequence_name,
-            "usedAs": self._use_as,
+            "usedAs": self._use_as or self.name,
         }
 
     @normalize_exceptions
