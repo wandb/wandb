@@ -217,7 +217,10 @@ class Config(object):
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
-            k, v = self._sanitize(k, v, allow_val_change)
+            if isinstance(v, dict):
+                v = self._sanitize_dict(v, allow_val_change)
+            else:
+                k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized
 

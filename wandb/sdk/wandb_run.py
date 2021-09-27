@@ -2241,15 +2241,14 @@ class Run(object):
             else:
                 name = artifact_or_name
             public_api = self._public_api()
-            artifact = public_api.artifact(
-                type=type, name=name, use_as=use_as or artifact_or_name
-            )
+            artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
                 raise ValueError(
                     "Supplied type {} does not match type {} of artifact {}".format(
                         type, artifact.type, artifact.name
                     )
                 )
+            artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
                 artifact.id,
                 entity_name=artifact.entity,

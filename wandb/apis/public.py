@@ -606,7 +606,7 @@ class Api(object):
         return artifact_type.collection(collection_name).versions(per_page=per_page)
 
     @normalize_exceptions
-    def artifact(self, name, type=None, use_as=None):
+    def artifact(self, name, type=None):
         """
         Returns a single artifact by parsing path in the form `entity/project/run_id`.
 
@@ -624,7 +624,7 @@ class Api(object):
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
-        artifact = Artifact(self.client, entity, project, artifact_name, use_as=use_as)
+        artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
             raise ValueError("type %s specified but this artifact is of type %s")
         return artifact
@@ -2980,12 +2980,11 @@ class Artifact(artifacts.Artifact):
 
             return artifact
 
-    def __init__(self, client, entity, project, name, attrs=None, use_as=None):
+    def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
         self._entity = entity
         self._project = project
         self._artifact_name = name
-        self._use_as = use_as or name
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -3144,6 +3143,15 @@ class Artifact(artifacts.Artifact):
                     return artifact_type.get("name")
 
         return None
+
+    @property
+    def _use_as(self):
+        return self._attrs.get("_use_as")
+
+    @_use_as.setter
+    def _use_as(self, use_as):
+        self._attrs["_use_as"] = use_as
+        return use_as
 
     @normalize_exceptions
     def delete(self):
@@ -3382,6 +3390,16 @@ class Artifact(artifacts.Artifact):
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
         return root
+
+    def json_encode(self):
+        return {
+            "_type": "artifactVersion",
+            "_version": "v0",
+            "id": self.id,
+            "version": self.version,
+            "sequenceName": self._sequence_name,
+            "usedAs": self._use_as,
+        }
 
     @normalize_exceptions
     def save(self):

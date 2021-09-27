@@ -558,10 +558,6 @@ def json_friendly(obj):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
         obj = obj.isoformat()
-    elif isinstance(obj, wandb.wandb_sdk.wandb_artifacts.Artifact) or isinstance(
-        obj, wandb.apis.public.Artifact
-    ):
-        obj = convert_artifact_to_json_config(obj)
     elif callable(obj):
         obj = (
             "{}.{}".format(obj.__module__, obj.__qualname__)
@@ -578,7 +574,6 @@ def json_friendly(obj):
                 type(obj).__name__, getsizeof(obj)
             )
         )
-
     return obj, converted
 
 
