@@ -65,6 +65,7 @@ def _windows_timed_input(prompt: str, timeout: float) -> str:
 
 
 def _jupyter_timed_input(prompt: str, timeout: float):
+    from IPython.display import clear_output
 
     _echo(prompt)
 
@@ -84,6 +85,7 @@ def _jupyter_timed_input(prompt: str, timeout: float):
     event.set()
     if user_inp:
         return user_inp
+    clear_output()
     raise TimeoutError
 
 
