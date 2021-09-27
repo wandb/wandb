@@ -6,12 +6,12 @@ import pytest
 if sys.version_info >= (3, 10):
     pytest.importorskip("pydantic")
 
-from wandb import sweeps_engine
+from wandb import sweeps
 
 
 def test_run_from_dict():
 
-    run = sweeps_engine.SweepRun(
+    run = sweeps.SweepRun(
         **{
             "name": "test",
             "state": "running",
