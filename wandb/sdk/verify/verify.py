@@ -69,8 +69,10 @@ def check_logged_in(api: Api, host: str) -> bool:
     login_doc_url = "https://docs.wandb.ai/ref/login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
-            click.style(login_doc_url, underline=True, fg="blue")
+        fail_string = (
+            "Not logged in. Please log in using wandb login. See the docs: {}".format(
+                click.style(login_doc_url, underline=True, fg="blue")
+            )
         )
     # check that api key is correct
     # TODO: Better check for api key is correct
@@ -96,14 +98,23 @@ def check_secure_requests(url: str, test_url_string: str, failure_output: str) -
 
 def check_cors_configuration(url: str, origin: str) -> None:
     print("Checking CORs configuration of the bucket".ljust(72, "."), end="")
-    res = requests.options(
+    fail_string = None
+    res_get = requests.options(
         url, headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
     )
-    fail_string = None
-    if res.headers.get("Access-Control-Allow-Origin") is None:
+    res_put = requests.options(
+        url, headers={"Origin": origin, "Access-Control-Request-Method": "PUT"}
+    )
+    print(res_put)
+
+    if (
+        res_get.headers.get("Access-Control-Allow-Origin") is None
+        or res_put.headers.get("Access-Control-Allow-Origin") is None
+    ):
         fail_string = "Your object store does not have a valid CORs configuration, you must allow GET and PUT to Origin: {}".format(
             origin
         )
+
     print_results(fail_string, True)
 
 
@@ -281,7 +292,8 @@ def log_use_download_artifact(
             return False, None, failed_test_strings
 
     with wandb.init(
-        project=PROJECT_NAME, config={"test": "artifact use"},
+        project=PROJECT_NAME,
+        config={"test": "artifact use"},
     ) as use_art_run:
         try:
             used_art = use_art_run.use_artifact("{}:{}".format(name, alias))
