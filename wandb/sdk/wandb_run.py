@@ -2174,6 +2174,40 @@ class Run(object):
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
+    def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]):
+        artifact_key_string = use_as or artifact_name
+        new_name = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
+            "name"
+        )
+        entity = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
+            "entity"
+        )
+        project = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
+            "project"
+        )
+        if new_name is None and use_as is None:
+            wandb.termwarn(
+                f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
+            )
+            sequence_name = artifact_name.split(":")[0].split("/")[-1]
+            new_name = self._unique_launch_artifact_sequence_names.get(
+                sequence_name, {}
+            ).get("name")
+            entity = self._unique_launch_artifact_sequence_names.get(
+                sequence_name, {}
+            ).get("entity")
+            project = self._unique_launch_artifact_sequence_names.get(
+                sequence_name, {}
+            ).get("project")
+        if new_name is None:
+            wandb.termwarn(
+                f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
+            )
+            name = artifact_name
+        else:
+            name = f"{entity}/{project}/{new_name}"
+        return name
+
     # TODO(jhr): annotate this
     def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
         """Declare an artifact as an input to a run.
@@ -2208,36 +2242,7 @@ class Run(object):
 
         if isinstance(artifact_or_name, str):
             if self._launch_artifact_mapping is not None:
-                new_name = self._launch_artifact_mapping.get(
-                    use_as or artifact_or_name, {}
-                ).get("name")
-                entity = self._launch_artifact_mapping.get(
-                    use_as or artifact_or_name, {}
-                ).get("entity")
-                project = self._launch_artifact_mapping.get(
-                    use_as or artifact_or_name, {}
-                ).get("project")
-                if new_name is None and use_as is None:
-                    wandb.termwarn(
-                        f"Could not find {artifact_or_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_or_name}"
-                    )
-                    sequence_name = artifact_or_name.split(":")[0].split("/")[-1]
-                    new_name = self._unique_launch_artifact_sequence_names.get(
-                        sequence_name, {}
-                    ).get("name")
-                    entity = self._unique_launch_artifact_sequence_names.get(
-                        sequence_name, {}
-                    ).get("entity")
-                    project = self._unique_launch_artifact_sequence_names.get(
-                        sequence_name, {}
-                    ).get("project")
-                if new_name is None:
-                    wandb.termwarn(
-                        f"Could not find {use_as or artifact_or_name} in launch artifact mapping. Using {artifact_or_name}"
-                    )
-                    name = artifact_or_name
-                else:
-                    name = f"{entity}/{project}/{new_name}"
+                name = self._swap_artifact_name(artifact_or_name, use_as)
             else:
                 name = artifact_or_name
             public_api = self._public_api()
