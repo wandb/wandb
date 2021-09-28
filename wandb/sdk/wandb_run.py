@@ -2174,7 +2174,7 @@ class Run(object):
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
-    def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]):
+    def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
         artifact_key_string = use_as or artifact_name
         new_name = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
             "name"
