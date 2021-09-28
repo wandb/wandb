@@ -171,7 +171,7 @@ class Artifact(ArtifactInterface):
         self._client_id = util.generate_id(128)
         self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
-        self._use_as = use_as or name
+        self._use_as = use_as
 
         if incremental:
             self._incremental = incremental
@@ -318,6 +318,20 @@ class Artifact(ArtifactInterface):
         raise ValueError(
             "Cannot set aliases on an artifact before it has been logged or in offline mode"
         )
+
+    @property
+    def use_as(self):
+        return self._use_as or self.name
+
+    @use_as.setter
+    def use_as(self, use_as: str) -> None:
+        self._use_as = use_as
+
+    @property
+    def _sequence_name(self):
+        if self._logged_artifact:
+            return self._logged_artifact._sequence_name
+        return self.name
 
     @property
     def distributed_id(self) -> Optional[str]:
@@ -669,6 +683,9 @@ class Artifact(ArtifactInterface):
         self._final = True
         self._digest = self._manifest.digest()
 
+    def json_encode(self):
+        return util.artifact_to_json(self)
+
     def _ensure_can_add(self) -> None:
         if self._final:
             raise ValueError("Can't add to finalized artifact.")
@@ -685,7 +702,11 @@ class Artifact(ArtifactInterface):
                 shutil.copyfile(path, f.name)
 
         entry = ArtifactManifestEntry(
-            name, None, digest=digest, size=size, local_path=cache_path,
+            name,
+            None,
+            digest=digest,
+            size=size,
+            local_path=cache_path,
         )
 
         self._manifest.add_entry(entry)
@@ -854,7 +875,15 @@ class WandbStoragePolicy(StoragePolicy):
 
         self._api = InternalApi()
         self._handler = MultiHandler(
-            handlers=[s3, gcs, http, https, artifact, local_artifact, file_handler,],
+            handlers=[
+                s3,
+                gcs,
+                http,
+                https,
+                artifact,
+                local_artifact,
+                file_handler,
+            ],
             default_handler=TrackingHandler(),
         )
 
@@ -993,7 +1022,11 @@ class __S3BucketPolicy(StoragePolicy):
         local = LocalFileHandler()
 
         self._handler = MultiHandler(
-            handlers=[s3, local,], default_handler=TrackingHandler(),
+            handlers=[
+                s3,
+                local,
+            ],
+            default_handler=TrackingHandler(),
         )
 
     def config(self) -> Dict[str, str]:
@@ -1248,7 +1281,10 @@ class LocalFileHandler(StorageHandler):
         elif os.path.isfile(local_path):
             name = name or os.path.basename(local_path)
             entry = ArtifactManifestEntry(
-                name, path, size=os.path.getsize(local_path), digest=md5(local_path),
+                name,
+                path,
+                size=os.path.getsize(local_path),
+                digest=md5(local_path),
             )
             entries.append(entry)
         else:
@@ -1842,7 +1878,10 @@ class WBArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                name or os.path.basename(path), path, size=0, digest=entry.digest,
+                name or os.path.basename(path),
+                path,
+                size=0,
+                digest=entry.digest,
             )
         ]
 

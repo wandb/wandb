@@ -1425,3 +1425,14 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def artifact_to_json(artifact):
+    return {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": artifact.id,
+        "version": artifact.version,
+        "sequenceName": artifact._sequence_name,
+        "usedAs": artifact._use_as,
+    }
