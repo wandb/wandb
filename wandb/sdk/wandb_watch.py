@@ -15,7 +15,7 @@ _global_watch_idx = 0
 
 
 def watch(
-    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=False
+    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=False, model_names=None
 ):
     """Hooks into the torch model to collect gradients and the topology.
 
@@ -28,6 +28,7 @@ def watch(
         log_freq: (int) log gradients and parameters every N batches
         idx: (int) an index to be used when calling wandb.watch on multiple models
         log_graph: (boolean) log graph topology
+        model_names: (str) Custom names of models, can be a tuple
 
     Returns:
         `wandb.Graph` The graph object that will populate after the first backward pass
@@ -63,6 +64,9 @@ def watch(
     if not isinstance(models, (tuple, list)):
         models = (models,)
 
+    if model_names is not None and not isinstance(model_names, (tuple, list)):
+        model_names = (model_names,)
+
     torch = wandb.util.get_module(
         "torch", required="wandb.watch only works with pytorch, couldn't import torch."
     )
@@ -82,9 +86,11 @@ def watch(
     for local_idx, model in enumerate(models):
         global_idx = idx + local_idx
         _global_watch_idx += 1
-        if global_idx > 0:
-            # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
-            prefix = "graph_%i" % global_idx
+        if model_names is not None:
+            print(model_names)
+            prefix = model_names[local_idx] + '.'
+        elif global_idx > 0:
+            prefix = "graph_%i." % global_idx
 
         wandb.run.history.torch.add_log_hooks_to_pytorch_module(
             model,
