@@ -8,7 +8,6 @@ import wandb
 import shutil
 import wandb.data_types as data_types
 import numpy as np
-import pandas as pd
 import time
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -497,7 +496,10 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_add_table_from_dataframe(live_mock_server, test_settings):
+    import pandas as pd
+
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
