@@ -1,29 +1,4 @@
-"""test profiler track and sync `pt.trace.json` files functionality
-
----
-id: 0.profiler
-plugin:
-  - wandb
-var:
-  - run0:
-      :fn:find:
-      - item
-      - :wandb:runs
-      - :item[config][id]: 0
-  - count0:
-      :fn:count_regex:
-      - item
-      - :wandb:runs[0][files]
-      - .*pt.trace.json
-assert:
-  - :wandb:runs_len: 1
-  - :wandb:runs[0][config]: { id: profiler_sync_trace_files }
-  - :op:contains_regex:
-      - :wandb:runs[0][files]
-      - .*pt.trace.json
-  - :count0: 1
-  - :wandb:runs[0][exitcode]: 0
-"""
+"""test profiler track and sync `pt.trace.json` files functionality"""
 
 import torch
 from torch.nn.functional import log_softmax, max_pool2d, relu
@@ -92,4 +67,5 @@ def test_profiler():
     wandb.finish()
 
 
-test_profiler()
+if __name__ == "__main__":
+    test_profiler()
