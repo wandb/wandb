@@ -15,7 +15,13 @@ _global_watch_idx = 0
 
 
 def watch(
-    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=False, model_names=None
+    models,
+    criterion=None,
+    log="gradients",
+    log_freq=1000,
+    idx=None,
+    log_graph=False,
+    model_names=None,
 ):
     """Hooks into the torch model to collect gradients and the topology.
 
@@ -87,8 +93,7 @@ def watch(
         global_idx = idx + local_idx
         _global_watch_idx += 1
         if model_names is not None:
-            print(model_names)
-            prefix = model_names[local_idx] + '.'
+            prefix = model_names[local_idx] + "."
         elif global_idx > 0:
             prefix = "graph_%i." % global_idx
 
