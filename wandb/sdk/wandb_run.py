@@ -29,7 +29,6 @@ from typing import (
     TextIO,
     Tuple,
     Type,
-    TypedDict,
     Union,
 )
 from typing import TYPE_CHECKING
@@ -108,14 +107,6 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
-
-
-class LaunchConfigArtifact(TypedDict):
-    project: str
-    entity: str
-    name: str
-    id: str
-    _version: str
 
 
 class TeardownStage(IntEnum):
@@ -390,10 +381,8 @@ class Run(object):
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-        self._launch_artifact_mapping: Dict[str, LaunchConfigArtifact] = {}
-        self._unique_launch_artifact_sequence_names: Dict[
-            str, LaunchConfigArtifact
-        ] = {}
+        self._launch_artifact_mapping: Dict[str, Any] = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -2228,7 +2217,7 @@ class Run(object):
         return artifact_name
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as: Optional[str] = None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
