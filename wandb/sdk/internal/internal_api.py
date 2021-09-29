@@ -324,7 +324,7 @@ class Api(object):
 
     def server_use_artifact_input_introspection(self):
         query_string = """
-           query ProbeServeUseArtifactInput {
+           query ProbeServerUseArtifactInput {
                UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
                    name
                    inputFields {

@@ -596,6 +596,23 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "query ProbeServerUseArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "UseArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "runName"},
+                                {"name": "artifactID"},
+                                {"name": "usedAs"},
+                                {"name": "clientMutationId"},
+                            ]
+                        },
+                    }
+                }
+            )
 
         if "query Sweep(" in body["query"]:
             return json.dumps(

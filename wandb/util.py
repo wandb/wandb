@@ -1428,11 +1428,19 @@ def _log_thread_stacks():
 
 
 def artifact_to_json(artifact):
+    # public.Artifact has the _sequence name, instances of wandb.Artifact
+    # just have the name
+
+    if hasattr(artifact, "_sequence_name"):
+        sequence_name = artifact._sequence_name
+    else:
+        sequence_name = artifact.name.split(":")[0]
+
     return {
         "_type": "artifactVersion",
         "_version": "v0",
         "id": artifact.id,
         "version": artifact.version,
-        "sequenceName": artifact._sequence_name,
+        "sequenceName": sequence_name,
         "usedAs": artifact._use_as,
     }

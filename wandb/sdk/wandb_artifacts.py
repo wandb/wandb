@@ -328,12 +328,6 @@ class Artifact(ArtifactInterface):
         self._use_as = use_as
 
     @property
-    def _sequence_name(self):
-        if self._logged_artifact:
-            return self._logged_artifact._sequence_name
-        return self.name
-
-    @property
     def distributed_id(self) -> Optional[str]:
         return self._distributed_id
 
