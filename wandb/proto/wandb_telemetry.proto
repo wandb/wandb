@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "wandb/proto/wandb_base.proto";
+
 /*
  * Telemetry
  */
@@ -15,6 +17,7 @@ message TelemetryRecord {
   // string  framework = 7;
   Env     env = 8;
   Labels  label = 9;
+  _RecordInfo _info = 200;
 }
 
 message TelemetryResult {

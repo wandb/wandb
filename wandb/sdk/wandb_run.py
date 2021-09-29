@@ -46,7 +46,6 @@ from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import Error
 from wandb.proto.wandb_internal_pb2 import (
     FilePusherStats,
     MetricRecord,
@@ -86,14 +85,13 @@ from .lib import (
     sparkline,
     telemetry,
 )
+from .lib.exit_hooks import ExitHooks
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
-    from typing import NoReturn
-
     from .data_types import WBValue
     from .wandb_alerts import AlertLevel
 
@@ -117,53 +115,6 @@ class TeardownStage(IntEnum):
 class TeardownHook(NamedTuple):
     call: Callable[[], None]
     stage: TeardownStage
-
-
-class ExitHooks(object):
-
-    exception: Optional[BaseException] = None
-
-    def __init__(self) -> None:
-        self.exit_code = 0
-        self.exception = None
-
-    def hook(self) -> None:
-        self._orig_exit = sys.exit
-        sys.exit = self.exit
-        self._orig_excepthook = (
-            sys.excepthook
-            if sys.excepthook
-            != sys.__excepthook__  # respect hooks by other libraries like pdb
-            else None
-        )
-        sys.excepthook = self.exc_handler
-
-    def exit(self, code: object = 0) -> "NoReturn":
-        orig_code = code
-        if code is None:
-            code = 0
-        elif not isinstance(code, int):
-            code = 1
-        self.exit_code = code
-        self._orig_exit(orig_code)
-
-    def was_ctrl_c(self) -> bool:
-        return isinstance(self.exception, KeyboardInterrupt)
-
-    def exc_handler(
-        self, exc_type: Type[BaseException], exc: BaseException, tb: TracebackType
-    ) -> None:
-        self.exit_code = 1
-        self.exception = exc
-        if issubclass(exc_type, Error):
-            wandb.termerror(str(exc))
-
-        if self.was_ctrl_c():
-            self.exit_code = 255
-
-        traceback.print_exception(exc_type, exc, tb)
-        if self._orig_excepthook:
-            self._orig_excepthook(exc_type, exc, tb)
 
 
 class RunStatusChecker(object):
@@ -1346,10 +1297,6 @@ class Run(object):
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
 
-        manager = self._wl and self._wl._get_manager()
-        if manager:
-            manager._inform_finish()
-
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -1359,6 +1306,11 @@ class Run(object):
                 hook.call()
         self._teardown_hooks = []
         module.unset_globals()
+
+        # inform manager this run is finished
+        manager = self._wl and self._wl._get_manager()
+        if manager:
+            manager._inform_finish(run_id=self.id)
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
@@ -1695,7 +1647,11 @@ class Run(object):
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()
-        atexit.register(lambda: self._atexit_cleanup())
+
+        manager = self._wl and self._wl._get_manager()
+        if not manager:
+            # NB: manager will perform atexit hook like behavior for outstanding runs
+            atexit.register(lambda: self._atexit_cleanup())
 
         if self._use_redirect:
             # setup fake callback

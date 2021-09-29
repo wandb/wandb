@@ -1,9 +1,5 @@
 libcst
 grpcio==1.40.0
 grpcio-tools==1.40.0
-# NOTE: REVERT THIS BEFORE MERGE
-# TODO(jhr): pin to 1.27.2 (Needed more recent for apple-m1 support)
-# grpcio==1.27.2
-# grpcio-tools==1.27.2
 bumpversion
 twine

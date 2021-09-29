@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
@@ -26,32 +27,46 @@ service InternalService {
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Pause(PauseRequest) returns (PauseResponse) {}
   rpc Resume(ResumeRequest) returns (ResumeResponse) {}
+  rpc Status(StatusRequest) returns (StatusResponse) {}
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
   rpc ServerInformInit(ServerInformInitRequest) returns (ServerInformInitResponse) {}
   rpc ServerInformFinish(ServerInformFinishRequest) returns (ServerInformFinishResponse) {}
+  rpc ServerInformTeardown(ServerInformTeardownRequest) returns (ServerInformTeardownResponse) {}
 }
 
 message ServerShutdownRequest {
+  _RecordInfo _info = 200;
 }
 
 message ServerShutdownResponse {
 }
 
 message ServerStatusRequest {
+  _RecordInfo _info = 200;
 }
 
 message ServerStatusResponse {
 }
 
 message ServerInformInitRequest {
+  _RecordInfo _info = 200;
 }
 
 message ServerInformInitResponse {
 }
 
 message ServerInformFinishRequest {
+  _RecordInfo _info = 200;
 }
 
 message ServerInformFinishResponse {
+}
+
+message ServerInformTeardownRequest {
+  int32 exit_code = 1;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformTeardownResponse {
 }

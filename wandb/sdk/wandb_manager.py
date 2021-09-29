@@ -5,10 +5,10 @@ Create a grpc manager channel.
 
 import atexit
 import os
-import sys
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Callable, Optional, Tuple, TYPE_CHECKING
 
 from wandb import env
+from wandb.sdk.lib.exit_hooks import ExitHooks
 
 if TYPE_CHECKING:
     from wandb.sdk.service import grpc_service
@@ -55,10 +55,15 @@ class _ManagerToken:
 
 class _Manager:
     _token: _ManagerToken
+    _atexit_lambda: Optional[Callable[[], None]]
+    _hooks: Optional[ExitHooks]
 
     def __init__(self) -> None:
         # TODO: warn if user doesnt have grpc installed
         from wandb.sdk.service import grpc_service
+
+        self._atexit_lambda = None
+        self._hooks = None
 
         self._token = _ManagerToken()
         self._service = grpc_service._Service()
@@ -79,26 +84,40 @@ class _Manager:
         self._atexit_setup()
 
     def _atexit_setup(self) -> None:
-        print(
-            "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% atexit register", file=sys.stderr
-        )
-        atexit.register(lambda: self._atexit_teardown())
+        self._atexit_lambda = lambda: self._atexit_teardown()
+
+        self._hooks = ExitHooks()
+        self._hooks.hook()
+        atexit.register(self._atexit_lambda)
 
     def _atexit_teardown(self) -> None:
-        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% atexit cleanup", file=sys.stderr)
+        exit_code = self._hooks.exit_code if self._hooks else 0
+        self._teardown(exit_code)
 
-    def _teardown(self) -> None:
-        pass
+    def _teardown(self, exit_code: int) -> None:
+        self._inform_teardown(exit_code)
+
+    def teardown(self, exit_code: int = None) -> None:
+        exit_code = exit_code or 0
+        if self._atexit_lambda:
+            atexit.unregister(self._atexit_lambda)
+            self._atexit_lambda = None
+        self._teardown(exit_code)
 
     def _get_service(self) -> "grpc_service._Service":
         return self._service
 
-    def _inform_init(self) -> None:
+    def _inform_init(self, run_id: str = None) -> None:
         svc = self._service
         assert svc
-        svc._svc_inform_init()
+        svc._svc_inform_init(run_id=run_id)
 
-    def _inform_finish(self) -> None:
+    def _inform_finish(self, run_id: str = None) -> None:
         svc = self._service
         assert svc
-        svc._svc_inform_finish()
+        svc._svc_inform_finish(run_id=run_id)
+
+    def _inform_teardown(self, exit_code: int) -> None:
+        svc = self._service
+        assert svc
+        svc._svc_inform_teardown(exit_code)

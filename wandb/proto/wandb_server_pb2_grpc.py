@@ -116,6 +116,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.FromString,
                 )
+        self.Status = channel.unary_unary(
+                '/wandb_internal.InternalService/Status',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusResponse.FromString,
+                )
         self.ServerShutdown = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerShutdown',
                 request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.SerializeToString,
@@ -135,6 +140,11 @@ class InternalServiceStub(object):
                 '/wandb_internal.InternalService/ServerInformFinish',
                 request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
+                )
+        self.ServerInformTeardown = channel.unary_unary(
+                '/wandb_internal.InternalService/ServerInformTeardown',
+                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.FromString,
                 )
 
 
@@ -261,6 +271,12 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Status(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ServerShutdown(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -280,6 +296,12 @@ class InternalServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ServerInformFinish(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ServerInformTeardown(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -388,6 +410,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ResumeResponse.SerializeToString,
             ),
+            'Status': grpc.unary_unary_rpc_method_handler(
+                    servicer.Status,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.StatusResponse.SerializeToString,
+            ),
             'ServerShutdown': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerShutdown,
                     request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerShutdownRequest.FromString,
@@ -407,6 +434,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.ServerInformFinish,
                     request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.SerializeToString,
+            ),
+            'ServerInformTeardown': grpc.unary_unary_rpc_method_handler(
+                    servicer.ServerInformTeardown,
+                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -759,6 +791,23 @@ class InternalService(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def Status(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Status',
+            wandb_dot_proto_dot_wandb__internal__pb2.StatusRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.StatusResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def ServerShutdown(request,
             target,
             options=(),
@@ -823,5 +872,22 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformFinish',
             wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ServerInformTeardown(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformTeardown',
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

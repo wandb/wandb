@@ -97,6 +97,17 @@ class BackendSenderBase(object):
     ) -> Optional[pb.CheckVersionResponse]:
         raise NotImplementedError
 
+    def communicate_status(self) -> Optional[pb.StatusResponse]:
+        status = pb.StatusRequest()
+        resp = self._communicate_status(status)
+        return resp
+
+    @abstractmethod
+    def _communicate_status(
+        self, status: pb.StatusRequest
+    ) -> Optional[pb.StatusResponse]:
+        raise NotImplementedError
+
     def communicate_stop_status(self) -> Optional[pb.StopStatusResponse]:
         status = pb.StopStatusRequest()
         resp = self._communicate_stop_status(status)
@@ -641,6 +652,7 @@ class BackendSender(BackendSenderBase):
         get_summary: pb.GetSummaryRequest = None,
         pause: pb.PauseRequest = None,
         resume: pb.ResumeRequest = None,
+        status: pb.StatusRequest = None,
         stop_status: pb.StopStatusRequest = None,
         network_status: pb.NetworkStatusRequest = None,
         poll_exit: pb.PollExitRequest = None,
@@ -660,6 +672,8 @@ class BackendSender(BackendSenderBase):
             request.pause.CopyFrom(pause)
         elif resume:
             request.resume.CopyFrom(resume)
+        elif status:
+            request.status.CopyFrom(status)
         elif stop_status:
             request.stop_status.CopyFrom(stop_status)
         elif network_status:
@@ -885,6 +899,16 @@ class BackendSender(BackendSenderBase):
     def _publish_alert(self, proto_alert: pb.AlertRecord) -> None:
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
+
+    def _communicate_status(
+        self, status: pb.StatusRequest
+    ) -> Optional[pb.StatusResponse]:
+        req = self._make_request(status=status)
+        resp = self._communicate(req, local=True)
+        if resp is None:
+            return None
+        assert resp.response.status_response
+        return resp.response.status_response
 
     def _communicate_stop_status(
         self, status: pb.StopStatusRequest

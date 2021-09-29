@@ -90,6 +90,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.ResumeRequest,
     ) -> wandb.proto.wandb_internal_pb2.ResumeResponse: ...
 
+    def Status(self,
+        request: wandb.proto.wandb_internal_pb2.StatusRequest,
+    ) -> wandb.proto.wandb_internal_pb2.StatusResponse: ...
+
     def ServerShutdown(self,
         request: global___ServerShutdownRequest,
     ) -> global___ServerShutdownResponse: ...
@@ -105,6 +109,10 @@ class InternalServiceStub:
     def ServerInformFinish(self,
         request: global___ServerInformFinishRequest,
     ) -> global___ServerInformFinishResponse: ...
+
+    def ServerInformTeardown(self,
+        request: global___ServerInformTeardownRequest,
+    ) -> global___ServerInformTeardownResponse: ...
 
 
 class InternalServiceServicer(metaclass=abc.ABCMeta):
@@ -229,6 +237,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
     ) -> wandb.proto.wandb_internal_pb2.ResumeResponse: ...
 
     @abc.abstractmethod
+    def Status(self,
+        request: wandb.proto.wandb_internal_pb2.StatusRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.StatusResponse: ...
+
+    @abc.abstractmethod
     def ServerShutdown(self,
         request: global___ServerShutdownRequest,
         context: grpc.ServicerContext,
@@ -251,6 +265,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: global___ServerInformFinishRequest,
         context: grpc.ServicerContext,
     ) -> global___ServerInformFinishResponse: ...
+
+    @abc.abstractmethod
+    def ServerInformTeardown(self,
+        request: global___ServerInformTeardownRequest,
+        context: grpc.ServicerContext,
+    ) -> global___ServerInformTeardownResponse: ...
 
 
 def add_InternalServiceServicer_to_server(servicer: InternalServiceServicer, server: grpc.Server) -> None: ...

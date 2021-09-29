@@ -279,6 +279,11 @@ class SendManager(object):
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
+    def send_request_status(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
+
     def send_request_network_status(self, record):
         assert record.control.req_resp
 

@@ -37,6 +37,16 @@ ret = protoc.main((
     '-I', '.',
     '--python_out=.',
     '--mypy_out=.',
+    'wandb/proto/wandb_base.proto',
+    ))
+assert not ret
+
+ret = protoc.main((
+    '',
+    '-I', proto_root,
+    '-I', '.',
+    '--python_out=.',
+    '--mypy_out=.',
     'wandb/proto/wandb_internal.proto',
     ))
 assert not ret

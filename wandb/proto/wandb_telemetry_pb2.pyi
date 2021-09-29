@@ -7,6 +7,7 @@ import google.protobuf.descriptor
 import google.protobuf.message
 import typing
 import typing_extensions
+import wandb.proto.wandb_base_pb2
 
 DESCRIPTOR: google.protobuf.descriptor.FileDescriptor = ...
 
@@ -20,6 +21,7 @@ class TelemetryRecord(google.protobuf.message.Message):
     HUGGINGFACE_VERSION_FIELD_NUMBER: builtins.int
     ENV_FIELD_NUMBER: builtins.int
     LABEL_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
     python_version: typing.Text = ...
     cli_version: typing.Text = ...
     huggingface_version: typing.Text = ...
@@ -39,6 +41,9 @@ class TelemetryRecord(google.protobuf.message.Message):
     @property
     def label(self) -> global___Labels: ...
 
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+
     def __init__(self,
         *,
         imports_init : typing.Optional[global___Imports] = ...,
@@ -49,9 +54,10 @@ class TelemetryRecord(google.protobuf.message.Message):
         huggingface_version : typing.Text = ...,
         env : typing.Optional[global___Env] = ...,
         label : typing.Optional[global___Labels] = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RecordInfo] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"env",b"env",u"feature",b"feature",u"imports_finish",b"imports_finish",u"imports_init",b"imports_init",u"label",b"label"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"cli_version",b"cli_version",u"env",b"env",u"feature",b"feature",u"huggingface_version",b"huggingface_version",u"imports_finish",b"imports_finish",u"imports_init",b"imports_init",u"label",b"label",u"python_version",b"python_version"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"env",b"env",u"feature",b"feature",u"imports_finish",b"imports_finish",u"imports_init",b"imports_init",u"label",b"label"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"cli_version",b"cli_version",u"env",b"env",u"feature",b"feature",u"huggingface_version",b"huggingface_version",u"imports_finish",b"imports_finish",u"imports_init",b"imports_init",u"label",b"label",u"python_version",b"python_version"]) -> None: ...
 global___TelemetryRecord = TelemetryRecord
 
 class TelemetryResult(google.protobuf.message.Message):

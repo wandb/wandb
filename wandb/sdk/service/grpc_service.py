@@ -44,7 +44,9 @@ class _Service:
     def _grpc_launch_server(self) -> Optional[int]:
         # https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
         # https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
-        kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
+        # kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
+        kwargs: Dict[str, Any] = dict(close_fds=True)
+        # kwargs: Dict[str, Any] = dict()
 
         # TODO(add processid)
         pid = os.getpid()
@@ -96,10 +98,21 @@ class _Service:
     def _get_stub(self) -> Optional[pbgrpc.InternalServiceStub]:
         return self._stub
 
-    def _svc_inform_init(self) -> None:
+    def _svc_inform_init(self, run_id: str = None) -> None:
         assert self._stub
+        assert run_id
         inform_init = spb.ServerInformInitRequest()
+        inform_init._info.stream_id = run_id
         _ = self._stub.ServerInformInit(inform_init)
 
-    def _svc_inform_finish(self) -> None:
-        pass
+    def _svc_inform_finish(self, run_id: str = None) -> None:
+        assert self._stub
+        assert run_id
+        inform_fin = spb.ServerInformFinishRequest()
+        inform_fin._info.stream_id = run_id
+        _ = self._stub.ServerInformFinish(inform_fin)
+
+    def _svc_inform_teardown(self, exit_code: int) -> None:
+        assert self._stub
+        inform_fin = spb.ServerInformTeardownRequest(exit_code=exit_code)
+        _ = self._stub.ServerInformTeardown(inform_fin)
