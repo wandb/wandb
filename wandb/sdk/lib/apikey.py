@@ -9,6 +9,7 @@ import os
 import stat
 import sys
 import textwrap
+from urllib.parse import urlparse
 
 import requests
 import wandb
@@ -147,9 +148,13 @@ def write_netrc(host, entity, key):
         )
         return None
     try:
-        normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]
+        normalized_host = urlparse(host).netloc.split(":")[0]
         if normalized_host != "localhost" and "." not in normalized_host:
-            wandb.termerror("Host must be a url in the form https://some.address.com")
+            wandb.termerror(
+                "Host must be a url in the form https://some.address.com, received {}".format(
+                    host
+                )
+            )
             return None
         wandb.termlog(
             "Appending key for {} to your netrc file: {}".format(
