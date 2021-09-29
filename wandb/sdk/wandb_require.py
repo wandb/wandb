@@ -32,6 +32,7 @@ class _Requires(object):
 
     def _require_concurrency(self) -> None:
         os.environ["WANDB_REQUIRE_CONCURRENCY"] = "True"
+        wandb.teardown = wandb._teardown  # type: ignore
 
     def require_concurrency(self) -> None:
         self._require_concurrency()

@@ -225,8 +225,9 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
                 else:
                     self._config = config_dict
 
-    def _teardown(self):
-        self._teardown_manager()
+    def _teardown(self, exit_code: int = None):
+        exit_code = exit_code or 0
+        self._teardown_manager(exit_code=exit_code)
 
     def _setup_manager(self) -> None:
         if not self._settings._concurrency:
@@ -272,3 +273,10 @@ def _setup(settings=None, _reset=None):
 def setup(settings=None):
     ret = _setup(settings=settings)
     return ret
+
+
+def teardown(exit_code=None):
+    setup_instance = _WandbSetup._instance
+    if setup_instance:
+        setup_instance._teardown(exit_code=exit_code)
+    _WandbSetup._instance = None

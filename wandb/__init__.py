@@ -39,6 +39,7 @@ wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
+_teardown = wandb_sdk.teardown
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
