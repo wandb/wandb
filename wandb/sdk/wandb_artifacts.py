@@ -320,7 +320,7 @@ class Artifact(ArtifactInterface):
         )
 
     @property
-    def use_as(self):
+    def use_as(self) -> str:
         return self._use_as or self.name
 
     @use_as.setter
@@ -677,7 +677,7 @@ class Artifact(ArtifactInterface):
         self._final = True
         self._digest = self._manifest.digest()
 
-    def json_encode(self):
+    def json_encode(self) -> Dict[str, Any]:
         return util.artifact_to_json(self)
 
     def _ensure_can_add(self) -> None:

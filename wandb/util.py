@@ -33,6 +33,7 @@ import yaml
 from datetime import date, datetime
 import platform
 from six.moves import urllib
+from typing import Any, Dict
 
 import requests
 import six
@@ -1427,7 +1428,7 @@ def _log_thread_stacks():
                 logger.info("  Line: %s" % line)
 
 
-def artifact_to_json(artifact):
+def artifact_to_json(artifact) -> Dict[str, Any]:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
 

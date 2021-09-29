@@ -29,6 +29,7 @@ from typing import (
     TextIO,
     Tuple,
     Type,
+    TypedDict,
     Union,
 )
 from typing import TYPE_CHECKING
@@ -107,6 +108,14 @@ logger = logging.getLogger("wandb")
 EXIT_TIMEOUT = 60
 RUN_NAME_COLOR = "#cdcd00"
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
+
+
+class LaunchConfigArtifact(TypedDict):
+    project: str
+    entity: str
+    name: str
+    id: str
+    _version: str
 
 
 class TeardownStage(IntEnum):
@@ -351,7 +360,7 @@ class Run(object):
         self._upgraded_version_message = None
         self._deleted_version_message = None
         self._yanked_version_message = None
-        self._artifact_slots = []
+        self._used_artifact_slots: List[str] = []
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -381,8 +390,10 @@ class Run(object):
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
-        self._launch_artifact_mapping = None
-        self._unique_launch_artifact_sequence_names: Dict[str, str] = {}
+        self._launch_artifact_mapping: Dict[str, LaunchConfigArtifact] = {}
+        self._unique_launch_artifact_sequence_names: Dict[
+            str, LaunchConfigArtifact
+        ] = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -400,14 +411,13 @@ class Run(object):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
-                self._launch_artifact_mapping = {}
                 for key, item in (
                     launch_config.get("overrides").get("artifacts").items()
                 ):
                     self._launch_artifact_mapping[key] = item
                     artifact_sequence_tuple_or_slot = key.split(":")
 
-                    if len(artifact_sequence_tuple_or_slot) > 1:
+                    if len(artifact_sequence_tuple_or_slot) == 2:
                         sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
                             -1
                         ]
@@ -2176,40 +2186,49 @@ class Run(object):
 
     def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
         artifact_key_string = use_as or artifact_name
-        new_name = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
-            "name"
+        replacement_artifact_info = self._launch_artifact_mapping.get(
+            artifact_key_string
         )
-        entity = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
-            "entity"
-        )
-        project = self._launch_artifact_mapping.get(artifact_key_string, {}).get(
-            "project"
-        )
-        if new_name is None and use_as is None:
+        if replacement_artifact_info is not None:
+            new_name = replacement_artifact_info.get("name")
+            entity = replacement_artifact_info.get("entity")
+            project = replacement_artifact_info.get("project")
+            if new_name is None or entity is None or project is None:
+                raise ValueError(
+                    "Misconfigured artifact in launch config. Must include name, project and entity keys."
+                )
+            return f"{entity}/{project}/{new_name}"
+        elif replacement_artifact_info is None and use_as is None:
             wandb.termwarn(
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            new_name = self._unique_launch_artifact_sequence_names.get(
-                sequence_name, {}
-            ).get("name")
-            entity = self._unique_launch_artifact_sequence_names.get(
-                sequence_name, {}
-            ).get("entity")
-            project = self._unique_launch_artifact_sequence_names.get(
-                sequence_name, {}
-            ).get("project")
-        if new_name is None:
-            wandb.termwarn(
-                f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
+            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
+                sequence_name
             )
-            name = artifact_name
+            if unique_artifact_replacement_info is not None:
+                new_name = unique_artifact_replacement_info.get("name")
+                entity = unique_artifact_replacement_info.get("entity")
+                project = unique_artifact_replacement_info.get("project")
+                if new_name is None or entity is None or project is None:
+                    raise ValueError(
+                        "Misconfigured artifact in launch config. Must include name, project and entity keys."
+                    )
+                return f"{entity}/{project}/{new_name}"
+
         else:
-            name = f"{entity}/{project}/{new_name}"
-        return name
+            wandb.termwarn(
+                f"Could not find swappable artifact at key: {use_as}. Using {artifact_name}"
+            )
+            return artifact_name
+
+        wandb.termwarn(
+            f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
+        )
+        return artifact_name
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as: Optional[str] = None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2231,17 +2250,19 @@ class Run(object):
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
         if use_as:
-            if use_as in self._artifact_slots:
+            if use_as in self._used_artifact_slots:
                 raise ValueError(
                     "Cannot call use_artifact with the same use_as argument more than once"
                 )
-            self._artifact_slots.append(use_as)
+            elif ":" in use_as or "/" in use_as:
+                raise ValueError("use_as cannot contain special characters ':' or '/'")
+            self._used_artifact_slots.append(use_as)
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
         if isinstance(artifact_or_name, str):
-            if self._launch_artifact_mapping is not None:
+            if self._launch_artifact_mapping:
                 name = self._swap_artifact_name(artifact_or_name, use_as)
             else:
                 name = artifact_or_name

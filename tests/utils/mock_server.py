@@ -70,9 +70,9 @@ def default_ctx():
         "emulate_artifacts": None,
         "run_state": "running",
         "run_queue_item_check_count": 0,
+        "return_jupyter_in_run_info": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
-        "return_jupyter_in_run_info": False,
     }
 
 
