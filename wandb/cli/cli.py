@@ -1956,5 +1956,4 @@ def verify(host):
         and large_post_success
         and url_success
     ):
-        print("Find detailed logs at: {}".format(os.path.join(tmp_dir, "wandb")))
         sys.exit(1)
