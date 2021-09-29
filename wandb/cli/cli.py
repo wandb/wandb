@@ -11,7 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile as nativetempfile
+import tempfile
 import textwrap
 import time
 import traceback
@@ -32,7 +32,6 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 
@@ -45,7 +44,7 @@ import yaml
 # Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
-    _wandb_dir = nativetempfile.gettempdir()
+    _wandb_dir = tempfile.gettempdir()
 logging.basicConfig(
     filename=os.path.join(_wandb_dir, "debug-cli.log"),
     level=logging.INFO,
@@ -338,9 +337,7 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog(
-            "Which team should we use?",
-        )
+        wandb.termlog("Which team should we use?",)
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -876,18 +873,9 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module(
-        "docker",
-        required=req_string,
-    )
-    _ = util.get_module(
-        "repo2docker",
-        required=req_string,
-    )
-    _ = util.get_module(
-        "chardet",
-        required=req_string,
-    )
+    _ = util.get_module("docker", required=req_string,)
+    _ = util.get_module("repo2docker", required=req_string,)
+    _ = util.get_module("chardet", required=req_string,)
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -1504,9 +1492,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(
-            path=artifact_path,
-        ),
+        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
         prefix=False,
     )
 
@@ -1923,7 +1909,6 @@ def gc(args):
 @click.option("--host", default=None, help="Test a specific instance of W&B")
 def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
-    import tempfile
 
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"
@@ -1937,6 +1922,9 @@ def verify(host):
         reinit = True
 
     tmp_dir = tempfile.mkdtemp()
+    print(
+        "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
+    )
     os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
@@ -1971,4 +1959,3 @@ def verify(host):
     ):
         print("Find detailed logs at: {}".format(os.path.join(tmp_dir, "wandb")))
         sys.exit(1)
-    print("Find detailed logs at: {}".format(os.path.join(tmp_dir, "wandb")))
