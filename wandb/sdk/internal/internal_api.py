@@ -302,7 +302,7 @@ class Api(object):
 
         query = gql(query_string)
         res = self.gql(query)
-        return res[input_type_name]["inputFields"]
+        return res["__type"]["inputFields"]
 
     @normalize_exceptions
     def server_info_introspection(self):

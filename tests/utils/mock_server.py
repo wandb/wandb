@@ -1184,6 +1184,105 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "__type(" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "__type": {
+                            "inputFields": [
+                                {
+                                    "name": "name",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "groupName",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "displayName",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "notes",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "description",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "sweep",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "id",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "framework",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "config",
+                                    "type": {"name": "JSONString", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "summaryMetrics",
+                                    "type": {"name": "JSONString", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "commit",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "state",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "host",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "debug",
+                                    "type": {"name": "Boolean", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "entityName",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "modelName",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "jobProgram",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "jobRepo",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "jobType",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "tags",
+                                    "type": {"name": None, "kind": "LIST"},
+                                },
+                                {
+                                    "name": "runQueueItemId",
+                                    "type": {"name": "ID", "kind": "SCALAR"},
+                                },
+                                {
+                                    "name": "clientMutationId",
+                                    "type": {"name": "String", "kind": "SCALAR"},
+                                },
+                            ]
+                        }
+                    }
+                }
+            )
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
