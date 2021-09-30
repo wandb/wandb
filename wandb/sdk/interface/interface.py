@@ -210,6 +210,7 @@ class BackendSender(object):
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
+
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
@@ -221,6 +222,7 @@ class BackendSender(object):
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)  # type: ignore
+        print("handle history")
         self._publish_history(history)
 
     def publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
@@ -389,7 +391,8 @@ class BackendSender(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -405,12 +408,13 @@ class BackendSender(object):
 
         return pb_summary_record
 
-    def _make_files(self, files_dict: dict) -> pb.FilesRecord:
+    def _make_files(self, files_dict: dict, is_media: bool) -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
             f.path = path
             f.policy = file_policy_to_enum(policy)
+        files.is_history_media = is_media
         return files
 
     def _make_login(self, api_key: str = None) -> pb.LoginRequest:
@@ -665,9 +669,10 @@ class BackendSender(object):
         rec = self._make_record(stats=stats)
         self._publish(rec)
 
-    def publish_files(self, files_dict: dict) -> None:
-        files = self._make_files(files_dict)
+    def publish_files(self, files_dict: dict, is_media: bool = False) -> None:
+        files = self._make_files(files_dict, is_media)
         rec = self._make_record(files=files)
+        print("publish files", files_dict)
         self._publish(rec)
 
     def communicate_artifact(

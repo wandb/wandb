@@ -279,6 +279,7 @@ message SummaryResult {
  */
 message FilesRecord {
   repeated FilesItem files = 1;
+  bool is_history_media = 100;
 }
 
 message FilesItem {

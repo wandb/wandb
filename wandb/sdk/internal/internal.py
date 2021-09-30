@@ -77,6 +77,7 @@ def wandb_internal(
 
     # Lets make sure we dont modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
+    print(_settings.tmp_files_dir)
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
@@ -324,7 +325,9 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _setup(self) -> None:
         self._wm = writer.WriteManager(
-            settings=self._settings, record_q=self._record_q, result_q=self._result_q,
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
         )
 
     def _process(self, record: "Record") -> None:

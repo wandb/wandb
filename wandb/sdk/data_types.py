@@ -428,13 +428,32 @@ class Media(WBValue):
     _extension: Optional[str]
     _sha256: Optional[str]
     _size: Optional[int]
+    file_name_path: Optional[str]
 
     def __init__(self, caption: Optional[str] = None) -> None:
         super(Media, self).__init__()
         self._path = None
+        self.file_name_path = None
         # The run under which this object is bound, if any.
         self._run = None
         self._caption = caption
+
+    @property
+    def _path(self):
+        if (
+            self.file_name_path is not None
+            and os.path.getmtime(self.file_name_path) > self.file_path_m_time
+        ):
+            print("regot path")
+            self.file_path_m_time = os.path.getmtime(self.file_name_path)
+            with open(self.file_name_path, "r") as fp:
+                self.__path = fp.read()
+        print(self.__path)
+        return self.__path
+
+    @_path.setter
+    def _path(self, path):
+        self.__path = path
 
     def _set_file(
         self, path: str, is_tmp: bool = False, extension: Optional[str] = None
@@ -511,8 +530,15 @@ class Media(WBValue):
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
+
         new_path = os.path.join(self._run.dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
+
+        self.file_name_path = os.path.join(self._run.tmp_files_dir, media_path)
+        util.mkdir_exists_ok(os.path.dirname(self.file_name_path))
+        with open(self.file_name_path, "w") as fp:
+            fp.write(new_path)
+        self.file_path_m_time = os.path.getmtime(self.file_name_path)
 
         if self._is_tmp:
             shutil.move(self._path, new_path)
@@ -1392,7 +1418,8 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()},
+            key="",
         )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
@@ -1894,7 +1921,11 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
+    def _initialize_from_data(
+        self,
+        data: "ImageDataType",
+        mode: str = None,
+    ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -2614,7 +2645,9 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
+        cls,
+        json_dict: Dict[str, Any],
+        artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (

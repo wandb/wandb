@@ -9,6 +9,7 @@ import logging
 import math
 import numbers
 import os
+import shutil
 from threading import Event
 import time
 from typing import (
@@ -71,6 +72,7 @@ class HandleManager(object):
     _metric_copy: Dict[Tuple[str, ...], Any]
     _track_time: Optional[float]
     _accumulate_time: float
+    _file_names_map: Dict[str, str]
 
     def __init__(
         self,
@@ -93,6 +95,7 @@ class HandleManager(object):
         self._tb_watcher = None
         self._system_stats = None
         self._step = 0
+        self._file_names_map = {}
 
         self._track_time = None
         self._accumulate_time = 0
@@ -174,7 +177,36 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_files(self, record: Record) -> None:
+        logger.info("FILES {} {}".format(self._step, record))
+        if record.files.is_history_media:
+            record = self.reassign_files_step(record)
+
         self._dispatch_record(record)
+
+    def reassign_files_step(self, record: Record):
+        for file in record.files.files:
+            orig_path = file.path
+            orig_fname = os.path.basename(file.path)
+            prefix, fstep, tail = file.path.rsplit("_", 2)
+            if int(fstep) != self._step:
+                new_path = f"{prefix}_{self._step}_{tail}"
+                file.path = new_path
+                full_new_path = os.path.join(self._settings.files_dir, new_path)
+                rewrite_path = os.path.join(self._settings.tmp_files_dir, orig_path)
+                logger.info(
+                    "moving {} to {}".format(
+                        os.path.join(self._settings.files_dir, orig_path), full_new_path
+                    )
+                )
+                assert os.path.exists(rewrite_path), rewrite_path
+                with open(rewrite_path, "w") as fp:
+                    fp.write(full_new_path)
+                if os.path.join(self._settings.files_dir, orig_path) != full_new_path:
+                    shutil.move(
+                        os.path.join(self._settings.files_dir, orig_path), full_new_path
+                    )
+
+        return record
 
     def handle_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -437,8 +469,8 @@ class HandleManager(object):
                 item.value_json = json.dumps(v)
 
     def handle_history(self, record: Record) -> None:
+        logger.info("HISTORY1 {} {}".format(self._step, record))
         history_dict = proto_util.dict_from_proto_list(record.history.item)
-
         # Inject _runtime if it is not present
         if history_dict is not None:
             if "_runtime" not in history_dict:
@@ -446,6 +478,7 @@ class HandleManager(object):
 
         self._history_update(record, history_dict)
         self._dispatch_record(record)
+        logger.info("HISTORY2 {} {}".format(self._step, record))
         self._save_history(record)
 
         updated = self._update_summary(history_dict)

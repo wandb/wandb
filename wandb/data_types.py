@@ -424,7 +424,7 @@ class Table(Media):
         data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        super(Table, self).bind_to_run(*args, **kwargs)
+        return [super(Table, self).bind_to_run(*args, **kwargs)]
 
     @classmethod
     def get_media_subdir(cls):
@@ -783,8 +783,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts
-    """
+    """Helper class for PartitionTable to track its parts"""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -801,7 +800,7 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """ PartitionedTable represents a table which is composed
+    """PartitionedTable represents a table which is composed
     by the union of multiple sub-tables. Currently, PartitionedTable
     is designed to point to a directory within an artifact.
     """
@@ -950,12 +949,15 @@ class Audio(BatchableMedia):
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super(Audio, self).bind_to_run(run, key, step, id_)
+        return [super(Audio, self).bind_to_run(run, key, step, id_)]
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
         json_dict.update(
-            {"_type": self._log_type, "caption": self._caption,}
+            {
+                "_type": self._log_type,
+                "caption": self._caption,
+            }
         )
         return json_dict
 
@@ -1086,7 +1088,11 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(t1, t2, json_obj["join_key"],)
+        return cls(
+            t1,
+            t2,
+            json_obj["join_key"],
+        )
 
     @staticmethod
     def _validate_table_input(table):
@@ -1141,7 +1147,11 @@ class JoinedTable(Media):
             table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
             table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
             json_obj.update(
-                {"table1": table1, "table2": table2, "join_key": self._join_key,}
+                {
+                    "table1": table1,
+                    "table2": table2,
+                    "join_key": self._join_key,
+                }
             )
         return json_obj
 
@@ -1282,7 +1292,7 @@ class Graph(Media):
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
-        super(Graph, self).bind_to_run(*args, **kwargs)
+        return [super(Graph, self).bind_to_run(*args, **kwargs)]
 
     @classmethod
     def get_media_subdir(cls):
@@ -1648,7 +1658,10 @@ class _ImageFileType(_dtypes.Type):
             mask_keys = _dtypes.ConstType(set(mask_keys))
 
         self.params.update(
-            {"box_keys": box_keys, "mask_keys": mask_keys,}
+            {
+                "box_keys": box_keys,
+                "mask_keys": mask_keys,
+            }
         )
 
     def assign_type(self, wb_type=None):
@@ -1763,7 +1776,9 @@ class _ForeignKeyType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact,
+        cls,
+        json_dict,
+        artifact,
     ):
         table = None
         col_name = None
@@ -1821,7 +1836,9 @@ class _ForeignIndexType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls, json_dict, artifact,
+        cls,
+        json_dict,
+        artifact,
     ):
         table = None
         if artifact is None:

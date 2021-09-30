@@ -350,8 +350,9 @@ class TBEventConsumer(object):
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
         def datatypes_cb(fname: str) -> None:
+            logger.info("CAlled CB {}".format(fname))
             files = dict(files=[(fname, "now")])
-            self._tbwatcher._interface.publish_files(files)
+            self._tbwatcher._interface.publish_files(files, True)
 
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
 
@@ -370,7 +371,9 @@ class TBEventConsumer(object):
             self._handle_event(event, history=self.tb_history)
             items = self.tb_history._get_and_reset()
             for item in items:
-                self._save_row(item,)
+                self._save_row(
+                    item,
+                )
         self._thread.join()
 
     def _thread_except_body(self) -> None:
@@ -400,7 +403,9 @@ class TBEventConsumer(object):
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
-                    self._save_row(item,)
+                    self._save_row(
+                        item,
+                    )
         # flush uncommitted data
         self.tb_history._flush()
         items = self.tb_history._get_and_reset()
@@ -431,7 +436,7 @@ class TBEventConsumer(object):
             table = row[chart_key]
             row.pop(chart_key)
             row[chart_key + "_table"] = table
-
+        logger.info("HANDLE EVENT {}".format(row))
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False
         )
