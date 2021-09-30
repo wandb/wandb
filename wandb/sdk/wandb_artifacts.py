@@ -321,11 +321,7 @@ class Artifact(ArtifactInterface):
 
     @property
     def use_as(self) -> str:
-        return self._use_as or self.name
-
-    @use_as.setter
-    def use_as(self, use_as: str) -> None:
-        self._use_as = use_as
+        return self._use_as
 
     @property
     def distributed_id(self) -> Optional[str]:
@@ -678,6 +674,10 @@ class Artifact(ArtifactInterface):
         self._digest = self._manifest.digest()
 
     def json_encode(self) -> Dict[str, Any]:
+        if not self._logged_artifact:
+            raise ValueError(
+                "Cannot json encode artifact before it has been logged or in offline mode."
+            )
         return util.artifact_to_json(self)
 
     def _ensure_can_add(self) -> None:

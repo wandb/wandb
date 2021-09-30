@@ -231,18 +231,41 @@ def test_invalid_project_name(live_mock_server, project_name):
         assert 'Invalid project name "{project_name}"' in str(e.value)
 
 
-def test_artifact_in_config(live_mock_server, test_settings, parse_ctx):
+def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
     run = wandb.init(settings=test_settings)
 
     artifact = run.use_artifact("boom-data")
+    logged_artifact = wandb.Artifact("my-arti", type="dataset")
+    run.log_artifact(logged_artifact)
+    logged_artifact.wait()
     run.config.dataset = artifact
+    run.config.logged_artifact = logged_artifact
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
     assert ctx.config_user["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
-        "id": "QXJ0aWZhY3Q6NTI1MDk4",
+        "id": artifact.id,
         "version": "v0",
-        "sequenceName": "mnist",
+        "sequenceName": artifact._sequence_name,
         "usedAs": "boom-data",
     }
+    assert ctx.config_user["logged_artifact"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": logged_artifact.id,
+        "version": "v0",
+        "sequenceName": logged_artifact.name.split(":")[0],
+        "usedAs": None,
+    }
+
+
+def test_unlogged_artifact_in_config(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("my-arti", type="dataset")
+    with pytest.raises(Exception) as e_info:
+        run.config.dataset = artifact
+        assert (
+            str(e_info.value)
+            == "Cannot json encode artifact before it has been logged or in offline mode."
+        )
