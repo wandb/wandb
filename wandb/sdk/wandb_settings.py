@@ -103,6 +103,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     ignore_globs=None,
     resume=None,
     silent=None,
+    quiet=None,
     sagemaker_disable=None,
     start_method=None,
     strict=None,
@@ -187,8 +188,10 @@ def get_wandb_dir(root_dir: str) -> str:
     return path
 
 
-def _str_as_bool(val: str) -> Optional[bool]:
+def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
     ret_val = None
+    if isinstance(val, bool):
+        return val
     try:
         ret_val = bool(strtobool(val))
     except (AttributeError, ValueError):
@@ -239,6 +242,7 @@ class Settings(object):
     settings_system_spec: Optional[str] = None
     settings_workspace_spec: Optional[str] = None
     silent: str = "False"
+    quiet: Optional[Union[str, bool]] = None
     show_info: str = "True"
     show_warnings: str = "True"
     show_errors: str = "True"
@@ -387,6 +391,7 @@ class Settings(object):
         show_colors: bool = None,
         show_emoji: bool = None,
         silent: bool = None,
+        quiet: bool = None,
         show_info: bool = None,
         show_warnings: bool = None,
         show_errors: bool = None,
@@ -440,6 +445,14 @@ class Settings(object):
         if not self.silent:
             return None
         return _str_as_bool(self.silent)
+
+    @property
+    def _quiet(self) -> Optional[bool]:
+        # TODO: we should probably make the rest of these bool methods handle
+        # users passing bool's to the settings object
+        if self.quiet is None:
+            return None
+        return _str_as_bool(self.quiet)
 
     @property
     def _strict(self) -> Optional[bool]:

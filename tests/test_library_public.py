@@ -46,7 +46,9 @@ SYMBOLS_ROOT_SDK = {
     "controller",
     "sweep",
     "mark_preempting",
+    "load_ipython_extension",
     "require",
+    "profiler",
 }
 
 # Look into these and see what we can remove / hide
@@ -121,7 +123,7 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_torch",
     "xgboost",
     "sync",
-    "sweeps_engine",
+    "sweeps",
     "cli",
 }
 
@@ -171,6 +173,8 @@ SYMBOLS_RUN = {
     "notes",
     "tags",
     "mark_preempting",
+    "to_html",
+    "display",
 }
 
 # symbols having to do with resuming, we should clean this up

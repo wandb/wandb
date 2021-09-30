@@ -14,7 +14,6 @@ import sys
 import shutil
 from .utils import fixture_open, first_filestream
 import sys
-import six
 import time
 
 try:
@@ -35,7 +34,6 @@ else:
         import imp
 
         reloadFn = imp.reload
-
 
 # TODO: better debugging, if the backend process fails to start we currently
 # don't get any debug information even in the internal logs.  For now I'm writing
