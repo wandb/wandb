@@ -320,7 +320,7 @@ class Artifact(ArtifactInterface):
         )
 
     @property
-    def use_as(self) -> str:
+    def use_as(self) -> Optional[str]:
         return self._use_as
 
     @property
