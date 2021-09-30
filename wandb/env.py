@@ -144,12 +144,6 @@ def get_run(default=None, env=None):
     return env.get(RUN_ID, default)
 
 
-def get_runqueue_item(default=None, env=None):
-    if env is None:
-        env = os.environ
-    return env.get(RUNQUEUE_ITEM_ID, default)
-
-
 def get_args(default=None, env=None):
     if env is None:
         env = os.environ
