@@ -198,7 +198,7 @@ def write_netrc(host, entity, key):
 
 def write_key(settings, key, api=None, anonymous=False):
     if not key:
-        return
+        raise ValueError("No API key specified. Please specify an API key")
 
     # TODO(jhr): api shouldn't be optional or it shouldnt be passed, clean up callers
     api = api or InternalApi()
