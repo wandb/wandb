@@ -5,6 +5,7 @@ import os
 
 import wandb
 from wandb.errors import Error, UsageError
+from wandb.sdk.lib import telemetry
 
 PYTORCH_MODULE = "torch"
 PYTORCH_PROFILER_MODULE = "torch.profiler"
@@ -68,5 +69,8 @@ def torch_trace_handler():
         raise UsageError(
             "Please call wandb.init() before wandb.profiler.torch_trace_handler()"
         ) from None
+
+    with telemetry.context() as tel:
+        tel.feature.torch_profiler_trace = True
 
     return torch_profiler.tensorboard_trace_handler(logdir)

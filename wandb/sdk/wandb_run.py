@@ -836,6 +836,9 @@ class Run(object):
             data = notebook.probe_ipynb()
             cell0 = data.get("cells", [])[0]
             lines = cell0.get("source")
+            # kaggle returns a string instead of a list
+            if isinstance(lines, str):
+                lines = lines.split()
         except Exception as e:
             logger.info("Unable to probe notebook: {}".format(e))
             return
