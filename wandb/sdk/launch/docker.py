@@ -173,7 +173,7 @@ def build_docker_image_if_needed(
         "FROM {imagename}\n"
         "RUN mkdir -p {homedir}/.cache\n"
         # need to chown this directory for artifacts caching
-        "RUN chown {uid} {homedir}/.cache\n"
+        "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
         "{copy_code_line}"
         "{requirements_line}"
         "{name_line}"
