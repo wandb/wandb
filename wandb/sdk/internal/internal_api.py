@@ -13,6 +13,7 @@ import click
 import logging
 import requests
 import sys
+from typing import Dict, List
 
 if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
@@ -279,6 +280,29 @@ class Api(object):
             run = run or slug or self.current_run_id or env.get_run(env=self._environ)
             assert run, "run must be specified"
         return (project, run)
+
+    @normalize_exceptions
+    def introspect_input_type(self, input_type_name: str) -> List[Dict]:
+        query_string = (
+            """
+        {
+          __type(name: "%s") {
+            inputFields {
+              name
+              type {
+                name
+                kind
+              }
+            }
+          }
+        }
+        """
+            % input_type_name
+        )
+
+        query = gql(query_string)
+        res = self.gql(query)
+        return res[input_type_name]["inputFields"]
 
     @normalize_exceptions
     def server_info_introspection(self):
@@ -1100,16 +1124,21 @@ class Api(object):
         }
         """
 
-        replace_string_1 = "$summaryMetrics: JSONString,"
-        replace_string_2 = "summaryMetrics: $summaryMetrics,"
-        mutation_11_0 = mutation_str.replace(
-            replace_string_1, replace_string_1 + "\n            $runQueueItemId: String"
-        ).replace(
-            replace_string_2,
-            replace_string_2 + "\n                runQueueItemId: $runQueueItemId",
+        schema = self.introspect_input_type("UpsertBucketInput")
+        use_runqueue_item_id = any(
+            [field["name"] == "runQueueItemId" for field in schema]
         )
 
-        mutation_pre_11_0 = mutation_str
+        if use_runqueue_item_id:
+            replace_string_1 = "$summaryMetrics: JSONString,"
+            replace_string_2 = "summaryMetrics: $summaryMetrics,"
+            mutation_str = mutation_str.replace(
+                replace_string_1,
+                replace_string_1 + "\n            $runQueueItemId: String",
+            ).replace(
+                replace_string_2,
+                replace_string_2 + "\n                runQueueItemId: $runQueueItemId",
+            )
 
         if config is not None:
             config = json.dumps(config)
@@ -1142,34 +1171,11 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
-        response = None
-        mutation_names = ["mutation_11_0", "mutation_pre_11_0"]
-        for i, mutation_str in enumerate([mutation_11_0, mutation_pre_11_0]):
-            mutation = gql(mutation_str)
+        if use_runqueue_item_id:
+            variable_values["runQueueItemId"] = runqueue_item_id
 
-            if i == 0:
-                v = variable_values.copy()
-                v["runQueueItemId"] = runqueue_item_id
-            else:
-                v = variable_values
-
-            try:
-                response = self.gql(mutation, variable_values=v, **kwargs)
-            except Exception as e:
-                logger.debug(
-                    "Bad response from backend for upsert_run version %s: %s. Retrying with earlier version..."
-                    % (mutation_names[i], e.args[0])
-                )
-                continue
-
-        if response is None:
-            logger.debug(
-                "Could not execute any version of upsert run. Versions tried: %s"
-                % mutation_names
-            )
-            raise CommError(
-                "Error executing upsert_run. Check debug-internal.log for more information."
-            )
+        mutation = gql(mutation_str)
+        response = self.gql(mutation, variable_values=variable_values, **kwargs)
 
         run = response["upsertBucket"]["bucket"]
         project = run.get("project")
