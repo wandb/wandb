@@ -326,16 +326,6 @@ def _create_docker_build_ctx(
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
-    print(
-        launch_project.project_dir,
-        os.path.exists(launch_project.project_dir),
-        os.listdir(os.path.join(launch_project.project_dir, "wandb")),
-    )
-    # with open(
-    #     os.path.join(launch_project.project_dir, "wandb", "debug.log"), "r"
-    # ) as fp:
-    #     print(fp.read())
-    print(dst_path, os.path.exists(dst_path))
     shutil.copytree(
         src=launch_project.project_dir, dst=dst_path, symlinks=True,
     )
