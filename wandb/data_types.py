@@ -424,7 +424,7 @@ class Table(Media):
         data = _numpy_arrays_to_lists(data)
         util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
-        return [super(Table, self).bind_to_run(*args, **kwargs)]
+        super(Table, self).bind_to_run(*args, **kwargs)
 
     @classmethod
     def get_media_subdir(cls):
@@ -949,7 +949,7 @@ class Audio(BatchableMedia):
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return [super(Audio, self).bind_to_run(run, key, step, id_)]
+        return super(Audio, self).bind_to_run(run, key, step, id_)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)
@@ -1292,7 +1292,7 @@ class Graph(Media):
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
-        return [super(Graph, self).bind_to_run(*args, **kwargs)]
+        super(Graph, self).bind_to_run(*args, **kwargs)
 
     @classmethod
     def get_media_subdir(cls):
