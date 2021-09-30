@@ -9,6 +9,7 @@ import os
 import stat
 import sys
 import textwrap
+from urllib.parse import urlparse
 
 import requests
 import wandb
@@ -89,7 +90,7 @@ def prompt_api_key(  # noqa: C901
     elif len(choices) == 1:
         result = choices[0]
     else:
-        result = prompt_choices(choices)
+        result = prompt_choices(choices, input_timeout=settings.login_timeout)
 
     api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
     if result == LOGIN_CHOICE_ANON:
@@ -145,9 +146,13 @@ def write_netrc(host, entity, key):
         )
         return None
     try:
-        normalized_host = host.rstrip("/").split("/")[-1].split(":")[0]
+        normalized_host = urlparse(host).netloc.split(":")[0]
         if normalized_host != "localhost" and "." not in normalized_host:
-            wandb.termerror("Host must be a url in the form https://some.address.com")
+            wandb.termerror(
+                "Host must be a url in the form https://some.address.com, received {}".format(
+                    host
+                )
+            )
             return None
         wandb.termlog(
             "Appending key for {} to your netrc file: {}".format(

@@ -8,7 +8,6 @@ import wandb
 import shutil
 import wandb.data_types as data_types
 import numpy as np
-import pandas as pd
 import time
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -453,7 +452,9 @@ def test_add_gs_reference_path(runner, mocker, capsys):
 def test_add_http_reference_path(runner):
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="my-arty")
-        mock_http(artifact, headers={"ETag": '"abc"', "Content-Length": "256",})
+        mock_http(
+            artifact, headers={"ETag": '"abc"', "Content-Length": "256",},
+        )
         artifact.add_reference("http://example.com/file1.txt")
 
         assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
@@ -495,7 +496,10 @@ def test_add_reference_unknown_handler(runner):
         }
 
 
+@pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
 def test_add_table_from_dataframe(live_mock_server, test_settings):
+    import pandas as pd
+
     df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
@@ -522,6 +526,24 @@ def test_artifact_log_with_network_error(live_mock_server, test_settings):
     live_mock_server.set_ctx({"fail_graphql_times": 15})
     run.log_artifact(artifact)
     live_mock_server.set_ctx({"fail_graphql_times": 0})
+    run.finish()
+
+
+def test_artifact_error_for_invalid_aliases(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("test-artifact", "dataset")
+    error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
+    for aliases in error_aliases:
+        with pytest.raises(ValueError) as e_info:
+            run.log_artifact(artifact, aliases=aliases)
+            assert (
+                str(e_info.value)
+                == "Aliases must not contain any of the following characters: /, :"
+            )
+
+    for aliases in [["latest", "boom_test-q"]]:
+        run.log_artifact(artifact, aliases=aliases)
+
     run.finish()
 
 

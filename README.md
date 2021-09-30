@@ -25,7 +25,7 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 
 [Documentation →](https://docs.wandb.com)
 
-If you have any questions, please don't hesitate to ask in our [Slack community](http://bit.ly/slack-forum).
+If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum).
 
 # 🤝 Simple integration with any framework
 Install `wandb` library and login:
@@ -51,9 +51,9 @@ for i in range (10):
     wandb.log({"loss": loss})
 ```
 
-### [Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb)
+### [Try in a colab →](http://wandb.me/intro)
 
-If you have any questions, please don't hesitate to ask in our [Slack community](http://bit.ly/slack-forum).
+If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum).
 
 ![](https://i.imgur.com/TU34QFZ.png)
 
@@ -79,7 +79,7 @@ wandb.config.learning_rate = 0.001
 wandb.config.architecture = "resnet"
 ```
 
-- **[See how to set configs in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/wandb-config/Configs_in_W%26B.ipynb)**
+- **[See how to set configs in a colab →](http://wandb.me/config-colab)**
 - [Docs](https://docs.wandb.com/library/config)
 
 # 🏗 Use your favorite framework
@@ -105,7 +105,7 @@ model.fit(X_train, y_train,  validation_data=(X_test, y_test),
           callbacks=[WandbCallback()])
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/keras/Simple_Keras_Integration.ipynb)**
+- **[Try in a colab →](http://wandb.me/keras-colab)**
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ)
 - [Docs](https://docs.wandb.com/library/integrations/keras)
 
@@ -131,7 +131,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
     wandb.log({"loss": loss})
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Simple_PyTorch_Integration.ipynb)**
+- **[Try in a colab →](http://wandb.me/pytorch-colab)**
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM)
 - [Docs](https://docs.wandb.com/library/integrations/pytorch)
 
@@ -156,7 +156,7 @@ with tf.Session() as sess:
   wandb.tensorflow.log(tf.summary.merge_all())
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/drive/126c1k5IfbQpE7dVmhnoDTdmFfC7CgJqg?usp=sharing)**
+- **[Try in a colab →](http://wandb.me/tf-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/tensorflow)
 
 
@@ -173,7 +173,7 @@ wandb.init(project="gpt-3")
 learn.fit(..., cbs=WandbCallback())
 ```
 
-- **[Try in a colab →](http://bit.ly/fastai-wandb)**
+- **[Try in a colab →](http://wandb.me/fastai-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/fastai)
 
 
@@ -187,7 +187,7 @@ wandb_logger = WandbLogger(project="gpt-3")
 trainer = Trainer(logger=wandb_logger)
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch-lightning/Supercharge_your_Training_with_Pytorch_Lightning_%2B_Weights_%26_Biases.ipynb)**
+- **[Try in a colab →](http://wandb.me/lit-colab)**
 - [Docs](https://docs.wandb.ai/guides/integrations/lightning)
 
 
@@ -214,14 +214,14 @@ python run_glue.py \
  --logging_steps 50
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/drive/1NEiqNPhiouu2pPwDAVeFoN4-vTYMz9F8?usp=sharing)**
+- **[Try in a colab →](http://wandb.me/hf)**
 - [Docs](https://docs.wandb.com/library/integrations/huggingface)
 
 # 🧹 Optimize hyperparameters with Sweeps
 Use Weights & Biases Sweeps to automate hyperparameter optimization and explore the space of possible models.
 
 ### [Get started in 5 mins →](https://docs.wandb.com/sweeps/quickstart)
-### [Try Sweeps in PyTorch in a Colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Organizing_Hyperparameter_Sweeps_in_PyTorch_with_W%26B.ipynb)
+### [Try Sweeps in PyTorch in a Colab →](http://wandb.me/sweeps-colab)
 
 ### Benefits of using W&B Sweeps 
 - **Quick to setup:** With just a few lines of code you can run W&B sweeps.
@@ -268,7 +268,7 @@ With just a few extra lines of code,
 you can start tracking you and your team's outputs,
 all directly linked to run.
 
-### [Try Artifacts in a Colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/wandb-artifacts/Pipeline_Versioning_with_W&B_Artifacts.ipynb)
+### [Try Artifacts in a Colab →](http://wandb.me/artifacts-colab)
 
 ![](https://i.imgur.com/zvBWhGx.png)
 

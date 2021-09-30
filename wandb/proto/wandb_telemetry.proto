@@ -30,6 +30,7 @@ message Imports {
   bool pytorch_ignite = 10;
   bool transformers_huggingface = 11;
   bool jax = 12;
+  bool metaflow = 13;
 }
 
 message Feature {
@@ -43,6 +44,17 @@ message Feature {
   bool keras = 8;    // Keras WandbCallback used
   bool sagemaker = 9; // User is using sagemaker
   bool artifact_incremental = 10; // Artifact(incremental=True) used
+  bool metaflow = 11; // Using metaflow integration
+  bool prodigy = 12; // Using prodigy integration
+  bool set_init_name = 13; // users set run name from wandb.init
+  bool set_init_id = 14; // users set run id from wandb.init
+  bool set_init_tags = 15; //users set tags within wandb.init
+  bool set_init_config = 16; // users set run config in wandb.init
+  bool set_run_name = 17; // user sets run name via wandb.run.name = ...
+  bool set_run_tags = 18; // user sets run name via wandb.run.tags = ...
+  bool set_config_item = 19;  // users set key in run config via run.config.key or run.config["key"]
+  bool launch = 20; // run is created through wandb launch
+  bool torch_profiler_trace = 21; // wandb.profiler.torch_trace_handler() called
 }
 
 message Env {

@@ -3,6 +3,7 @@
 from flask import Flask, request, g, jsonify
 import os
 import sys
+import re
 from datetime import datetime, timedelta
 import json
 import platform
@@ -42,6 +43,8 @@ def default_ctx():
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
         "fail_storage_count": 0,  # used via "fail_storage_times"
         "rate_limited_count": 0,  # used via "rate_limited_times"
+        "graphql_conflict": False,
+        "num_search_users": 1,
         "page_count": 0,
         "page_times": 2,
         "requested_file": "weights.h5",
@@ -55,6 +58,9 @@ def default_ctx():
         "artifacts_by_id": {},
         "artifacts_created": {},
         "upsert_bucket_count": 0,
+        "out_of_date": False,
+        "empty_query": False,
+        "local_none": False,
         "run_queues_return_default": True,
         "run_queues": {"1": []},
         "num_popped": 0,
@@ -67,6 +73,7 @@ def default_ctx():
         "item_acked": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
+        "return_jupyter_in_run_info": False,
     }
 
 
@@ -124,7 +131,10 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-
+    if ctx["return_jupyter_in_run_info"]:
+        program_name = "one_cell.ipynb"
+    else:
+        program_name = "train.py"
     return {
         "id": "test",
         "name": "test",
@@ -158,7 +168,7 @@ def run(ctx):
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
-            "program": "train.py",
+            "program": program_name,
             "args": [],
             "os": platform.system(),
             "python": platform.python_version(),
@@ -367,6 +377,8 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+        if ctx["graphql_conflict"]:
+            return json.dumps({"error": "resource already exists"}), 409
 
         # Setup artifact emulator (should this be somewhere else?)
         emulate_random_str = ctx["emulate_artifacts"]
@@ -450,6 +462,30 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "reportCursor" in body["query"]:
+            page_count = ctx["page_count"]
+            return json.dumps(
+                {
+                    "data": {
+                        "project": {
+                            "allViews": paginated(
+                                {
+                                    "name": "test-report",
+                                    "description": "test-description",
+                                    "user": {
+                                        "username": body["variables"]["entity"],
+                                        "photoUrl": "test-url",
+                                    },
+                                    "spec": '{"version": 5}',
+                                    "updatedAt": datetime.now().isoformat(),
+                                    "pageCount": page_count,
+                                },
+                                ctx,
+                            )
+                        }
+                    }
+                }
+            )
         if "query Run(" in body["query"]:
             # if querying state of run, change context from running to finished
             if "RunFragment" not in body["query"] and "state" in body["query"]:
@@ -509,26 +545,64 @@ def create_app(user_ctx=None):
                 }
             )
         if "query Viewer " in body["query"]:
+            viewer_dict = {
+                "data": {
+                    "viewer": {
+                        "entity": "mock_server_entity",
+                        "admin": False,
+                        "email": "mock@server.test",
+                        "username": "mock",
+                        "flags": '{"code_saving_enabled": true}',
+                        "teams": {"edges": []},  # TODO make configurable for cli_test
+                    },
+                },
+            }
+            server_info = {
+                "serverInfo": {
+                    "cliVersionInfo": {
+                        "max_cli_version": str(ctx.get("max_cli_version", "0.10.33"))
+                    },
+                    "latestLocalVersionInfo": {
+                        "outOfDate": ctx.get("out_of_date", False),
+                        "latestVersionString": str(ctx.get("latest_version", "0.9.42")),
+                    },
+                }
+            }
+
+            if ctx["empty_query"]:
+                server_info["serverInfo"].pop("latestLocalVersionInfo")
+            elif ctx["local_none"]:
+                server_info["serverInfo"]["latestLocalVersionInfo"] = None
+
+            viewer_dict["data"].update(server_info)
+
+            return json.dumps(viewer_dict)
+
+        if "query ProbeServerCapabilities" in body["query"]:
+            if ctx["empty_query"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "QueryType": {"fields": [{"name": "serverInfo"},]},
+                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
+                        }
+                    }
+                )
+
             return json.dumps(
                 {
                     "data": {
-                        "viewer": {
-                            "entity": "mock_server_entity",
-                            "flags": '{"code_saving_enabled": true}',
-                            "teams": {
-                                "edges": []  # TODO make configurable for cli_test
-                            },
-                        },
-                        "serverInfo": {
-                            "cliVersionInfo": {
-                                "max_cli_version": str(
-                                    ctx.get("max_cli_version", "0.10.33")
-                                )
-                            }
+                        "QueryType": {"fields": [{"name": "serverInfo"},]},
+                        "ServerInfoType": {
+                            "fields": [
+                                {"name": "cliVersionInfo"},
+                                {"name": "latestLocalVersionInfo"},
+                            ]
                         },
                     }
                 }
             )
+
         if "query Sweep(" in body["query"]:
             return json.dumps(
                 {
@@ -625,6 +699,14 @@ def create_app(user_ctx=None):
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
+            git_remote = body["variables"].get("repo")
+            git_commit = body["variables"].get("commit")
+            if git_commit or git_remote:
+                for c in ctx, run_ctx:
+                    c.setdefault("git", {})
+                    c["git"]["remote"] = git_remote
+                    c["git"]["commit"] = git_commit
+
             param_config = body["variables"].get("config")
             if param_config:
                 for c in ctx, run_ctx:
@@ -702,6 +784,7 @@ def create_app(user_ctx=None):
                 return ART_EMU.create(variables=body["variables"])
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
+            app.logger.info("Creating artifact {}".format(collection_name))
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
                 collection_name, []
@@ -1021,6 +1104,76 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
+        # Admin apis
+        if "mutation DeleteApiKey" in body["query"]:
+            return {"data": {"deleteApiKey": {"success": True}}}
+        if "mutation GenerateApiKey" in body["query"]:
+            return {
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+            }
+        if "mutation DeleteInvite" in body["query"]:
+            return {"data": {"deleteInvite": {"success": True}}}
+        if "mutation CreateInvite" in body["query"]:
+            return {"data": {"createInvite": {"invite": {"id": "XXX"}}}}
+        if "mutation CreateServiceAccount" in body["query"]:
+            return {"data": {"createServiceAccount": {"user": {"id": "XXX"}}}}
+        if "mutation CreateTeam" in body["query"]:
+            return {
+                "data": {
+                    "createTeam": {
+                        "entity": {"id": "XXX", "name": body["variables"]["teamName"]}
+                    }
+                }
+            }
+        if "query SearchUsers" in body["query"]:
+
+            return {
+                "data": {
+                    "users": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "XXX",
+                                    "email": body["variables"]["query"],
+                                    "apiKeys": {
+                                        "edges": [
+                                            {"node": {"id": "YYY", "name": "Y" * 40}}
+                                        ]
+                                    },
+                                    "teams": {
+                                        "edges": [
+                                            {"node": {"id": "TTT", "name": "test"}}
+                                        ]
+                                    },
+                                }
+                            }
+                        ]
+                        * ctx["num_search_users"]
+                    }
+                }
+            }
+        if "query Entity(" in body["query"]:
+            return {
+                "data": {
+                    "entity": {
+                        "id": "XXX",
+                        "members": [
+                            {
+                                "id": "YYY",
+                                "name": "test",
+                                "accountType": "MEMBER",
+                                "apiKey": None,
+                            },
+                            {
+                                "id": "SSS",
+                                "name": "Service account",
+                                "accountType": "SERVICE",
+                                "apiKey": "Y" * 40,
+                            },
+                        ],
+                    }
+                }
+            }
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -1067,12 +1220,9 @@ def create_app(user_ctx=None):
                 raise HttpException("some error", status_code=inject.http_status)
 
         if request.method == "PUT":
-            curr = ctx["file_bytes"].get(file)
-            if curr is None:
-                ctx["file_bytes"].setdefault(file, 0)
-                ctx["file_bytes"][file] += request.content_length
-            else:
-                ctx["file_bytes"][file] += request.content_length
+            for c in ctx, run_ctx:
+                c["file_bytes"].setdefault(file, 0)
+                c["file_bytes"][file] += request.content_length
         if ART_EMU:
             return ART_EMU.storage(request=request)
         if file == "wandb_manifest.json":
@@ -1261,13 +1411,16 @@ def create_app(user_ctx=None):
             return {
                 "docker": "test/docker",
                 "program": "train.py",
+                "codePath": "train.py",
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+        elif file == "requirements.txt":
+            return "numpy==1.19.5\n"
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return r"""
+            return """
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
@@ -1446,6 +1599,17 @@ index 30d74d2..9a2c773 100644
     return app
 
 
+RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+
+
+def strip_datetime(s):
+    # 2021-09-18T17:28:07.059270
+    m = RE_DATETIME.match(s)
+    if m:
+        return m.group("rest")
+    return s
+
+
 class ParseCTX(object):
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
@@ -1478,7 +1642,7 @@ class ParseCTX(object):
                 if not offset:
                     l = []
                 if k == u"output.log":
-                    lines = [content]
+                    lines = content
                 else:
                     lines = map(json.loads, content)
                 l.extend(lines)
@@ -1492,6 +1656,15 @@ class ParseCTX(object):
     @property
     def file_names(self):
         return self._ctx.get("file_names", [])
+
+    @property
+    def files(self):
+        files_sizes = self._ctx.get("file_bytes", {})
+        files_dict = {}
+        for fname, size in files_sizes.items():
+            files_dict.setdefault(fname, {})
+            files_dict[fname]["size"] = size
+        return files_dict
 
     @property
     def dropped_chunks(self):
@@ -1524,12 +1697,42 @@ class ParseCTX(object):
         return history
 
     @property
+    def output(self):
+        fs_files = self.get_filestream_file_items()
+        output_items = fs_files.get("output.log", [])
+        err_prefix = "ERROR "
+        stdout_items = []
+        stderr_items = []
+        for item in output_items:
+            if item.startswith(err_prefix):
+                err_item = item[len(err_prefix) :]
+                stderr_items.append(err_item)
+            else:
+                stdout_items.append(item)
+        stdout = "".join(stdout_items)
+        stderr = "".join(stderr_items)
+        stdout_lines = stdout.splitlines()
+        stderr_lines = stderr.splitlines()
+        stdout = list(map(strip_datetime, stdout_lines))
+        stderr = list(map(strip_datetime, stderr_lines))
+        return dict(stdout=stdout, stderr=stderr)
+
+    @property
     def exit_code(self):
         exit_code = None
         fs_list = self._ctx.get("file_stream")
         if fs_list:
             exit_code = fs_list[-1].get("exitcode")
         return exit_code
+
+    @property
+    def run_id(self):
+        return self._run_id
+
+    @property
+    def git(self):
+        git_info = self._ctx.get("git")
+        return git_info or dict(commit=None, remote=None)
 
     @property
     def config_raw(self):
@@ -1552,11 +1755,11 @@ class ParseCTX(object):
 
     @property
     def telemetry(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("t")
+        return self.config.get("_wandb", {}).get("value", {}).get("t", {})
 
     @property
     def metrics(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("m")
+        return self.config.get("_wandb", {}).get("value", {}).get("m", {})
 
     @property
     def manifests_created(self):

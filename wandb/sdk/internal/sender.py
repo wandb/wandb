@@ -92,6 +92,9 @@ class SendManager(object):
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
 
+        self._cached_server_info: Dict[str, Any] = dict()
+        self._cached_viewer: Dict[str, Any] = dict()
+
         # State updated by resuming
         self._resume_state = {
             "step": 0,
@@ -272,10 +275,10 @@ class SendManager(object):
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         self._api.reauth()
-        viewer_tuple = self._api.viewer_server_info()
+        viewer = self.get_viewer_info()
+        server_info = self.get_server_info()
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
-        viewer, server_info = viewer_tuple
         if server_info:
             logger.info("Login server info: {}".format(server_info))
         self._entity = viewer.get("entity")
@@ -405,6 +408,9 @@ class SendManager(object):
             if self._pusher:
                 self._pusher.join()
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
+            result.response.poll_exit_response.local_info.CopyFrom(
+                self.get_local_info()
+            )
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
 
@@ -897,9 +903,9 @@ class SendManager(object):
         artifact = record.request.log_artifact.artifact
 
         try:
-            result.response.log_artifact_response.artifact_id = self._send_artifact(
-                artifact
-            ).get("id")
+            res = self._send_artifact(artifact)
+            result.response.log_artifact_response.artifact_id = res.get("id")
+            logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -910,7 +916,8 @@ class SendManager(object):
     def send_artifact(self, data):
         artifact = data.artifact
         try:
-            self._send_artifact(artifact)
+            res = self._send_artifact(artifact)
+            logger.info("sent artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
@@ -992,11 +999,51 @@ class SendManager(object):
             self._fs = None
 
     def _max_cli_version(self):
-        _, server_info = self._api.viewer_server_info()
+        server_info = self.get_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
         return max_cli_version
+
+    def get_viewer_server_info(self):
+        if not self._cached_server_info or not self._cached_viewer:
+            (
+                self._cached_viewer,
+                self._cached_server_info,
+            ) = self._api.viewer_server_info()
+
+    def get_viewer_info(self):
+        if not self._cached_viewer:
+            self.get_viewer_server_info()
+        return self._cached_viewer
+
+    def get_server_info(self):
+        if not self._cached_server_info:
+            self.get_viewer_server_info()
+        return self._cached_server_info
+
+    def get_local_info(self):
+        """
+        This is a helper function that queries the server to get the the local version information.
+        First, we perform an introspection, if it returns empty we deduce that the docker image is
+        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
+        """
+        local_info = wandb_internal_pb2.LocalInfo()
+
+        latest_local_version = "latest"
+
+        # Assuming the query is succesful if the result is empty it indicates that
+        # the backend is out of date since it doesn't have the desired field
+        server_info = self.get_server_info()
+        latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
+        if latest_local_version_info is None:
+            local_info.out_of_date = False
+        else:
+            local_info.out_of_date = latest_local_version_info.get("outOfDate", True)
+            local_info.version = latest_local_version_info.get(
+                "latestVersionString", latest_local_version
+            )
+        return local_info
 
     def __next__(self):
         return self._record_q.get(block=True)

@@ -6,6 +6,7 @@ import pytest  # type: ignore
 
 import wandb
 from wandb import Settings
+from wandb.errors import UsageError
 import os
 import copy
 
@@ -72,6 +73,17 @@ def test_ignore_globs_env():
     assert s.ignore_globs == ("foo", "bar",)
 
 
+def test_quiet():
+    s = Settings()
+    assert s._quiet is None
+    s = Settings(quiet=True)
+    assert s._quiet
+    s = Settings()
+    s._apply_environ({"WANDB_QUIET": "false"})
+    s.setdefaults()
+    assert s._quiet == False
+
+
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
 def test_ignore_globs_settings(local_settings):
     with open(os.path.join(os.getcwd(), ".config", "wandb", "settings"), "w") as f:
@@ -136,9 +148,9 @@ def test_freeze():
 
 def test_bad_choice():
     s = Settings()
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.mode = "goodprojo"
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(mode="badpro")
 
 
@@ -229,11 +241,11 @@ def test_prio_context_over_ignore():
 
 def test_validate_base_url():
     s = Settings()
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(base_url="https://wandb.ai")
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(base_url="https://app.wandb.ai")
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(base_url="http://api.wandb.ai")
     s.update(base_url="https://api.wandb.ai")
     assert s.base_url == "https://api.wandb.ai"

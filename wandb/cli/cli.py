@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import traceback
@@ -31,7 +32,6 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 
@@ -41,18 +41,18 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# TODO: turn this on in a cleaner way
-# right now we will litter the filesystem with wandb dirs
-#
-# _wandb_dir = wandb_dir(env.get_dir())
-# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
-# logging.basicConfig(
-#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
-#     level=logging.DEBUG,
-# )
-# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+if not os.path.exists(_wandb_dir):
+    _wandb_dir = tempfile.gettempdir()
+logging.basicConfig(
+    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-
 CONTEXT = dict(default_map={})
 
 
@@ -87,6 +87,11 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
+            wandb.termerror(
+                "Find detailed error logs at: {}".format(
+                    os.path.join(_wandb_dir, "debug-cli.log")
+                )
+            )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
@@ -736,6 +741,25 @@ def sweep(
         entity = parts.get("entity") or entity
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
+
+        has_project = (project or api.settings("project")) is not None
+        has_entity = (entity or api.settings("entity")) is not None
+
+        termerror_msg = (
+            "Sweep lookup requires a valid %s, and none was specified. \n"
+            "Either set a default %s in wandb/settings, or, if invoking \n`wandb sweep` "
+            "from the command line, specify the full sweep path via: \n\n"
+            "    wandb sweep {username}/{projectname}/{sweepid}\n\n"
+        )
+
+        if not has_entity:
+            wandb.termerror(termerror_msg % (("entity",) * 2))
+            return
+
+        if not has_project:
+            wandb.termerror(termerror_msg % (("project",) * 2))
+            return
+
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(
@@ -856,9 +880,9 @@ def _check_launch_imports():
 
 
 @cli.command(
-    help="Launch or queue a job on a specified resource from a uri. A uri can be either a wandb "
+    help="Launch or queue a job from a uri (Experimental). A uri can be either a wandb "
     "uri of the form https://wandb.ai/<entity>/<project>/runs/<run_id>, "
-    "or a git uri pointing to a remote repository, or path to a local directory."
+    "or a git uri pointing to a remote repository, or path to a local directory.",
 )
 @click.argument("uri")
 @click.option(
@@ -976,9 +1000,15 @@ def launch(
     Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
     `wandb launch [URI] --queue [optional queuename]`.
     """
+    logger.info(
+        f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
+    )
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
     api = _get_cling_api()
 
     args_dict = util._user_args_to_dict(args_list)
@@ -1039,7 +1069,7 @@ def launch(
         )
 
 
-@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent", hidden=True)
+@cli.command(context_settings=CONTEXT, help="Run a W&B launch agent (Experimental)")
 @click.pass_context
 @click.argument("project", nargs=1)
 @click.option(
@@ -1051,10 +1081,16 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
+    logger.info(
+        f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
+    )
     _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
 
+    wandb.termlog(
+        "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
+    )
     api = _get_cling_api()
     queues = queues.split(",")  # todo: check for none?
     if api.api_key is None:
@@ -1884,8 +1920,11 @@ def verify(host):
     elif host != api.settings("base_url"):
         reinit = True
 
-    tmp_dir = tempfile.TemporaryDirectory()
-    os.chdir(tmp_dir.name)
+    tmp_dir = tempfile.mkdtemp()
+    print(
+        "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
+    )
+    os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
     if reinit:
@@ -1907,6 +1946,7 @@ def verify(host):
             "Checking requests made over signed URLs",
             "Signed URL requests not made over https. SSL is required for secure communications.",
         )
+        wandb_verify.check_cors_configuration(url, host)
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()
