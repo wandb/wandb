@@ -217,9 +217,12 @@ class BackendSender(object):
         if publish_step:
             assert step is not None
             history.step.num = step
-        # val = data.pop("_step", None)
-        # if val is not None:
-        #     data["_orig_step"] = step
+        data.pop("_step", None)
+        wandb_step = step
+        if not publish_step:
+            assert wandb_step is not None, data
+        if not publish_step and wandb_step is not None:
+            data["_wandb_step"] = wandb_step
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
@@ -675,7 +678,6 @@ class BackendSender(object):
     def publish_files(self, files_dict: dict, is_media: bool = False) -> None:
         files = self._make_files(files_dict, is_media)
         rec = self._make_record(files=files)
-        print("publish files", files_dict)
         self._publish(rec)
 
     def communicate_artifact(

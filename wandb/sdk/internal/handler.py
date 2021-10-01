@@ -187,12 +187,11 @@ class HandleManager(object):
         for file in record.files.files:
             orig_path = file.path
             full_prefix = file.path.rsplit("_", 2)[0]
-            _, media_type, base_path_info = orig_path.split(
-                "/", 2
-            )  # orig_fname.lsplit("/", 2)[-1].lsplit("_", 2)
+            base_path_info = orig_path.split("/", 2)[-1]
             key, fstep, tail = base_path_info.rsplit("_", 2)
-            # prefix, fstep, tail = file.path.rsplit("_", 2)
-
+            logger.info(
+                "map info {} {} {}".format(orig_path, key, self._file_names_map)
+            )
             new_step = self._file_names_map[key][fstep]
             if int(fstep) != new_step:
                 new_path = f"{full_prefix}_{new_step}_{tail}"
@@ -458,15 +457,15 @@ class HandleManager(object):
 
     def _history_update(self, record: Record, history_dict: Dict) -> None:
         # if syncing an old run, we can skip this logic
-        if history_dict.get("_step") is None:
+        wandb_step = history_dict.get("_wandb_step")
+        if history_dict.get("_step") is None and wandb_step is not None:
             for k, v in history_dict.items():
                 if isinstance(v, dict) and v.get("_type"):
                     if self._file_names_map.get(k) is not None:
-                        self._file_names_map[k][str(history_dict["_step"])] = self._step
-                        pass
+                        self._file_names_map[k][str(wandb_step)] = self._step
                     else:
                         self._file_names_map[k] = {}
-                        self._file_names_map[k][str(history_dict["_step"])] = self._step
+                        self._file_names_map[k][str(wandb_step)] = self._step
             self._history_assign_step(record, history_dict)
         update_history: Dict[str, Any] = {}
         # Look for metric matches

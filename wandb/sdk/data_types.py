@@ -547,6 +547,7 @@ class Media(WBValue):
             shutil.copy(self._path, new_path)
             self._path = new_path
             # _datatypes_callback(media_path)
+        assert os.path.exists(new_path)
         return _datatypes_callback, media_path
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
