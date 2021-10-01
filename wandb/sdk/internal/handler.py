@@ -186,12 +186,16 @@ class HandleManager(object):
     def reassign_files_step(self, record: Record):
         for file in record.files.files:
             orig_path = file.path
-            orig_fname = os.path.basename(file.path)
-            key, orig_step, _ = orig_fname.rsplit("_", 2)
-            prefix, fstep, tail = file.path.rsplit("_", 2)
-            new_step = self._step  # self._file_names_map[key][orig_step]
+            full_prefix = file.path.rsplit("_", 2)[0]
+            _, media_type, base_path_info = orig_path.split(
+                "/", 2
+            )  # orig_fname.lsplit("/", 2)[-1].lsplit("_", 2)
+            key, fstep, tail = base_path_info.rsplit("_", 2)
+            # prefix, fstep, tail = file.path.rsplit("_", 2)
+
+            new_step = self._file_names_map[key][fstep]
             if int(fstep) != new_step:
-                new_path = f"{prefix}_{new_step}_{tail}"
+                new_path = f"{full_prefix}_{new_step}_{tail}"
                 file.path = new_path
                 full_new_path = os.path.join(self._settings.files_dir, new_path)
                 rewrite_path = os.path.join(self._settings.tmp_files_dir, orig_path)
@@ -455,8 +459,20 @@ class HandleManager(object):
     def _history_update(self, record: Record, history_dict: Dict) -> None:
         # if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
+            for k, v in history_dict.items():
+                if isinstance(v, dict) and v.get("_type"):
+                    if self._file_names_map.get(k) is not None:
+                        self._file_names_map[k][
+                            str(history_dict["_orig_step"])
+                        ] = self._step
+                        pass
+                    else:
+                        self._file_names_map[k] = {}
+                        self._file_names_map[k][
+                            str(history_dict["_orig_step"])
+                        ] = self._step
+            history_dict.pop("_orig_step")
             self._history_assign_step(record, history_dict)
-
         update_history: Dict[str, Any] = {}
         # Look for metric matches
         if self._metric_defines or self._metric_globs:
@@ -474,14 +490,6 @@ class HandleManager(object):
 
         history_dict = proto_util.dict_from_proto_list(record.history.item)
         logger.info("HISTORY1 {} {}".format(self._step, history_dict))
-        for k, v in history_dict.items():
-            if isinstance(v, dict) and v.get("_type"):
-                if self._file_names_map.get(k) is not None:
-                    # self._file_names_map[k][history_dict["_step"]] = self._step
-                    pass
-                else:
-                    self._file_names_map[k] = {}
-                    # self._file_names_map[k][history_dict["_step"]] = self._step
         # Inject _runtime if it is not present
         if history_dict is not None:
             if "_runtime" not in history_dict:
@@ -489,9 +497,7 @@ class HandleManager(object):
 
         self._history_update(record, history_dict)
         self._dispatch_record(record)
-        logger.info(
-            "HISTORY2 {} {} {}".format(self._step, record, self._file_names_map)
-        )
+        logger.info("HISTORY2 {} {}".format(self._step, record))
         self._save_history(record)
 
         updated = self._update_summary(history_dict)

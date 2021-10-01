@@ -439,7 +439,7 @@ class TBEventConsumer(object):
 
         self._tbwatcher._interface.publish_history(
             row,
-            # step=self._internal_run.step,
+            step=self.tb_history._step,
             run=self._internal_run,
             publish_step=False,
         )

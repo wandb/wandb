@@ -218,6 +218,8 @@ class BackendSender(object):
             assert step is not None
             history.step.num = step
         val = data.pop("_step", None)
+        if val is not None:
+            data["_orig_step"] = step
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
