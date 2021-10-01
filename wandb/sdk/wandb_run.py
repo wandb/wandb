@@ -498,9 +498,9 @@ class Run(object):
         return self._settings.files_dir
 
     @property
-    def tmp_files_dir(self) -> str:
+    def _tmp_files_dir(self) -> str:
         """Returns the directory where file paths associated with the run are saved."""
-        return self._settings.tmp_files_dir
+        return self._settings._tmp_files_dir
 
     @property
     def config(self) -> wandb_config.Config:

@@ -197,7 +197,7 @@ class HandleManager(object):
                 new_path = f"{full_prefix}_{new_step}_{tail}"
                 file.path = new_path
                 full_new_path = os.path.join(self._settings.files_dir, new_path)
-                rewrite_path = os.path.join(self._settings.tmp_files_dir, orig_path)
+                rewrite_path = os.path.join(self._settings._tmp_files_dir, orig_path)
                 logger.info(
                     "moving {} to {}".format(
                         os.path.join(self._settings.files_dir, orig_path), full_new_path

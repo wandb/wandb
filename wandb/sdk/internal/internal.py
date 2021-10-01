@@ -77,7 +77,7 @@ def wandb_internal(
 
     # Lets make sure we dont modify settings so use a static object
     _settings = settings_static.SettingsStatic(settings)
-    print(_settings.tmp_files_dir)
+    print(_settings._tmp_files_dir)
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 

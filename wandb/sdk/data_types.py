@@ -532,7 +532,7 @@ class Media(WBValue):
         new_path = os.path.join(self._run.dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(new_path))
 
-        self.file_name_path = os.path.join(self._run.tmp_files_dir, media_path)
+        self.file_name_path = os.path.join(self._run._tmp_files_dir, media_path)
         util.mkdir_exists_ok(os.path.dirname(self.file_name_path))
         with open(self.file_name_path, "w") as fp:
             fp.write(new_path)
