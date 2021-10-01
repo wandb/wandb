@@ -325,9 +325,7 @@ class WriterThread(internal_util.RecordLoopThread):
 
     def _setup(self) -> None:
         self._wm = writer.WriteManager(
-            settings=self._settings,
-            record_q=self._record_q,
-            result_q=self._result_q,
+            settings=self._settings, record_q=self._record_q, result_q=self._result_q,
         )
 
     def _process(self, record: "Record") -> None:

@@ -371,9 +371,7 @@ class TBEventConsumer(object):
             self._handle_event(event, history=self.tb_history)
             items = self.tb_history._get_and_reset()
             for item in items:
-                self._save_row(
-                    item,
-                )
+                self._save_row(item,)
         self._thread.join()
 
     def _thread_except_body(self) -> None:
@@ -403,9 +401,7 @@ class TBEventConsumer(object):
                 self._handle_event(event, history=self.tb_history)
                 items = self.tb_history._get_and_reset()
                 for item in items:
-                    self._save_row(
-                        item,
-                    )
+                    self._save_row(item,)
         # flush uncommitted data
         self.tb_history._flush()
         items = self.tb_history._get_and_reset()
@@ -438,10 +434,7 @@ class TBEventConsumer(object):
             row[chart_key + "_table"] = table
 
         self._tbwatcher._interface.publish_history(
-            row,
-            step=self.tb_history._step,
-            run=self._internal_run,
-            publish_step=False,
+            row, step=self.tb_history._step, run=self._internal_run, publish_step=False,
         )
 
 
