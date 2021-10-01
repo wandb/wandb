@@ -222,7 +222,7 @@ class BackendSender(object):
         if not publish_step:
             assert wandb_step is not None, data
         if not publish_step and wandb_step is not None:
-            data["_wandb_step"] = wandb_step
+            history.wandb_step.num = wandb_step
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k

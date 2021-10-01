@@ -455,17 +455,17 @@ class HandleManager(object):
             kl=kl, v=v, history_dict=history_dict, update_history=update_history
         )
 
-    def _history_update(self, record: Record, history_dict: Dict) -> None:
+    def _history_update(self, record: Record, history_dict: Dict, wandb_step) -> None:
         # if syncing an old run, we can skip this logic
-        wandb_step = history_dict.get("_wandb_step")
-        if history_dict.get("_step") is None and wandb_step is not None:
-            for k, v in history_dict.items():
-                if isinstance(v, dict) and v.get("_type"):
-                    if self._file_names_map.get(k) is not None:
-                        self._file_names_map[k][str(wandb_step)] = self._step
-                    else:
-                        self._file_names_map[k] = {}
-                        self._file_names_map[k][str(wandb_step)] = self._step
+        if history_dict.get("_step") is None:
+            if wandb_step is not None:
+                for k, v in history_dict.items():
+                    if isinstance(v, dict) and v.get("_type"):
+                        if self._file_names_map.get(k) is not None:
+                            self._file_names_map[k][str(wandb_step)] = self._step
+                        else:
+                            self._file_names_map[k] = {}
+                            self._file_names_map[k][str(wandb_step)] = self._step
             self._history_assign_step(record, history_dict)
         update_history: Dict[str, Any] = {}
         # Look for metric matches
@@ -483,13 +483,17 @@ class HandleManager(object):
     def handle_history(self, record: Record) -> None:
 
         history_dict = proto_util.dict_from_proto_list(record.history.item)
+        has_wandb_step = record.history.HasField("wandb_step")
+        wandb_step = None
+        if has_wandb_step:
+            wandb_step = record.history.wandb_step.num
         logger.info("HISTORY1 {} {}".format(self._step, history_dict))
         # Inject _runtime if it is not present
         if history_dict is not None:
             if "_runtime" not in history_dict:
                 self._history_assign_runtime(record, history_dict)
 
-        self._history_update(record, history_dict)
+        self._history_update(record, history_dict, wandb_step)
         self._dispatch_record(record)
         logger.info("HISTORY2 {} {}".format(self._step, record))
         self._save_history(record)

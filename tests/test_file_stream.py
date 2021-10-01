@@ -30,6 +30,7 @@ def assert_history(publish_util, dropped=None):
     ctx_util = publish_util(history=history)
 
     converted_history = convert_history(history)
+    print(ctx_util.history, converted_history)
     assert ctx_util.history == converted_history
     if dropped is not None:
         assert ctx_util.dropped_chunks == dropped

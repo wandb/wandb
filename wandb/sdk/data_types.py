@@ -2552,7 +2552,7 @@ def _data_frame_to_json(
         for i, val in enumerate(series):
             if isinstance(val, WBValue):
                 series.iat[i] = six.text_type(
-                    json.dumps(val_to_json(run, key, val, namespace=step))
+                    json.dumps(val_to_json(run, key, val, namespace=step)[0])
                 )
 
     # We have to call this wandb_run_id because that name is treated specially by

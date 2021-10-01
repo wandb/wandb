@@ -168,6 +168,7 @@ message HistoryStep {
 message HistoryRecord {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
+  HistoryStep wandb_step = 3;
 }
 
 message HistoryItem {
