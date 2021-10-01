@@ -2400,7 +2400,13 @@ def val_to_json(
             # This used to happen. The frontend doesn't handle heterogenous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
-            return [val_to_json(run, key, v, namespace=namespace) for v in val]
+            vals_and_callbacks = [
+                val_to_json(run, key, v, namespace=namespace) for v in val
+            ]
+            return (
+                [v[0] for v in vals_and_callbacks],
+                [v[1] for v in vals_and_callbacks],
+            )
 
     if isinstance(val, WBValue):
         assert run

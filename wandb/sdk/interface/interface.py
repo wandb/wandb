@@ -356,7 +356,7 @@ class BackendSender(object):
             friendly_value, converted = json_friendly(  # type: ignore
                 data_types.val_to_json(
                     self._run, path_from_root, value, namespace="summary"
-                )
+                )[0]
             )
             json_value, compressed = maybe_compress_summary(  # type: ignore
                 friendly_value, get_h5_typename(value)  # type: ignore

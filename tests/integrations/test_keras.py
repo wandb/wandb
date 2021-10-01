@@ -83,10 +83,11 @@ def test_no_init():
 
 def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(*dummy_data, epochs=2, batch_size=36, callbacks=[WandbCallback()])
-    # wandb.run.summary.load()
+    # wandb.run.summary.load())
     assert wandb.run._backend.history[0]["epoch"] == 0
     # NOTE: backend mock doesnt copy history into summary (happens in internal process)
     # assert wandb.run._backend.summary["loss"] > 0
+    print(graph_json(wandb.run))
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 

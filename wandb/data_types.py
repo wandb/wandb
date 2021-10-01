@@ -1274,6 +1274,7 @@ class Graph(Media):
         }
 
     def bind_to_run(self, *args, **kwargs):
+        print("Calling bind to run on graph")
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
