@@ -47,6 +47,7 @@ from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled, get_app_url
 
 import wandb
+from wandb import env
 from wandb.errors import CommError, term
 
 logger = logging.getLogger(__name__)
@@ -286,7 +287,7 @@ def app_url(api_url):
         # onprem cloud
         return api_url.replace("://api.", "://app.").strip("/")
     # wandb/local
-    return api_url.strip("/")
+    return api_url
 
 
 def get_full_typename(o):
@@ -805,7 +806,7 @@ def no_retry_auth(e):
     if e.response is None:
         return True
     # Don't retry bad request errors; raise immediately
-    if e.response.status_code == 400:
+    if e.response.status_code in (400, 409):
         return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):

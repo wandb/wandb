@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.12.3.dev1"
+__version__ = "0.12.4.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -85,6 +85,7 @@ from wandb.viz import visualize
 from wandb import plot
 from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
+from wandb.sdk.internal import profiler
 
 
 # Used to make sure we don't use some code in the incorrect process context
