@@ -444,11 +444,9 @@ class Media(WBValue):
             self.file_name_path is not None
             and os.path.getmtime(self.file_name_path) > self.file_path_m_time
         ):
-            print("regot path")
             self.file_path_m_time = os.path.getmtime(self.file_name_path)
             with open(self.file_name_path, "r") as fp:
                 self.__path = fp.read()
-        print(self.__path)
         return self.__path
 
     @_path.setter
@@ -544,11 +542,12 @@ class Media(WBValue):
             shutil.move(self._path, new_path)
             self._path = new_path
             self._is_tmp = False
-            _datatypes_callback(media_path)
+            # _datatypes_callback(media_path)
         else:
             shutil.copy(self._path, new_path)
             self._path = new_path
-            _datatypes_callback(media_path)
+            # _datatypes_callback(media_path)
+        return _datatypes_callback, media_path
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
@@ -1400,7 +1399,7 @@ class ImageMask(Media):
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
-        super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
+        cb_and_path = super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
         class_labels = self._val["class_labels"]
 
         run._add_singleton(
@@ -1408,6 +1407,7 @@ class ImageMask(Media):
             str(key) + "_wandb_delimeter_" + self._key,
             class_labels,
         )
+        return [cb_and_path]
 
     @classmethod
     def get_media_subdir(cls: Type["ImageMask"]) -> str:
@@ -1636,12 +1636,13 @@ class BoundingBoxes2D(JSONMetadata):
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
-        super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
+        cb_and_path = super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
         run._add_singleton(
             "bounding_box/class_labels",
             str(key) + "_wandb_delimeter_" + self._key,
             self._class_labels,
         )
+        return [cb_and_path]
 
     @classmethod
     def type_name(cls) -> str:
@@ -2005,16 +2006,18 @@ class Image(BatchableMedia):
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
     ) -> None:
-        super(Image, self).bind_to_run(run, key, step, id_)
+        cb_and_paths = []
+        cb_and_paths.append(super(Image, self).bind_to_run(run, key, step, id_))
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(run, key, step, id_)
+                cb_and_paths.append(self._boxes[k].bind_to_run(run, key, step, id_))
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(run, key, step, id_)
+                cb_and_paths.append(self._masks[k].bind_to_run(run, key, step, id_))
+        return cb_and_paths
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
@@ -2341,14 +2344,17 @@ def history_dict_to_json(
         step = payload["_step"]
 
     # We use list here because we were still seeing cases of RuntimeError dict changed size
+    cb_and_medias = []
     for key in list(payload):
         val = payload[key]
         if isinstance(val, dict):
-            payload[key] = history_dict_to_json(run, val, step=step)
+            payload[key], cb_and_media = history_dict_to_json(run, val, step=step)
+            cb_and_medias += cb_and_media
         else:
-            payload[key] = val_to_json(run, key, val, namespace=step)
+            payload[key], cb_and_media = val_to_json(run, key, val, namespace=step)
+            cb_and_medias += cb_and_media
 
-    return payload
+    return payload, cb_and_medias
 
 
 # TODO: refine this
@@ -2365,6 +2371,7 @@ def val_to_json(
         )
 
     converted = val
+    cb_and_paths = []
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
@@ -2387,9 +2394,9 @@ def val_to_json(
             items = _prune_max_seq(val)
 
             for i, item in enumerate(items):
-                item.bind_to_run(run, key, namespace, id_=i)
+                cb_and_paths += item.bind_to_run(run, key, namespace, id_=i)
 
-            return items[0].seq_to_json(items, run, key, namespace)
+            return items[0].seq_to_json(items, run, key, namespace), cb_and_paths
         else:
             # TODO(adrian): Good idea to pass on the same key here? Maybe include
             # the array index?
@@ -2426,11 +2433,11 @@ def val_to_json(
                 hasattr(val, "_log_type")
                 and val._log_type in ["partitioned-table", "joined-table"]
             ):
-                val.bind_to_run(run, key, namespace)
+                cb_and_paths += val.bind_to_run(run, key, namespace)
 
-        return val.to_json(run)
+        return val.to_json(run), cb_and_paths
 
-    return converted  # type: ignore
+    return converted, cb_and_paths  # type: ignore
 
 
 def _is_numpy_array(data: object) -> bool:

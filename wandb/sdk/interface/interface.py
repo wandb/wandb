@@ -212,18 +212,20 @@ class BackendSender(object):
     ) -> None:
 
         run = run or self._run
-        data = data_types.history_dict_to_json(run, data, step=step)
+        data, cb_and_callbacks = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
         if publish_step:
             assert step is not None
             history.step.num = step
-        data.pop("_step", None)
+        val = data.pop("_step", None)
         for k, v in six.iteritems(data):
             item = history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)  # type: ignore
-        print("handle history")
+            item.value_json = json_dumps_safer_history(v)
+
         self._publish_history(history)
+        for cb, path in cb_and_callbacks:
+            cb(path)
 
     def publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         rec = self._make_record(telemetry=telem)

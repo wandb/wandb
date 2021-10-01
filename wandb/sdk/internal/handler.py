@@ -187,9 +187,11 @@ class HandleManager(object):
         for file in record.files.files:
             orig_path = file.path
             orig_fname = os.path.basename(file.path)
+            key, orig_step, _ = orig_fname.rsplit("_", 2)
             prefix, fstep, tail = file.path.rsplit("_", 2)
-            if int(fstep) != self._step:
-                new_path = f"{prefix}_{self._step}_{tail}"
+            new_step = self._step  # self._file_names_map[key][orig_step]
+            if int(fstep) != new_step:
+                new_path = f"{prefix}_{new_step}_{tail}"
                 file.path = new_path
                 full_new_path = os.path.join(self._settings.files_dir, new_path)
                 rewrite_path = os.path.join(self._settings.tmp_files_dir, orig_path)
@@ -469,8 +471,17 @@ class HandleManager(object):
                 item.value_json = json.dumps(v)
 
     def handle_history(self, record: Record) -> None:
-        logger.info("HISTORY1 {} {}".format(self._step, record))
+
         history_dict = proto_util.dict_from_proto_list(record.history.item)
+        logger.info("HISTORY1 {} {}".format(self._step, history_dict))
+        for k, v in history_dict.items():
+            if isinstance(v, dict) and v.get("_type"):
+                if self._file_names_map.get(k) is not None:
+                    # self._file_names_map[k][history_dict["_step"]] = self._step
+                    pass
+                else:
+                    self._file_names_map[k] = {}
+                    # self._file_names_map[k][history_dict["_step"]] = self._step
         # Inject _runtime if it is not present
         if history_dict is not None:
             if "_runtime" not in history_dict:
@@ -478,7 +489,9 @@ class HandleManager(object):
 
         self._history_update(record, history_dict)
         self._dispatch_record(record)
-        logger.info("HISTORY2 {} {}".format(self._step, record))
+        logger.info(
+            "HISTORY2 {} {} {}".format(self._step, record, self._file_names_map)
+        )
         self._save_history(record)
 
         updated = self._update_summary(history_dict)
