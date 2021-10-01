@@ -906,7 +906,7 @@ class Run(object):
         if not self._backend:
             return
         files = dict(files=[(fname, "now")])
-        self._backend.interface.publish_files(files, False)
+        self._backend.interface.publish_files(files, True)
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
     def _history_callback(self, row: Dict[str, Any], step: int) -> None:
