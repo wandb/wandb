@@ -48,6 +48,7 @@ SYMBOLS_ROOT_SDK = {
     "mark_preempting",
     "load_ipython_extension",
     "require",
+    "profiler",
 }
 
 # Look into these and see what we can remove / hide
