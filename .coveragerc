@@ -16,7 +16,6 @@ source =
 
 omit =
     wandb/sweeps/*
-    wandb/sweeps_engine/*
     wandb/vendor/*
 
 [report]
@@ -26,5 +25,4 @@ exclude_lines =
 
 omit =
     wandb/sweeps/*
-    wandb/sweeps_engine/*
     wandb/vendor/*
