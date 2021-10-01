@@ -21,9 +21,6 @@ from .wandb_settings import Settings
 from ..apis import InternalApi
 
 
-MAX_API_KEY_PROMPTS = 5
-
-
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
     """Write the host parameter from wandb.login or wandb login to
     the global settings file so that it is used automatically by
@@ -85,7 +82,6 @@ class _WandbLogin(object):
         self._wl = None
         self._key = None
         self._relogin = None
-        self._num_api_key_prompts = 0
 
     def setup(self, kwargs):
         self.kwargs = kwargs
@@ -179,8 +175,8 @@ class _WandbLogin(object):
             self._wl._update_user_settings()
 
     def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
+
         api = Api(self._settings)
-        self._num_api_key_prompts += 1
         try:
             key = apikey.prompt_api_key(
                 self._settings,
@@ -191,13 +187,7 @@ class _WandbLogin(object):
         except ValueError as e:
             # invalid key provided, try again
             wandb.termerror(e.args[0])
-            if self._num_api_key_prompts < MAX_API_KEY_PROMPTS:
-                return self._prompt_api_key()
-            else:
-                wandb.termerror(
-                    f"Failed to get API key after {MAX_API_KEY_PROMPTS} attempts."
-                )
-                return None, ApiKeyStatus.DISABLED
+            return self._prompt_api_key()
 
         except TimeoutError:
             wandb.termlog("W&B disabled due to login timeout.")
