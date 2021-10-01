@@ -575,7 +575,6 @@ class Settings(object):
     @property
     def tmp_files_dir(self) -> str:
         file_path = self._path_convert(self.tmp_files_dir_spec)
-        assert isinstance(file_path, str)
         return file_path
 
     @property
