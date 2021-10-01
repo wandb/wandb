@@ -462,16 +462,11 @@ class HandleManager(object):
             for k, v in history_dict.items():
                 if isinstance(v, dict) and v.get("_type"):
                     if self._file_names_map.get(k) is not None:
-                        self._file_names_map[k][
-                            str(history_dict["_orig_step"])
-                        ] = self._step
+                        self._file_names_map[k][str(history_dict["_step"])] = self._step
                         pass
                     else:
                         self._file_names_map[k] = {}
-                        self._file_names_map[k][
-                            str(history_dict["_orig_step"])
-                        ] = self._step
-            history_dict.pop("_orig_step")
+                        self._file_names_map[k][str(history_dict["_step"])] = self._step
             self._history_assign_step(record, history_dict)
         update_history: Dict[str, Any] = {}
         # Look for metric matches
