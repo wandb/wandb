@@ -13,7 +13,7 @@ import click
 import logging
 import requests
 import sys
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
@@ -116,6 +116,10 @@ class Api(object):
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
         self._client_id_mapping = {}
+
+        # this cache keeps track of whether a specificed graphql input type (tuple[0])
+        # has an input field with a specified name (tuple[1])
+        self._graphql_input_type_fields: Dict[str, List[str]] = {}
 
         self.query_types, self.server_info_types = None, None
 
@@ -282,27 +286,35 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
-    def introspect_input_type(self, input_type_name: str) -> List[Dict]:
-        query_string = (
-            """
-        {
-          __type(name: "%s") {
+    def introspect_input_type_has_field(
+        self, input_type_name: str, input_field_name: str
+    ) -> bool:
+        query_string = """
+        query InputTypeHasField (            
+            $inputTypeName: String!,
+        ){
+          __type(name: $inputTypeName) {
             inputFields {
               name
-              type {
-                name
-                kind
-              }
             }
           }
         }
         """
-            % input_type_name
-        )
 
+        if input_type_name in self._graphql_input_type_fields:
+            return input_field_name in self._graphql_input_type_fields[input_type_name]
+
+        variable_values = {"inputTypeName": input_type_name}
         query = gql(query_string)
-        res = self.gql(query)
-        return res["__type"]["inputFields"]
+        res = self.gql(query, variable_values=variable_values)
+
+        if not res:
+            raise ValueError(f"Unknown GraphQL type '{input_type_name}'")
+
+        self._graphql_input_type_fields[input_type_name] = [
+            field["name"] for field in res["__type"]["inputFields"]
+        ]
+        return input_field_name in self._graphql_input_type_fields[input_type_name]
 
     @normalize_exceptions
     def server_info_introspection(self):
@@ -1081,6 +1093,7 @@ class Api(object):
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
+            __RUNQUEUE_ITEM_ID_ARG_STRING__
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -1102,6 +1115,7 @@ class Api(object):
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
+                __RUNQUEUE_ITEM_ID_BIND_STRING__
             }) {
                 bucket {
                     id
@@ -1124,21 +1138,20 @@ class Api(object):
         }
         """
 
-        schema = self.introspect_input_type("UpsertBucketInput")
-        use_runqueue_item_id = any(
-            [field["name"] == "runQueueItemId" for field in schema]
+        use_runqueue_item_id = self.introspect_input_type_has_field(
+            "UpsertBucketInput", "runQueueItemId"
         )
 
         if use_runqueue_item_id:
-            replace_string_1 = "$summaryMetrics: JSONString,"
-            replace_string_2 = "summaryMetrics: $summaryMetrics,"
             mutation_str = mutation_str.replace(
-                replace_string_1,
-                replace_string_1 + "\n            $runQueueItemId: String",
+                "__RUNQUEUE_ITEM_ID_ARG_STRING__", "$runQueueItemId: String",
             ).replace(
-                replace_string_2,
-                replace_string_2 + "\n                runQueueItemId: $runQueueItemId",
+                "__RUNQUEUE_ITEM_ID_BIND_STRING__", "runQueueItemId: $runQueueItemId",
             )
+        else:
+            mutation_str = mutation_str.replace(
+                "__RUNQUEUE_ITEM_ID_ARG_STRING__", "",
+            ).replace("__RUNQUEUE_ITEM_ID_BIND_STRING__", "",)
 
         if config is not None:
             config = json.dumps(config)
