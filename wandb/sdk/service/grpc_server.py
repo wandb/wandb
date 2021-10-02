@@ -43,7 +43,7 @@ if TYPE_CHECKING:
             pass
 
 
-def _make_settings() -> Dict[str, Any]:
+def _make_settings(seq_num: int) -> Dict[str, Any]:
     log_level = logging.DEBUG
     start_time = time.time()
     start_datetime = datetime.datetime.now()
@@ -51,14 +51,14 @@ def _make_settings() -> Dict[str, Any]:
 
     wandb_dir = "wandb"
     pid = os.getpid()
-    run_path = "run-{}-{}-server".format(timespec, pid)
+    run_path = f"run-{timespec}-{pid}_{seq_num}-server"
     run_dir = os.path.join(wandb_dir, run_path)
     files_dir = os.path.join(run_dir, "files")
-    sync_file = os.path.join(run_dir, "run-{}.wandb".format(start_time))
+    sync_file = os.path.join(run_dir, f"run-{start_time}.wandb")
     os.makedirs(files_dir)
     # TODO: use a real Settings object
     settings = dict(
-        log_internal=os.path.join(run_dir, "internal.log"),
+        log_internal=os.path.join(run_dir, "debug-internal.log"),
         files_dir=files_dir,
         _start_time=start_time,
         _start_datetime=start_datetime,
@@ -169,6 +169,7 @@ class StreamMux:
     _pid: Optional[int]
     _action_q: "queue.Queue[StreamAction]"
     _stopped: Event
+    _seq_num: int
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -177,6 +178,7 @@ class StreamMux:
         self._pid = None
         self._stopped = Event()
         self._action_q = queue.Queue()
+        self._seq_num = 0
 
     def set_port(self, port: int) -> None:
         self._port = port
@@ -215,7 +217,8 @@ class StreamMux:
 
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord()
-        settings = _make_settings()
+        self._seq_num += 1
+        settings = _make_settings(seq_num=self._seq_num)
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
