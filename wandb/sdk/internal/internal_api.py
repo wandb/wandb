@@ -286,37 +286,6 @@ class Api(object):
         return (project, run)
 
     @normalize_exceptions
-    def introspect_input_type_has_field(
-        self, input_type_name: str, input_field_name: str
-    ) -> bool:
-        query_string = """
-        query InputTypeHasField (            
-            $inputTypeName: String!,
-        ){
-          __type(name: $inputTypeName) {
-            inputFields {
-              name
-            }
-          }
-        }
-        """
-
-        if input_type_name in self._graphql_input_type_fields:
-            return input_field_name in self._graphql_input_type_fields[input_type_name]
-
-        variable_values = {"inputTypeName": input_type_name}
-        query = gql(query_string)
-        res = self.gql(query, variable_values=variable_values)
-
-        if not res:
-            raise ValueError(f"Unknown GraphQL type '{input_type_name}'")
-
-        self._graphql_input_type_fields[input_type_name] = [
-            field["name"] for field in res["__type"]["inputFields"]
-        ]
-        return input_field_name in self._graphql_input_type_fields[input_type_name]
-
-    @normalize_exceptions
     def server_info_introspection(self):
 
         query_string = """
@@ -415,7 +384,6 @@ class Api(object):
             "serverInfo" in query_types
             and "latestLocalVersionInfo" in server_info_types
         )
-
         cli_query_string = "" if not cli_version_exists else cli_query
         local_query_string = "" if not local_version_exists else local_query
 
@@ -1138,20 +1106,16 @@ class Api(object):
         }
         """
 
-        use_runqueue_item_id = self.introspect_input_type_has_field(
-            "UpsertBucketInput", "runQueueItemId"
-        )
+        _, server_info_types = self.server_info_introspection()
+        use_run_queue_item_id = "exposesExplicitRunQueueAckPath" in server_info_types
 
-        if use_runqueue_item_id:
-            mutation_str = mutation_str.replace(
-                "__RUNQUEUE_ITEM_ID_ARG_STRING__", "$runQueueItemId: String",
-            ).replace(
-                "__RUNQUEUE_ITEM_ID_BIND_STRING__", "runQueueItemId: $runQueueItemId",
-            )
-        else:
-            mutation_str = mutation_str.replace(
-                "__RUNQUEUE_ITEM_ID_ARG_STRING__", "",
-            ).replace("__RUNQUEUE_ITEM_ID_BIND_STRING__", "",)
+        mutation_str = mutation_str.replace(
+            "__RUNQUEUE_ITEM_ID_ARG_STRING__",
+            "$runQueueItemId: String" if use_run_queue_item_id else "",
+        ).replace(
+            "__RUNQUEUE_ITEM_ID_BIND_STRING__",
+            "runQueueItemId: $runQueueItemId" if use_run_queue_item_id else "",
+        )
 
         if config is not None:
             config = json.dumps(config)
@@ -1184,7 +1148,7 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
-        if use_runqueue_item_id:
+        if use_run_queue_item_id:
             variable_values["runQueueItemId"] = runqueue_item_id
 
         mutation = gql(mutation_str)
