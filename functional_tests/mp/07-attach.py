@@ -1,24 +1,5 @@
 #!/usr/bin/env python
-"""Test attaach runs.
-
----
-id: 0.mp.4-attach
-plugin:
-    - wandb
-parametrize:
-  permute:
-    - :yea:start_method:
-      - spawn
-      - forkserver
-assert:
-    - :wandb:runs_len: 1
-    - :wandb:runs[0][summary][s1]: 21
-    - :wandb:runs[0][summary][s2]: 22
-    - :wandb:runs[0][summary][s3]: 13
-    - :wandb:runs[0][summary][s4]: 14
-    - :wandb:runs[0][config][c1]: 11
-    - :wandb:runs[0][config][c2]: 22
-"""
+"""Test attach runs."""
 
 import multiprocessing as mp
 
