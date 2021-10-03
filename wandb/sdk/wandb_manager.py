@@ -12,7 +12,7 @@ from wandb import env
 from wandb.sdk.lib.exit_hooks import ExitHooks
 
 if TYPE_CHECKING:
-    from wandb.sdk.service import grpc_service
+    from wandb.sdk.service import service
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -62,13 +62,13 @@ class _Manager:
 
     def __init__(self) -> None:
         # TODO: warn if user doesnt have grpc installed
-        from wandb.sdk.service import grpc_service
+        from wandb.sdk.service import service
 
         self._atexit_lambda = None
         self._hooks = None
 
         self._token = _ManagerToken()
-        self._service = grpc_service._Service()
+        self._service = service._Service()
         self._setup_mp()
         self._setup()
 
@@ -114,7 +114,7 @@ class _Manager:
             self._atexit_lambda = None
         self._teardown(exit_code)
 
-    def _get_service(self) -> "grpc_service._Service":
+    def _get_service(self) -> "service._Service":
         return self._service
 
     def _inform_init(self, settings: "Settings", run_id: str) -> None:
