@@ -1,15 +1,9 @@
-id: 0.mp.3-parentchild
-tag:
-    shard: grpc
+id: 0.mp.08-multiple
 plugin:
   - wandb
-env:
-  - WANDB_CONSOLE: "off"
-parametrize:
-  permute:
-    - :yea:start_method:
-      - spawn
-      - forkserver
+tag:
+  shard: grpc
+  skip: true
 assert:
   - :wandb:runs_len: 2
   - :wandb:runs[0][config]: {id: parent}
