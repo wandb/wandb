@@ -92,7 +92,10 @@ def prompt_api_key(  # noqa: C901
     else:
         result = prompt_choices(choices, input_timeout=settings.login_timeout)
 
-    api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
+    api_ask = (
+        "%s: Paste an API key from your profile and hit enter, or press ctrl+c to quit: "
+        % log_string
+    )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
