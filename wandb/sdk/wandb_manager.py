@@ -4,6 +4,7 @@ Create a grpc manager channel.
 """
 
 import atexit
+import multiprocessing
 import os
 from typing import Callable, Optional, Tuple, TYPE_CHECKING
 
@@ -12,6 +13,7 @@ from wandb.sdk.lib.exit_hooks import ExitHooks
 
 if TYPE_CHECKING:
     from wandb.sdk.service import grpc_service
+    from wandb.sdk.wandb_settings import Settings
 
 
 class _ManagerToken:
@@ -67,7 +69,15 @@ class _Manager:
 
         self._token = _ManagerToken()
         self._service = grpc_service._Service()
+        self._setup_mp()
         self._setup()
+
+    def _setup_mp(self) -> None:
+        # NOTE: manager does not support fork yet, support coming later
+        start_method = multiprocessing.get_start_method(allow_none=True)
+        assert start_method != "fork", "start method 'fork' is not supported yet"
+        if start_method is None:
+            multiprocessing.set_start_method("spawn")
 
     def _setup(self) -> None:
         self._token.probe()
@@ -107,10 +117,10 @@ class _Manager:
     def _get_service(self) -> "grpc_service._Service":
         return self._service
 
-    def _inform_init(self, run_id: str = None) -> None:
+    def _inform_init(self, settings: "Settings", run_id: str) -> None:
         svc = self._service
         assert svc
-        svc._svc_inform_init(run_id=run_id)
+        svc._svc_inform_init(settings=settings, run_id=run_id)
 
     def _inform_finish(self, run_id: str = None) -> None:
         svc = self._service

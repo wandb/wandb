@@ -3,15 +3,47 @@
 Reliably launch and connect to grpc process.
 """
 
+import datetime
+import enum
+import logging
 import os
 import subprocess
 import sys
 import time
 from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING
 
 import grpc
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
+from wandb.sdk.wandb_settings import Settings
+
+if TYPE_CHECKING:
+    from google.protobuf.internal.containers import MessageMap
+
+
+def _pbmap_apply_dict(
+    m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
+) -> None:
+    for k, v in d.items():
+        if isinstance(v, datetime.datetime):
+            continue
+        if isinstance(v, enum.Enum):
+            continue
+        sv = spb.SettingsValue()
+        if v is None:
+            sv.null_value = True
+        elif isinstance(v, int):
+            sv.int_value = v
+        elif isinstance(v, float):
+            sv.float_value = v
+        elif isinstance(v, str):
+            sv.string_value = v
+        elif isinstance(v, bool):
+            sv.bool_value = v
+        elif isinstance(v, tuple):
+            sv.tuple_value.string_values.extend(v)
+        m[k].CopyFrom(sv)
 
 
 class _Service:
@@ -98,10 +130,13 @@ class _Service:
     def _get_stub(self) -> Optional[pbgrpc.InternalServiceStub]:
         return self._stub
 
-    def _svc_inform_init(self, run_id: str = None) -> None:
+    def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
         assert self._stub
-        assert run_id
+
         inform_init = spb.ServerInformInitRequest()
+        settings_dict = dict(settings)
+        settings_dict["_log_level"] = logging.DEBUG
+        _pbmap_apply_dict(inform_init._settings_map, settings_dict)
         inform_init._info.stream_id = run_id
         _ = self._stub.ServerInformInit(inform_init)
 

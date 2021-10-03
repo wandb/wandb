@@ -9,7 +9,6 @@
 """
 
 from concurrent import futures
-import datetime
 import logging
 import multiprocessing
 import os
@@ -18,15 +17,15 @@ import tempfile
 import threading
 from threading import Event
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 from typing import TYPE_CHECKING
 
 import grpc
 from six.moves import queue
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_server_pb2
-from wandb.proto import wandb_server_pb2_grpc
+from wandb.proto import wandb_server_pb2 as spb
+from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 from .. import lib as wandb_lib
@@ -34,6 +33,7 @@ from ..interface import interface
 
 
 if TYPE_CHECKING:
+    from google.protobuf.internal.containers import MessageMap
 
     class GrpcServerType(object):
         def __init__(self) -> None:
@@ -43,54 +43,26 @@ if TYPE_CHECKING:
             pass
 
 
-def _make_settings(seq_num: int) -> Dict[str, Any]:
-    log_level = logging.DEBUG
-    start_time = time.time()
-    start_datetime = datetime.datetime.now()
-    timespec = datetime.datetime.strftime(start_datetime, "%Y%m%d_%H%M%S")
-
-    wandb_dir = "wandb"
-    pid = os.getpid()
-    run_path = f"run-{timespec}-{pid}_{seq_num}-server"
-    run_dir = os.path.join(wandb_dir, run_path)
-    files_dir = os.path.join(run_dir, "files")
-    sync_file = os.path.join(run_dir, f"run-{start_time}.wandb")
-    os.makedirs(files_dir)
-    # TODO: use a real Settings object
-    settings = dict(
-        log_internal=os.path.join(run_dir, "debug-internal.log"),
-        files_dir=files_dir,
-        _start_time=start_time,
-        _start_datetime=start_datetime,
-        disable_code=None,
-        code_program=None,
-        save_code=None,
-        sync_file=sync_file,
-        _internal_queue_timeout=20,
-        _internal_check_process=8,
-        _disable_meta=True,
-        _disable_stats=False,
-        git_remote=None,
-        program=None,
-        resume=None,
-        ignore_globs=(),
-        offline=None,
-        _log_level=log_level,
-        run_id=None,
-        entity=None,
-        project=None,
-        run_group=None,
-        run_job_type=None,
-        run_tags=None,
-        run_name=None,
-        run_notes=None,
-        _jupyter=None,
-        _kaggle=None,
-        _offline=None,
-        email=None,
-        silent=None,
-    )
-    return settings
+def _dict_from_pbmap(pbmap: "MessageMap[str, spb.SettingsValue]") -> Dict[str, Any]:
+    d: Dict[str, Any] = dict()
+    for k in pbmap:
+        v_obj = pbmap[k]
+        v_type = v_obj.WhichOneof("value_type")
+        v: Union[int, str, float, None, tuple] = None
+        if v_type == "int_value":
+            v = v_obj.int_value
+        elif v_type == "string_value":
+            v = v_obj.string_value
+        elif v_type == "float_value":
+            v = v_obj.float_value
+        elif v_type == "bool_value":
+            v = v_obj.bool_value
+        elif v_type == "null_value":
+            v = None
+        elif v_type == "tuple_value":
+            v = tuple(v_obj.tuple_value.string_values)
+        d[k] = v
+    return d
 
 
 class StreamThread(threading.Thread):
@@ -131,6 +103,7 @@ class StreamRecord:
 
     def _wait_thread_active(self) -> None:
         result = self._iface.communicate_status()
+        # TODO: using the default communicate timeout, is that enough? retries?
         assert result
 
     def join(self) -> None:
@@ -161,6 +134,10 @@ class StreamAction:
     def set_handled(self) -> None:
         self._processed.set()
 
+    @property
+    def stream_id(self) -> str:
+        return self._stream_id
+
 
 class StreamMux:
     _streams_lock: threading.Lock
@@ -169,7 +146,6 @@ class StreamMux:
     _pid: Optional[int]
     _action_q: "queue.Queue[StreamAction]"
     _stopped: Event
-    _seq_num: int
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -178,7 +154,6 @@ class StreamMux:
         self._pid = None
         self._stopped = Event()
         self._action_q = queue.Queue()
-        self._seq_num = 0
 
     def set_port(self, port: int) -> None:
         self._port = port
@@ -186,8 +161,8 @@ class StreamMux:
     def set_pid(self, pid: int) -> None:
         self._pid = pid
 
-    def add_stream(self, stream_id: str) -> None:
-        action = StreamAction(action="add", stream_id=stream_id)
+    def add_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+        action = StreamAction(action="add", stream_id=stream_id, data=settings)
         self._action_q.put(action)
         action.wait_handled()
 
@@ -217,8 +192,8 @@ class StreamMux:
 
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord()
-        self._seq_num += 1
-        settings = _make_settings(seq_num=self._seq_num)
+        # run_id = action.stream_id  # will want to fix if a streamid != runid
+        settings = action._data
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
@@ -290,7 +265,7 @@ class StreamMux:
         pass
 
 
-class WandbServicer(wandb_server_pb2_grpc.InternalServiceServicer):
+class WandbServicer(spb_grpc.InternalServiceServicer):
     """Provides methods that implement functionality of route guide server."""
 
     _server: "GrpcServerType"
@@ -504,50 +479,41 @@ class WandbServicer(wandb_server_pb2_grpc.InternalServiceServicer):
         return result
 
     def ServerShutdown(  # noqa: N802
-        self,
-        request: wandb_server_pb2.ServerShutdownRequest,
-        context: grpc.ServicerContext,
-    ) -> wandb_server_pb2.ServerShutdownResponse:
-        result = wandb_server_pb2.ServerShutdownResponse()
+        self, request: spb.ServerShutdownRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerShutdownResponse:
+        result = spb.ServerShutdownResponse()
         self._server.stop(5)
         return result
 
     def ServerStatus(  # noqa: N802
-        self,
-        request: wandb_server_pb2.ServerStatusRequest,
-        context: grpc.ServicerContext,
-    ) -> wandb_server_pb2.ServerStatusResponse:
-        result = wandb_server_pb2.ServerStatusResponse()
+        self, request: spb.ServerStatusRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerStatusResponse:
+        result = spb.ServerStatusResponse()
         return result
 
     def ServerInformInit(  # noqa: N802
-        self,
-        request: wandb_server_pb2.ServerInformInitRequest,
-        context: grpc.ServicerContext,
-    ) -> wandb_server_pb2.ServerInformInitResponse:
+        self, request: spb.ServerInformInitRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerInformInitResponse:
         stream_id = request._info.stream_id
-        self._mux.add_stream(stream_id)
-        result = wandb_server_pb2.ServerInformInitResponse()
+        settings = _dict_from_pbmap(request._settings_map)
+        self._mux.add_stream(stream_id, settings=settings)
+        result = spb.ServerInformInitResponse()
         return result
 
     def ServerInformFinish(  # noqa: N802
-        self,
-        request: wandb_server_pb2.ServerInformFinishRequest,
-        context: grpc.ServicerContext,
-    ) -> wandb_server_pb2.ServerInformFinishResponse:
+        self, request: spb.ServerInformFinishRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerInformFinishResponse:
         stream_id = request._info.stream_id
         self._mux.del_stream(stream_id)
-        result = wandb_server_pb2.ServerInformFinishResponse()
+        result = spb.ServerInformFinishResponse()
         return result
 
     def ServerInformTeardown(  # noqa: N802
-        self,
-        request: wandb_server_pb2.ServerInformTeardownRequest,
-        context: grpc.ServicerContext,
-    ) -> wandb_server_pb2.ServerInformTeardownResponse:
+        self, request: spb.ServerInformTeardownRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerInformTeardownResponse:
         exit_code = request.exit_code
         self._mux.teardown(exit_code)
-        result = wandb_server_pb2.ServerInformTeardownResponse()
+        result = spb.ServerInformTeardownResponse()
         return result
 
 
@@ -590,9 +556,7 @@ class GrpcServer:
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         servicer = WandbServicer(server=server, mux=mux)
         try:
-            wandb_server_pb2_grpc.add_InternalServiceServicer_to_server(
-                servicer, server
-            )
+            spb_grpc.add_InternalServiceServicer_to_server(servicer, server)
             port = server.add_insecure_port(f"{address}:{port}")
             mux.set_port(port)
             mux.set_pid(pid)

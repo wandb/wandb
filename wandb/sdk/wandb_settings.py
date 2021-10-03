@@ -513,6 +513,8 @@ class Settings(object):
                 console = "wrap"
             elif self.start_method == "thread":
                 console = "wrap"
+            elif self._concurrency:
+                console = "wrap"
             elif self._windows:
                 console = "wrap"
                 # legacy_env_var = "PYTHONLEGACYWINDOWSSTDIO"
