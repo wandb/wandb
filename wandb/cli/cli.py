@@ -11,7 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile as nativetempfile
+import tempfile
 import textwrap
 import time
 import traceback
@@ -32,7 +32,6 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 
@@ -45,7 +44,7 @@ import yaml
 # Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
-    _wandb_dir = nativetempfile.gettempdir()
+    _wandb_dir = tempfile.gettempdir()
 logging.basicConfig(
     filename=os.path.join(_wandb_dir, "debug-cli.log"),
     level=logging.INFO,
@@ -1921,8 +1920,11 @@ def verify(host):
     elif host != api.settings("base_url"):
         reinit = True
 
-    tmp_dir = tempfile.TemporaryDirectory()
-    os.chdir(tmp_dir.name)
+    tmp_dir = tempfile.mkdtemp()
+    print(
+        "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
+    )
+    os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
     if reinit:
@@ -1944,6 +1946,7 @@ def verify(host):
             "Checking requests made over signed URLs",
             "Signed URL requests not made over https. SSL is required for secure communications.",
         )
+        wandb_verify.check_cors_configuration(url, host)
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()

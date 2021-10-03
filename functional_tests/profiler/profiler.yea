@@ -1,0 +1,25 @@
+id: 0.profiler
+plugin:
+  - wandb
+var:
+  - run0:
+      :fn:find:
+      - item
+      - :wandb:runs
+      - :item[config][id]: 0
+  - count0:
+      :fn:count_regex:
+      - item
+      - :wandb:runs[0][files]
+      - .*pt.trace.json
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config]: { id: profiler_sync_trace_files }
+  - :op:contains_regex:
+      - :wandb:runs[0][files]
+      - .*pt.trace.json
+  - :op:contains:
+      - :wandb:runs[0][telemetry][3]
+      - 21
+  - :count0: 1
+  - :wandb:runs[0][exitcode]: 0
