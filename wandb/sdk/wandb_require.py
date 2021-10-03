@@ -15,6 +15,7 @@ from typing import Sequence, Union
 
 import wandb
 from wandb.errors import RequireError
+from wandb.sdk import wandb_run
 
 
 class _Requires(object):
@@ -33,6 +34,8 @@ class _Requires(object):
     def _require_concurrency(self) -> None:
         os.environ["WANDB_REQUIRE_CONCURRENCY"] = "True"
         wandb.teardown = wandb._teardown  # type: ignore
+        wandb.attach = wandb._attach  # type: ignore
+        wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
     def require_concurrency(self) -> None:
         self._require_concurrency()
@@ -77,3 +80,12 @@ def require(
 
     f = _Requires(features=features)
     f.apply()
+
+
+def _import_module_hook() -> None:
+    """On wandb import, setup anything needed based on parent process require calls."""
+    # TODO: optimize by caching which pids this has been done for or use real import hooks
+    # TODO: make this more generic, but for now this works
+    req_concurrency = os.environ.get("WANDB_REQUIRE_CONCURRENCY")
+    if req_concurrency:
+        require("concurrency")

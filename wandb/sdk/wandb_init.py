@@ -638,6 +638,19 @@ def getcaller():
     print("Problem at:", src, line, func)
 
 
+def _attach(
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+) -> Union[Run, RunDisabled, None]:
+    """Attach to a run currently executing in another process/thread.
+
+    Arguments:
+        attach_id: (str, optional) The id of the run or an attach identifier
+            that maps to a run.
+        run_id: (str, optional) The id of the run to attach to.
+    """
+    pass
+
+
 def init(
     job_type: Optional[str] = None,
     dir=None,

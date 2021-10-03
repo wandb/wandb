@@ -39,6 +39,7 @@ wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
+_attach = wandb_sdk._attach
 _teardown = wandb_sdk.teardown
 save = wandb_sdk.save
 watch = wandb_sdk.watch
@@ -60,6 +61,10 @@ from wandb.errors import CommError, UsageError
 
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader
+
+# Call import module hook to setup any needed require hooks
+wandb.sdk.wandb_require._import_module_hook()
+
 from wandb import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)

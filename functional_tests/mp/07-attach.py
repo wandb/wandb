@@ -8,7 +8,7 @@ import yea
 
 
 def process_child(attach_id):
-    run_child = wandb.init(attach=attach_id)
+    run_child = wandb.attach(attach_id=attach_id)
     run_child.config.c2 = 22
     run_child.log({"s1": 21})
     run_child.log({"s2": 22})
@@ -23,7 +23,7 @@ def main():
     run.log(dict(s2=12, s4=14))
 
     # Start a new run in parallel in a child process
-    attach_id = run._attach_id
+    attach_id = run.id
     p = mp.Process(target=process_child, kwargs=dict(attach_id=attach_id))
     p.start()
     p.join()
