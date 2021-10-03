@@ -128,6 +128,9 @@ class StreamAction:
         self._data = data
         self._processed = Event()
 
+    def __repr__(self) -> str:
+        return f"StreamAction({self._action},{self._stream_id})"
+
     def wait_handled(self) -> None:
         self._processed.wait()
 
@@ -210,8 +213,8 @@ class StreamMux:
 
     def _process_del(self, action: StreamAction) -> None:
         with self._streams_lock:
-            stream = self._streams.pop(action._stream_id)
-        stream.join()
+            _ = self._streams.pop(action._stream_id)
+        # TODO: we assume stream has already been shutdown.  should we verify?
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
@@ -221,17 +224,23 @@ class StreamMux:
             wandb.termlog(f"Finishing run: {sid}...")  # type: ignore
             stream.interface.publish_exit(exit_code)
 
+        streams_to_join = []
         while streams:
             for sid, stream in list(streams.items()):
                 poll_exit_resp = stream.interface.communicate_poll_exit()
                 if poll_exit_resp and poll_exit_resp.done:
                     streams.pop(sid)
+                    streams_to_join.append(stream)
                 time.sleep(0.1)
+
+        # TODO: this would be nice to do in parallel
+        for stream in streams_to_join:
+            stream.join()
+
         wandb.termlog("Done!")  # type: ignore
 
     def _process_teardown(self, action: StreamAction) -> None:
         exit_code: int = action._data
-        # TODO: find any running streams and shut them down
         with self._streams_lock:
             streams_copy = self._streams.copy()
             self._streams = dict()
