@@ -82,8 +82,7 @@ def wandb_internal(
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
-    if user_pid == 0:
-        user_pid = os.getppid()
+    user_pid = user_pid or os.getppid()
     pid = os.getpid()
 
     logger.info(

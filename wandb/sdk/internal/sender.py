@@ -234,12 +234,8 @@ class SendManager(object):
         resp: wandb_internal_pb2.AttachResponse,
     ) -> None:
         attach_id = req.attach_id
-        if not attach_id:
-            resp.error.message = "NoAttach"
-            return
-        if not self._run:
-            resp.error.message = "NoRun"
-            return
+        assert attach_id
+        assert self._run
         resp.run.CopyFrom(self._run)
 
     def send_request_attach(self, record) -> None:
