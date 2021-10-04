@@ -1,3 +1,38 @@
+## 0.12.3 (September 30, 2021)
+
+#### :bug: Bug Fix
+
+- Fixes the grid search stopping condition in the local controller
+
+#### :nail_care: Enhancement
+
+- New jupyter magic for displaying runs, sweeps, and projects `%wandb path/to/run -h 1024`
+- We no longer display run iframe by default in jupyter, add `%%wandb` to a cell to display a run
+- Makes api key prompting retry indefinitely on malformed input
+- Invite users to teams via the api `api.team("team_name").invite("username_or_email")`
+- Remove users from a team via the api `api.team("team_name").members[0].delete()`
+- Create service accounts via the api `api.team("team_name").create_service_account("Description")`
+- Manage api keys via the api `api.user("username_or_email").generate_api_key()`
+- Add pytorch profiling trace support with `wandb.profiler.torch_trace_handler()`
+
+## 0.12.2 (September 15, 2021)
+
+#### :bug: Bug Fix
+
+- Fix tensorboard_sync to handle ephemeral Sagemaker tfevents files
+- Fix Reports query from the public api (broken pagination and report path)
+- Fix `wandb.login()` when relogin is specified (only force login once)
+
+#### :nail_care: Enhancement
+
+- Clean up footer output of summary and history metrics
+- Clean up error message from `wandb sweep --update`
+- Add warning for `wandb local` users to update their docker
+- Add optional argument log_learning_curve to wandb.sklearn.plot_classifier()
+- Restore frozen pip package versions when using `wandb launch`
+- Add support for jupyter notebooks in launch
+- Add `wandb.login()` timeout option
+
 ## 0.12.1 (August 26, 2021)
 
 #### :bug: Bug Fix

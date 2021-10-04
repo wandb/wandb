@@ -94,6 +94,21 @@ def check_secure_requests(url: str, test_url_string: str, failure_output: str) -
     print_results(fail_string, True)
 
 
+def check_cors_configuration(url: str, origin: str) -> None:
+    print("Checking CORs configuration of the bucket".ljust(72, "."), end="")
+    fail_string = None
+    res_get = requests.options(
+        url, headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
+    )
+
+    if res_get.headers.get("Access-Control-Allow-Origin") is None:
+        fail_string = "Your object store does not have a valid CORs configuration, you must allow GET and PUT to Origin: {}".format(
+            origin
+        )
+
+    print_results(fail_string, True)
+
+
 def check_run(api: Api) -> bool:
     print(
         "Checking logged metrics, saving and downloading a file".ljust(72, "."), end=""
@@ -173,22 +188,11 @@ def check_run(api: Api) -> bool:
         read_file = retry_fn(partial(prev_run.file, filepath))
         read_file = read_file.download(replace=True)
     except Exception:
-        with wandb.init(
-            reinit=True, project=PROJECT_NAME, config={"test": "test direct saving"}
-        ) as run:
-            saved, status_code, _ = try_manual_save(api, filepath, run.id, run.entity)
-            if saved:
-                failed_test_strings.append(
-                    "Unable to download file. Check SQS configuration, topic configuration and bucket permissions."
-                )
-            else:
-                failed_test_strings.append(
-                    "Unable to save file with status code: {}. Check SQS configuration and bucket permissions.".format(
-                        status_code
-                    )
-                )
+        failed_test_strings.append(
+            "Unable to download file. Check SQS configuration, topic configuration and bucket permissions."
+        )
 
-            print_results(failed_test_strings, False)
+        print_results(failed_test_strings, False)
         return False
     contents = read_file.read()
     if contents != "test":
@@ -197,32 +201,6 @@ def check_run(api: Api) -> bool:
         )
     print_results(failed_test_strings, False)
     return len(failed_test_strings) == 0
-
-
-def try_manual_save(
-    api: Api, filepath: str, run_id: str, entity: str
-) -> Tuple[bool, int, Optional[str]]:
-
-    run_id, upload_headers, result = api.api.upload_urls(
-        PROJECT_NAME, [filepath], run_id, entity
-    )
-    extra_headers = {}
-    for upload_header in upload_headers:
-        key, val = upload_header.split(":", 1)
-        extra_headers[key] = val
-
-    for _, file_info in result.items():
-        file_url = file_info["url"]
-        # If the upload URL is relative, fill it in with the base URL,
-        # since its a proxied file store like the on-prem VM.
-        if file_url.startswith("/"):
-            file_url = "{}{}".format(api.api.api_url, file_url)
-        response = requests.put(file_url, open(filepath, "rb"), headers=extra_headers)
-        break
-    if response.status_code != 200:
-        return False, response.status_code, response.request.url
-    else:
-        return True, response.status_code, response.request.url
 
 
 def verify_manifest(
@@ -394,17 +372,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     with wandb.init(
         reinit=True, project=PROJECT_NAME, config={"test": "put to graphql"}
     ) as run:
-        saved, status_code, url = try_manual_save(api, gql_fp, run.id, run.entity)
-        if not saved:
-            print_results(
-                "Server failed to accept a graphql put request with response {}. Check bucket permissions.".format(
-                    status_code
-                ),
-                False,
-            )
-
-            # next test will also fail if this one failed. So terminate this test here.
-            return False, None
+        wandb.save(gql_fp)
     public_api = wandb.Api()
     prev_run = public_api.run("{}/{}/{}".format(run.entity, PROJECT_NAME, run.id))
     if prev_run is None:
@@ -416,6 +384,7 @@ def check_graphql_put(api: Api, host: str) -> Tuple[bool, Optional[str]]:
     # TODO: (kdg) refactor this so it doesn't rely on an exception handler
     try:
         read_file = retry_fn(partial(prev_run.file, gql_fp))
+        url = read_file.url
         read_file = read_file.download(replace=True)
     except Exception:
         failed_test_strings.append(

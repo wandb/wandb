@@ -902,9 +902,9 @@ class SendManager(object):
         artifact = record.request.log_artifact.artifact
 
         try:
-            result.response.log_artifact_response.artifact_id = self._send_artifact(
-                artifact
-            ).get("id")
+            res = self._send_artifact(artifact)
+            result.response.log_artifact_response.artifact_id = res.get("id")
+            logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -915,7 +915,8 @@ class SendManager(object):
     def send_artifact(self, data):
         artifact = data.artifact
         try:
-            self._send_artifact(artifact)
+            res = self._send_artifact(artifact)
+            logger.info("sent artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
@@ -1027,6 +1028,10 @@ class SendManager(object):
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
+
+        if self._settings._offline:
+            local_info.out_of_date = False
+            return local_info
 
         latest_local_version = "latest"
 
