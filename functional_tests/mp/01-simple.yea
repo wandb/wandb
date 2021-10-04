@@ -1,4 +1,4 @@
-id: 0.mp.01-simple-nofinish
+id: 0.mp.01-simple
 plugin:
   - wandb
 tag:
