@@ -141,6 +141,16 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
                 )
+        self.ServerInformAttach = channel.unary_unary(
+                '/wandb_internal.InternalService/ServerInformAttach',
+                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.FromString,
+                )
+        self.ServerInformDetach = channel.unary_unary(
+                '/wandb_internal.InternalService/ServerInformDetach',
+                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.FromString,
+                )
         self.ServerInformTeardown = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformTeardown',
                 request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformTeardownRequest.SerializeToString,
@@ -301,6 +311,18 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ServerInformAttach(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ServerInformDetach(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ServerInformTeardown(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -434,6 +456,16 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.ServerInformFinish,
                     request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.SerializeToString,
+            ),
+            'ServerInformAttach': grpc.unary_unary_rpc_method_handler(
+                    servicer.ServerInformAttach,
+                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.SerializeToString,
+            ),
+            'ServerInformDetach': grpc.unary_unary_rpc_method_handler(
+                    servicer.ServerInformDetach,
+                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.SerializeToString,
             ),
             'ServerInformTeardown': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformTeardown,
@@ -872,6 +904,40 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformFinish',
             wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ServerInformAttach(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformAttach',
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformAttachResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ServerInformDetach(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformDetach',
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformDetachResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

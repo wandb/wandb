@@ -625,7 +625,40 @@ def _attach(
             that maps to a run.
         run_id: (str, optional) The id of the run to attach to.
     """
-    pass
+    attach_id = attach_id or run_id
+    assert attach_id
+    wandb._assert_is_user_process()
+
+    _wl = wandb_setup._setup()
+
+    _set_logger(_wl._get_logger())
+    assert logger
+
+    manager = _wl._get_manager()
+    if manager:
+        manager._inform_attach(attach_id=attach_id)
+
+    settings: Settings = _wl._clone_settings()
+    settings.run_id = attach_id
+
+    backend = Backend(settings=settings, manager=manager)
+    backend.ensure_launched()
+    backend.server_connect()
+    logger.info("attach backend started and connected")
+
+    run = Run(settings=settings)
+    run._set_library(_wl)
+    run._set_backend(backend)
+    backend._hack_set_run(run)
+    assert backend.interface
+
+    resp = backend.interface.communicate_attach(attach_id)
+    if not resp:
+        raise UsageError("problem")
+    if resp and resp.error and resp.error.message:
+        raise UsageError("bad: {}".format(resp.error.message))
+    run._set_run_obj(resp.run)
+    return run
 
 
 def init(
@@ -792,7 +825,6 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
-            See https://docs.wandb.com/library/resuming
 
     Examples:
         Basic usage

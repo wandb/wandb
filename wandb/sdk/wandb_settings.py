@@ -618,7 +618,7 @@ class Settings(object):
         return None
 
     def _validate_start_method(self, value: str) -> Optional[str]:
-        available_methods = ["thread", "grpc"]
+        available_methods = ["thread"]
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
         if value in available_methods:

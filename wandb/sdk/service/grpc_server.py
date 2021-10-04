@@ -517,6 +517,20 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = spb.ServerInformFinishResponse()
         return result
 
+    def ServerInformAttach(  # noqa: N802
+        self, request: spb.ServerInformAttachRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerInformAttachResponse:
+        # TODO
+        result = spb.ServerInformAttachResponse()
+        return result
+
+    def ServerInformDetach(  # noqa: N802
+        self, request: spb.ServerInformDetachRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerInformDetachResponse:
+        # TODO
+        result = spb.ServerInformDetachResponse()
+        return result
+
     def ServerInformTeardown(  # noqa: N802
         self, request: spb.ServerInformTeardownRequest, context: grpc.ServicerContext,
     ) -> spb.ServerInformTeardownResponse:

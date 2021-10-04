@@ -62,7 +62,6 @@ class Backend(object):
         self.result_q = None
         self.wandb_process = None
         self.interface = None
-        self.interface_grpc = None
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level

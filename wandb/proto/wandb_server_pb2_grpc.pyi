@@ -110,6 +110,14 @@ class InternalServiceStub:
         request: global___ServerInformFinishRequest,
     ) -> global___ServerInformFinishResponse: ...
 
+    def ServerInformAttach(self,
+        request: global___ServerInformAttachRequest,
+    ) -> global___ServerInformAttachResponse: ...
+
+    def ServerInformDetach(self,
+        request: global___ServerInformDetachRequest,
+    ) -> global___ServerInformDetachResponse: ...
+
     def ServerInformTeardown(self,
         request: global___ServerInformTeardownRequest,
     ) -> global___ServerInformTeardownResponse: ...
@@ -265,6 +273,18 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: global___ServerInformFinishRequest,
         context: grpc.ServicerContext,
     ) -> global___ServerInformFinishResponse: ...
+
+    @abc.abstractmethod
+    def ServerInformAttach(self,
+        request: global___ServerInformAttachRequest,
+        context: grpc.ServicerContext,
+    ) -> global___ServerInformAttachResponse: ...
+
+    @abc.abstractmethod
+    def ServerInformDetach(self,
+        request: global___ServerInformDetachRequest,
+        context: grpc.ServicerContext,
+    ) -> global___ServerInformDetachResponse: ...
 
     @abc.abstractmethod
     def ServerInformTeardown(self,

@@ -147,6 +147,13 @@ class _Service:
         inform_fin._info.stream_id = run_id
         _ = self._stub.ServerInformFinish(inform_fin)
 
+    def _svc_inform_attach(self, attach_id: str) -> None:
+        assert self._stub
+
+        inform_attach = spb.ServerInformAttachRequest()
+        inform_attach._info.stream_id = attach_id
+        _ = self._stub.ServerInformAttach(inform_attach)
+
     def _svc_inform_teardown(self, exit_code: int) -> None:
         assert self._stub
         inform_fin = spb.ServerInformTeardownRequest(exit_code=exit_code)

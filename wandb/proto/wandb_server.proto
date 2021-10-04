@@ -32,6 +32,8 @@ service InternalService {
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
   rpc ServerInformInit(ServerInformInitRequest) returns (ServerInformInitResponse) {}
   rpc ServerInformFinish(ServerInformFinishRequest) returns (ServerInformFinishResponse) {}
+  rpc ServerInformAttach(ServerInformAttachRequest) returns (ServerInformAttachResponse) {}
+  rpc ServerInformDetach(ServerInformDetachRequest) returns (ServerInformDetachResponse) {}
   rpc ServerInformTeardown(ServerInformTeardownRequest) returns (ServerInformTeardownResponse) {}
 }
 
@@ -77,6 +79,20 @@ message ServerInformFinishRequest {
 }
 
 message ServerInformFinishResponse {
+}
+
+message ServerInformAttachRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformAttachResponse {
+}
+
+message ServerInformDetachRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformDetachResponse {
 }
 
 message ServerInformTeardownRequest {

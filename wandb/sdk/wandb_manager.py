@@ -122,6 +122,11 @@ class _Manager:
         assert svc
         svc._svc_inform_init(settings=settings, run_id=run_id)
 
+    def _inform_attach(self, attach_id: str) -> None:
+        svc = self._service
+        assert svc
+        svc._svc_inform_attach(attach_id=attach_id)
+
     def _inform_finish(self, run_id: str = None) -> None:
         svc = self._service
         assert svc
