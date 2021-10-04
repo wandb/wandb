@@ -503,6 +503,11 @@ class Run(object):
         return self._settings._tmp_files_dir
 
     @property
+    def _tmp_files_dir2(self) -> str:
+        """Returns the directory where file paths associated with the run are saved."""
+        return self._settings._tmp_files_dir2
+
+    @property
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config

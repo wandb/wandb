@@ -474,6 +474,10 @@ class Media(WBValue):
     def get_media_subdir(cls: Type["Media"]) -> str:
         raise NotImplementedError
 
+    @classmethod
+    def get_tmp_media_subdir(cls: Type["Media"]) -> str:
+        raise NotImplementedError
+
     @staticmethod
     def captions(
         media_items: Sequence["Media"],
@@ -527,12 +531,17 @@ class Media(WBValue):
             id_ = self._sha256[:20]
 
         file_path = _wb_filename(key, step, id_, extension)
-        media_path = os.path.join(self.get_media_subdir(), file_path)
+        tmp_media_path = os.path.join(self.get_tmp_media_subdir(), file_path)
 
-        new_path = os.path.join(self._run.dir, media_path)
+        new_path = os.path.join(self._run._settings._sync_dir, tmp_media_path)
+        print("file_path", file_path)
+        print("tmp_files_dir2", self._run._tmp_files_dir2)
+        print("tmp_media_p[ath", tmp_media_path)
+        print("new_path", new_path)
+        print()
         util.mkdir_exists_ok(os.path.dirname(new_path))
 
-        self.file_name_path = os.path.join(self._run._tmp_files_dir, media_path)
+        self.file_name_path = os.path.join(self._run._tmp_files_dir, tmp_media_path)
         util.mkdir_exists_ok(os.path.dirname(self.file_name_path))
         with open(self.file_name_path, "w") as fp:
             fp.write(new_path)
@@ -544,11 +553,12 @@ class Media(WBValue):
             self._is_tmp = False
             # _datatypes_callback(media_path)
         else:
-            shutil.copy(self._path, new_path)
-            self._path = new_path
+            if self._path != new_path:
+                shutil.copy(self._path, new_path)
+                self._path = new_path
             # _datatypes_callback(media_path)
         assert os.path.exists(new_path)
-        return _datatypes_callback, media_path
+        return _datatypes_callback, tmp_media_path
 
     def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
         """Serializes the object into a JSON blob, using a run or artifact to store additional data. If `run_or_artifact`
@@ -831,6 +841,10 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: Type["Object3D"]) -> str:
         return os.path.join("media", "object3D")
 
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "object3D")
+
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Object3D, self).to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
@@ -857,7 +871,10 @@ class Object3D(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(cls.get_media_subdir())
-            if not obj["path"].startswith(expected):
+            expected_tmp = util.to_forward_slash_path(cls.get_tmp_media_subdir())
+            if not obj["path"].startswith(expected) and not obj["path"].startswith(
+                expected_tmp
+            ):
                 raise ValueError(
                     "Files in an array of Object3D's must be in the {} directory, not {}".format(
                         expected, obj["path"]
@@ -934,6 +951,10 @@ class Molecule(BatchableMedia):
     def get_media_subdir(cls: Type["Molecule"]) -> str:
         return os.path.join("media", "molecule")
 
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "molecule")
+
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Molecule, self).to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
@@ -955,7 +976,10 @@ class Molecule(BatchableMedia):
 
         for obj in jsons:
             expected = util.to_forward_slash_path(cls.get_media_subdir())
-            if not obj["path"].startswith(expected):
+            expected_tmp = util.to_forward_slash_path(cls.get_tmp_media_subdir())
+            if not obj["path"].startswith(expected) and not obj["path"].startswith(
+                expected_tmp
+            ):
                 raise ValueError(
                     "Files in an array of Molecule's must be in the {} directory, not {}".format(
                         cls.get_media_subdir(), obj["path"]
@@ -1032,6 +1056,10 @@ class Html(BatchableMedia):
     @classmethod
     def get_media_subdir(cls: Type["Html"]) -> str:
         return os.path.join("media", "html")
+
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "html")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Html, self).to_json(run_or_artifact)
@@ -1175,6 +1203,10 @@ class Video(BatchableMedia):
     def get_media_subdir(cls: Type["Video"]) -> str:
         return os.path.join("media", "videos")
 
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "video")
+
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Video, self).to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
@@ -1272,6 +1304,10 @@ class JSONMetadata(Media):
     @classmethod
     def get_media_subdir(cls: Type["JSONMetadata"]) -> str:
         return os.path.join("media", "metadata", cls.type_name())
+
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "metadata", cls.type_name())
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(JSONMetadata, self).to_json(run_or_artifact)
@@ -1413,6 +1449,10 @@ class ImageMask(Media):
     @classmethod
     def get_media_subdir(cls: Type["ImageMask"]) -> str:
         return os.path.join("media", "images", cls.type_name())
+
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("tmp_media", "images", cls.type_name())
 
     @classmethod
     def from_json(
@@ -1995,6 +2035,10 @@ class Image(BatchableMedia):
     def get_media_subdir(cls: Type["Image"]) -> str:
         return os.path.join("media", "images")
 
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("tmp_media", "images")
+
     def bind_to_run(
         self,
         run: "LocalRun",
@@ -2130,11 +2174,17 @@ class Image(BatchableMedia):
         media_dir = cls.get_media_subdir()
 
         for obj in jsons:
-            expected = util.to_forward_slash_path(media_dir)
-            if not obj["path"].startswith(expected):
+            expected = util.to_forward_slash_path(cls.get_media_subdir())
+            expected_tmp = util.to_forward_slash_path(
+                os.path.join("..", cls.get_tmp_media_subdir())
+            )
+            print(expected_tmp, obj["path"])
+            if not obj["path"].startswith(expected) and not obj["path"].startswith(
+                expected_tmp
+            ):
                 raise ValueError(
-                    "Files in an array of Image's must be in the {} directory, not {}".format(
-                        cls.get_media_subdir(), obj["path"]
+                    "Files in an array of Image's must be in the {} or {} directory, not {}".format(
+                        cls.get_media_subdir(), cls.get_tmp_media_subdir(), obj["path"],
                     )
                 )
 
@@ -2323,6 +2373,10 @@ class Plotly(Media):
     @classmethod
     def get_media_subdir(cls: Type["Plotly"]) -> str:
         return os.path.join("media", "plotly")
+
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "plotly")
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Plotly, self).to_json(run_or_artifact)

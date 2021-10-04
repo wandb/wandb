@@ -29,6 +29,7 @@ import six
 from six.moves.queue import Queue
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import Record, Result
+from wandb import util
 
 from . import meta, sample, stats
 from . import tb_watcher
@@ -180,38 +181,53 @@ class HandleManager(object):
         logger.info("FILES {} {}".format(self._step, record))
         if record.files.is_history_media:
             record = self.reassign_files_step(record)
-
+            logger.info("FILES2 {} {}".format(self._step, record))
         self._dispatch_record(record)
 
     def reassign_files_step(self, record: Record):
         for file in record.files.files:
             orig_path = file.path
-            full_prefix = file.path.rsplit("_", 2)[0]
+
+            drop_first = ("/").join(file.path.split("/")[1:])
+            full_prefix = drop_first.rsplit("_", 2)[0]
             base_path_info = orig_path.split("/", 2)[-1]
             key, fstep, tail = base_path_info.rsplit("_", 2)
             logger.info(
                 "map info {} {} {}".format(orig_path, key, self._file_names_map)
             )
-            if self._file_names_map.get(key) is None:
-                continue
-            new_step = self._file_names_map[key][fstep]
-            if int(fstep) != new_step:
-                new_path = f"{full_prefix}_{new_step}_{tail}"
-                file.path = new_path
-                full_new_path = os.path.join(self._settings.files_dir, new_path)
-                rewrite_path = os.path.join(self._settings._tmp_files_dir, orig_path)
-                logger.info(
-                    "moving {} to {}".format(
-                        os.path.join(self._settings.files_dir, orig_path), full_new_path
+            rewrite_path = os.path.join(self._settings._tmp_files_dir, orig_path)
+            if self._file_names_map.get(key) is not None:
+                new_step = self._file_names_map[key][fstep]
+                if int(fstep) != new_step:
+                    new_path = f"{full_prefix}_{new_step}_{tail}"
+                    file.path = new_path
+                    full_new_path = os.path.join(
+                        self._settings.files_dir, "media", new_path
                     )
+                else:
+                    new_path = f"{full_prefix}_{fstep}_{tail}"
+                    file.path = new_path
+                    full_new_path = os.path.join(
+                        self._settings.files_dir, "media", new_path
+                    )
+
+            else:
+                full_new_path = os.path.join(
+                    self._settings.files_dir, "media", drop_first
                 )
-                assert os.path.exists(rewrite_path), rewrite_path
-                with open(rewrite_path, "w") as fp:
-                    fp.write(full_new_path)
-                if os.path.join(self._settings.files_dir, orig_path) != full_new_path:
-                    shutil.move(
-                        os.path.join(self._settings.files_dir, orig_path), full_new_path
-                    )
+                file.path = drop_first
+            assert os.path.exists(rewrite_path), rewrite_path
+            with open(rewrite_path, "w") as fp:
+                fp.write(full_new_path)
+            util.mkdir_exists_ok(os.path.dirname(full_new_path))
+            shutil.move(
+                os.path.join(self._settings._sync_dir, orig_path), full_new_path
+            )
+            logger.info(
+                "moving {} to {}".format(
+                    os.path.join(self._settings.files_dir, orig_path), full_new_path
+                )
+            )
 
         return record
 
@@ -457,20 +473,57 @@ class HandleManager(object):
             kl=kl, v=v, history_dict=history_dict, update_history=update_history
         )
 
+    def _recursively_update_paths(self, history_dict, update_history, keys):
+        for hkey, hval in history_dict.items():
+            logger.info("recurse check {}", hval)
+            if (
+                isinstance(hval, dict)
+                and hval.get("_type")
+                and hval.get("path") is not None
+            ):
+                update_history[hkey] = history_dict[hkey]
+                orig_path = hval["path"].split("/", 2)[-1]
+                update_history[hkey] = history_dict[hkey]
+                update_history[hkey]["path"] = os.path.join("media", orig_path)
+            elif isinstance(hval, dict) and hval.get("_type") is None:
+                update_history[hkey] = history_dict[hkey]
+                self._recursively_update_paths(
+                    history_dict[hkey], update_history[hkey], keys + [hkey]
+                )
+
     def _history_update(self, record: Record, history_dict: Dict, wandb_step) -> None:
         # if syncing an old run, we can skip this logic
+        update_history: Dict[str, Any] = {}
         if history_dict.get("_step") is None:
             if wandb_step is not None:
+
                 for k, v in history_dict.items():
                     # TODO: recursively update path
+                    logger.info("key val check {} {}".format(k, v))
                     if isinstance(v, dict) and v.get("_type") and v.get("path") is None:
                         if self._file_names_map.get(k) is not None:
                             self._file_names_map[k][str(wandb_step)] = self._step
                         else:
                             self._file_names_map[k] = {}
                             self._file_names_map[k][str(wandb_step)] = self._step
+                    elif (
+                        isinstance(v, dict)
+                        and v.get("_type")
+                        and v.get("path") is not None
+                    ):
+                        update_history[k] = history_dict[k]
+                        orig_path = v["path"].split("/", 2)[-1]
+                        new_path = os.path.join(self._settings.files_dir, orig_path)
+
+                        update_history[k]["path"] = new_path
+                    elif isinstance(v, dict):
+                        update_history[k] = history_dict[k]
+                        self._recursively_update_paths(
+                            history_dict[k], update_history[k], [k]
+                        )
             self._history_assign_step(record, history_dict)
-        update_history: Dict[str, Any] = {}
+
+        logger.info("FORK {}".format(update_history))
         # Look for metric matches
         if self._metric_defines or self._metric_globs:
             for hkey, hval in six.iteritems(history_dict):

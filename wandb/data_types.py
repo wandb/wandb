@@ -431,6 +431,10 @@ class Table(Media):
         return os.path.join("media", "table")
 
     @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "table")
+
+    @classmethod
     def from_json(cls, json_obj, source_artifact):
         data = []
         column_types = None
@@ -937,6 +941,10 @@ class Audio(BatchableMedia):
         return os.path.join("media", "audio")
 
     @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "audio")
+
+    @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(
             source_artifact.get_path(json_obj["path"]).download(),
@@ -1206,6 +1214,10 @@ class Bokeh(Media):
     def get_media_subdir(self):
         return os.path.join("media", "bokeh")
 
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "bokeh")
+
     def to_json(self, run):
         # TODO: (tss) this is getting redundant for all the media objects. We can probably
         # pull this into Media#to_json and remove this type override for all the media types.
@@ -1287,6 +1299,10 @@ class Graph(Media):
     @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "graph")
+
+    @classmethod
+    def get_tmp_media_subdir(cls):
+        return os.path.join("..", "tmp_media", "graph")
 
     def to_json(self, run):
         json_dict = super(Graph, self).to_json(run)

@@ -236,6 +236,7 @@ class Settings(object):
     sync_dir_spec: Optional[str] = None
     files_dir_spec: Optional[str] = None
     _tmp_files_dir_spec: Optional[str] = None
+    _tmp_files_dir_spec2: Optional[str] = None
     tmp_dir_spec: Optional[str] = None
     log_symlink_user_spec: Optional[str] = None
     log_symlink_internal_spec: Optional[str] = None
@@ -353,7 +354,8 @@ class Settings(object):
         log_symlink_internal_spec: str = "{wandb_dir}/debug-internal.log",
         resume_fname_spec: str = "{wandb_dir}/wandb-resume.json",
         files_dir_spec: str = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/files",
-        _tmp_files_dir_spec: str = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/media",
+        _tmp_files_dir_spec: str = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp_media_names",
+        _tmp_files_dir_spec2: str = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp_media",
         tmp_dir_spec: str = "{wandb_dir}/{run_mode}-{timespec}-{run_id}/tmp",
         symlink: bool = None,  # probed
         # where files are temporary stored when saving
@@ -575,6 +577,11 @@ class Settings(object):
     @property
     def _tmp_files_dir(self) -> str:
         file_path = self._path_convert(self._tmp_files_dir_spec)
+        return file_path
+
+    @property
+    def _tmp_files_dir2(self) -> str:
+        file_path = self._path_convert(self._tmp_files_dir_spec2)
         return file_path
 
     @property

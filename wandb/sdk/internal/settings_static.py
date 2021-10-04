@@ -19,7 +19,9 @@ class SettingsStatic(object):
     _disable_meta: "Optional[bool]"
     _start_time: float
     files_dir: str
+    _sync_dir: str
     _tmp_files_dir: str
+    _tmp_files_dir2: str
     log_internal: str
     _internal_check_process: bool
 
