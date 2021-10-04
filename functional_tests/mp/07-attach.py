@@ -13,12 +13,14 @@ def process_child(attach_id):
     run_child.log({"s1": 21})
     run_child.log({"s2": 22})
     run_child.log({"s3": 23})
+    print("child output")
 
 
 def main():
     wandb.require("concurrency")
 
     run = wandb.init()
+    print("parent output")
     run.config.c1 = 11
     run.log(dict(s2=12, s4=14))
 
@@ -30,6 +32,7 @@ def main():
 
     # run can still be logged to after join (and eventually anytime?)
     run.log(dict(s3=13))
+    print("more output from parent")
 
 
 if __name__ == "__main__":

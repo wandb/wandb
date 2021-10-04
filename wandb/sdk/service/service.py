@@ -97,7 +97,7 @@ class _Service:
             exec_cmd_list
             + [
                 "wandb",
-                "grpc-server",
+                "service",
                 "--port-filename",
                 fname,
                 "--pid",

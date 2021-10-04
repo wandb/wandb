@@ -234,22 +234,20 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
+    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
-@click.option(
-    "--port", default=None, type=int, help="The host port to bind grpc service."
-)
-@click.option("--port-filename", default=None, help="Save port to file.")
-@click.option("--address", default=None, help="The address to bind grpc service.")
-@click.option("--pid", default=None, type=int, help="The pid to monitor (0 is ppid)")
+@click.option("--port", default=None, type=int, help="The host port to bind service.")
+@click.option("--port-filename", default=None, help="Save allocated port to file.")
+@click.option("--address", default=None, help="The address to bind service.")
+@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
 @click.option("--debug", default=None)
 @display_error
-def grpc_server(
+def service(
     port=None, port_filename=None, address=None, pid=None, debug=None,
 ):
     _ = util.get_module(
         "grpc",
-        required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
+        required="wandb service requires the grpcio library, run pip install wandb[service]",
     )
     from wandb.sdk.service.grpc_server import GrpcServer
 

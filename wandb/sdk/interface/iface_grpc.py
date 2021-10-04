@@ -27,29 +27,24 @@ logger = logging.getLogger("wandb")
 class BackendGrpcSender(BackendSenderBase):
 
     _stub: Optional[pbgrpc.InternalServiceStub]
-    _grpc_port: Optional[int]
     _stream_id: Optional[str]
 
     def __init__(self) -> None:
         super(BackendGrpcSender, self).__init__()
         self._stub = None
         self._process_check = None
-        self._grpc_port = None
         self._stream_id = None
 
     def _hack_set_run(self, run: "Run") -> None:
         super(BackendGrpcSender, self)._hack_set_run(run)
-        if self._grpc_port:
-            run._set_iface_port(self._grpc_port)
-        if run.id:
-            self._stream_id = run.id
+        assert run.id
+        self._stream_id = run.id
 
     def _connect(self, stub: pbgrpc.InternalServiceStub) -> None:
         self._stub = stub
 
     def _assign(self, record: Any) -> None:
-        if not self._stream_id:
-            return
+        assert self._stream_id
         record._info.stream_id = self._stream_id
 
     def _communicate_check_version(

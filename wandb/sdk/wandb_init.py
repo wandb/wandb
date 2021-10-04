@@ -641,6 +641,7 @@ def _attach(
     settings: Settings = _wl._clone_settings()
     settings.run_id = attach_id
 
+    # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)
     backend.ensure_launched()
     backend.server_connect()
