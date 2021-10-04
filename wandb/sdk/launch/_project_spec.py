@@ -34,14 +34,14 @@ class LaunchProject(object):
 
     def __init__(
         self,
-        launch_spec
-        # uri: str,
-        # target_entity: str,
-        # target_project: str,
-        # name: Optional[str],
-        # docker_config: Dict[str, Any],
-        # git_info: Dict[str, str],
-        # overrides: Dict[str, Any],
+        uri: str,
+        launch_spec: Dict[str, Any],
+        target_entity: str,
+        target_project: str,
+        name: Optional[str],
+        docker_config: Dict[str, Any],
+        git_info: Dict[str, str],
+        overrides: Dict[str, Any],
     ):
         self.launch_spec = launch_spec
         self.uri = uri
@@ -312,6 +312,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
 
     return LaunchProject(
         uri,
+        launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
         name,
