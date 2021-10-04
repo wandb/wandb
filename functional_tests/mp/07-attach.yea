@@ -3,7 +3,6 @@ plugin:
   - wandb
 tag:
   shard: grpc
-  skip: true
 parametrize:
   permute:
     - :yea:start_method:
