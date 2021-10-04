@@ -63,7 +63,11 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self,
+        settings,
+        record_q,
+        result_q,
+        interface,
     ):
         self._settings = settings
         self._record_q = record_q
@@ -906,8 +910,10 @@ class SendManager(object):
             result.response.log_artifact_response.artifact_id = res.get("id")
             logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._result_q.put(result)
@@ -1028,6 +1034,10 @@ class SendManager(object):
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
+
+        if self._settings._offline:
+            local_info.out_of_date = False
+            return local_info
 
         latest_local_version = "latest"
 
