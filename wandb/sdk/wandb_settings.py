@@ -259,7 +259,6 @@ class Settings(object):
     resume: str
     strict: Optional[str] = None
     label_disable: Optional[bool] = None
-    _attach_id: Optional[str] = None
 
     # Public attributes
     entity: Optional[str] = None
@@ -413,7 +412,6 @@ class Settings(object):
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
-        _attach_id: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
@@ -1122,7 +1120,6 @@ class Settings(object):
             job_type="run_job_type",
             notes="run_notes",
             dir="root_dir",
-            attach="_attach_id",
         )
         args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
         # fun logic to convert the resume init arg

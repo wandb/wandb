@@ -246,6 +246,8 @@ class Run(object):
     _iface_pid: Optional[int]
     _iface_port: Optional[int]
 
+    _attach_id: Optional[str]
+
     def __init__(
         self,
         settings: Settings,
@@ -268,6 +270,7 @@ class Run(object):
         self._settings = settings
         self._wl = None
         self._reporter: Optional[Reporter] = None
+        self._attach_id = None
 
         self._entity = None
         self._project = None
@@ -1423,9 +1426,6 @@ class Run(object):
         return r.display_name
 
     def _display_run(self) -> None:
-        if self._settings._attach_id:
-            # TODO: any message here? it could end up in console logs, so maybe not?
-            return
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
@@ -1643,10 +1643,6 @@ class Run(object):
             self._on_final()
 
     def _console_start(self) -> None:
-        if self._settings._attach_id:
-            logger.info("not installing exit hooks in attach mode")
-            return
-
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()

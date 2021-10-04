@@ -163,12 +163,7 @@ class _WandbInit(object):
         # TODO: move above parameters into apply_init_login
         settings._apply_init_login(kwargs)
 
-        # TODO: Should we assume login isnt needed?  would be nice if login knew the settings
-        attach_intent = False
-        if "attach" in kwargs:
-            attach_intent = True
-
-        if not settings._offline and not settings._noop and not attach_intent:
+        if not settings._offline and not settings._noop:
             wandb_login._login(
                 anonymous=anonymous,
                 force=force,
@@ -434,19 +429,8 @@ class _WandbInit(object):
                         )
                     )
         elif isinstance(wandb.run, Run):
-            if wandb.run._init_pid == os.getpid():
-                logger.info("wandb.init() called when a run is still active")
-                return wandb.run
-            elif s._concurrency and not s._attach_id:
-                logger.error(
-                    "wandb.init() called when a run is still active. Unsafe mp usage."
-                )
-                return wandb.run
-
-        if s._attach_id and not s._concurrency:
-            wandb.termwarn(
-                "Must use 'concurrency' feature to use `wandb.init(attach=)` See: http://wandb.me/experiment-concurrency"
-            )
+            logger.info("wandb.init() called when a run is still active")
+            return wandb.run
 
         logger.info("starting backend")
 
@@ -553,14 +537,7 @@ class _WandbInit(object):
                 if check.yank_message:
                     run._set_yanked_version_message(check.yank_message)
             run._on_init()
-        if not s._offline and s._attach_id:
-            resp = backend.interface.communicate_attach(s._attach_id)
-            if not resp:
-                raise UsageError("problem")
-            if resp and resp.error and resp.error.message:
-                raise UsageError("bad: {}".format(resp.error.message))
-            run._set_run_obj(resp.run)
-        if not s._offline and not s._attach_id:
+        if not s._offline:
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
 
@@ -676,7 +653,6 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-    attach: str = None,
 ) -> Union[Run, RunDisabled, None]:
     """Starts a new run to track and log to W&B.
 
@@ -817,8 +793,6 @@ def init(
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
             See https://docs.wandb.com/library/resuming
-        attach: (str, optional) internal id used for multiprocess training.
-
 
     Examples:
         Basic usage
