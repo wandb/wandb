@@ -155,9 +155,8 @@ class LaunchProject(object):
 
             if patch:
                 utils.apply_patch(patch, self.project_dir)
-
-            # For cases where the entry point wasn't checked into git
             entry_point = run_info.get("codePath", run_info["program"])
+            # For cases where the entry point wasn't checked into git
             if not os.path.exists(os.path.join(self.project_dir, entry_point)):
                 downloaded_entrypoint = utils.download_entry_point(
                     self.uri, api, entry_point, self.project_dir
@@ -170,6 +169,11 @@ class LaunchProject(object):
                 # if the entrypoint is downloaded and inserted into the project dir
                 # need to rebuild image with new code
                 self.build_image = True
+
+            if entry_point.endswith("ipynb"):
+                entry_point = utils.convert_jupyter_notebook_to_script(
+                    entry_point, self.project_dir
+                )
 
             # Download any frozen requirements
             utils.download_wandb_python_deps(self.uri, api, self.project_dir)

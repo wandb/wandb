@@ -26,7 +26,7 @@ from wandb.errors import LaunchError
 from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
-from wandb.sdk.lib import retry
+from wandb.sdk.lib import ipython, retry
 import yaml
 
 
@@ -167,7 +167,7 @@ class RetryingClient(object):
 
     @property
     def app_url(self):
-        return util.app_url(self._client.transport.url).replace("/graphql", "/")
+        return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
 
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
@@ -210,6 +210,9 @@ class Api(object):
             id
             flags
             entity
+            username
+            email
+            admin
             teams {
                 edges {
                     node {
@@ -220,6 +223,41 @@ class Api(object):
         }
     }
     """
+    )
+    USERS_QUERY = gql(
+        """
+    query SearchUsers($query: String) {
+        users(query: $query) {
+            edges {
+                node {
+                    id
+                    flags
+                    entity
+                    admin
+                    email
+                    deletedAt
+                    username
+                    apiKeys {
+                        edges {
+                            node {
+                                id
+                                name
+                                description
+                            }
+                        }
+                    }
+                    teams {
+                        edges {
+                            node {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+        """
     )
 
     def __init__(self, overrides={}, timeout: Optional[int] = None):
@@ -232,6 +270,7 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self._viewer = None
         self._projects = {}
         self._runs = {}
         self._sweeps = {}
@@ -306,6 +345,15 @@ class Api(object):
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
 
+    @property
+    def viewer(self):
+        if self._viewer is None:
+            self._viewer = User(
+                self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
+            )
+            self._default_entity = self._viewer.entity
+        return self._viewer
+
     def flush(self):
         """
         The api object keeps a local cache of runs, so if the state of the run may
@@ -313,6 +361,62 @@ class Api(object):
         to get the latest values associated with the run.
         """
         self._runs = {}
+
+    def from_path(self, path):
+        """Return a run, sweep, project or report from a path
+
+        Examples:
+            ```
+            project = api.from_path("my_project")
+            team_project = api.from_path("my_team/my_project")
+            run = api.from_path("my_team/my_project/runs/id")
+            sweep = api.from_path("my_team/my_project/sweeps/id")
+            report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
+            ```
+
+        Arguments:
+            path: (str) The path to the project, run, sweep or report
+
+        Returns:
+            A `Project`, `Run`, `Sweep`, or `BetaReport` instance.
+
+        Raises:
+            wandb.Error if path is invalid or the object doesn't exist
+        """
+        parts = path.strip("/ ").split("/")
+        if len(parts) == 1:
+            return self.project(path)
+        elif len(parts) == 2:
+            return self.project(parts[1], parts[0])
+        elif len(parts) == 3:
+            return self.run(path)
+        elif len(parts) == 4:
+            if parts[2].startswith("run"):
+                return self.run(path)
+            elif parts[2].startswith("sweep"):
+                return self.sweep(path)
+            elif parts[2].startswith("report"):
+                if "--" not in parts[-1]:
+                    if "-" in parts[-1]:
+                        raise wandb.Error(
+                            "Invalid report path, should be team/project/reports/Name--XXXX"
+                        )
+                    else:
+                        parts[-1] = "--" + parts[-1]
+                name, id = parts[-1].split("--")
+                return BetaReport(
+                    self.client,
+                    {
+                        "display_name": urllib.parse.unquote(name.replace("-", " ")),
+                        "id": id,
+                        "spec": "{}",
+                    },
+                    parts[0],
+                    parts[1],
+                )
+        raise wandb.Error(
+            "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
+        )
 
     def _parse_project_path(self, path):
         """Returns project and entity for project specified by path"""
@@ -328,23 +432,25 @@ class Api(object):
     def _parse_path(self, path):
         """Parses paths in the following formats:
 
-        url: entity/project/runs/run_id
-        path: entity/project/run_id
-        docker: entity/project:run_id
+        url: entity/project/runs/id
+        path: entity/project/id
+        docker: entity/project:id
 
         entity is optional and will fallback to the current logged in user.
         """
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
-        parts = path.replace("/runs/", "/").strip("/ ").split("/")
+        parts = (
+            path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")
+        )
         if ":" in parts[-1]:
-            run = parts[-1].split(":")[-1]
+            id = parts[-1].split(":")[-1]
             parts[-1] = parts[-1].split(":")[0]
         elif parts[-1]:
-            run = parts[-1]
+            id = parts[-1]
         if len(parts) > 1:
             project = parts[1]
-            if entity and run == project:
+            if entity and id == project:
                 project = parts[0]
             else:
                 entity = parts[0]
@@ -352,7 +458,7 @@ class Api(object):
                 entity = parts[0]
         else:
             project = parts[0]
-        return entity, project, run
+        return entity, project, id
 
     def _parse_artifact_path(self, path):
         """Returns project, entity and artifact name for project specified by path"""
@@ -393,6 +499,11 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
+    def project(self, name, entity=None):
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+        return Project(self.client, entity, name, {})
+
     def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
@@ -423,6 +534,53 @@ class Api(object):
                 per_page=per_page,
             )
         return self._reports[key]
+
+    def create_team(self, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+        """
+        return Team.create(self.client, team, admin_username)
+
+    def team(self, team):
+        return Team(self.client, team)
+
+    def user(self, username_or_email):
+        """Return a user from a username or email address
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user
+
+        Returns:
+            A `User` object or None if a user couldn't be found
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        if len(res["users"]["edges"]) == 0:
+            return None
+        elif len(res["users"]["edges"]) > 1:
+            wandb.termwarn(
+                "Found multiple users, returning the first user matching {}".format(
+                    username_or_email
+                )
+            )
+        return User(self._client, res["users"]["edges"][0]["node"])
+
+    def users(self, username_or_email):
+        """Return all users from a partial username or email address query
+
+        Arguments:
+            username_or_email: (str) The prefix or suffix of the user you want to find
+
+        Returns:
+            An array of `User` objects
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
     def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
@@ -574,6 +732,22 @@ class Attrs(object):
         camel = "".join([i.title() for i in string.split("_")])
         return camel[0].lower() + camel[1:]
 
+    def display(self, height=420, hidden=False) -> bool:
+        """Display this object in jupyter"""
+        html = self.to_html(height, hidden)
+        if html is None:
+            wandb.termwarn("This object does not support `.display()`")
+            return False
+        if ipython.in_jupyter():
+            ipython.display_html(html)
+            return True
+        else:
+            wandb.termwarn(".display() only works in jupyter environments")
+            return False
+
+    def to_html(self, *args, **kwargs):
+        return None
+
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
         if key == "user":
@@ -660,8 +834,270 @@ class Paginator(object):
 
 
 class User(Attrs):
-    def init(self, attrs):
+    DELETE_API_KEY_MUTATION = gql(
+        """
+    mutation DeleteApiKey($id: String!) {
+        deleteApiKey(input: {id: $id}) {
+            success
+        }
+    }
+        """
+    )
+    GENERATE_API_KEY_MUTATION = gql(
+        """
+    mutation GenerateApiKey($description: String) {
+        generateApiKey(input: {description: $description}) {
+            apiKey {
+                id
+                name
+            }
+        }
+    }
+        """
+    )
+
+    def __init__(self, client, attrs):
         super(User, self).__init__(attrs)
+        self._client = client
+
+    @property
+    def api_keys(self):
+        if self._attrs.get("apiKeys") is None:
+            return []
+        return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
+
+    @property
+    def teams(self):
+        if self._attrs.get("teams") is None:
+            return []
+        return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
+
+    def delete_api_key(self, api_key):
+        """Delete a users api key
+
+        Returns:
+            Boolean indicating success
+
+        Raises:
+            ValueError if the api_key couldn't be found
+        """
+        idx = self.api_keys.index(api_key)
+        try:
+            self._client.execute(
+                self.DELETE_API_KEY_MUTATION,
+                {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
+            )
+        except requests.exceptions.HTTPError:
+            return False
+        return True
+
+    def generate_api_key(self, description=None):
+        """Generates a new api key
+
+        Returns:
+            The new api key, or None on failure
+        """
+        try:
+            return self._client.execute(
+                self.GENERATE_API_KEY_MUTATION, {"description": description}
+            )["generateApiKey"]["apiKey"]["name"]
+        except requests.exceptions.HTTPError:
+            return None
+
+    def __repr__(self):
+        return "<User {}>".format(self.email)
+
+
+class Member(Attrs):
+    DELETE_MEMBER_MUTATION = gql(
+        """
+    mutation DeleteInvite($id: String, $entityName: String) {
+        deleteInvite(input: {id: $id, entityName: $entityName}) {
+            success
+        }
+    }
+  """
+    )
+
+    def __init__(self, client, team, attrs):
+        super(Member, self).__init__(attrs)
+        self._client = client
+        self.team = team
+
+    def delete(self):
+        """Remove a member from a team
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            return self._client.execute(
+                self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
+            )["deleteInvite"]["success"]
+        except requests.exceptions.HTTPError:
+            return False
+
+    def __repr__(self):
+        return "<Member {} ({})>".format(self.name, self.account_type)
+
+
+class Team(Attrs):
+    CREATE_TEAM_MUTATION = gql(
+        """
+    mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
+        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
+            entity {
+                id
+                name
+                available
+                photoUrl
+                limits
+            }
+        }
+    }
+    """
+    )
+    CREATE_INVITE_MUTATION = gql(
+        """
+    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
+        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
+            invite {
+                id
+                name
+                email
+                createdAt
+                toUser {
+                    name
+                }
+            }
+        }
+    }
+    """
+    )
+    TEAM_QUERY = gql(
+        """
+    query Entity($name: String!) {
+        entity(name: $name) {
+            id
+            name
+            available
+            photoUrl
+            readOnly
+            readOnlyAdmin
+            isTeam
+            privateOnly
+            storageBytes
+            codeSavingEnabled
+            defaultAccess
+            isPaid
+            members {
+                id
+                admin
+                pending
+                email
+                username
+                name
+                photoUrl
+                accountType
+                apiKey
+            }
+        }
+    }
+    """
+    )
+    CREATE_SERVICE_ACCOUNT_MUTATION = gql(
+        """
+    mutation CreateServiceAccount($entityName: String!, $description: String!) {
+        createServiceAccount(
+            input: {description: $description, entityName: $entityName}
+        ) {
+            user {
+                id
+            }
+        }
+    }
+    """
+    )
+
+    def __init__(self, client, name, attrs=None):
+        super(Team, self).__init__(attrs or {})
+        self._client = client
+        self.name = name
+        self.load()
+
+    @classmethod
+    def create(cls, api, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            api: (`Api`) The api instance to use
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+        """
+        try:
+            api.execute(
+                cls.CREATE_TEAM_MUTATION,
+                {"teamName": team, "teamAdminUserName": admin_username},
+            )
+        except requests.exceptions.HTTPError:
+            pass
+        return Team(api, team)
+
+    def invite(self, username_or_email, admin=False):
+        """Invites a user to a team
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user you want to invite
+            admin: (bool) Whether to make this user a team admin, defaults to False
+
+        Returns:
+            True on success, False if user was already invited or didn't exist
+        """
+        variables = {"entityName": self.name, "admin": admin}
+        if "@" in username_or_email:
+            variables["email"] = username_or_email
+        else:
+            variables["username"] = username_or_email
+        try:
+            self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        except requests.exceptions.HTTPError:
+            return False
+        return True
+
+    def create_service_account(self, description):
+        """Creates a service account for the team
+
+        Arguments:
+            description: (str) A description for this service account
+
+        Returns:
+            The service account `Member` object, or None on failure
+        """
+        try:
+            self._client.execute(
+                self.CREATE_SERVICE_ACCOUNT_MUTATION,
+                {"description": description, "entityName": self.name},
+            )
+            self.load(True)
+            return self.members[-1]
+        except requests.exceptions.HTTPError:
+            return None
+
+    def load(self, force=False):
+        if force or not self._attrs:
+            response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
+            self._attrs = response["entity"]
+            self._attrs["members"] = [
+                Member(self._client, self.name, member)
+                for member in self._attrs["members"]
+            ]
+        return self._attrs
+
+    def __repr__(self):
+        return "<Team {}>".format(self.name)
 
 
 class Projects(Paginator):
@@ -738,6 +1174,23 @@ class Project(Attrs):
     @property
     def path(self):
         return [self.entity, self.name]
+
+    @property
+    def url(self):
+        return self.client.app_url + "/".join(self.path + ["workspace"])
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this project"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("project")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
     def __repr__(self):
         return "<Project {}>".format("/".join(self.path))
@@ -923,7 +1376,7 @@ class Run(Attrs):
         url (str): the url of this run
         id (str): unique identifier for the run (defaults to eight characters)
         name (str): the name of the run
-        state (str): one of: running, finished, crashed, aborted
+        state (str): one of: running, finished, crashed, killed, preempting, preempted
         config (dict): a dict of hyperparameters associated with the run
         created_at (str): ISO timestamp when the run was started
         system_metrics (dict): the latest system metrics recorded for the run
@@ -957,9 +1410,13 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self.state = attrs.get("state", "not found")
+        self._state = attrs.get("state", "not found")
 
         self.load(force=not attrs)
+
+    @property
+    def state(self):
+        return self._state
 
     @property
     def entity(self):
@@ -1061,7 +1518,7 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run %s" % self)
             self._attrs = response["project"]["run"]
-            self.state = self._attrs["state"]
+            self._state = self._attrs["state"]
 
             if self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -1085,7 +1542,7 @@ class Run(Attrs):
             else {}
         )
         if self._attrs.get("user"):
-            self.user = User(self._attrs["user"])
+            self.user = User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
         for key, value in six.iteritems(json.loads(self._attrs.get("config") or "{}")):
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
@@ -1117,7 +1574,7 @@ class Run(Attrs):
             if state in ["finished", "crashed", "failed"]:
                 print("Run finished with status: {}".format(state))
                 self._attrs["state"] = state
-                self.state = state
+                self._state = state
                 return
             time.sleep(5)
 
@@ -1490,6 +1947,19 @@ class Run(Attrs):
         history_keys = response["project"]["run"]["historyKeys"]
         return history_keys["lastStep"] if "lastStep" in history_keys else -1
 
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this run"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button()
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
@@ -1649,6 +2119,19 @@ class Sweep(Attrs):
         )
 
         return sweep
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this sweep"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("sweep")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
     def __repr__(self):
         return "<Sweep {}>".format("/".join(self.path))
@@ -1838,7 +2321,9 @@ class Reports(Paginator):
                     $reportLimit, after: $reportCursor) {
                     edges {
                         node {
+                            id
                             name
+                            displayName
                             description
                             user {
                                 username
@@ -2064,6 +2549,35 @@ class BetaReport(Attrs):
     @property
     def updated_at(self):
         return self._attrs["updatedAt"]
+
+    @property
+    def url(self):
+        return self.client.app_url + "/".join(
+            [
+                self.entity,
+                self.project,
+                "reports",
+                "--".join(
+                    [
+                        urllib.parse.quote(self.display_name.replace(" ", "-")),
+                        self.id.replace("=", ""),
+                    ]
+                ),
+            ]
+        )
+
+    def to_html(self, height=1024, hidden=False):
+        """Generate HTML containing an iframe displaying this report"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("report")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
 
 class HistoryScan(object):

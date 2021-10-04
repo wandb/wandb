@@ -36,7 +36,7 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
-from .wandb_run import Run
+from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
 
@@ -164,7 +164,12 @@ class _WandbInit(object):
         settings._apply_init_login(kwargs)
 
         if not settings._offline and not settings._noop:
-            wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
+            wandb_login._login(
+                anonymous=anonymous,
+                force=force,
+                _disable_warning=True,
+                _silent=(settings._quiet or settings._silent) is True,
+            )
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
@@ -199,7 +204,7 @@ class _WandbInit(object):
         # normally this happens on the run object
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
-            hook()
+            hook.call()
 
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
@@ -234,7 +239,10 @@ class _WandbInit(object):
         # TODO: make me configurable
         logger.setLevel(logging.DEBUG)
         self._teardown_hooks.append(
-            lambda: (handler.close(), logger.removeHandler(handler))
+            TeardownHook(
+                lambda: (handler.close(), logger.removeHandler(handler)),
+                TeardownStage.LATE,
+            )
         )
 
     def _safe_symlink(self, base, target, name, delete=False):
@@ -276,8 +284,8 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            self.run.log_code(root=None)
-            logger.info("saved code and history")
+            res = self.run.log_code(root=None)
+            logger.info("saved code and history: %s", res)
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
         for hook in ipython.events.callbacks["pre_run_cell"]:
@@ -290,10 +298,9 @@ class _WandbInit(object):
         del ipython.display_pub._orig_publish
 
     def _jupyter_setup(self, settings):
-        """Add magic, hooks, and session history saving."""
+        """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
-        ipython.register_magics(wandb.jupyter.WandBMagics)
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):
@@ -303,7 +310,9 @@ class _WandbInit(object):
 
             ipython.events.register("pre_run_cell", self._resume_backend)
             ipython.events.register("post_run_cell", self._pause_backend)
-            self._teardown_hooks.append(self._jupyter_teardown)
+            self._teardown_hooks.append(
+                TeardownHook(self._jupyter_teardown, TeardownStage.EARLY)
+            )
 
         def publish(data, metadata=None, **kwargs):
             ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)
@@ -403,11 +412,7 @@ class _WandbInit(object):
                         last_id
                     )
                 )
-                jupyter = (
-                    s._jupyter
-                    and not s._silent
-                    and ipython._get_python_type() == "jupyter"
-                )
+                jupyter = s._jupyter and not s._silent and ipython.in_jupyter()
                 if jupyter:
                     ipython.display_html(
                         "Finishing last run (ID:{}) before initializing another...".format(
@@ -419,7 +424,7 @@ class _WandbInit(object):
 
                 if jupyter:
                     ipython.display_html(
-                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                        "Successfully finished last run (ID:{}). Initializing new run:<br/>".format(
                             last_id
                         )
                     )
@@ -472,6 +477,9 @@ class _WandbInit(object):
                 tel.feature.set_init_id = True
             if self._set_init_tags:
                 tel.feature.set_init_tags = True
+
+            if self.settings.launch:
+                tel.feature.launch = True
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
