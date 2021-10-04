@@ -10,3 +10,6 @@ assert:
       m1: 1
       m2: 2
   - :wandb:runs[0][exitcode]: 0
+# Not reliable
+# - :wandb:runs[0][output][stdout]:
+#   - somedata

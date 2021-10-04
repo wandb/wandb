@@ -76,6 +76,7 @@ class StreamThread(threading.Thread):
         self.pid = 0
 
     def run(self) -> None:
+        # TODO: catch exceptions and report errors to scheduler
         self._target(**self._kwargs)
 
 
@@ -242,9 +243,11 @@ class StreamMux:
     def _process_teardown(self, action: StreamAction) -> None:
         exit_code: int = action._data
         with self._streams_lock:
+            # TODO: mark streams to prevent new modifications?
             streams_copy = self._streams.copy()
-            self._streams = dict()
         self._finish_all(streams_copy, exit_code)
+        with self._streams_lock:
+            self._streams = dict()
         self._stopped.set()
 
     def _process_action(self, action: StreamAction) -> None:
@@ -259,7 +262,7 @@ class StreamMux:
             return
         raise AssertionError(f"Unsupported action: {action._action}")
 
-    def loop(self) -> None:
+    def _loop(self) -> None:
         while not self._stopped.is_set():
             # TODO: check for parent process going away
             try:
@@ -269,6 +272,12 @@ class StreamMux:
             self._process_action(action)
             action.set_handled()
             self._action_q.task_done()
+
+    def loop(self) -> None:
+        try:
+            self._loop()
+        except Exception as e:
+            raise e
 
     def cleanup(self) -> None:
         pass
