@@ -43,8 +43,8 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
     ):
-        self.launch_spec = launch_spec
         self.uri = uri
+        self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
