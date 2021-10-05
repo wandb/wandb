@@ -1029,6 +1029,10 @@ class SendManager(object):
         """
         local_info = wandb_internal_pb2.LocalInfo()
 
+        if self._settings._offline:
+            local_info.out_of_date = False
+            return local_info
+
         latest_local_version = "latest"
 
         # Assuming the query is succesful if the result is empty it indicates that

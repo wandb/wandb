@@ -1,3 +1,9 @@
+## 0.12.4 (October 5, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression introduced in 0.12.2 causing network access when `WANDB_MODE=offline`
+
 ## 0.12.3 (September 30, 2021)
 
 #### :bug: Bug Fix
