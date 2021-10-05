@@ -234,7 +234,7 @@ def test_launch_args_supersede_config_vals(
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump({"epochs": 10}, fp)
         test_settings.launch = True
