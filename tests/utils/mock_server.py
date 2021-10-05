@@ -73,6 +73,9 @@ def default_ctx():
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
+        "gorilla_supports_launch_agents": True,
+        "launch_agents": {},
+        "num_launch_agents": 0,
     }
 
 
@@ -1182,13 +1185,8 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation createLaunchAgent(" in body["query"]:
-            if "num_launch_agents" not in ctx:
-                ctx["num_launch_agents"] = 1
-            else:
-                ctx["num_launch_agents"] += 1
+            ctx["num_launch_agents"] += 1
             agent_id = ctx["num_launch_agents"]
-            if "launch_agents" not in ctx:
-                ctx["launch_agents"] = {}
             ctx["launch_agents"][agent_id] = "POLLING"
             return json.dumps(
                 {
@@ -1203,15 +1201,15 @@ def create_app(user_ctx=None):
         if "mutation updateLaunchAgent(" in body["query"]:
             status = body["variables"]["agentStatus"]
             agent_id = body["variables"]["agentId"]
-            if "launch_agents" not in ctx:
-                ctx["launch_agents"] = {}
             ctx["launch_agents"][agent_id] = status
             return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
         if "query LaunchAgentIntrospection" in body["query"]:
             if ctx["gorilla_supports_launch_agents"]:
-                return {"name": "LaunchAgent"}
+                return json.dumps(
+                    {"data": {"LaunchAgentType": {"name": "LaunchAgent"}}}
+                )
             else:
-                return {}
+                return json.dumps({"data": {}})
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}

@@ -328,7 +328,7 @@ class Api(object):
 
         res = self.gql(query)
         if res is None:
-            return None
+            return {}
         return res.get("LaunchAgentType")
 
     @normalize_exceptions
@@ -1044,7 +1044,7 @@ class Api(object):
             )
             return
 
-        if self.launch_agent_introspection() is None:
+        if not self.launch_agent_introspection():
             # if gorilla doesn't support launch agents, return a client-generated id
             return {
                 "success": True,
@@ -1078,7 +1078,7 @@ class Api(object):
 
     @normalize_exceptions
     def update_launch_agent_status(self, agent_id, status):
-        if self.launch_agent_introspection() is None:
+        if not self.launch_agent_introspection():
             # if gorilla doesn't support launch agents, this is a no-op
             return {
                 "success": True,
