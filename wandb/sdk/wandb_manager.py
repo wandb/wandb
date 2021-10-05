@@ -105,14 +105,10 @@ class _Manager:
         self._teardown(exit_code)
 
     def _teardown(self, exit_code: int) -> None:
-        self._inform_teardown(exit_code)
-
-    def teardown(self, exit_code: int = None) -> None:
-        exit_code = exit_code or 0
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
-        self._teardown(exit_code)
+        self._inform_teardown(exit_code)
 
     def _get_service(self) -> "service._Service":
         return self._service

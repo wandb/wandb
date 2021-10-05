@@ -32,10 +32,8 @@ class ExitHooks(object):
 
     def exit(self, code: object = 0) -> "NoReturn":
         orig_code = code
-        if code is None:
-            code = 0
-        elif not isinstance(code, int):
-            code = 1
+        code = code if code is not None else 0
+        code = code if isinstance(code, int) else 1
         self.exit_code = code
         self._orig_exit(orig_code)
 

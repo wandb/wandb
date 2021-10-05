@@ -238,6 +238,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         if not self._manager:
             return
         self._manager._teardown(exit_code)
+        self._manager = None
 
     def _get_manager(self) -> Optional[wandb_manager._Manager]:
         return self._manager
