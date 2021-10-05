@@ -1,6 +1,8 @@
 id: metaflow.foreach.base
 plugin:
   - wandb
+tag:
+  skip: true
 command:
     args:
         - --no-pylint
