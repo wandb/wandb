@@ -1493,7 +1493,11 @@ class Run(Attrs):
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
-            use_as (string, optional): A string identifying how the artifact is used.
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
         Returns:
             A `Artifact` object.
         """

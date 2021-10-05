@@ -136,12 +136,9 @@ class LocalRunner(AbstractRunner):
         # updates to the tracking server when finished. Note that the run state may not be
         # persisted to the tracking server if interrupted
         if synchronous:
-            command_args += ["/bin/bash -c"]
-            command_args += ['"pip', "install", "-e", "./client", ";"]
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
-            command_args += ['"']
             with open(
                 os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
             ) as fp:
