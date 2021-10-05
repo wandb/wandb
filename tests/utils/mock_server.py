@@ -1181,6 +1181,26 @@ def create_app(user_ctx=None):
                 }
             )
 
+        if "query GetSweeps" in body["query"]:
+            return {
+                "data": {
+                    "project": {
+                        "totalSweeps": 1,
+                        "sweeps": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "id": "testdatabaseid",
+                                        "name": "testid",
+                                        "config": yaml.dump({"name": "testname"}),
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
