@@ -4,7 +4,7 @@
 ---
 id: 0.offline.01-no-network
 env:
-  - WANDB_BASE_URL: https://does.not-resolve/ 
+  - WANDB_BASE_URL: https://does.not-resolve/
 command:
   timeout: 20
 plugin:
