@@ -1207,6 +1207,11 @@ def create_app(user_ctx=None):
                 ctx["launch_agents"] = {}
             ctx["launch_agents"][agent_id] = status
             return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
+        if "query LaunchAgentIntrospection" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return {"name": "LaunchAgent"}
+            else:
+                return {}
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
