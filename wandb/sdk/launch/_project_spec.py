@@ -20,7 +20,7 @@ from . import utils
 
 _logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_PATH = "launch_override_config.json"
+DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
 
 class LaunchSource(enum.IntEnum):
@@ -58,6 +58,7 @@ class LaunchProject(object):
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self._runtime: Optional[str] = None
+        self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint

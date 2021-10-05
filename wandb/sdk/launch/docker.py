@@ -177,6 +177,9 @@ def build_docker_image_if_needed(
         requirements_line=requirements_line,
         name_line=name_line,
     )
+
+    launch_project._dockerfile_contents = dockerfile_contents
+
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
 
     _logger.info("=== Building docker image %s ===", image_uri)
@@ -238,18 +241,18 @@ def get_docker_command(
         "--env",
         f"WANDB_LAUNCH={True}",
         "--env",
-        f"WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
+        f"WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
         "--env",
         f"WANDB_RUN_ID={launch_project.run_id or None}",
         "--env",
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]
 
-    if launch_project.override_config:
-        cmd += [
-            "-v",
-            f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
-        ]
+    cmd += [
+        "-v",
+        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_LAUNCH_METADATA_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
+    ]
+
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag

@@ -11,7 +11,11 @@ import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import DEFAULT_CONFIG_PATH, get_entry_point_command, LaunchProject
+from .._project_spec import (
+    DEFAULT_LAUNCH_METADATA_PATH,
+    get_entry_point_command,
+    LaunchProject,
+)
 from ..docker import (
     build_docker_image_if_needed,
     docker_image_exists,
@@ -144,10 +148,14 @@ class LocalRunner(AbstractRunner):
                 r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
             )
             with open(
-                os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
+                os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
             ) as fp:
                 json.dump(
-                    {**launch_project.launch_spec, "command": sanitized_command_str,},
+                    {
+                        **launch_project.launch_spec,
+                        "command": sanitized_command_str,
+                        "dockerfile_contents": launch_project._dockerfile_contents,
+                    },
                     fp,
                 )
 
