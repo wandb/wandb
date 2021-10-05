@@ -227,7 +227,7 @@ def get_docker_command(
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9003"
+        base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
 
