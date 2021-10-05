@@ -283,7 +283,6 @@ class Api(object):
 
     @normalize_exceptions
     def server_info_introspection(self):
-
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
@@ -314,6 +313,23 @@ class Api(object):
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
         return (self.query_types, self.server_info_types)
+
+    @normalize_exceptions
+    def launch_agent_introspection(self):
+        query = gql(
+            """
+            query LaunchAgentIntrospection {
+                LaunchAgentType: __type(name: "LaunchAgent") {
+                    name
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        if res is None:
+            return None
+        return res.get("LaunchAgentType")
 
     @normalize_exceptions
     def viewer(self):
@@ -1028,8 +1044,14 @@ class Api(object):
             )
             return
 
-        hostname = socket.gethostname()
+        if self.launch_agent_introspection() is None:
+            # if gorilla doesn't support launch agents, return a client-generated id
+            return {
+                "success": True,
+                "launchAgentId": util.generate_id(),
+            }
 
+        hostname = socket.gethostname()
         mutation = gql(
             """
             mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
@@ -1056,6 +1078,12 @@ class Api(object):
 
     @normalize_exceptions
     def update_launch_agent_status(self, agent_id, status):
+        if self.launch_agent_introspection() is None:
+            # if gorilla doesn't support launch agents, this is a no-op
+            return {
+                "success": True,
+            }
+
         mutation = gql(
             """
             mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
