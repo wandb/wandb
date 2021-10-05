@@ -11,7 +11,7 @@ depend:
         - pandas
 assert:
     - :wandb:runs_len: 1
-    - :op:not_contains_regex:
+    - :op:contains_regex:
         - :wandb:runs[0][output][stderr]
-        - .*Non-numeric values found in layer.*parameters/lookupalone.*0, not logging this layer.*
+        - .*Non-numeric values found in layer.*parameters/lookupembark_town.*1, not logging this layer.*
     - :wandb:runs[0][exitcode]: 0

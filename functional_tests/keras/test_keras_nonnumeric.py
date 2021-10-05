@@ -1,3 +1,5 @@
+import random
+
 import pandas as pd
 import tensorflow as tf
 import wandb
@@ -17,11 +19,12 @@ for key in STRING_CATEGORICAL_COLUMNS:
     keras_inputs[key] = keras_input
     vocab = dftrain[key].unique()
     keras_preproc_input = tf.keras.layers.experimental.preprocessing.StringLookup(
-        vocabulary=vocab, num_oov_indices=0, mask_token=None, name="lookup" + key
-    )(keras_input)
-    keras_preproc_input = tf.keras.layers.experimental.preprocessing.CategoryEncoding(
-        num_tokens=len(vocab), output_mode="count", sparse=True, name="encode" + key
-    )(keras_preproc_input)
+        output_mode="tf-idf",
+        name="lookup" + key,
+    )
+    random_weights = [random.uniform(0, 1) for _ in range(len(vocab))]
+    keras_preproc_input.set_vocabulary(vocabulary=vocab, idf_weights=random_weights)
+    keras_preproc_input = keras_preproc_input(keras_input)
     keras_preproc_inputs.append(keras_preproc_input)
 
 for key in INT_CATEGORICAL_COLUMNS:
