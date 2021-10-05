@@ -3,6 +3,7 @@ import base64
 import contextlib
 import hashlib
 import os
+import logging
 import re
 import shutil
 import time
@@ -34,6 +35,7 @@ from wandb.errors import CommError
 from wandb.errors.term import termlog, termwarn
 
 from . import lib as wandb_lib
+from .lib import ipython
 from .interface.artifacts import (  # noqa: F401 pylint: disable=unused-import
     Artifact as ArtifactInterface,
     ArtifactEntry,
@@ -68,6 +70,7 @@ _REQUEST_POOL_MAXSIZE = 64
 
 ARTIFACT_TMP = compat_tempfile.TemporaryDirectory("wandb-artifacts")
 
+logger = logging.getLogger("wandb")
 
 class _AddedObj(object):
     def __init__(self, entry: ArtifactEntry, obj: data_types.WBValue):
@@ -607,6 +610,17 @@ class Artifact(ArtifactInterface):
                         with wandb_lib.telemetry.context(run=run) as tel:
                             tel.feature.artifact_incremental = True
                     run.log_artifact(self)
+                
+                    run_url = run._get_run_url()
+                    run_name = run._get_run_name()
+                    text = "Saving Artifact to Run {} ({}/artifacts)".format(run_name, run_url)
+                    if run._settings._jupyter and ipython.in_jupyter():
+                        ipython.display_html(text)
+                    else:
+                        wandb.termlog(text)
+
+                    run.finish()
+
             else:
                 wandb.run.log_artifact(self)  # type: ignore
 
