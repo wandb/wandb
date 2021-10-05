@@ -98,6 +98,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     host=None,
     username=None,
     disable_code=None,
+    disable_git=None,
     code_dir=None,
     anonymous=None,
     ignore_globs=None,
@@ -250,6 +251,7 @@ class Settings(object):
     email: Optional[str] = None
     save_code: Optional[bool] = None
     disable_code: Optional[bool] = None
+    disable_git: Optional[bool] = None
     git_remote: Optional[str] = None
     code_dir: Optional[str] = None
     program_relpath: Optional[str] = None
@@ -367,6 +369,7 @@ class Settings(object):
         program: str = None,
         notebook_name: str = None,
         disable_code: bool = None,
+        disable_git: bool = None,
         ignore_globs: bool = None,
         save_code: bool = None,
         code_dir: str = None,
@@ -934,6 +937,8 @@ class Settings(object):
             or os.getenv(wandb.env.DISABLE_CODE) is not None
         ):
             u["save_code"] = wandb.env.should_save_code()
+
+        u["disable_git"] = wandb.env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):

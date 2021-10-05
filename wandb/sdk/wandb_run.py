@@ -466,10 +466,6 @@ class Run(object):
         if settings.run_tags is not None:
             self._tags = settings.run_tags
 
-        if settings.save_code and not settings.disable_code:
-            repo = GitRepo(remote=settings.git_remote)
-            self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
-
     def _make_proto_run(self, run: RunRecord) -> None:
         """Populate protocol buffer RunData for interface/interface."""
         if self._entity is not None:
@@ -496,6 +492,10 @@ class Run(object):
         if self._last_commit is not None:
             run.git.last_commit = self._last_commit
         # Note: run.config is set in interface/interface:_make_run()
+
+    def _populate_git_info(self) -> None:
+        repo = GitRepo(remote=self._settings.git_remote)
+        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> None:
         pass

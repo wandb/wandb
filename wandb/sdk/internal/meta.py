@@ -197,7 +197,7 @@ class Meta(object):
         self.data["state"] = "running"
 
     def _setup_git(self):
-        if self._git.enabled:
+        if self._git.enabled and not self._settings.disable_git:
             logger.debug("setup git")
             self.data["git"] = {
                 "remote": self._git.remote_url,
