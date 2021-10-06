@@ -1026,23 +1026,21 @@ class Api(object):
                 entity, project, "default", access="PROJECT"
             )
             if default is None or default.get("queueID") is None:
-                wandb.termerror(
+                raise CommError(
                     "Unable to create default queue for {}/{}. No queues for agent to poll".format(
                         entity, project
                     )
                 )
-                return
             project_queues = [{"id": default["queueID"], "name": "default"}]
         polling_queue_ids = [
             q["id"] for q in project_queues if q["name"] in queues
         ]  # filter to poll specified queues
         if len(polling_queue_ids) != len(queues):
-            wandb.termerror(
+            raise CommError(
                 "Could not start launch agent: Not all of requested queues {} found. Available queues for this project: {}".format(
                     queues, [q["name"] for q in project_queues]
                 )
             )
-            return
 
         if not self.launch_agent_introspection():
             # if gorilla doesn't support launch agents, return a client-generated id

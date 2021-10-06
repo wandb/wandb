@@ -32,6 +32,7 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
+from wandb.errors import CommError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 

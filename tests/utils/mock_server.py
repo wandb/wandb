@@ -1068,7 +1068,9 @@ def create_app(user_ctx=None):
                 )
         if "mutation createRunQueue" in body["query"]:
             if not ctx["successfully_create_default_queue"]:
-                return json.dumps({"errors": ["failed to create default queue"]}), 500
+                return json.dumps(
+                    {"data": {"createRunQueue": {"success": False, "queueID": None}}}
+                )
             ctx["run_queues_return_default"] = True
             return json.dumps(
                 {"data": {"createRunQueue": {"success": True, "queueID": 1}}}

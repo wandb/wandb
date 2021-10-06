@@ -65,6 +65,7 @@ def test_launch_agent_base(
         assert ctx["num_launch_agents"] == 1
         assert ctx["run_queues_return_default"] == True
         assert "Shutting down, active jobs" in result.output
+        assert "polling on project" in result.output
 
 
 @pytest.mark.timeout(320)
@@ -90,6 +91,7 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
 def test_agent_failed_default_create(runner, test_settings, live_mock_server):
     with runner.isolated_filesystem():
         live_mock_server.set_ctx({"successfully_create_default_queue": False})
+        live_mock_server.set_ctx({"run_queues_return_default": False})
         result = runner.invoke(
             cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
         )
