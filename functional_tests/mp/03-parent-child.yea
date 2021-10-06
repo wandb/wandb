@@ -10,6 +10,7 @@ parametrize:
       - forkserver
 assert:
   - :wandb:runs_len: 2
+  - :wandb:runs[0][name]: parent-name
   - :wandb:runs[0][config]: {id: parent}
   - :wandb:runs[0][summary]: {p1: 12}
   - :wandb:runs[0][exitcode]: 0
@@ -25,7 +26,7 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
     - 19  # set_config_item
-  # TODO: check for run name change
+  - :wandb:runs[1][name]: child-name
   - :wandb:runs[1][config]: {id: child}
   - :wandb:runs[1][summary]: {c1: 22}
   - :wandb:runs[1][exitcode]: 0
@@ -39,4 +40,3 @@ assert:
   - :op:contains:
     - :wandb:runs[1][telemetry][3]  # feature
     - 19  # set_config_item
-  # TODO: check for run name change

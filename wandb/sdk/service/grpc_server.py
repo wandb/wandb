@@ -619,5 +619,8 @@ class GrpcServer:
         port = self._launch(mux=mux)
         setproctitle = wandb.util.get_optional_module("setproctitle")
         if setproctitle:
-            setproctitle.setproctitle("wandb_internal[grpc:{}]".format(port))
+            service_ver = 0
+            service_id = f"{service_ver}-{port}"
+            proc_title = f"wandb-service({service_id})"
+            setproctitle.setproctitle(proc_title)
         mux.loop()

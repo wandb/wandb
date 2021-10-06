@@ -9,6 +9,7 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Any, Dict, Optional
 from typing import TYPE_CHECKING
@@ -74,46 +75,40 @@ class _Service:
         return None
 
     def _grpc_launch_server(self) -> Optional[int]:
-        # https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
-        # https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
-        # kwargs: Dict[str, Any] = dict(close_fds=True, start_new_session=True)
+        """Launch grpc server and return port."""
+
+        # References for starting processes
+        # - https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
+        # - https://stackoverflow.com/questions/1196074/how-to-start-a-background-process-in-python
+
         kwargs: Dict[str, Any] = dict(close_fds=True)
-        # kwargs: Dict[str, Any] = dict()
 
-        # TODO(add processid)
         pid = os.getpid()
-        fname = "/tmp/out-{}-port.txt".format(pid)
 
-        try:
-            os.unlink(fname)
-        except Exception:
-            pass
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-        pid_str = str(os.getpid())
-        exec_cmd_list = [sys.executable, "-m"]
-        if os.environ.get("COVERAGE_RCFILE"):
-            exec_cmd_list += ["coverage", "run", "-m"]
-        internal_proc = subprocess.Popen(
-            exec_cmd_list
-            + [
-                "wandb",
-                "service",
-                "--port-filename",
-                fname,
-                "--pid",
-                pid_str,
-                "--debug",
-                "true",
-            ],
-            env=os.environ,
-            **kwargs,
-        )
-
-        port = self._grpc_wait_for_port(fname, proc=internal_proc)
-        try:
-            os.unlink(fname)
-        except Exception:
-            pass
+            pid_str = str(os.getpid())
+            exec_cmd_list = [sys.executable, "-m"]
+            # Add coverage collection if needed
+            if os.environ.get("COVERAGE_RCFILE"):
+                exec_cmd_list += ["coverage", "run", "-m"]
+            internal_proc = subprocess.Popen(
+                exec_cmd_list
+                + [
+                    "wandb",
+                    "service",
+                    "--port-filename",
+                    fname,
+                    "--pid",
+                    pid_str,
+                    "--debug",
+                    "true",
+                ],
+                env=os.environ,
+                **kwargs,
+            )
+            port = self._grpc_wait_for_port(fname, proc=internal_proc)
 
         return port
 
