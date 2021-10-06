@@ -2,7 +2,7 @@ id: 0.mp.06-share-child
 plugin:
   - wandb
 tag:
-  shard: grpc
+  shard: service
   skip: true
 parametrize:
   permute:
