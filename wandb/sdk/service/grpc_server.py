@@ -487,6 +487,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.ResumeResponse()
         return result
 
+    def Alert(  # noqa: N802
+        self, alert: pb.AlertRecord, context: grpc.ServicerContext
+    ) -> pb.AlertResult:
+        stream_id = alert._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_alert(alert)
+        # make up a response even though this was async
+        result = pb.AlertResult()
+        return result
+
     def Status(  # noqa: N802
         self, status: pb.StatusRequest, context: grpc.ServicerContext
     ) -> pb.StatusResponse:

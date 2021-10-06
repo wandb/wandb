@@ -78,6 +78,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_telemetry_pb2.TelemetryRecord,
     ) -> wandb.proto.wandb_telemetry_pb2.TelemetryResult: ...
 
+    def Alert(self,
+        request: wandb.proto.wandb_internal_pb2.AlertRecord,
+    ) -> wandb.proto.wandb_internal_pb2.AlertResult: ...
+
     def CheckVersion(self,
         request: wandb.proto.wandb_internal_pb2.CheckVersionRequest,
     ) -> wandb.proto.wandb_internal_pb2.CheckVersionResponse: ...
@@ -225,6 +229,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_telemetry_pb2.TelemetryRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_telemetry_pb2.TelemetryResult: ...
+
+    @abc.abstractmethod
+    def Alert(self,
+        request: wandb.proto.wandb_internal_pb2.AlertRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.AlertResult: ...
 
     @abc.abstractmethod
     def CheckVersion(self,

@@ -412,6 +412,9 @@ message AlertRecord {
   _RecordInfo _info = 200;
 }
 
+message AlertResult {
+}
+
 /************************
  * Requests and Responses
  ************************/

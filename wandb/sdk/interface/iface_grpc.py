@@ -180,8 +180,7 @@ class BackendGrpcSender(BackendSenderBase):
     def _publish_alert(self, alert: pb.AlertRecord) -> None:
         assert self._stub
         self._assign(alert)
-        # TODO: implement
-        pass
+        _ = self._stub.Alert(alert)
 
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         assert self._stub

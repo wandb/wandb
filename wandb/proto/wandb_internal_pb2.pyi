@@ -1102,6 +1102,13 @@ class AlertRecord(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"level",b"level",u"text",b"text",u"title",b"title",u"wait_duration",b"wait_duration"]) -> None: ...
 global___AlertRecord = AlertRecord
 
+class AlertResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___AlertResult = AlertResult
+
 class Request(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     STOP_STATUS_FIELD_NUMBER: builtins.int

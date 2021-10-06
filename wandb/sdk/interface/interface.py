@@ -544,6 +544,7 @@ class BackendSenderBase(object):
         proto_alert.text = text
         proto_alert.level = level
         proto_alert.wait_duration = wait_duration
+        self._publish_alert(proto_alert)
 
     @abstractmethod
     def _publish_alert(self, alert: pb.AlertRecord) -> None:
