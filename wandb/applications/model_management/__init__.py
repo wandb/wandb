@@ -26,6 +26,8 @@ class Model:
     ):
         if scope == ModelScope.PROJECT and model_name is None:
             raise ValueError("Project scope requires a model name")
+        elif scope == ModelScope.RUN and wandb.run is None:
+            raise ValueError("Run scope requires an active run")
         elif model_name is None:
             model_name = wandb.util.generate_id(4)
 
@@ -36,13 +38,18 @@ class Model:
         if "name" in artifact_kwargs:
             del artifact_kwargs["name"]
         if self._scope == ModelScope.RUN:
+            run = None
             if not wandb.run:
                 # raise RuntimeError("Cannot create a model version without a run")
-                wandb.init(**run_kwargs)
-            return RunModelLocalVersion(
+                run = wandb.init(**run_kwargs)
+            # TODO: Naming should happen as late as possible (in case the model is logged to a different run)
+            model_version = RunModelLocalVersion(
                 name="{}.{}".format(wandb.run.name, self._model_name),
                 **artifact_kwargs
             )
+            if run is not None:
+                model_version.on_save(lambda mv: run.finish())
+            return model_version
         elif self._scope == ModelScope.PROJECT:
             return ProjectModelLocalVersion(name=self._model_name, **artifact_kwargs)
         else:
@@ -80,7 +87,7 @@ class Model:
     def reference_version(self, artifact:PublicArtifact, artifact_kwargs: dict = {}):
         version = self.new(artifact_kwargs=artifact_kwargs)
         for key in artifact.manifest.entries:
-            version.add_reference(artifact[key].ref_url(), key)
+            version.add_reference(artifact.get(key).ref_url(), key)
         version.metadata = artifact.metadata
         version.save()
 
@@ -101,6 +108,15 @@ class CustomLocalArtifactVersion(wandb.Artifact):
             metadata=metadata,
             incremental=incremental,
         )
+        self.on_save = None
+
+    def on_save(self, cb):
+        self._on_save = cb
+
+    def save(self, project, settings):
+        super().save(project, settings)
+        if self.on_save:
+            self.on_save(self)
 
     
     def _make_type(self):

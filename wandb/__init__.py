@@ -196,6 +196,12 @@ if wandb_sdk.lib.ipython.in_jupyter():
 
     load_ipython_extension(get_ipython())
 
+def Model(name:str, model_collection_kwargs={}):
+    from .sdk.artifacts.model import ProjectModelLocalArtifactType
+    model_collection_kwargs = model_collection_kwargs.copy()
+    model_collection_kwargs["name"] = name
+    return ProjectModelLocalArtifactType().new_artifact(model_collection_kwargs)
+
 __all__ = [
     "__version__",
     "init",
@@ -219,5 +225,6 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
+    "Model"
     "_enable",
 ]

@@ -407,6 +407,9 @@ class Run(object):
 
         self._pid = os.getpid()
 
+        self._model_count = 0
+
+
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
 
@@ -2512,6 +2515,15 @@ class Run(object):
         """
         if self._backend:
             self._backend.interface.publish_preempting()
+
+    def Model(self, name:Optional[str] = None, model_collection_kwargs={}, ):
+        from .artifacts.model import RunModelLocalArtifactType
+        if name is None:
+            name = "model-{}".format(self._model_count)
+        self._model_count += 1
+        model_collection_kwargs = model_collection_kwargs.copy()
+        model_collection_kwargs["name"] = "{}.{}".format(self.name, name)
+        return RunModelLocalArtifactType().new_artifact(model_collection_kwargs)
 
 
 # We define this outside of the run context to support restoring before init
