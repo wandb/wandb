@@ -46,21 +46,21 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
-    def patched_pop_from_queue(self, queue):
-        ups = self._api.pop_from_run_queue(
-            queue, entity=self._entity, project=self._project
-        )
-        if ups is None:
+    def patched_finish_job_id(self, job_id):
+        del self._jobs[job_id]
+        self._running -= 1
+        if self._running == 0:
+            ret = self._api.update_launch_agent_status(self._id, "POLLING")
+            assert ret["success"]
+            # in this test there's only 1 run so kill after update
             raise KeyboardInterrupt
-        return ups
 
     with runner.isolated_filesystem():
         monkeypatch.setattr(
-            "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
-            lambda c, queue: patched_pop_from_queue(c, queue),
+            "wandb.sdk.launch.agent.LaunchAgent.finish_job_id",
+            lambda c, job_id: patched_finish_job_id(c, job_id),
         )
         result = runner.invoke(cli.launch_agent, "test_project")
-        assert result.exit_code == 0
         ctx = live_mock_server.get_ctx()
         assert ctx["num_popped"] == 1
         assert ctx["num_acked"] == 1
@@ -86,6 +86,16 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
         assert (
             "Not all of requested queues ['nonexistent_queue'] found" in result.output
         )
+
+
+@pytest.mark.timeout(320)
+def test_agent_failed_default_create(runner, test_settings, live_mock_server):
+    with runner.isolated_filesystem():
+        live_mock_server.set_ctx({"successfully_create_default_queue": False})
+        result = runner.invoke(
+            cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
+        )
+        assert result.exit_code != 0
 
 
 @pytest.mark.timeout(320)

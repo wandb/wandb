@@ -189,8 +189,8 @@ class LaunchAgent(object):
                         break
                 if not job:
                     time.sleep(AGENT_POLLING_INTERVAL)
-                    # for job_id in self.job_ids:
-                    # self._update_finished(job_id)
+                    for job_id in self.job_ids:
+                        self._update_finished(job_id)
                     if self._ticks % 2 == 0:
                         self.print_status()
                     continue

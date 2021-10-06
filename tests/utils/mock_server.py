@@ -76,6 +76,7 @@ def default_ctx():
         "gorilla_supports_launch_agents": True,
         "launch_agents": {},
         "num_launch_agents": 0,
+        "successfully_create_default_queue": True,
     }
 
 
@@ -1066,6 +1067,8 @@ def create_app(user_ctx=None):
                     }
                 )
         if "mutation createRunQueue" in body["query"]:
+            if not ctx["successfully_create_default_queue"]:
+                return json.dumps({"errors": ["failed to create default queue"]}), 500
             ctx["run_queues_return_default"] = True
             return json.dumps(
                 {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
