@@ -1,7 +1,14 @@
 
-# Internal docs
+# wandb service
+
+The wandb service is still experimental.  It can be enabled with:
+```
+wandb.require(experiment="service")
+```
 
 ## Grpc Server Architecture
+
+(TODO: This diagram is out of date)
 
                   |                                   |
     UserMain      |              GrpcServer           |
