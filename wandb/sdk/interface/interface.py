@@ -807,7 +807,7 @@ class BackendSender(object):
 
     def communicate_summary(self) -> Optional[pb.GetSummaryResponse]:
         record = self._make_request(get_summary=pb.GetSummaryRequest())
-        result = self._communicate(record, timeout=10)
+        result = self._communicate(record, timeout=120)
         if result is None:
             return None
         get_summary_response = result.response.get_summary_response
