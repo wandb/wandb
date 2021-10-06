@@ -46,19 +46,17 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
-    def patched_finish_job_id(self, job_id):
-        del self._jobs[job_id]
-        self._running -= 1
-        if self._running == 0:
-            ret = self._api.update_launch_agent_status(self._id, "POLLING")
-            assert ret["success"]
-            # in this test there's only 1 run so kill after update
-            raise KeyboardInterrupt
+    def patched_update_finished(self, job_id):
+        if self._jobs[job_id].get_status().state in ["failed", "finished"]:
+            self.finish_job_id(job_id)
+            if self._running == 0:
+                # only 1 run in test so kill after it's done
+                raise KeyboardInterrupt
 
     with runner.isolated_filesystem():
         monkeypatch.setattr(
-            "wandb.sdk.launch.agent.LaunchAgent.finish_job_id",
-            lambda c, job_id: patched_finish_job_id(c, job_id),
+            "wandb.sdk.launch.agent.LaunchAgent._update_finished",
+            lambda c, job_id: patched_update_finished(c, job_id),
         )
         result = runner.invoke(cli.launch_agent, "test_project")
         ctx = live_mock_server.get_ctx()
