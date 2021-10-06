@@ -17,11 +17,11 @@ torch = None
 
 def nested_shape(array_or_tuple, seen=None):
     """Figures out the shape of tensors possibly embedded in tuples
-     i.e 
-     [0,0] returns (2)
-     ([0,0], [0,0]) returns (2,2)
-     (([0,0], [0,0]),[0,0]) returns ((2,2),2)
-     """
+    i.e
+    [0,0] returns (2)
+    ([0,0], [0,0]) returns (2,2)
+    (([0,0], [0,0]),[0,0]) returns ((2,2),2)
+    """
     if seen is None:
         seen = set()
     if hasattr(array_or_tuple, "size"):
@@ -50,16 +50,14 @@ LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)
 
 
 def log_track_init(log_freq):
-    """create tracking structure used by log_track_update
-    """
+    """create tracking structure used by log_track_update"""
     l = [0] * 2
     l[LOG_TRACK_THRESHOLD] = log_freq
     return l
 
 
 def log_track_update(log_track):
-    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached
-    """
+    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached"""
     log_track[LOG_TRACK_COUNT] += 1
     if log_track[LOG_TRACK_COUNT] < log_track[LOG_TRACK_THRESHOLD]:
         return False
@@ -68,8 +66,7 @@ def log_track_update(log_track):
 
 
 class TorchHistory(object):
-    """History methods specific to PyTorch
-    """
+    """History methods specific to PyTorch"""
 
     def __init__(self, history):
         global torch
@@ -91,7 +88,7 @@ class TorchHistory(object):
         log_freq=0,
         jupyter_run=None,
     ):
-        """ This instuments hooks into the pytorch module
+        """This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches
@@ -137,8 +134,7 @@ class TorchHistory(object):
                     )
 
     def log_tensor_stats(self, tensor, name):
-        """Add distribution statistics on a tensor's elements to the current History entry
-        """
+        """Add distribution statistics on a tensor's elements to the current History entry"""
         # TODO Handle the case of duplicate names.
 
         if isinstance(tensor, tuple) or isinstance(tensor, list):
@@ -216,14 +212,11 @@ class TorchHistory(object):
         if isinstance(flat, torch.HalfTensor):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
-        # Remove nans from tensor. There's no good way to represent that in histograms.
-        flat = flat[~torch.isnan(flat)]
-        flat = flat[~torch.isinf(flat)]
-        if flat.shape == torch.Size([0]):
+        if torch.logical_not(flat.isfinite()).all():
             # Often the whole tensor is nan or inf. Just don't log it in that case.
             return
-        tmin = flat.min().item()
-        tmax = flat.max().item()
+
+        tmin, tmax = self._finite_range(tensor)
         if sparse_zeros:
             # If we've got zeros to add in, make sure zero is in the hist range.
             tmin = 0 if tmin > 0 else tmin
@@ -301,6 +294,76 @@ class TorchHistory(object):
             return False
         else:
             return handle.id in d
+
+    def _finite_range(self, tensor):
+        # This function can give the wrong range in extremely unusual cases where
+        # all finite values in a tensor are clustered verly close to the minimum or
+        # maximum value supported by the datatype. Practically speaking, this is
+        # irrelevant.
+        if tensor.isfinite().all():
+            tmin = tensor.min().item()
+            tmax = tensor.max().item()
+        else:
+            tmin = self._finite_min(tensor)
+            tmax = self._finite_max(tensor)
+
+        return min(tmin, tmax), max(tmin, tmax)
+
+    def _finite_min(self, tensor):
+        info = torch.finfo(tensor.dtype)
+
+        neginf_replacement = info.max
+        eps = info.eps
+
+        if neginf_replacement in tensor:
+            neginf_replacement = self._close_absent_value(tensor, neginf_replacement)
+
+        nan_replacement = neginf_replacement * (1 - eps)
+        if nan_replacement in tensor:
+            nan_replacement = self._close_absent_value(tensor, nan_replacement)
+
+        tensor.masked_fill_((tensor == -float("inf")), neginf_replacement)
+        tensor.masked_fill_(tensor.isnan(), nan_replacement)
+
+        tmin = tensor.min().item()
+
+        tensor.masked_fill_((tensor == neginf_replacement), -float("inf"))
+        tensor.masked_fill_((tensor == nan_replacement), float("nan"))
+
+        return tmin
+
+    def _finite_max(self, tensor):
+        info = torch.finfo(tensor.dtype)
+
+        inf_replacement = info.min
+        eps = info.eps
+
+        if inf_replacement in tensor:
+            inf_replacement = self._close_absent_value(tensor, inf_replacement)
+
+        nan_replacement = inf_replacement * (1 - eps)
+        if nan_replacement in tensor:
+            nan_replacement = self._close_absent_value(tensor, inf_replacement)
+
+        tensor.masked_fill_((tensor == float("inf")), inf_replacement)
+        tensor.masked_fill_(tensor.isnan(), nan_replacement)
+
+        tmax = tensor.max().item()
+
+        tensor.masked_fill_((tensor == inf_replacement), float("inf"))
+        tensor.masked_fill_((tensor == nan_replacement), float("nan"))
+
+        return tmax
+
+    def _close_absent_value(self, tensor, value):
+        eps = tensor.finfo(tensor.dtype).eps
+
+        # subtract a random number sampled uniformly from the range [eps*value, 1000*eps*value)
+        value -= eps * value * (999.0 * torch.rand(1).item() + 1.0)
+        while value in tensor:
+            value -= eps * value * (999.0 * torch.rand(1).item() + 1.0)
+
+        return value
 
 
 class TorchGraph(wandb.data_types.Graph):
