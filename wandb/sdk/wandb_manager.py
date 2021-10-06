@@ -23,7 +23,7 @@ class _ManagerToken:
         self._token_str = None
 
     def probe(self) -> None:
-        token = os.environ.get(env.MANAGER_TOKEN)
+        token = os.environ.get(env.SERVICE)
         if not token:
             return
         self._token_str = token
@@ -32,7 +32,7 @@ class _ManagerToken:
         version = "1"
         pid = os.getpid()
         token = "-".join([version, str(pid), str(port)])
-        os.environ[env.MANAGER_TOKEN] = token
+        os.environ[env.SERVICE] = token
         self._token_str = token
 
     def parse(self) -> Tuple[str, int, int]:

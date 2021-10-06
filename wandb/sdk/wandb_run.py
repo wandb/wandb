@@ -457,8 +457,8 @@ class Run(object):
     def __getstate__(self) -> Any:
         """Custom pickler."""
 
-        # We only pickle in concurrency mode
-        if not self._settings or not self._settings._concurrency:
+        # We only pickle in service mode
+        if not self._settings or not self._settings._require_service:
             return
 
         _attach_id = self._attach_id
@@ -1133,7 +1133,7 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        if not self._settings._concurrency:
+        if not self._settings._require_service:
             current_pid = os.getpid()
             if current_pid != self._init_pid:
                 message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(

@@ -2,7 +2,7 @@
 
 import wandb
 
-wandb.require("concurrency")
+wandb.require("service")
 wandb.init()
 print("somedata")
 wandb.log(dict(m1=1))

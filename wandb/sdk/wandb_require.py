@@ -31,14 +31,14 @@ class _Requires(object):
     def require_require(self) -> None:
         pass
 
-    def _require_concurrency(self) -> None:
-        os.environ["WANDB_REQUIRE_CONCURRENCY"] = "True"
+    def _require_service(self) -> None:
+        os.environ["WANDB_REQUIRE_SERVICE"] = "True"
         wandb.teardown = wandb._teardown  # type: ignore
         wandb.attach = wandb._attach  # type: ignore
         wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
 
-    def require_concurrency(self) -> None:
-        self._require_concurrency()
+    def require_service(self) -> None:
+        self._require_service()
 
     def apply(self) -> None:
         """Call require_* method for supported features."""
@@ -86,6 +86,6 @@ def _import_module_hook() -> None:
     """On wandb import, setup anything needed based on parent process require calls."""
     # TODO: optimize by caching which pids this has been done for or use real import hooks
     # TODO: make this more generic, but for now this works
-    req_concurrency = os.environ.get("WANDB_REQUIRE_CONCURRENCY")
-    if req_concurrency:
-        require("concurrency")
+    req_service = os.environ.get("WANDB_REQUIRE_SERVICE")
+    if req_service:
+        require("service")

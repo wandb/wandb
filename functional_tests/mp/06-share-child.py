@@ -14,7 +14,7 @@ def process_child(run):
 
 
 def main():
-    wandb.require("concurrency")
+    wandb.require("service")
 
     run = wandb.init()
     run.config.c1 = 11

@@ -17,7 +17,7 @@ def process_child(attach_id):
 
 
 def main():
-    wandb.require("concurrency")
+    wandb.require("service")
 
     run = wandb.init()
     print("parent output")

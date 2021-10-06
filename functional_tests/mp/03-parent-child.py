@@ -24,7 +24,7 @@ def process_child():
 
 
 def main():
-    wandb.require("concurrency")
+    wandb.require("service")
 
     try:
         os.mkdir("tmp")
