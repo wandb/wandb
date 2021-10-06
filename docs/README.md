@@ -6,6 +6,6 @@
 
 General developer docs available at [https://docs.wandb.com](https://docs.wandb.com)
 
-## Developer docs
+## Developer documentation
 
-- [Grpc Server](grpc-server.md)
+- [Developer information](dev/)
