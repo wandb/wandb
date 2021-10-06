@@ -270,7 +270,6 @@ class Run(object):
         self._settings = settings
         self._wl = None
         self._reporter: Optional[Reporter] = None
-        self._attach_id = None
 
         self._entity = None
         self._project = None
@@ -368,6 +367,11 @@ class Run(object):
         # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
         self._iface_pid = None
         self._iface_port = None
+        self._attach_id = None
+
+        # for now, use runid as attach id, this could/should be versioned in the future
+        if self._settings._require_service:
+            self._attach_id = self._settings.run_id
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid
