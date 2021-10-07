@@ -241,7 +241,7 @@ def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
         callbacks=[WandbCallback(data_type="image", log_weights=True)]
     )
     assert (
-        wandb.run._backend.history[0]["parameters/dense.weights"]["_type"]
+        wandb.run._backend.history[0]["parameters/dense.kernel:0"]["_type"]
         == "histogram"
     )
 
