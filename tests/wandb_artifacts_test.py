@@ -1005,11 +1005,11 @@ def test_local_references(runner, live_mock_server, test_settings):
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
 
-
 def test_artifact_references_internal(
     mocked_run, mock_server, internal_sm, backend_interface, parse_ctx, test_settings,
 ):
     mock_server.set_context("max_cli_version", "0.11.0")
+    mock_server.set_context("emulate_artifacts", "true")
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("A", "dataset")
@@ -1037,7 +1037,6 @@ def test_artifact_references_internal(
         log_artifact.artifact.CopyFrom(proto_artifact)
 
         art = internal_sm.send_artifact(log_artifact)
-
 
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
