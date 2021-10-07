@@ -2513,12 +2513,12 @@ class Run(object):
         if self._backend:
             self._backend.interface.publish_preempting()
 
-    def log_checkpoint(self) -> None:
+    def log_checkpoint(self, name: str) -> None:
         """Logs current runstate as an artifact checkpoint."""
         if self._backend:
-            rec = self._backend.interface.communicate_checkpoint()
+            rec = self._backend.interface.communicate_checkpoint(name)
             assert rec
-            print(f"created checkpoint with id {rec.checkpoint_id}")
+            print(f"created checkpoint {rec}")
 
 
 # We define this outside of the run context to support restoring before init

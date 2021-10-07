@@ -14,6 +14,7 @@ import os
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
+from google.protobuf import json_format
 from pkg_resources import parse_version
 import requests
 from six.moves import queue
@@ -193,9 +194,12 @@ class SendManager(object):
     def send_checkpoint(self, record):
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         if self._fs:
-            self._fs.enqueue_checkpoint()
+            self._fs.enqueue_checkpoint(record.checkpoint.name)
             fs_response = self._fs.dequeue_result()
-            result.checkpoint_result.checkpoint_id = fs_response["checkpoint_id"]
+            assert "checkpoint" in fs_response and fs_response["checkpoint"]
+            cp_result = wandb_internal_pb2.CheckpointResult()
+            json_format.Parse(json.dumps(fs_response["checkpoint"]), cp_result)
+            result.checkpoint_result.CopyFrom(cp_result)
             self._result_q.put(result)
 
     def send_request(self, record):

@@ -826,8 +826,8 @@ class BackendSender(object):
         assert sampled_history_response
         return sampled_history_response
 
-    def communicate_checkpoint(self) -> Optional[pb.CheckpointResult]:
-        checkpoint_rec = pb.CheckpointRecord()
+    def communicate_checkpoint(self, name: str) -> Optional[pb.CheckpointResult]:
+        checkpoint_rec = pb.CheckpointRecord(name=name)
         rec = self._make_record(checkpoint=checkpoint_rec)
         result = self._communicate(rec)
         if result is None:

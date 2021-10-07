@@ -153,7 +153,7 @@ class FileStreamApi(object):
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
     Preempting = collections.namedtuple("Preempting", ())
-    Checkpoint = collections.namedtuple("Checkpoint", ())
+    Checkpoint = collections.namedtuple("Checkpoint", ("name"))
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
@@ -269,7 +269,7 @@ class FileStreamApi(object):
                         self._endpoint,
                         json={
                             "complete": False,
-                            "logging_checkpoint": True,
+                            "checkpoint_name": item.name,
                             "dropped": self._dropped_chunks,
                             "uploaded": list(uploaded),
                         },
@@ -383,8 +383,8 @@ class FileStreamApi(object):
     def enqueue_preempting(self):
         self._queue.put(self.Preempting())
 
-    def enqueue_checkpoint(self):
-        self._queue.put(self.Checkpoint())
+    def enqueue_checkpoint(self, name: str):
+        self._queue.put(self.Checkpoint(name))
 
     def dequeue_result(self):
         r = list()
