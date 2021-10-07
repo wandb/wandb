@@ -1536,6 +1536,10 @@ class Api(object):
         }
         """
         )
+
+        if agent_id is None:
+            raise ValueError("Cannot call heartbeat with an unregistered agent.")
+
         try:
             response = self.gql(
                 mutation,
