@@ -720,7 +720,9 @@ class Api(object):
         entity, project, artifact_name = self._parse_artifact_path(name)
         artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
-            raise ValueError("type %s specified but this artifact is of type %s")
+            raise ValueError(
+                f"type {type} specified but this artifact is of type {artifact.type}"
+            )
         return artifact
 
 

@@ -18,6 +18,7 @@ coverage:
     project:
       default:
         threshold: 0.75%
+        if_ci_failed: error #success, failure, error, ignore
     patch:
       default:
         target: 0
