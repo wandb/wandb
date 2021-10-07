@@ -117,10 +117,6 @@ class Api(object):
         )
         self._client_id_mapping = {}
 
-        # this cache keeps track of whether a specificed graphql input type (tuple[0])
-        # has an input field with a specified name (tuple[1])
-        self._graphql_input_type_fields: Dict[str, List[str]] = {}
-
         self.query_types, self.server_info_types = None, None
 
     def reauth(self):
