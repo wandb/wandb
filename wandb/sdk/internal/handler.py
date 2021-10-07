@@ -506,6 +506,9 @@ class HandleManager(object):
     def handle_preempting(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_checkpoint(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_header(self, record: Record) -> None:
         self._dispatch_record(record)
 

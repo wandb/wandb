@@ -153,6 +153,7 @@ class FileStreamApi(object):
 
     Finish = collections.namedtuple("Finish", ("exitcode"))
     Preempting = collections.namedtuple("Preempting", ())
+    Checkpoint = collections.namedtuple("Checkpoint", ())
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
@@ -180,6 +181,7 @@ class FileStreamApi(object):
         self._file_policies = {}
         self._dropped_chunks = 0
         self._queue = queue.Queue()
+        self._result_q = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
@@ -261,6 +263,18 @@ class FileStreamApi(object):
                         },
                     )
                     uploaded = set()
+                elif isinstance(item, self.Checkpoint):
+                    request_with_retry(
+                        self._client.post,
+                        self._endpoint,
+                        json={
+                            "complete": False,
+                            "logging_checkpoint": True,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
+                    )
+                    uploaded = set()
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
                 else:
@@ -315,7 +329,7 @@ class FileStreamApi(object):
             util.sentry_exc(exc_info, delay=True)
             raise e
 
-    def _handle_response(self, response):
+    def _handle_response(self, response, enqueue_result=False):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
             wandb.termerror(
@@ -333,6 +347,8 @@ class FileStreamApi(object):
                 limits = parsed.get("limits")
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
+            if enqueue_result:
+                self._result_q.put(parsed)
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -365,6 +381,15 @@ class FileStreamApi(object):
 
     def enqueue_preempting(self):
         self._queue.put(self.Preempting())
+
+    def enqueue_checkpoint(self):
+        self._queue.put(self.Checkpoint())
+
+    def dequeue_result(self):
+        r = list()
+        while len(r) == 0:
+            r = util.read_many_from_queue(self._result_q, 1, self.rate_limit_seconds())
+        return r[0]
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.

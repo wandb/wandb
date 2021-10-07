@@ -466,7 +466,7 @@ class BackendSender(object):
         record.control.local = True
         return record
 
-    def _make_record(
+    def _make_record(  # noqa C901
         self,
         run: pb.RunRecord = None,
         config: pb.ConfigRecord = None,
@@ -485,6 +485,7 @@ class BackendSender(object):
         request: pb.Request = None,
         telemetry: tpb.TelemetryRecord = None,
         preempting: pb.RunPreemptingRecord = None,
+        checkpoint: pb.CheckpointRecord = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -521,6 +522,8 @@ class BackendSender(object):
             record.metric.CopyFrom(metric)
         elif preempting:
             record.preempting.CopyFrom(preempting)
+        elif checkpoint:
+            record.checkpoint.CopyFrom(checkpoint)
         else:
             raise Exception("Invalid record")
         return record
@@ -822,6 +825,16 @@ class BackendSender(object):
         sampled_history_response = result.response.sampled_history_response
         assert sampled_history_response
         return sampled_history_response
+
+    def communicate_checkpoint(self) -> Optional[pb.CheckpointResult]:
+        checkpoint_rec = pb.CheckpointRecord()
+        rec = self._make_record(checkpoint=checkpoint_rec)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        checkpoint_result = result.checkpoint_result
+        assert checkpoint_result
+        return checkpoint_result
 
     def join(self) -> None:
         # shutdown

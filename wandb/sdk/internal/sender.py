@@ -190,6 +190,14 @@ class SendManager(object):
         if self._fs:
             self._fs.enqueue_preempting()
 
+    def send_checkpoint(self, record):
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        if self._fs:
+            self._fs.enqueue_checkpoint()
+            fs_response = self._fs.dequeue_result()
+            result.checkpoint_result.checkpoint_id = fs_response["checkpoint_id"]
+            self._result_q.put(result)
+
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
