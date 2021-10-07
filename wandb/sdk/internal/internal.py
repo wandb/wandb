@@ -8,8 +8,8 @@ passed to thee process over multiprocessing queues.
 
 Threads:
     HandlerThread -- read from record queue and call handlers
+    DispatchThread -- write to disk
     SenderThread -- send to network
-    WriterThread -- write to disk
 
 """
 
@@ -30,11 +30,11 @@ from six.moves import queue
 import wandb
 from wandb.util import sentry_exc
 
+from . import dispatch
 from . import handler
 from . import internal_util
 from . import sender
 from . import settings_static
-from . import writer
 from ..interface import interface
 
 
@@ -95,33 +95,34 @@ def wandb_internal(
     threads: "List[RecordLoopThread]" = []
 
     send_record_q: "Queue[Record]" = queue.Queue()
+    dispatch_record_q: "Queue[Record]" = queue.Queue()
+
     record_sender_thread = SenderThread(
         settings=_settings,
         record_q=send_record_q,
         result_q=result_q,
         stopped=stopped,
+        done_q=dispatch_record_q,
         interface=publish_interface,
         debounce_interval_ms=30000,
     )
     threads.append(record_sender_thread)
 
-    write_record_q: "Queue[Record]" = queue.Queue()
-    record_writer_thread = WriterThread(
+    record_dispatch_thread = DispatchThread(
         settings=_settings,
-        record_q=write_record_q,
+        record_q=dispatch_record_q,
         result_q=result_q,
         stopped=stopped,
-        writer_q=write_record_q,
+        sender_q=send_record_q,
     )
-    threads.append(record_writer_thread)
+    threads.append(record_dispatch_thread)
 
     record_handler_thread = HandlerThread(
         settings=_settings,
         record_q=record_q,
         result_q=result_q,
         stopped=stopped,
-        sender_q=send_record_q,
-        writer_q=write_record_q,
+        dispatch_q=dispatch_record_q,
         interface=publish_interface,
     )
     threads.append(record_handler_thread)
@@ -210,8 +211,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        sender_q: "Queue[Record]",
-        writer_q: "Queue[Record]",
+        dispatch_q: "Queue[Record]",
         interface: "BackendSender",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
@@ -226,8 +226,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
-        self._sender_q = sender_q
-        self._writer_q = writer_q
+        self._dispatch_q = dispatch_q
         self._interface = interface
 
     def _setup(self) -> None:
@@ -236,8 +235,7 @@ class HandlerThread(internal_util.RecordLoopThread):
             record_q=self._record_q,
             result_q=self._result_q,
             stopped=self._stopped,
-            sender_q=self._sender_q,
-            writer_q=self._writer_q,
+            dispatch_q=self._dispatch_q,
             interface=self._interface,
         )
 
@@ -255,6 +253,7 @@ class SenderThread(internal_util.RecordLoopThread):
     """Read records from queue and dispatch to sender routines."""
 
     _record_q: "Queue[Record]"
+    _done_q: "Queue[Record]"
     _result_q: "Queue[Result]"
 
     def __init__(
@@ -263,6 +262,7 @@ class SenderThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
+        done_q: "Queue[Record]",
         interface: "BackendSender",
         debounce_interval_ms: "float" = 5000,
     ) -> None:
@@ -276,6 +276,7 @@ class SenderThread(internal_util.RecordLoopThread):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._done_q = done_q
         self._interface = interface
 
     def _setup(self) -> None:
@@ -284,6 +285,7 @@ class SenderThread(internal_util.RecordLoopThread):
             record_q=self._record_q,
             result_q=self._result_q,
             interface=self._interface,
+            done_q=self._done_q,
         )
 
     def _process(self, record: "Record") -> None:
@@ -296,11 +298,12 @@ class SenderThread(internal_util.RecordLoopThread):
         self._sm.debounce()
 
 
-class WriterThread(internal_util.RecordLoopThread):
-    """Read records from queue and dispatch to writer routines."""
+class DispatchThread(internal_util.RecordLoopThread):
+    """Read records from queue and dispatch writer and then sender routines."""
 
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
+    _sender_q: "Queue[Record]"
 
     def __init__(
         self,
@@ -308,11 +311,11 @@ class WriterThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        writer_q: "Queue[Record]",
+        sender_q: "Queue[Record]",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
-        super(WriterThread, self).__init__(
-            input_record_q=writer_q,
+        super(DispatchThread, self).__init__(
+            input_record_q=record_q,
             result_q=result_q,
             stopped=stopped,
             debounce_interval_ms=debounce_interval_ms,
@@ -321,20 +324,24 @@ class WriterThread(internal_util.RecordLoopThread):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
+        self._sender_q = sender_q
 
     def _setup(self) -> None:
-        self._wm = writer.WriteManager(
-            settings=self._settings, record_q=self._record_q, result_q=self._result_q,
+        self._dm = dispatch.DispatchManager(
+            settings=self._settings,
+            record_q=self._record_q,
+            result_q=self._result_q,
+            sender_q=self._sender_q,
         )
 
     def _process(self, record: "Record") -> None:
-        self._wm.write(record)
+        self._dm.dispatch(record)
 
     def _finish(self) -> None:
-        self._wm.finish()
+        self._dm.finish()
 
     def _debounce(self) -> None:
-        self._wm.debounce()
+        self._dm.debounce()
 
 
 class ProcessCheck(object):
