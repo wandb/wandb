@@ -41,7 +41,8 @@ message Record {
     FinalRecord     final = 20;
     HeaderRecord    header = 21;
     FooterRecord    footer = 22;
-    RunPreemptingRecord preempting = 23;    
+    RunPreemptingRecord preempting = 23;
+    CheckpointRecord checkpoint = 24;
     // request field does not belong here longterm
     Request         request = 100;
   }
@@ -65,6 +66,7 @@ message Result {
     SummaryResult     summary_result = 21;
     OutputResult      output_result = 22;
     ConfigResult      config_result = 23;
+    CheckpointResult  checkpoint_result = 25;
     /* response field does not belong here longterm */
     Response          response = 100;
   }
@@ -113,7 +115,6 @@ message RunRecord {
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
-  string                    keys_info = 21;
 }
 
 message RunUpdateResult {
@@ -141,11 +142,20 @@ message RunExitRecord {
   int32 runtime = 2;
 }
 
+message RunExitResult {
+}
+
+
 message RunPreemptingRecord {
 }
 
-message RunExitResult {
+message CheckpointRecord {
 }
+
+message CheckpointResult {
+  string checkpoint_id = 1;
+}
+
 
 /*
  * SettingsRecord: wandb/sdk/wandb_settings/Settings
