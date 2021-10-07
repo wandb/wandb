@@ -60,7 +60,8 @@ class HandleManager(object):
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
     _stopped: Event
-    _dispatch_q: "Queue[Record]"
+    _sender_q: "Queue[Record]"
+    _writer_q: "Queue[Record]"
     _interface: BackendSender
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
@@ -77,14 +78,16 @@ class HandleManager(object):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: Event,
-        dispatch_q: "Queue[Record]",
+        sender_q: "Queue[Record]",
+        writer_q: "Queue[Record]",
         interface: BackendSender,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._stopped = stopped
-        self._dispatch_q = dispatch_q
+        self._sender_q = sender_q
+        self._writer_q = writer_q
         self._interface = interface
 
         self._tb_watcher = None
@@ -125,9 +128,10 @@ class HandleManager(object):
         handler(record)
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
-        if always_send:
-            record.control.always_send = True
-        self._dispatch_q.put(record)
+        if not self._settings._offline or always_send:
+            self._sender_q.put(record)
+        if not record.control.local and self._writer_q:
+            self._writer_q.put(record)
 
     def debounce(self) -> None:
         pass
@@ -185,9 +189,10 @@ class HandleManager(object):
             update.key = k
             update.value_json = json.dumps(v)
         record = wandb_internal_pb2.Record(summary=summary)
-        # Only persist the "flush" record to transaction log
-        record.control.local = not flush
-        self._dispatch_record(record)
+        if flush:
+            self._dispatch_record(record)
+        elif not self._settings._offline:
+            self._sender_q.put(record)
 
     def _save_history(self, record: Record) -> None:
         for item in record.history.item:

@@ -44,16 +44,14 @@ message Record {
     RunPreemptingRecord preempting = 23;    
     // request field does not belong here longterm
     Request         request = 100;
-    Notify          notify = 101;
   }
   Control          control = 16;
   string           uuid = 19;
 }
 
 message Control {
-  bool req_resp = 1;    // record is expecting a result
-  bool local = 2;       // should not be persisted or synchronized
-  bool always_send = 3; // send thread needs to process this record
+  bool req_resp = 1;  // record is expecting a result
+  bool local = 2;     // should not be persisted or synchronized
 }
 
 /*
@@ -379,22 +377,6 @@ message AlertRecord {
   string text = 2;
   string level = 3;
   int64  wait_duration = 4;
-}
-
-/************************
- * Notify messages
- ************************/
-
-/*
- * Notify: non persistent message without response
- */
-message Notify {
-  oneof notify_type {
-    SendDoneNotify send_done = 1;
-  }
-}
-
-message SendDoneNotify {
 }
 
 /************************
