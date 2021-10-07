@@ -100,9 +100,6 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
 
 @pytest.mark.timeout(320)
 def test_agent_no_introspection(runner, test_settings, live_mock_server):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
     live_mock_server.set_ctx({"gorilla_supports_launch_agents": False})
     with runner.isolated_filesystem():
         result = runner.invoke(
@@ -119,6 +116,17 @@ def test_agent_no_introspection(runner, test_settings, live_mock_server):
     ctx = live_mock_server.get_ctx()
     assert ctx["launch_agents"] == {}
     assert ctx["num_launch_agents"] == 0
+
+
+@pytest.mark.timeout(320)
+def test_agent_update_failed(runner, test_settings, live_mock_server):
+    live_mock_server.set_ctx({"launch_agent_update_fail": True})
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
+        )
+
+        assert "Failed to update agent status" in result.output
 
 
 # this test includes building a docker container which can take some time.

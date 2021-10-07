@@ -107,7 +107,7 @@ class LaunchAgent(object):
 
     def print_status(self) -> None:
         """Prints the current status of the agent."""
-        print(
+        wandb.termlog(
             "polling on project {}, queues {} for jobs".format(
                 self._project, " ".join(self._queues)
             )
@@ -132,7 +132,7 @@ class LaunchAgent(object):
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         # TODO: logger
-        print("agent: got job", job)
+        wandb.termlog("agent: got job", job)
         # update agent status
         update_ret = self._api.update_launch_agent_status(self._id, AGENT_RUNNING)
         if not update_ret["success"]:

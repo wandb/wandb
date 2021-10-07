@@ -77,6 +77,7 @@ def default_ctx():
         "launch_agents": {},
         "num_launch_agents": 0,
         "successfully_create_default_queue": True,
+        "launch_agent_update_fail": False,
     }
 
 
@@ -1204,6 +1205,8 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation updateLaunchAgent(" in body["query"]:
+            if ctx["launch_agent_update_fail"]:
+                return json.dumps({"data": {"updateLaunchAgent": {"success": False}}})
             status = body["variables"]["agentStatus"]
             agent_id = body["variables"]["agentId"]
             ctx["launch_agents"][agent_id] = status
