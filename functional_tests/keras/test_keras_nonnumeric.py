@@ -57,11 +57,15 @@ keras_preproc_inputs.append(keras_output_age_x_sex)
 
 
 linear_model = tf.keras.experimental.LinearModel(
+    units=5, kernel_initializer="zeros", activation="sigmoid"
+)
+linear_model2 = tf.keras.experimental.LinearModel(
     units=1, kernel_initializer="zeros", activation="sigmoid"
 )
-linear_logits = linear_model(keras_preproc_inputs)
+linear_logits1 = linear_model(keras_preproc_inputs)
+linear_logits2 = linear_model2(linear_logits1)
 sorted_keras_inputs = tuple(keras_inputs[key] for key in sorted(keras_inputs.keys()))
-model = tf.keras.Model(sorted_keras_inputs, linear_logits)
+model = tf.keras.Model(sorted_keras_inputs, linear_logits2)
 
 model.compile("ftrl", "binary_crossentropy", metrics=["accuracy"])
 
@@ -77,4 +81,13 @@ def encode_map(features, labels):
 
 encoded_dataset = df_dataset.batch(32).map(encode_map)
 
-model.fit(encoded_dataset, callbacks=[wandb.keras.WandbCallback(log_weights=True)])
+z = model.weights
+model.fit(
+    encoded_dataset,
+    callbacks=[
+        wandb.keras.WandbCallback(
+            log_weights=True, log_gradients=True, training_data=encoded_dataset
+        )
+    ],
+    epochs=10,
+)

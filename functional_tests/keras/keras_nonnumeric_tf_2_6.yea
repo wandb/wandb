@@ -14,4 +14,12 @@ assert:
     - :op:contains_regex:
         - :wandb:runs[0][output][stderr]
         - .*Non-numeric values found in layer.*parameters/lookupembark_town.*1, not logging this layer.*
+    - :wandb:runs[0][summary][parameters/linear_model.bias:0][_type]: histogram
+    - :wandb:runs[0][summary][parameters/linear_model.kernel:0][_type]: histogram
+    - :wandb:runs[0][summary][parameters/linear_model_1.bias:0][_type]: histogram
+    - :wandb:runs[0][summary][parameters/linear_model_1.kernel:0][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model.bias:0.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model.kernel:0.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1.bias:0.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1.kernel:0.gradient][_type]: histogram
     - :wandb:runs[0][exitcode]: 0

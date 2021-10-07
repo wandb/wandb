@@ -208,9 +208,15 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
+        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
+
+    # this needs to be implemented to prevent a NotImplementedError when
+    # using Lookup layers. Since these
+    def _resource_apply_sparse(self, grad, var, indices):
+        pass
 
     def get_config(self):
         return super(_CustomOptimizer, self).get_config()
@@ -829,12 +835,11 @@ class WandbCallback(keras.callbacks.Callback):
             weights = layer.weights
             for index, w in enumerate(weights):
                 if hasattr(w, "name"):
-                    weight_string = (
-                        w.name.replace("/kernel", ".weights")
-                        .replace("/bias", ".bias")
-                        .strip(":0")
-                    )
-                    _update_if_numeric(metrics, f"parameters/{weight_string}", w)
+                    # in tf 2.6 lookup layers create empty Variable tensors which should not be logged
+                    if w.name.startswith("Variable"):
+                        continue
+                    name_string = w.name.replace("/", ".")
+                    _update_if_numeric(metrics, f"parameters/{name_string}", w)
                 else:
                     # handle case where weight does not have name by logging the layer name
                     # and weight index. Happens with all TrackableWeightHandler weights
@@ -853,14 +858,16 @@ class WandbCallback(keras.callbacks.Callback):
             verbose=0,
             callbacks=[self._grad_accumulator_callback],
         )
+
         tf_logger.setLevel(og_level)
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
         for (weight, grad) in zip(weights, grads):
-            metrics[
-                "gradients/" + weight.name.split(":")[0] + ".gradient"
-            ] = wandb.Histogram(grad)
+            # replacing "/" for "." causes all grads to go to same section in UI rather than being spread
+            # across different sections
+            name_string = weight.name.replace("/", ".")
+            metrics["gradients/" + name_string + ".gradient"] = wandb.Histogram(grad)
         return metrics
 
     def _log_dataframe(self):
