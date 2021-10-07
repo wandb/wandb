@@ -63,12 +63,13 @@ class SendManager(object):
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self, settings, record_q, result_q, interface, done_q,
     ):
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
         self._interface = interface
+        self._done_q = done_q
 
         self._fs = None
         self._pusher = None
@@ -185,6 +186,11 @@ class SendManager(object):
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
+        if self._done_q:
+            notify_record = wandb_internal_pb2.Record()
+            notify = wandb_internal_pb2.Notify()
+            notify_record.notify.CopyFrom(notify)
+            self._done_q.put(notify_record)
 
     def send_preempting(self, record):
         if self._fs:
