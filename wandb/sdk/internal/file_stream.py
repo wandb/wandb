@@ -264,7 +264,7 @@ class FileStreamApi(object):
                     )
                     uploaded = set()
                 elif isinstance(item, self.Checkpoint):
-                    request_with_retry(
+                    response = request_with_retry(
                         self._client.post,
                         self._endpoint,
                         json={
@@ -275,6 +275,7 @@ class FileStreamApi(object):
                         },
                     )
                     uploaded = set()
+                    self._handle_response(response, enqueue_result=True)
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
                 else:

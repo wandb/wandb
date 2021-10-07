@@ -2517,8 +2517,7 @@ class Run(object):
         """Logs current runstate as an artifact checkpoint."""
         if self._backend:
             rec = self._backend.interface.communicate_checkpoint()
-            if rec is None:
-                raise Exception
+            assert rec
             print(f"created checkpoint with id {rec.checkpoint_id}")
 
 
