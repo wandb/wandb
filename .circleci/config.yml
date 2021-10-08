@@ -148,6 +148,7 @@ workflows:
       - win:
          name: << pipeline.parameters.manual_win_name >>
          toxenv: << pipeline.parameters.manual_win_toxenv >>
+         parallelism: 1
   manual_mac:
     when: << pipeline.parameters.manual_mac >>
     jobs:
