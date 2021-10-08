@@ -29,6 +29,7 @@ import importlib
 import tarfile
 import tempfile
 import types
+from typing import Optional
 import yaml
 from datetime import date, datetime
 import platform
@@ -54,6 +55,7 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
+RE_WINFNAMES = re.compile('[<>:"/\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -184,6 +186,10 @@ def get_module(name, required=None):
                 logger.exception(msg)
     if required and name in _not_importable:
         raise wandb.Error(required)
+
+
+def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
+    return get_module(name)
 
 
 class LazyLoader(types.ModuleType):
@@ -1427,3 +1433,7 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def check_windows_valid_filename(path):
+    return not bool(re.search(RE_WINFNAMES, path))
