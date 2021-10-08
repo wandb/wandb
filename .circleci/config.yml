@@ -160,24 +160,24 @@ workflows:
          name: << pipeline.parameters.manual_test_name >>
          image: << pipeline.parameters.manual_test_image >>
          toxenv: << pipeline.parameters.manual_test_toxenv >>
-         parallelism: << pipeline.parameters.manual_parallelism >>
-         xdist: << pipeline.parameters.manual_xdist >>
+         parallelism: << pipeline.parameters.manual_test_parallelism >>
+         xdist: << pipeline.parameters.manual_test_xdist >>
   manual_win:
     when: << pipeline.parameters.manual_win >>
     jobs:
       - win:
          name: << pipeline.parameters.manual_win_name >>
          toxenv: << pipeline.parameters.manual_win_toxenv >>
-         parallelism: << pipeline.parameters.manual_parallelism >>
-         xdist: << pipeline.parameters.manual_xdist >>
+         parallelism: << pipeline.parameters.manual_win_parallelism >>
+         xdist: << pipeline.parameters.manual_win_xdist >>
   manual_mac:
     when: << pipeline.parameters.manual_mac >>
     jobs:
       - mac:
          name: << pipeline.parameters.manual_mac_name >>
          toxenv: << pipeline.parameters.manual_mac_toxenv >>
-         parallelism: << pipeline.parameters.manual_parallelism >>
-         xdist: << pipeline.parameters.manual_xdist >>
+         parallelism: << pipeline.parameters.manual_mac_parallelism >>
+         xdist: << pipeline.parameters.manual_mac_xdist >>
 
 jobs:
     test:
