@@ -188,11 +188,9 @@ jobs:
             toxenv:
               type: string
             parallelism:
-              # ignored right now for linux
               type: integer
               default: 1
             xdist:
-              # ignored right now for linux
               type: integer
               default: 1
         docker:
