@@ -187,8 +187,11 @@ jobs:
         parameters:
             toxenv:
               type: string
+            parallelism:
+              type: integer
+              default: 4
         executor: win/default
-        parallelism: 4
+        parallelism: << parameters.parallelism >>
         steps:
             - checkout
             - run:
