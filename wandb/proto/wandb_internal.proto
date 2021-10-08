@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
 /*
@@ -75,18 +76,21 @@ message Result {
  * FinalRecord
  */
 message FinalRecord {
+  _RecordInfo _info = 200;
 }
 
 /*
  * HeaderRecord
  */
 message HeaderRecord {
+  _RecordInfo _info = 200;
 }
 
 /*
  * FooterRecord
  */
 message FooterRecord {
+  _RecordInfo _info = 200;
 }
 
 /*
@@ -113,6 +117,7 @@ message RunRecord {
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
+  _RecordInfo               _info = 200;
 }
 
 message RunUpdateResult {
@@ -138,12 +143,20 @@ message ErrorInfo {
 message RunExitRecord {
   int32 exit_code = 1;
   int32 runtime = 2;
-}
-
-message RunPreemptingRecord {
+  _RecordInfo _info = 200;
 }
 
 message RunExitResult {
+}
+
+/*
+ * RunPreemptingRecord: run being preempted
+ */
+message RunPreemptingRecord {
+  _RecordInfo _info = 200;
+}
+
+message RunPreemptingResult {
 }
 
 /*
@@ -151,6 +164,7 @@ message RunExitResult {
  */
 message SettingsRecord {
   repeated SettingsItem item = 1;
+  _RecordInfo _info = 200;
 }
 
 message SettingsItem {
@@ -168,6 +182,7 @@ message HistoryStep {
 message HistoryRecord {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
+  _RecordInfo _info = 200;
 }
 
 message HistoryItem {
@@ -190,6 +205,7 @@ message OutputRecord {
   OutputType                output_type = 1;
   google.protobuf.Timestamp timestamp = 2;
   string                    line = 3;
+  _RecordInfo               _info = 200;
 }
 
 message OutputResult {
@@ -218,6 +234,10 @@ message MetricRecord {
     GOAL_MINIMIZE = 1;
     GOAL_MAXIMIZE = 2;
   }
+  _RecordInfo     _info = 200;
+}
+
+message MetricResult {
 }
 
 message MetricOptions {
@@ -246,6 +266,7 @@ message MetricSummary {
 message ConfigRecord {
   repeated ConfigItem update = 1;
   repeated ConfigItem remove = 2;
+  _RecordInfo         _info = 200;
 }
 
 message ConfigItem {
@@ -263,6 +284,7 @@ message ConfigResult {
 message SummaryRecord {
   repeated SummaryItem update = 1;
   repeated SummaryItem remove = 2;
+  _RecordInfo          _info = 200;
 }
 
 message SummaryItem {
@@ -279,6 +301,7 @@ message SummaryResult {
  */
 message FilesRecord {
   repeated FilesItem files = 1;
+  _RecordInfo        _info = 200;
 }
 
 message FilesItem {
@@ -292,6 +315,9 @@ message FilesItem {
   string external_path = 16;
 }
 
+message FilesResult {
+}
+
 /*
  * StatsRecord: system metrics
  */
@@ -302,6 +328,7 @@ message StatsRecord {
   StatsType                 stats_type = 1;
   google.protobuf.Timestamp timestamp = 2;
   repeated StatsItem        item = 3;
+  _RecordInfo               _info = 200;
 }
 
 message StatsItem {
@@ -330,6 +357,7 @@ message ArtifactRecord {
   string                        client_id=15;
   string                        sequence_client_id=16;
   bool                          incremental_beta1=100;
+  _RecordInfo                   _info = 200;
 }
 
 message ArtifactManifest {
@@ -367,6 +395,10 @@ message TBRecord {
   string log_dir = 1;
   bool   save = 2;
   string root_dir = 3;
+  _RecordInfo _info = 200;
+}
+
+message TBResult {
 }
 
 /*
@@ -377,6 +409,10 @@ message AlertRecord {
   string text = 2;
   string level = 3;
   int64  wait_duration = 4;
+  _RecordInfo _info = 200;
+}
+
+message AlertResult {
 }
 
 /************************
@@ -401,6 +437,8 @@ message Request {
     CheckVersionRequest   check_version = 12;
     LogArtifactRequest    log_artifact = 13;
     ShutdownRequest       shutdown = 64;
+    AttachRequest         attach = 65;
+    StatusRequest         status = 66;
     TestInjectRequest     test_inject = 1000;
   }
 }
@@ -420,6 +458,8 @@ message Response {
     CheckVersionResponse   check_version_response = 29;
     LogArtifactResponse    log_artifact_response = 30;
     ShutdownResponse       shutdown_response = 64;
+    AttachResponse         attach_response = 65;
+    StatusResponse         status_response = 66;
     TestInjectResponse     test_inject_response = 1000;
   }
 }
@@ -441,18 +481,27 @@ message DeferRequest {
     END = 9;
   }
   DeferState state = 1;
+  _RequestInfo _info = 200;
 }
 
 /*
  * PauseRequest: internal message to pause the heartbeat
  */
 message PauseRequest {
+  _RequestInfo _info = 200;
+}
+
+message PauseResponse {
 }
 
 /*
  * ResumeRequest: internal message to resume the heartbeat
  */
 message ResumeRequest {
+  _RequestInfo _info = 200;
+}
+
+message ResumeResponse {
 }
 
 /*
@@ -460,6 +509,7 @@ message ResumeRequest {
  */
 message LoginRequest {
   string api_key = 1;
+  _RequestInfo _info = 200;
 }
 
 message LoginResponse {
@@ -470,6 +520,7 @@ message LoginResponse {
  * GetSummaryRequest: request consolidated summary
  */
 message GetSummaryRequest {
+  _RequestInfo _info = 200;
 }
 
 message GetSummaryResponse {
@@ -479,7 +530,16 @@ message GetSummaryResponse {
 /*
  * StatusRequest:
  */
+message StatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message StatusResponse {
+  bool run_should_stop = 1;
+}
+
 message StopStatusRequest {
+  _RequestInfo _info = 200;
 }
 
 message StopStatusResponse {
@@ -487,6 +547,7 @@ message StopStatusResponse {
 }
 
 message NetworkStatusRequest {
+  _RequestInfo _info = 200;
 }
 
 message NetworkStatusResponse {
@@ -502,6 +563,7 @@ message HttpResponse {
  * PollExitRequest:
  */
 message PollExitRequest {
+  _RequestInfo _info = 200;
 }
 
 message PollExitResponse {
@@ -534,9 +596,23 @@ message LocalInfo {
  * ShutdownRequest:
  */
 message ShutdownRequest {
+  _RequestInfo _info = 200;
 }
 
 message ShutdownResponse {
+}
+
+/*
+ * AttachRequest:
+ */
+message AttachRequest {
+  string attach_id = 20;
+  _RequestInfo _info = 200;
+}
+
+message AttachResponse {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
 }
 
 /*
@@ -557,6 +633,7 @@ message TestInjectRequest {
   bool resp_abort = 12;
   bool msg_drop = 13;
   bool msg_hang = 14;
+  _RequestInfo _info = 200;
 }
 
 message TestInjectResponse {
@@ -566,6 +643,7 @@ message TestInjectResponse {
  * SampledHistoryRequest:
  */
 message SampledHistoryRequest {
+  _RequestInfo _info = 200;
 }
 
 message SampledHistoryItem {
@@ -584,6 +662,7 @@ message SampledHistoryResponse {
  */
 message RunStartRequest {
   RunRecord run = 1;
+  _RequestInfo _info = 200;
 }
 
 message RunStartResponse {
@@ -594,6 +673,7 @@ message RunStartResponse {
  */
 message CheckVersionRequest {
   string current_version = 1;
+  _RequestInfo _info = 200;
 }
 
 message CheckVersionResponse {
@@ -607,6 +687,7 @@ message CheckVersionResponse {
  */
  message LogArtifactRequest {
     ArtifactRecord artifact = 1;
+    _RequestInfo _info = 200;
  }
 
  message LogArtifactResponse {
