@@ -276,7 +276,6 @@ class Run(object):
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
-        self._runqueue_item_id = settings.runqueue_item_id
         self._start_time = time.time()
         self._starting_step = 0
         self._name = None
@@ -457,8 +456,6 @@ class Run(object):
                 run.tags.append(tag)
         if self._start_time is not None:
             run.start_time.FromSeconds(int(self._start_time))
-        if self._runqueue_item_id is not None:
-            run.runqueue_item_id = self._runqueue_item_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def __getstate__(self) -> Any:

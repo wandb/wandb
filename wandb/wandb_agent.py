@@ -356,9 +356,6 @@ class Agent(object):
         )
 
         os.environ[wandb.env.RUN_ID] = run_id
-        runqueue_item_id = command.get("runqueue_item_id")
-        if runqueue_item_id is not None:
-            os.environ[wandb.env.RUNQUEUE_ITEM_ID] = runqueue_item_id
 
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
