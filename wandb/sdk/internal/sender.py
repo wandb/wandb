@@ -663,7 +663,6 @@ class SendManager(object):
             program_path=self._settings.program or None,
             repo=repo.remote_url,
             commit=repo.last_commit,
-            runqueue_item_id=run.runqueue_item_id,
         )
         self._run = run
         if self._resume_state.get("resumed"):

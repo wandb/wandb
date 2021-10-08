@@ -113,7 +113,6 @@ message RunRecord {
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
-  string                    runqueue_item_id = 21;
 }
 
 message RunUpdateResult {
