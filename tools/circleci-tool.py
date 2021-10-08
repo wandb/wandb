@@ -115,9 +115,9 @@ def trigger(args):
                 parameters["manual_" + job + "_image"] = pyimage
             parameters["manual_" + job + "_toxenv"] = toxcmd
             if args.parallelism:
-                parameters[f"manual_{job}_parallelism"] = args.parallelism
+                parameters["manual_parallelism"] = args.parallelism
             if args.xdist:
-                parameters[f"manual_{job}_xdist"] = args.xdist
+                parameters["manual_xdist"] = args.xdist
         payload["parameters"] = parameters
     print("Sending to CircleCI:", payload)
     if args.dryrun:
