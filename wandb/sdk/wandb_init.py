@@ -188,10 +188,7 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(
-            _start_time=time.time(),
-            _start_datetime=datetime.datetime.now(),
-        )
+        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
         if not settings._noop:
@@ -626,8 +623,7 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None,
-    run_id: Optional[str] = None,
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 

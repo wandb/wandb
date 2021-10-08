@@ -465,14 +465,10 @@ class Run(object):
             run.git.last_commit = self._last_commit
         # Note: run.config is set in interface/interface:_make_run()
 
-<<<<<<< HEAD
     def _populate_git_info(self) -> None:
         repo = GitRepo(remote=self._settings.git_remote)
         self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
-    def __getstate__(self) -> None:
-        pass
-=======
     def __getstate__(self) -> Any:
         """Custom pickler."""
 
@@ -485,7 +481,6 @@ class Run(object):
             return
 
         return dict(_attach_id=_attach_id)
->>>>>>> master
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
