@@ -258,6 +258,19 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "sequenceName": logged_artifact.name.split(":")[0],
         "usedAs": None,
     }
+    with pytest.raises(Exception) as e_info:
+        run.config.nested_dataset = {"nested": artifact}
+        assert (
+            str(e_info.value)
+            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+        )
+
+    with pytest.raises(Exception) as e_info:
+        run.config.dict_nested = {"one_nest": {"two_nest": artifact}}
+        assert (
+            str(e_info.value)
+            == "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+        )
 
 
 def test_unlogged_artifact_in_config(live_mock_server, test_settings):

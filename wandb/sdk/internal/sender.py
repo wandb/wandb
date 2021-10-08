@@ -228,6 +228,24 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
+    def _send_request_attach(
+        self,
+        req: wandb_internal_pb2.AttachRequest,
+        resp: wandb_internal_pb2.AttachResponse,
+    ) -> None:
+        attach_id = req.attach_id
+        assert attach_id
+        assert self._run
+        resp.run.CopyFrom(self._run)
+
+    def send_request_attach(self, record) -> None:
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._send_request_attach(
+            record.request.attach, result.response.attach_response
+        )
+        self._result_q.put(result)
+
     def send_request_stop_status(self, record):
         assert record.control.req_resp
 
@@ -256,6 +274,11 @@ class SendManager(object):
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
+
+    def send_request_status(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
 
     def send_request_network_status(self, record):
         assert record.control.req_resp
@@ -1028,6 +1051,10 @@ class SendManager(object):
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
+
+        if self._settings._offline:
+            local_info.out_of_date = False
+            return local_info
 
         latest_local_version = "latest"
 
