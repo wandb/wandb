@@ -16,7 +16,8 @@ Trigger (re)execution of a branch
     $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this
     $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this --test-repeat 4
     $ ./circleci-tool trigger --toxenv py36,py37 --loop 3
-    $ ./circleci-tool.py trigger --wait --platform win --test-file tests/test_notebooks.py --parallelism 2 --xdist 4
+    $ ./circleci-tool.py trigger --wait --platform win --test-file tests/test_notebooks.py --parallelism 5 --xdist 2
+
     ```
 
 Download artifacts from an executed workflow
@@ -114,10 +115,9 @@ def trigger(args):
                 parameters["manual_" + job + "_image"] = pyimage
             parameters["manual_" + job + "_toxenv"] = toxcmd
             if args.parallelism:
-                parameters["manual_" + job + "_parallelism"] = args.parallelism
+                parameters[f"manual_{job}_parallelism"] = args.parallelism
             if args.xdist:
-                parameters["manual_" + job + "_xdist"] = args.xdist
-            parameters["manual_" + job + "_xdist"] = toxcmd
+                parameters[f"manual_{job}_xdist"] = args.xdist
         payload["parameters"] = parameters
     print("Sending to CircleCI:", payload)
     if args.dryrun:

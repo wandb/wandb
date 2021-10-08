@@ -37,10 +37,22 @@ parameters:
   manual_mac_name:
     type: string
     default: "man-mac-py37"
-  manual_parallelism:
+  manual_test_parallelism:
     type: integer
     default: 1
-  manual_xdist:
+  manual_win_parallelism:
+    type: integer
+    default: 1
+  manual_mac_parallelism:
+    type: integer
+    default: 1
+  manual_test_xdist:
+    type: integer
+    default: 1
+  manual_win_xdist:
+    type: integer
+    default: 1
+  manual_mac_xdist:
     type: integer
     default: 1
 
