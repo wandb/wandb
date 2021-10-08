@@ -1,0 +1,17 @@
+id: 0.mp.02-sequential
+plugin:
+  - wandb
+tag:
+  shard: service
+assert:
+  - :wandb:runs_len: 2
+  - :wandb:runs[0][config]: {}
+  - :wandb:runs[0][summary]:
+      r1a: 1
+      r2a: 2
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][config]: {}
+  - :wandb:runs[1][summary]:
+      r1a: 11
+      r2b: 22
+  - :wandb:runs[1][exitcode]: 0

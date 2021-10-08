@@ -29,6 +29,7 @@ import importlib
 import tarfile
 import tempfile
 import types
+from typing import Optional
 import yaml
 from datetime import date, datetime
 import platform
@@ -185,6 +186,10 @@ def get_module(name, required=None):
                 logger.exception(msg)
     if required and name in _not_importable:
         raise wandb.Error(required)
+
+
+def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
+    return get_module(name)
 
 
 class LazyLoader(types.ModuleType):

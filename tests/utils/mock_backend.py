@@ -39,7 +39,7 @@ class ProcessMock(Process):
 
 
 class BackendMock(object):
-    def __init__(self, mode=None, settings=None, log_level=None):
+    def __init__(self, mode=None, settings=None, log_level=None, manager=None):
         self.calls = {}
         self._run = None
         self._done = True
@@ -56,6 +56,7 @@ class BackendMock(object):
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level
+        self._manager = manager
 
     def _hack_set_run(self, run):
         self._run = run
