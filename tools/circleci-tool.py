@@ -16,6 +16,7 @@ Trigger (re)execution of a branch
     $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this
     $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this --test-repeat 4
     $ ./circleci-tool trigger --toxenv py36,py37 --loop 3
+    $ ./circleci-tool.py trigger --wait --platform win --test-file tests/test_notebooks.py --parallelism 2 --xdist 4
     ```
 
 Download artifacts from an executed workflow
@@ -112,6 +113,11 @@ def trigger(args):
             if job == "test":
                 parameters["manual_" + job + "_image"] = pyimage
             parameters["manual_" + job + "_toxenv"] = toxcmd
+            if args.parallelism:
+                parameters["manual_" + job + "_parallelism"] = args.parallelism
+            if args.xdist:
+                parameters["manual_" + job + "_xdist"] = args.xdist
+            parameters["manual_" + job + "_xdist"] = toxcmd
         payload["parameters"] = parameters
     print("Sending to CircleCI:", payload)
     if args.dryrun:
@@ -229,6 +235,8 @@ def process_args():
     parse_trigger.add_argument("--test-file", help="test file (ex: tests/test.py)")
     parse_trigger.add_argument("--test-name", help="test name (ex: test_dummy)")
     parse_trigger.add_argument("--test-repeat", type=int, help="repeat N times (ex: 3)")
+    parse_trigger.add_argument("--parallelism", type=int, help="CircleCI parallelism")
+    parse_trigger.add_argument("--xdist", type=int, help="pytest xdist parallelism")
     parse_trigger.add_argument("--loop", type=int, help="Outer loop (implies wait)")
     parse_trigger.add_argument(
         "--wait", action="store_true", help="Wait for finish or error"
