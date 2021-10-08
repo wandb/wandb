@@ -838,7 +838,11 @@ class WandbCallback(keras.callbacks.Callback):
                     # in tf 2.6 lookup layers create empty Variable tensors which should not be logged
                     if w.name.startswith("Variable"):
                         continue
-                    name_string = w.name.replace("/", ".")
+                    name_string = (
+                        w.name.replace("/kernel", ".weights")
+                        .replace("/bias", ".bias")
+                        .split(":")[0]
+                    )
                     _update_if_numeric(metrics, f"parameters/{name_string}", w)
                 else:
                     # handle case where weight does not have name by logging the layer name
@@ -864,10 +868,9 @@ class WandbCallback(keras.callbacks.Callback):
         grads = self._grad_accumulator_callback.grads
         metrics = {}
         for (weight, grad) in zip(weights, grads):
-            # replacing "/" for "." causes all grads to go to same section in UI rather than being spread
-            # across different sections
-            name_string = weight.name.replace("/", ".")
-            metrics["gradients/" + name_string + ".gradient"] = wandb.Histogram(grad)
+            metrics[
+                "gradients/" + weight.name.split(":")[0] + ".gradient"
+            ] = wandb.Histogram(grad)
         return metrics
 
     def _log_dataframe(self):
