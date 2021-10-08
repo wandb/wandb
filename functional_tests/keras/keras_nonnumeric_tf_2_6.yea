@@ -19,7 +19,7 @@ assert:
     - :wandb:runs[0][summary][parameters/linear_model_1.bias][_type]: histogram
     - :wandb:runs[0][summary][parameters/linear_model_1.weights][_type]: histogram
     - :wandb:runs[0][summary][gradients/linear_model.bias.gradient][_type]: histogram
-    - :wandb:runs[0][summary][gradients/linear_model.weights.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model.kernel.gradient][_type]: histogram
     - :wandb:runs[0][summary][gradients/linear_model_1.bias.gradient][_type]: histogram
-    - :wandb:runs[0][summary][gradients/linear_model_1.weights.gradient][_type]: histogram
+    - :wandb:runs[0][summary][gradients/linear_model_1.kernel.gradient][_type]: histogram
     - :wandb:runs[0][exitcode]: 0
