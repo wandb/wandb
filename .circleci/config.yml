@@ -188,7 +188,7 @@ jobs:
             toxenv:
               type: string
         executor: win/default
-        parallelism: 1
+        parallelism: 4
         steps:
             - checkout
             - run:
@@ -205,7 +205,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      tox -v -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
