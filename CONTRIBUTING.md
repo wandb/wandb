@@ -27,9 +27,7 @@ pip install --upgrade wandb
 ```
 wandb/
 ┣ apis/             - Public api (still has internal api but this should be moved to wandb/internal)
-┃ ┣ internal.py
-┃ ┣ internal_runqueue.py
-┃ ┣ normalize.py
+┃ ┣ [internal.py](https://github.com/wandb/client/blob/master/wandb/apis/internal.py)
 ┃ ┗ public.py
 ┣ cli/              - Handlers for command line functionality
 ┣ integration/
