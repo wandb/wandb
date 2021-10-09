@@ -256,7 +256,7 @@ CI_PYTEST_SPLIT_ARGS="--store-durations" tox -e py37
 
 ### Regression Testing
 
-TODO(jhr): describe how regression works, how to run them, where they're located etc. [deprecated?]
+TODO(jhr): describe how regression works, how to run them, where they're located etc.
 
 ## Live development
 
