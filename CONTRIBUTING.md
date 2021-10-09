@@ -24,33 +24,33 @@ pip install --upgrade wandb
 
 ## Code organization
 
-```md
+```bash
 wandb/
-┣ apis/ - Public api (still has internal api but this should be moved to wandb/internal)
-┃ ┣ [internal.py](https://github.com/wandb/client/blob/master/wandb/apis/internal.py)
-┃ ┗ public.py
-┣ cli/ - Handlers for command line functionality
-┣ integration/
-┃ ┣ fastai/
-┃ ┣ gym/
-┃ ┣ keras/
-┃ ┣ lightgbm/
-┃ ┣ metaflow/
-┃ ┣ prodigy/
-┃ ┣ sacred/
-┃ ┣ sagemaker/
-┃ ┣ sb3/
-┃ ┣ tensorboard/
-┃ ┣ tensorflow/
-┃ ┣ torch/
-┃ ┣ xgboost/
-┃ ┗ magic.py
-┣ proto/ - Protocol buffers for inter-process communication and persist file store
-┣ sdk/ - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
-┃ ┣ backend/ - Support to launch internal process
-┃ ┣ interface/ - Interface to backend execution
-┃ ┗ internal/ - Backend threads/processes
-┗ sweeps/ - Hyperparameter sweep engine (pin of https://github.com/wandb/sweeps)
+|-- apis/ - Public api (still has internal api but this should be moved to wandb/internal)
+| |-- internal.py
+| |__ public.py
+|-- cli/ - Handlers for command line functionality
+|-- integration/
+| |-- fastai/
+| |-- gym/
+| |-- keras/
+| |-- lightgbm/
+| |-- metaflow/
+| |-- prodigy/
+| |-- sacred/
+| |-- sagemaker/
+| |-- sb3/
+| |-- tensorboard/
+| |-- tensorflow/
+| |-- torch/
+| |-- xgboost/
+| |__ magic.py
+|-- proto/ - Protocol buffers for inter-process communication and persist file store
+|-- sdk/ - User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
+| |-- backend/ - Support to launch internal process
+| |-- interface/ - Interface to backend execution
+| |__ internal/ - Backend threads/processes
+|__ sweeps/ - Hyperparameter sweep engine (pin of https://github.com/wandb/sweeps)
 ```
 
 ## Setup development environment
