@@ -4,22 +4,22 @@
 
 Checkout from github:
 
-```
-git clone git@github.com:wandb/client.git
-cd client
-pip install -e .
+```shell
+$ git clone git@github.com:wandb/client.git
+$ cd client
+$ pip install -e .
 ```
 
 Install from pip:
 
-```
-pip install --upgrade git+git://github.com/wandb/client.git
+```shell
+$ pip install --upgrade git+git://github.com/wandb/client.git
 ```
 
 Or from pypi:
 
-```
-pip install --upgrade wandb
+```shell
+$ pip install --upgrade wandb
 ```
 
 ## Code organization
@@ -65,15 +65,16 @@ wandb/
 
 In order to run unittests please install pyenv:
 
+(put the output in your `~/.bashrc`)
+
 ```shell
-curl https://pyenv.run | bash
-# put the output in your ~/.bashrc
+$ curl https://pyenv.run | bash
 ```
 
 then run:
 
 ```shell
-./tools/setup_dev_environment.sh
+$ ./tools/setup_dev_environment.sh
 ```
 
 ## Building protocol buffers
@@ -82,8 +83,8 @@ We use protocol buffers to communicate from the user process to the wandb backen
 
 If you update any of the .proto files in `wandb/proto`, you'll need to run:
 
-```
-make proto
+```shell
+$ make proto
 ```
 
 ## Code checks
@@ -97,25 +98,25 @@ make proto
 Tests can be found in `tests/`. We use tox to run tests, you can run all tests with:
 
 ```shell
-tox
+$ tox
 ```
 
 You should run this before you make a commit. To run specific tests in a specific environment:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test
+$ tox -e py37 -- tests/test_public_api.py -k substring_of_test
 ```
 
 Sometimes pytest will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
+$ tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
 ```
 
 If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
 
 ```shell
-tox -e py37 --recreate
+$ tox -e py37 --recreate
 ```
 
 ### Overview
@@ -260,8 +261,8 @@ TODO(jhr): describe how regression works, how to run them, where they're located
 You can enter any of the tox environments and install a live dev build with:
 
 ```shell
-source .tox/py37/bin/activate
-pip install -e .
+$ source .tox/py37/bin/activate
+$ pip install -e .
 ```
 
 There's also a tox dev environment using Python 3, more info [here](https://tox.readthedocs.io/en/latest/example/devenv.html).
@@ -269,7 +270,7 @@ There's also a tox dev environment using Python 3, more info [here](https://tox.
 TODO: There are lots of cool things we could do with this, currently it just puts us in iPython.
 
 ```shell
-tox -e dev
+$ tox -e dev
 ```
 
 ## Library Objectives
@@ -290,21 +291,21 @@ and information given to the user when settings are overwritten to inform the us
 of settings:
 
 - Enforced settings from organization, team, user, project
-- settings set by environment variables: WANDB_PROJECT=
-- settings passed to wandb function: wandb.init(project=)
+- settings set by environment variables: `WANDB_PROJECT=`
+- settings passed to wandb function: `wandb.init(project=)`
 - Default settings from organization, team, project
-- settings in global settings file: ~/.config/wandb/settings
-- settings in local settings file: ./wandb/settings
+- settings in global settings file: `~/.config/wandb/settings`
+- settings in local settings file: `./wandb/settings`
 
 ### Data to be synced to server is fully validated
 
-Calls to wandb.log() result in the dictionary being serialized into a schema'ed data structure.
+Calls to `wandb.log()` result in the dictionary being serialized into a schema'ed data structure.
 Any non supported element should result in an immediate exception.
 
 ### All changes to objects are reflected in sync data
 
 When changing properties of objects, those objects should serialize the changes into a schema'ed data
-structure. There should be no need for .save() methods on objects.
+structure. There should be no need for `.save()` methods on objects.
 
 ### Library can be disabled
 
@@ -319,82 +320,76 @@ Main settings object that is passed explicitly or implicitly to all wandb functi
 
 ### wandb.setup()
 
-Similar to wandb.init() but it impacts the entire process or session. This allows multiple wandb.init() calls to share
-some common setup. It is not necessary as it will be called implicitly by the first wandb.init() call.
+Similar to `wandb.init()` but it impacts the entire process or session. This allows multiple `wandb.init()` calls to share
+some common setup. It is not necessary as it will be called implicitly by the first `wandb.init()` call.
 
 ## Detailed walk through of a simple program
 
 ### Program
 
-```
-import wandb
-run = wandb.init(config=dict(param1=1))
-run.config.param2 = 2
-run.log(dict(this=3))
+```python
+1 import wandb
+2 run = wandb.init(config=dict(param1=1))
+3 run.config.param2 = 2
+4 run.log(dict(this=3))
 ```
 
-### Steps
-
-#### import wandb
+#### <u>import wandb (line 1)</u>
 
 - minimal code should be run on import
 
-#### wandb.init()
+#### <u>wandb.init(...) (line 2)</u>
 
-User Process:
+- User Process:
 
-- Calls internal wandb.setup() in case the user has not yet initialized the global wandb state
-- Sets up notification and request queues for communicating with internal process
-- Spawns internal process used for syncing passing queues and the settings object
-- Creates a Run object `RunManaged`
-- Encodes passed config dictionary into RunManaged object
-- Sends synchronous protocol buffer request message `RunData` to internal process
-- Wait for response for configurable amount of time. Populate run object with response data
-- Terminal (sys.stdout, sys.stderr) is wrapped which sends output to internal process with `RunOutput` message
-- Sets a global Run object for users who use wandb.log() syntax
-- Run.on_start() is called to display initial information about the run
-- Returns Run object
+  - Calls internal `wandb.setup()` in case the user has not yet initialized the global wandb state
+  - Sets up notification and request queues for communicating with internal process
+  - Spawns internal process used for syncing passing queues and the settings object
+  - Creates a Run object `RunManaged`
+  - Encodes passed config dictionary into `RunManaged` object
+  - Sends synchronous protocol buffer request message `RunData` to internal process
+  - Wait for response for configurable amount of time. Populate run object with response data
+  - Terminal (`sys.stdout`, `sys.stderr`) is wrapped which sends output to internal process with `RunOutput` message
+  - Sets a global `Run` object for users who use `wandb.log()` syntax
+  - `Run.on_start()` is called to display initial information about the run
+  - Returns `Run` object
 
-Internal Process:
+- Internal Process:
+  - Process initialization
+  - Wait on notify queue for work
+  - When RunData message is seen, queue this message to be written to disk `wandb_write` and sent to cloud `wandb_send`
+  - wandb_send thread sends upsert_run graphql http request
+  - response is populated into a response message
+  - Spin up internal threads which monitor system metrics
+  - Queue response message to the user process context
 
-- Process initialization
-- Wait on notify queue for work
-- When RunData message is seen, queue this message to be written to disk `wandb_write` and sent to cloud `wandb_send`
-- wandb_send thread sends upsert_run graphql http request
-- response is populated into a response message
-- Spin up internal threads which monitor system metrics
-- Queue response message to the user process context
+#### <u>run.config attribute setter (line 3)</u>
 
-#### run.config attribute setter
+- User Process:
 
-User Process:
+  - Callback on the `Run` object is called with the changed config item
+  - `Run` object callback generates `ConfigData` message and asynchronously sends to internal process
 
-- Callback on the Run object is called with the changed config item
-- Run object callback generates ConfigData message and asynchronously sends to internal process
+- Internal Process:
+  - When `ConfigData` message is seen, queue message to `wandb_write` and `wandb_send`
+  - `wandb_send` thread sends `upsert_run` graphql http request
 
-Internal Process:
+#### <u>wandb.log(...) (line 4)</u>
 
-- When ConfigData message is seen, queue message to wandb_write and wandb_send
-- wandb_send thread sends upsert_run graphql http request
+- User process:
 
-#### wandb.log()
+  - Log dictionary is serialized and sent asynchronously as HistoryData message to internal process
 
-User process:
+- Internal Process:
+  - When `HistoryData` message is seen, queue message to `wandb_write` and `wandb_send`
+  - `wandb_send` thread sends `file_stream` data to cloud server
 
-- Log dictionary is serialized and sent asynchronously as HistoryData message to internal process
+#### <u>end of program or wandb.finish()</u>
 
-Internal Process:
-
-- When HistoryData message is seen, queue message to wandb_write and wandb_send
-- wandb_send thread sends file_stream data to cloud server
-
-#### end of program or wandb.finish()
-
-User process:
-
-- Terminal wrapper is shutdown and flushed to internal process
-- Exit code of program is captured and sent synchronously to internal process as ExitData
-- Run.on_final() is called to display final information about the run
+- User process:
+  - Terminal wrapper is shutdown and flushed to internal process
+  - Exit code of program is captured and sent synchronously to internal process as `ExitData`
+  - `Run.on_final()` is called to display final information about the run
 
 ## Documentation Generation
 
@@ -422,7 +417,7 @@ A folder named `library` in the same folder as the code. The files in the `libra
 
 **Usage**
 
-```bash
+```shell
 $ python docgen_cli.py
 ```
 
