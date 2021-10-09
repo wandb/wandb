@@ -26,13 +26,15 @@ pip install --upgrade wandb
 
 ```bash
 wandb/
+├── ...
 ├── apis/   # Public api (still has internal api but this should be moved to wandb/internal)
 │   ├── ...
 │   ├── internal.py
 │   ├── ...
 │   └── public.py
 ├── cli/    # Handlers for command line functionality
-├── integration/
+├── ...
+├── integration/    # Third party integration
 │   ├── fastai/
 │   ├── gym/
 │   ├── keras/
@@ -47,13 +49,16 @@ wandb/
 │   ├── torch/
 │   ├── xgboost/
 │   └── ...
+├── ...
 ├── proto/  # Protocol buffers for inter-process communication and persist file store
+├── ...
 ├── sdk/    # User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
 │   ├── backend/    # Support to launch internal process
 │   ├── interface/  # Interface to backend execution
 │   └── internal/   # Backend threads/processes
 ├── ...
-└── sweeps/ # Hyperparameter sweep engine (pin of https://github.com/wandb/sweeps)
+├── sweeps/ # Hyperparameter sweep engine (see repo: https://github.com/wandb/sweeps)
+└── ...
 ```
 
 ## Setup development environment
