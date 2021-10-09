@@ -80,7 +80,7 @@ then run:
 
 We use protocol buffers to communicate from the user process to the wandb backend process.
 
-If you update any of the .proto files in wandb/proto, you'll need to run:
+If you update any of the .proto files in `wandb/proto`, you'll need to run:
 
 ```
 make proto
@@ -129,7 +129,7 @@ Testing wandb is tricky for a few reasons:
 5. wandb reads configuration state from global directories such as `~/.netrc` and `~/.config/wandb/settings` we need to override these in tests.
 6. The library needs to support jupyter notebook environments as well.
 
-To make our lives easier we've created lots tooling to help with the above challenges. Most of this tooling comes in the form of [Pytest Fixtures](https://docs.pytest.org/en/stable/fixture.html). There are detailed descriptions of our fixtures in the section below. What follows is a general overview of writing good tests for wandb.
+To make our lives easier we've created lots of tooling to help with the above challenges. Most of this tooling comes in the form of [Pytest Fixtures](https://docs.pytest.org/en/stable/fixture.html). There are detailed descriptions of our fixtures in the section below. What follows is a general overview of writing good tests for wandb.
 
 To test functionality in the user process the `wandb_init_run` is the simplest fixture to start with. This is like calling `wandb.init()` except we don't actually launch the wandb backend process and instead returned a mocked object you can make assertions with. For example:
 
@@ -139,7 +139,7 @@ def test_basic_log(wandb_init_run):
     assert wandb.run._backend.history[0]["test"] == 1
 ```
 
-One of the most powerful fixtures is `live_mock_server`. When running tests we start a Flask server that provides our graphql, filestream, and additional web service endpoints with sane defaults. This allows us to use wandb just like we would in the real world. It also means we can assert various requests were made. All server logic can be found in `tests/utils/mock_server.py` and it's really straight forward to add additional logic to this server. Here's a basic example of using the live_mock_server:
+One of the most powerful fixtures is `live_mock_server`. When running tests we start a Flask server that provides our graphql, filestream, and additional web service endpoints with sane defaults. This allows us to use wandb just like we would in the real world. It also means we can assert various requests were made. All server logic can be found in `tests/utils/mock_server.py` and it's really straight forward to add additional logic to this server. Here's a basic example of using the `live_mock_server`:
 
 ```python
 def test_live_log(live_mock_server, test_settings):
@@ -150,7 +150,7 @@ def test_live_log(live_mock_server, test_settings):
     assert json.loads(first_stream_hist["content"][0])["test"] == 1
 ```
 
-Notice we also used the `test_settings` fixture. This turns off console logging and ensures the run is automatically finished when the test finishes. Another really cool benefit of this fixture is it creates a run directory for the test at `tests/logs/NAME_OF_TEST`. This is super useful for debugging because the logs are stored there. In addition to getting the debug logs you can find the live_mock_server logs at `tests/logs/live_mock_server.log`.
+Notice we also used the `test_settings` fixture. This turns off console logging and ensures the run is automatically finished when the test finishes. Another really cool benefit of this fixture is it creates a run directory for the test at `tests/logs/NAME_OF_TEST`. This is super useful for debugging because the logs are stored there. In addition to getting the debug logs you can find the `live_mock_server` logs at `tests/logs/live_mock_server.log`.
 
 We also have pytest fixtures that are automatically used. These include `local_netrc` and `local_settings` this ensures we never read those settings files from your own environment.
 
@@ -168,7 +168,7 @@ def test_one_cell(notebook):
 
 The wandb system can be viewed as 3 distinct services:
 
-1. The user process where wandb.init() is called
+1. The user process where `wandb.init()` is called
 2. The internal process where work is done to format data to be synced to the server
 3. The backend server which listens to graphql endpoints and populates a database
 
@@ -234,14 +234,14 @@ We use codecov to ensure we're executing all branches of logic in our tests. Bel
 
 We currently have 8 categories of test coverage:
 
-1. project: main coverage numbers, i dont think it can drop by more than a few percent or you will get a failure
-2. patch/tests: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
-3. patch/tests-utils: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
-4. patch/sdk: anything that matches `wandb/sdk/*.py` (so top level sdk files). These have lots of ways to test, so it should be high coverage. currently target is ~80% (but it is dynamic)
-5. patch/sdk-internal: should be covered very high target is around 80% (also dynamic)
-6. patch/sdk-other: will be a catch all for other stuff in wandb/sdk/ target around 75% (dynamic)
-7. patch/apis: we have no good fixtures for this, so until we do, this will get a waiver
-8. patch/other: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
+1. `project`: main coverage numbers, I dont think it can drop by more than a few percent or you will get a failure
+2. `patch/tests`: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
+3. `patch/tests-utils`: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
+4. `patch/sdk`: anything that matches `wandb/sdk/*.py` (so top level sdk files). These have lots of ways to test, so it should be high coverage. currently target is ~80% (but it is dynamic)
+5. `patch/sdk-internal`: should be covered very high target is around 80% (also dynamic)
+6. `patch/sdk-other`: will be a catch all for other stuff in `wandb/sdk/` target around 75% (dynamic)
+7. `patch/apis`: we have no good fixtures for this, so until we do, this will get a waiver
+8. `patch/other`: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
 
 ### Test parallelism
 
@@ -276,7 +276,7 @@ tox -e dev
 
 ### Supported user interface
 
-All objects and methods that users are intended to interact with are in the wandb/sdk directory. Any
+All objects and methods that users are intended to interact with are in the `wandb/sdk` directory. Any
 method on an object that is not prefixed with an underscore is part of the supported interface and should
 be documented.
 
