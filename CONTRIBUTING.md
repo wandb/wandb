@@ -5,21 +5,21 @@
 Checkout from github:
 
 ```shell
-$ git clone git@github.com:wandb/client.git
-$ cd client
-$ pip install -e .
+git clone git@github.com:wandb/client.git
+cd client
+pip install -e .
 ```
 
 Install from pip:
 
 ```shell
-$ pip install --upgrade git+git://github.com/wandb/client.git
+pip install --upgrade git+git://github.com/wandb/client.git
 ```
 
 Or from pypi:
 
 ```shell
-$ pip install --upgrade wandb
+pip install --upgrade wandb
 ```
 
 ## Code organization
@@ -68,13 +68,13 @@ In order to run unittests please install pyenv:
 (put the output in your `~/.bashrc`)
 
 ```shell
-$ curl https://pyenv.run | bash
+curl https://pyenv.run | bash
 ```
 
 then run:
 
 ```shell
-$ ./tools/setup_dev_environment.sh
+./tools/setup_dev_environment.sh
 ```
 
 ## Building protocol buffers
@@ -84,7 +84,7 @@ We use protocol buffers to communicate from the user process to the wandb backen
 If you update any of the .proto files in `wandb/proto`, you'll need to run:
 
 ```shell
-$ make proto
+make proto
 ```
 
 ## Code checks
@@ -98,25 +98,25 @@ $ make proto
 Tests can be found in `tests/`. We use tox to run tests, you can run all tests with:
 
 ```shell
-$ tox
+tox
 ```
 
 You should run this before you make a commit. To run specific tests in a specific environment:
 
 ```shell
-$ tox -e py37 -- tests/test_public_api.py -k substring_of_test
+tox -e py37 -- tests/test_public_api.py -k substring_of_test
 ```
 
 Sometimes pytest will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
-$ tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
+tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
 ```
 
 If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
 
 ```shell
-$ tox -e py37 --recreate
+tox -e py37 --recreate
 ```
 
 ### Overview
@@ -261,8 +261,8 @@ TODO(jhr): describe how regression works, how to run them, where they're located
 You can enter any of the tox environments and install a live dev build with:
 
 ```shell
-$ source .tox/py37/bin/activate
-$ pip install -e .
+source .tox/py37/bin/activate
+pip install -e .
 ```
 
 There's also a tox dev environment using Python 3, more info [here](https://tox.readthedocs.io/en/latest/example/devenv.html).
@@ -270,7 +270,7 @@ There's also a tox dev environment using Python 3, more info [here](https://tox.
 TODO: There are lots of cool things we could do with this, currently it just puts us in iPython.
 
 ```shell
-$ tox -e dev
+tox -e dev
 ```
 
 ## Library Objectives
@@ -334,11 +334,11 @@ some common setup. It is not necessary as it will be called implicitly by the fi
 4 run.log(dict(this=3))
 ```
 
-#### <u>import wandb (line 1)</u>
+#### import wandb [line 1]
 
 - minimal code should be run on import
 
-#### <u>wandb.init(...) (line 2)</u>
+#### wandb.init(...) [line 2]
 
 - User Process:
 
@@ -363,7 +363,7 @@ some common setup. It is not necessary as it will be called implicitly by the fi
   - Spin up internal threads which monitor system metrics
   - Queue response message to the user process context
 
-#### <u>run.config attribute setter (line 3)</u>
+#### run.config attribute setter [line 3]
 
 - User Process:
 
@@ -374,7 +374,7 @@ some common setup. It is not necessary as it will be called implicitly by the fi
   - When `ConfigData` message is seen, queue message to `wandb_write` and `wandb_send`
   - `wandb_send` thread sends `upsert_run` graphql http request
 
-#### <u>wandb.log(...) (line 4)</u>
+#### wandb.log(...) [line 4]
 
 - User process:
 
@@ -384,7 +384,7 @@ some common setup. It is not necessary as it will be called implicitly by the fi
   - When `HistoryData` message is seen, queue message to `wandb_write` and `wandb_send`
   - `wandb_send` thread sends `file_stream` data to cloud server
 
-#### <u>end of program or wandb.finish()</u>
+#### end of program or wandb.finish()
 
 - User process:
   - Terminal wrapper is shutdown and flushed to internal process
@@ -418,7 +418,7 @@ A folder named `library` in the same folder as the code. The files in the `libra
 **Usage**
 
 ```shell
-$ python docgen_cli.py
+python docgen_cli.py
 ```
 
 **Outputs**
