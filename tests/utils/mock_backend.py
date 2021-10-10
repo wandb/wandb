@@ -8,13 +8,7 @@ from _pytest.config import get_config  # type: ignore
 from wandb.proto import wandb_internal_pb2  # type: ignore
 
 from wandb.sdk.interface import interface
-
-try:
-    # pytest-mock <= 3.2.0
-    from pytest_mock import _get_mock_module  # type: ignore
-except ImportError:
-    # newer pytest-mock versions
-    from pytest_mock import get_mock_module as _get_mock_module  # type: ignore
+from .utils import get_mock_module
 
 
 class ProcessMock(Process):
