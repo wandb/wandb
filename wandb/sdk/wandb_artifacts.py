@@ -885,18 +885,6 @@ class ArtifactManifestEntry(ArtifactEntry):
         self._ensure_unlocked()
         self._local_path = value
 
-    def lock(self) -> "ArtifactManifestEntry":
-        return ArtifactManifestEntry(
-            path=self.path,
-            digest=self.digest,
-            size=self.size,
-            extra=self.extra,
-            ref=self.ref,
-            birth_artifact_id=self.birth_artifact_id,
-            local_path=self.local_path,
-            locked=True,
-        )
-
     def _ensure_unlocked(self) -> None:
         if self._locked:
             raise ValueError("Cannot mutate locked entry.")
