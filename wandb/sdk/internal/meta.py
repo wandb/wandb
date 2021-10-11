@@ -197,15 +197,16 @@ class Meta(object):
         self.data["state"] = "running"
 
     def _setup_git(self):
-        if self._git.enabled and not self._settings.disable_git:
-            logger.debug("setup git")
-            self.data["git"] = {
-                "remote": self._git.remote_url,
-                "commit": self._git.last_commit,
-            }
-            self.data["email"] = self._git.email
-            self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
-            logger.debug("setup git done")
+        if self._settings.disable_git or not self._git.enabled:
+            return
+        logger.debug("setup git")
+        self.data["git"] = {
+            "remote": self._git.remote_url,
+            "commit": self._git.last_commit,
+        }
+        self.data["email"] = self._git.email
+        self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
+        logger.debug("setup git done")
 
     def probe(self):
         logger.debug("probe")
