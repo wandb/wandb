@@ -66,9 +66,9 @@ def prompt_api_key(  # noqa: C901
     if anon_mode == "never":
         # Omit LOGIN_CHOICE_ANON as a choice if the env var is set to never
         choices.remove(LOGIN_CHOICE_ANON)
-    if jupyter or no_offline:
+    if (jupyter and not settings.login_timeout) or no_offline:
         choices.remove(LOGIN_CHOICE_DRYRUN)
-    if jupyter or no_create:
+    if (jupyter and not settings.login_timeout) or no_create:
         choices.remove(LOGIN_CHOICE_NEW)
 
     if jupyter and "google.colab" in sys.modules:
@@ -90,7 +90,9 @@ def prompt_api_key(  # noqa: C901
     elif len(choices) == 1:
         result = choices[0]
     else:
-        result = prompt_choices(choices, input_timeout=settings.login_timeout)
+        result = prompt_choices(
+            choices, input_timeout=settings.login_timeout, jupyter=jupyter
+        )
 
     api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
     if result == LOGIN_CHOICE_ANON:

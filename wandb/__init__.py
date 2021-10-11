@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.12.4"
+__version__ = "0.12.5.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -39,6 +39,8 @@ wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
+_attach = wandb_sdk._attach
+_teardown = wandb_sdk.teardown
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
@@ -59,6 +61,10 @@ from wandb.errors import CommError, UsageError
 
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader
+
+# Call import module hook to setup any needed require hooks
+wandb.sdk.wandb_require._import_module_hook()
+
 from wandb import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
