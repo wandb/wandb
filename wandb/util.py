@@ -1058,7 +1058,7 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(input_timeout: int = None) -> str:
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
     input_fn = input
     prompt = term.LOG_STRING
     if input_timeout:
@@ -1069,18 +1069,20 @@ def _prompt_choice(input_timeout: int = None) -> str:
         # timed_input doesnt handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
-    choice = input_fn(f"{prompt}: Enter your choice: ")
+    choice = input_fn(f"{prompt}: Enter your choice: ", jupyter=jupyter)
     return choice
 
 
-def prompt_choices(choices, allow_manual=False, input_timeout: int = None):
+def prompt_choices(
+    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
-        choice = _prompt_choice(input_timeout=input_timeout)
+        choice = _prompt_choice(input_timeout=input_timeout, jupyter=jupyter)
         if not choice:
             continue
         idx = -1
