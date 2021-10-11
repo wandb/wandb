@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
+import wandb.docker as docker
 from wandb.errors import Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
@@ -35,6 +36,7 @@ class LaunchProject(object):
     def __init__(
         self,
         uri: str,
+        launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
         name: Optional[str],
@@ -44,6 +46,7 @@ class LaunchProject(object):
     ):
 
         self.uri = uri
+        self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
@@ -51,7 +54,10 @@ class LaunchProject(object):
         self.python_version: Optional[str] = docker_config.get("python_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        self.docker_user_id: int = docker_config.get("user_id", 1000)
+        uid = 1000
+        if self._base_image:
+            uid = docker.get_image_uid(self._base_image)
+        self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
@@ -311,6 +317,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
 
     return LaunchProject(
         uri,
+        launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
         name,
