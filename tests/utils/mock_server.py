@@ -77,6 +77,8 @@ def default_ctx():
         "launch_agents": {},
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
+        "swappable_artifacts": False,
+        "used_artifact_info": None,
     }
 
 
@@ -606,6 +608,23 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "query ProbeServerUseArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "UseArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "runName"},
+                                {"name": "artifactID"},
+                                {"name": "usedAs"},
+                                {"name": "clientMutationId"},
+                            ]
+                        },
+                    }
+                }
+            )
 
         if "query Sweep(" in body["query"]:
             return json.dumps(
@@ -876,6 +895,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation UseArtifact(" in body["query"]:
+            used_name = body.get("variables", {}).get("usedAs", None)
+            ctx["used_artifact_info"] = {"used_name": used_name}
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {
@@ -977,6 +998,13 @@ def create_app(user_ctx=None):
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
                 return {"data": {"artifact": art}}
+            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                full_name = body.get("variables", {}).get("name", None)
+                if full_name is not None:
+                    collection_name = full_name.split(":")[0]
+                art = artifact(
+                    ctx, collection_name=collection_name, request_url_root=base_url,
+                )
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
             if "source" not in body["variables"]["name"]:

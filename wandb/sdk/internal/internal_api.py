@@ -117,7 +117,15 @@ class Api(object):
         )
         self._client_id_mapping = {}
 
-        self.query_types, self.server_info_types = None, None
+        (
+            self.query_types,
+            self.server_info_types,
+            self.server_use_artifact_input_info,
+        ) = (
+            None,
+            None,
+            None,
+        )
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
@@ -313,6 +321,29 @@ class Api(object):
                 for field in res.get("ServerInfoType", {}).get("fields", [{}])
             ]
         return (self.query_types, self.server_info_types)
+
+    def server_use_artifact_input_introspection(self):
+        query_string = """
+           query ProbeServerUseArtifactInput {
+               UseArtifactInputInfoType: __type(name: "UseArtifactInput") {
+                   name
+                   inputFields {
+                       name
+                   }
+                }
+            }
+        """
+
+        if self.server_use_artifact_input_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            self.server_use_artifact_input_info = [
+                field.get("name", "")
+                for field in res.get("UseArtifactInputInfoType", {}).get(
+                    "inputFields", [{}]
+                )
+            ]
+        return self.server_use_artifact_input_info
 
     @normalize_exceptions
     def launch_agent_introspection(self):
@@ -1948,21 +1979,27 @@ class Api(object):
         return responses
 
     def use_artifact(
-        self, artifact_id, entity_name=None, project_name=None, run_name=None
+        self,
+        artifact_id,
+        entity_name=None,
+        project_name=None,
+        run_name=None,
+        use_as=None,
     ):
-        query = gql(
-            """
+        query_template = """
         mutation UseArtifact(
             $entityName: String!,
             $projectName: String!,
             $runName: String!,
-            $artifactID: ID!
+            $artifactID: ID!,
+            _USED_AS_TYPE_
         ) {
             useArtifact(input: {
                 entityName: $entityName,
                 projectName: $projectName,
                 runName: $runName,
-                artifactID: $artifactID
+                artifactID: $artifactID,
+                _USED_AS_VALUE_
             }) {
                 artifact {
                     id
@@ -1976,7 +2013,19 @@ class Api(object):
             }
         }
         """
-        )
+
+        artifact_types = self.server_use_artifact_input_introspection()
+        if "usedAs" in artifact_types:
+            query_template = query_template.replace(
+                "_USED_AS_TYPE_", "$usedAs: String"
+            ).replace("_USED_AS_VALUE_", "usedAs: $usedAs")
+        else:
+            query_template = query_template.replace("_USED_AS_TYPE_", "").replace(
+                "_USED_AS_VALUE_", ""
+            )
+
+        query = gql(query_template)
+
         entity_name = entity_name or self.settings("entity")
         project_name = project_name or self.settings("project")
         run_name = run_name or self.current_run_id
@@ -1988,6 +2037,7 @@ class Api(object):
                 "projectName": project_name,
                 "runName": run_name,
                 "artifactID": artifact_id,
+                "usedAs": use_as,
             },
         )
 
