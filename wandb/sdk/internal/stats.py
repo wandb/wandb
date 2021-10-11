@@ -245,7 +245,7 @@ class SystemStats(object):
 
                 if self._interface and not self._telem.env.m1_gpu:
                     self._telem.env.m1_gpu = True
-                    self._interface.publish_telemetry(self._telem)
+                    self._interface._publish_telemetry(self._telem)
 
             except (OSError, ValueError, TypeError, subprocess.CalledProcessError) as e:
                 wandb.termwarn("GPU stats error {}".format(e))

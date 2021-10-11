@@ -10,10 +10,12 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
+import os
 from typing import Sequence, Union
 
 import wandb
 from wandb.errors import RequireError
+from wandb.sdk import wandb_run
 
 
 class _Requires(object):
@@ -28,6 +30,15 @@ class _Requires(object):
 
     def require_require(self) -> None:
         pass
+
+    def _require_service(self) -> None:
+        os.environ["WANDB_REQUIRE_SERVICE"] = "True"
+        wandb.teardown = wandb._teardown  # type: ignore
+        wandb.attach = wandb._attach  # type: ignore
+        wandb_run.Run.detach = wandb_run.Run._detach  # type: ignore
+
+    def require_service(self) -> None:
+        self._require_service()
 
     def apply(self) -> None:
         """Call require_* method for supported features."""
@@ -69,3 +80,12 @@ def require(
 
     f = _Requires(features=features)
     f.apply()
+
+
+def _import_module_hook() -> None:
+    """On wandb import, setup anything needed based on parent process require calls."""
+    # TODO: optimize by caching which pids this has been done for or use real import hooks
+    # TODO: make this more generic, but for now this works
+    req_service = os.environ.get("WANDB_REQUIRE_SERVICE")
+    if req_service:
+        require("service")

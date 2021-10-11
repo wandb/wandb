@@ -108,6 +108,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    _require_service="WANDB_REQUIRE_SERVICE",
     login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
@@ -219,6 +220,7 @@ class Settings(object):
 
     mode: str = "online"
     start_method: Optional[str] = None
+    _require_service: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     force: Optional[bool] = None
@@ -308,6 +310,7 @@ class Settings(object):
         anonymous: str = None,
         mode: str = None,
         start_method: str = None,
+        _require_service: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
@@ -507,6 +510,8 @@ class Settings(object):
             if self._jupyter:
                 console = "wrap"
             elif self.start_method == "thread":
+                console = "wrap"
+            elif self._require_service:
                 console = "wrap"
             elif self._windows:
                 console = "wrap"
