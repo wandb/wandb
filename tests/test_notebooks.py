@@ -9,6 +9,27 @@ import wandb
 from wandb.errors import UsageError
 
 
+def test_login_timeout(notebook, monkeypatch):
+    monkeypatch.setattr(
+        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=True: x[0]
+    )
+    monkeypatch.setattr(
+        wandb.wandb_lib.apikey,
+        "prompt_choices",
+        lambda x, input_timeout=None, jupyter=True: x[0],
+    )
+    with notebook("login_timeout.ipynb") as nb:
+        nb.execute_all()
+        output = nb.cell_output(0)
+        print(output)
+        assert "W&B disabled due to login timeout" in output[0]["text"]
+
+        output = nb.cell_output(1)
+        print(output)
+        print(type(output))
+        assert output[0]["data"]["text/plain"] == ""
+
+
 def test_one_cell(notebook):
     with notebook("one_cell.ipynb") as nb:
         nb.execute_all()
