@@ -3516,12 +3516,15 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
-    def delete(self):
+    def delete(self, delete_aliases=False):
         """Delete artifact and its files."""
         mutation = gql(
             """
-        mutation deleteArtifact($id: ID!) {
-            deleteArtifact(input: {artifactID: $id}) {
+        mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+            deleteArtifact(input: {
+                artifactID: $artifactID
+                deleteAliases: $deleteAliases
+            }) {
                 artifact {
                     id
                 }
@@ -3530,7 +3533,8 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
         )
         return True
 
