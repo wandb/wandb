@@ -11,7 +11,7 @@ import json
 import logging
 from multiprocessing.process import BaseProcess
 import os
-from typing import Any, Iterable, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 from typing import cast
 from typing import TYPE_CHECKING
 
