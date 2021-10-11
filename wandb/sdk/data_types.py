@@ -4,6 +4,7 @@ import json
 import logging
 import numbers
 import os
+import platform
 import re
 import shutil
 import sys
@@ -65,6 +66,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
+SYS_PLATFORM = platform.system()
 
 
 def _get_max_cli_version() -> Union[str, None]:
@@ -488,6 +490,11 @@ class Media(WBValue):
         if not self.file_is_set():
             raise AssertionError("bind_to_run called before _set_file")
 
+        if SYS_PLATFORM == "Windows" and not util.check_windows_valid_filename(key):
+            raise ValueError(
+                f"Media {key} is invalid. Please remove invalid filename characters"
+            )
+
         # The following two assertions are guaranteed to pass
         # by definition file_is_set, but are needed for
         # mypy to understand that these are strings below.
@@ -674,8 +681,8 @@ class Object3D(BatchableMedia):
         data_or_path: (numpy array, string, io)
             Object3D can be initialized from a file or a numpy array.
 
-            The file types supported are obj, gltf, babylon, stl.  You can pass a path to
-                a file or an io object and a file_type which must be one of `'obj', 'gltf', 'babylon', 'stl'`.
+            You can pass a path to a file or an io object and a file_type
+            which must be one of `"obj"`, `"gltf"`, `"glb"`, `"babylon"`, `"stl"`, `"pts.json"`.
 
     The shape of the numpy array must be one of either:
     ```python

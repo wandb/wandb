@@ -43,6 +43,8 @@ def default_ctx():
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
         "fail_storage_count": 0,  # used via "fail_storage_times"
         "rate_limited_count": 0,  # used via "rate_limited_times"
+        "graphql_conflict": False,
+        "num_search_users": 1,
         "page_count": 0,
         "page_times": 2,
         "requested_file": "weights.h5",
@@ -71,6 +73,8 @@ def default_ctx():
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
+        "swappable_artifacts": False,
+        "used_artifact_info": None,
     }
 
 
@@ -375,6 +379,8 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+        if ctx["graphql_conflict"]:
+            return json.dumps({"error": "resource already exists"}), 409
 
         # Setup artifact emulator (should this be somewhere else?)
         emulate_random_str = ctx["emulate_artifacts"]
@@ -545,6 +551,9 @@ def create_app(user_ctx=None):
                 "data": {
                     "viewer": {
                         "entity": "mock_server_entity",
+                        "admin": False,
+                        "email": "mock@server.test",
+                        "username": "mock",
                         "flags": '{"code_saving_enabled": true}',
                         "teams": {"edges": []},  # TODO make configurable for cli_test
                     },
@@ -590,6 +599,23 @@ def create_app(user_ctx=None):
                             "fields": [
                                 {"name": "cliVersionInfo"},
                                 {"name": "latestLocalVersionInfo"},
+                            ]
+                        },
+                    }
+                }
+            )
+        if "query ProbeServerUseArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "UseArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "runName"},
+                                {"name": "artifactID"},
+                                {"name": "usedAs"},
+                                {"name": "clientMutationId"},
                             ]
                         },
                     }
@@ -865,6 +891,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation UseArtifact(" in body["query"]:
+            used_name = body.get("variables", {}).get("usedAs", None)
+            ctx["used_artifact_info"] = {"used_name": used_name}
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {
@@ -985,6 +1013,13 @@ def create_app(user_ctx=None):
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
                 return {"data": {"artifact": art}}
+            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                full_name = body.get("variables", {}).get("name", None)
+                if full_name is not None:
+                    collection_name = full_name.split(":")[0]
+                art = artifact(
+                    ctx, collection_name=collection_name, request_url_root=base_url,
+                )
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
             if "source" not in body["variables"]["name"]:
@@ -1113,6 +1148,76 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
+        # Admin apis
+        if "mutation DeleteApiKey" in body["query"]:
+            return {"data": {"deleteApiKey": {"success": True}}}
+        if "mutation GenerateApiKey" in body["query"]:
+            return {
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+            }
+        if "mutation DeleteInvite" in body["query"]:
+            return {"data": {"deleteInvite": {"success": True}}}
+        if "mutation CreateInvite" in body["query"]:
+            return {"data": {"createInvite": {"invite": {"id": "XXX"}}}}
+        if "mutation CreateServiceAccount" in body["query"]:
+            return {"data": {"createServiceAccount": {"user": {"id": "XXX"}}}}
+        if "mutation CreateTeam" in body["query"]:
+            return {
+                "data": {
+                    "createTeam": {
+                        "entity": {"id": "XXX", "name": body["variables"]["teamName"]}
+                    }
+                }
+            }
+        if "query SearchUsers" in body["query"]:
+
+            return {
+                "data": {
+                    "users": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "XXX",
+                                    "email": body["variables"]["query"],
+                                    "apiKeys": {
+                                        "edges": [
+                                            {"node": {"id": "YYY", "name": "Y" * 40}}
+                                        ]
+                                    },
+                                    "teams": {
+                                        "edges": [
+                                            {"node": {"id": "TTT", "name": "test"}}
+                                        ]
+                                    },
+                                }
+                            }
+                        ]
+                        * ctx["num_search_users"]
+                    }
+                }
+            }
+        if "query Entity(" in body["query"]:
+            return {
+                "data": {
+                    "entity": {
+                        "id": "XXX",
+                        "members": [
+                            {
+                                "id": "YYY",
+                                "name": "test",
+                                "accountType": "MEMBER",
+                                "apiKey": None,
+                            },
+                            {
+                                "id": "SSS",
+                                "name": "Service account",
+                                "accountType": "SERVICE",
+                                "apiKey": "Y" * 40,
+                            },
+                        ],
+                    }
+                }
+            }
         if "stopped" in body["query"]:
             return json.dumps(
                 {

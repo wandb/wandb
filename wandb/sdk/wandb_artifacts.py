@@ -134,6 +134,7 @@ class Artifact(ArtifactInterface):
         aliases: Optional[list] = None,
         metadata: Optional[dict] = None,
         incremental: Optional[bool] = None,
+        use_as: Optional[str] = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -175,6 +176,7 @@ class Artifact(ArtifactInterface):
         self._client_id = util.generate_id(128)
         self._sequence_client_id = util.generate_id(128)
         self._cache.store_client_artifact(self)
+        self._use_as = use_as
 
         if incremental:
             self._incremental = incremental
@@ -316,6 +318,10 @@ class Artifact(ArtifactInterface):
             return
 
         self._aliases = aliases
+
+    @property
+    def use_as(self) -> Optional[str]:
+        return self._use_as
 
     @property
     def distributed_id(self) -> Optional[str]:
@@ -685,6 +691,13 @@ class Artifact(ArtifactInterface):
         # mark final after all files are added
         self._final = True
         self._digest = self._manifest.digest()
+
+    def json_encode(self) -> Dict[str, Any]:
+        if not self._logged_artifact:
+            raise ValueError(
+                "Cannot json encode artifact before it has been logged or in offline mode."
+            )
+        return util.artifact_to_json(self)
 
     def _ensure_can_add(self) -> None:
         if self._final:
@@ -1072,7 +1085,7 @@ class __S3BucketPolicy(StoragePolicy):
         local = LocalFileHandler()
 
         self._handler = MultiHandler(
-            handlers=[s3, local,], default_handler=TrackingHandler()
+            handlers=[s3, local,], default_handler=TrackingHandler(),
         )
 
     def config(self) -> Dict[str, str]:

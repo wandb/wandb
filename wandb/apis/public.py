@@ -210,6 +210,9 @@ class Api(object):
             id
             flags
             entity
+            username
+            email
+            admin
             teams {
                 edges {
                     node {
@@ -220,6 +223,41 @@ class Api(object):
         }
     }
     """
+    )
+    USERS_QUERY = gql(
+        """
+    query SearchUsers($query: String) {
+        users(query: $query) {
+            edges {
+                node {
+                    id
+                    flags
+                    entity
+                    admin
+                    email
+                    deletedAt
+                    username
+                    apiKeys {
+                        edges {
+                            node {
+                                id
+                                name
+                                description
+                            }
+                        }
+                    }
+                    teams {
+                        edges {
+                            node {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+        """
     )
 
     def __init__(self, overrides={}, timeout: Optional[int] = None):
@@ -232,6 +270,7 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self._viewer = None
         self._projects = {}
         self._runs = {}
         self._sweeps = {}
@@ -305,6 +344,15 @@ class Api(object):
             res = self._client.execute(self.VIEWER_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
+
+    @property
+    def viewer(self):
+        if self._viewer is None:
+            self._viewer = User(
+                self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
+            )
+            self._default_entity = self._viewer.entity
+        return self._viewer
 
     def flush(self):
         """
@@ -487,6 +535,53 @@ class Api(object):
             )
         return self._reports[key]
 
+    def create_team(self, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+        """
+        return Team.create(self.client, team, admin_username)
+
+    def team(self, team):
+        return Team(self.client, team)
+
+    def user(self, username_or_email):
+        """Return a user from a username or email address
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user
+
+        Returns:
+            A `User` object or None if a user couldn't be found
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        if len(res["users"]["edges"]) == 0:
+            return None
+        elif len(res["users"]["edges"]) > 1:
+            wandb.termwarn(
+                "Found multiple users, returning the first user matching {}".format(
+                    username_or_email
+                )
+            )
+        return User(self._client, res["users"]["edges"][0]["node"])
+
+    def users(self, username_or_email):
+        """Return all users from a partial username or email address query
+
+        Arguments:
+            username_or_email: (str) The prefix or suffix of the user you want to find
+
+        Returns:
+            An array of `User` objects
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
+
     def runs(self, path="", filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
@@ -625,7 +720,9 @@ class Api(object):
         entity, project, artifact_name = self._parse_artifact_path(name)
         artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
-            raise ValueError("type %s specified but this artifact is of type %s")
+            raise ValueError(
+                f"type {type} specified but this artifact is of type {artifact.type}"
+            )
         return artifact
 
 
@@ -739,8 +836,270 @@ class Paginator(object):
 
 
 class User(Attrs):
-    def init(self, attrs):
+    DELETE_API_KEY_MUTATION = gql(
+        """
+    mutation DeleteApiKey($id: String!) {
+        deleteApiKey(input: {id: $id}) {
+            success
+        }
+    }
+        """
+    )
+    GENERATE_API_KEY_MUTATION = gql(
+        """
+    mutation GenerateApiKey($description: String) {
+        generateApiKey(input: {description: $description}) {
+            apiKey {
+                id
+                name
+            }
+        }
+    }
+        """
+    )
+
+    def __init__(self, client, attrs):
         super(User, self).__init__(attrs)
+        self._client = client
+
+    @property
+    def api_keys(self):
+        if self._attrs.get("apiKeys") is None:
+            return []
+        return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
+
+    @property
+    def teams(self):
+        if self._attrs.get("teams") is None:
+            return []
+        return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
+
+    def delete_api_key(self, api_key):
+        """Delete a users api key
+
+        Returns:
+            Boolean indicating success
+
+        Raises:
+            ValueError if the api_key couldn't be found
+        """
+        idx = self.api_keys.index(api_key)
+        try:
+            self._client.execute(
+                self.DELETE_API_KEY_MUTATION,
+                {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
+            )
+        except requests.exceptions.HTTPError:
+            return False
+        return True
+
+    def generate_api_key(self, description=None):
+        """Generates a new api key
+
+        Returns:
+            The new api key, or None on failure
+        """
+        try:
+            return self._client.execute(
+                self.GENERATE_API_KEY_MUTATION, {"description": description}
+            )["generateApiKey"]["apiKey"]["name"]
+        except requests.exceptions.HTTPError:
+            return None
+
+    def __repr__(self):
+        return "<User {}>".format(self.email)
+
+
+class Member(Attrs):
+    DELETE_MEMBER_MUTATION = gql(
+        """
+    mutation DeleteInvite($id: String, $entityName: String) {
+        deleteInvite(input: {id: $id, entityName: $entityName}) {
+            success
+        }
+    }
+  """
+    )
+
+    def __init__(self, client, team, attrs):
+        super(Member, self).__init__(attrs)
+        self._client = client
+        self.team = team
+
+    def delete(self):
+        """Remove a member from a team
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            return self._client.execute(
+                self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
+            )["deleteInvite"]["success"]
+        except requests.exceptions.HTTPError:
+            return False
+
+    def __repr__(self):
+        return "<Member {} ({})>".format(self.name, self.account_type)
+
+
+class Team(Attrs):
+    CREATE_TEAM_MUTATION = gql(
+        """
+    mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
+        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
+            entity {
+                id
+                name
+                available
+                photoUrl
+                limits
+            }
+        }
+    }
+    """
+    )
+    CREATE_INVITE_MUTATION = gql(
+        """
+    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
+        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
+            invite {
+                id
+                name
+                email
+                createdAt
+                toUser {
+                    name
+                }
+            }
+        }
+    }
+    """
+    )
+    TEAM_QUERY = gql(
+        """
+    query Entity($name: String!) {
+        entity(name: $name) {
+            id
+            name
+            available
+            photoUrl
+            readOnly
+            readOnlyAdmin
+            isTeam
+            privateOnly
+            storageBytes
+            codeSavingEnabled
+            defaultAccess
+            isPaid
+            members {
+                id
+                admin
+                pending
+                email
+                username
+                name
+                photoUrl
+                accountType
+                apiKey
+            }
+        }
+    }
+    """
+    )
+    CREATE_SERVICE_ACCOUNT_MUTATION = gql(
+        """
+    mutation CreateServiceAccount($entityName: String!, $description: String!) {
+        createServiceAccount(
+            input: {description: $description, entityName: $entityName}
+        ) {
+            user {
+                id
+            }
+        }
+    }
+    """
+    )
+
+    def __init__(self, client, name, attrs=None):
+        super(Team, self).__init__(attrs or {})
+        self._client = client
+        self.name = name
+        self.load()
+
+    @classmethod
+    def create(cls, api, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            api: (`Api`) The api instance to use
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+        """
+        try:
+            api.execute(
+                cls.CREATE_TEAM_MUTATION,
+                {"teamName": team, "teamAdminUserName": admin_username},
+            )
+        except requests.exceptions.HTTPError:
+            pass
+        return Team(api, team)
+
+    def invite(self, username_or_email, admin=False):
+        """Invites a user to a team
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user you want to invite
+            admin: (bool) Whether to make this user a team admin, defaults to False
+
+        Returns:
+            True on success, False if user was already invited or didn't exist
+        """
+        variables = {"entityName": self.name, "admin": admin}
+        if "@" in username_or_email:
+            variables["email"] = username_or_email
+        else:
+            variables["username"] = username_or_email
+        try:
+            self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        except requests.exceptions.HTTPError:
+            return False
+        return True
+
+    def create_service_account(self, description):
+        """Creates a service account for the team
+
+        Arguments:
+            description: (str) A description for this service account
+
+        Returns:
+            The service account `Member` object, or None on failure
+        """
+        try:
+            self._client.execute(
+                self.CREATE_SERVICE_ACCOUNT_MUTATION,
+                {"description": description, "entityName": self.name},
+            )
+            self.load(True)
+            return self.members[-1]
+        except requests.exceptions.HTTPError:
+            return None
+
+    def load(self, force=False):
+        if force or not self._attrs:
+            response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
+            self._attrs = response["entity"]
+            self._attrs["members"] = [
+                Member(self._client, self.name, member)
+                for member in self._attrs["members"]
+            ]
+        return self._attrs
+
+    def __repr__(self):
+        return "<Team {}>".format(self.name)
 
 
 class Projects(Paginator):
@@ -1019,7 +1378,7 @@ class Run(Attrs):
         url (str): the url of this run
         id (str): unique identifier for the run (defaults to eight characters)
         name (str): the name of the run
-        state (str): one of: running, finished, crashed, aborted
+        state (str): one of: running, finished, crashed, killed, preempting, preempted
         config (dict): a dict of hyperparameters associated with the run
         created_at (str): ISO timestamp when the run was started
         system_metrics (dict): the latest system metrics recorded for the run
@@ -1053,9 +1412,13 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self.state = attrs.get("state", "not found")
+        self._state = attrs.get("state", "not found")
 
         self.load(force=not attrs)
+
+    @property
+    def state(self):
+        return self._state
 
     @property
     def entity(self):
@@ -1157,7 +1520,7 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run %s" % self)
             self._attrs = response["project"]["run"]
-            self.state = self._attrs["state"]
+            self._state = self._attrs["state"]
 
             if self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -1181,7 +1544,7 @@ class Run(Attrs):
             else {}
         )
         if self._attrs.get("user"):
-            self.user = User(self._attrs["user"])
+            self.user = User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
         for key, value in six.iteritems(json.loads(self._attrs.get("config") or "{}")):
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
@@ -1213,7 +1576,7 @@ class Run(Attrs):
             if state in ["finished", "crashed", "failed"]:
                 print("Run finished with status: {}".format(state))
                 self._attrs["state"] = state
-                self.state = state
+                self._state = state
                 return
             time.sleep(5)
 
@@ -1483,12 +1846,17 @@ class Run(Attrs):
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
-    def use_artifact(self, artifact):
+    def use_artifact(self, artifact, use_as=None):
         """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
         Returns:
             A `Artifact` object.
         """
@@ -1499,7 +1867,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id)
+            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
@@ -3200,6 +3568,15 @@ class Artifact(artifacts.Artifact):
 
         return None
 
+    @property
+    def _use_as(self):
+        return self._attrs.get("_use_as")
+
+    @_use_as.setter
+    def _use_as(self, use_as):
+        self._attrs["_use_as"] = use_as
+        return use_as
+
     @normalize_exceptions
     def delete(self):
         """Delete artifact and its files."""
@@ -3441,6 +3818,9 @@ class Artifact(artifacts.Artifact):
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
         return root
+
+    def json_encode(self):
+        return util.artifact_to_json(self)
 
     @normalize_exceptions
     def save(self):

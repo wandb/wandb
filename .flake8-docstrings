@@ -9,3 +9,4 @@ filename =
     ./wandb/sdk/launch/*
     ./wandb/sdk/lib/timed_input.py
     ./wandb/integration/metaflow/metaflow.py
+    ./wandb/sdk/internal/profiler.py
