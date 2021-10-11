@@ -423,7 +423,7 @@ def test_artifact_delete(runner, mock_server, api):
         art = api.artifact("entity/project/mnist:v0", type="dataset")
 
         # The artifact has aliases, so fail unless delete_aliases is set.
-        with pytest.raises(Exception) as e:
+        with pytest.raises(Exception):
             art.delete()
 
         success = art.delete(delete_aliases=True)

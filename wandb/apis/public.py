@@ -3517,7 +3517,23 @@ class Artifact(artifacts.Artifact):
 
     @normalize_exceptions
     def delete(self, delete_aliases=False):
-        """Delete artifact and its files."""
+        """
+        Delete an artifact and its files.
+
+        Examples:
+            Delete all the "model" artifacts a run has logged:
+            ```
+            runs = api.runs(path="my_entity/my_project")
+            for run in runs:
+                for artifact in run.logged_artifacts():
+                    if artifact.type == "model":
+                        artifact.delete(delete_aliases=True)
+            ```
+
+        Arguments:
+            delete_aliases: (bool) If true, deletes all aliases associated with the artifact.
+                Otherwise, this raises an exception if the artifact has existing alaises.
+        """
         mutation = gql(
             """
         mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
