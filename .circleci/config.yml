@@ -37,6 +37,12 @@ parameters:
   manual_mac_name:
     type: string
     default: "man-mac-py37"
+  manual_parallelism:
+    type: integer
+    default: 1
+  manual_xdist:
+    type: integer
+    default: 1
 
 commands:
   save-tox-cache:
@@ -126,6 +132,10 @@ workflows:
          name: "func-s_tf25-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_tf25-py37,func-covercircle"
+      - test:
+         name: "func-s_service-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_service-py37,func-covercircle"
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
@@ -142,18 +152,24 @@ workflows:
          name: << pipeline.parameters.manual_test_name >>
          image: << pipeline.parameters.manual_test_image >>
          toxenv: << pipeline.parameters.manual_test_toxenv >>
+         parallelism: << pipeline.parameters.manual_parallelism >>
+         xdist: << pipeline.parameters.manual_xdist >>
   manual_win:
     when: << pipeline.parameters.manual_win >>
     jobs:
       - win:
          name: << pipeline.parameters.manual_win_name >>
          toxenv: << pipeline.parameters.manual_win_toxenv >>
+         parallelism: << pipeline.parameters.manual_parallelism >>
+         xdist: << pipeline.parameters.manual_xdist >>
   manual_mac:
     when: << pipeline.parameters.manual_mac >>
     jobs:
       - mac:
          name: << pipeline.parameters.manual_mac_name >>
          toxenv: << pipeline.parameters.manual_mac_toxenv >>
+         parallelism: << pipeline.parameters.manual_parallelism >>
+         xdist: << pipeline.parameters.manual_xdist >>
 
 jobs:
     test:
@@ -163,6 +179,12 @@ jobs:
               type: string
             toxenv:
               type: string
+            parallelism:
+              type: integer
+              default: 1
+            xdist:
+              type: integer
+              default: 1
         docker:
             - image: << parameters.image >>
         working_directory: /mnt/ramdisk
@@ -187,8 +209,14 @@ jobs:
         parameters:
             toxenv:
               type: string
+            parallelism:
+              type: integer
+              default: 4
+            xdist:
+              type: integer
+              default: 3
         executor: win/default
-        parallelism: 4
+        parallelism: << parameters.parallelism >>
         steps:
             - checkout
             - run:
@@ -205,7 +233,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
@@ -214,9 +242,15 @@ jobs:
         parameters:
             toxenv:
               type: string
+            parallelism:
+              type: integer
+              default: 4
+            xdist:
+              type: integer
+              default: 3
         macos:
             xcode: 11.4.1
-        parallelism: 4
+        parallelism: << parameters.parallelism >>
         steps:
             - checkout
             - run:
@@ -229,7 +263,7 @@ jobs:
                   # Tests failed with Too many open files, so added ulimit
                   command: |
                       ulimit -n 4096
-                      CI_PYTEST_PARALLEL=3 CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" python3 -m tox -v -e << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results

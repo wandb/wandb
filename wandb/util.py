@@ -29,10 +29,12 @@ import importlib
 import tarfile
 import tempfile
 import types
+from typing import Optional
 import yaml
 from datetime import date, datetime
 import platform
 from six.moves import urllib
+from typing import Any, Dict
 
 import requests
 import six
@@ -54,6 +56,7 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
+RE_WINFNAMES = re.compile('[<>:"/\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -184,6 +187,10 @@ def get_module(name, required=None):
                 logger.exception(msg)
     if required and name in _not_importable:
         raise wandb.Error(required)
+
+
+def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
+    return get_module(name)
 
 
 class LazyLoader(types.ModuleType):
@@ -575,7 +582,6 @@ def json_friendly(obj):
                 type(obj).__name__, getsizeof(obj)
             )
         )
-
     return obj, converted
 
 
@@ -1427,3 +1433,41 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def check_windows_valid_filename(path):
+    return not bool(re.search(RE_WINFNAMES, path))
+
+
+def artifact_to_json(artifact) -> Dict[str, Any]:
+    # public.Artifact has the _sequence name, instances of wandb.Artifact
+    # just have the name
+
+    if hasattr(artifact, "_sequence_name"):
+        sequence_name = artifact._sequence_name
+    else:
+        sequence_name = artifact.name.split(":")[0]
+
+    return {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": artifact.id,
+        "version": artifact.version,
+        "sequenceName": sequence_name,
+        "usedAs": artifact._use_as,
+    }
+
+
+def check_dict_contains_nested_artifact(d, nested=False):
+    if isinstance(d, dict):
+        for _, item in six.iteritems(d):
+            if isinstance(item, dict):
+                contains_artifacts = check_dict_contains_nested_artifact(item, True)
+                if contains_artifacts:
+                    return True
+            elif (
+                isinstance(item, wandb.Artifact)
+                or isinstance(item, wandb.apis.public.Artifact)
+            ) and nested:
+                return True
+    return False
