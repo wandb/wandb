@@ -201,7 +201,9 @@ def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipy
 def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
     # iframe = wandb.jupyter.IFrame()
     magic = wandb.jupyter.WandBMagics(None)
-    basic_settings = {k: v for k, v in dict(test_settings).items() if k in ["base_url", "api_key"]}
+    basic_settings = {
+        k: v for k, v in dict(test_settings).items() if k in ["base_url", "api_key"]
+    }
     magic.wandb(
         "",
         """with wandb.init(settings=wandb.Settings(**%s)):
