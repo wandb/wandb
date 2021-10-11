@@ -52,7 +52,7 @@ class BackendMock(object):
         self.summary = {}
         self.config = {}
         self.files = {}
-        self.mocker = _get_mock_module(get_config())
+        self.mocker = get_mock_module(get_config())
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level

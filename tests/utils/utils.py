@@ -15,9 +15,12 @@ def get_mock_module(config):
     """
     global _mock_module
     if _mock_module is None:
-        use_standalone_module = parse_ini_boolean(
-            config.getini("mock_use_standalone_module")
-        )
+        try:
+            use_standalone_module = parse_ini_boolean(
+                config.getini("mock_use_standalone_module")
+            )
+        except ValueError:
+            use_standalone_module = False
         if use_standalone_module:
             import mock
 

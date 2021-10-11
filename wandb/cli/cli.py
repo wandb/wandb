@@ -213,7 +213,8 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         raise ClickException("host must start with http(s)://")
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
-    key = key[0] if len(key) > 0 else None
+    # A change in click or the test harness means key can be none...
+    key = key[0] if key is not None and len(key) > 0 else None
     if key:
         relogin = True
 
