@@ -34,6 +34,7 @@ import yaml
 from datetime import date, datetime
 import platform
 from six.moves import urllib
+from typing import Any, Dict
 
 import requests
 import six
@@ -581,7 +582,6 @@ def json_friendly(obj):
                 type(obj).__name__, getsizeof(obj)
             )
         )
-
     return obj, converted
 
 
@@ -1058,7 +1058,7 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(input_timeout: int = None) -> str:
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
     input_fn = input
     prompt = term.LOG_STRING
     if input_timeout:
@@ -1069,18 +1069,20 @@ def _prompt_choice(input_timeout: int = None) -> str:
         # timed_input doesnt handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
-    choice = input_fn(f"{prompt}: Enter your choice: ")
+    choice = input_fn(f"{prompt}: Enter your choice: ", jupyter=jupyter)
     return choice
 
 
-def prompt_choices(choices, allow_manual=False, input_timeout: int = None):
+def prompt_choices(
+    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
-        choice = _prompt_choice(input_timeout=input_timeout)
+        choice = _prompt_choice(input_timeout=input_timeout, jupyter=jupyter)
         if not choice:
             continue
         idx = -1
@@ -1437,3 +1439,37 @@ def _log_thread_stacks():
 
 def check_windows_valid_filename(path):
     return not bool(re.search(RE_WINFNAMES, path))
+
+
+def artifact_to_json(artifact) -> Dict[str, Any]:
+    # public.Artifact has the _sequence name, instances of wandb.Artifact
+    # just have the name
+
+    if hasattr(artifact, "_sequence_name"):
+        sequence_name = artifact._sequence_name
+    else:
+        sequence_name = artifact.name.split(":")[0]
+
+    return {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": artifact.id,
+        "version": artifact.version,
+        "sequenceName": sequence_name,
+        "usedAs": artifact._use_as,
+    }
+
+
+def check_dict_contains_nested_artifact(d, nested=False):
+    if isinstance(d, dict):
+        for _, item in six.iteritems(d):
+            if isinstance(item, dict):
+                contains_artifacts = check_dict_contains_nested_artifact(item, True)
+                if contains_artifacts:
+                    return True
+            elif (
+                isinstance(item, wandb.Artifact)
+                or isinstance(item, wandb.apis.public.Artifact)
+            ) and nested:
+                return True
+    return False
