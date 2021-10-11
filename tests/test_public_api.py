@@ -640,4 +640,3 @@ def test_generate_api_key(mock_server, api):
     assert u.generate_api_key()
     mock_server.set_context("graphql_conflict", True)
     assert u.generate_api_key() is None
->>>>>>> 615eaffac179a3479a62e1047cd40f474bd19311
