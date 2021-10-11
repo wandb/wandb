@@ -75,7 +75,6 @@ def default_ctx():
         "return_jupyter_in_run_info": False,
         "gorilla_supports_launch_agents": True,
         "launch_agents": {},
-        "num_launch_agents": 0,
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
     }
@@ -1191,8 +1190,7 @@ def create_app(user_ctx=None):
                 }
             )
         if "mutation createLaunchAgent(" in body["query"]:
-            ctx["num_launch_agents"] += 1
-            agent_id = ctx["num_launch_agents"]
+            agent_id = len(ctx["launch_agents"].keys())
             ctx["launch_agents"][agent_id] = "POLLING"
             return json.dumps(
                 {

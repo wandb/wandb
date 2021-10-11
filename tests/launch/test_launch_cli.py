@@ -62,13 +62,12 @@ def test_launch_agent_base(
         ctx = live_mock_server.get_ctx()
         assert ctx["num_popped"] == 1
         assert ctx["num_acked"] == 1
-        assert ctx["num_launch_agents"] == 1
+        assert len(ctx["launch_agents"].keys()) == 1
         assert ctx["run_queues_return_default"] == True
         assert "Shutting down, active jobs" in result.output
         assert "polling on project" in result.output
 
 
-@pytest.mark.timeout(320)
 def test_agent_queues_notfound(runner, test_settings, live_mock_server):
     with runner.isolated_filesystem():
         result = runner.invoke(
@@ -82,12 +81,9 @@ def test_agent_queues_notfound(runner, test_settings, live_mock_server):
             ],
         )
         assert result.exit_code != 0
-        assert (
-            "Not all of requested queues ['nonexistent_queue'] found" in result.output
-        )
+        assert "Not all of requested queues (nonexistent_queue) found" in result.output
 
 
-@pytest.mark.timeout(320)
 def test_agent_failed_default_create(runner, test_settings, live_mock_server):
     with runner.isolated_filesystem():
         live_mock_server.set_ctx({"successfully_create_default_queue": False})
@@ -96,26 +92,6 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
             cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
         )
         assert result.exit_code != 0
-
-
-@pytest.mark.timeout(320)
-def test_agent_no_introspection(runner, test_settings, live_mock_server):
-    live_mock_server.set_ctx({"gorilla_supports_launch_agents": False})
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli.launch_agent,
-            [
-                "test_project",
-                "--entity",
-                "mock_server_entity",
-                "--queues",
-                "nonexistent_queue",
-            ],
-        )
-
-    ctx = live_mock_server.get_ctx()
-    assert ctx["launch_agents"] == {}
-    assert ctx["num_launch_agents"] == 0
 
 
 @pytest.mark.timeout(320)

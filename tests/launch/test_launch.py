@@ -327,6 +327,25 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
         )
 
 
+def test_agent_no_introspection(test_settings, live_mock_server):
+    live_mock_server.set_ctx({"gorilla_supports_launch_agents": False})
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    agent_response = api.create_launch_agent(
+        "mock_server_entity", "test_project", ["default"]
+    )
+    ctx = live_mock_server.get_ctx()
+    assert ctx["launch_agents"] == {}
+    assert len(ctx["launch_agents"].keys()) == 0
+    assert agent_response["success"]
+
+    update_response = api.update_launch_agent_status(
+        agent_response["launchAgentId"], "POLLING"
+    )
+    assert update_response["success"]
+
+
 @pytest.mark.timeout(320)
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython

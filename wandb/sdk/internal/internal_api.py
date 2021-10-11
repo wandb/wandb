@@ -327,9 +327,7 @@ class Api(object):
         )
 
         res = self.gql(query)
-        if res is None:
-            return {}
-        return res.get("LaunchAgentType")
+        return res.get("LaunchAgentType") or {}
 
     @normalize_exceptions
     def viewer(self):
@@ -1037,8 +1035,8 @@ class Api(object):
         ]  # filter to poll specified queues
         if len(polling_queue_ids) != len(queues):
             raise CommError(
-                "Could not start launch agent: Not all of requested queues {} found. Available queues for this project: {}".format(
-                    queues, [q["name"] for q in project_queues]
+                "Could not start launch agent: Not all of requested queues ({}) found. Available queues for this project: {}".format(
+                    ", ".join(queues), ",".join([q["name"] for q in project_queues])
                 )
             )
 
