@@ -1716,13 +1716,14 @@ class Run(object):
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline and not self._quiet:
             message = (
-                "W&B syncing is set to `offline` in this directory.  "
-                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
+                "W&B syncing is set to `offline` in this directory.  ",
+                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.",
             )
             if self._settings._jupyter and ipython.in_jupyter():
                 ipython.display_html("<br/>\n".join(message))
             else:
-                wandb.termlog(message)
+                for m in message:
+                    wandb.termlog(m)
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
