@@ -418,11 +418,11 @@ class Api(object):
             "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
         )
 
-    def _parse_project_path(self, path):
+    def _parse_project_path(self, path:Optional[str]):
         """Returns project and entity for project specified by path"""
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
-        if path is None:
+        if path is None or path == "":
             return entity, project
         parts = path.split("/", 1)
         if len(parts) == 1:
