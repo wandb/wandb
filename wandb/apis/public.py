@@ -1846,12 +1846,17 @@ class Run(Attrs):
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
-    def use_artifact(self, artifact):
+    def use_artifact(self, artifact, use_as=None):
         """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
         Returns:
             A `Artifact` object.
         """
@@ -1862,7 +1867,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id)
+            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
@@ -3501,6 +3506,15 @@ class Artifact(artifacts.Artifact):
 
         return None
 
+    @property
+    def _use_as(self):
+        return self._attrs.get("_use_as")
+
+    @_use_as.setter
+    def _use_as(self, use_as):
+        self._attrs["_use_as"] = use_as
+        return use_as
+
     @normalize_exceptions
     def delete(self):
         """Delete artifact and its files."""
@@ -3738,6 +3752,9 @@ class Artifact(artifacts.Artifact):
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
         return root
+
+    def json_encode(self):
+        return util.artifact_to_json(self)
 
     @normalize_exceptions
     def save(self):
