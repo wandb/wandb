@@ -19,7 +19,9 @@ from .utils import (
 _logger = logging.getLogger(__name__)
 
 
-def create_and_run_agent(api: Api, entity: str, project: str, queues: Optional[List[str]] = None) -> None:
+def create_and_run_agent(
+    api: Api, entity: str, project: str, queues: Optional[List[str]] = None
+) -> None:
     if queues is None:
         queues = []
     agent = LaunchAgent(entity, project, queues)

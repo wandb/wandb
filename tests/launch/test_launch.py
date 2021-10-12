@@ -520,14 +520,12 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
     )
     try:
         launch.create_and_run_agent(
-            api,
-            "mock_server_entity",
-            "test_project",
-            ["nonexistent_queue"],
+            api, "mock_server_entity", "test_project", ["nonexistent_queue"],
         )
     except Exception as e:
-        assert "Could not start launch agent: Not all of requested queues (nonexistent_queue) found" in str(
-            e
+        assert (
+            "Could not start launch agent: Not all of requested queues (nonexistent_queue) found"
+            in str(e)
         )
 
 
@@ -536,9 +534,7 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    agent = LaunchAgent(
-        "mock_server_entity", "test_project", ["default"]
-    )
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
     ctx = live_mock_server.get_ctx()
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0

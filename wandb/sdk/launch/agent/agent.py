@@ -5,11 +5,10 @@ Implementation of launch agent.
 import os
 import sys
 import time
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
 import wandb
 from wandb.apis.internal import Api
-from wandb.errors import LaunchError
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -42,9 +41,7 @@ class LaunchAgent(object):
 
     STATE_MAP: Dict[str, State] = {}
 
-    def __init__(
-        self, entity: str, project: str, queues: Iterable[str] = None
-    ):
+    def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
         self._entity = entity
         self._project = project
         self._api = Api()
@@ -58,10 +55,14 @@ class LaunchAgent(object):
         self._access = _convert_access("project")
 
         # serverside creation
-        self.gorilla_supports_agents = self._api.launch_agent_introspection() is not None
-        create_response = self._api.create_launch_agent(entity, project, queues, self.gorilla_supports_agents)
+        self.gorilla_supports_agents = (
+            self._api.launch_agent_introspection() is not None
+        )
+        create_response = self._api.create_launch_agent(
+            entity, project, queues, self.gorilla_supports_agents
+        )
         self._id = create_response["launchAgentId"]
-        self._queues: List[str] = queues if queues else ["default"]
+        self._queues = queues if queues else ["default"]
 
     @property
     def job_ids(self) -> List[int]:
@@ -94,7 +95,9 @@ class LaunchAgent(object):
         self._running -= 1
         # update status back to polling if no jobs are running
         if self._running == 0:
-            update_ret = self._api.update_launch_agent_status(self._id, AGENT_POLLING, self.gorilla_supports_agents)
+            update_ret = self._api.update_launch_agent_status(
+                self._id, AGENT_POLLING, self.gorilla_supports_agents
+            )
             if not update_ret["success"]:
                 wandb.termerror("Failed to update agent status to polling")
 
@@ -108,7 +111,9 @@ class LaunchAgent(object):
         # TODO: logger
         wandb.termlog("agent: got job", job)
         # update agent status
-        update_ret = self._api.update_launch_agent_status(self._id, AGENT_RUNNING, self.gorilla_supports_agents)
+        update_ret = self._api.update_launch_agent_status(
+            self._id, AGENT_RUNNING, self.gorilla_supports_agents
+        )
         if not update_ret["success"]:
             wandb.termerror("Failed to update agent status while running new job")
 
