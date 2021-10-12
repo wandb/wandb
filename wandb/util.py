@@ -54,6 +54,9 @@ from wandb.errors import CommError, term
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+# Boolean, unsigned integer, signed integer, float, complex.
+NUMERIC_KINDS = set("buifc")
+
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile('[<>:"/\?*]')
@@ -1349,6 +1352,10 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def is_numeric_array(array):
+    return np.asarray(array).dtype.kind in NUMERIC_KINDS
 
 
 def _is_likely_kaggle():
