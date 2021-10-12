@@ -32,7 +32,6 @@ from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
 from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib.git import GitRepo
 
 
 logger = logging.getLogger(__name__)
@@ -228,6 +227,24 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
+    def _send_request_attach(
+        self,
+        req: wandb_internal_pb2.AttachRequest,
+        resp: wandb_internal_pb2.AttachResponse,
+    ) -> None:
+        attach_id = req.attach_id
+        assert attach_id
+        assert self._run
+        resp.run.CopyFrom(self._run)
+
+    def send_request_attach(self, record) -> None:
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._send_request_attach(
+            record.request.attach, result.response.attach_response
+        )
+        self._result_q.put(result)
+
     def send_request_stop_status(self, record):
         assert record.control.req_resp
 
@@ -256,6 +273,11 @@ class SendManager(object):
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
+
+    def send_request_status(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
 
     def send_request_network_status(self, record):
         assert record.control.req_resp
@@ -645,7 +667,6 @@ class SendManager(object):
     def _init_run(self, run, config_dict):
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state["runtime"]
-        repo = GitRepo(remote=self._settings.git_remote)
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
         server_run, inserted = self._api.upsert_run(
@@ -661,8 +682,8 @@ class SendManager(object):
             sweep_name=run.sweep_id or None,
             host=run.host or None,
             program_path=self._settings.program or None,
-            repo=repo.remote_url,
-            commit=repo.last_commit,
+            repo=run.git.remote_url or None,
+            commit=run.git.last_commit or None,
         )
         self._run = run
         if self._resume_state.get("resumed"):
@@ -1028,6 +1049,10 @@ class SendManager(object):
         out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
         """
         local_info = wandb_internal_pb2.LocalInfo()
+
+        if self._settings._offline:
+            local_info.out_of_date = False
+            return local_info
 
         latest_local_version = "latest"
 

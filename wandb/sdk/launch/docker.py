@@ -170,9 +170,16 @@ def build_docker_image_if_needed(
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
     dockerfile = (
-        "FROM {imagename}\n" "{copy_code_line}" "{requirements_line}" "{name_line}"
+        "FROM {imagename}\n"
+        # need to chown this directory for artifacts caching
+        "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
+        "{copy_code_line}"
+        "{requirements_line}"
+        "{name_line}"
     ).format(
         imagename=launch_project.base_image,
+        uid=launch_project.docker_user_id,
+        homedir=homedir,
         copy_code_line=copy_code_line,
         requirements_line=requirements_line,
         name_line=name_line,
@@ -244,11 +251,11 @@ def get_docker_command(
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]
 
-    if launch_project.override_config:
-        cmd += [
-            "-v",
-            f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
-        ]
+    cmd += [
+        "-v",
+        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
+    ]
+
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -318,7 +325,9 @@ def _create_docker_build_ctx(
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
-    shutil.copytree(src=launch_project.project_dir, dst=dst_path)
+    shutil.copytree(
+        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+    )
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
         with open(runtime_path, "w") as fp:

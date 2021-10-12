@@ -172,6 +172,13 @@ def test_dir(test_name):
 
 
 @pytest.fixture
+def disable_git_save():
+    os.environ["WANDB_DISABLE_GIT"] = "true"
+    yield
+    os.environ["WANDB_DISABLE_GIT"] = "false"
+
+
+@pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem():
         r = git.Repo.init(".")
@@ -247,10 +254,12 @@ def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
+        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
     )
     monkeypatch.setattr(
-        wandb.wandb_lib.apikey, "prompt_choices", lambda x, input_timeout=None: x[0]
+        wandb.wandb_lib.apikey,
+        "prompt_choices",
+        lambda x, input_timeout=None, jupyter=False: x[0],
     )
     monkeypatch.setattr(click, "launch", lambda x: 1)
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
