@@ -87,23 +87,18 @@ class TPUProfiler(object):
 
 
 def is_tpu_available():
-    # Meaning we are using PyTorch in this case there is no support for monitoring
-    # so we just disable this feature
-    if "XRT_TPU_CONFIG" in os.environ:
+    try:
+        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore  # noqa
+        from tensorflow.python.profiler import profiler_client  # type: ignore  # noqa
+    except (
+        ImportError,
+        TypeError,
+        AttributeError,
+    ):  # Saw type error when iterating paths on colab...
+        # TODO: Saw sentry error (https://sentry.io/organizations/weights-biases/issues/2699838212/?project=5288891&query=firstRelease%3A0.12.4&statsPeriod=14d) where
+        # module 'tensorflow.python.pywrap_tensorflow' has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
         return False
-    else:
-        try:
-            from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore  # noqa
-            from tensorflow.python.profiler import profiler_client  # type: ignore  # noqa
-        except (
-            ImportError,
-            TypeError,
-            AttributeError,
-        ):  # Saw type error when iterating paths on colab...
-            # TODO: Saw sentry error (https://sentry.io/organizations/weights-biases/issues/2699838212/?project=5288891&query=firstRelease%3A0.12.4&statsPeriod=14d) where
-            # module 'tensorflow.python.pywrap_tensorflow' has no attribute 'TFE_DEVICE_PLACEMENT_EXPLICIT'
-            return False
-        return "TPU_NAME" in os.environ
+    return "TPU_NAME" in os.environ
 
 
 # Avoid multiple TPUProfiler instances
