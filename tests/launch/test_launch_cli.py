@@ -94,7 +94,6 @@ def test_agent_failed_default_create(runner, test_settings, live_mock_server):
         assert result.exit_code != 0
 
 
-@pytest.mark.timeout(320)
 def test_agent_update_failed(runner, test_settings, live_mock_server):
     live_mock_server.set_ctx({"launch_agent_update_fail": True})
     with runner.isolated_filesystem():

@@ -513,7 +513,6 @@ def test_launch_agent(
     assert len(ctx["launch_agents"].keys()) == 1
 
 
-@pytest.mark.timeout(320)
 def test_agent_queues_notfound(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
