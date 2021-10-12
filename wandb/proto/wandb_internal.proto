@@ -117,7 +117,13 @@ message RunRecord {
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
+  GitRepoRecord             git = 21;
   _RecordInfo               _info = 200;
+}
+
+message GitRepoRecord {
+  string remote_url = 1;
+  string last_commit = 2;
 }
 
 message RunUpdateResult {
