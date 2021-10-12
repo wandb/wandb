@@ -43,9 +43,8 @@ class LaunchAgent(object):
     STATE_MAP: Dict[str, State] = {}
 
     def __init__(
-        self, agent_id: str, entity: str, project: str, queues: Iterable[str] = None
+        self, entity: str, project: str, queues: Iterable[str] = None
     ):
-        self._id = agent_id
         self._entity = entity
         self._project = project
         self._api = Api()
@@ -57,37 +56,12 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._queues: List[str] = []
-        self.setup_run_queues(queues)
 
-    def setup_run_queues(self, queues: Optional[Iterable[str]]) -> None:
-        """Checks the project to ensure run queues exist then adds them to a list to be watched by the agent."""
-        # TODO: add run queue filtering to server
-        project_run_queues = self._api.get_project_run_queues(
-            self._entity, self._project
-        )
-        existing_run_queue_names = set(
-            [run_queue["name"] for run_queue in project_run_queues]
-        )
-        if queues is None:
-            for queue in project_run_queues:
-                if queue["name"] == "default":
-                    self._queues = ["default"]
-                    return
-            raise LaunchError(
-                "Error launching launch-agent: Requested default queue for {}/{} but default queue does not exist.".format(
-                    self._entity, self._project
-                )
-            )
-        else:
-            for queue in queues:
-                if queue not in existing_run_queue_names:
-                    raise LaunchError(
-                        "Error launching launch-agent: {} does not exist for {}/{}".format(
-                            queue, self._entity, self._project
-                        )
-                    )
-                self._queues.append(queue)
+        # serverside creation
+        self.gorilla_supports_agents = self._api.launch_agent_introspection() is not None
+        create_response = self._api.create_launch_agent(entity, project, queues, self.gorilla_supports_agents)
+        self._id = create_response["launchAgentId"]
+        self._queues: List[str] = queues if queues else ["default"]
 
     @property
     def job_ids(self) -> List[int]:
@@ -120,7 +94,7 @@ class LaunchAgent(object):
         self._running -= 1
         # update status back to polling if no jobs are running
         if self._running == 0:
-            update_ret = self._api.update_launch_agent_status(self._id, AGENT_POLLING)
+            update_ret = self._api.update_launch_agent_status(self._id, AGENT_POLLING, self.gorilla_supports_agents)
             if not update_ret["success"]:
                 wandb.termerror("Failed to update agent status to polling")
 
@@ -134,7 +108,7 @@ class LaunchAgent(object):
         # TODO: logger
         wandb.termlog("agent: got job", job)
         # update agent status
-        update_ret = self._api.update_launch_agent_status(self._id, AGENT_RUNNING)
+        update_ret = self._api.update_launch_agent_status(self._id, AGENT_RUNNING, self.gorilla_supports_agents)
         if not update_ret["success"]:
             wandb.termerror("Failed to update agent status while running new job")
 
@@ -183,6 +157,7 @@ class LaunchAgent(object):
         try:
             while True:
                 self._ticks += 1
+                job = None
                 for queue in self._queues:
                     job = self.pop_from_queue(queue)
                     if job:
@@ -197,7 +172,7 @@ class LaunchAgent(object):
                 self.run_job(job)
         except KeyboardInterrupt:
             shutdown_update = self._api.update_launch_agent_status(
-                self._id, AGENT_KILLED
+                self._id, AGENT_KILLED, self.gorilla_supports_agents
             )
             if not shutdown_update["success"]:
                 wandb.termerror("Failed to update agent status during shutdown")

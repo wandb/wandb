@@ -1112,10 +1112,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     wandb.termlog("Starting launch agent ✨")
 
-    launch_agent = api.create_launch_agent(entity, project, queues)
-    wandb_launch.run_agent(
-        launch_agent["launchAgentId"], entity, project, queues=queues
-    )
+    wandb_launch.create_and_run_agent(api, entity, project, queues)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

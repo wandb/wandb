@@ -2,6 +2,7 @@ import json
 import os
 from wandb.apis import PublicApi
 from unittest.mock import MagicMock
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.docker import pull_docker_image
 
 try:
@@ -505,10 +506,11 @@ def test_launch_agent(
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    launch.run_agent(util.generate_id(), "mock_server_entity", "test_project")
+    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1
+    assert len(ctx["launch_agents"].keys()) == 1
 
 
 @pytest.mark.timeout(320)
@@ -517,14 +519,14 @@ def test_agent_queues_notfound(test_settings, live_mock_server):
         default_settings=test_settings, load_settings=False
     )
     try:
-        launch.run_agent(
-            util.generate_id(),
+        launch.create_and_run_agent(
+            api,
             "mock_server_entity",
             "test_project",
             ["nonexistent_queue"],
         )
     except Exception as e:
-        assert "Error launching launch-agent: nonexistent_queue does not exist" in str(
+        assert "Could not start launch agent: Not all of requested queues (nonexistent_queue) found" in str(
             e
         )
 
@@ -534,16 +536,16 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
-    agent_response = api.create_launch_agent(
+    agent = LaunchAgent(
         "mock_server_entity", "test_project", ["default"]
     )
     ctx = live_mock_server.get_ctx()
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
-    assert agent_response["success"]
+    assert agent._id is None
 
     update_response = api.update_launch_agent_status(
-        agent_response["launchAgentId"], "POLLING"
+        agent._id, "POLLING", agent.gorilla_supports_agents
     )
     assert update_response["success"]
 
@@ -652,7 +654,7 @@ def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
     )
-    if ups is None:
+    if not ups:
         raise KeyboardInterrupt
     return ups
 

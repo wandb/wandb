@@ -358,7 +358,7 @@ class Api(object):
         )
 
         res = self.gql(query)
-        return res.get("LaunchAgentType") or {}
+        return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
     def viewer(self):
@@ -1047,7 +1047,7 @@ class Api(object):
         return response["ackRunQueueItem"]["success"]
 
     @normalize_exceptions
-    def create_launch_agent(self, entity, project, queues):
+    def create_launch_agent(self, entity, project, queues, gorilla_agent_support):
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
             # create default queue if it doesn't already exist
@@ -1071,11 +1071,11 @@ class Api(object):
                 )
             )
 
-        if not self.launch_agent_introspection():
+        if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, return a client-generated id
             return {
                 "success": True,
-                "launchAgentId": util.generate_id(),
+                "launchAgentId": None,
             }
 
         hostname = socket.gethostname()
@@ -1104,8 +1104,8 @@ class Api(object):
         return self.gql(mutation, variable_values)["createLaunchAgent"]
 
     @normalize_exceptions
-    def update_launch_agent_status(self, agent_id, status):
-        if not self.launch_agent_introspection():
+    def update_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+        if not gorilla_agent_support:
             # if gorilla doesn't support launch agents, this is a no-op
             return {
                 "success": True,
