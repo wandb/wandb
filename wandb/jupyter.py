@@ -149,6 +149,7 @@ class WandBMagics(Magics):
                 cell = (
                     f"wandb.jupyter.__IFrame = wandb.jupyter.IFrame(opts={self.options})\n"
                     + cell
+                    + "\nwandb.jupyter.__IFrame = None"
                 )
             get_ipython().run_cell(cell)
 

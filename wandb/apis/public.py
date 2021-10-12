@@ -586,7 +586,7 @@ class Api(object):
         """
         Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
+        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
