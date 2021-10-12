@@ -172,6 +172,13 @@ def test_dir(test_name):
 
 
 @pytest.fixture
+def disable_git_save():
+    os.environ["WANDB_DISABLE_GIT"] = "true"
+    yield
+    os.environ["WANDB_DISABLE_GIT"] = "false"
+
+
+@pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem():
         r = git.Repo.init(".")
