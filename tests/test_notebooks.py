@@ -201,12 +201,18 @@ def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipy
 def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
     # iframe = wandb.jupyter.IFrame()
     magic = wandb.jupyter.WandBMagics(None)
-    magic.wandb("", 'print("Hello world!")')
-    with wandb.init(settings=test_settings):
-        wandb.log({"a": 1})
-    wandb.jupyter.__IFrame = None
+    basic_settings = {
+        k: v for k, v in dict(test_settings).items() if k in ["base_url", "api_key"]
+    }
+    magic.wandb(
+        "",
+        """with wandb.init(settings=wandb.Settings(**%s)):
+        wandb.log({"a": 1})"""
+        % basic_settings,
+    )
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     print(displayed_html)
+    assert wandb.jupyter.__IFrame is None
     assert len(displayed_html) == 3
     assert "<iframe" in displayed_html[0]
     magic.wandb("test/test/runs/test")
