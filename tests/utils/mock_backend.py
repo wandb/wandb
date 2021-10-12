@@ -5,10 +5,10 @@ import wandb
 import multiprocessing
 from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
-from pytest_mock import _get_mock_module  # type: ignore
 from wandb.proto import wandb_internal_pb2  # type: ignore
 
 from wandb.sdk.interface import interface
+from .utils import get_mock_module
 
 
 class ProcessMock(Process):
@@ -52,7 +52,7 @@ class BackendMock(object):
         self.summary = {}
         self.config = {}
         self.files = {}
-        self.mocker = _get_mock_module(get_config())
+        self.mocker = get_mock_module(get_config())
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level
