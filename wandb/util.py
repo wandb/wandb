@@ -1069,7 +1069,12 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
         # timed_input doesnt handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
-    choice = input_fn(f"{prompt}: Enter your choice: ", jupyter=jupyter)
+
+    text = f"{prompt}: Enter your choice: "
+    if input_fn == input:
+        choice = input_fn(text)
+    else:
+        choice = input_fn(text, jupyter=jupyter)
     return choice
 
 
