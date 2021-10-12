@@ -270,7 +270,7 @@ class SystemStats(object):
             except psutil.NoSuchProcess:
                 pass
         if self._tpu_profiler:
-            tpu_util = self._tpu_profiler.get_tpu_utilization()
-            if tpu_util is not None:
-                stats["tpu"] = tpu_util
+            tpu_utilization = self._tpu_profiler.get_tpu_utilization()
+            if tpu_utilization is not None:
+                stats["tpu"] = tpu_utilization
         return stats
