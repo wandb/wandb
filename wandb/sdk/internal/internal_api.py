@@ -699,16 +699,53 @@ class Api(object):
         return (commit, config, patch, metadata)
 
     @normalize_exceptions
+    def resume_from_checkpoint(self, entity, project_name, checkpoint_name):
+        """Overwrite run metadata on the backend with a checkpoint.
+
+        Arguments:
+            entity (str): The entity to scope this project to.
+            project_name (str): The project to download, (can include bucket)
+            checkpoint (str): The name of the checkpoint to resume from
+        """
+
+        query_string = """
+        mutation ResumeFromCheckpoint($project: String!, $entity: String, $checkpoint: String!) {
+            resumeFromCheckpoint(input: { projectName: $project, entityName: $entity, checkpointName: $checkpoint }) {
+                checkpoint {
+                    name
+                    runName
+                }      
+            }            
+        }
+        """
+
+        variable_values = {
+            "entity": entity,
+            "project": project_name,
+            "checkpoint": checkpoint_name,
+        }
+        query = gql(query_string)
+        response = self.gql(query, variable_values=variable_values,)
+
+        if (
+            "resumeFromCheckpoint" not in response
+            or "checkpoint" not in response["resumeFromCheckpoint"]
+        ):
+            return None
+
+        return response["resumeFromCheckpoint"]["checkpoint"]
+
+    @normalize_exceptions
     def run_resume_status(self, entity, project_name, name):
         """Check if a run exists and get resume information.
 
         Arguments:
             entity (str): The entity to scope this project to.
             project_name (str): The project to download, (can include bucket)
-            run (str): The run to download
+            name (str): The run to download
         """
-        query = gql(
-            """
+
+        query_string = """
         query Model($project: String!, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
@@ -717,7 +754,7 @@ class Api(object):
                     id
                     name
                 }
-
+    
                 bucket(name: $name, missingOk: true) {
                     id
                     name
@@ -733,12 +770,10 @@ class Api(object):
             }
         }
         """
-        )
 
-        response = self.gql(
-            query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
-        )
+        variable_values = {"entity": entity, "project": project_name, "name": name}
+        query = gql(query_string)
+        response = self.gql(query, variable_values=variable_values,)
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
             return None

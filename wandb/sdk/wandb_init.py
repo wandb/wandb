@@ -13,7 +13,6 @@ For more on using `wandb.init()`, including code snippets, check out our
 from __future__ import print_function
 
 import datetime
-import json
 import logging
 import os
 import platform
@@ -515,7 +514,7 @@ class _WandbInit(object):
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
-            if s.resume or (s._checkpointing and s.resume_from_checkpoint):
+            if s.resume or s.resume_from_checkpoint:
                 wandb.termwarn(
                     f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
                 )
@@ -534,54 +533,22 @@ class _WandbInit(object):
                     run._set_yanked_version_message(ret.yank_message)
             run._on_init()
 
-            if s._checkpointing:
+            # resume = False
+            if s.resume_from_checkpoint:
 
                 if s.from_checkpoint and s.resume_from_checkpoint:
                     wandb.termwarn(
                         "`from_checkpoint` and `resume_from_checkpoint` both set, defaulting to `from_checkpoint` and creating new run."
                     )
 
-                cp = None
-                resume = False
-                if s.from_checkpoint:
-                    cp = s.from_checkpoint
-                elif s.resume_from_checkpoint:
-                    cp = s.resume_from_checkpoint
-                    resume = True
+                # resume = True
+                run._checkpoint = s.resume_from_checkpoint
+                # run._run_obj.checkpoint = s.resume_from_checkpoint
+                # run._run_obj.resumed = True
 
-                if cp:
-                    # TODO: move this somewhere else
-                    # TODO: allow restore from different checkpoint, how?
-                    if ":" not in cp:
-                        cp = f"{cp}:latest"
-                    cp_art = run.use_artifact(cp)
-                    with tempfile.TemporaryDirectory() as tmpdirname:
-                        cp_art.download(root=tmpdirname)
-                        ckpt_metaname = "checkpoint.json"
-                        ckpt_fname = os.path.join(tmpdirname, ckpt_metaname)
-                        with open(ckpt_fname) as json_file:
-                            data = json.load(json_file)
-                            # TODO: these are not right
-
-                            if resume:
-                                # this tells the backend to begin resuming the run
-                                run_obj = ret.run
-                                run_obj.resumed = True
-
-                                # TODO: log keys info in artifact
-                                run_obj.keys_info = data["keys_info"]
-
-                                logger.info("run resumed")
-                                with telemetry.context(run=run) as tel:
-                                    tel.feature.resumed = True
-                            else:
-                                run_obj = run._run_obj
-                            assert run_obj
-
-                            run_obj.starting_step = max(data["step"] - 1, 0)
-                            run._set_run_obj(run_obj)
-                            run.config.update(data["config"])
-                            run.summary.update(data["summary"])
+                # this has to go to filestream since it updates keysinfo, etc.
+                # res = backend.interface.communicate_intent_to_resume(cp)
+                # assert res and res.resumed
 
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
@@ -683,6 +650,7 @@ def init(
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
     from_checkpoint: str = None,
+    resume_from_checkpoint: str = None,
 ) -> Union[Run, RunDisabled, None]:
     """Starts a new run to track and log to W&B.
 

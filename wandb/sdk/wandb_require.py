@@ -10,7 +10,6 @@ Example:
     wandb.require("incremental-artifacts@beta")
 """
 
-import os
 from typing import Sequence, Union
 
 import wandb
@@ -29,9 +28,6 @@ class _Requires(object):
 
     def require_require(self) -> None:
         pass
-
-    def require_checkpoints(self) -> None:
-        os.environ["WANDB_REQUIRE_CHECKPOINTS"] = "True"
 
     def apply(self) -> None:
         """Call require_* method for supported features."""

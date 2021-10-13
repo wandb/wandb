@@ -509,6 +509,9 @@ class HandleManager(object):
     def handle_checkpoint(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_resume_checkpoint(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_header(self, record: Record) -> None:
         self._dispatch_record(record)
 

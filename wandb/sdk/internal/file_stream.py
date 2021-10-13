@@ -151,9 +151,10 @@ class FileStreamApi(object):
     TODO: Differentiate between binary/text encoding.
     """
 
-    Finish = collections.namedtuple("Finish", ("exitcode"))
+    Finish = collections.namedtuple("Finish", ("exitcode",))
     Preempting = collections.namedtuple("Preempting", ())
-    Checkpoint = collections.namedtuple("Checkpoint", ("name"))
+    LogCheckpoint = collections.namedtuple("LogCheckpoint", ("name",))
+    # ResumeCheckpoint = collections.namedtuple("ResumeCheckpoint", ("name",))
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
@@ -181,7 +182,8 @@ class FileStreamApi(object):
         self._file_policies = {}
         self._dropped_chunks = 0
         self._queue = queue.Queue()
-        self._result_q = queue.Queue()
+        self._log_checkpoint_result_q = queue.Queue()
+        self._resume_checkpoint_result_q = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
@@ -263,19 +265,41 @@ class FileStreamApi(object):
                         },
                     )
                     uploaded = set()
-                elif isinstance(item, self.Checkpoint):
+
+                elif isinstance(item, self.LogCheckpoint):
+                    cur_time = time.time()
+                    posted_anything_time = cur_time
+
+                    # send the stuff logged before the checkpoint
+                    if ready_chunks:
+                        posted_data_time = cur_time
+                        self._send(ready_chunks)
+                        ready_chunks = []
+
                     response = request_with_retry(
                         self._client.post,
                         self._endpoint,
                         json={
                             "complete": False,
-                            "checkpoint_name": item.name,
+                            "log_checkpoint_name": item.name,
                             "dropped": self._dropped_chunks,
                             "uploaded": list(uploaded),
                         },
                     )
-                    uploaded = set()
-                    self._handle_response(response, enqueue_result=True)
+
+                    if isinstance(response, requests.exceptions.HTTPError):
+                        if (
+                            response.response is not None
+                            and response.response.status_code == 409
+                        ):
+                            wandb.termwarn(
+                                f'Log checkpoint failed: a checkpoint with the name "{item.name}" '
+                                f'already exists in project "{self._settings["project"]}".'
+                            )
+                    else:
+                        uploaded = set()
+                        self._handle_response(response)
+
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
                 else:
@@ -284,11 +308,27 @@ class FileStreamApi(object):
 
             cur_time = time.time()
 
+            """
+            if (
+                ready_chunks
+                and log_checkpoint_name is not None
+                and not (
+                    finished or cur_time - posted_data_time > self.rate_limit_seconds()
+                )
+            ):
+                # wait until rate limit expires to force a send of current ready chunks if we are logging
+                # a checkpoint. this ensures that the checkpoint is sent after all previous ready chunks are sent and
+                # not after any subsequent ready chunks are sent, which would cause the wrong checkpoint state
+                # on the backend.
+                time.sleep(self.rate_limit_seconds() - (cur_time - posted_data_time))
+                cur_time = time.time()
+            """
+
             if ready_chunks and (
                 finished or cur_time - posted_data_time > self.rate_limit_seconds()
             ):
-                posted_data_time = cur_time
                 posted_anything_time = cur_time
+                posted_data_time = cur_time
                 self._send(ready_chunks)
                 ready_chunks = []
 
@@ -330,7 +370,9 @@ class FileStreamApi(object):
             util.sentry_exc(exc_info, delay=True)
             raise e
 
-    def _handle_response(self, response, enqueue_result=False):
+    def _handle_response(
+        self, response,
+    ):
         """Logs dropped chunks and updates dynamic settings"""
         if isinstance(response, Exception):
             wandb.termerror(
@@ -348,8 +390,7 @@ class FileStreamApi(object):
                 limits = parsed.get("limits")
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
-            if enqueue_result:
-                self._result_q.put(parsed)
+            return parsed
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
@@ -383,14 +424,31 @@ class FileStreamApi(object):
     def enqueue_preempting(self):
         self._queue.put(self.Preempting())
 
-    def enqueue_checkpoint(self, name: str):
-        self._queue.put(self.Checkpoint(name))
+    def enqueue_log_checkpoint(self, name: str):
+        self._queue.put(self.LogCheckpoint(name))
 
-    def dequeue_result(self):
+    """
+    def enqueue_resume_from_checkpoint(self, name: str):
+        self._queue.put(self.ResumeCheckpoint(name))
+    """
+
+    """
+    def dequeue_log_checkpoint_result(self):
         r = list()
         while len(r) == 0:
-            r = util.read_many_from_queue(self._result_q, 1, self.rate_limit_seconds())
+            r = util.read_many_from_queue(
+                self._log_checkpoint_result_q, 1, self.rate_limit_seconds()
+            )
         return r[0]
+
+    def dequeue_resume_checkpoint_result(self):
+        r = list()
+        while len(r) == 0:
+            r = util.read_many_from_queue(
+                self._resume_checkpoint_result_q, 1, self.rate_limit_seconds()
+            )
+        return r[0]
+    """
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.

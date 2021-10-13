@@ -114,7 +114,6 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
-    _checkpointing="WANDB_REQUIRE_CHECKPOINTS",
 )
 
 
@@ -272,7 +271,6 @@ class Settings(object):
     base_url: Optional[str] = None
 
     # TODO: experimental?
-    _checkpointing: Optional[str] = None
     from_checkpoint: Optional[str]
     resume_from_checkpoint: Optional[str]
 
@@ -417,6 +415,7 @@ class Settings(object):
         _except_exit: str = None,
         # TODO: Should this be private or namespaced for init only?
         from_checkpoint: str = None,
+        resume_from_checkpoint: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")

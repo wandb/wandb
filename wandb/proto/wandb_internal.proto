@@ -24,27 +24,28 @@ message Record {
   int64            num = 1;
   oneof record_type {
     // Low numbers for more frequent data
-    HistoryRecord   history = 2;
-    SummaryRecord   summary = 3;
-    OutputRecord    output = 4;
-    ConfigRecord    config = 5;
-    FilesRecord     files = 6;
-    StatsRecord     stats = 7;
-    ArtifactRecord  artifact = 8;
-    TBRecord        tbrecord = 9;
-    AlertRecord     alert = 10;
-    TelemetryRecord telemetry = 11;
-    MetricRecord    metric = 12;
+    HistoryRecord                history = 2;
+    SummaryRecord                summary = 3;
+    OutputRecord                 output = 4;
+    ConfigRecord                 config = 5;
+    FilesRecord                  files = 6;
+    StatsRecord                  stats = 7;
+    ArtifactRecord               artifact = 8;
+    TBRecord                     tbrecord = 9;
+    AlertRecord                  alert = 10;
+    TelemetryRecord              telemetry = 11;
+    MetricRecord                 metric = 12;
     // Higher numbers for less frequent data
-    RunRecord       run = 17;
-    RunExitRecord   exit = 18;
-    FinalRecord     final = 20;
-    HeaderRecord    header = 21;
-    FooterRecord    footer = 22;
-    RunPreemptingRecord preempting = 23;
-    CheckpointRecord checkpoint = 24;
+    RunRecord                    run = 17;
+    RunExitRecord                exit = 18;
+    FinalRecord                  final = 20;
+    HeaderRecord                 header = 21;
+    FooterRecord                 footer = 22;
+    RunPreemptingRecord          preempting = 23;
+    CheckpointRecord             checkpoint = 24;
+
     // request field does not belong here longterm
-    Request         request = 100;
+    Request                      request = 100;
   }
   Control          control = 16;
   string           uuid = 19;
@@ -60,17 +61,17 @@ message Control {
  */
 message Result {
   oneof result_type {
-    RunUpdateResult   run_result = 17;
-    RunExitResult     exit_result = 18;
-    HistoryResult     log_result = 20;
-    SummaryResult     summary_result = 21;
-    OutputResult      output_result = 22;
-    ConfigResult      config_result = 23;
-    CheckpointResult  checkpoint_result = 25;
+    RunUpdateResult           run_result = 17;
+    RunExitResult             exit_result = 18;
+    HistoryResult             log_result = 20;
+    SummaryResult             summary_result = 21;
+    OutputResult              output_result = 22;
+    ConfigResult              config_result = 23;
+    CheckpointResult          checkpoint_result = 25;
     /* response field does not belong here longterm */
-    Response          response = 100;
+    Response                  response = 100;
   }
-  string              uuid = 24;
+  string                      uuid = 24;
 }
 
 /*
@@ -115,6 +116,7 @@ message RunRecord {
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
+  string                    checkpoint = 21;
 }
 
 message RunUpdateResult {

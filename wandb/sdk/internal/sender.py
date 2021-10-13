@@ -14,7 +14,6 @@ import os
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
-from google.protobuf import json_format
 from pkg_resources import parse_version
 import requests
 from six.moves import queue
@@ -192,15 +191,30 @@ class SendManager(object):
             self._fs.enqueue_preempting()
 
     def send_checkpoint(self, record):
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        # result = wandb_internal_pb2.Result(uuid=record.uuid)
         if self._fs:
-            self._fs.enqueue_checkpoint(record.checkpoint.name)
-            fs_response = self._fs.dequeue_result()
+            self._fs.enqueue_log_checkpoint(record.checkpoint.name)
+            # fs_response = self._fs.dequeue_log_checkpoint_result()
+            """
             assert "checkpoint" in fs_response and fs_response["checkpoint"]
             cp_result = wandb_internal_pb2.CheckpointResult()
             json_format.Parse(json.dumps(fs_response["checkpoint"]), cp_result)
             result.checkpoint_result.CopyFrom(cp_result)
             self._result_q.put(result)
+            """
+
+    """
+    def send_resume_checkpoint(self, record):
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        if self._fs:
+            self._fs.enqueue_resume_checkpoint(record.resume_checkpoint.name)
+            fs_response = self._fs.dequeue_resume_checkpoint_result()
+            assert "resumed" in fs_response and fs_response["resumed"]
+            rcp_result = wandb_internal_pb2.ResumeCheckpointResult()
+            json_format.Parse(json.dumps(fs_response["resumed"]), rcp_result)
+            result.resume_checkpoint_result.CopyFrom(rcp_result)
+            self._result_q.put(result)
+    """
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
@@ -429,7 +443,7 @@ class SendManager(object):
     def _maybe_setup_resume(self, run) -> "Optional[wandb_internal_pb2.ErrorInfo]":
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
-        if not self._settings.resume:
+        if not (self._settings.resume or run.checkpoint):
             return None
 
         # TODO: This causes a race, we need to make the upsert atomically
@@ -439,8 +453,15 @@ class SendManager(object):
         logger.info(
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
+
+        if run.checkpoint:
+            checkpoint_info = self._api.resume_from_checkpoint(
+                entity=entity, project_name=run.project, checkpoint_name=run.checkpoint,
+            )
+            run.run_id = checkpoint_info["runName"]
+
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id
+            entity=entity, project_name=run.project, name=run.run_id,
         )
 
         if not resume_status:

@@ -486,6 +486,7 @@ class BackendSender(object):
         telemetry: tpb.TelemetryRecord = None,
         preempting: pb.RunPreemptingRecord = None,
         checkpoint: pb.CheckpointRecord = None,
+        # resume_checkpoint: pb.ResumeCheckpointRecord = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -524,6 +525,10 @@ class BackendSender(object):
             record.preempting.CopyFrom(preempting)
         elif checkpoint:
             record.checkpoint.CopyFrom(checkpoint)
+            """
+            elif resume_checkpoint:
+                record.resume_checkpoint.CopyFrom(resume_checkpoint)
+            """
         else:
             raise Exception("Invalid record")
         return record
@@ -826,15 +831,24 @@ class BackendSender(object):
         assert sampled_history_response
         return sampled_history_response
 
-    def communicate_checkpoint(self, name: str) -> Optional[pb.CheckpointResult]:
+    def publish_checkpoint(self, name: str) -> None:
         checkpoint_rec = pb.CheckpointRecord(name=name)
         rec = self._make_record(checkpoint=checkpoint_rec)
+        self._publish(rec)
+
+    """
+    def communicate_intent_to_resume(
+        self, checkpoint_name: str
+    ) -> Optional[pb.ResumeCheckpointResult]:
+        resume_checkpoint_record = pb.ResumeCheckpointRecord(name=checkpoint_name)
+        rec = self._make_record(resume_checkpoint=resume_checkpoint_record)
         result = self._communicate(rec)
         if result is None:
             return None
-        checkpoint_result = result.checkpoint_result
-        assert checkpoint_result
-        return checkpoint_result
+        resume_checkpoint_result = result.resume_checkpoint_result
+        assert resume_checkpoint_result
+        return resume_checkpoint_result
+    """
 
     def join(self) -> None:
         # shutdown

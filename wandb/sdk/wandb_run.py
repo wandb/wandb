@@ -261,6 +261,7 @@ class Run(object):
     _job_type: Optional[str]
     _name: Optional[str]
     _notes: Optional[str]
+    _checkpoint: Optional[str]
 
     _run_obj: Optional[RunRecord]
     _run_obj_offline: Optional[RunRecord]
@@ -326,6 +327,7 @@ class Run(object):
         self._name = None
         self._notes = None
         self._tags = None
+        self._checkpoint = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -484,6 +486,8 @@ class Run(object):
                 run.tags.append(tag)
         if self._start_time is not None:
             run.start_time.FromSeconds(int(self._start_time))
+        if self._checkpoint is not None:
+            run.checkpoint = self._checkpoint
         # Note: run.config is set in interface/interface:_make_run()
 
     def __getstate__(self) -> None:
@@ -2516,9 +2520,11 @@ class Run(object):
     def log_checkpoint(self, name: str) -> None:
         """Logs current runstate as an artifact checkpoint."""
         if self._backend:
-            rec = self._backend.interface.communicate_checkpoint(name)
+            self._backend.interface.publish_checkpoint(name)
+            """
             assert rec
             print(f"created checkpoint {rec}")
+            """
 
 
 # We define this outside of the run context to support restoring before init
