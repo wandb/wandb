@@ -213,6 +213,7 @@ class TorchHistory(object):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
         # Skip logging if all values are nan or inf or the tensor is empty.
+<<<<<<< HEAD
         if self._no_finite_values(flat):
             return
 
@@ -221,12 +222,22 @@ class TorchHistory(object):
 <<<<<<< HEAD
         flat = self._remove_infs_nans(flat)
 =======
+<<<<<<< HEAD
         if not flat.isfinite().all():
             flat = flat[flat.isfinite()]
 >>>>>>> ae7cd8f5d (only filter nans and infs when they are present, and copy tensor once instead of twice.)
 =======
         flat = self._remove_infs_nans(flat)
 >>>>>>> d4e6961f8 (add unit tests for checking for tensors with no finite values and removing infs and nans)
+=======
+        if flat.shape == torch.Size([0]) or torch.logical_not(flat.isfinite()).all():
+            return
+
+        # Remove nans and infs if present. There's no good way to represent that in histograms.
+        if not flat.isfinite().any():
+            flat = flat[flat.isfinite()]
+>>>>>>> ef5a8c4b5 (only filter nans and infs when they are present, and copy tensor once instead of twice.)
+>>>>>>> 9ffa7a3d6 (only filter nans and infs when they are present, and copy tensor once instead of twice.)
 
         tmin = flat.min().item()
         tmax = flat.max().item()
