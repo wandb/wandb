@@ -138,12 +138,13 @@ class Config(object):
             return
         with wandb.wandb_lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
-        if isinstance(val, dict) and check_dict_contains_nested_artifact(
-            val, nested=True
-        ):
-            raise ValueError(
-                "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
-            )
+        self._raise_value_error_on_nested_artifact(val, nested=True)
+        # if isinstance(val, dict) and check_dict_contains_nested_artifact(
+        #     val, nested=True
+        # ):
+        #     raise ValueError(
+        #         "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
+        #     )
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -217,21 +218,15 @@ class Config(object):
             self.update(conf_dict)
 
     def _sanitize_dict(
-        self,
-        config_dict,
-        allow_val_change=None,
-        ignore_keys: set = None,
+        self, config_dict, allow_val_change=None, ignore_keys: set = None,
     ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
-            if isinstance(v, dict) and check_dict_contains_nested_artifact(v):
-                raise ValueError(
-                    "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
-                )
-            else:
-                k, v = self._sanitize(k, v, allow_val_change)
+
+            self._raise_value_error_on_nested_artifact(v)
+            k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized
 
@@ -258,6 +253,13 @@ class Config(object):
                     ).format(key, self._items[key], val)
                 )
         return key, val
+
+    def _raise_value_error_on_nested_artifact(self, v, nested=False):
+        if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
+            raise ValueError(
+                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
+                " can only be top level keys in wandb.config"
+            )
 
 
 class ConfigStatic(object):
