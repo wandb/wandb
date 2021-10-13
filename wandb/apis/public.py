@@ -582,7 +582,7 @@ class Api(object):
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path="", filters=None, order="-created_at", per_page=50):
+    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
@@ -629,7 +629,7 @@ class Api(object):
         """
         entity, project = self._parse_project_path(path)
         filters = filters or {}
-        key = path + str(filters) + str(order)
+        key = (path or "") + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
                 self.client,
