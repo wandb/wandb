@@ -221,22 +221,12 @@ class Config(object):
         config_dict,
         allow_val_change=None,
         ignore_keys: set = None,
-        nested: bool = False,
     ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
-            if isinstance(v, dict):
-                if isinstance(k, str):
-                    k = k.strip("-")
-                v = self._sanitize_dict(v, allow_val_change, nested=True)
-            # we can't swap nested artifacts because their root key can be locked by other values
-            # best if we don't allow nested artifacts until we can lock nested keys in the config
-            elif (
-                isinstance(v, wandb.Artifact)
-                or isinstance(v, wandb.apis.public.Artifact)
-            ) and nested:
+            if isinstance(v, dict) and check_dict_contains_nested_artifact(v):
                 raise ValueError(
                     "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
                 )
@@ -250,8 +240,7 @@ class Config(object):
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
         # We always normalize keys by stripping '-'
-        if isinstance(key, str):
-            key = key.strip("-")
+        key = key.strip("-")
         # if the user inserts an artifact into the config
         if not (
             isinstance(val, wandb.Artifact)

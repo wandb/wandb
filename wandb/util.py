@@ -1061,7 +1061,10 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+def _prompt_choice(
+    input_timeout: int = None,
+    jupyter: bool = False,
+) -> str:
     input_fn = input
     prompt = term.LOG_STRING
     if input_timeout:
@@ -1082,7 +1085,10 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
 
 
 def prompt_choices(
-    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+    choices,
+    allow_manual=False,
+    input_timeout: int = None,
+    jupyter: bool = False,
 ):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
@@ -1473,15 +1479,14 @@ def artifact_to_json(artifact) -> Dict[str, Any]:
 
 
 def check_dict_contains_nested_artifact(d, nested=False):
-    if isinstance(d, dict):
-        for _, item in six.iteritems(d):
-            if isinstance(item, dict):
-                contains_artifacts = check_dict_contains_nested_artifact(item, True)
-                if contains_artifacts:
-                    return True
-            elif (
-                isinstance(item, wandb.Artifact)
-                or isinstance(item, wandb.apis.public.Artifact)
-            ) and nested:
+    for _, item in six.iteritems(d):
+        if isinstance(item, dict):
+            contains_artifacts = check_dict_contains_nested_artifact(item, True)
+            if contains_artifacts:
                 return True
+        elif (
+            isinstance(item, wandb.Artifact)
+            or isinstance(item, wandb.apis.public.Artifact)
+        ) and nested:
+            return True
     return False
