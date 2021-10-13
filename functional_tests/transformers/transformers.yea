@@ -1,0 +1,17 @@
+id: 0.transformers
+plugin:
+    - wandb
+command:
+    program: test_transformers.py
+depend:
+    requirements:
+        - transformers>=4.11.3
+        - datasets
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][project]: integrations_testing
+  - :wandb:runs[0][config][num_train_epochs]: 2
+  - :op:<=:
+    - :wandb:runs[0][summary][train/loss]
+    - 0.1
+  - :wandb:runs[0][exitcode]: 0
