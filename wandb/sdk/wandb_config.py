@@ -248,7 +248,8 @@ class Config(object):
         if self._settings and self._settings._jupyter and allow_val_change is None:
             allow_val_change = True
         # We always normalize keys by stripping '-'
-        key = key.strip("-")
+        if isinstance(key, str):
+            key = key.strip("-")
         # if the user inserts an artifact into the config
         if not (
             isinstance(val, wandb.Artifact)
