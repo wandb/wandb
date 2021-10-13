@@ -1,0 +1,20 @@
+id: 0.spacy
+plugin:
+    - wandb
+command:
+    program: python3 -m spacy project clone integrations/wandb
+    program: cd wandb
+    program: python3 -m spacy project run install
+    program: python3 -m spacy project assets
+    program: python3 -m spacy project run log
+depend:
+    requirements:
+        - spacy>=3.1
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][project]: IMDB_sentiment
+  - :wandb:runs[0][config][training.batcher.size.start]: 100
+  - :op:>=:
+    - :wandb:runs[0][summary][score]
+    - 0.5
+  - :wandb:runs[0][exitcode]: 0
