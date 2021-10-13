@@ -475,6 +475,7 @@ class Table(Media):
                     obj = WBValue.init_from_json(item, source_artifact)
                     if obj is not None:
                         cell = obj
+                # TODO: handle list of images/internal media types
                 row_data.append(cell)
             data.append(row_data)
 
@@ -1675,8 +1676,8 @@ class _ImageFileType(_dtypes.Type):
             else:
                 box_keys = []
 
-            if hasattr(py_obj, "masks") and py_obj.masks:
-                mask_keys = list(py_obj.masks.keys())
+            if hasattr(py_obj, "_masks") and py_obj.masks:
+                mask_keys = list(py_obj._masks.keys())
             else:
                 mask_keys = []
 
