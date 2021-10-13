@@ -212,10 +212,7 @@ class Config(object):
             self.update(conf_dict)
 
     def _sanitize_dict(
-        self,
-        config_dict,
-        allow_val_change=None,
-        ignore_keys: set = None,
+        self, config_dict, allow_val_change=None, ignore_keys: set = None,
     ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
