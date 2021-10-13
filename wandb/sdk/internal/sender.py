@@ -6,35 +6,39 @@ sender.
 
 from __future__ import print_function
 
+from collections import defaultdict
 from datetime import datetime
 import json
 import logging
 import os
 import time
+from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 
 from pkg_resources import parse_version
+import requests
+from six.moves import queue
+from six.moves.queue import Queue
 import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
-from wandb.proto import wandb_internal_pb2  # type: ignore
+from wandb.proto import wandb_internal_pb2
+from wandb.proto.wandb_internal_pb2 import HttpResponse
 
 from . import artifacts
 from . import file_stream
 from . import internal_api
+from . import settings_static
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
 from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib.git import GitRepo
 
 
 logger = logging.getLogger(__name__)
 
-if wandb.TYPE_CHECKING:  # TYPE_CHECKING
-    from typing import NewType, Optional, Dict, Any, Tuple, Generator
 
-    DictWithValues = NewType("DictWithValues", Dict[str, Any])
-    DictNoValues = NewType("DictNoValues", Dict[str, Any])
+DictWithValues = NewType("DictWithValues", Dict[str, Any])
+DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 
 def _framework_priority(
@@ -43,7 +47,7 @@ def _framework_priority(
     yield imp.lightgbm, "lightgbm"
     yield imp.catboost, "catboost"
     yield imp.xgboost, "xgboost"
-    yield imp.transformers, "huggingface"
+    yield imp.transformers_huggingface, "huggingface"
     yield imp.pytorch_ignite, "ignite"
     yield imp.pytorch_lightning, "lightning"
     yield imp.fastai, "fastai"
@@ -79,7 +83,16 @@ class SendManager(object):
 
         # keep track of config from key/val updates
         self._consolidated_config: DictNoValues = dict()
+        self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._config_metric_pbdict_list: List[Dict[int, Any]] = []
+        self._metadata_summary: Dict[str, Any] = defaultdict()
+        self._cached_summary: Dict[str, Any] = dict()
+        self._config_metric_index_dict: Dict[str, int] = {}
+        self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
+
+        self._cached_server_info: Dict[str, Any] = dict()
+        self._cached_viewer: Dict[str, Any] = dict()
 
         # State updated by resuming
         self._resume_state = {
@@ -99,13 +112,67 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(default_settings=settings)
+        self._api = internal_api.Api(
+            default_settings=settings, retry_callback=self.retry_callback
+        )
         self._api_settings = dict()
+
+        # queue filled by retry_callback
+        self._retry_q: "Queue[HttpResponse]" = queue.Queue()
+
+        # do we need to debounce?
+        self._config_needs_debounce: bool = False
 
         # TODO(jhr): do something better, why do we need to send full lines?
         self._partial_output = dict()
 
         self._exit_code = 0
+
+    @classmethod
+    def setup(cls, root_dir):
+        """This is a helper class method to setup a standalone SendManager.
+        Currently we're using this primarily for `sync.py`.
+        """
+        files_dir = os.path.join(root_dir, "files")
+        sd = dict(
+            files_dir=files_dir,
+            root_dir=root_dir,
+            _start_time=0,
+            git_remote=None,
+            resume=None,
+            program=None,
+            ignore_globs=(),
+            run_id=None,
+            entity=None,
+            project=None,
+            run_group=None,
+            job_type=None,
+            run_tags=None,
+            run_name=None,
+            run_notes=None,
+            save_code=None,
+            email=None,
+            silent=None,
+        )
+        settings = settings_static.SettingsStatic(sd)
+        record_q = queue.Queue()
+        result_q = queue.Queue()
+        publish_interface = interface.BackendSender(record_q=record_q)
+        return SendManager(
+            settings=settings,
+            record_q=record_q,
+            result_q=result_q,
+            interface=publish_interface,
+        )
+
+    def __len__(self):
+        return self._record_q.qsize()
+
+    def retry_callback(self, status, response_text):
+        response = wandb_internal_pb2.HttpResponse()
+        response.http_status_code = status
+        response.http_response_text = response_text
+        self._retry_q.put(response)
 
     def send(self, record):
         record_type = record.WhichOneof("record_type")
@@ -113,17 +180,22 @@ class SendManager(object):
         handler_str = "send_" + record_type
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
-        if record_type != "output":
+        if record_type not in {"output", "request"}:
             logger.debug("send: {}".format(record_type))
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
+
+    def send_preempting(self, record):
+        if self._fs:
+            self._fs.enqueue_preempting()
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
-        logger.debug("send_request: {}".format(request_type))
+        if request_type != "network_status":
+            logger.debug("send_request: {}".format(request_type))
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
@@ -155,30 +227,80 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
-    def send_request_status(self, record):
+    def _send_request_attach(
+        self,
+        req: wandb_internal_pb2.AttachRequest,
+        resp: wandb_internal_pb2.AttachResponse,
+    ) -> None:
+        attach_id = req.attach_id
+        assert attach_id
+        assert self._run
+        resp.run.CopyFrom(self._run)
+
+    def send_request_attach(self, record) -> None:
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._send_request_attach(
+            record.request.attach, result.response.attach_response
+        )
+        self._result_q.put(result)
+
+    def send_request_stop_status(self, record):
         assert record.control.req_resp
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
-        status_resp = result.response.status_response
-        if record.request.status.check_stop_req:
-            status_resp.run_should_stop = False
-            if self._entity and self._project and self._run.run_id:
-                try:
-                    status_resp.run_should_stop = self._api.check_stop_requested(
-                        self._project, self._entity, self._run.run_id
-                    )
-                except Exception as e:
-                    logger.warning("Failed to check stop requested status: %s", e)
+        status_resp = result.response.stop_status_response
+        status_resp.run_should_stop = False
+        if self._entity and self._project and self._run.run_id:
+            try:
+                status_resp.run_should_stop = self._api.check_stop_requested(
+                    self._project, self._entity, self._run.run_id
+                )
+            except Exception as e:
+                logger.warning("Failed to check stop requested status: %s", e)
+        self._result_q.put(result)
+
+    def debounce(self) -> None:
+        if self._config_needs_debounce:
+            self._debounce_config()
+
+    def _debounce_config(self):
+        config_value_dict = self._config_format(self._consolidated_config)
+        # TODO(jhr): check result of upsert_run?
+        if self._run:
+            self._api.upsert_run(
+                name=self._run.run_id, config=config_value_dict, **self._api_settings
+            )
+        self._config_save(config_value_dict)
+        self._config_needs_debounce = False
+
+    def send_request_status(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
+
+    def send_request_network_status(self, record):
+        assert record.control.req_resp
+
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        status_resp = result.response.network_status_response
+        while True:
+            try:
+                status_resp.network_responses.append(self._retry_q.get_nowait())
+            except queue.Empty:
+                break
+            except Exception as e:
+                logger.warning("Error emptying retry queue: {}".format(e))
         self._result_q.put(result)
 
     def send_request_login(self, record):
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         self._api.reauth()
-        viewer_tuple = self._api.viewer_server_info()
+        viewer = self.get_viewer_info()
+        server_info = self.get_server_info()
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
-        viewer, server_info = viewer_tuple
         if server_info:
             logger.info("Login server info: {}".format(server_info))
         self._entity = viewer.get("entity")
@@ -191,8 +313,11 @@ class SendManager(object):
     def send_exit(self, data):
         exit = data.exit
         self._exit_code = exit.exit_code
-
         logger.info("handling exit code: %s", exit.exit_code)
+        runtime = exit.runtime
+        logger.info("handling runtime: %s", exit.runtime)
+        self._metadata_summary["runtime"] = runtime
+        self._update_summary()
 
         # Pass the responsibility to respond to handle_request_defer()
         if data.control.req_resp:
@@ -211,42 +336,56 @@ class SendManager(object):
         state = defer.state
         logger.info("handle sender defer: {}".format(state))
 
+        def transition_state():
+            state = defer.state + 1
+            logger.info("send defer: {}".format(state))
+            self._interface.publish_defer(state)
+
         done = False
         if state == defer.BEGIN:
-            pass
+            transition_state()
         elif state == defer.FLUSH_STATS:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_TB:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
-            pass
+            transition_state()
+        elif state == defer.FLUSH_DEBOUNCER:
+            self.debounce()
+            transition_state()
         elif state == defer.FLUSH_DIR:
             if self._dir_watcher:
                 self._dir_watcher.finish()
                 self._dir_watcher = None
+            transition_state()
         elif state == defer.FLUSH_FP:
             if self._pusher:
-                self._pusher.finish()
+                # FilePusher generates some events for FileStreamApi, so we
+                # need to wait for pusher to finish before going to the next
+                # state to ensure that filestream gets all the events that we
+                # want before telling it to finish up
+                self._pusher.finish(transition_state)
+            else:
+                transition_state()
         elif state == defer.FLUSH_FS:
             if self._fs:
                 # TODO(jhr): now is a good time to output pending output lines
                 self._fs.finish(self._exit_code)
                 self._fs = None
+            transition_state()
         elif state == defer.FLUSH_FINAL:
             self._interface.publish_final()
             self._interface.publish_footer()
+            transition_state()
         elif state == defer.END:
             done = True
         else:
             raise AssertionError("unknown state")
 
         if not done:
-            state += 1
-            logger.info("send defer: {}".format(state))
-            self._interface.publish_defer(state)
             return
 
         exit_result = wandb_internal_pb2.RunExitResult()
@@ -291,6 +430,9 @@ class SendManager(object):
             if self._pusher:
                 self._pusher.join()
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
+            result.response.poll_exit_response.local_info.CopyFrom(
+                self.get_local_info()
+            )
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
 
@@ -345,6 +487,12 @@ class SendManager(object):
                 events_rt = events.get("_runtime", 0)
             config = json.loads(resume_status["config"] or "{}")
             summary = json.loads(resume_status["summaryMetrics"] or "{}")
+            new_runtime = summary.get("_wandb", {}).get("runtime", None)
+            if new_runtime is not None:
+                if "_wandb" not in self._resume_state:
+                    self._resume_state["_wandb"] = {}
+                self._resume_state["_wandb"].update({"runtime": new_runtime})
+
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
@@ -365,20 +513,6 @@ class SendManager(object):
         self._resume_state["resumed"] = True
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
-
-    def _telemetry_format(self) -> Dict[int, Any]:
-        data: Dict[int, Any] = dict()
-        fields = self._telemetry_obj.ListFields()
-        for desc, value in fields:
-            if desc.type == desc.TYPE_STRING:
-                data[desc.number] = value
-            elif desc.type == desc.TYPE_MESSAGE:
-                nested = value.ListFields()
-                bool_msg = all(d.type == d.TYPE_BOOL for d, _ in nested)
-                if bool_msg:
-                    items = [d.number for d, v in nested if v]
-                    data[desc.number] = items
-        return data
 
     def _telemetry_get_framework(self) -> str:
         """Get telemetry data for internal config structure."""
@@ -417,13 +551,24 @@ class SendManager(object):
         b = self._telemetry_obj.env.kaggle
         config_dict[wandb_key]["is_kaggle_kernel"] = b
 
-        t: Dict[int, Any] = self._telemetry_format()
+        config_dict[wandb_key]["start_time"] = self._start_time
+
+        t: Dict[int, Any] = proto_util.proto_encode_to_dict(self._telemetry_obj)
         config_dict[wandb_key]["t"] = t
+
+    def _config_metric_update(self, config_dict: Dict[str, Any]) -> None:
+        """Add default xaxis to config."""
+        if not self._config_metric_pbdict_list:
+            return
+        wandb_key = "_wandb"
+        config_dict.setdefault(wandb_key, dict())
+        config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
 
     def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
         """Format dict into value dict with telemetry info."""
         config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
         self._config_telemetry_update(config_dict)
+        self._config_metric_update(config_dict)
         config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
         return config_value_dict
 
@@ -431,10 +576,31 @@ class SendManager(object):
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
-    def send_run(self, data) -> None:
+    def _sync_spell(self, env=None):
+        """Syncs this run with spell"""
+        try:
+            env = env or os.environ
+            self._interface.publish_config(
+                key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
+            )
+            url = "{}/{}/{}/runs/{}".format(
+                self._api.app_url, self._run.entity, self._run.project, self._run.run_id
+            )
+            return requests.put(
+                env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
+                json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
+                timeout=2,
+            )
+        except requests.RequestException:
+            return False
+
+    def send_run(self, data, file_dir=None) -> None:
         run = data.run
         error = None
         is_wandb_init = self._run is None
+
+        # save start time of a run
+        self._start_time = run.start_time.seconds
 
         # update telemetry
         if run.telemetry:
@@ -494,14 +660,13 @@ class SendManager(object):
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
-            self._start_run_threads()
+            self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
 
     def _init_run(self, run, config_dict):
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state["runtime"]
-        repo = GitRepo(remote=self._settings.git_remote)
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
         server_run, inserted = self._api.upsert_run(
@@ -517,12 +682,17 @@ class SendManager(object):
             sweep_name=run.sweep_id or None,
             host=run.host or None,
             program_path=self._settings.program or None,
-            repo=repo.remote_url,
-            commit=repo.last_commit,
+            repo=run.git.remote_url or None,
+            commit=run.git.last_commit or None,
         )
         self._run = run
         if self._resume_state.get("resumed"):
             self._run.resumed = True
+            if (
+                "_wandb" in self._resume_state
+                and "runtime" in self._resume_state["_wandb"]
+            ):
+                self._run.runtime = self._resume_state["_wandb"]["runtime"]
         self._run.starting_step = self._resume_state["step"]
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -559,8 +729,10 @@ class SendManager(object):
         sweep_id = server_run.get("sweepName")
         if sweep_id:
             self._run.sweep_id = sweep_id
+        if os.getenv("SPELL_RUN_URL"):
+            self._sync_spell()
 
-    def _start_run_threads(self):
+    def _start_run_threads(self, file_dir=None):
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
@@ -581,14 +753,16 @@ class SendManager(object):
             "output.log",
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
         )
-        self._fs.start()
-        self._pusher = FilePusher(self._api)
-        self._dir_watcher = DirWatcher(self._settings, self._api, self._pusher)
         util.sentry_set_scope(
             "internal",
             entity=self._run.entity,
             project=self._run.project,
             email=self._settings.email,
+        )
+        self._fs.start()
+        self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
+        self._dir_watcher = DirWatcher(
+            self._settings, self._api, self._pusher, file_dir
         )
         logger.info(
             "run started: %s with start time %s",
@@ -607,6 +781,14 @@ class SendManager(object):
 
     def send_summary(self, data):
         summary_dict = proto_util.dict_from_proto_list(data.summary.update)
+        self._cached_summary = summary_dict
+        self._update_summary()
+
+    def _update_summary(self):
+        summary_dict = self._cached_summary.copy()
+        summary_dict.pop("_wandb", None)
+        if self._metadata_summary:
+            summary_dict["_wandb"] = self._metadata_summary
         json_summary = json.dumps(summary_dict)
         if self._fs:
             self._fs.push(filenames.SUMMARY_FNAME, json_summary)
@@ -646,6 +828,8 @@ class SendManager(object):
         line = out.line
         if not line.endswith("\n"):
             self._partial_output.setdefault(stream, "")
+            if line.startswith("\r"):
+                self._partial_output[stream] = ""
             self._partial_output[stream] += line
             # TODO(jhr): how do we make sure this gets flushed?
             # we might need this for other stuff like telemetry
@@ -661,16 +845,50 @@ class SendManager(object):
             self._partial_output[stream] = ""
 
     def _update_config(self):
-        config_value_dict = self._config_format(self._consolidated_config)
-        self._api.upsert_run(
-            name=self._run.run_id, config=config_value_dict, **self._api_settings
-        )
-        self._config_save(config_value_dict)
-        # TODO(jhr): check result of upsert_run?
+        self._config_needs_debounce = True
 
     def send_config(self, data):
         cfg = data.config
         config_util.update_from_proto(self._consolidated_config, cfg)
+        self._update_config()
+
+    def send_metric(self, data: wandb_internal_pb2.Record) -> None:
+        metric = data.metric
+        if metric.glob_name:
+            logger.warning("Seen metric with glob (shouldnt happen)")
+            return
+
+        # merge or overwrite
+        old_metric = self._config_metric_dict.get(
+            metric.name, wandb_internal_pb2.MetricRecord()
+        )
+        if metric._control.overwrite:
+            old_metric.CopyFrom(metric)
+        else:
+            old_metric.MergeFrom(metric)
+        self._config_metric_dict[metric.name] = old_metric
+        metric = old_metric
+
+        # convert step_metric to index
+        if metric.step_metric:
+            find_step_idx = self._config_metric_index_dict.get(metric.step_metric)
+            if find_step_idx is not None:
+                # make a copy of this metric as we will be modifying it
+                rec = wandb_internal_pb2.Record()
+                rec.metric.CopyFrom(metric)
+                metric = rec.metric
+
+                metric.ClearField("step_metric")
+                metric.step_metric_index = find_step_idx + 1
+
+        md: Dict[int, Any] = proto_util.proto_encode_to_dict(metric)
+        find_idx = self._config_metric_index_dict.get(metric.name)
+        if find_idx is not None:
+            self._config_metric_pbdict_list[find_idx] = md
+        else:
+            next_idx = len(self._config_metric_pbdict_list)
+            self._config_metric_pbdict_list.append(md)
+            self._config_metric_index_dict[metric.name] = next_idx
         self._update_config()
 
     def send_telemetry(self, data):
@@ -699,8 +917,35 @@ class SendManager(object):
         # tbrecord watching threads are handled by handler.py
         pass
 
+    def send_request_log_artifact(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        artifact = record.request.log_artifact.artifact
+
+        try:
+            res = self._send_artifact(artifact)
+            result.response.log_artifact_response.artifact_id = res.get("id")
+            logger.info("logged artifact {} - {}".format(artifact.name, res))
+        except Exception as e:
+            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
+                artifact.type, artifact.name, e
+            )
+
+        self._result_q.put(result)
+
     def send_artifact(self, data):
         artifact = data.artifact
+        try:
+            res = self._send_artifact(artifact)
+            logger.info("sent artifact {} - {}".format(artifact.name, res))
+        except Exception as e:
+            logger.error(
+                'send_artifact: failed for artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
+            )
+
+    def _send_artifact(self, artifact):
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -709,29 +954,35 @@ class SendManager(object):
             is_user_created=artifact.user_created,
         )
 
-        metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        try:
-            saver.save(
-                type=artifact.type,
-                name=artifact.name,
-                metadata=metadata,
-                description=artifact.description,
-                aliases=artifact.aliases,
-                use_after_commit=artifact.use_after_commit,
-            )
-        except Exception as e:
-            logger.error(
-                'send_artifact: failed for artifact "{}/{}": {}'.format(
-                    artifact.type, artifact.name, e
+        if artifact.distributed_id:
+            max_cli_version = self._max_cli_version()
+            if max_cli_version is None or parse_version(
+                max_cli_version
+            ) < parse_version("0.10.16"):
+                logger.warning(
+                    "This W&B server doesn't support distributed artifacts, "
+                    "have your administrator install wandb/local >= 0.9.37"
                 )
-            )
+                return
+
+        metadata = json.loads(artifact.metadata) if artifact.metadata else None
+        return saver.save(
+            type=artifact.type,
+            name=artifact.name,
+            client_id=artifact.client_id,
+            sequence_client_id=artifact.sequence_client_id,
+            metadata=metadata,
+            description=artifact.description,
+            aliases=artifact.aliases,
+            use_after_commit=artifact.use_after_commit,
+            distributed_id=artifact.distributed_id,
+            finalize=artifact.finalize,
+            incremental=artifact.incremental_beta1,
+        )
 
     def send_alert(self, data):
         alert = data.alert
-        _, server_info = self._api.viewer_server_info()
-        max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version", None
-        )
+        max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
             "0.10.9"
         ):
@@ -766,3 +1017,59 @@ class SendManager(object):
         if self._fs:
             self._fs.finish(self._exit_code)
             self._fs = None
+
+    def _max_cli_version(self):
+        server_info = self.get_server_info()
+        max_cli_version = server_info.get("cliVersionInfo", {}).get(
+            "max_cli_version", None
+        )
+        return max_cli_version
+
+    def get_viewer_server_info(self):
+        if not self._cached_server_info or not self._cached_viewer:
+            (
+                self._cached_viewer,
+                self._cached_server_info,
+            ) = self._api.viewer_server_info()
+
+    def get_viewer_info(self):
+        if not self._cached_viewer:
+            self.get_viewer_server_info()
+        return self._cached_viewer
+
+    def get_server_info(self):
+        if not self._cached_server_info:
+            self.get_viewer_server_info()
+        return self._cached_server_info
+
+    def get_local_info(self):
+        """
+        This is a helper function that queries the server to get the the local version information.
+        First, we perform an introspection, if it returns empty we deduce that the docker image is
+        out-of-date. Otherwise, we use the returned values to deduce the state of the local server.
+        """
+        local_info = wandb_internal_pb2.LocalInfo()
+
+        if self._settings._offline:
+            local_info.out_of_date = False
+            return local_info
+
+        latest_local_version = "latest"
+
+        # Assuming the query is succesful if the result is empty it indicates that
+        # the backend is out of date since it doesn't have the desired field
+        server_info = self.get_server_info()
+        latest_local_version_info = server_info.get("latestLocalVersionInfo", {})
+        if latest_local_version_info is None:
+            local_info.out_of_date = False
+        else:
+            local_info.out_of_date = latest_local_version_info.get("outOfDate", True)
+            local_info.version = latest_local_version_info.get(
+                "latestVersionString", latest_local_version
+            )
+        return local_info
+
+    def __next__(self):
+        return self._record_q.get(block=True)
+
+    next = __next__

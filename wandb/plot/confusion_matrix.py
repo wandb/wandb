@@ -4,7 +4,7 @@ from wandb import util
 chart_limit = wandb.Table.MAX_ROWS
 
 
-def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
+def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None, title=None):
     """
     Computes a multi-run confusion matrix.
 
@@ -51,7 +51,7 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
 
     if class_names is not None:
         n_classes = len(class_names)
-        class_inds = set(preds).union(set(y_true))
+        class_inds = [i for i in range(n_classes)]
         assert max(preds) <= len(
             class_names
         ), "Higher predicted index than number of classes"
@@ -67,7 +67,6 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
     class_mapping = {}
     for i, val in enumerate(sorted(list(class_inds))):
         class_mapping[val] = i
-
     counts = np.zeros((n_classes, n_classes))
     for i in range(len(preds)):
         counts[class_mapping[y_true[i]], class_mapping[preds[i]]] += 1
@@ -82,9 +81,10 @@ def confusion_matrix(probs=None, y_true=None, preds=None, class_names=None):
         "Predicted": "Predicted",
         "nPredictions": "nPredictions",
     }
-
+    title = title or ""
     return wandb.plot_table(
         "wandb/confusion_matrix/v1",
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
+        {"title": title},
     )

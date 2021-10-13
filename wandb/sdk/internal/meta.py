@@ -11,11 +11,17 @@ import multiprocessing
 import os
 from shutil import copyfile
 import sys
+from urllib.parse import unquote
 
 from wandb import util
 from wandb.vendor.pynvml import pynvml
 
-from ..lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
+from ..lib.filenames import (
+    CONDA_ENVIRONMENTS_FNAME,
+    DIFF_FNAME,
+    METADATA_FNAME,
+    REQUIREMENTS_FNAME,
+)
 from ..lib.git import GitRepo
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -62,8 +68,23 @@ class Meta(object):
             ) as f:
                 f.write("\n".join(installed_packages_list))
         except Exception:
-            logger.error("Error saving pip packages")
+            logger.exception("Error saving pip packages")
         logger.debug("save pip done")
+
+    def _save_conda(self):
+        current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
+        if not current_shell_is_conda:
+            return False
+
+        logger.debug("save conda")
+        try:
+            with open(
+                os.path.join(self._settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
+            ) as f:
+                subprocess.call(["conda", "env", "export"], stdout=f)
+        except Exception:
+            logger.exception("Error saving conda packages")
+        logger.debug("save conda done")
 
     def _save_code(self):
         logger.debug("save code")
@@ -176,42 +197,39 @@ class Meta(object):
         self.data["state"] = "running"
 
     def _setup_git(self):
-        if self._git.enabled:
-            logger.debug("setup git")
-            self.data["git"] = {
-                "remote": self._git.remote_url,
-                "commit": self._git.last_commit,
-            }
-            self.data["email"] = self._git.email
-            self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
-            logger.debug("setup git done")
+        if self._settings.disable_git or not self._git.enabled:
+            return
+        logger.debug("setup git")
+        self.data["git"] = {
+            "remote": self._git.remote_url,
+            "commit": self._git.last_commit,
+        }
+        self.data["email"] = self._git.email
+        self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
+        logger.debug("setup git done")
 
     def probe(self):
         logger.debug("probe")
         self._setup_sys()
+        if self._settings.program is not None:
+            self.data["program"] = self._settings.program
         if not self._settings.disable_code:
             if self._settings.program_relpath is not None:
                 self.data["codePath"] = self._settings.program_relpath
-            if self._settings.program is not None:
-                self.data["program"] = self._settings.program
-            else:
-                self.data["program"] = "<python with no main file>"
-                if self._settings._jupyter:
-                    if self._settings.notebook_name:
-                        self.data["program"] = self._settings.notebook_name
+            elif self._settings._jupyter:
+                if self._settings.notebook_name:
+                    self.data["program"] = self._settings.notebook_name
+                elif self._settings._jupyter_path:
+                    if self._settings._jupyter_path.startswith("fileId="):
+                        unescaped = unquote(self._settings._jupyter_path)
+                        self.data["colab"] = (
+                            "https://colab.research.google.com/notebook#"
+                            + unescaped  # noqa
+                        )
+                        self.data["program"] = self._settings._jupyter_name
                     else:
-                        if self._settings._jupyter_path:
-                            if "fileId=" in self._settings._jupyter_path:
-                                self.data["colab"] = (
-                                    "https://colab.research.google.com/drive/"
-                                    + self._settings._jupyter_path.split(  # noqa
-                                        "fileId="
-                                    )[1]
-                                )
-                                self.data["program"] = self._settings._jupyter_name
-                            else:
-                                self.data["program"] = self._settings._jupyter_path
-                                self.data["root"] = self._settings._jupyter_root
+                        self.data["program"] = self._settings._jupyter_path
+                        self.data["root"] = self._settings._jupyter_root
             self._setup_git()
 
         if self._settings.anonymous != "true":
@@ -228,6 +246,7 @@ class Meta(object):
 
         if self._settings._save_requirements:
             self._save_pip()
+            self._save_conda()
         logger.debug("probe done")
 
     def write(self):

@@ -1,12 +1,17 @@
 import pytest
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.linear_model import ElasticNet
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.datasets import make_regression, make_hastie_10_2
 import sys
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
+
+if sys.version_info >= (3, 10):
+    pytest.importorskip("sklearn")
+
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.linear_model import ElasticNet
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.datasets import make_regression, make_hastie_10_2
+
 from tensorflow.keras.layers import Dense, Flatten, Reshape
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
@@ -128,13 +133,40 @@ def test_plot_classifier(dummy_classifier, wandb_init_run):
         False,
         "RandomForest",
         ["fur", "sound"],
+        True,
     )
 
     hist = wandb.run._backend.history
     logged_keys = [[k for k in r.keys() if not k.startswith("_")][0] for r in hist]
     assert logged_keys == [
-        "feature_importances",
         "learning_curve",
+        "confusion_matrix",
+        "summary_metrics",
+        "class_proportions",
+        "roc",
+        "precision_recall",
+    ]
+
+
+def test_plot_classifier_no_learning_curve(dummy_classifier, wandb_init_run):
+    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
+    plot_classifier(
+        nb,
+        x_train,
+        x_test,
+        y_train,
+        y_test,
+        y_pred,
+        y_probas,
+        ["cat", "dog"],
+        False,
+        "RandomForest",
+        ["fur", "sound"],
+    )
+
+    hist = wandb.run._backend.history
+    logged_keys = [[k for k in r.keys() if not k.startswith("_")][0] for r in hist]
+    assert logged_keys == [
         "confusion_matrix",
         "summary_metrics",
         "class_proportions",

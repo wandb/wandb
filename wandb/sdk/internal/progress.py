@@ -6,7 +6,7 @@ progress.
 
 import os
 
-from wandb.errors.error import CommError
+from wandb.errors import CommError
 
 
 class Progress(object):

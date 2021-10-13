@@ -1,13 +1,10 @@
 #
 import abc
+import typing as t
 
 import six
-import wandb
 
 from .interface.summary_record import SummaryItem, SummaryRecord
-
-if wandb.TYPE_CHECKING:  # type: ignore
-    import typing as t
 
 
 def _get_dict(d):
@@ -81,13 +78,14 @@ class SummaryDict(object):
 
 class Summary(SummaryDict):
     """
-    Summary tracks single values for each run. By default, summary is set to the
-    last value of History.
+    Tracks single values for each metric for each run.
 
-    For example, wandb.log({'accuracy': 0.9}) will add a new step to History and
+    By default, a metric's summary is the last value of its History.
+
+    For example, `wandb.log({'accuracy': 0.9})` will add a new step to History and
     update Summary to the latest value. In some cases, it's more useful to have
     the maximum or minimum of a metric instead of the final value. You can set
-    history manually (wandb.summary['accuracy'] = best_acc).
+    history manually `(wandb.summary['accuracy'] = best_acc)`.
 
     In the UI, summary metrics appear in the table to compare across runs.
     Summary metrics are also used in visualizations like the scatter plot and
@@ -100,7 +98,7 @@ class Summary(SummaryDict):
     mean, variance, and 95th percentile.
 
     Examples:
-        ```
+        ```python
         wandb.init(config=args)
 
         best_accuracy = 0

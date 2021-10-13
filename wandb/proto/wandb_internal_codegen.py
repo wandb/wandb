@@ -31,7 +31,17 @@ assert package_version == requirements_version, (
 
 proto_root = os.path.join(os.path.dirname(grpc_tools.__file__), "_proto")
 os.chdir("../..")
-protoc.main((
+ret = protoc.main((
+    '',
+    '-I', proto_root,
+    '-I', '.',
+    '--python_out=.',
+    '--mypy_out=.',
+    'wandb/proto/wandb_base.proto',
+    ))
+assert not ret
+
+ret = protoc.main((
     '',
     '-I', proto_root,
     '-I', '.',
@@ -39,8 +49,9 @@ protoc.main((
     '--mypy_out=.',
     'wandb/proto/wandb_internal.proto',
     ))
+assert not ret
 
-protoc.main((
+ret = protoc.main((
     '',
     '-I', proto_root,
     '-I', '.',
@@ -48,13 +59,16 @@ protoc.main((
     '--mypy_out=.',
     'wandb/proto/wandb_telemetry.proto',
     ))
+assert not ret
 
-protoc.main((
+ret = protoc.main((
     '',
     '-I', proto_root,
     '-I', '.',
     '--python_out=.',
     '--grpc_python_out=.',
     '--mypy_out=.',
+    '--mypy_grpc_out=.',
     'wandb/proto/wandb_server.proto',
     ))
+assert not ret

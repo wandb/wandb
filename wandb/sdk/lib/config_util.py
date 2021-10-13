@@ -32,6 +32,8 @@ def update_from_proto(config_dict, config_proto):
         target = config_dict
         # recurse down the dictionary structure:
         for prop in key_list[:-1]:
+            if not target.get(prop):
+                target[prop] = {}
             target = target[prop]
         # use the last element of the key to write the leaf:
         target[key_list[-1]] = json.loads(item.value_json)

@@ -3,6 +3,7 @@ import time
 
 import six
 import wandb
+from wandb.viz import create_custom_chart
 
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
@@ -11,7 +12,7 @@ STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
 RATE_LIMIT_SECONDS = None
-IGNORE_KINDS = []
+IGNORE_KINDS = ["graphs"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
 
@@ -125,10 +126,54 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
             elif plugin_name == "images":
                 img_strs = value.tensor.string_val[2:]  # First two items are dims.
                 encode_images(img_strs, value)
+            elif plugin_name == "histograms":
+                # https://github.com/tensorflow/tensorboard/blob/master/tensorboard/plugins/histogram/summary_v2.py#L15-L26
+                ndarray = make_ndarray(value.tensor)
+                shape = ndarray.shape
+                counts = []
+                bins = []
+                if shape[0] > 1:
+                    bins.append(ndarray[0][0])  # Add the left most edge
+                    for v in ndarray:
+                        counts.append(v[2])
+                        bins.append(v[1])  # Add the right most edges
+                elif shape[0] == 1:
+                    counts = [ndarray[0][2]]
+                    bins = ndarray[0][:2]
+                if len(counts) > 0:
+                    values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
+                        np_histogram=(counts, bins)
+                    )
+            elif plugin_name == "pr_curves":
+                pr_curve_data = make_ndarray(value.tensor)
+                precision = pr_curve_data[-2, :].tolist()
+                recall = pr_curve_data[-1, :].tolist()
+                # TODO: (kdg) implement spec for showing additional info in tool tips
+                # true_pos = pr_curve_data[1,:]
+                # false_pos = pr_curve_data[2,:]
+                # true_neg = pr_curve_data[1,:]
+                # false_neg = pr_curve_data[1,:]
+                # threshold = [1.0 / n for n in range(len(true_pos), 0, -1)]
+                # min of each in case tensorboard ever changes their pr_curve
+                # to allow for different length outputs
+                data = []
+                for i in range(min(len((precision)), len(recall))):
+                    # drop additional threshold values if they exist
+                    if precision[i] != 0 or recall[i] != 0:
+                        data.append((recall[i], precision[i]))
+                # sort data so custom chart looks the same as tb generated pr curve
+                # ascending recall, descending precision for the same recall values
+                data = sorted(data, key=lambda x: (x[0], -x[1]))
+                data_table = wandb.Table(data=data, columns=["recall", "precision"])
+                values[namespaced_tag(value.tag, namespace)] = create_custom_chart(
+                    "wandb/line/v0",
+                    data_table,
+                    {"x": "recall", "y": "precision"},
+                    {"title": "Precision v. Recall"},
+                )
         elif kind == "image":
             img_str = value.image.encoded_image_string
             encode_images([img_str], value)
-
         # Coming soon...
         # elif kind == "audio":
         #     audio = wandb.Audio(

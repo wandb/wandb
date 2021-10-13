@@ -5,6 +5,8 @@ import logging
 import os
 
 from six.moves import configparser
+from six.moves.urllib.parse import urlparse, urlunparse
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,14 @@ class GitRepo(object):
     def remote_url(self):
         if not self.remote:
             return None
-        return self.remote.url
+        parsed = urlparse(self.remote.url)
+        if parsed.password is not None:
+            return urlunparse(
+                parsed._replace(
+                    netloc="{}:@{}".format(parsed.username, parsed.hostname)
+                )
+            )
+        return urlunparse(parsed._replace(netloc=parsed.hostname))
 
     @property
     def root_dir(self):

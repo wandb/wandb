@@ -5,55 +5,61 @@ from __future__ import division
 import base64
 import binascii
 import colorsys
+import contextlib
 import codecs
 import errno
+import functools
+import gzip
 import hashlib
 import json
-import getpass
 import logging
 import math
+import numbers
+import traceback
 import os
 import re
 import shlex
-import subprocess
+import socket
 import sys
 import threading
 import time
 import random
-import stat
 import shortuuid
 import importlib
+import tarfile
+import tempfile
 import types
+from typing import Optional
 import yaml
 from datetime import date, datetime
 import platform
-from six.moves.urllib.parse import urlparse
+from six.moves import urllib
+from typing import Any, Dict
 
-import click
 import requests
 import six
-from six.moves import queue
-import textwrap
+from six.moves import queue, input
 from sys import getsizeof
-from collections import namedtuple
 from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from sentry_sdk import configure_scope
-from wandb.env import error_reporting_enabled
+from wandb.env import error_reporting_enabled, get_app_url
 
 import wandb
-from wandb.old.core import wandb_dir
-from wandb.errors.error import CommError
 from wandb import env
+from wandb.errors import CommError, term
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+# Boolean, unsigned integer, signed integer, float, complex.
+NUMERIC_KINDS = set("buifc")
 
+MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
+RE_WINFNAMES = re.compile('[<>:"/\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -68,6 +74,26 @@ if error_reporting_enabled():
         default_integrations=False,
         environment=SENTRY_ENV,
     )
+
+POW_10_BYTES = [
+    ("B", 10 ** 0),
+    ("KB", 10 ** 3),
+    ("MB", 10 ** 6),
+    ("GB", 10 ** 9),
+    ("TB", 10 ** 12),
+    ("PB", 10 ** 15),
+    ("EB", 10 ** 18),
+]
+
+POW_2_BYTES = [
+    ("B", 2 ** 0),
+    ("KiB", 2 ** 10),
+    ("MiB", 2 ** 20),
+    ("GiB", 2 ** 30),
+    ("TiB", 2 ** 40),
+    ("PiB", 2 ** 50),
+    ("EiB", 2 ** 60),
+]
 
 
 def sentry_message(message):
@@ -126,10 +152,7 @@ def vendor_setup():
 
     parent_dir = os.path.abspath(os.path.dirname(__file__))
     vendor_dir = os.path.join(parent_dir, "vendor")
-    vendor_packages = (
-        "gql-0.2.0",
-        "graphql-core-1.1",
-    )
+    vendor_packages = ("gql-0.2.0", "graphql-core-1.1")
     package_dirs = [os.path.join(vendor_dir, p) for p in vendor_packages]
     for p in [vendor_dir] + package_dirs:
         if p not in sys.path:
@@ -167,6 +190,10 @@ def get_module(name, required=None):
                 logger.exception(msg)
     if required and name in _not_importable:
         raise wandb.Error(required)
+
+
+def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
+    return get_module(name)
 
 
 class LazyLoader(types.ModuleType):
@@ -245,18 +272,25 @@ class PreInitObject(object):
 
 np = get_module("numpy")
 
-MAX_SLEEP_SECONDS = 60 * 5
 # TODO: Revisit these limits
 VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
-    if "://api.wandb." in api_url:
+    """Returns the frontend app url without a trailing slash."""
+    # TODO: move me to settings
+    app_url = get_app_url()
+    if app_url is not None:
+        return app_url.strip("/")
+    if "://api.wandb.test" in api_url:
+        # dev mode
+        return api_url.replace("://api.", "://app.").strip("/")
+    elif "://api.wandb." in api_url:
         # cloud
-        return api_url.replace("://api.", "://")
+        return api_url.replace("://api.", "://").strip("/")
     elif "://api." in api_url:
         # onprem cloud
-        return api_url.replace("://api.", "://app.")
+        return api_url.replace("://api.", "://app.").strip("/")
     # wandb/local
     return api_url
 
@@ -280,6 +314,83 @@ def get_h5_typename(o):
         return "torch.Tensor"
     else:
         return o.__class__.__module__.split(".")[0] + "." + o.__class__.__name__
+
+
+def is_uri(string):
+    parsed_uri = urllib.parse.urlparse(string)
+    return len(parsed_uri.scheme) > 0
+
+
+def local_file_uri_to_path(uri):
+    """
+    Convert URI to local filesystem path.
+    No-op if the uri does not have the expected scheme.
+    """
+    path = urllib.parse.urlparse(uri).path if uri.startswith("file:") else uri
+    return urllib.request.url2pathname(path)
+
+
+def get_local_path_or_none(path_or_uri):
+    """Check if the argument is a local path (no scheme or file:///) and return local path if true,
+    None otherwise.
+    """
+    parsed_uri = urllib.parse.urlparse(path_or_uri)
+    if (
+        len(parsed_uri.scheme) == 0
+        or parsed_uri.scheme == "file"
+        and len(parsed_uri.netloc) == 0
+    ):
+        return local_file_uri_to_path(path_or_uri)
+    else:
+        return None
+
+
+def make_tarfile(output_filename, source_dir, archive_name, custom_filter=None):
+    # Helper for filtering out modification timestamps
+    def _filter_timestamps(tar_info):
+        tar_info.mtime = 0
+        return tar_info if custom_filter is None else custom_filter(tar_info)
+
+    unzipped_filename = tempfile.mktemp()
+    try:
+        with tarfile.open(unzipped_filename, "w") as tar:
+            tar.add(source_dir, arcname=archive_name, filter=_filter_timestamps)
+        # When gzipping the tar, don't include the tar's filename or modification time in the
+        # zipped archive (see https://docs.python.org/3/library/gzip.html#gzip.GzipFile)
+        with gzip.GzipFile(
+            filename="", fileobj=open(output_filename, "wb"), mode="wb", mtime=0
+        ) as gzipped_tar, open(unzipped_filename, "rb") as tar:
+            gzipped_tar.write(tar.read())
+    finally:
+        os.remove(unzipped_filename)
+
+
+def _user_args_to_dict(arguments):
+    user_dict = {}
+    i = 0
+    while i < len(arguments):
+        arg = arguments[i]
+        split = arg.split("=", maxsplit=1)
+        # flag arguments don't require a value -> set to True if specified
+        if len(split) == 1 and (
+            i + 1 >= len(arguments) or arguments[i + 1].startswith("-")
+        ):
+            name = split[0].lstrip("-")
+            value = True
+            i += 1
+        elif len(split) == 1 and not arguments[i + 1].startswith("-"):
+            name = split[0].lstrip("-")
+            value = arguments[i + 1]
+            i += 2
+        elif len(split) == 2:
+            name = split[0].lstrip("-")
+            value = split[1]
+            i += 1
+        if name in user_dict:
+            wandb.termerror("Repeated parameter: '%s'" % name)
+            sys.exit(1)
+        user_dict[name] = value
+    return user_dict
 
 
 def is_tf_tensor(obj):
@@ -308,6 +419,16 @@ def is_pytorch_tensor_typename(typename):
     return typename.startswith("torch.") and (
         "Tensor" in typename or "Variable" in typename
     )
+
+
+def is_jax_tensor_typename(typename):
+    return typename.startswith("jaxlib.") and "DeviceArray" in typename
+
+
+def get_jax_tensor(obj):
+    import jax
+
+    return jax.device_get(obj)
 
 
 def is_fastai_tensor_typename(typename):
@@ -422,9 +543,11 @@ def json_friendly(obj):
             pass  # happens for Tensors before 0.4
 
         if obj.size():
-            obj = obj.numpy()
+            obj = obj.cpu().detach().numpy()
         else:
             return obj.item(), True
+    elif is_jax_tensor_typename(typename):
+        obj = get_jax_tensor(obj)
 
     if is_numpy_array(obj):
         if obj.size == 1:
@@ -435,6 +558,13 @@ def json_friendly(obj):
         obj = obj.item()
         if isinstance(obj, float) and math.isnan(obj):
             obj = None
+        elif isinstance(obj, np.generic) and obj.dtype.kind == "f":
+            # obj is a numpy float with precision greater than that of native python float
+            # (i.e., float96 or float128). in this case obj.item() does not return a native
+            # python float to avoid loss of precision, so we need to explicitly cast this
+            # down to a 64bit float
+            obj = float(obj)
+
     elif isinstance(obj, bytes):
         obj = obj.decode("utf-8")
     elif isinstance(obj, (datetime, date)):
@@ -445,6 +575,8 @@ def json_friendly(obj):
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
+    elif isinstance(obj, float) and math.isnan(obj):
+        obj = None
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -453,8 +585,31 @@ def json_friendly(obj):
                 type(obj).__name__, getsizeof(obj)
             )
         )
-
     return obj, converted
+
+
+def json_friendly_val(val):
+    """Make any value (including dict, slice, sequence, etc) JSON friendly"""
+    if isinstance(val, dict):
+        converted = {}
+        for key, value in six.iteritems(val):
+            converted[key] = json_friendly_val(value)
+        return converted
+    if isinstance(val, slice):
+        converted = dict(
+            slice_start=val.start, slice_step=val.step, slice_stop=val.stop
+        )
+        return converted
+    val, _ = json_friendly(val)
+    if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+        converted = []
+        for value in val:
+            converted.append(json_friendly_val(value))
+        return converted
+    else:
+        if val.__class__.__module__ not in ("builtins", "__builtin__"):
+            val = str(val)
+        return val
 
 
 def convert_plots(obj):
@@ -522,10 +677,10 @@ def launch_browser(attempt_launch_browser=True):
     return launch_browser
 
 
-def generate_id():
+def generate_id(length=8):
     # ~3t run ids (36**8)
     run_gen = shortuuid.ShortUUID(alphabet=list("0123456789abcdefghijklmnopqrstuvwxyz"))
-    return run_gen.random(8)
+    return run_gen.random(length)
 
 
 def parse_tfjob_config():
@@ -652,8 +807,10 @@ def no_retry_auth(e):
         e = e.exception
     if not isinstance(e, requests.HTTPError):
         return True
+    if e.response is None:
+        return True
     # Don't retry bad request errors; raise immediately
-    if e.response.status_code == 400:
+    if e.response.status_code in (400, 409):
         return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
@@ -665,66 +822,6 @@ def no_retry_auth(e):
         raise CommError("Permission denied to access {}".format(wandb.run.path))
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
-
-
-def request_with_retry(func, *args, **kwargs):
-    """Perform a requests http call, retrying with exponential backoff.
-
-    Arguments:
-        func: An http-requesting function to call, like requests.post
-        max_retries: Maximum retries before giving up. By default we retry 30 times in ~2 hours before dropping the chunk
-        *args: passed through to func
-        **kwargs: passed through to func
-    """
-    max_retries = kwargs.pop("max_retries", 30)
-    sleep = 2
-    retry_count = 0
-    while True:
-        try:
-            response = func(*args, **kwargs)
-            response.raise_for_status()
-            return response
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.HTTPError,
-            requests.exceptions.Timeout,
-        ) as e:
-            if isinstance(e, requests.exceptions.HTTPError):
-                # Non-retriable HTTP errors.
-                #
-                # We retry 500s just to be cautious, and because the back end
-                # returns them when there are infrastructure issues. If retrying
-                # some request winds up being problematic, we'll change the
-                # back end to indicate that it shouldn't be retried.
-                if e.response.status_code in {400, 403, 404, 409}:
-                    return e
-
-            if retry_count == max_retries:
-                return e
-            retry_count += 1
-            delay = sleep + random.random() * 0.25 * sleep
-            if (
-                isinstance(e, requests.exceptions.HTTPError)
-                and e.response.status_code == 429
-            ):
-                logger.info("Rate limit exceeded, retrying in %s seconds" % delay)
-            else:
-                logger.warning(
-                    "requests_with_retry encountered retryable exception: %s. args: %s, kwargs: %s",
-                    e,
-                    args,
-                    kwargs,
-                )
-            time.sleep(delay)
-            sleep *= 2
-            if sleep > MAX_SLEEP_SECONDS:
-                sleep = MAX_SLEEP_SECONDS
-        except requests.exceptions.RequestException as e:
-            logger.error(response.json()["error"])  # XXX clean this up
-            logger.exception(
-                "requests_with_retry encountered unretryable exception: %s", e
-            )
-            return e
 
 
 def find_runner(program):
@@ -765,9 +862,6 @@ def downsample(values, target_length):
     for i in range(target_length):
         result.append(values[int(i * ratio)])
     return result
-
-
-import numbers
 
 
 def has_num(dictionary, key):
@@ -901,11 +995,11 @@ def image_id_from_k8s():
 
 def async_call(target, timeout=None):
     """Accepts a method and optional timeout.
-       Returns a new method that will call the original with any args, waiting for upto timeout seconds.
-       This new method blocks on the original and returns the result or None
-       if timeout was reached, along with the thread.
-       You can check thread.is_alive() to determine if a timeout was reached.
-       If an exception is thrown in the thread, we reraise it.
+    Returns a new method that will call the original with any args, waiting for upto timeout seconds.
+    This new method blocks on the original and returns the result or None
+    if timeout was reached, along with the thread.
+    You can check thread.is_alive() to determine if a timeout was reached.
+    If an exception is thrown in the thread, we reraise it.
     """
     q = queue.Queue()
 
@@ -967,6 +1061,50 @@ def class_colors(class_count):
     ]
 
 
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+    input_fn = input
+    prompt = term.LOG_STRING
+    if input_timeout:
+        # delayed import to mitigate risk of timed_input complexity
+        from wandb.sdk.lib import timed_input
+
+        input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
+        # timed_input doesnt handle enhanced prompts
+        if platform.system() == "Windows":
+            prompt = "wandb"
+
+    text = f"{prompt}: Enter your choice: "
+    if input_fn == input:
+        choice = input_fn(text)
+    else:
+        choice = input_fn(text, jupyter=jupyter)
+    return choice
+
+
+def prompt_choices(
+    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+):
+    """Allow a user to choose from a list of options"""
+    for i, choice in enumerate(choices):
+        wandb.termlog("(%i) %s" % (i + 1, choice))
+
+    idx = -1
+    while idx < 0 or idx > len(choices) - 1:
+        choice = _prompt_choice(input_timeout=input_timeout, jupyter=jupyter)
+        if not choice:
+            continue
+        idx = -1
+        try:
+            idx = int(choice) - 1
+        except ValueError:
+            pass
+        if idx < 0 or idx > len(choices) - 1:
+            wandb.termwarn("Invalid choice")
+    result = choices[idx]
+    wandb.termlog("You chose '%s'" % result)
+    return result
+
+
 def guess_data_type(shape, risky=False):
     """Infer the type of data based on the shape of the tensors
 
@@ -996,7 +1134,7 @@ def download_file_from_url(dest_path, source_url, api_key=None):
 
     if os.sep in dest_path:
         mkdir_exists_ok(os.path.dirname(dest_path))
-    with open(dest_path, "wb") as file:
+    with fsync_open(dest_path, "wb") as file:
         for data in response.iter_content(chunk_size=1024):
             file.write(data)
 
@@ -1005,15 +1143,30 @@ def isatty(ob):
     return hasattr(ob, "isatty") and ob.isatty()
 
 
-def sizeof_fmt(num, suffix="B"):
-    """Pretty print file size
-        https://stackoverflow.com/questions/1094841/reusable-library-to-get-human-readable-version-of-file-size
-    """
-    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
-        if abs(num) < 1024.0:
-            return "%3.1f%s%s" % (num, unit, suffix)
-        num /= 1024.0
-    return "%.1f%s%s" % (num, "Yi", suffix)
+def to_human_size(bytes, units=None):
+    units = units or POW_10_BYTES
+    unit, value = units[0]
+    factor = round(float(bytes) / value, 1)
+    return (
+        "{}{}".format(factor, unit)
+        if factor < 1024 or len(units) == 1
+        else to_human_size(bytes, units[1:])
+    )
+
+
+def from_human_size(size, units=None):
+    units = {unit.upper(): value for (unit, value) in units or POW_10_BYTES}
+    regex = re.compile(
+        r"(\d+\.?\d*)\s*({})?".format("|".join(units.keys())), re.IGNORECASE
+    )
+    match = re.match(regex, size)
+    if not match:
+        raise ValueError("Size must be of the form `10`, `10B` or `10 B`.")
+    factor, unit = (
+        float(match.group(1)),
+        units[match.group(2).upper()] if match.group(2) else 1,
+    )
+    return int(factor * unit)
 
 
 def auto_project_name(program):
@@ -1044,7 +1197,7 @@ def parse_sweep_id(parts_dict):
 
     Arguments:
         parts_dict (dict): dict(entity=,project=,name=).  Modifies dict inplace.
-    
+
     Returns:
         None or str if there is an error
     """
@@ -1154,14 +1307,49 @@ def hex_to_b64_id(encoded_string):
 
 def host_from_path(path):
     """returns the host of the path"""
-    url = urlparse(path)
+    url = urllib.parse.urlparse(path)
     return url.netloc
 
 
 def uri_from_path(path):
     """returns the URI of the path"""
-    url = urlparse(path)
+    url = urllib.parse.urlparse(path)
     return url.path if url.path[0] != "/" else url.path[1:]
+
+
+def is_unicode_safe(stream):
+    """returns true if the stream supports UTF-8"""
+    if not hasattr(stream, "encoding"):
+        return False
+    return stream.encoding == "UTF-8"
+
+
+def _has_internet():
+    """Attempts to open a DNS connection to Googles root servers"""
+    try:
+        s = socket.create_connection(("8.8.8.8", 53), 0.5)
+        s.close()
+        return True
+    except OSError:
+        return False
+
+
+def rand_alphanumeric(length=8, rand=None):
+    rand = rand or random
+    return "".join(rand.choice("0123456789ABCDEF") for _ in range(length))
+
+
+@contextlib.contextmanager
+def fsync_open(path, mode="w"):
+    """
+    Opens a path for I/O, guaranteeing that the file is flushed and
+    fsynced when the file's context expires.
+    """
+    with open(path, mode) as f:
+        yield f
+
+        f.flush()
+        os.fsync(f.fileno())
 
 
 def _is_kaggle():
@@ -1169,3 +1357,131 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
+
+
+def is_numeric_array(array):
+    return np.asarray(array).dtype.kind in NUMERIC_KINDS
+
+
+def _is_likely_kaggle():
+    # Telemetry to mark first runs from Kagglers.
+    return (
+        _is_kaggle()
+        or os.path.exists(
+            os.path.expanduser(os.path.join("~", ".kaggle", "kaggle.json"))
+        )
+        or "kaggle" in sys.modules
+    )
+
+
+def _is_databricks():
+    # check if we are running inside a databricks notebook by
+    # inspecting sys.modules, searching for dbutils and verifying that
+    # it has the appropriate structure
+
+    if "dbutils" in sys.modules:
+        dbutils = sys.modules["dbutils"]
+        if hasattr(dbutils, "shell"):
+            shell = dbutils.shell
+            if hasattr(shell, "sc"):
+                sc = shell.sc
+                return sc.appName == "Databricks Shell"
+    return False
+
+
+def sweep_config_err_text_from_jsonschema_violations(violations):
+    """Consolidate violation strings from wandb/sweeps describing the ways in which a
+    sweep config violates the allowed schema as a single string.
+
+    Parameters
+    ----------
+    violations: list of str
+        The warnings to render.
+
+    Returns
+    -------
+    violation: str
+        The consolidated violation text.
+
+    """
+
+    violation_base = (
+        "Malformed sweep config detected! This may cause your sweep to behave in unexpected ways.\n"
+        "To avoid this, please fix the sweep config schema violations below:"
+    )
+
+    for i, warning in enumerate(violations):
+        violations[i] = "  Violation {}. {}".format(i + 1, warning)
+    violation = "\n".join([violation_base] + violations)
+
+    return violation
+
+
+def handle_sweep_config_violations(warnings):
+    """Render warnings from gorilla describing the ways in which a
+    sweep config violates the allowed schema as terminal warnings.
+
+    Parameters
+    ----------
+    warnings: list of str
+        The warnings to render.
+    """
+
+    warning = sweep_config_err_text_from_jsonschema_violations(warnings)
+    if len(warnings) > 0:
+        term.termwarn(warning)
+
+
+def _log_thread_stacks():
+    """Log all threads, useful for debugging."""
+
+    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+
+    for thread_id, frame in sys._current_frames().items():
+        logger.info(
+            "\n--- Stack for thread {t} {name} ---".format(
+                t=thread_id, name=thread_map.get(thread_id, "unknown")
+            )
+        )
+        for filename, lineno, name, line in traceback.extract_stack(frame):
+            logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                logger.info("  Line: %s" % line)
+
+
+def check_windows_valid_filename(path):
+    return not bool(re.search(RE_WINFNAMES, path))
+
+
+def artifact_to_json(artifact) -> Dict[str, Any]:
+    # public.Artifact has the _sequence name, instances of wandb.Artifact
+    # just have the name
+
+    if hasattr(artifact, "_sequence_name"):
+        sequence_name = artifact._sequence_name
+    else:
+        sequence_name = artifact.name.split(":")[0]
+
+    return {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": artifact.id,
+        "version": artifact.version,
+        "sequenceName": sequence_name,
+        "usedAs": artifact._use_as,
+    }
+
+
+def check_dict_contains_nested_artifact(d, nested=False):
+    if isinstance(d, dict):
+        for _, item in six.iteritems(d):
+            if isinstance(item, dict):
+                contains_artifacts = check_dict_contains_nested_artifact(item, True)
+                if contains_artifacts:
+                    return True
+            elif (
+                isinstance(item, wandb.Artifact)
+                or isinstance(item, wandb.apis.public.Artifact)
+            ) and nested:
+                return True
+    return False

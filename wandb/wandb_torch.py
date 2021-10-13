@@ -3,15 +3,13 @@
 """PyTorch-specific functionality
 """
 
-from collections import namedtuple
 import itertools
 import weakref
 from six.moves import reduce
-from distutils.version import LooseVersion
 from operator import mul
 
 from wandb import util
-from wandb.data_types import Node, Edge
+from wandb.data_types import Node
 import wandb
 
 torch = None
@@ -81,6 +79,7 @@ class TorchHistory(object):
         self._num_bins = 64
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
+        self.hook_torch = TorchGraph.hook_torch
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -103,7 +102,8 @@ class TorchHistory(object):
         if jupyter_run:
             self._jupyter_run = weakref.ref(jupyter_run)
 
-        module._wandb_hook_names = []
+        if not hasattr(module, "_wandb_hook_names"):
+            module._wandb_hook_names = []
 
         if log_parameters:
 
@@ -306,20 +306,22 @@ class TorchHistory(object):
 class TorchGraph(wandb.data_types.Graph):
     def __init__(self):
         super(TorchGraph, self).__init__("torch")
+        self._graph_hooks = set()
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
+        wandb.termlog("logging graph, to disable use `wandb.watch(log_graph=False)`")
         graph = TorchGraph()
         graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
 
-    def create_forward_hook(self, name, modules):
+    def create_forward_hook(self, name, graph_idx):
         graph = self
 
         def after_forward_hook(module, input, output):
-            if id(module) in modules:
+            if id(module) not in self._graph_hooks:
+                # hook already processed -> noop
                 return
-            modules.add(id(module))
             if not isinstance(output, tuple):
                 output = (output,)
             parameters = [
@@ -342,15 +344,26 @@ class TorchGraph(wandb.data_types.Graph):
             if not graph.criterion_passed:
                 if hasattr(output[0], "grad_fn"):
                     graph.criterion = output[0].grad_fn
-                elif isinstance(output[0], list) and hasattr(output[0][0], "grad_fn"):
+                elif (
+                    isinstance(output[0], list)
+                    and output[0]
+                    and hasattr(output[0][0], "grad_fn")
+                ):
                     graph.criterion = output[0][0].grad_fn
+
+            # hook has been processed
+            self._graph_hooks -= {id(module)}
+
+            if not self._graph_hooks:
+                # we went through the entire graph
+                wandb.run.summary["graph_%i" % graph_idx] = self
 
         return after_forward_hook
 
-    def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
+    def hook_torch_modules(
+        self, module, criterion=None, prefix=None, graph_idx=0, parent=None
+    ):
         torch = util.get_module("torch", "Could not import torch")
-        hooks = []
-        modules = set()
         layers = 0
         graph = self
         if hasattr(module, "_wandb_watch_called") and module._wandb_watch_called:
@@ -386,53 +399,23 @@ class TorchGraph(wandb.data_types.Graph):
                 )
                 if hasattr(torch.nn, module_classname)
             ]
+            if parent is None:
+                parent = module
 
             if isinstance(sub_module, tuple(module_types)):
-                self.hook_torch_modules(sub_module, prefix=name)
+                self.hook_torch_modules(sub_module, prefix=name, parent=parent)
             else:
-
-                def backward_hook(module, input, output):
-                    [hook.remove() for hook in hooks]
-                    graph.loaded = True
-                    if wandb.run:
-                        wandb.run.summary["graph_%i" % graph_idx] = graph
-                    else:
-                        wandb.termwarn(
-                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch",
-                            repeat=False,
-                        )
-                    # TODO: Keeping this here as a starting point for adding graph data
-                    if not graph.loaded:
-
-                        def traverse(node, functions=[]):
-                            if hasattr(node, "grad_fn"):
-                                node = node.grad_fn
-
-                            if hasattr(node, "variable"):
-                                node = graph.nodes_by_id.get(id(node.variable))
-                                if node:
-                                    node.functions = list(functions)
-                                    del functions[:]
-
-                            if hasattr(node, "next_functions"):
-                                functions.append(type(node).__name__)
-                                for f in node.next_functions:
-                                    if f[0]:
-                                        functions.append(type(f[0]).__name__)
-                                        traverse(f[0], functions)
-
-                            if hasattr(node, "saved_tensors"):
-                                for t in node.saved_tensors:
-                                    traverse(t)
-
-                        traverse(graph.criterion)
-
-                hooks.append(
-                    sub_module.register_forward_hook(
-                        self.create_forward_hook(name, modules)
-                    )
+                self._graph_hooks |= {id(sub_module)}
+                graph_hook = sub_module.register_forward_hook(
+                    self.create_forward_hook(name, graph_idx)
                 )
-                hooks.append(sub_module.register_backward_hook(backward_hook))
+                wandb.run.history.torch._hook_handles[
+                    "topology/" + str(id(graph_hook))
+                ] = graph_hook
+                if not hasattr(parent, "_wandb_hook_names"):
+                    # should never happen but let's be extra safe
+                    parent._wandb_hook_names = []
+                parent._wandb_hook_names.append("topology/" + str(id(graph_hook)))
 
     @classmethod
     def from_torch_layers(cls, module_graph, variable):

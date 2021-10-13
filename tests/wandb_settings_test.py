@@ -4,7 +4,9 @@ settings test.
 
 import pytest  # type: ignore
 
+import wandb
 from wandb import Settings
+from wandb.errors import UsageError
 import os
 import copy
 
@@ -71,6 +73,17 @@ def test_ignore_globs_env():
     assert s.ignore_globs == ("foo", "bar",)
 
 
+def test_quiet():
+    s = Settings()
+    assert s._quiet is None
+    s = Settings(quiet=True)
+    assert s._quiet
+    s = Settings()
+    s._apply_environ({"WANDB_QUIET": "false"})
+    s.setdefaults()
+    assert s._quiet == False
+
+
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
 def test_ignore_globs_settings(local_settings):
     with open(os.path.join(os.getcwd(), ".config", "wandb", "settings"), "w") as f:
@@ -135,9 +148,9 @@ def test_freeze():
 
 def test_bad_choice():
     s = Settings()
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.mode = "goodprojo"
-    with pytest.raises(TypeError):
+    with pytest.raises(UsageError):
         s.update(mode="badpro")
 
 
@@ -224,3 +237,43 @@ def test_prio_context_over_ignore():
     with s._as_source(s.Source.PROJECT, override=True) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza"
+
+
+def test_validate_base_url():
+    s = Settings()
+    with pytest.raises(UsageError):
+        s.update(base_url="https://wandb.ai")
+    with pytest.raises(UsageError):
+        s.update(base_url="https://app.wandb.ai")
+    with pytest.raises(UsageError):
+        s.update(base_url="http://api.wandb.ai")
+    s.update(base_url="https://api.wandb.ai")
+    assert s.base_url == "https://api.wandb.ai"
+    s.update(base_url="https://wandb.ai.other.crazy.domain.com")
+    assert s.base_url == "https://wandb.ai.other.crazy.domain.com"
+
+
+def test_preprocess_base_url():
+    s = Settings()
+    s.update(base_url="http://host.com")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="http://host.com/")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="http://host.com///")
+    assert s.base_url == "http://host.com"
+    s.update(base_url="//http://host.com//")
+    assert s.base_url == "//http://host.com"
+
+
+def test_code_saving_save_code_env_false(live_mock_server, test_settings):
+    test_settings.update({"save_code": None})
+    os.environ["WANDB_SAVE_CODE"] = "false"
+    run = wandb.init(settings=test_settings)
+    assert run._settings.save_code is False
+
+
+def test_code_saving_disable_code(live_mock_server, test_settings):
+    test_settings.update({"save_code": None})
+    os.environ["WANDB_DISABLE_CODE"] = "true"
+    run = wandb.init(settings=test_settings)
+    assert run._settings.save_code is False

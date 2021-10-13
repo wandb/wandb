@@ -19,7 +19,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.10.13"
+__version__ = "0.12.5.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -31,13 +31,7 @@ from wandb.errors import Error
 # This needs to be early as other modules call it.
 from wandb.errors.term import termsetup, termlog, termerror, termwarn
 
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-TYPE_CHECKING = False  # type: bool
-if PY3:
-    TYPE_CHECKING = True
-    from wandb import sdk as wandb_sdk
-else:
-    from wandb import sdk_py27 as wandb_sdk
+from wandb import sdk as wandb_sdk
 
 import wandb
 
@@ -45,6 +39,8 @@ wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init
 setup = wandb_sdk.setup
+_attach = wandb_sdk._attach
+_teardown = wandb_sdk.teardown
 save = wandb_sdk.save
 watch = wandb_sdk.watch
 unwatch = wandb_sdk.unwatch
@@ -52,18 +48,24 @@ finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
 helper = wandb_sdk.helper
+sweep = wandb_sdk.sweep
+controller = wandb_sdk.controller
+require = wandb_sdk.require
 Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors.error import CommError, UsageError
+from wandb.errors import CommError, UsageError
 
 _preinit = wandb_lib.preinit
 _lazyloader = wandb_lib.lazyloader
+
+# Call import module hook to setup any needed require hooks
+wandb.sdk.wandb_require._import_module_hook()
+
 from wandb import wandb_torch
-from wandb import util
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.data_types import Graph
@@ -82,28 +84,39 @@ from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
-from wandb.wandb_controller import sweep, controller
-
-from wandb import superagent
 
 # from wandb.core import *
 from wandb.viz import visualize
 from wandb import plot
 from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
+from wandb.sdk.internal import profiler
 
 
 # Used to make sure we don't use some code in the incorrect process context
 _IS_INTERNAL_PROCESS = False
 
 
-def _set_internal_process():
+def _set_internal_process(disable=False):
     global _IS_INTERNAL_PROCESS
+    if _IS_INTERNAL_PROCESS is None:
+        return
+    if disable:
+        _IS_INTERNAL_PROCESS = None
+        return
     _IS_INTERNAL_PROCESS = True
 
 
-def _is_internal_process():
-    return _IS_INTERNAL_PROCESS
+def _assert_is_internal_process():
+    if _IS_INTERNAL_PROCESS is None:
+        return
+    assert _IS_INTERNAL_PROCESS
+
+
+def _assert_is_user_process():
+    if _IS_INTERNAL_PROCESS is None:
+        return
+    assert not _IS_INTERNAL_PROCESS
 
 
 # toplevel:
@@ -132,6 +145,14 @@ use_artifact = _preinit.PreInitCallable(
 log_artifact = _preinit.PreInitCallable(
     "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact
 )
+define_metric = _preinit.PreInitCallable(
+    "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric
+)
+
+mark_preempting = _preinit.PreInitCallable(
+    "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting
+)
+
 plot_table = _preinit.PreInitCallable(
     "wandb.plot_table", wandb_sdk.wandb_run.Run.plot_table
 )
@@ -172,12 +193,22 @@ def set_trace():
     pdb.set_trace()  # TODO: pass the parent stack...
 
 
+def load_ipython_extension(ipython):
+    ipython.register_magics(wandb.jupyter.WandBMagics)
+
+
+if wandb_sdk.lib.ipython.in_jupyter():
+    from IPython import get_ipython
+
+    load_ipython_extension(get_ipython())
+
 __all__ = [
     "__version__",
     "init",
     "setup",
     "save",
     "sweep",
+    "controller",
     "agent",
     "config",
     "log",
@@ -194,4 +225,5 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
+    "_enable",
 ]

@@ -3,6 +3,8 @@ wandb/internal/update.py test.
 """
 
 import pytest  # type: ignore
+import sys
+from unittest import mock
 
 import wandb
 
