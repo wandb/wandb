@@ -224,7 +224,7 @@ class TorchHistory(object):
             return
 
         # Remove nans and infs if present. There's no good way to represent that in histograms.
-        if not flat.isfinite().any():
+        if not flat.isfinite().all():
             flat = flat[flat.isfinite()]
 >>>>>>> ef5a8c4b5 (only filter nans and infs when they are present, and copy tensor once instead of twice.)
 
