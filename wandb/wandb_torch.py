@@ -217,7 +217,7 @@ class TorchHistory(object):
             return
 
         # Remove nans and infs if present. There's no good way to represent that in histograms.
-        if not flat.isfinite().any():
+        if not flat.isfinite().all():
             flat = flat[flat.isfinite()]
 
         tmin = flat.min().item()
