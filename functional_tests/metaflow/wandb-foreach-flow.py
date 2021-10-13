@@ -32,10 +32,10 @@ class WandbForeachFlow(FlowSpec):
         default="https://gist.githubusercontent.com/tijptjik/9408623/raw/b237fa5848349a14a14e5d4107dc7897c21951f5/wine.csv",
         help="path to the raw data",
     )
-    models = ["RandomForestClassifier", "GradientBoostingClassifier"]
 
     @step
     def start(self):
+        self.models = ["RandomForestClassifier", "GradientBoostingClassifier"]
         self.raw_df = pd.read_csv(self.raw_data)
         self.next(self.split_data)
 

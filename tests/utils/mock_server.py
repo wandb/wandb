@@ -73,6 +73,12 @@ def default_ctx():
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
+        "gorilla_supports_launch_agents": True,
+        "launch_agents": {},
+        "successfully_create_default_queue": True,
+        "launch_agent_update_fail": False,
+        "swappable_artifacts": False,
+        "used_artifact_info": None,
     }
 
 
@@ -392,6 +398,7 @@ def create_app(user_ctx=None):
 
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
+
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
 
@@ -596,6 +603,23 @@ def create_app(user_ctx=None):
                             "fields": [
                                 {"name": "cliVersionInfo"},
                                 {"name": "latestLocalVersionInfo"},
+                            ]
+                        },
+                    }
+                }
+            )
+        if "query ProbeServerUseArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "UseArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "runName"},
+                                {"name": "artifactID"},
+                                {"name": "usedAs"},
+                                {"name": "clientMutationId"},
                             ]
                         },
                     }
@@ -871,6 +895,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation UseArtifact(" in body["query"]:
+            used_name = body.get("variables", {}).get("usedAs", None)
+            ctx["used_artifact_info"] = {"used_name": used_name}
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {
@@ -972,6 +998,13 @@ def create_app(user_ctx=None):
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
                 return {"data": {"artifact": art}}
+            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                full_name = body.get("variables", {}).get("name", None)
+                if full_name is not None:
+                    collection_name = full_name.split(":")[0]
+                art = artifact(
+                    ctx, collection_name=collection_name, request_url_root=base_url,
+                )
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
             if "source" not in body["variables"]["name"]:
@@ -1062,6 +1095,10 @@ def create_app(user_ctx=None):
                     }
                 )
         if "mutation createRunQueue" in body["query"]:
+            if not ctx["successfully_create_default_queue"]:
+                return json.dumps(
+                    {"data": {"createRunQueue": {"success": False, "queueID": None}}}
+                )
             ctx["run_queues_return_default"] = True
             return json.dumps(
                 {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
@@ -1180,6 +1217,33 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation createLaunchAgent(" in body["query"]:
+            agent_id = len(ctx["launch_agents"].keys())
+            ctx["launch_agents"][agent_id] = "POLLING"
+            return json.dumps(
+                {
+                    "data": {
+                        "createLaunchAgent": {
+                            "success": True,
+                            "launchAgentId": agent_id,
+                        }
+                    }
+                }
+            )
+        if "mutation updateLaunchAgent(" in body["query"]:
+            if ctx["launch_agent_update_fail"]:
+                return json.dumps({"data": {"updateLaunchAgent": {"success": False}}})
+            status = body["variables"]["agentStatus"]
+            agent_id = body["variables"]["agentId"]
+            ctx["launch_agents"][agent_id] = status
+            return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
+        if "query LaunchAgentIntrospection" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {"data": {"LaunchAgentType": {"name": "LaunchAgent"}}}
+                )
+            else:
+                return json.dumps({"data": {}})
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
