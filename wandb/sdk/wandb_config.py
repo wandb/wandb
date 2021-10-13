@@ -228,6 +228,8 @@ class Config(object):
             if ignore_keys and k in ignore_keys:
                 continue
             if isinstance(v, dict):
+                if isinstance(k, str):
+                    k = k.strip("-")
                 v = self._sanitize_dict(v, allow_val_change, nested=True)
             # we can't swap nested artifacts because their root key can be locked by other values
             # best if we don't allow nested artifacts until we can lock nested keys in the config
