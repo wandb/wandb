@@ -217,7 +217,12 @@ class TorchHistory(object):
             return
 
         # Remove nans and infs if present. There's no good way to represent that in histograms.
+<<<<<<< HEAD
         flat = self._remove_infs_nans(flat)
+=======
+        if not flat.isfinite().all():
+            flat = flat[flat.isfinite()]
+>>>>>>> ae7cd8f5d (only filter nans and infs when they are present, and copy tensor once instead of twice.)
 
         tmin = flat.min().item()
         tmax = flat.max().item()
