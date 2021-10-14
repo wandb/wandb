@@ -38,17 +38,17 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
     assert float(record["tpu"]) == MockTPUProfiler().utilization
 
 
-def check_tf_packages():
+def is_tf_pkg_installed():
     try:
         from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver
         from tensorflow.python.profiler import profiler_client
     except (ImportError):
-        return True
-    return False
+        return False
+    return True
 
 
 @pytest.mark.skipif(
-    check_tf_packages(),
+    not is_tf_pkg_installed(),
     reason="tensorflow modules tpu_cluster_resolver and profiler_client are missing",
 )
 def test_tpu_instance():
