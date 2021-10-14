@@ -169,6 +169,10 @@ class LaunchAgent(object):
                         break
                 if not job:
                     time.sleep(AGENT_POLLING_INTERVAL)
+                    agent_response = self._api.get_launch_agent(self._id, self.gorilla_supports_agents)
+                    if agent_response['stopPolling']:
+                        # shutdown process if requested from ui
+                        raise KeyboardInterrupt
                     for job_id in self.job_ids:
                         self._update_finished(job_id)
                     if self._ticks % 2 == 0:
