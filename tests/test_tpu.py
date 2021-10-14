@@ -52,7 +52,7 @@ class MockProfilerClient(object):
         self.tpu_utilization = tpu_utilization
 
     def monitor(self, service_addr, duration_ms, level):
-        if service_addr != "":
+        if service_addr != "local":
             if level == 1:
                 return f"""
                 Timestamp: 20:47:16
@@ -82,9 +82,9 @@ def test_tpu_instance():
         tpu_profiler = TPUProfiler(tpu="my-tpu")
         assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)
 
-    tpu_profiler = TPUProfiler(service_addr="grpc://10.0.0.1:8470")
+    tpu_profiler = TPUProfiler(service_addr="local")
     tpu_profiler._profiler_client = MockProfilerClient()
     time.sleep(1)
     tpu_profiler.stop()
 
-    assert tpu_profiler._tpu_utilization == MockProfilerClient().tpu_utilization
+    assert tpu_profiler.get_tpu_utilization() is None
