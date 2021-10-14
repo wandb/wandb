@@ -81,10 +81,7 @@ class StepChecksum(object):
                 )
             elif isinstance(req, RequestStoreManifestFiles):
                 for entry in req.manifest.entries.values():
-                    local_path = entry.local_path
-                    if local_path is None:
-                        local_path = entry.ref
-                    if local_path:
+                    if entry.local_path:
                         # This stupid thing is needed so the closure works correctly.
                         def make_save_fn_with_entry(save_fn, entry):
                             return lambda progress_callback: save_fn(
@@ -92,11 +89,11 @@ class StepChecksum(object):
                             )
 
                         self._stats.init_file(
-                            local_path, entry.size, is_artifact_file=True
+                            entry.local_path, entry.size, is_artifact_file=True
                         )
                         self._output_queue.put(
                             step_upload.RequestUpload(
-                                local_path,
+                                entry.local_path,
                                 entry.path,
                                 req.artifact_id,
                                 entry.digest,
