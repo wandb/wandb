@@ -215,11 +215,10 @@ class Config(object):
         self, config_dict, allow_val_change=None, ignore_keys: set = None,
     ):
         sanitized = {}
+        self._raise_value_error_on_nested_artifact(config_dict)
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
-
-            self._raise_value_error_on_nested_artifact(v)
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized
