@@ -27,7 +27,6 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-import yaml
 
 
 logger = logging.getLogger(__name__)
