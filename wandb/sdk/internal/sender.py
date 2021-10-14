@@ -454,11 +454,26 @@ class SendManager(object):
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
 
+        checkpoint_step = None
         if run.checkpoint:
-            checkpoint_info = self._api.resume_from_checkpoint(
+            checkpoint_info, task_id = self._api.resume_from_checkpoint(
                 entity=entity, project_name=run.project, checkpoint_name=run.checkpoint,
             )
+
             run.run_id = checkpoint_info["runName"]
+            if checkpoint_info["keysInfo"]:
+                keys_info = json.loads(checkpoint_info["keysInfo"])
+                checkpoint_step = keys_info["lastStep"]
+
+            # poll until the task for range deleting is complete
+            while True:
+                done, progress = self._api.check_task_progress(task_id=task_id)
+                wandb.termlog(
+                    f"Resuming run {run.run_id} from checkpoint {run.checkpoint}, progress: {progress}%"
+                )
+                if done:
+                    break
+                time.sleep(1.0)
 
         resume_status = self._api.run_resume_status(
             entity=entity, project_name=run.project, name=run.run_id,
@@ -515,7 +530,12 @@ class SendManager(object):
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
         self._resume_state["runtime"] = max(events_rt, history_rt)
-        self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
+
+        if checkpoint_step:
+            self._resume_state["step"] = checkpoint_step + 1
+        else:
+            self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
+
         self._resume_state["history"] = resume_status["historyLineCount"]
         self._resume_state["events"] = resume_status["eventsLineCount"]
         self._resume_state["output"] = resume_status["logLineCount"]
@@ -852,7 +872,7 @@ class SendManager(object):
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = u"{}{}{}{}".format(prepend, timestamp, prev_str, line)
+            line = "{}{}{}{}".format(prepend, timestamp, prev_str, line)
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 

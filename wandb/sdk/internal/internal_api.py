@@ -12,6 +12,7 @@ import re
 import click
 import logging
 import requests
+from typing import Tuple
 import sys
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -714,6 +715,10 @@ class Api(object):
                 checkpoint {
                     name
                     runName
+                    keysInfo
+                }
+                task {
+                    id
                 }      
             }            
         }
@@ -733,7 +738,33 @@ class Api(object):
         ):
             return None
 
-        return response["resumeFromCheckpoint"]["checkpoint"]
+        return (
+            response["resumeFromCheckpoint"]["checkpoint"],
+            response["resumeFromCheckpoint"]["task"]["id"],
+        )
+
+    @normalize_exceptions
+    def check_task_progress(self, task_id: str) -> Tuple[bool, float]:
+        """Query for the progress of a backend task.
+
+        Arguments:
+            task_id (str): The graphQL ID of the task to check
+        """
+
+        query_string = """
+        query Task($id: ID!) {
+            task(id: $id) {
+                state
+                progress
+            }
+        }
+        """
+
+        variable_values = {"id": task_id}
+        query = gql(query_string)
+        response = self.gql(query, variable_values=variable_values,)
+        task = response["task"]
+        return task["state"] == "FINISHED", task["progress"]
 
     @normalize_exceptions
     def run_resume_status(self, entity, project_name, name):
