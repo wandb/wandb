@@ -418,6 +418,18 @@ def test_artifact_download(runner, mock_server, api):
         assert os.listdir(path) == ["digits.h5"]
 
 
+def test_artifact_delete(runner, mock_server, api):
+    with runner.isolated_filesystem():
+        art = api.artifact("entity/project/mnist:v0", type="dataset")
+
+        # The artifact has aliases, so fail unless delete_aliases is set.
+        with pytest.raises(Exception):
+            art.delete()
+
+        success = art.delete(delete_aliases=True)
+        assert success
+
+
 def test_artifact_checkout(runner, mock_server, api):
     with runner.isolated_filesystem():
         # Create a file that should be removed as part of checkout

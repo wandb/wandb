@@ -138,12 +138,7 @@ class Config(object):
             return
         with wandb.wandb_lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
-        if isinstance(val, dict) and check_dict_contains_nested_artifact(
-            val, nested=True
-        ):
-            raise ValueError(
-                "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
-            )
+        self._raise_value_error_on_nested_artifact(val, nested=True)
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -217,29 +212,15 @@ class Config(object):
             self.update(conf_dict)
 
     def _sanitize_dict(
-        self,
-        config_dict,
-        allow_val_change=None,
-        ignore_keys: set = None,
-        nested: bool = False,
+        self, config_dict, allow_val_change=None, ignore_keys: set = None,
     ):
         sanitized = {}
         for k, v in six.iteritems(config_dict):
             if ignore_keys and k in ignore_keys:
                 continue
-            if isinstance(v, dict):
-                v = self._sanitize_dict(v, allow_val_change, nested=True)
-            # we can't swap nested artifacts because their root key can be locked by other values
-            # best if we don't allow nested artifacts until we can lock nested keys in the config
-            elif (
-                isinstance(v, wandb.Artifact)
-                or isinstance(v, wandb.apis.public.Artifact)
-            ) and nested:
-                raise ValueError(
-                    "Instances of wandb.Artifact and wandb.apis.public.Artifact can only be top level keys in wandb.config"
-                )
-            else:
-                k, v = self._sanitize(k, v, allow_val_change)
+
+            self._raise_value_error_on_nested_artifact(v)
+            k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized
 
@@ -266,6 +247,15 @@ class Config(object):
                     ).format(key, self._items[key], val)
                 )
         return key, val
+
+    def _raise_value_error_on_nested_artifact(self, v, nested=False):
+        # we can't swap nested artifacts because their root key can be locked by other values
+        # best if we don't allow nested artifacts until we can lock nested keys in the config
+        if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
+            raise ValueError(
+                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
+                " can only be top level keys in wandb.config"
+            )
 
 
 class ConfigStatic(object):

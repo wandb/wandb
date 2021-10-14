@@ -827,6 +827,13 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation DeleteArtifact(" in body["query"]:
+            id = body["variables"]["artifactID"]
+            delete_aliases = body["variables"]["deleteAliases"]
+            art = artifact(ctx, id_override=id)
+            if len(art.get("aliases", [])) and not delete_aliases:
+                raise Exception("delete_aliases not set, but artifact has aliases")
+            return {"data": {"deleteArtifact": {"artifact": art, "success": True,}}}
         if "mutation CreateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,

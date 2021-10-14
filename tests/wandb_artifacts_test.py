@@ -1010,6 +1010,7 @@ def test_artifact_references_internal(
     mocked_run, mock_server, internal_sm, backend_interface, parse_ctx, test_settings,
 ):
     mock_server.set_context("max_cli_version", "0.11.0")
+    mock_server.set_context("emulate_artifacts", "true")
     run = wandb.init(settings=test_settings)
     t1 = wandb.Table(columns=[], data=[])
     art = wandb.Artifact("A", "dataset")
