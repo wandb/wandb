@@ -1,35 +1,14 @@
-def mock_monitor(service_addr, duration_ms, level=1):
-    if service_addr != "":
-        if level == 1:
-            return f"""
-            Timestamp: 20:47:16
-            TPU type: TPU v2
-            Utilization of TPU Matrix Units (higher is better): 10%
-            """
-        elif level == 2:
-            return f"""
-            Timestamp: 20:41:52
-            TPU type: TPU v2
-            Number of TPU cores: 8 (Replica count = 8, num cores per replica = 1)
-            TPU idle time (lower is better): 36.9%
-            Utilization of TPU Matrix Units (higher is better): 10%
-            Step time: 90.8ms (avg), 89.8ms (min), 92.2ms (max)
-            Infeed percentage: 0.000% (avg), 0.000% (min), 0.000% (max)
-            """
-    else:
-        raise Exception
-
-
+import pytest
 import time
-from unittest.mock import Mock
 
 import wandb
 from wandb.sdk.internal.stats import SystemStats
+from wandb.sdk.internal.tpu import TPUProfiler
 
 
 class MockTPUProfiler(object):
     def __init__(self):
-        self.utilization = 10
+        self.utilization = 22.1
 
     def start(self):
         pass
@@ -41,16 +20,38 @@ class MockTPUProfiler(object):
         return self.utilization
 
 
-def test_tpu_system_stats(monkeypatch):
-    mock_interface = Mock()
+def test_tpu_system_stats(monkeypatch, fake_interface):
+
     monkeypatch.setattr(wandb.sdk.internal.stats.tpu, "is_tpu_available", lambda: True)
     monkeypatch.setattr(
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
-    stats = SystemStats(pid=1000, interface=mock_interface)
+    stats = SystemStats(pid=1000, interface=fake_interface)
     stats.start()
     time.sleep(1)
-    samples = stats.sampler
     stats.shutdown()
+    assert fake_interface.record_q.queue[0].stats.item
+    record = {
+        item.key: item.value_json
+        for item in fake_interface.record_q.queue[0].stats.item
+    }
+    assert float(record["tpu"]) == MockTPUProfiler().utilization
 
-    assert "tpu" in samples and MockTPUProfiler().utilization in samples["tpu"]
+
+def check_tf_packages():
+    try:
+        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver
+        from tensorflow.python.profiler import profiler_client
+    except (ImportError):
+        return False
+    return True
+
+
+@pytest.mark.skipif(
+    check_tf_packages,
+    reason="tensorflow modules tpu_cluster_resolver and profiler_client are missing",
+)
+def test_tpu_instance():
+    with pytest.raises(Exception) as e_info:
+        TPUProfiler()
+    assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)
