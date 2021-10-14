@@ -1210,6 +1210,8 @@ def create_app(user_ctx=None):
             )
 
         if "query GetSweeps" in body["query"]:
+            if body["variables"]["project"] == "testnosweeps":
+                return {"data": {"project": {"totalSweeps": 0, "sweeps": {}}}}
             return {
                 "data": {
                     "project": {
@@ -1220,6 +1222,7 @@ def create_app(user_ctx=None):
                                     "node": {
                                         "id": "testdatabaseid",
                                         "name": "testid",
+                                        "bestLoss": 0.5,
                                         "config": yaml.dump({"name": "testname"}),
                                     }
                                 }

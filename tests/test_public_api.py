@@ -128,6 +128,11 @@ def test_project_sweeps(mock_server, api):
     psweeps = project.sweeps()
     assert len(psweeps) == 1
     assert psweeps[0].id == "testid"
+    assert psweeps[0].name == "testname"
+
+    no_sweeps_project = api.from_path("testnosweeps")
+    nspsweeps = no_sweeps_project.sweeps()
+    assert len(nspsweeps) == 0
 
 
 def test_display(mock_server, api):

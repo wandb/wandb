@@ -167,6 +167,7 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
     state
     description
     displayName
+    bestLoss
     config
     createdAt
     updatedAt
@@ -1246,7 +1247,19 @@ class Project(Attrs):
             return []
 
         return [
-            Sweep.get(self.client, self.entity, self.name, e["node"]["name"])
+            # match format of existing public sweep apis
+            Sweep(
+                self.client,
+                self.entity,
+                self.name,
+                e["node"]["name"],
+                attrs={
+                    "id": e["node"]["id"],
+                    "name": e["node"]["name"],
+                    "bestLoss": e["node"]["bestLoss"],
+                    "config": e["node"]["config"],
+                },
+            )
             for e in ret["project"]["sweeps"]["edges"]
         ]
 
@@ -2075,7 +2088,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return yaml.load(self._attrs["config"], yaml.SafeLoader)
 
     def load(self, force=False):
         if force or not self._attrs:
