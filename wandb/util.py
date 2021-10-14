@@ -1473,15 +1473,14 @@ def artifact_to_json(artifact) -> Dict[str, Any]:
 
 
 def check_dict_contains_nested_artifact(d, nested=False):
-    if isinstance(d, dict):
-        for _, item in six.iteritems(d):
-            if isinstance(item, dict):
-                contains_artifacts = check_dict_contains_nested_artifact(item, True)
-                if contains_artifacts:
-                    return True
-            elif (
-                isinstance(item, wandb.Artifact)
-                or isinstance(item, wandb.apis.public.Artifact)
-            ) and nested:
+    for _, item in six.iteritems(d):
+        if isinstance(item, dict):
+            contains_artifacts = check_dict_contains_nested_artifact(item, True)
+            if contains_artifacts:
                 return True
+        elif (
+            isinstance(item, wandb.Artifact)
+            or isinstance(item, wandb.apis.public.Artifact)
+        ) and nested:
+            return True
     return False
