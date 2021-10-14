@@ -737,27 +737,28 @@ def create_app(user_ctx=None):
                     c["git"]["remote"] = git_remote
                     c["git"]["commit"] = git_commit
 
-            tags = body["variables"].get("tags")
-            if tags is not None:
-                c["tags"] = tags
-            notes = body["variables"].get("notes")
-            if notes is not None:
-                c["notes"] = notes
-            group = body["variables"].get("groupName")
-            if group is not None:
-                c["group"] = group
-            job_type = body["variables"].get("jobType")
-            if job_type is not None:
-                c["job_type"] = job_type
-            name = body["variables"].get("displayName")
-            if name is not None:
-                c["name"] = name
-            program = body["variables"].get("program")
-            if program is not None:
-                c["program"] = program
-            host = body["variables"].get("host")
-            if host is not None:
-                c["host"] = host
+            for c in ctx, run_ctx:
+                tags = body["variables"].get("tags")
+                if tags is not None:
+                    c["tags"] = tags
+                notes = body["variables"].get("notes")
+                if notes is not None:
+                    c["notes"] = notes
+                group = body["variables"].get("groupName")
+                if group is not None:
+                    c["group"] = group
+                job_type = body["variables"].get("jobType")
+                if job_type is not None:
+                    c["job_type"] = job_type
+                name = body["variables"].get("displayName")
+                if name is not None:
+                    c["name"] = name
+                program = body["variables"].get("program")
+                if program is not None:
+                    c["program"] = program
+                host = body["variables"].get("host")
+                if host is not None:
+                    c["host"] = host
 
             param_config = body["variables"].get("config")
             if param_config:
