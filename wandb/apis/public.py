@@ -27,7 +27,6 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -2026,7 +2025,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return util.load_yaml(self._attrs["config"])
 
     def load(self, force=False):
         if force or not self._attrs:
