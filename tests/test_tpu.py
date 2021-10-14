@@ -43,15 +43,15 @@ def check_tf_packages():
         from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver
         from tensorflow.python.profiler import profiler_client
     except (ImportError):
-        return False
-    return True
+        return True
+    return False
 
 
 @pytest.mark.skipif(
-    check_tf_packages,
+    check_tf_packages(),
     reason="tensorflow modules tpu_cluster_resolver and profiler_client are missing",
 )
 def test_tpu_instance():
     with pytest.raises(Exception) as e_info:
         TPUProfiler()
-    assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)
+        assert "Failed to find TPU. Try specifying TPU zone " in str(e_info.value)
