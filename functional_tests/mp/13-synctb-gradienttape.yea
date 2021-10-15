@@ -3,6 +3,9 @@ plugin:
   - wandb
 tag:
   shard: service
+depend:
+  requirements:
+    - numpy
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][dropout]: 0.2
