@@ -1,16 +1,17 @@
 # Adapted from https://pytorch.org/tutorials/beginner/nlp/word_embeddings_tutorial.html
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as tnnf
 import torch.optim as optim
-
 import wandb
+
+CONTEXT_SIZE = 2
+EMBEDDING_DIM = 10
+
 
 def main():
     run = wandb.init()
 
-    CONTEXT_SIZE = 2
-    EMBEDDING_DIM = 10
     # We will use Shakespeare Sonnet 2
     test_sentence = """When forty winters shall besiege thy brow,
     And dig deep trenches in thy beauty's field,
@@ -34,7 +35,6 @@ def main():
     vocab = set(test_sentence)
     word_to_ix = {word: i for i, word in enumerate(vocab)}
 
-
     class NGramLanguageModeler(nn.Module):
 
         def __init__(self, vocab_size, embedding_dim, context_size):
@@ -45,11 +45,10 @@ def main():
 
         def forward(self, inputs):
             embeds = self.embeddings(inputs).view((1, -1))
-            out = F.relu(self.linear1(embeds))
+            out = tnnf.relu(self.linear1(embeds))
             out = self.linear2(out)
-            log_probs = F.log_softmax(out, dim=1)
+            log_probs = tnnf.log_softmax(out, dim=1)
             return log_probs
-
 
     has_cuda = torch.cuda.is_available()
 
@@ -61,7 +60,7 @@ def main():
 
     wandb.watch(model, log="all", log_freq=100)
 
-    for epoch in range(100):
+    for _epoch in range(100):
         total_loss = 0
         for context, target in trigrams:
 
@@ -96,6 +95,7 @@ def main():
     print(losses)  # The loss decreased every iteration over the training data!
 
     run.unwatch()
+
 
 if __name__ == '__main__':
     main()
