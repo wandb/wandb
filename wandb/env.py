@@ -21,6 +21,7 @@ SWEEP_PARAM_PATH = "WANDB_SWEEP_PARAM_PATH"
 SHOW_RUN = "WANDB_SHOW_RUN"
 DEBUG = "WANDB_DEBUG"
 SILENT = "WANDB_SILENT"
+QUIET = "WANDB_QUIET"
 INITED = "WANDB_INITED"
 DIR = "WANDB_DIR"
 # Deprecate DESCRIPTION in a future release
@@ -33,6 +34,7 @@ USER_EMAIL = "WANDB_USER_EMAIL"
 PROJECT = "WANDB_PROJECT"
 ENTITY = "WANDB_ENTITY"
 BASE_URL = "WANDB_BASE_URL"
+APP_URL = "WANDB_APP_URL"
 PROGRAM = "WANDB_PROGRAM"
 ARGS = "WANDB_ARGS"
 MODE = "WANDB_MODE"
@@ -47,6 +49,7 @@ HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
+DISABLE_GIT = "WANDB_DISABLE_GIT"
 SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
@@ -64,6 +67,7 @@ JUPYTER = "WANDB_JUPYTER"
 CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
+SERVICE = "WANDB_SERVICE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -79,6 +83,7 @@ def immutable_keys():
         API_KEY,
         IGNORE,
         DISABLE_CODE,
+        DISABLE_GIT,
         DOCKER,
         MODE,
         BASE_URL,
@@ -212,6 +217,13 @@ def get_base_url(default=None, env=None):
     return env.get(BASE_URL, default)
 
 
+def get_app_url(default=None, env=None):
+    if env is None:
+        env = os.environ
+
+    return env.get(APP_URL, default)
+
+
 def get_show_run(default=None, env=None):
     if env is None:
         env = os.environ
@@ -326,5 +338,13 @@ def set_project(value, env=None):
 def should_save_code():
     save_code = _env_as_bool(SAVE_CODE, default=False)
     code_disabled = _env_as_bool(DISABLE_CODE, default=False)
-    # SAVE_CODE takes precedence over DISABLE_CODE
     return save_code and not code_disabled
+
+
+def disable_git(env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(DISABLE_GIT, default=False)
+    if type(val) is str:
+        val = False if val.lower() == "false" else True
+    return val

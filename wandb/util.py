@@ -8,6 +8,7 @@ import colorsys
 import contextlib
 import codecs
 import errno
+import functools
 import gzip
 import hashlib
 import json
@@ -28,10 +29,12 @@ import importlib
 import tarfile
 import tempfile
 import types
+from typing import Optional
 import yaml
 from datetime import date, datetime
 import platform
 from six.moves import urllib
+from typing import Any, Dict
 
 import requests
 import six
@@ -42,17 +45,21 @@ from importlib import import_module
 import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
-from wandb.env import error_reporting_enabled
+from wandb.env import error_reporting_enabled, get_app_url
 
 import wandb
+from wandb import env
 from wandb.errors import CommError, term
-from wandb.old.core import wandb_dir
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
+# Boolean, unsigned integer, signed integer, float, complex.
+NUMERIC_KINDS = set("buifc")
+
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
+RE_WINFNAMES = re.compile('[<>:"/\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -185,6 +192,10 @@ def get_module(name, required=None):
         raise wandb.Error(required)
 
 
+def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
+    return get_module(name)
+
+
 class LazyLoader(types.ModuleType):
     """Lazily import a module, mainly to avoid pulling in large dependencies.
     we use this for tensorflow and other optional libraries primarily at the top module level
@@ -266,15 +277,20 @@ VALUE_BYTES_LIMIT = 100000
 
 
 def app_url(api_url):
+    """Returns the frontend app url without a trailing slash."""
+    # TODO: move me to settings
+    app_url = get_app_url()
+    if app_url is not None:
+        return app_url.strip("/")
     if "://api.wandb.test" in api_url:
         # dev mode
-        return api_url.replace("://api.", "://app.")
+        return api_url.replace("://api.", "://app.").strip("/")
     elif "://api.wandb." in api_url:
         # cloud
-        return api_url.replace("://api.", "://")
+        return api_url.replace("://api.", "://").strip("/")
     elif "://api." in api_url:
         # onprem cloud
-        return api_url.replace("://api.", "://app.")
+        return api_url.replace("://api.", "://app.").strip("/")
     # wandb/local
     return api_url
 
@@ -569,7 +585,6 @@ def json_friendly(obj):
                 type(obj).__name__, getsizeof(obj)
             )
         )
-
     return obj, converted
 
 
@@ -795,7 +810,7 @@ def no_retry_auth(e):
     if e.response is None:
         return True
     # Don't retry bad request errors; raise immediately
-    if e.response.status_code == 400:
+    if e.response.status_code in (400, 409):
         return False
     # Retry all non-forbidden/unauthorized/not-found errors.
     if e.response.status_code not in (401, 403, 404):
@@ -1046,21 +1061,43 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice():
-    try:
-        return int(input("%s: Enter your choice: " % term.LOG_STRING)) - 1  # noqa: W503
-    except ValueError:
-        return -1
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+    input_fn = input
+    prompt = term.LOG_STRING
+    if input_timeout:
+        # delayed import to mitigate risk of timed_input complexity
+        from wandb.sdk.lib import timed_input
+
+        input_fn = functools.partial(timed_input.timed_input, timeout=input_timeout)
+        # timed_input doesnt handle enhanced prompts
+        if platform.system() == "Windows":
+            prompt = "wandb"
+
+    text = f"{prompt}: Enter your choice: "
+    if input_fn == input:
+        choice = input_fn(text)
+    else:
+        choice = input_fn(text, jupyter=jupyter)
+    return choice
 
 
-def prompt_choices(choices, allow_manual=False):
+def prompt_choices(
+    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
         wandb.termlog("(%i) %s" % (i + 1, choice))
 
     idx = -1
     while idx < 0 or idx > len(choices) - 1:
-        idx = _prompt_choice()
+        choice = _prompt_choice(input_timeout=input_timeout, jupyter=jupyter)
+        if not choice:
+            continue
+        idx = -1
+        try:
+            idx = int(choice) - 1
+        except ValueError:
+            pass
         if idx < 0 or idx > len(choices) - 1:
             wandb.termwarn("Invalid choice")
     result = choices[idx]
@@ -1322,6 +1359,10 @@ def _is_kaggle():
     )
 
 
+def is_numeric_array(array):
+    return np.asarray(array).dtype.kind in NUMERIC_KINDS
+
+
 def _is_likely_kaggle():
     # Telemetry to mark first runs from Kagglers.
     return (
@@ -1406,3 +1447,40 @@ def _log_thread_stacks():
             logger.info('  File: "%s", line %d, in %s' % (filename, lineno, name))
             if line:
                 logger.info("  Line: %s" % line)
+
+
+def check_windows_valid_filename(path):
+    return not bool(re.search(RE_WINFNAMES, path))
+
+
+def artifact_to_json(artifact) -> Dict[str, Any]:
+    # public.Artifact has the _sequence name, instances of wandb.Artifact
+    # just have the name
+
+    if hasattr(artifact, "_sequence_name"):
+        sequence_name = artifact._sequence_name
+    else:
+        sequence_name = artifact.name.split(":")[0]
+
+    return {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": artifact.id,
+        "version": artifact.version,
+        "sequenceName": sequence_name,
+        "usedAs": artifact._use_as,
+    }
+
+
+def check_dict_contains_nested_artifact(d, nested=False):
+    for _, item in six.iteritems(d):
+        if isinstance(item, dict):
+            contains_artifacts = check_dict_contains_nested_artifact(item, True)
+            if contains_artifacts:
+                return True
+        elif (
+            isinstance(item, wandb.Artifact)
+            or isinstance(item, wandb.apis.public.Artifact)
+        ) and nested:
+            return True
+    return False

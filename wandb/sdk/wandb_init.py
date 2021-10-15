@@ -36,7 +36,7 @@ from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
-from .wandb_run import Run
+from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings
 
 
@@ -74,6 +74,11 @@ class _WandbInit(object):
         self._wl = None
         self._reporter = None
         self._use_sagemaker = None
+
+        self._set_init_name = None
+        self._set_init_tags = None
+        self._set_init_id = None
+        self._set_init_config = None
         self.notebook = None
 
     def setup(self, kwargs) -> None:
@@ -110,9 +115,10 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             settings._apply_setup(sm_run)
             self._use_sagemaker = True
-
+        self._set_init_telemetry_attrs(kwargs)
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
+
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
@@ -158,7 +164,12 @@ class _WandbInit(object):
         settings._apply_init_login(kwargs)
 
         if not settings._offline and not settings._noop:
-            wandb_login._login(anonymous=anonymous, force=force, _disable_warning=True)
+            wandb_login._login(
+                anonymous=anonymous,
+                force=force,
+                _disable_warning=True,
+                _silent=(settings._quiet or settings._silent) is True,
+            )
 
         # apply updated global state after login was handled
         settings._apply_settings(wandb.setup()._settings)
@@ -193,7 +204,7 @@ class _WandbInit(object):
         # normally this happens on the run object
         logger.info("tearing down wandb.init")
         for hook in self._teardown_hooks:
-            hook()
+            hook.call()
 
     def _enable_logging(self, log_fname, run_id=None):
         """Enables logging to the global debug log.
@@ -228,7 +239,10 @@ class _WandbInit(object):
         # TODO: make me configurable
         logger.setLevel(logging.DEBUG)
         self._teardown_hooks.append(
-            lambda: (handler.close(), logger.removeHandler(handler))
+            TeardownHook(
+                lambda: (handler.close(), logger.removeHandler(handler)),
+                TeardownStage.LATE,
+            )
         )
 
     def _safe_symlink(self, base, target, name, delete=False):
@@ -270,8 +284,8 @@ class _WandbInit(object):
         ipython = self.notebook.shell
         self.notebook.save_history()
         if self.notebook.save_ipynb():
-            self.run.log_code(root=None)
-            logger.info("saved code and history")
+            res = self.run.log_code(root=None)
+            logger.info("saved code and history: %s", res)
         logger.info("cleaning up jupyter logic")
         # because of how we bind our methods we manually find them to unregister
         for hook in ipython.events.callbacks["pre_run_cell"]:
@@ -284,10 +298,9 @@ class _WandbInit(object):
         del ipython.display_pub._orig_publish
 
     def _jupyter_setup(self, settings):
-        """Add magic, hooks, and session history saving."""
+        """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
-        ipython.register_magics(wandb.jupyter.WandBMagics)
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):
@@ -297,7 +310,9 @@ class _WandbInit(object):
 
             ipython.events.register("pre_run_cell", self._resume_backend)
             ipython.events.register("post_run_cell", self._pause_backend)
-            self._teardown_hooks.append(self._jupyter_teardown)
+            self._teardown_hooks.append(
+                TeardownHook(self._jupyter_teardown, TeardownStage.EARLY)
+            )
 
         def publish(data, metadata=None, **kwargs):
             ipython.display_pub._orig_publish(data, metadata=metadata, **kwargs)
@@ -397,11 +412,7 @@ class _WandbInit(object):
                         last_id
                     )
                 )
-                jupyter = (
-                    s._jupyter
-                    and not s._silent
-                    and ipython._get_python_type() == "jupyter"
-                )
+                jupyter = s._jupyter and not s._silent and ipython.in_jupyter()
                 if jupyter:
                     ipython.display_html(
                         "Finishing last run (ID:{}) before initializing another...".format(
@@ -413,7 +424,7 @@ class _WandbInit(object):
 
                 if jupyter:
                     ipython.display_html(
-                        "...Successfully finished last run (ID:{}). Initializing new run:<br/><br/>".format(
+                        "Successfully finished last run (ID:{}). Initializing new run:<br/>".format(
                             last_id
                         )
                     )
@@ -423,7 +434,11 @@ class _WandbInit(object):
 
         logger.info("starting backend")
 
-        backend = Backend(settings=s)
+        manager = self._wl._get_manager()
+        if manager:
+            manager._inform_init(settings=s, run_id=s.run_id)
+
+        backend = Backend(settings=s, manager=manager)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
@@ -458,6 +473,17 @@ class _WandbInit(object):
             run._telemetry_imports(tel.imports_init)
             if self._use_sagemaker:
                 tel.feature.sagemaker = True
+            if self._set_init_config:
+                tel.feature.set_init_config = True
+            if self._set_init_name:
+                tel.feature.set_init_name = True
+            if self._set_init_id:
+                tel.feature.set_init_id = True
+            if self._set_init_tags:
+                tel.feature.set_init_tags = True
+
+            if self.settings.launch:
+                tel.feature.launch = True
 
             if active_start_method == "spawn":
                 tel.env.start_spawn = True
@@ -484,6 +510,7 @@ class _WandbInit(object):
         # run_synced = None
 
         backend._hack_set_run(run)
+        assert backend.interface
         backend.interface.publish_header()
 
         if s._offline:
@@ -498,18 +525,26 @@ class _WandbInit(object):
                 )
         else:
             logger.info("communicating current version")
-            ret = backend.interface.communicate_check_version(
+            check = backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
-            if ret:
-                logger.info("got version response {}".format(ret))
-                if ret.upgrade_message:
-                    run._set_upgraded_version_message(ret.upgrade_message)
-                if ret.delete_message:
-                    run._set_deleted_version_message(ret.delete_message)
-                if ret.yank_message:
-                    run._set_yanked_version_message(ret.yank_message)
+            if check:
+                logger.info("got version response {}".format(check))
+                if check.upgrade_message:
+                    run._set_upgraded_version_message(check.upgrade_message)
+                if check.delete_message:
+                    run._set_deleted_version_message(check.delete_message)
+                if check.yank_message:
+                    run._set_yanked_version_message(check.yank_message)
             run._on_init()
+
+            # Using GitRepo() blocks & can be slow, depending on user's current git setup.
+            # We don't want to block run initialization/start request, so populate run's git
+            # info beforehand.
+            if not s.disable_git:
+                run._populate_git_info()
+
+        if not s._offline:
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
 
@@ -531,6 +566,7 @@ class _WandbInit(object):
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
+            assert ret and ret.run
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
@@ -540,6 +576,8 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
+        assert backend.interface
+        assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
 
         self._wl._global_run_stack.append(run)
@@ -565,12 +603,70 @@ class _WandbInit(object):
         logger.info("run started, returning control to user process")
         return run
 
+    def _set_init_telemetry_attrs(self, kwargs):
+        # config not set here because the
+        if kwargs.get("name"):
+            self._set_init_name = True
+        if kwargs.get("id"):
+            self._set_init_id = True
+        if kwargs.get("tags"):
+            self._set_init_tags = True
+        if kwargs.get("config"):
+            self._set_init_config = True
+
 
 def getcaller():
     # py2 doesnt have stack_info
     # src, line, func, stack = logger.findCaller(stack_info=True)
     src, line, func = logger.findCaller()[:3]
     print("Problem at:", src, line, func)
+
+
+def _attach(
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+) -> Union[Run, RunDisabled, None]:
+    """Attach to a run currently executing in another process/thread.
+
+    Arguments:
+        attach_id: (str, optional) The id of the run or an attach identifier
+            that maps to a run.
+        run_id: (str, optional) The id of the run to attach to.
+    """
+    attach_id = attach_id or run_id
+    assert attach_id
+    wandb._assert_is_user_process()
+
+    _wl = wandb_setup._setup()
+
+    _set_logger(_wl._get_logger())
+    assert logger
+
+    manager = _wl._get_manager()
+    if manager:
+        manager._inform_attach(attach_id=attach_id)
+
+    settings: Settings = _wl._clone_settings()
+    settings.run_id = attach_id
+
+    # TODO: consolidate this codepath with wandb.init()
+    backend = Backend(settings=settings, manager=manager)
+    backend.ensure_launched()
+    backend.server_connect()
+    logger.info("attach backend started and connected")
+
+    run = Run(settings=settings)
+    run._set_library(_wl)
+    run._set_backend(backend)
+    backend._hack_set_run(run)
+    assert backend.interface
+
+    resp = backend.interface.communicate_attach(attach_id)
+    if not resp:
+        raise UsageError("problem")
+    if resp and resp.error and resp.error.message:
+        raise UsageError("bad: {}".format(resp.error.message))
+    run._set_run_obj(resp.run)
+    return run
 
 
 def init(
@@ -738,7 +834,6 @@ def init(
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
-
     Examples:
         Basic usage
         ```
@@ -788,7 +883,8 @@ def init(
                 pass
             # TODO(jhr): figure out how to make this RunDummy
             run = None
-    except UsageError:
+    except UsageError as e:
+        wandb.termerror(str(e))
         raise
     except KeyboardInterrupt as e:
         assert logger

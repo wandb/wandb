@@ -2,17 +2,16 @@ import wandb
 import sys
 import platform
 import pytest
-from wandb import sweeps_engine
 
+if sys.version_info >= (3, 10):
+    pytest.importorskip("pydantic")
 
-pytestmark = pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="wandb_controller doesn't support py2"
-)
+from wandb import sweeps
 
 
 def test_run_from_dict():
 
-    run = sweeps_engine.SweepRun(
+    run = sweeps.SweepRun(
         **{
             "name": "test",
             "state": "running",

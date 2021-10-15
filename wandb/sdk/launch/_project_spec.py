@@ -1,3 +1,8 @@
+"""
+Internal utility for converting arguments from a launch spec or call to wandb launch
+into a runnable wandb launch script
+"""
+
 import enum
 import logging
 import os
@@ -7,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb.apis.internal import Api
+import wandb.docker as docker
 from wandb.errors import Error as ExecutionError, LaunchError
 from wandb.sdk.lib.runid import generate_id
 
@@ -30,6 +36,7 @@ class LaunchProject(object):
     def __init__(
         self,
         uri: str,
+        launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
         name: Optional[str],
@@ -39,16 +46,24 @@ class LaunchProject(object):
     ):
 
         self.uri = uri
+        self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
         self.name = name
+        self.build_image: bool = docker_config.get("build_image", False)
+        self.python_version: Optional[str] = docker_config.get("python_version")
+        self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        self.docker_user_id: int = docker_config.get("user_id", 1000)
+        uid = 1000
+        if self._base_image:
+            uid = docker.get_image_uid(self._base_image)
+        self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self._runtime: Optional[str] = None
+        self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -70,9 +85,25 @@ class LaunchProject(object):
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
-        self.run_id = generate_id()
+        self.aux_dir = tempfile.mkdtemp()
 
         self.clear_parameter_run_config_collisions()
+
+    @property
+    def base_image(self) -> str:
+        """Returns {PROJECT}_base:{PYTHON_VERSION}"""
+        # TODO: this should likely be source_project when we have it...
+        generated_name = "{}_base:{}".format(
+            self.target_project, self.python_version or "3"
+        )
+        return self._base_image or generated_name
+
+    @property
+    def image_name(self) -> str:
+        """Returns {PROJECT}_launch the ultimate version will
+        be tagged with a sha of the git repo"""
+        # TODO: this should likely be source_project when we have it...
+        return "{}_launch".format(self.target_project)
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the overide run config values if a matching key exists in the override arguments."""
@@ -126,13 +157,36 @@ class LaunchProject(object):
                 self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
             )
             patch = utils.fetch_project_diff(self.uri, api)
-            if run_info.get("python"):
-                self._runtime = "python-{}".format(run_info["python"])
+
             if patch:
                 utils.apply_patch(patch, self.project_dir)
+            entry_point = run_info.get("codePath", run_info["program"])
+            # For cases where the entry point wasn't checked into git
+            if not os.path.exists(os.path.join(self.project_dir, entry_point)):
+                downloaded_entrypoint = utils.download_entry_point(
+                    self.uri, api, entry_point, self.project_dir
+                )
+                if not downloaded_entrypoint:
+                    raise LaunchError(
+                        f"Entrypoint: {entry_point} does not exist, "
+                        "and could not be downloaded. Please specify the entrypoint for this run."
+                    )
+                # if the entrypoint is downloaded and inserted into the project dir
+                # need to rebuild image with new code
+                self.build_image = True
+
+            if entry_point.endswith("ipynb"):
+                entry_point = utils.convert_jupyter_notebook_to_script(
+                    entry_point, self.project_dir
+                )
+
+            # Download any frozen requirements
+            utils.download_wandb_python_deps(self.uri, api, self.project_dir)
+            # Specify the python runtime for jupyter2docker
+            self.python_version = run_info.get("python", "3")
 
             if not self._entry_points:
-                self.add_entry_point(run_info["program"])
+                self.add_entry_point(entry_point)
 
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
@@ -263,6 +317,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
 
     return LaunchProject(
         uri,
+        launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
         name,

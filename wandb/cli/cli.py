@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import time
 import traceback
@@ -31,7 +32,6 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.compat import tempfile
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 
@@ -41,18 +41,18 @@ from wandb.sync import get_run_from_path, get_runs, SyncManager, TMPDIR
 import yaml
 
 
-# TODO: turn this on in a cleaner way
-# right now we will litter the filesystem with wandb dirs
-#
-# _wandb_dir = wandb_dir(env.get_dir())
-# wandb.wandb_sdk.lib.filesystem._safe_makedirs(_wandb_dir)
-# logging.basicConfig(
-#     filename=os.path.join(_wandb_dir, "debug-cli.log"),
-#     level=logging.DEBUG,
-# )
-# logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+# Send cli logs to wandb/debug-cli.log by default and fallback to a temp dir.
+_wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
+if not os.path.exists(_wandb_dir):
+    _wandb_dir = tempfile.gettempdir()
+logging.basicConfig(
+    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger("wandb")
-
 CONTEXT = dict(default_map={})
 
 
@@ -87,6 +87,11 @@ def display_error(func):
             exc_type, exc_value, exc_traceback = sys.exc_info()
             lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
             logger.error("".join(lines))
+            wandb.termerror(
+                "Find detailed error logs at: {}".format(
+                    os.path.join(_wandb_dir, "debug-cli.log")
+                )
+            )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
             six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
@@ -208,7 +213,8 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         raise ClickException("host must start with http(s)://")
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
-    key = key[0] if len(key) > 0 else None
+    # A change in click or the test harness means key can be none...
+    key = key[0] if key is not None and len(key) > 0 else None
     if key:
         relogin = True
 
@@ -229,18 +235,27 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
+    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
-@click.option("--port", default=None, help="The host port to bind grpc service.")
+@click.option("--port", default=None, type=int, help="The host port to bind service.")
+@click.option("--port-filename", default=None, help="Save allocated port to file.")
+@click.option("--address", default=None, help="The address to bind service.")
+@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
+@click.option("--debug", default=None)
 @display_error
-def grpc_server(project=None, entity=None, port=None):
+def service(
+    port=None, port_filename=None, address=None, pid=None, debug=None,
+):
     _ = util.get_module(
         "grpc",
-        required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
+        required="wandb service requires the grpcio library, run pip install wandb[service]",
     )
-    from wandb.server.grpc_server import main as grpc_server
+    from wandb.sdk.service.grpc_server import GrpcServer
 
-    grpc_server(port=port)
+    server = GrpcServer(
+        port=port, port_fname=port_filename, address=address, pid=pid, debug=debug,
+    )
+    server.serve()
 
 
 @cli.command(
@@ -995,6 +1010,9 @@ def launch(
     Running `wandb launch [URI]` will launch the run directly. To add the run to a queue, run
     `wandb launch [URI] --queue [optional queuename]`.
     """
+    logger.info(
+        f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
+    )
     _check_launch_imports()
     from wandb.sdk.launch import launch as wandb_launch
 
@@ -1073,6 +1091,9 @@ def launch(
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None):
+    logger.info(
+        f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
+    )
     _check_launch_imports()
 
     from wandb.sdk.launch import launch as wandb_launch
@@ -1091,7 +1112,8 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
         entity = api.default_entity
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.run_agent(entity, project, queues=queues)
+
+    wandb_launch.create_and_run_agent(api, entity, project, queues)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
@@ -1909,8 +1931,11 @@ def verify(host):
     elif host != api.settings("base_url"):
         reinit = True
 
-    tmp_dir = tempfile.TemporaryDirectory()
-    os.chdir(tmp_dir.name)
+    tmp_dir = tempfile.mkdtemp()
+    print(
+        "Find detailed logs for this test at: {}".format(os.path.join(tmp_dir, "wandb"))
+    )
+    os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
     if reinit:
@@ -1932,6 +1957,7 @@ def verify(host):
             "Checking requests made over signed URLs",
             "Signed URL requests not made over https. SSL is required for secure communications.",
         )
+        wandb_verify.check_cors_configuration(url, host)
     wandb_verify.check_wandb_version(api)
     check_run_success = wandb_verify.check_run(api)
     check_artifacts_success = wandb_verify.check_artifacts()

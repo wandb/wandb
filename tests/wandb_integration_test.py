@@ -14,7 +14,6 @@ import sys
 import shutil
 from .utils import fixture_open, first_filestream
 import sys
-import six
 import time
 
 try:
@@ -35,7 +34,6 @@ else:
         import imp
 
         reloadFn = imp.reload
-
 
 # TODO: better debugging, if the backend process fails to start we currently
 # don't get any debug information even in the internal logs.  For now I'm writing
@@ -93,7 +91,15 @@ def test_parallel_runs(request, live_mock_server, test_settings, test_name):
         num_runs += 1
         print("Files from server", files)
         assert (
-            sorted([f for f in files if not f.endswith(".patch") and f != "output.log"])
+            sorted(
+                [
+                    f
+                    for f in files
+                    if not f.endswith(".patch")
+                    and not f.endswith("pt.trace.json")
+                    and f != "output.log"
+                ]
+            )
             == files_sorted
         )
     assert num_runs == 2

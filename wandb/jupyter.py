@@ -36,19 +36,58 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+__IFrame = None
 
-class Run(object):
-    def __init__(self, run=None):
-        self.run = run or wandb.run
+
+def maybe_display():
+    """Display a run if the user added cell magic and we have run"""
+    if __IFrame is not None:
+        return __IFrame.maybe_display()
+    return False
+
+
+def quiet():
+    if __IFrame is not None:
+        return __IFrame.opts.get("quiet")
+    return False
+
+
+class IFrame(object):
+    def __init__(self, path=None, opts=None):
+        self.path = path
+        self.api = wandb.Api()
+        self.opts = opts or {}
+        self.displayed = False
+        self.height = self.opts.get("height", 420)
+
+    def maybe_display(self) -> bool:
+        if not self.displayed and (self.path or wandb.run):
+            display(self)
+        return self.displayed
 
     def _repr_html_(self):
         try:
-            url = self.run._get_run_url() + "?jupyter=true"
-            return (
-                """<iframe src="%s" style="border:none;width:100%%;height:420px">
-                </iframe>"""
-                % url
-            )
+            self.displayed = True
+            if self.opts.get("workspace", False):
+                if self.path is None and wandb.run:
+                    self.path = wandb.run.path
+            if isinstance(self.path, str):
+                object = self.api.from_path(self.path)
+            else:
+                object = wandb.run
+            if object is None:
+                if wandb.Api().api_key is None:
+                    return "You must be logged in to render wandb in jupyter, run `wandb.login()`"
+                else:
+                    object = self.api.project(
+                        "/".join(
+                            [
+                                wandb.Api().default_entity,
+                                wandb.util.auto_project_name(None),
+                            ]
+                        )
+                    )
+            return object.to_html(self.height, hidden=False)
         except wandb.Error as e:
             return "Can't display wandb interface<br/>{}".format(e)
 
@@ -61,20 +100,57 @@ class WandBMagics(Magics):
 
     @magic_arguments()
     @argument(
-        "-d",
-        "--display",
-        default=True,
-        help="Display the wandb interface automatically",
+        "path",
+        default=None,
+        nargs="?",
+        help="A path to a resource you want to display, defaults to wandb.run.path",
+    )
+    @argument(
+        "-w",
+        "--workspace",
+        default=False,
+        action="store_true",
+        help="Display the entire run project workspace",
+    )
+    @argument(
+        "-q",
+        "--quiet",
+        default=False,
+        action="store_true",
+        help="Display the minimal amount of output",
+    )
+    @argument(
+        "-h",
+        "--height",
+        default=420,
+        type=int,
+        help="The height of the iframe in pixels",
     )
     @line_cell_magic
     def wandb(self, line, cell=None):
+        """Display wandb resources in jupyter.  This can be used as cell or line magic.
+
+        %wandb USERNAME/PROJECT/runs/RUN_ID
+        ---
+        %%wandb -h 1024
+        with wandb.init() as run:
+            run.log({"loss": 1})
+        """
         # Record options
         args = parse_argstring(self.wandb, line)
-        self.options["body"] = ""
-        self.options["wandb_display"] = args.display
-        # Register events
-        display(Run())
+        self.options["height"] = args.height
+        self.options["workspace"] = args.workspace
+        self.options["quiet"] = args.quiet
+        iframe = IFrame(args.path, opts=self.options)
+        displayed = iframe.maybe_display()
         if cell is not None:
+            if not displayed:
+                # Store the IFrame globally and attempt to display if we have a run
+                cell = (
+                    f"wandb.jupyter.__IFrame = wandb.jupyter.IFrame(opts={self.options})\n"
+                    + cell
+                    + "\nwandb.jupyter.__IFrame = None"
+                )
             get_ipython().run_cell(cell)
 
 

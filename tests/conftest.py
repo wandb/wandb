@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import pytest
 import time
+import platform
+import tempfile
 import datetime
 import requests
 import os
@@ -170,6 +172,13 @@ def test_dir(test_name):
 
 
 @pytest.fixture
+def disable_git_save():
+    os.environ["WANDB_DISABLE_GIT"] = "true"
+    yield
+    os.environ["WANDB_DISABLE_GIT"] = "false"
+
+
+@pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem():
         r = git.Repo.init(".")
@@ -244,8 +253,14 @@ def mocked_run(runner, test_settings):
 def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
-    monkeypatch.setattr(wandb.util, "prompt_choices", lambda x: x[0])
-    monkeypatch.setattr(wandb.wandb_lib.apikey, "prompt_choices", lambda x: x[0])
+    monkeypatch.setattr(
+        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
+    )
+    monkeypatch.setattr(
+        wandb.wandb_lib.apikey,
+        "prompt_choices",
+        lambda x, input_timeout=None, jupyter=False: x[0],
+    )
     monkeypatch.setattr(click, "launch", lambda x: 1)
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
     mocker.patch("wandb.wandb_lib.apikey.isatty", lambda stream: True)
@@ -382,16 +397,27 @@ def mocked_module(monkeypatch):
 
 
 @pytest.fixture
-def mocked_ipython(monkeypatch):
-    monkeypatch.setattr(
-        wandb.wandb_sdk.wandb_settings, "_get_python_type", lambda: "jupyter"
-    )
+def mocked_ipython(mocker):
+    mocker.patch("wandb.sdk.lib.ipython._get_python_type", lambda: "jupyter")
+    mocker.patch("wandb.sdk.wandb_settings._get_python_type", lambda: "jupyter")
+    html_mock = mocker.MagicMock()
+    mocker.patch("wandb.sdk.lib.ipython.display_html", html_mock)
     ipython = MagicMock()
+    ipython.html = html_mock
+
+    def run_cell(cell):
+        print("Running cell: ", cell)
+        exec(cell)
+
+    ipython.run_cell = run_cell
     # TODO: this is really unfortunate, for reasons not clear to me, monkeypatch doesn't work
     orig_get_ipython = wandb.jupyter.get_ipython
+    orig_display = wandb.jupyter.display
     wandb.jupyter.get_ipython = lambda: ipython
+    wandb.jupyter.display = lambda obj: html_mock(obj._repr_html_())
     yield ipython
     wandb.jupyter.get_ipython = orig_get_ipython
+    wandb.jupyter.display = orig_display
 
 
 def default_wandb_args():
@@ -868,3 +894,62 @@ class Responses:
 def collect_responses():
     responses = Responses()
     yield responses
+
+
+@pytest.fixture
+def mock_tty(monkeypatch):
+    class WriteThread(threading.Thread):
+        def __init__(self, fname):
+            threading.Thread.__init__(self)
+            self._fname = fname
+            self._q = queue.Queue()
+
+        def run(self):
+            with open(self._fname, "w") as fp:
+                while True:
+                    data = self._q.get()
+                    if data == "_DONE_":
+                        break
+                    fp.write(data)
+                    fp.flush()
+
+        def add(self, input_str):
+            self._q.put(input_str)
+
+        def stop(self):
+            self.add("_DONE_")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        fds = dict()
+
+        def setup_fn(input_str):
+            fname = os.path.join(tmpdir, "file.txt")
+            if platform.system() != "Windows":
+                os.mkfifo(fname, 0o600)
+                writer = WriteThread(fname)
+                writer.start()
+                writer.add(input_str)
+                fds["writer"] = writer
+                monkeypatch.setattr("termios.tcflush", lambda x, y: None)
+            else:
+                # windows doesn't support named pipes, just write it
+                # TODO: emulate msvcrt to support input on windows
+                with open(fname, "w") as fp:
+                    fp.write(input_str)
+            fds["stdin"] = open(fname, "r")
+            monkeypatch.setattr("sys.stdin", fds["stdin"])
+            sys.stdin.isatty = lambda: True
+            sys.stdout.isatty = lambda: True
+
+        yield setup_fn
+
+        writer = fds.get("writer")
+        if writer:
+            writer.stop()
+            writer.join()
+        stdin = fds.get("stdin")
+        if stdin:
+            stdin.close()
+
+    del sys.stdin.isatty
+    del sys.stdout.isatty

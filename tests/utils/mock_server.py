@@ -3,6 +3,7 @@
 from flask import Flask, request, g, jsonify
 import os
 import sys
+import re
 from datetime import datetime, timedelta
 import json
 import platform
@@ -42,6 +43,8 @@ def default_ctx():
         "fail_graphql_count": 0,  # used via "fail_graphql_times"
         "fail_storage_count": 0,  # used via "fail_storage_times"
         "rate_limited_count": 0,  # used via "rate_limited_times"
+        "graphql_conflict": False,
+        "num_search_users": 1,
         "page_count": 0,
         "page_times": 2,
         "requested_file": "weights.h5",
@@ -69,6 +72,14 @@ def default_ctx():
         "emulate_artifacts": None,
         "run_state": "running",
         "run_queue_item_check_count": 0,
+        "return_jupyter_in_run_info": False,
+        "alerts": [],
+        "gorilla_supports_launch_agents": True,
+        "launch_agents": {},
+        "successfully_create_default_queue": True,
+        "launch_agent_update_fail": False,
+        "swappable_artifacts": False,
+        "used_artifact_info": None,
     }
 
 
@@ -126,7 +137,10 @@ def run(ctx):
             "directUrl": base_url
             + "/storage?file=%s&direct=true" % ctx["requested_file"],
         }
-
+    if ctx["return_jupyter_in_run_info"]:
+        program_name = "one_cell.ipynb"
+    else:
+        program_name = "train.py"
     return {
         "id": "test",
         "name": "test",
@@ -160,7 +174,7 @@ def run(ctx):
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
-            "program": "train.py",
+            "program": program_name,
             "args": [],
             "os": platform.system(),
             "python": platform.python_version(),
@@ -369,6 +383,8 @@ def create_app(user_ctx=None):
             if ctx["rate_limited_count"] < ctx["rate_limited_times"]:
                 ctx["rate_limited_count"] += 1
                 return json.dumps({"error": "rate limit exceeded"}), 429
+        if ctx["graphql_conflict"]:
+            return json.dumps({"error": "resource already exists"}), 409
 
         # Setup artifact emulator (should this be somewhere else?)
         emulate_random_str = ctx["emulate_artifacts"]
@@ -383,6 +399,7 @@ def create_app(user_ctx=None):
 
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
+
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
 
@@ -539,6 +556,9 @@ def create_app(user_ctx=None):
                 "data": {
                     "viewer": {
                         "entity": "mock_server_entity",
+                        "admin": False,
+                        "email": "mock@server.test",
+                        "username": "mock",
                         "flags": '{"code_saving_enabled": true}',
                         "teams": {"edges": []},  # TODO make configurable for cli_test
                     },
@@ -571,7 +591,12 @@ def create_app(user_ctx=None):
                     {
                         "data": {
                             "QueryType": {"fields": [{"name": "serverInfo"},]},
-                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
+                            "ServerInfoType": {
+                                "fields": [
+                                    {"name": "cliVersionInfo"},
+                                    {"name": "exposesExplicitRunQueueAckPath"},
+                                ]
+                            },
                         }
                     }
                 )
@@ -584,6 +609,25 @@ def create_app(user_ctx=None):
                             "fields": [
                                 {"name": "cliVersionInfo"},
                                 {"name": "latestLocalVersionInfo"},
+                                {"name": "exposesExplicitRunQueueAckPath"},
+                            ]
+                        },
+                    }
+                }
+            )
+
+        if "query ProbeServerUseArtifactInput" in body["query"]:
+            return json.dumps(
+                {
+                    "data": {
+                        "UseArtifactInputInfoType": {
+                            "inputFields": [
+                                {"name": "entityName"},
+                                {"name": "projectName"},
+                                {"name": "runName"},
+                                {"name": "artifactID"},
+                                {"name": "usedAs"},
+                                {"name": "clientMutationId"},
                             ]
                         },
                     }
@@ -685,6 +729,37 @@ def create_app(user_ctx=None):
             r.setdefault("project_name", "test")
             r.setdefault("entity_name", "mock_server_entity")
 
+            git_remote = body["variables"].get("repo")
+            git_commit = body["variables"].get("commit")
+            if git_commit or git_remote:
+                for c in ctx, run_ctx:
+                    c.setdefault("git", {})
+                    c["git"]["remote"] = git_remote
+                    c["git"]["commit"] = git_commit
+
+            for c in ctx, run_ctx:
+                tags = body["variables"].get("tags")
+                if tags is not None:
+                    c["tags"] = tags
+                notes = body["variables"].get("notes")
+                if notes is not None:
+                    c["notes"] = notes
+                group = body["variables"].get("groupName")
+                if group is not None:
+                    c["group"] = group
+                job_type = body["variables"].get("jobType")
+                if job_type is not None:
+                    c["job_type"] = job_type
+                name = body["variables"].get("displayName")
+                if name is not None:
+                    c["name"] = name
+                program = body["variables"].get("program")
+                if program is not None:
+                    c["program"] = program
+                host = body["variables"].get("host")
+                if host is not None:
+                    c["host"] = host
+
             param_config = body["variables"].get("config")
             if param_config:
                 for c in ctx, run_ctx:
@@ -760,6 +835,7 @@ def create_app(user_ctx=None):
                 return ART_EMU.create(variables=body["variables"])
 
             collection_name = body["variables"]["artifactCollectionNames"][0]
+            app.logger.info("Creating artifact {}".format(collection_name))
             ctx["artifacts"] = ctx.get("artifacts", {})
             ctx["artifacts"][collection_name] = ctx["artifacts"].get(
                 collection_name, []
@@ -782,6 +858,13 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation DeleteArtifact(" in body["query"]:
+            id = body["variables"]["artifactID"]
+            delete_aliases = body["variables"]["deleteAliases"]
+            art = artifact(ctx, id_override=id)
+            if len(art.get("aliases", [])) and not delete_aliases:
+                raise Exception("delete_aliases not set, but artifact has aliases")
+            return {"data": {"deleteArtifact": {"artifact": art, "success": True,}}}
         if "mutation CreateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -850,6 +933,8 @@ def create_app(user_ctx=None):
                 }
             }
         if "mutation UseArtifact(" in body["query"]:
+            used_name = body.get("variables", {}).get("usedAs", None)
+            ctx["used_artifact_info"] = {"used_name": used_name}
             return {"data": {"useArtifact": {"artifact": artifact(ctx)}}}
         if "query ProjectArtifactType(" in body["query"]:
             return {
@@ -951,6 +1036,13 @@ def create_app(user_ctx=None):
                 )
                 art["artifactType"] = {"id": 1, "name": "dataset"}
                 return {"data": {"artifact": art}}
+            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                full_name = body.get("variables", {}).get("name", None)
+                if full_name is not None:
+                    collection_name = full_name.split(":")[0]
+                art = artifact(
+                    ctx, collection_name=collection_name, request_url_root=base_url,
+                )
             # code artifacts use source-RUNID names, we return the code type
             art["artifactType"] = {"id": 2, "name": "code"}
             if "source" not in body["variables"]["name"]:
@@ -1041,6 +1133,10 @@ def create_app(user_ctx=None):
                     }
                 )
         if "mutation createRunQueue" in body["query"]:
+            if not ctx["successfully_create_default_queue"]:
+                return json.dumps(
+                    {"data": {"createRunQueue": {"success": False, "queueID": None}}}
+                )
             ctx["run_queues_return_default"] = True
             return json.dumps(
                 {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
@@ -1079,6 +1175,89 @@ def create_app(user_ctx=None):
             return json.dumps({"data": {"ackRunQueueItem": {"success": True}}})
         if "query ClientIDMapping(" in body["query"]:
             return {"data": {"clientIDMapping": {"serverID": "QXJ0aWZhY3Q6NTI1MDk4"}}}
+        # Admin apis
+        if "mutation DeleteApiKey" in body["query"]:
+            return {"data": {"deleteApiKey": {"success": True}}}
+        if "mutation GenerateApiKey" in body["query"]:
+            return {
+                "data": {"generateApiKey": {"apiKey": {"id": "XXX", "name": "Y" * 40}}}
+            }
+        if "mutation DeleteInvite" in body["query"]:
+            return {"data": {"deleteInvite": {"success": True}}}
+        if "mutation CreateInvite" in body["query"]:
+            return {"data": {"createInvite": {"invite": {"id": "XXX"}}}}
+        if "mutation CreateServiceAccount" in body["query"]:
+            return {"data": {"createServiceAccount": {"user": {"id": "XXX"}}}}
+        if "mutation CreateTeam" in body["query"]:
+            return {
+                "data": {
+                    "createTeam": {
+                        "entity": {"id": "XXX", "name": body["variables"]["teamName"]}
+                    }
+                }
+            }
+        if "mutation NotifyScriptableRunAlert" in body["query"]:
+            avars = body.get("variables", {})
+            run_name = avars.get("runName", "unknown")
+            adict = dict(
+                title=avars["title"], text=avars["text"], severity=avars["severity"]
+            )
+            atime = avars.get("waitDuration")
+            if atime is not None:
+                adict["wait"] = atime
+            run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
+            for c in ctx, run_ctx:
+                c["alerts"].append(adict)
+            return {"data": {"notifyScriptableRunAlert": {"success": True}}}
+        if "query SearchUsers" in body["query"]:
+
+            return {
+                "data": {
+                    "users": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "XXX",
+                                    "email": body["variables"]["query"],
+                                    "apiKeys": {
+                                        "edges": [
+                                            {"node": {"id": "YYY", "name": "Y" * 40}}
+                                        ]
+                                    },
+                                    "teams": {
+                                        "edges": [
+                                            {"node": {"id": "TTT", "name": "test"}}
+                                        ]
+                                    },
+                                }
+                            }
+                        ]
+                        * ctx["num_search_users"]
+                    }
+                }
+            }
+        if "query Entity(" in body["query"]:
+            return {
+                "data": {
+                    "entity": {
+                        "id": "XXX",
+                        "members": [
+                            {
+                                "id": "YYY",
+                                "name": "test",
+                                "accountType": "MEMBER",
+                                "apiKey": None,
+                            },
+                            {
+                                "id": "SSS",
+                                "name": "Service account",
+                                "accountType": "SERVICE",
+                                "apiKey": "Y" * 40,
+                            },
+                        ],
+                    }
+                }
+            }
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -1089,6 +1268,33 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation createLaunchAgent(" in body["query"]:
+            agent_id = len(ctx["launch_agents"].keys())
+            ctx["launch_agents"][agent_id] = "POLLING"
+            return json.dumps(
+                {
+                    "data": {
+                        "createLaunchAgent": {
+                            "success": True,
+                            "launchAgentId": agent_id,
+                        }
+                    }
+                }
+            )
+        if "mutation updateLaunchAgent(" in body["query"]:
+            if ctx["launch_agent_update_fail"]:
+                return json.dumps({"data": {"updateLaunchAgent": {"success": False}}})
+            status = body["variables"]["agentStatus"]
+            agent_id = body["variables"]["agentId"]
+            ctx["launch_agents"][agent_id] = status
+            return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
+        if "query LaunchAgentIntrospection" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {"data": {"LaunchAgentType": {"name": "LaunchAgent"}}}
+                )
+            else:
+                return json.dumps({"data": {}})
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
@@ -1316,13 +1522,16 @@ def create_app(user_ctx=None):
             return {
                 "docker": "test/docker",
                 "program": "train.py",
+                "codePath": "train.py",
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+        elif file == "requirements.txt":
+            return "numpy==1.19.5\n"
         elif file == "diff.patch":
             # TODO: make sure the patch is valid for windows as well,
             # and un skip the test in test_cli.py
-            return r"""
+            return """
 diff --git a/patch.txt b/patch.txt
 index 30d74d2..9a2c773 100644
 --- a/patch.txt
@@ -1501,6 +1710,17 @@ index 30d74d2..9a2c773 100644
     return app
 
 
+RE_DATETIME = re.compile("^(?P<date>\d+-\d+-\d+T\d+:\d+:\d+[.]\d+\s)(?P<rest>.*)$")
+
+
+def strip_datetime(s):
+    # 2021-09-18T17:28:07.059270
+    m = RE_DATETIME.match(s)
+    if m:
+        return m.group("rest")
+    return s
+
+
 class ParseCTX(object):
     def __init__(self, ctx, run_id=None):
         self._ctx = ctx["runs"][run_id] if run_id else ctx
@@ -1533,7 +1753,7 @@ class ParseCTX(object):
                 if not offset:
                     l = []
                 if k == u"output.log":
-                    lines = [content]
+                    lines = content
                 else:
                     lines = map(json.loads, content)
                 l.extend(lines)
@@ -1588,12 +1808,42 @@ class ParseCTX(object):
         return history
 
     @property
+    def output(self):
+        fs_files = self.get_filestream_file_items()
+        output_items = fs_files.get("output.log", [])
+        err_prefix = "ERROR "
+        stdout_items = []
+        stderr_items = []
+        for item in output_items:
+            if item.startswith(err_prefix):
+                err_item = item[len(err_prefix) :]
+                stderr_items.append(err_item)
+            else:
+                stdout_items.append(item)
+        stdout = "".join(stdout_items)
+        stderr = "".join(stderr_items)
+        stdout_lines = stdout.splitlines()
+        stderr_lines = stderr.splitlines()
+        stdout = list(map(strip_datetime, stdout_lines))
+        stderr = list(map(strip_datetime, stderr_lines))
+        return dict(stdout=stdout, stderr=stderr)
+
+    @property
     def exit_code(self):
         exit_code = None
         fs_list = self._ctx.get("file_stream")
         if fs_list:
             exit_code = fs_list[-1].get("exitcode")
         return exit_code
+
+    @property
+    def run_id(self):
+        return self._run_id
+
+    @property
+    def git(self):
+        git_info = self._ctx.get("git")
+        return git_info or dict(commit=None, remote=None)
 
     @property
     def config_raw(self):
@@ -1616,11 +1866,11 @@ class ParseCTX(object):
 
     @property
     def telemetry(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("t")
+        return self.config.get("_wandb", {}).get("value", {}).get("t", {})
 
     @property
     def metrics(self):
-        return self.config.get("_wandb", {}).get("value", {}).get("m")
+        return self.config.get("_wandb", {}).get("value", {}).get("m", {})
 
     @property
     def manifests_created(self):
@@ -1633,6 +1883,38 @@ class ParseCTX(object):
     @property
     def artifacts(self):
         return self._ctx.get("artifacts_created") or {}
+
+    @property
+    def tags(self):
+        return self._ctx.get("tags") or []
+
+    @property
+    def notes(self):
+        return self._ctx.get("notes") or ""
+
+    @property
+    def group(self):
+        return self._ctx.get("group") or ""
+
+    @property
+    def job_type(self):
+        return self._ctx.get("job_type") or ""
+
+    @property
+    def name(self):
+        return self._ctx.get("name") or ""
+
+    @property
+    def program(self):
+        return self._ctx.get("program") or ""
+
+    @property
+    def host(self):
+        return self._ctx.get("host") or ""
+
+    @property
+    def alerts(self):
+        return self._ctx.get("alerts") or []
 
     def _debug(self):
         if not self._run_id:
