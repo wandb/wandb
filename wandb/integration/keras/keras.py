@@ -17,7 +17,7 @@ from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
-from wandb.util import add_import_hook, is_numeric_array
+from wandb.util import add_import_hook
 
 
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
@@ -184,6 +184,13 @@ def _update_if_numeric(metrics, key, values):
     metrics[key] = wandb.Histogram(values)
 
 
+def is_numeric_array(array):
+    if isinstance(array.dtype, DType):
+        return array.dtype.is_floating or array.dtype.is_integer
+    elif isinstance(array.dtype, str):
+        return array.dtype.startswith("int") or array.dtype.startswith("float")
+
+
 def _warn_not_logging(name):
     wandb.termwarn(
         "Non-numeric values found in layer: {}, not logging this layer".format(name),
@@ -197,6 +204,7 @@ else:
     add_import_hook("keras", _check_keras_version)
 
 import tensorflow as tf
+from tensorflow.dtypes import DType
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 

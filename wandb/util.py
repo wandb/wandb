@@ -1061,10 +1061,7 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(
-    input_timeout: int = None,
-    jupyter: bool = False,
-) -> str:
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
     input_fn = input
     prompt = term.LOG_STRING
     if input_timeout:
@@ -1085,10 +1082,7 @@ def _prompt_choice(
 
 
 def prompt_choices(
-    choices,
-    allow_manual=False,
-    input_timeout: int = None,
-    jupyter: bool = False,
+    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
 ):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
@@ -1363,11 +1357,6 @@ def _is_kaggle():
         os.getenv("KAGGLE_KERNEL_RUN_TYPE") is not None
         or "kaggle_environments" in sys.modules  # noqa: W503
     )
-
-
-def is_numeric_array(array):
-    # print(str(array.dtype.value))
-    return array.dtype.is_floating or array.dtype.is_integer
 
 
 def _is_likely_kaggle():
