@@ -9,6 +9,7 @@ import logging
 from typing import Any, Optional
 from typing import TYPE_CHECKING
 
+import grpc
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
@@ -96,7 +97,11 @@ class BackendGrpcSender(BackendSenderBase):
     ) -> Optional[pb.GetSummaryResponse]:
         assert self._stub
         self._assign(get_summary)
-        resp = self._stub.GetSummary(get_summary)
+        try:
+            resp = self._stub.GetSummary(get_summary)
+        except grpc.RpcError as e:
+            logger.info(f"GET SUMMARY TIMEOUT: {e}")
+            resp = pb.GetSummaryResponse()
         return resp
 
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
@@ -130,7 +135,11 @@ class BackendGrpcSender(BackendSenderBase):
     ) -> Optional[pb.RunStartResponse]:
         assert self._stub
         self._assign(run_start)
-        run_start_response = self._stub.RunStart(run_start)
+        try:
+            run_start_response = self._stub.RunStart(run_start)
+        except grpc.RpcError as e:
+            logger.info(f"RUNSTART TIMEOUT: {e}")
+            run_start_response = pb.RunStartResponse()
         return run_start_response
 
     def _publish_files(self, files: pb.FilesRecord) -> None:
@@ -185,8 +194,7 @@ class BackendGrpcSender(BackendSenderBase):
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         assert self._stub
         self._assign(tbrecord)
-        # TODO: implement
-        pass
+        _ = self._stub.TBSend(tbrecord)
 
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         assert self._stub
@@ -199,7 +207,11 @@ class BackendGrpcSender(BackendSenderBase):
     ) -> Optional[pb.PollExitResponse]:
         assert self._stub
         self._assign(poll_exit)
-        ret = self._stub.PollExit(poll_exit)
+        try:
+            ret = self._stub.PollExit(poll_exit)
+        except grpc.RpcError as e:
+            logger.info(f"POLL EXIT TIMEOUT: {e}")
+            ret = pb.PollExitResponse()
         return ret
 
     def _communicate_sampled_history(
