@@ -178,13 +178,17 @@ def _check_keras_version():
 
 def _update_if_numeric(metrics, key, values):
     if not is_numeric_array(values):
-        wandb.termwarn(
-            "Non-numeric values found in layer: {}, not logging this layer".format(key),
-            repeat=False,
-        )
+        _warn_not_logging(key)
         return
 
     metrics[key] = wandb.Histogram(values)
+
+
+def _warn_not_logging(name):
+    wandb.termwarn(
+        "Non-numeric values found in layer: {}, not logging this layer".format(name),
+        repeat=False,
+    )
 
 
 if "keras" in sys.modules:
@@ -843,12 +847,20 @@ class WandbCallback(keras.callbacks.Callback):
                         .replace("/bias", ".bias")
                         .split(":")[0]
                     )
-                    _update_if_numeric(metrics, f"parameters/{name_string}", w)
+                    if hasattr(w, "dtype"):
+                        _update_if_numeric(metrics, f"parameters/{name_string}", w)
+                    else:
+                        _warn_not_logging("parameters/{name_string}")
                 else:
                     # handle case where weight does not have name by logging the layer name
                     # and weight index. Happens with all TrackableWeightHandler weights
                     # eg. https://github.com/tensorflow/tensorboard/issues/4530
-                    _update_if_numeric(metrics, f"parameters/{layer.name}:{index}", w)
+                    name_string = f"parameters/{layer.name}:{index}"
+                    if hasattr(w, "dtype"):
+                        _update_if_numeric(metrics, name_string, w)
+                    else:
+                        _warn_not_logging(name_string)
+
         return metrics
 
     def _log_gradients(self):

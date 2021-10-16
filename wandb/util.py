@@ -1061,7 +1061,10 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+def _prompt_choice(
+    input_timeout: int = None,
+    jupyter: bool = False,
+) -> str:
     input_fn = input
     prompt = term.LOG_STRING
     if input_timeout:
@@ -1082,7 +1085,10 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
 
 
 def prompt_choices(
-    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+    choices,
+    allow_manual=False,
+    input_timeout: int = None,
+    jupyter: bool = False,
 ):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
@@ -1360,7 +1366,7 @@ def _is_kaggle():
 
 
 def is_numeric_array(array):
-    return np.asarray(array).dtype.kind in NUMERIC_KINDS
+    return str(array.dtype).startswith("int") or str(array.dtype).startswith("float")
 
 
 def _is_likely_kaggle():
