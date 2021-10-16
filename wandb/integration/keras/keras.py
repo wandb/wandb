@@ -189,6 +189,7 @@ def is_numeric_array(array):
         return array.dtype.is_floating or array.dtype.is_integer
     elif isinstance(array.dtype, str):
         return array.dtype.startswith("int") or array.dtype.startswith("float")
+    return False
 
 
 def _warn_not_logging(name):
