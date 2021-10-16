@@ -138,7 +138,6 @@ class BackendGrpcSender(BackendSenderBase):
         try:
             run_start_response = self._stub.RunStart(run_start)
         except grpc.RpcError as e:
-            print("RUNST")
             logger.info(f"RUNSTART TIMEOUT: {e}")
             run_start_response = pb.RunStartResponse()
         return run_start_response
