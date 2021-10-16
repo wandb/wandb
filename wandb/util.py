@@ -1366,7 +1366,8 @@ def _is_kaggle():
 
 
 def is_numeric_array(array):
-    return str(array.dtype).startswith("int") or str(array.dtype).startswith("float")
+    # print(str(array.dtype.value))
+    return array.dtype.is_floating or array.dtype.is_integer
 
 
 def _is_likely_kaggle():
