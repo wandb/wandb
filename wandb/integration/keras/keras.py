@@ -185,7 +185,7 @@ def _update_if_numeric(metrics, key, values):
 
 
 def is_numeric_array(array):
-    if isinstance(array.dtype, DType):
+    if isinstance(array.dtype, tf.dtypes.DType):
         return array.dtype.is_floating or array.dtype.is_integer
     elif isinstance(array.dtype, str):
         return array.dtype.startswith("int") or array.dtype.startswith("float")
@@ -204,7 +204,6 @@ else:
     add_import_hook("keras", _check_keras_version)
 
 import tensorflow as tf
-from tensorflow.dtypes import DType
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 
