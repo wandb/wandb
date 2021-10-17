@@ -176,25 +176,39 @@ def _check_keras_version():
         )
 
 
+def _array_has_dtype(array):
+    return hasattr(array, "dtype") or hasattr(array, "_dtype")
+
+
 def _update_if_numeric(metrics, key, values):
-    if not is_numeric_array(values):
+    if not _array_has_dtype(values):
         _warn_not_logging(key)
+        return
+    if not is_numeric_array(values):
+        _warn_not_logging_non_numeric(key)
         return
 
     metrics[key] = wandb.Histogram(values)
 
 
 def is_numeric_array(array):
-    if isinstance(array.dtype, tf.dtypes.DType):
+    if hasattr(array, "dtype") and isinstance(array.dtype, tf.dtypes.DType):
         return array.dtype.is_floating or array.dtype.is_integer
-    elif isinstance(array.dtype, str):
-        return array.dtype.startswith("int") or array.dtype.startswith("float")
+    elif hasattr(array, "_dtype") and isinstance(array._dtype, str):
+        return array._dtype.startswith("int") or array._dtype.startswith("float")
     return False
+
+
+def _warn_not_logging_non_numeric(name):
+    wandb.termwarn(
+        "Non-numeric values found in layer: {}, not logging this layer".format(name),
+        repeat=False,
+    )
 
 
 def _warn_not_logging(name):
     wandb.termwarn(
-        "Non-numeric values found in layer: {}, not logging this layer".format(name),
+        "Layer {} has undetermined datatype not logging this layer".format(name),
         repeat=False,
     )
 
@@ -855,19 +869,13 @@ class WandbCallback(keras.callbacks.Callback):
                         .replace("/bias", ".bias")
                         .split(":")[0]
                     )
-                    if hasattr(w, "dtype"):
-                        _update_if_numeric(metrics, f"parameters/{name_string}", w)
-                    else:
-                        _warn_not_logging("parameters/{name_string}")
+                    _update_if_numeric(metrics, f"parameters/{name_string}", w)
                 else:
                     # handle case where weight does not have name by logging the layer name
                     # and weight index. Happens with all TrackableWeightHandler weights
                     # eg. https://github.com/tensorflow/tensorboard/issues/4530
                     name_string = f"parameters/{layer.name}:{index}"
-                    if hasattr(w, "dtype"):
-                        _update_if_numeric(metrics, name_string, w)
-                    else:
-                        _warn_not_logging(name_string)
+                    _update_if_numeric(metrics, name_string, w)
 
         return metrics
 
