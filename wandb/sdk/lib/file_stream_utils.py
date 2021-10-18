@@ -1,5 +1,6 @@
 #
 from typing import Dict, Iterable
+import pprint
 
 
 def split_files(
@@ -50,13 +51,36 @@ def split_files(
             num_lines += 1
         return num_lines
 
+    files_stack = []
+    for k, v in files.items():
+        if type(v) is list:
+            for item in v:
+                files_stack.append(
+                    {"name": k, "offset": item["offset"], "content": item["content"]}
+                )
+        else:
+            files_stack.append(
+                {"name": k, "offset": v["offset"], "content": v["content"]}
+            )
+
+    with open("fs-debug-new.log", "a") as f:
+        f.write("\n#### files_stack ####\n")
+        f.write(pprint.pformat(files_stack))
+    """
     files_stack = [
         {"name": k, "offset": v["offset"], "content": v["content"]}
         for k, v in files.items()
     ]
+    """
 
     while files_stack:
         f = files_stack.pop()
+        if f["name"] in current_volume:
+            files_stack.append(f)
+            yield current_volume
+            current_volume = {}
+            current_size = 0
+            continue
         # For each file, we have to do 1 of 4 things:
         # - Add the file as such to the current volume if possible.
         # - Split the file and add the first part to the current volume and push the second part back onto the stack.

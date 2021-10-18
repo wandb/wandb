@@ -9,6 +9,8 @@ import random
 import requests
 import threading
 import time
+from dataclasses import dataclass, field
+from typing import List
 
 import wandb
 from wandb import util
@@ -18,6 +20,8 @@ import six
 from six.moves import queue
 
 from ..lib import file_stream_utils
+
+import pprint
 
 
 logger = logging.getLogger(__name__)
@@ -71,6 +75,13 @@ class SummaryFilePolicy(DefaultFilePolicy):
         return {"offset": 0, "content": [data]}
 
 
+@dataclass
+class Lines:
+    offset: int = None
+    lines: List = field(default_factory=lambda: [])
+    flag: bool = False
+
+
 class CRDedupeFilePolicy(DefaultFilePolicy):
     """File stream policy that removes characters that would be erased by
     carriage returns.
@@ -78,16 +89,105 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     This is what a terminal does. We use it for console output to reduce the
     amount of data we need to send over the network (eg. for progress bars),
     while preserving the output's appearance in the web app.
+
+    We stream chunks (of lines) from user's output logging to online console on the dashboard.
+    The term "offset" refers to the line number on this online console.
+
+    Progress bars (like tqdm) print lines with \r, which tell the terminal to move the cursor
+    back to the start of the current buffer and replace it with the current line.
+
+    When we encounter a line with \r, we freeze its offset. Most likely,
+    there will be future lines which contain \r (progress bar updates) which will replace that line.
+    So we freeze the offset and update with the latest line containing \r.
     """
 
     def __init__(self, start_chunk_id=0):
         super(CRDedupeFilePolicy, self).__init__(start_chunk_id=start_chunk_id)
         self._prev_chunk = None
 
+        self.global_offset = 0
+        # cr refers to carriage return \r
+        self.cr_stderr = Lines()
+        self.cr_stdout = Lines()
+
+        # TO DELETE
+        self.NEW_FUNCTION_DELETE = True
+        self.DEBUG_FN = "fs-debug-new.log"
+
+    def split(self, chunk):
+        """
+        chunk: object of type Chunk with two fields: filename (str) & data (str)
+        The `data` field contains the lines we want and usually contains \n or \r or both.
+
+        Line has two possible formats:
+            - "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n"
+            - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n"
+
+        `prefix` is either "2020-08-25T20:38:36.895321" or "ERROR 2020-08-25T20:38:36.895321"
+        """
+        prefix = ""
+        token, rest = chunk.data.split(" ", 1)
+        is_err = False
+        if token == "ERROR":
+            is_err = True
+            prefix += token + " "
+            token, rest = rest.split(" ", 1)
+        prefix += token + " "
+        return prefix, rest, is_err
+
+    def new_process_chunks(self, chunks):
+        with open(self.DEBUG_FN, "a") as f:
+            f.write("\n################## CRDedupeFilePolicy ########\n")
+            f.write(pprint.pformat(chunks))
+
+        normal = Lines()
+
+        for c in chunks:
+            prefix, rest, _ = self.split(c)
+            lines = rest.split(os.linesep)
+            for line in lines:
+                cr = self.cr_stderr if prefix.startswith("ERROR ") else self.cr_stdout
+                if line.startswith("\r"):
+                    cr.flag = True
+                    # overwrite with the newest \r line
+                    cr.lines = [prefix + line[1:] + "\n"]
+                    if (
+                        normal.offset is not None
+                        and cr.offset == normal.offset + len(normal.lines) - 1
+                    ):
+                        normal.lines.pop()
+                elif line:
+                    normal.lines.append(line)
+                    if not cr.flag:
+                        cr.offset = self.global_offset
+                    if normal.offset is None:
+                        normal.offset = self.global_offset
+                    self.global_offset += 1
+
+        ret = []
+        for item in [self.cr_stderr, self.cr_stdout, normal]:
+            if item.lines:
+                ret.append({"offset": item.offset, "content": item.lines})
+
+        with open(self.DEBUG_FN, "a") as f:
+            f.write("\n#### RET\n")
+            f.write(pprint.pformat(ret))
+
+        return ret
+
     def process_chunks(self, chunks):
+        if self.NEW_FUNCTION_DELETE:
+            return self.new_process_chunks(chunks)
+
         ret = []
         flag = bool(self._prev_chunk)
         chunk_id = self._chunk_id
+
+        DEBUG_FN = "fs-debug-nobreak.log"
+        with open(DEBUG_FN, "a") as f:
+            f.write("\n################## CRDedupeFilePolicy ########\n")
+            f.write(pprint.pformat(chunks))
+
         for c in chunks:
             # Line has two possible formats:
             # 1) "2020-08-25T20:38:36.895321 this is my line of text"
@@ -128,7 +228,15 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                             ret.append(prefix + line[1:] + "\n")
                 elif line:
                     ret.append(prefix + line + "\n")
+
         self._chunk_id = chunk_id + len(ret)
+
+        with open(DEBUG_FN, "a") as f:
+            f.write("\n#### RET\n")
+            f.write(pprint.pformat(ret))
+            f.write(f"\nNew Offset: {chunk_id}\n")
+            f.write(f"{self._chunk_id=}")
+
         ret = {"offset": chunk_id, "content": ret}
         self._prev_chunk = ret
         return ret
@@ -202,8 +310,7 @@ class FileStreamApi(object):
         self._thread.start()
 
     def set_default_file_policy(self, filename, file_policy):
-        """Set an upload policy for a file unless one has already been set.
-        """
+        """Set an upload policy for a file unless one has already been set."""
         if filename not in self._file_policies:
             self._file_policies[filename] = file_policy
 
@@ -348,6 +455,17 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
+            """
+            processed = self._file_policies[filename].process_chunks(file_chunks)
+            if type(processed) is list:
+                repeated[filename] = processed
+            else:
+                files[filename] = processed
+                if not files[filename]:
+                    del files[filename]
+
+            """
+
         for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
             self._handle_response(
                 request_with_retry(
@@ -357,6 +475,22 @@ class FileStreamApi(object):
                     retry_callback=self._api.retry_callback,
                 )
             )
+        """
+        for fn in repeated:
+            for data in repeated[fn]:
+                for fs in file_stream_utils.split_files(
+                    {fn: data}, max_bytes=util.MAX_LINE_BYTES
+                ):
+                    self._handle_response(
+                        request_with_retry(
+                            self._client.post,
+                            self._endpoint,
+                            json={"files": fs, "dropped": self._dropped_chunks},
+                            retry_callback=self._api.retry_callback,
+                        )
+                    )
+
+        """
 
     def stream_file(self, path):
         name = path.split("/")[-1]
@@ -450,8 +584,10 @@ def request_with_retry(func, *args, **kwargs):
             if isinstance(e, requests.exceptions.HTTPError) and (
                 e.response is not None and e.response.status_code == 429
             ):
-                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
-                    delay
+                err_str = (
+                    "Filestream rate limit exceeded, retrying in {} seconds".format(
+                        delay
+                    )
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)
