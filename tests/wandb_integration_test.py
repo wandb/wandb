@@ -497,6 +497,8 @@ def test_log_checkpoint_config_race(live_mock_server, test_settings):
     run.config.abcd = 1234
     run.config.qqqq = 4444
     run.log_checkpoint("test_chkpt")
+    run.config.ssss = "that"
+    run.finish()
 
     for _ in range(5):
         ctx = live_mock_server.get_ctx()
@@ -509,17 +511,27 @@ def test_log_checkpoint_config_race(live_mock_server, test_settings):
                 config = config[-1]
                 checkpoint_logged = run_ctx.get("checkpoint_logged", None)
                 config_updated = run_ctx.get("config_updated", None)
+                config_logged_at_checkpoint = run_ctx.get(
+                    "config_logged_in_checkpoint", None
+                )
 
                 if (
                     "abcd" in config
                     and "qqqq" in config
+                    and "ssss" in config
                     and checkpoint_logged
                     and config_updated
+                    and config_logged_at_checkpoint
                 ):
-                    assert "value" in config["abcd"] and config["abcd"]["value"] == 1234
-                    assert "value" in config["qqqq"] and config["qqqq"]["value"] == 4444
-                    assert checkpoint_logged > config_updated
-                    return
 
+                    for c in [config_logged_at_checkpoint, config]:
+                        assert "value" in c["abcd"] and c["abcd"]["value"] == 1234
+                        assert "value" in c["qqqq"] and c["qqqq"]["value"] == 4444
+                    assert checkpoint_logged > config_updated
+                    assert "ssss" not in config_logged_at_checkpoint
+                    assert (
+                        "value" in config["ssss"] and config["ssss"]["value"] == "that"
+                    )
+                    return
         time.sleep(1)
     assert False

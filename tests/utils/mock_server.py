@@ -1527,6 +1527,9 @@ index 30d74d2..9a2c773 100644
 
         if "log_checkpoint_name" in data:
             run_ctx["checkpoint_logged"] = time.time()
+            run_ctx["config_logged_in_checkpoint"] = run_ctx.get("config", [{}])[
+                -1
+            ].copy()
 
         response = json.dumps({"exitcode": None, "limits": {}})
 
