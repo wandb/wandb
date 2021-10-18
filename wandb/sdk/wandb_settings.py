@@ -271,7 +271,6 @@ class Settings(object):
     base_url: Optional[str] = None
 
     # TODO: experimental?
-    from_checkpoint: Optional[str]
     resume_from_checkpoint: Optional[str]
 
     # Private attributes
@@ -414,7 +413,6 @@ class Settings(object):
         _kaggle: str = None,
         _except_exit: str = None,
         # TODO: Should this be private or namespaced for init only?
-        from_checkpoint: str = None,
         resume_from_checkpoint: str = None,
     ):
         kwargs = dict(locals())

@@ -533,22 +533,8 @@ class _WandbInit(object):
                     run._set_yanked_version_message(ret.yank_message)
             run._on_init()
 
-            # resume = False
             if s.resume_from_checkpoint:
-
-                if s.from_checkpoint and s.resume_from_checkpoint:
-                    wandb.termwarn(
-                        "`from_checkpoint` and `resume_from_checkpoint` both set, defaulting to `from_checkpoint` and creating new run."
-                    )
-
-                # resume = True
                 run._checkpoint = s.resume_from_checkpoint
-                # run._run_obj.checkpoint = s.resume_from_checkpoint
-                # run._run_obj.resumed = True
-
-                # this has to go to filestream since it updates keysinfo, etc.
-                # res = backend.interface.communicate_intent_to_resume(cp)
-                # assert res and res.resumed
 
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
@@ -649,7 +635,6 @@ def init(
     save_code=None,
     id=None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-    from_checkpoint: str = None,
     resume_from_checkpoint: str = None,
 ) -> Union[Run, RunDisabled, None]:
     """Starts a new run to track and log to W&B.
