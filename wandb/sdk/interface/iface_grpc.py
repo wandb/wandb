@@ -58,7 +58,7 @@ class MessageFuturePoll(MessageFuture):
                 done = True
                 continue
             time.sleep(sleep_time)
-            sleep_time = max(sleep_time * 2, 5)
+            sleep_time = min(sleep_time * 2, 5)
 
 
 class BackendGrpcSender(BackendSenderBase):
