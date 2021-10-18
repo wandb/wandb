@@ -46,17 +46,19 @@ class MessageFuturePoll(MessageFuture):
             return
         done = False
         start_time = time.time()
+        sleep_time = 0.5
         while not done:
-            now_time = time.time()
             result = self._fn(xid=self._xid)
             if result:
                 self._set_object(result)
                 done = True
                 continue
+            now_time = time.time()
             if timeout and start_time - now_time > timeout:
                 done = True
                 continue
-            time.sleep(0.5)
+            time.sleep(sleep_time)
+            sleep_time = max(sleep_time * 2, 5)
 
 
 class BackendGrpcSender(BackendSenderBase):
