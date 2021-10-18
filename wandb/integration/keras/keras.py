@@ -13,11 +13,12 @@ import numpy as np
 import operator
 import os
 import sys
+
 from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
-from wandb.util import add_import_hook, is_numeric_array
+from wandb.util import add_import_hook
 
 
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
@@ -176,17 +177,6 @@ def _check_keras_version():
         )
 
 
-def _update_if_numeric(metrics, key, values):
-    if not is_numeric_array(values):
-        wandb.termwarn(
-            "Non-numeric values found in layer: {}, not logging this layer".format(key),
-            repeat=False,
-        )
-        return
-
-    metrics[key] = wandb.Histogram(values)
-
-
 if "keras" in sys.modules:
     _check_keras_version()
 else:
@@ -208,15 +198,9 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
-        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
-
-    # this needs to be implemented to prevent a NotImplementedError when
-    # using Lookup layers. Since these
-    def _resource_apply_sparse(self, grad, var, indices):
-        pass
 
     def get_config(self):
         return super(_CustomOptimizer, self).get_config()
@@ -832,23 +816,18 @@ class WandbCallback(keras.callbacks.Callback):
     def _log_weights(self):
         metrics = {}
         for layer in self.model.layers:
-            weights = layer.weights
-            for index, w in enumerate(weights):
-                if hasattr(w, "name"):
-                    # in tf 2.6 lookup layers create empty Variable tensors which should not be logged
-                    if w.name.startswith("Variable"):
-                        continue
-                    name_string = (
-                        w.name.replace("/kernel", ".weights")
-                        .replace("/bias", ".bias")
-                        .split(":")[0]
-                    )
-                    _update_if_numeric(metrics, f"parameters/{name_string}", w)
-                else:
-                    # handle case where weight does not have name by logging the layer name
-                    # and weight index. Happens with all TrackableWeightHandler weights
-                    # eg. https://github.com/tensorflow/tensorboard/issues/4530
-                    _update_if_numeric(metrics, f"parameters/{layer.name}:{index}", w)
+            weights = layer.get_weights()
+            if len(weights) == 1:
+                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                    weights[0]
+                )
+            elif len(weights) == 2:
+                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                    weights[0]
+                )
+                metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
+                    weights[1]
+                )
         return metrics
 
     def _log_gradients(self):
@@ -862,7 +841,6 @@ class WandbCallback(keras.callbacks.Callback):
             verbose=0,
             callbacks=[self._grad_accumulator_callback],
         )
-
         tf_logger.setLevel(og_level)
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads
