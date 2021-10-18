@@ -169,7 +169,7 @@ def build_docker_image_if_needed(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
-    dockerfile = (
+    dockerfile_contents = (
         "FROM {imagename}\n"
         # need to chown this directory for artifacts caching
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
