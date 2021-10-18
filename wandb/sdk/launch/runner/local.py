@@ -143,6 +143,7 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
+
             command_str = command_separator.join(command_args)
             sanitized_command_str = re.sub(
                 r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
@@ -213,7 +214,10 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
+            ["bash", "-c", command],
+            close_fds=True,
+            cwd=work_dir,
+            env=env,
         )
 
     return LocalSubmittedRun(process)

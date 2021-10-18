@@ -27,7 +27,6 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -582,11 +581,11 @@ class Api(object):
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path="", filters=None, order="-created_at", per_page=50):
+    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
+        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
@@ -629,7 +628,7 @@ class Api(object):
         """
         entity, project = self._parse_project_path(path)
         filters = filters or {}
-        key = path + str(filters) + str(order)
+        key = (path or "") + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
                 self.client,
@@ -1846,12 +1845,17 @@ class Run(Attrs):
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
-    def use_artifact(self, artifact):
+    def use_artifact(self, artifact, use_as=None):
         """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
         Returns:
             A `Artifact` object.
         """
@@ -1862,7 +1866,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id)
+            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
@@ -2021,7 +2025,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return util.load_yaml(self._attrs["config"])
 
     def load(self, force=False):
         if force or not self._attrs:
@@ -3501,13 +3505,41 @@ class Artifact(artifacts.Artifact):
 
         return None
 
+    @property
+    def _use_as(self):
+        return self._attrs.get("_use_as")
+
+    @_use_as.setter
+    def _use_as(self, use_as):
+        self._attrs["_use_as"] = use_as
+        return use_as
+
     @normalize_exceptions
-    def delete(self):
-        """Delete artifact and its files."""
+    def delete(self, delete_aliases=False):
+        """
+        Delete an artifact and its files.
+
+        Examples:
+            Delete all the "model" artifacts a run has logged:
+            ```
+            runs = api.runs(path="my_entity/my_project")
+            for run in runs:
+                for artifact in run.logged_artifacts():
+                    if artifact.type == "model":
+                        artifact.delete(delete_aliases=True)
+            ```
+
+        Arguments:
+            delete_aliases: (bool) If true, deletes all aliases associated with the artifact.
+                Otherwise, this raises an exception if the artifact has existing alaises.
+        """
         mutation = gql(
             """
-        mutation deleteArtifact($id: ID!) {
-            deleteArtifact(input: {artifactID: $id}) {
+        mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+            deleteArtifact(input: {
+                artifactID: $artifactID
+                deleteAliases: $deleteAliases
+            }) {
                 artifact {
                     id
                 }
@@ -3516,7 +3548,8 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
         )
         return True
 
@@ -3738,6 +3771,9 @@ class Artifact(artifacts.Artifact):
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
         return root
+
+    def json_encode(self):
+        return util.artifact_to_json(self)
 
     @normalize_exceptions
     def save(self):
