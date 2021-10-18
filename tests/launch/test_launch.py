@@ -263,7 +263,7 @@ def test_run_in_launch_context_with_artifact_string_no_used_as(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -297,7 +297,7 @@ def test_run_in_launch_context_with_artifact_unique(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -328,7 +328,7 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -359,7 +359,7 @@ def test_run_in_launch_context_with_artifact_string_used_as_config(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -394,7 +394,7 @@ def test_run_in_launch_context_with_artifacts_api(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -433,7 +433,7 @@ def test_run_in_launch_context_with_artifacts_no_match(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
