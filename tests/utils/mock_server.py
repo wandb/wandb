@@ -9,6 +9,7 @@ import json
 import platform
 import yaml
 import six
+import time
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -709,6 +710,7 @@ def create_app(user_ctx=None):
             if param_config:
                 for c in ctx, run_ctx:
                     c.setdefault("config", []).append(json.loads(param_config))
+                run_ctx["config_updated"] = time.time()
 
             param_summary = body["variables"].get("summaryMetrics")
             if param_summary:
@@ -1518,9 +1520,14 @@ index 30d74d2..9a2c773 100644
     def file_stream(entity, project, run):
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
+        data = request.get_json()
         for c in ctx, run_ctx:
             c["file_stream"] = c.get("file_stream", [])
-            c["file_stream"].append(request.get_json())
+            c["file_stream"].append(data)
+
+        if "log_checkpoint_name" in data:
+            run_ctx["checkpoint_logged"] = time.time()
+
         response = json.dumps({"exitcode": None, "limits": {}})
 
         inject = InjectRequestsParse(ctx).find(request=request)

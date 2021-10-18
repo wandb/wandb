@@ -465,3 +465,61 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     assert "saveFile" in server_ctx["file_bytes"].keys()
     # TODO: bug sometimes it seems that on windows the first file is sent twice
     assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
+
+
+@pytest.mark.parametrize("log_history_first", [True, False])
+def test_log_checkpoint(live_mock_server, test_settings, log_history_first):
+    run = wandb.init(settings=test_settings)
+
+    if log_history_first:
+        for i in range(5):
+            run.log({"a": i})
+
+    run.log_checkpoint("checkpoint")
+
+    for _ in range(5):
+        ctx = live_mock_server.get_ctx()
+        fs = ctx.get("file_stream", [])
+        for rec in fs:
+            if (
+                "log_checkpoint_name" in rec
+                and rec["log_checkpoint_name"] == "checkpoint"
+            ):
+                return
+        time.sleep(1)
+    assert False
+
+
+def test_log_checkpoint_config_race(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+
+    # check that the config is updated before the checkpoint is logged
+    run.config.abcd = 1234
+    run.config.qqqq = 4444
+    run.log_checkpoint("test_chkpt")
+
+    for _ in range(5):
+        ctx = live_mock_server.get_ctx()
+        fs = ctx.get("file_stream", [])
+        run_ctx = ctx.get("runs", {}).get(run.id, {})
+
+        if fs and run_ctx:
+            config = run_ctx.get("config", [])
+            if len(config) > 0:
+                config = config[-1]
+                checkpoint_logged = run_ctx.get("checkpoint_logged", None)
+                config_updated = run_ctx.get("config_updated", None)
+
+                if (
+                    "abcd" in config
+                    and "qqqq" in config
+                    and checkpoint_logged
+                    and config_updated
+                ):
+                    assert "value" in config["abcd"] and config["abcd"]["value"] == 1234
+                    assert "value" in config["qqqq"] and config["qqqq"]["value"] == 4444
+                    assert checkpoint_logged > config_updated
+                    return
+
+        time.sleep(1)
+    assert False

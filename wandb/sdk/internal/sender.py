@@ -191,30 +191,9 @@ class SendManager(object):
             self._fs.enqueue_preempting()
 
     def send_checkpoint(self, record):
-        # result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self.debounce()  # flush config updates, if any, before logging checkpoint
         if self._fs:
-            self._fs.enqueue_log_checkpoint(record.checkpoint.name)
-            # fs_response = self._fs.dequeue_log_checkpoint_result()
-            """
-            assert "checkpoint" in fs_response and fs_response["checkpoint"]
-            cp_result = wandb_internal_pb2.CheckpointResult()
-            json_format.Parse(json.dumps(fs_response["checkpoint"]), cp_result)
-            result.checkpoint_result.CopyFrom(cp_result)
-            self._result_q.put(result)
-            """
-
-    """
-    def send_resume_checkpoint(self, record):
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        if self._fs:
-            self._fs.enqueue_resume_checkpoint(record.resume_checkpoint.name)
-            fs_response = self._fs.dequeue_resume_checkpoint_result()
-            assert "resumed" in fs_response and fs_response["resumed"]
-            rcp_result = wandb_internal_pb2.ResumeCheckpointResult()
-            json_format.Parse(json.dumps(fs_response["resumed"]), rcp_result)
-            result.resume_checkpoint_result.CopyFrom(rcp_result)
-            self._result_q.put(result)
-    """
+            self._fs.log_checkpoint(record.checkpoint.name)
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")

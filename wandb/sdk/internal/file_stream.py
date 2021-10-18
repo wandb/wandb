@@ -299,6 +299,7 @@ class FileStreamApi(object):
                     else:
                         uploaded = set()
                         self._handle_response(response)
+                        self._resume_checkpoint_result_q.put(response)
 
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
@@ -424,31 +425,13 @@ class FileStreamApi(object):
     def enqueue_preempting(self):
         self._queue.put(self.Preempting())
 
-    def enqueue_log_checkpoint(self, name: str):
+    def log_checkpoint(self, name: str):
         self._queue.put(self.LogCheckpoint(name))
-
-    """
-    def enqueue_resume_from_checkpoint(self, name: str):
-        self._queue.put(self.ResumeCheckpoint(name))
-    """
-
-    """
-    def dequeue_log_checkpoint_result(self):
         r = list()
         while len(r) == 0:
             r = util.read_many_from_queue(
                 self._log_checkpoint_result_q, 1, self.rate_limit_seconds()
             )
-        return r[0]
-
-    def dequeue_resume_checkpoint_result(self):
-        r = list()
-        while len(r) == 0:
-            r = util.read_many_from_queue(
-                self._resume_checkpoint_result_q, 1, self.rate_limit_seconds()
-            )
-        return r[0]
-    """
 
     def push(self, filename, data):
         """Push a chunk of a file to the streaming endpoint.
