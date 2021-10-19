@@ -521,13 +521,16 @@ def test_log_checkpoint_config_race(live_mock_server, test_settings):
                     and "ssss" in config
                     and checkpoint_logged
                     and config_updated
+                    and len(config_updated) == 3
                     and config_logged_at_checkpoint
                 ):
 
                     for c in [config_logged_at_checkpoint, config]:
                         assert "value" in c["abcd"] and c["abcd"]["value"] == 1234
                         assert "value" in c["qqqq"] and c["qqqq"]["value"] == 4444
-                    assert checkpoint_logged > config_updated
+                    assert (
+                        config_updated[2] > checkpoint_logged > config_updated[1]
+                    )  # checkpoint logged between two config updates
                     assert "ssss" not in config_logged_at_checkpoint
                     assert (
                         "value" in config["ssss"] and config["ssss"]["value"] == "that"

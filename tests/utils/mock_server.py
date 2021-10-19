@@ -710,7 +710,7 @@ def create_app(user_ctx=None):
             if param_config:
                 for c in ctx, run_ctx:
                     c.setdefault("config", []).append(json.loads(param_config))
-                run_ctx["config_updated"] = time.time()
+                run_ctx.setdefault("config_updated", []).append(time.time())
 
             param_summary = body["variables"].get("summaryMetrics")
             if param_summary:

@@ -299,7 +299,7 @@ class FileStreamApi(object):
                     else:
                         uploaded = set()
                         self._handle_response(response)
-                        self._resume_checkpoint_result_q.put(response)
+                    self._log_checkpoint_result_q.put(response)
 
                 elif isinstance(item, self.PushSuccess):
                     uploaded.add(item.save_name)
@@ -308,22 +308,6 @@ class FileStreamApi(object):
                     ready_chunks.append(item)
 
             cur_time = time.time()
-
-            """
-            if (
-                ready_chunks
-                and log_checkpoint_name is not None
-                and not (
-                    finished or cur_time - posted_data_time > self.rate_limit_seconds()
-                )
-            ):
-                # wait until rate limit expires to force a send of current ready chunks if we are logging
-                # a checkpoint. this ensures that the checkpoint is sent after all previous ready chunks are sent and
-                # not after any subsequent ready chunks are sent, which would cause the wrong checkpoint state
-                # on the backend.
-                time.sleep(self.rate_limit_seconds() - (cur_time - posted_data_time))
-                cur_time = time.time()
-            """
 
             if ready_chunks and (
                 finished or cur_time - posted_data_time > self.rate_limit_seconds()
