@@ -1,3 +1,26 @@
+## 0.12.4 (October 5, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression introduced in 0.12.2 causing network access when `WANDB_MODE=offline`
+
+## 0.12.3 (September 30, 2021)
+
+#### :bug: Bug Fix
+
+- Fixes the grid search stopping condition in the local controller
+
+#### :nail_care: Enhancement
+
+- New jupyter magic for displaying runs, sweeps, and projects `%wandb path/to/run -h 1024`
+- We no longer display run iframe by default in jupyter, add `%%wandb` to a cell to display a run
+- Makes api key prompting retry indefinitely on malformed input
+- Invite users to teams via the api `api.team("team_name").invite("username_or_email")`
+- Remove users from a team via the api `api.team("team_name").members[0].delete()`
+- Create service accounts via the api `api.team("team_name").create_service_account("Description")`
+- Manage api keys via the api `api.user("username_or_email").generate_api_key()`
+- Add pytorch profiling trace support with `wandb.profiler.torch_trace_handler()`
+
 ## 0.12.2 (September 15, 2021)
 
 #### :bug: Bug Fix

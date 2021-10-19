@@ -16,9 +16,11 @@ import logging
 import os
 import sys
 import threading
+from typing import Optional
 
 import wandb
 
+from . import wandb_manager
 from . import wandb_settings
 from .lib import config_util, server
 
@@ -74,12 +76,15 @@ class _EarlyLogger(object):
 class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
+    _manager: Optional[wandb_manager._Manager]
+
     def __init__(self, settings=None, environ=None):
         self._settings = None
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
         self._server = None
+        self._manager = None
 
         # keep track of multiple runs so we can unwind with join()s
         self._global_run_stack = []
@@ -199,6 +204,8 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
+        self._setup_manager()
+
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
             self._sweep_config = config_util.dict_from_config_file(
@@ -217,6 +224,24 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
                     self._config.update(config_dict)
                 else:
                     self._config = config_dict
+
+    def _teardown(self, exit_code: int = None):
+        exit_code = exit_code or 0
+        self._teardown_manager(exit_code=exit_code)
+
+    def _setup_manager(self) -> None:
+        if not self._settings._require_service:
+            return
+        self._manager = wandb_manager._Manager()
+
+    def _teardown_manager(self, exit_code: int) -> None:
+        if not self._manager:
+            return
+        self._manager._teardown(exit_code)
+        self._manager = None
+
+    def _get_manager(self) -> Optional[wandb_manager._Manager]:
+        return self._manager
 
 
 class _WandbSetup(object):
@@ -237,6 +262,9 @@ class _WandbSetup(object):
 def _setup(settings=None, _reset=None):
     """Setup library context."""
     if _reset:
+        setup_instance = _WandbSetup._instance
+        if setup_instance:
+            setup_instance._teardown()
         _WandbSetup._instance = None
         return
     wl = _WandbSetup(settings=settings)
@@ -246,3 +274,10 @@ def _setup(settings=None, _reset=None):
 def setup(settings=None):
     ret = _setup(settings=settings)
     return ret
+
+
+def teardown(exit_code=None):
+    setup_instance = _WandbSetup._instance
+    if setup_instance:
+        setup_instance._teardown(exit_code=exit_code)
+    _WandbSetup._instance = None

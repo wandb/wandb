@@ -152,7 +152,7 @@ SYMBOLS_RUN = {
     "join",  # deprecate in favor of finish()
     "finish",
     "watch",
-    # "unwatch",  # this is missing, probably should have it or remove the root one
+    "unwatch",
     "config",
     "config_static",
     "log",

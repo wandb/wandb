@@ -521,6 +521,9 @@ class HandleManager(object):
     def handle_request_check_version(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_attach(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
@@ -583,6 +586,9 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_request_network_status(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_request_status(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_request_get_summary(self, record: Record) -> None:

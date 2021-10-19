@@ -4,6 +4,9 @@ Approach was inspired by: https://github.com/johejo/inputimeout
 """
 
 import sys
+import threading
+
+import wandb
 
 SP = " "
 CR = "\r"
@@ -62,7 +65,42 @@ def _windows_timed_input(prompt: str, timeout: float) -> str:
     raise TimeoutError
 
 
-def timed_input(prompt: str, timeout: float, show_timeout: bool = True) -> str:
+def _jupyter_timed_input(prompt: str, timeout: float) -> str:
+    clear = True
+    try:
+        from IPython.core.display import clear_output  # type: ignore
+    except ImportError:
+        clear = False
+        wandb.termwarn(
+            "Unable to clear output, can't import clear_output from ipython.core"
+        )
+
+    _echo(prompt)
+
+    user_inp = None
+    event = threading.Event()
+
+    def get_input() -> None:
+        nonlocal user_inp
+        raw = input()
+        if event.is_set():
+            return
+        user_inp = raw
+
+    t = threading.Thread(target=get_input)
+    t.start()
+    t.join(timeout)
+    event.set()
+    if user_inp:
+        return user_inp
+    if clear:
+        clear_output()
+    raise TimeoutError
+
+
+def timed_input(
+    prompt: str, timeout: float, show_timeout: bool = True, jupyter: bool = False
+) -> str:
     """Behaves like builtin `input()` but adds timeout.
 
     Args:
@@ -75,6 +113,9 @@ def timed_input(prompt: str, timeout: float, show_timeout: bool = True) -> str:
     """
     if show_timeout:
         prompt = f"{prompt}({timeout:.0f} second timeout) "
+    if jupyter:
+        return _jupyter_timed_input(prompt=prompt, timeout=timeout)
+
     return _timed_input(prompt=prompt, timeout=timeout)
 
 

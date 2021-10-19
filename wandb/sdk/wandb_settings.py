@@ -98,6 +98,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     host=None,
     username=None,
     disable_code=None,
+    disable_git=None,
     code_dir=None,
     anonymous=None,
     ignore_globs=None,
@@ -108,6 +109,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    _require_service="WANDB_REQUIRE_SERVICE",
     login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
@@ -219,6 +221,7 @@ class Settings(object):
 
     mode: str = "online"
     start_method: Optional[str] = None
+    _require_service: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     force: Optional[bool] = None
@@ -249,6 +252,9 @@ class Settings(object):
     username: Optional[str]
     email: Optional[str] = None
     save_code: Optional[bool] = None
+    disable_code: Optional[bool] = None
+    disable_git: Optional[bool] = None
+    git_remote: Optional[str] = None
     code_dir: Optional[str] = None
     program_relpath: Optional[str] = None
     program: Optional[str]
@@ -311,6 +317,7 @@ class Settings(object):
         anonymous: str = None,
         mode: str = None,
         start_method: str = None,
+        _require_service: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
@@ -368,6 +375,7 @@ class Settings(object):
         program: str = None,
         notebook_name: str = None,
         disable_code: bool = None,
+        disable_git: bool = None,
         ignore_globs: bool = None,
         save_code: bool = None,
         code_dir: str = None,
@@ -512,6 +520,8 @@ class Settings(object):
             if self._jupyter:
                 console = "wrap"
             elif self.start_method == "thread":
+                console = "wrap"
+            elif self._require_service:
                 console = "wrap"
             elif self._windows:
                 console = "wrap"
@@ -937,6 +947,8 @@ class Settings(object):
             or os.getenv(wandb.env.DISABLE_CODE) is not None
         ):
             u["save_code"] = wandb.env.should_save_code()
+
+        u["disable_git"] = wandb.env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
