@@ -1024,7 +1024,9 @@ def create_app(user_ctx=None):
             }
         if "query Artifact(" in body["query"]:
             if ART_EMU:
-                return ART_EMU.query(variables=body.get("variables", {}))
+                return ART_EMU.query(
+                    variables=body.get("variables", {}), query=body.get("query")
+                )
             art = artifact(
                 ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
             )

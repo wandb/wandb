@@ -25,6 +25,14 @@ service InternalService {
   rpc Output(OutputRecord) returns (OutputResult) {}
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
   rpc Alert(AlertRecord) returns (AlertResult) {}
+  rpc Artifact(ArtifactRecord) returns (ArtifactResult) {}
+
+  // rpc messages for async operations: Send, Poll, Cancel, Release
+  rpc ArtifactSend(ArtifactSendRequest) returns (ArtifactSendResponse) {}
+  rpc ArtifactPoll(ArtifactPollRequest) returns (ArtifactPollResponse) {}
+  // rpc ArtifactCancel(ArtifactCancelRequest) returns (ArtifactCancelResponse) {}
+  // rpc ArtifactRelease(ArtifactReleaseRequest) returns (ArtifactReleaseResponse) {}
+
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Pause(PauseRequest) returns (PauseResponse) {}
   rpc Resume(ResumeRequest) returns (ResumeResponse) {}
