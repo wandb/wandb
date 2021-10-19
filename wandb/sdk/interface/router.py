@@ -15,6 +15,8 @@ import uuid
 from six.moves import queue
 from wandb.proto import wandb_internal_pb2 as pb
 
+from .message_future import MessageFuture
+
 if TYPE_CHECKING:
     from six.moves.queue import Queue
 
@@ -22,13 +24,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-class MessageFuture(object):
-    _object: Optional[pb.Result]
-
+class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:
-        self._object = None
-        self._object_ready = threading.Event()
-        self._lock = threading.Lock()
+        super(MessageFutureObject, self).__init__()
 
     def get(self, timeout: int = None) -> Optional[pb.Result]:
         is_set = self._object_ready.wait(timeout)
@@ -36,13 +34,9 @@ class MessageFuture(object):
             return self._object
         return None
 
-    def _set_object(self, obj: pb.Result) -> None:
-        self._object = obj
-        self._object_ready.set()
-
 
 class MessageRouter(object):
-    _pending_reqs: Dict[str, MessageFuture]
+    _pending_reqs: Dict[str, MessageFutureObject]
     _request_queue: "Queue[pb.Record]"
     _response_queue: "Queue[pb.Result]"
 
@@ -75,7 +69,7 @@ class MessageRouter(object):
         if local:
             rec.control.local = local
         rec.uuid = uuid.uuid4().hex
-        future = MessageFuture()
+        future = MessageFutureObject()
         with self._lock:
             self._pending_reqs[rec.uuid] = future
 
