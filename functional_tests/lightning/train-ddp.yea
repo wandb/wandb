@@ -1,0 +1,14 @@
+id: 0.lightning.ddp
+plugin:
+    - wandb
+command:
+    program: train-ddp.py
+depend:
+    requirements:
+        - torch
+        - git+https://github.com/wandb/pytorch-lightning.git@wandb-service-attach
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary][epoch]: 0
+    - :wandb:runs[0][summary][trainer/global_step]: 0
+    - :wandb:runs[0][exitcode]: 0
