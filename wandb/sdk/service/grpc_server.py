@@ -388,6 +388,33 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.RunPreemptingResult()
         return result
 
+    def Artifact(  # noqa: N802
+        self, art_data: pb.ArtifactRecord, context: grpc.ServicerContext
+    ) -> pb.ArtifactResult:
+        stream_id = art_data._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_artifact(art_data)
+        result = pb.ArtifactResult()
+        return result
+
+    def ArtifactSend(  # noqa: N802
+        self, art_send: pb.ArtifactSendRequest, context: grpc.ServicerContext
+    ) -> pb.ArtifactSendResponse:
+        stream_id = art_send._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        resp = iface._communicate_artifact_send(art_send)
+        assert resp
+        return resp
+
+    def ArtifactPoll(  # noqa: N802
+        self, art_poll: pb.ArtifactPollRequest, context: grpc.ServicerContext
+    ) -> pb.ArtifactPollResponse:
+        stream_id = art_poll._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        resp = iface._communicate_artifact_poll(art_poll)
+        assert resp
+        return resp
+
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext
     ) -> pb.TBResult:
