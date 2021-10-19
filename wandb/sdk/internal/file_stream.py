@@ -155,7 +155,6 @@ class FileStreamApi(object):
     Finish = collections.namedtuple("Finish", ("exitcode",))
     Preempting = collections.namedtuple("Preempting", ())
     LogCheckpoint = collections.namedtuple("LogCheckpoint", ("name",))
-    # ResumeCheckpoint = collections.namedtuple("ResumeCheckpoint", ("name",))
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
@@ -184,7 +183,6 @@ class FileStreamApi(object):
         self._dropped_chunks = 0
         self._queue = queue.Queue()
         self._log_checkpoint_result_q = queue.Queue()
-        self._resume_checkpoint_result_q = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
@@ -376,7 +374,6 @@ class FileStreamApi(object):
                 limits = parsed.get("limits")
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
-            return parsed
 
     def _send(self, chunks):
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of

@@ -831,7 +831,7 @@ class Api(object):
                     id
                     name
                 }
-    
+
                 bucket(name: $name, missingOk: true) {
                     id
                     name
