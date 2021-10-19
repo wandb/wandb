@@ -11,6 +11,7 @@ import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
+from wandb.apis import public
 from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import Error as ExecutionError, LaunchError
@@ -145,35 +146,49 @@ class LaunchProject(object):
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
-    def _fetch_project_local(self, api: Api) -> None:
+    def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         parsed_uri = self.uri
         if utils._is_wandb_uri(self.uri):
-            run_info = utils.fetch_wandb_project_run_info(self.uri, api)
-            if not run_info["git"]:
-                raise ExecutionError("Run must have git repo associated")
-            utils._fetch_git_repo(
-                self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
-            )
-            patch = utils.fetch_project_diff(self.uri, api)
-
-            if patch:
-                utils.apply_patch(patch, self.project_dir)
+            downloaded_code_artifact = False
+            run_info = utils.fetch_wandb_project_run_info(self.uri, internal_api)
             entry_point = run_info.get("codePath", run_info["program"])
-            # For cases where the entry point wasn't checked into git
-            if not os.path.exists(os.path.join(self.project_dir, entry_point)):
-                downloaded_entrypoint = utils.download_entry_point(
-                    self.uri, api, entry_point, self.project_dir
+            public_api = wandb.PublicApi(
+                overrides={"base_url": internal_api.settings("base_url")}
+            )
+            run_artifacts = public_api.logged_artifacts(parsed_uri)
+            for artifact in run_artifacts:
+                if artifact.type == "code":
+                    artifact.download(self.project_dir)
+                    downloaded_code_artifact = True
+                    self.build_image = True
+                    break
+            if not downloaded_code_artifact:
+                if not run_info["git"]:
+                    raise ExecutionError("Run must have git repo associated")
+                utils._fetch_git_repo(
+                    self.project_dir,
+                    run_info["git"]["remote"],
+                    run_info["git"]["commit"],
                 )
-                if not downloaded_entrypoint:
-                    raise LaunchError(
-                        f"Entrypoint: {entry_point} does not exist, "
-                        "and could not be downloaded. Please specify the entrypoint for this run."
+                patch = utils.fetch_project_diff(self.uri, internal_api)
+
+                if patch:
+                    utils.apply_patch(patch, self.project_dir)
+                # For cases where the entry point wasn't checked into git
+                if not os.path.exists(os.path.join(self.project_dir, entry_point)):
+                    downloaded_entrypoint = utils.download_entry_point(
+                        self.uri, internal_api, entry_point, self.project_dir
                     )
-                # if the entrypoint is downloaded and inserted into the project dir
-                # need to rebuild image with new code
-                self.build_image = True
+                    if not downloaded_entrypoint:
+                        raise LaunchError(
+                            f"Entrypoint: {entry_point} does not exist, "
+                            "and could not be downloaded. Please specify the entrypoint for this run."
+                        )
+                    # if the entrypoint is downloaded and inserted into the project dir
+                    # need to rebuild image with new code
+                    self.build_image = True
 
             if entry_point.endswith("ipynb"):
                 entry_point = utils.convert_jupyter_notebook_to_script(
@@ -181,7 +196,7 @@ class LaunchProject(object):
                 )
 
             # Download any frozen requirements
-            utils.download_wandb_python_deps(self.uri, api, self.project_dir)
+            utils.download_wandb_python_deps(self.uri, internal_api, self.project_dir)
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
 
@@ -345,7 +360,7 @@ def fetch_and_validate_project(
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
             launch_project.add_entry_point("main.py")
     else:
-        launch_project._fetch_project_local(api=api)
+        launch_project._fetch_project_local(internal_api=api)
     first_entry_point = list(launch_project._entry_points.keys())[0]
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
         launch_project.override_args
