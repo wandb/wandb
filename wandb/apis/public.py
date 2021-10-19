@@ -27,7 +27,6 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -582,7 +581,7 @@ class Api(object):
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path="", filters=None, order="-created_at", per_page=50):
+    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
@@ -629,7 +628,7 @@ class Api(object):
         """
         entity, project = self._parse_project_path(path)
         filters = filters or {}
-        key = path + str(filters) + str(order)
+        key = (path or "") + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
                 self.client,
@@ -2026,7 +2025,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return util.load_yaml(self._attrs["config"])
 
     def load(self, force=False):
         if force or not self._attrs:
@@ -3516,12 +3515,31 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
-    def delete(self):
-        """Delete artifact and its files."""
+    def delete(self, delete_aliases=False):
+        """
+        Delete an artifact and its files.
+
+        Examples:
+            Delete all the "model" artifacts a run has logged:
+            ```
+            runs = api.runs(path="my_entity/my_project")
+            for run in runs:
+                for artifact in run.logged_artifacts():
+                    if artifact.type == "model":
+                        artifact.delete(delete_aliases=True)
+            ```
+
+        Arguments:
+            delete_aliases: (bool) If true, deletes all aliases associated with the artifact.
+                Otherwise, this raises an exception if the artifact has existing alaises.
+        """
         mutation = gql(
             """
-        mutation deleteArtifact($id: ID!) {
-            deleteArtifact(input: {artifactID: $id}) {
+        mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+            deleteArtifact(input: {
+                artifactID: $artifactID
+                deleteAliases: $deleteAliases
+            }) {
                 artifact {
                     id
                 }
@@ -3530,7 +3548,8 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
         )
         return True
 
