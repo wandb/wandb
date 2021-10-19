@@ -32,7 +32,8 @@ from wandb.util import (
 
 from . import summary_record as sr
 from .artifacts import ArtifactManifest
-from .router import MessageFuture, MessageRouter
+from .message_future import MessageFuture
+from .router import MessageRouter
 from ..wandb_artifacts import Artifact
 
 if TYPE_CHECKING:
@@ -430,6 +431,22 @@ class BackendSenderBase(object):
     ) -> MessageFuture:
         raise NotImplementedError
 
+    @abstractmethod
+    def _communicate_artifact_send(
+        self, artifact_send: pb.ArtifactSendRequest
+    ) -> Optional[pb.ArtifactSendResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _communicate_artifact_poll(
+        self, art_poll: pb.ArtifactPollRequest
+    ) -> Optional[pb.ArtifactPollResponse]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
+        raise NotImplementedError
+
     def publish_artifact(
         self,
         run: "Run",
@@ -671,6 +688,9 @@ class BackendSender(BackendSenderBase):
         log_artifact: pb.LogArtifactRequest = None,
         defer: pb.DeferRequest = None,
         attach: pb.AttachRequest = None,
+        artifact_send: pb.ArtifactSendRequest = None,
+        artifact_poll: pb.ArtifactPollRequest = None,
+        artifact_done: pb.ArtifactDoneRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -701,6 +721,12 @@ class BackendSender(BackendSenderBase):
             request.defer.CopyFrom(defer)
         elif attach:
             request.attach.CopyFrom(attach)
+        elif artifact_send:
+            request.artifact_send.CopyFrom(artifact_send)
+        elif artifact_poll:
+            request.artifact_poll.CopyFrom(artifact_poll)
+        elif artifact_done:
+            request.artifact_done.CopyFrom(artifact_done)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -908,6 +934,30 @@ class BackendSender(BackendSenderBase):
     def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
         rec = self._make_request(log_artifact=log_artifact)
         return self._communicate_async(rec)
+
+    def _communicate_artifact_send(
+        self, artifact_send: pb.ArtifactSendRequest
+    ) -> Optional[pb.ArtifactSendResponse]:
+        rec = self._make_request(artifact_send=artifact_send)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        artifact_send_resp = result.response.artifact_send_response
+        return artifact_send_resp
+
+    def _communicate_artifact_poll(
+        self, artifact_poll: pb.ArtifactPollRequest
+    ) -> Optional[pb.ArtifactPollResponse]:
+        rec = self._make_request(artifact_poll=artifact_poll)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        artifact_poll_resp = result.response.artifact_poll_response
+        return artifact_poll_resp
+
+    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
+        rec = self._make_request(artifact_done=artifact_done)
+        self._publish(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         rec = self._make_record(artifact=proto_artifact)

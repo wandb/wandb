@@ -86,6 +86,18 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.AlertRecord,
     ) -> wandb.proto.wandb_internal_pb2.AlertResult: ...
 
+    def Artifact(self,
+        request: wandb.proto.wandb_internal_pb2.ArtifactRecord,
+    ) -> wandb.proto.wandb_internal_pb2.ArtifactResult: ...
+
+    def ArtifactSend(self,
+        request: wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
+    ) -> wandb.proto.wandb_internal_pb2.ArtifactSendResponse: ...
+
+    def ArtifactPoll(self,
+        request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
+    ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
+
     def CheckVersion(self,
         request: wandb.proto.wandb_internal_pb2.CheckVersionRequest,
     ) -> wandb.proto.wandb_internal_pb2.CheckVersionResponse: ...
@@ -245,6 +257,24 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.AlertRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.AlertResult: ...
+
+    @abc.abstractmethod
+    def Artifact(self,
+        request: wandb.proto.wandb_internal_pb2.ArtifactRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ArtifactResult: ...
+
+    @abc.abstractmethod
+    def ArtifactSend(self,
+        request: wandb.proto.wandb_internal_pb2.ArtifactSendRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ArtifactSendResponse: ...
+
+    @abc.abstractmethod
+    def ArtifactPoll(self,
+        request: wandb.proto.wandb_internal_pb2.ArtifactPollRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.ArtifactPollResponse: ...
 
     @abc.abstractmethod
     def CheckVersion(self,

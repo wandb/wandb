@@ -6,6 +6,7 @@ Manage backend sender.
 """
 
 import logging
+import time
 from typing import Any, Optional
 from typing import TYPE_CHECKING
 
@@ -15,7 +16,7 @@ from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 from .interface import BackendSenderBase
-from .router import MessageFuture
+from .message_future import MessageFuture
 
 
 if TYPE_CHECKING:
@@ -23,6 +24,41 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("wandb")
+
+
+class MessageFuturePoll(MessageFuture):
+    _fn: Any
+    _xid: str
+
+    def __init__(self, fn: Any, xid: str) -> None:
+        super(MessageFuturePoll, self).__init__()
+        self._fn = fn
+        self._xid = xid
+
+    def get(self, timeout: int = None) -> Optional[pb.Result]:
+        self._poll(timeout=timeout)
+        if self._object_ready.is_set():
+            return self._object
+        return None
+
+    def _poll(self, timeout: int = None) -> None:
+        if self._object_ready.is_set():
+            return
+        done = False
+        start_time = time.time()
+        sleep_time = 0.5
+        while not done:
+            result = self._fn(xid=self._xid)
+            if result:
+                self._set_object(result)
+                done = True
+                continue
+            now_time = time.time()
+            if timeout and start_time - now_time > timeout:
+                done = True
+                continue
+            time.sleep(sleep_time)
+            sleep_time = min(sleep_time * 2, 5)
 
 
 class BackendGrpcSender(BackendSenderBase):
@@ -154,18 +190,56 @@ class BackendGrpcSender(BackendSenderBase):
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         assert self._stub
-        # TODO: implement
+        self._assign(proto_artifact)
+        _ = self._stub.Artifact(proto_artifact)
 
     def _communicate_artifact(
         self, log_artifact: pb.LogArtifactRequest
     ) -> MessageFuture:
+        art_send = pb.ArtifactSendRequest()
+        art_send.artifact.CopyFrom(log_artifact.artifact)
+
         assert self._stub
-        self._assign(log_artifact)
-        # TODO: implement
-        dummy = pb.Result()
-        future = MessageFuture()
-        future._set_object(dummy)
+        self._assign(art_send)
+        art_send_resp = self._stub.ArtifactSend(art_send)
+
+        xid = art_send_resp.xid
+        future = MessageFuturePoll(self._future_poll_artifact, xid)
         return future
+
+    def _future_poll_artifact(self, xid: str) -> Optional[pb.Result]:
+        art_poll = pb.ArtifactPollRequest(xid=xid)
+
+        assert self._stub
+        self._assign(art_poll)
+        art_poll_resp = self._stub.ArtifactPoll(art_poll)
+
+        if not art_poll_resp.ready:
+            return None
+
+        # emulate log_artifact response for old _communicate_artifact() protocol
+        result = pb.Result()
+        result.response.log_artifact_response.artifact_id = art_poll_resp.artifact_id
+        result.response.log_artifact_response.error_message = (
+            art_poll_resp.error_message
+        )
+        return result
+
+    def _communicate_artifact_send(
+        self, art_send: pb.ArtifactSendRequest
+    ) -> Optional[pb.ArtifactSendResponse]:
+        # NOTE: Not used in grpc interface now
+        raise NotImplementedError
+
+    def _communicate_artifact_poll(
+        self, art_send: pb.ArtifactPollRequest
+    ) -> Optional[pb.ArtifactPollResponse]:
+        # NOTE: Not used in grpc interface now
+        raise NotImplementedError
+
+    def _publish_artifact_done(self, artifact_done: pb.ArtifactDoneRequest) -> None:
+        # NOTE: Not used in grpc interface now
+        raise NotImplementedError
 
     def _communicate_status(
         self, status: pb.StatusRequest

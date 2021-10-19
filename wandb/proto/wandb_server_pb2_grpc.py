@@ -111,6 +111,21 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertResult.FromString,
                 )
+        self.Artifact = channel.unary_unary(
+                '/wandb_internal.InternalService/Artifact',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactResult.FromString,
+                )
+        self.ArtifactSend = channel.unary_unary(
+                '/wandb_internal.InternalService/ArtifactSend',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.FromString,
+                )
+        self.ArtifactPoll = channel.unary_unary(
+                '/wandb_internal.InternalService/ArtifactPoll',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
+                )
         self.CheckVersion = channel.unary_unary(
                 '/wandb_internal.InternalService/CheckVersion',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckVersionRequest.SerializeToString,
@@ -285,6 +300,25 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Artifact(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ArtifactSend(self, request, context):
+        """rpc messages for async operations: Send, Poll, Cancel, Release
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ArtifactPoll(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def CheckVersion(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -448,6 +482,21 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.Alert,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertResult.SerializeToString,
+            ),
+            'Artifact': grpc.unary_unary_rpc_method_handler(
+                    servicer.Artifact,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactResult.SerializeToString,
+            ),
+            'ArtifactSend': grpc.unary_unary_rpc_method_handler(
+                    servicer.ArtifactSend,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.SerializeToString,
+            ),
+            'ArtifactPoll': grpc.unary_unary_rpc_method_handler(
+                    servicer.ArtifactPoll,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.SerializeToString,
             ),
             'CheckVersion': grpc.unary_unary_rpc_method_handler(
                     servicer.CheckVersion,
@@ -834,6 +883,57 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Alert',
             wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.AlertResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Artifact(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Artifact',
+            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactRecord.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ArtifactSend(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ArtifactSend',
+            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactSendResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ArtifactPoll(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ArtifactPoll',
+            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.ArtifactPollResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
