@@ -2639,12 +2639,8 @@ class Run(object):
 
     def log_checkpoint(self, name: str) -> None:
         """Logs current runstate as an artifact checkpoint."""
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_checkpoint(name)
-            """
-            assert rec
-            print(f"created checkpoint {rec}")
-            """
 
 
 # We define this outside of the run context to support restoring before init

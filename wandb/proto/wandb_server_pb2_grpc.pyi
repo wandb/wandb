@@ -78,6 +78,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_telemetry_pb2.TelemetryRecord,
     ) -> wandb.proto.wandb_telemetry_pb2.TelemetryResult: ...
 
+    def Checkpoint(self,
+        request: wandb.proto.wandb_internal_pb2.CheckpointRecord,
+    ) -> wandb.proto.wandb_internal_pb2.CheckpointResult: ...
+
     def Alert(self,
         request: wandb.proto.wandb_internal_pb2.AlertRecord,
     ) -> wandb.proto.wandb_internal_pb2.AlertResult: ...
@@ -229,6 +233,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_telemetry_pb2.TelemetryRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_telemetry_pb2.TelemetryResult: ...
+
+    @abc.abstractmethod
+    def Checkpoint(self,
+        request: wandb.proto.wandb_internal_pb2.CheckpointRecord,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.CheckpointResult: ...
 
     @abc.abstractmethod
     def Alert(self,

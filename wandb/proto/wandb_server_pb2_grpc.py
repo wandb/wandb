@@ -101,6 +101,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
                 )
+        self.Checkpoint = channel.unary_unary(
+                '/wandb_internal.InternalService/Checkpoint',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckpointRecord.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckpointResult.FromString,
+                )
         self.Alert = channel.unary_unary(
                 '/wandb_internal.InternalService/Alert',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AlertRecord.SerializeToString,
@@ -268,6 +273,12 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Checkpoint(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Alert(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -427,6 +438,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.Telemetry,
                     request_deserializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.SerializeToString,
+            ),
+            'Checkpoint': grpc.unary_unary_rpc_method_handler(
+                    servicer.Checkpoint,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckpointRecord.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.CheckpointResult.SerializeToString,
             ),
             'Alert': grpc.unary_unary_rpc_method_handler(
                     servicer.Alert,
@@ -784,6 +800,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Telemetry',
             wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryRecord.SerializeToString,
             wandb_dot_proto_dot_wandb__telemetry__pb2.TelemetryResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Checkpoint(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Checkpoint',
+            wandb_dot_proto_dot_wandb__internal__pb2.CheckpointRecord.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.CheckpointResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

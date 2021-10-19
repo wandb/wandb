@@ -417,6 +417,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.SummaryResult()
         return result
 
+    def Checkpoint(  # noqa: N802
+        self, checkpoint: pb.CheckpointRecord, context: grpc.ServicerContext
+    ) -> pb.CheckpointResult:
+        stream_id = checkpoint._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_checkpoint(checkpoint)
+        result = pb.CheckpointResult()
+        return result
+
     def Telemetry(  # noqa: N802
         self, telem: tpb.TelemetryRecord, context: grpc.ServicerContext
     ) -> tpb.TelemetryResult:

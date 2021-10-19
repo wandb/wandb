@@ -111,6 +111,19 @@ def test_resume_must_failure(live_mock_server, test_settings):
     assert "resume='must' but run" in e.value.message
 
 
+def test_resume_from_checkpoint(live_mock_server, test_settings):
+    live_mock_server.set_ctx({"resume": True})
+    run = wandb.init(settings=test_settings)
+    for i in range(5):
+        run.log({"a": i})
+    run.log_checkpoint("test-checkpoint")
+    for i in range(5):
+        run.log({"a": i})
+    run.finish()
+    run = wandb.init(resume_from_checkpoint="test-checkpoint", settings=test_settings)
+    assert run.step == 5
+
+
 def test_resume_never_failure(live_mock_server, test_settings):
     # TODO: this test passes independently but fails in the suite
     live_mock_server.set_ctx({"resume": True})

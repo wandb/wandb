@@ -541,7 +541,6 @@ class _WandbInit(object):
             if s.resume_from_checkpoint:
                 run._checkpoint = s.resume_from_checkpoint
 
-
             # Using GitRepo() blocks & can be slow, depending on user's current git setup.
             # We don't want to block run initialization/start request, so populate run's git
             # info beforehand.

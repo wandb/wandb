@@ -9,6 +9,7 @@ import random
 import requests
 import threading
 import time
+from typing import List, Any
 
 import wandb
 from wandb import util
@@ -411,7 +412,7 @@ class FileStreamApi(object):
 
     def log_checkpoint(self, name: str):
         self._queue.put(self.LogCheckpoint(name))
-        r = list()
+        r: List[Any] = list()
         while len(r) == 0:
             r = util.read_many_from_queue(
                 self._log_checkpoint_result_q, 1, self.rate_limit_seconds()

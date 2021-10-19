@@ -24,6 +24,7 @@ service InternalService {
   rpc Files(FilesRecord) returns (FilesResult) {}
   rpc Output(OutputRecord) returns (OutputResult) {}
   rpc Telemetry(TelemetryRecord) returns (TelemetryResult) {}
+  rpc Checkpoint(CheckpointRecord) returns (CheckpointResult) {}
   rpc Alert(AlertRecord) returns (AlertResult) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Pause(PauseRequest) returns (PauseResponse) {}

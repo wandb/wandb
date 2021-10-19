@@ -81,6 +81,7 @@ def default_ctx():
         "launch_agent_update_fail": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
+        "checkpoints": {},
     }
 
 
@@ -803,16 +804,37 @@ def create_app(user_ctx=None):
                     "sweepName"
                 ] = "test-sweep-id"
             return json.dumps(response)
-        if "mutation DeleteRun(" in body["query"]:
-            return json.dumps({"data": {}})
-        if "mutation CreateAnonymousApiKey " in body["query"]:
+        if "mutation ResumeFromCheckpoint(" in body["query"]:
+            checkpoints = ctx.get("checkpoints", {})
+            cpname = body["variables"]["checkpoint"]
+            if cpname not in checkpoints:
+                raise HttpException("no such checkpoint", status_code=400)
+            run_name = checkpoints[cpname]
+            keys_info = {
+                "lastStep": 4,
+            }
             return json.dumps(
                 {
                     "data": {
-                        "createAnonymousEntity": {"apiKey": {"name": "ANONYMOOSE" * 4}}
+                        "resumeFromCheckpoint": {
+                            "checkpoint": {
+                                "name": cpname,
+                                "runName": run_name,
+                                "keysInfo": json.dumps(keys_info),
+                            },
+                            "task": {"id": 0},
+                        }
                     }
                 }
             )
+        if "mutation DeleteRun(" in body["query"]:
+            return json.dumps({"data": {}})
+        if "mutation CreateAnonymousApiKey " in body["query"]:
+            return {
+                "data": {
+                    "createAnonymousEntity": {"apiKey": {"name": "ANONYMOOSE" * 4}}
+                }
+            }
         if "mutation DeleteFiles(" in body["query"]:
             return json.dumps({"data": {"deleteFiles": {"success": True}}})
         if "mutation PrepareFiles(" in body["query"]:
@@ -1260,6 +1282,10 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "query Task(" in body["query"]:
+            return json.dumps(
+                {"data": {"task": {"state": "FINISHED", "progress": 100}}}
+            )
         if "stopped" in body["query"]:
             return json.dumps(
                 {
@@ -1645,6 +1671,12 @@ index 30d74d2..9a2c773 100644
             run_ctx["config_logged_in_checkpoint"] = run_ctx.get("config", [{}])[
                 -1
             ].copy()
+            cpname = data["log_checkpoint_name"]
+            if cpname in ctx["checkpoints"]:
+                raise HttpException(
+                    f"checkpoint with name {cpname} already exists", status_code=409
+                )
+            ctx["checkpoints"][cpname] = run
 
         response = json.dumps({"exitcode": None, "limits": {}})
 
@@ -1762,7 +1794,7 @@ class ParseCTX(object):
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                if k == u"output.log":
+                if k == "output.log":
                     lines = content
                 else:
                     lines = map(json.loads, content)

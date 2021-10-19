@@ -92,6 +92,11 @@ class BackendGrpcSender(BackendSenderBase):
         self._assign(summary)
         _ = self._stub.Summary(summary)
 
+    def _publish_checkpoint(self, checkpoint: pb.CheckpointRecord) -> None:
+        assert self._stub
+        self._assign(checkpoint)
+        _ = self._stub.Checkpoint(checkpoint)
+
     def _communicate_get_summary(
         self, get_summary: pb.GetSummaryRequest
     ) -> Optional[pb.GetSummaryResponse]:

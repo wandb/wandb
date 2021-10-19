@@ -582,6 +582,14 @@ class BackendSenderBase(object):
     def _communicate_shutdown(self) -> None:
         raise NotImplementedError
 
+    @abstractmethod
+    def _publish_checkpoint(self, checkpoint: pb.CheckpointRecord) -> None:
+        raise NotImplementedError
+
+    def publish_checkpoint(self, name: str) -> None:
+        checkpoint_rec = pb.CheckpointRecord(name=name)
+        self._publish_checkpoint(checkpoint=checkpoint_rec)
+
 
 class BackendSender(BackendSenderBase):
     record_q: Optional["Queue[pb.Record]"]
@@ -996,9 +1004,8 @@ class BackendSender(BackendSenderBase):
         assert sampled_history_response
         return sampled_history_response
 
-    def publish_checkpoint(self, name: str) -> None:
-        checkpoint_rec = pb.CheckpointRecord(name=name)
-        rec = self._make_record(checkpoint=checkpoint_rec)
+    def _publish_checkpoint(self, checkpoint: pb.CheckpointRecord) -> None:
+        rec = self._make_record(checkpoint=checkpoint)
         self._publish(rec)
 
     def _communicate_shutdown(self) -> None:
