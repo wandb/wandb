@@ -94,7 +94,6 @@ env_settings: Dict[str, Optional[str]] = dict(
     config_paths=None,
     sweep_param_path=None,
     run_id=None,
-    runqueue_item_id=None,
     notebook_name=None,
     host=None,
     username=None,
@@ -115,6 +114,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
+    _runqueue_item_id="WANDB_RUNQUEUE_ITEM_ID",
 )
 
 
@@ -225,7 +225,6 @@ class Settings(object):
     force: Optional[bool] = None
     run_tags: Optional[Tuple] = None
     run_id: Optional[str] = None
-    runqueue_item_id: Optional[str] = None
     sweep_id: Optional[str] = None
     launch: Optional[bool] = None
     launch_config_path: Optional[str] = None
@@ -277,6 +276,7 @@ class Settings(object):
     _start_datetime: Optional[datetime]
     _unsaved_keys: List[str]
     _except_exit: Optional[bool]
+    _runqueue_item_id: Optional[str] = None
 
     # Internal attributes
     __frozen: bool
@@ -315,7 +315,6 @@ class Settings(object):
         run_group: str = None,
         run_job_type: str = None,
         run_id: str = None,
-        runqueue_item_id: str = None,
         run_name: str = None,
         run_notes: str = None,
         resume: str = None,
@@ -412,6 +411,7 @@ class Settings(object):
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
+        _runqueue_item_id: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")

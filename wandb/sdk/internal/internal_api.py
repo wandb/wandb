@@ -13,7 +13,6 @@ import click
 import logging
 import requests
 import sys
-from typing import Dict, List, Tuple
 
 if os.name == "posix" and sys.version_info[0] < 3:
     import subprocess32 as subprocess  # type: ignore
@@ -1103,11 +1102,14 @@ class Api(object):
         """
 
         _, server_info_types = self.server_info_introspection()
-        use_run_queue_item_id = "exposesExplicitRunQueueAckPath" in server_info_types
+        use_run_queue_item_id = (
+            "exposesExplicitRunQueueAckPath" in server_info_types
+            and run_queue_item_id is not None
+        )
 
         mutation_str = mutation_str.replace(
             "__RUNQUEUE_ITEM_ID_ARG_STRING__",
-            "$runQueueItemId: String" if use_run_queue_item_id else "",
+            "$runQueueItemId: ID" if use_run_queue_item_id else "",
         ).replace(
             "__RUNQUEUE_ITEM_ID_BIND_STRING__",
             "runQueueItemId: $runQueueItemId" if use_run_queue_item_id else "",
