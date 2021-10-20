@@ -1241,7 +1241,7 @@ class Api(object):
         _, server_info_types = self.server_info_introspection()
         use_run_queue_item_id = (
             "exposesExplicitRunQueueAckPath" in server_info_types
-            and run_queue_item_id is not None
+            and runqueue_item_id is not None
         )
 
         mutation_str = mutation_str.replace(
