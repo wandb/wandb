@@ -139,11 +139,10 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
-            if launch_project.override_config:
-                with open(
-                    os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
-                ) as fp:
-                    json.dump(launch_project.override_config, fp)
+            with open(
+                os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
+            ) as fp:
+                json.dump(launch_project.launch_spec, fp)
             command_str = command_separator.join(command_args)
 
             wandb.termlog(
