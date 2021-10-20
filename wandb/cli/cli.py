@@ -213,7 +213,8 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         raise ClickException("host must start with http(s)://")
 
     wandb_sdk.wandb_login._handle_host_wandb_setting(host, cloud)
-    key = key[0] if len(key) > 0 else None
+    # A change in click or the test harness means key can be none...
+    key = key[0] if key is not None and len(key) > 0 else None
     if key:
         relogin = True
 
@@ -234,18 +235,27 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
 
 @cli.command(
-    context_settings=CONTEXT, help="Run a grpc server", name="grpc-server", hidden=True
+    context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
-@click.option("--port", default=None, help="The host port to bind grpc service.")
+@click.option("--port", default=None, type=int, help="The host port to bind service.")
+@click.option("--port-filename", default=None, help="Save allocated port to file.")
+@click.option("--address", default=None, help="The address to bind service.")
+@click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
+@click.option("--debug", default=None)
 @display_error
-def grpc_server(project=None, entity=None, port=None):
+def service(
+    port=None, port_filename=None, address=None, pid=None, debug=None,
+):
     _ = util.get_module(
         "grpc",
-        required="grpc-server requires the grpcio library, run pip install wandb[grpc]",
+        required="wandb service requires the grpcio library, run pip install wandb[service]",
     )
-    from wandb.server.grpc_server import main as grpc_server
+    from wandb.sdk.service.grpc_server import GrpcServer
 
-    grpc_server(port=port)
+    server = GrpcServer(
+        port=port, port_fname=port_filename, address=address, pid=pid, debug=debug,
+    )
+    server.serve()
 
 
 @cli.command(
@@ -1102,7 +1112,8 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
         entity = api.default_entity
 
     wandb.termlog("Starting launch agent ✨")
-    wandb_launch.run_agent(entity, project, queues=queues)
+
+    wandb_launch.create_and_run_agent(api, entity, project, queues)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

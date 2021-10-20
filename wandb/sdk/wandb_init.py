@@ -434,7 +434,11 @@ class _WandbInit(object):
 
         logger.info("starting backend")
 
-        backend = Backend(settings=s)
+        manager = self._wl._get_manager()
+        if manager:
+            manager._inform_init(settings=s, run_id=s.run_id)
+
+        backend = Backend(settings=s, manager=manager)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
@@ -506,7 +510,14 @@ class _WandbInit(object):
         # run_synced = None
 
         backend._hack_set_run(run)
+        assert backend.interface
         backend.interface.publish_header()
+
+        # Using GitRepo() blocks & can be slow, depending on user's current git setup.
+        # We don't want to block run initialization/start request, so populate run's git
+        # info beforehand.
+        if not s.disable_git:
+            run._populate_git_info()
 
         if s._offline:
             with telemetry.context(run=run) as tel:
@@ -520,18 +531,20 @@ class _WandbInit(object):
                 )
         else:
             logger.info("communicating current version")
-            ret = backend.interface.communicate_check_version(
+            check = backend.interface.communicate_check_version(
                 current_version=wandb.__version__
             )
-            if ret:
-                logger.info("got version response {}".format(ret))
-                if ret.upgrade_message:
-                    run._set_upgraded_version_message(ret.upgrade_message)
-                if ret.delete_message:
-                    run._set_deleted_version_message(ret.delete_message)
-                if ret.yank_message:
-                    run._set_yanked_version_message(ret.yank_message)
+            if check:
+                logger.info("got version response {}".format(check))
+                if check.upgrade_message:
+                    run._set_upgraded_version_message(check.upgrade_message)
+                if check.delete_message:
+                    run._set_deleted_version_message(check.delete_message)
+                if check.yank_message:
+                    run._set_yanked_version_message(check.yank_message)
             run._on_init()
+
+        if not s._offline:
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
 
@@ -553,6 +566,7 @@ class _WandbInit(object):
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
+            assert ret and ret.run
             if ret.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
@@ -562,6 +576,8 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
+        assert backend.interface
+        assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
 
         self._wl._global_run_stack.append(run)
@@ -604,6 +620,53 @@ def getcaller():
     # src, line, func, stack = logger.findCaller(stack_info=True)
     src, line, func = logger.findCaller()[:3]
     print("Problem at:", src, line, func)
+
+
+def _attach(
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+) -> Union[Run, RunDisabled, None]:
+    """Attach to a run currently executing in another process/thread.
+
+    Arguments:
+        attach_id: (str, optional) The id of the run or an attach identifier
+            that maps to a run.
+        run_id: (str, optional) The id of the run to attach to.
+    """
+    attach_id = attach_id or run_id
+    assert attach_id
+    wandb._assert_is_user_process()
+
+    _wl = wandb_setup._setup()
+
+    _set_logger(_wl._get_logger())
+    assert logger
+
+    manager = _wl._get_manager()
+    if manager:
+        manager._inform_attach(attach_id=attach_id)
+
+    settings: Settings = _wl._clone_settings()
+    settings.run_id = attach_id
+
+    # TODO: consolidate this codepath with wandb.init()
+    backend = Backend(settings=settings, manager=manager)
+    backend.ensure_launched()
+    backend.server_connect()
+    logger.info("attach backend started and connected")
+
+    run = Run(settings=settings)
+    run._set_library(_wl)
+    run._set_backend(backend)
+    backend._hack_set_run(run)
+    assert backend.interface
+
+    resp = backend.interface.communicate_attach(attach_id)
+    if not resp:
+        raise UsageError("problem")
+    if resp and resp.error and resp.error.message:
+        raise UsageError("bad: {}".format(resp.error.message))
+    run._set_run_obj(resp.run)
+    return run
 
 
 def init(
@@ -770,7 +833,6 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
-
 
     Examples:
         Basic usage
