@@ -983,7 +983,9 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
         )
 
 
-def test_cli_login_reprompts_when_no_key_specified(mocker, runner, empty_netrc, local_netrc):
+def test_cli_login_reprompts_when_no_key_specified(
+    mocker, runner, empty_netrc, local_netrc
+):
     with runner.isolated_filesystem():
         mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", input)
         # this first gives login an empty API key, which should cause
