@@ -129,6 +129,8 @@ def prompt_api_key(  # noqa: C901
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
+    elif result == LOGIN_CHOICE_DRYRUN:
+        return None
     else:
         # Jupyter environments don't have a tty, but we can still try logging in using
         # the browser callback if one is supplied.
