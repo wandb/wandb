@@ -40,7 +40,7 @@ def is_dataset(data):
 def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
-    types = (keras.utils.Sequence,)
+    types = (tf.keras.utils.Sequence,)
     iterator_ops = wandb.util.get_module("tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
@@ -117,7 +117,7 @@ def patch_tf_keras():
                 # Graph mode dataset generator
                 def gen():
                     while True:
-                        yield K.get_session().run(val_data)
+                        yield tf.keras.backend.get_session().run(val_data)
 
                 cbk.generator = gen()
             else:
@@ -177,14 +177,13 @@ def _check_keras_version():
         )
 
 
+import tensorflow as tf
+
 if "keras" in sys.modules:
     _check_keras_version()
 else:
     add_import_hook("keras", _check_keras_version)
 
-import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
 
 tf_logger = tf.get_logger()
 
@@ -229,7 +228,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
 ###
 
 
-class WandbCallback(keras.callbacks.Callback):
+class WandbCallback(tf.keras.callbacks.Callback):
     """`WandbCallback` automatically integrates keras with wandb.
 
     Example:
