@@ -1,10 +1,9 @@
 #
-from typing import Dict, Iterable
-import pprint
+from typing import Any, Dict, Iterable
 
 
 def split_files(
-    files: Dict[str, Dict], max_bytes: int = 10 * 1024 * 1024
+    files: Dict[str, Any], max_bytes: int = 10 * 1024 * 1024
 ) -> Iterable[Dict[str, Dict]]:
     """
     Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_BYTES` size.
@@ -13,9 +12,10 @@ def split_files(
 
     Arguments:
     files (dict): `dict` of form {file_name: {'content': ".....", 'offset': 0}}
+                The key `file_name` can also be mapped to a List [{"offset": int, "content": str}]
     `max_bytes`: max size for chunk in bytes
     """
-    current_volume = {}
+    current_volume: Dict[str, Dict] = {}
     current_size = 0
 
     def _str_size(x):
@@ -62,16 +62,6 @@ def split_files(
             files_stack.append(
                 {"name": k, "offset": v["offset"], "content": v["content"]}
             )
-
-    with open("fs-debug-new.log", "a") as f:
-        f.write("\n#### files_stack ####\n")
-        f.write(pprint.pformat(files_stack))
-    """
-    files_stack = [
-        {"name": k, "offset": v["offset"], "content": v["content"]}
-        for k, v in files.items()
-    ]
-    """
 
     while files_stack:
         f = files_stack.pop()

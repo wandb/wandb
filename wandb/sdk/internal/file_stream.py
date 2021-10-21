@@ -9,8 +9,7 @@ import random
 import requests
 import threading
 import time
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
 
 import wandb
 from wandb import util
@@ -20,9 +19,6 @@ import six
 from six.moves import queue
 
 from ..lib import file_stream_utils
-
-import pprint
-
 
 logger = logging.getLogger(__name__)
 
@@ -78,11 +74,10 @@ class SummaryFilePolicy(DefaultFilePolicy):
 @dataclass
 class StreamCRState:
     found_cr: bool = False
-    offset: int = None
-
+    offset = None
     # most recent offsets
-    last_normal: int = None
-    cr: int = None
+    last_normal = None
+    cr = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
@@ -162,10 +157,10 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             for line in logs:
                 stream = self.stderr if prefix.startswith("ERROR ") else self.stdout
                 if line.startswith("\r"):
+                    # any line with \r is going to overwrite a previous offset.
                     offset = stream.cr if stream.found_cr else stream.last_normal or 0
                     stream.cr = offset
                     stream.found_cr = True
-                    # overwrite with \r line
                     console[offset] = prefix + line[1:] + "\n"
 
                     # Usually `logs_str` = "\r progress bar \n" for progress bar updates.
@@ -401,17 +396,6 @@ class FileStreamApi(object):
             if not files[filename]:
                 del files[filename]
 
-            """
-            processed = self._file_policies[filename].process_chunks(file_chunks)
-            if type(processed) is list:
-                repeated[filename] = processed
-            else:
-                files[filename] = processed
-                if not files[filename]:
-                    del files[filename]
-
-            """
-
         for fs in file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES):
             self._handle_response(
                 request_with_retry(
@@ -421,22 +405,6 @@ class FileStreamApi(object):
                     retry_callback=self._api.retry_callback,
                 )
             )
-        """
-        for fn in repeated:
-            for data in repeated[fn]:
-                for fs in file_stream_utils.split_files(
-                    {fn: data}, max_bytes=util.MAX_LINE_BYTES
-                ):
-                    self._handle_response(
-                        request_with_retry(
-                            self._client.post,
-                            self._endpoint,
-                            json={"files": fs, "dropped": self._dropped_chunks},
-                            retry_callback=self._api.retry_callback,
-                        )
-                    )
-
-        """
 
     def stream_file(self, path):
         name = path.split("/")[-1]
@@ -530,10 +498,8 @@ def request_with_retry(func, *args, **kwargs):
             if isinstance(e, requests.exceptions.HTTPError) and (
                 e.response is not None and e.response.status_code == 429
             ):
-                err_str = (
-                    "Filestream rate limit exceeded, retrying in {} seconds".format(
-                        delay
-                    )
+                err_str = "Filestream rate limit exceeded, retrying in {} seconds".format(
+                    delay
                 )
                 if retry_callback:
                     retry_callback(e.response.status_code, err_str)
