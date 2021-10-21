@@ -76,10 +76,13 @@ class SummaryFilePolicy(DefaultFilePolicy):
 
 
 @dataclass
-class Lines:
+class StreamCRState:
+    found_cr: bool = False
     offset: int = None
-    lines: List = field(default_factory=lambda: [])
-    flag: bool = False
+
+    # most recent offsets
+    last_normal: int = None
+    cr: int = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
@@ -90,15 +93,10 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     amount of data we need to send over the network (eg. for progress bars),
     while preserving the output's appearance in the web app.
 
-    We stream chunks (of lines) from user's output logging to online console on the dashboard.
-    The term "offset" refers to the line number on this online console.
-
-    Progress bars (like tqdm) print lines with \r, which tell the terminal to move the cursor
-    back to the start of the current buffer and replace it with the current line.
-
-    When we encounter a line with \r, we freeze its offset. Most likely,
-    there will be future lines which contain \r (progress bar updates) which will replace that line.
-    So we freeze the offset and update with the latest line containing \r.
+    CR stands for "carriage return", for the character \r. It tells the terminal
+    to move the cursor back to the start of the current line. Progress bars
+    (like tqdm) use \r repeatedly to overwrite a line with newer updates.
+    This gives the illusion of the progress bar filling up in real-time.
     """
 
     def __init__(self, start_chunk_id=0):
@@ -107,12 +105,28 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
         self.global_offset = 0
         # cr refers to carriage return \r
-        self.cr_stderr = Lines()
-        self.cr_stdout = Lines()
+        self.stderr = StreamCRState()
+        self.stdout = StreamCRState()
 
-        # TO DELETE
-        self.NEW_FUNCTION_DELETE = True
-        self.DEBUG_FN = "fs-debug-new.log"
+    def get_consecutive_offsets(self, console):
+        """
+        Arguments:
+            console: Dict[int->str] Each offset is mapped to a line.
+            It represents our console dashboard on the UI,
+            with line numbers (offsets) and lines.
+
+        The backend accepts an offset and a series of consecutive lines starting at that offset.
+        We extract this data from `console`.
+        """
+        offsets = sorted(list(console.keys()))
+        intervals = []
+        # example input: offsets = [2, 3, 4, 8, 9, 10, 20]
+        # after for loop: keys = [(2, 4), (8, 10), (20, 20)]
+        for _, group in itertools.groupby(enumerate(offsets), lambda x: x[0] - x[1]):
+            group = list(map(lambda x: x[1], group))
+            item = (group[0], group[-1]) if len(group) > 1 else (group[0], group[0])
+            intervals.append(item)
+        return intervals
 
     def split(self, chunk):
         """
@@ -135,110 +149,42 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest, is_err
 
-    def new_process_chunks(self, chunks):
-        with open(self.DEBUG_FN, "a") as f:
-            f.write("\n################## CRDedupeFilePolicy ########\n")
-            f.write(pprint.pformat(chunks))
-
-        normal = Lines()
+    def process_chunks(self, chunks):
+        # Dict[int->str], each offset (line number) mapped to a line.
+        # Represents our console dashboard on the UI.
+        console = {}
 
         for c in chunks:
-            prefix, rest, _ = self.split(c)
-            lines = rest.split(os.linesep)
-            for line in lines:
-                cr = self.cr_stderr if prefix.startswith("ERROR ") else self.cr_stdout
+            prefix, logs_str, _ = self.split(c)
+            logs = logs_str.split(os.linesep)
+
+            reset = False
+            for line in logs:
+                stream = self.stderr if prefix.startswith("ERROR ") else self.stdout
                 if line.startswith("\r"):
-                    cr.flag = True
-                    # overwrite with the newest \r line
-                    cr.lines = [prefix + line[1:] + "\n"]
-                    if (
-                        normal.offset is not None
-                        and cr.offset == normal.offset + len(normal.lines) - 1
-                    ):
-                        normal.lines.pop()
+                    offset = stream.cr if stream.found_cr else stream.last_normal or 0
+                    stream.cr = offset
+                    stream.found_cr = True
+                    # overwrite with \r line
+                    console[offset] = prefix + line[1:] + "\n"
+
+                    # Usually `logs_str` = "\r progress bar \n" for progress bar updates.
+                    # If instead `logs_str` = "\r progress bar\n something \n something \n",
+                    # treat this as the end of a progress bar and reset accordingly.
+                    if logs_str.count(os.linesep) > 1 and logs_str.count("\r") == 1:
+                        reset = True
+
                 elif line:
-                    normal.lines.append(line)
-                    if not cr.flag:
-                        cr.offset = self.global_offset
-                    if normal.offset is None:
-                        normal.offset = self.global_offset
+                    stream.last_normal = self.global_offset
+                    console[self.global_offset] = prefix + line + "\n"
+                    if reset:
+                        stream.cr = self.global_offset
                     self.global_offset += 1
 
+        intervals = self.get_consecutive_offsets(console)
         ret = []
-        for item in [self.cr_stderr, self.cr_stdout, normal]:
-            if item.lines:
-                ret.append({"offset": item.offset, "content": item.lines})
-
-        with open(self.DEBUG_FN, "a") as f:
-            f.write("\n#### RET\n")
-            f.write(pprint.pformat(ret))
-
-        return ret
-
-    def process_chunks(self, chunks):
-        if self.NEW_FUNCTION_DELETE:
-            return self.new_process_chunks(chunks)
-
-        ret = []
-        flag = bool(self._prev_chunk)
-        chunk_id = self._chunk_id
-
-        DEBUG_FN = "fs-debug-nobreak.log"
-        with open(DEBUG_FN, "a") as f:
-            f.write("\n################## CRDedupeFilePolicy ########\n")
-            f.write(pprint.pformat(chunks))
-
-        for c in chunks:
-            # Line has two possible formats:
-            # 1) "2020-08-25T20:38:36.895321 this is my line of text"
-            # 2) "ERROR 2020-08-25T20:38:36.895321 this is my line of text"
-            prefix = ""
-            token, rest = c.data.split(" ", 1)
-            is_err = False
-            if token == "ERROR":
-                is_err = True
-                prefix += token + " "
-                token, rest = rest.split(" ", 1)
-            prefix += token + " "
-
-            lines = rest.split(os.linesep)
-            for line in lines:
-                if line.startswith("\r"):
-                    found = False
-                    for i in range(len(ret) - 1, -1, -1):
-                        if ret[i].startswith("ERROR ") == is_err:
-                            ret[i] = prefix + line[1:] + "\n"
-                            found = True
-                            break
-                    if not found:
-                        if flag:
-                            flag = False
-                            prev_ret = self._prev_chunk["content"]
-                            for i in range(len(prev_ret) - 1, -1, -1):
-                                if prev_ret[i].startswith("ERROR ") == is_err:
-                                    prev_ret[i] = prefix + line[1:] + "\n"
-                                    found = True
-                                    break
-                            if found:
-                                chunk_id = self._prev_chunk["offset"]
-                                ret = prev_ret + ret
-                            else:
-                                ret.append(prefix + line[1:] + "\n")
-                        else:
-                            ret.append(prefix + line[1:] + "\n")
-                elif line:
-                    ret.append(prefix + line + "\n")
-
-        self._chunk_id = chunk_id + len(ret)
-
-        with open(DEBUG_FN, "a") as f:
-            f.write("\n#### RET\n")
-            f.write(pprint.pformat(ret))
-            f.write(f"\nNew Offset: {chunk_id}\n")
-            f.write(f"{self._chunk_id=}")
-
-        ret = {"offset": chunk_id, "content": ret}
-        self._prev_chunk = ret
+        for (a, b) in intervals:
+            ret.append({"offset": a, "content": [console[i] for i in range(a, b + 1)]})
         return ret
 
 
