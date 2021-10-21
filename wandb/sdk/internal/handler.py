@@ -110,6 +110,8 @@ class HandleManager(object):
         # TODO: implement release protocol to clean this up
         self._artifact_xid_done = dict()
 
+        self._interrupt_count: int = 0
+
     def __len__(self) -> int:
         return self._record_q.qsize()
 
@@ -606,6 +608,9 @@ class HandleManager(object):
         if self._track_time is not None:
             self._accumulate_time += time.time() - self._track_time
         self._track_time = time.time()
+
+        # reset interrupt count to zero
+        self._interrupt_count = 0
 
     def handle_request_pause(self, record: Record) -> None:
         if self._system_stats is not None:

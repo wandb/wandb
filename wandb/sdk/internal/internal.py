@@ -133,7 +133,7 @@ def wandb_internal(
     for thread in threads:
         thread.start()
 
-    interrupt_count = 0
+    # interrupt_count = 0
     while not stopped.is_set():
         try:
             # wait for stop event
@@ -143,10 +143,14 @@ def wandb_internal(
                     logger.error("Internal process shutdown.")
                     stopped.set()
         except KeyboardInterrupt:
-            interrupt_count += 1
-            logger.warning("Internal process interrupt: {}".format(interrupt_count))
+            record_handler_thread._hm._interrupt_count += 1
+            logger.warning(
+                "Internal process interrupt: {}".format(
+                    record_handler_thread._hm._interrupt_count
+                )
+            )
         finally:
-            if interrupt_count >= 2:
+            if record_handler_thread._hm._interrupt_count >= 2:
                 logger.error("Internal process interrupted.")
                 stopped.set()
 
