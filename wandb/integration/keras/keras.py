@@ -20,8 +20,25 @@ from pkg_resources import parse_version
 import wandb
 from wandb.util import add_import_hook
 
-
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+
+import tensorflow as tf
+
+
+def _check_keras_version():
+    from keras import __version__ as keras_version
+
+    if parse_version(keras_version) < parse_version("2.4.0"):
+        wandb.termwarn(
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
+        )
+
+
+if "keras" in sys.modules:
+    _check_keras_version()
+else:
+    add_import_hook("keras", _check_keras_version)
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,23 +183,6 @@ def patch_tf_keras():
     elif training_v2_2:
         training.Model.fit = new_v2
         wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
-
-
-def _check_keras_version():
-    from keras import __version__ as keras_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
-        wandb.termwarn(
-            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
-        )
-
-
-import tensorflow as tf
-
-if "keras" in sys.modules:
-    _check_keras_version()
-else:
-    add_import_hook("keras", _check_keras_version)
 
 
 tf_logger = tf.get_logger()
