@@ -10,7 +10,7 @@ from six.moves import queue
 
 from wandb.sdk.internal.meta import Meta
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface import BackendSender
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 
 @pytest.fixture()
@@ -25,7 +25,7 @@ def result_q():
 
 @pytest.fixture()
 def interface(record_q):
-    return BackendSender(record_q=record_q)
+    return InterfaceQueue(record_q=record_q)
 
 
 @pytest.fixture()

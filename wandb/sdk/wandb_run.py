@@ -71,7 +71,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import BackendSenderBase
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -126,7 +126,7 @@ class RunStatusChecker(object):
 
     def __init__(
         self,
-        interface: BackendSenderBase,
+        interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
