@@ -33,7 +33,7 @@ from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface import BackendSender
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
@@ -172,6 +172,13 @@ def test_dir(test_name):
 
 
 @pytest.fixture
+def disable_git_save():
+    os.environ["WANDB_DISABLE_GIT"] = "true"
+    yield
+    os.environ["WANDB_DISABLE_GIT"] = "false"
+
+
+@pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem():
         r = git.Repo.init(".")
@@ -247,10 +254,12 @@ def runner(monkeypatch, mocker):
     # monkeypatch.setattr('wandb.cli.api', InternalApi(
     #    default_settings={'project': 'test', 'git_tag': True}, load_settings=False))
     monkeypatch.setattr(
-        wandb.util, "prompt_choices", lambda x, input_timeout=None: x[0]
+        wandb.util, "prompt_choices", lambda x, input_timeout=None, jupyter=False: x[0]
     )
     monkeypatch.setattr(
-        wandb.wandb_lib.apikey, "prompt_choices", lambda x, input_timeout=None: x[0]
+        wandb.wandb_lib.apikey,
+        "prompt_choices",
+        lambda x, input_timeout=None, jupyter=False: x[0],
     )
     monkeypatch.setattr(click, "launch", lambda x: 1)
     monkeypatch.setattr(webbrowser, "open_new_tab", lambda x: True)
@@ -523,7 +532,7 @@ def record_q():
 
 @pytest.fixture()
 def fake_interface(record_q):
-    return BackendSender(record_q=record_q)
+    return InterfaceQueue(record_q=record_q)
 
 
 @pytest.fixture
@@ -619,7 +628,7 @@ class MockProcess:
 
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
-    return BackendSender(
+    return InterfaceQueue(
         record_q=record_q, result_q=internal_result_q, process=internal_process,
     )
 

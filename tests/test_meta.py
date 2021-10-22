@@ -10,7 +10,7 @@ from six.moves import queue
 
 from wandb.sdk.internal.meta import Meta
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface import BackendSender
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 
 @pytest.fixture()
@@ -25,7 +25,7 @@ def result_q():
 
 @pytest.fixture()
 def interface(record_q):
-    return BackendSender(record_q=record_q)
+    return InterfaceQueue(record_q=record_q)
 
 
 @pytest.fixture()
@@ -109,3 +109,18 @@ def test_jupyter_path(meta, mocked_ipython):
 
 
 # TODO: test actual code saving
+def test_commmit_hash_sent_correctly(test_settings, git_repo):
+    # disable_git is False is by default
+    # so run object should have git info
+    run = wandb.init(settings=test_settings)
+    assert run._last_commit is not None
+    assert run._last_commit == git_repo.last_commit
+    assert run._remote_url is None
+    run.finish()
+
+
+def test_commit_hash_not_sent_when_disable(test_settings, git_repo, disable_git_save):
+    run = wandb.init(settings=test_settings)
+    assert git_repo.last_commit
+    assert run._last_commit is None
+    run.finish()

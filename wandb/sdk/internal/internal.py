@@ -35,11 +35,10 @@ from . import internal_util
 from . import sender
 from . import settings_static
 from . import writer
-from ..interface import interface
+from ..interface.interface_queue import InterfaceQueue
 
 
 if TYPE_CHECKING:
-    from ..interface.interface import BackendSender
     from .settings_static import SettingsStatic
     from typing import Any, Dict, List, Optional, Union
     from six.moves.queue import Queue
@@ -55,6 +54,8 @@ def wandb_internal(
     settings: "Dict[str, Union[str, float]]",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
+    port: int = None,
+    user_pid: int = None,
 ) -> None:
     """Internal process function entrypoint.
 
@@ -80,7 +81,7 @@ def wandb_internal(
     if _settings.log_internal:
         configure_logging(_settings.log_internal, _settings._log_level)
 
-    parent_pid = os.getppid()
+    user_pid = user_pid or os.getppid()
     pid = os.getpid()
 
     logger.info(
@@ -89,7 +90,7 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    publish_interface = interface.BackendSender(record_q=record_q)
+    publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
     threads: "List[RecordLoopThread]" = []
@@ -126,7 +127,7 @@ def wandb_internal(
     )
     threads.append(record_handler_thread)
 
-    process_check = ProcessCheck(settings=_settings, pid=parent_pid)
+    process_check = ProcessCheck(settings=_settings, user_pid=user_pid)
 
     for thread in threads:
         thread.start()
@@ -212,7 +213,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         stopped: "Event",
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
         super(HandlerThread, self).__init__(
@@ -263,7 +264,7 @@ class SenderThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 5000,
     ) -> None:
         super(SenderThread, self).__init__(
@@ -342,14 +343,14 @@ class ProcessCheck(object):
 
     check_process_last: "Optional[float]"
 
-    def __init__(self, settings: "SettingsStatic", pid: int) -> None:
+    def __init__(self, settings: "SettingsStatic", user_pid: "Optional[int]") -> None:
         self.settings = settings
-        self.pid = pid
+        self.pid = user_pid
         self.check_process_last = None
         self.check_process_interval = settings._internal_check_process
 
     def is_dead(self) -> bool:
-        if not self.check_process_interval:
+        if not self.check_process_interval or not self.pid:
             return False
         time_now = time.time()
         if (
@@ -359,6 +360,7 @@ class ProcessCheck(object):
             return False
         self.check_process_last = time_now
 
+        # TODO(jhr): check for os.getppid on unix being 1?
         exists = psutil.pid_exists(self.pid)
         if not exists:
             logger.warning(

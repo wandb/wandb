@@ -23,6 +23,7 @@ from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import HttpResponse
+from wandb.proto.wandb_internal_pb2 import Record
 
 from . import artifacts
 from . import file_stream
@@ -31,8 +32,8 @@ from . import settings_static
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib.git import GitRepo
 
 
 logger = logging.getLogger(__name__)
@@ -158,7 +159,7 @@ class SendManager(object):
         settings = settings_static.SettingsStatic(sd)
         record_q = queue.Queue()
         result_q = queue.Queue()
-        publish_interface = interface.BackendSender(record_q=record_q)
+        publish_interface = InterfaceQueue(record_q=record_q)
         return SendManager(
             settings=settings,
             record_q=record_q,
@@ -228,6 +229,24 @@ class SendManager(object):
                 result.response.check_version_response.delete_message = delete_message
         self._result_q.put(result)
 
+    def _send_request_attach(
+        self,
+        req: wandb_internal_pb2.AttachRequest,
+        resp: wandb_internal_pb2.AttachResponse,
+    ) -> None:
+        attach_id = req.attach_id
+        assert attach_id
+        assert self._run
+        resp.run.CopyFrom(self._run)
+
+    def send_request_attach(self, record) -> None:
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._send_request_attach(
+            record.request.attach, result.response.attach_response
+        )
+        self._result_q.put(result)
+
     def send_request_stop_status(self, record):
         assert record.control.req_resp
 
@@ -256,6 +275,11 @@ class SendManager(object):
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
+
+    def send_request_status(self, record):
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
 
     def send_request_network_status(self, record):
         assert record.control.req_resp
@@ -645,7 +669,6 @@ class SendManager(object):
     def _init_run(self, run, config_dict):
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state["runtime"]
-        repo = GitRepo(remote=self._settings.git_remote)
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
         server_run, inserted = self._api.upsert_run(
@@ -661,8 +684,8 @@ class SendManager(object):
             sweep_name=run.sweep_id or None,
             host=run.host or None,
             program_path=self._settings.program or None,
-            repo=repo.remote_url,
-            commit=repo.last_commit,
+            repo=run.git.remote_url or None,
+            commit=run.git.last_commit or None,
         )
         self._run = run
         if self._resume_state.get("resumed"):
@@ -911,6 +934,27 @@ class SendManager(object):
             )
 
         self._result_q.put(result)
+
+    def send_request_artifact_send(self, record: Record) -> None:
+        # TODO: combine and eventually remove send_request_log_artifact()
+
+        # for now we are using req/resp uuid for transaction id
+        # in the future this should be part of the message to handle idempotency
+        xid = record.uuid
+
+        done_msg = wandb_internal_pb2.ArtifactDoneRequest(xid=xid)
+        artifact = record.request.artifact_send.artifact
+        try:
+            res = self._send_artifact(artifact)
+            done_msg.artifact_id = res.get("id")
+            logger.info("logged artifact {} - {}".format(artifact.name, res))
+        except Exception as e:
+            done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
+                artifact.type, artifact.name, e
+            )
+
+        logger.info("send artifact done")
+        self._interface._publish_artifact_done(done_msg)
 
     def send_artifact(self, data):
         artifact = data.artifact
