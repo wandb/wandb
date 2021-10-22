@@ -133,7 +133,6 @@ def wandb_internal(
     for thread in threads:
         thread.start()
 
-    # interrupt_count = 0
     while not stopped.is_set():
         try:
             # wait for stop event
