@@ -32,6 +32,7 @@ from . import settings_static
 from . import update
 from .file_pusher import FilePusher
 from ..interface import interface
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 
 
@@ -158,7 +159,7 @@ class SendManager(object):
         settings = settings_static.SettingsStatic(sd)
         record_q = queue.Queue()
         result_q = queue.Queue()
-        publish_interface = interface.BackendSender(record_q=record_q)
+        publish_interface = InterfaceQueue(record_q=record_q)
         return SendManager(
             settings=settings,
             record_q=record_q,
