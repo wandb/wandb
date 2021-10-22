@@ -1,8 +1,8 @@
-#
-# -*- coding: utf-8 -*-
-"""Backend Sender - Send to internal process
+"""InterfaceQueue - Derived from InterfaceBase using queues to send to internal thread
 
-Manage backend sender.
+InterfaceBase: The abstract class
+InterfaceQueue: Mechanism to send Record messages and receive Result messages
+  using queues.
 
 """
 
