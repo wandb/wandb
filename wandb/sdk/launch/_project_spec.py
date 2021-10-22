@@ -146,24 +146,34 @@ class LaunchProject(object):
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
+    def _check_and_download_code_artifacts(self, internal_api: Api) -> bool:
+        public_api = wandb.PublicApi(
+            overrides={"base_url": internal_api.settings("base_url")}
+        )
+
+        run_entity, run_project, run_name = utils.parse_wandb_uri(self.uri)
+        run = public_api.run(f"{run_entity}/{run_project}/{run_name}")
+
+        run_artifacts = run.logged_artifacts()
+        for artifact in run_artifacts:
+            if artifact.type == "code":
+                artifact.download(self.project_dir)
+                self.build_image = True
+                return True
+
+        return False
+
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
-        parsed_uri = self.uri
         if utils._is_wandb_uri(self.uri):
-            downloaded_code_artifact = False
+
             run_info = utils.fetch_wandb_project_run_info(self.uri, internal_api)
             entry_point = run_info.get("codePath", run_info["program"])
-            public_api = wandb.PublicApi(
-                overrides={"base_url": internal_api.settings("base_url")}
+            downloaded_code_artifact = self._check_and_download_code_artifacts(
+                internal_api
             )
-            run_artifacts = public_api.logged_artifacts(parsed_uri)
-            for artifact in run_artifacts:
-                if artifact.type == "code":
-                    artifact.download(self.project_dir)
-                    downloaded_code_artifact = True
-                    self.build_image = True
-                    break
+
             if not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise ExecutionError("Run must have git repo associated")
@@ -207,8 +217,8 @@ class LaunchProject(object):
                 self.override_args, run_info["args"]
             )
         else:
-            assert utils._GIT_URI_REGEX.match(parsed_uri), (
-                "Non-wandb URI %s should be a Git URI" % parsed_uri
+            assert utils._GIT_URI_REGEX.match(self.uri), (
+                "Non-wandb URI %s should be a Git URI" % self.uri
             )
 
             if not self._entry_points:
