@@ -25,13 +25,14 @@ from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import HttpResponse
 from wandb.proto.wandb_internal_pb2 import Record, Result
+from wandb.proto.wandb_internal_pb2 import RunRecord
 
 from . import artifacts
 from . import file_stream
 from . import internal_api
 from . import update
 from .file_pusher import FilePusher
-from .settings_static import SettingsStatic, SettingsDict
+from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
@@ -70,6 +71,10 @@ class SendManager(object):
     _partial_output: Dict[str, str]
 
     _telemetry_obj: telemetry.TelemetryRecord
+    _fs: "Optional[file_stream.FileStreamApi]"
+    _run: "Optional[RunRecord]"
+    _entity: "Optional[str]"
+    _project: "Optional[str]"
 
     def __init__(
         self,
@@ -126,7 +131,7 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(  # type: ignore[no-untyped-call]
+        self._api = internal_api.Api(
             default_settings=settings, retry_callback=self.retry_callback
         )
         self._api_settings = dict()
@@ -188,7 +193,7 @@ class SendManager(object):
         response.http_response_text = response_text
         self._retry_q.put(response)
 
-    def send(self, record):
+    def send(self, record: "Record") -> None:
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "send_" + record_type
@@ -199,11 +204,11 @@ class SendManager(object):
         assert send_handler, "unknown send handler: {}".format(handler_str)
         send_handler(record)
 
-    def send_preempting(self, record):
+    def send_preempting(self, record: "Record") -> None:
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_request(self, record):
+    def send_request(self, record: "Record") -> None:
         request_type = record.request.WhichOneof("request_type")
         assert request_type
         handler_str = "send_request_" + request_type
@@ -213,7 +218,7 @@ class SendManager(object):
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
-    def _flatten(self, dictionary):
+    def _flatten(self, dictionary: Dict) -> None:
         if type(dictionary) == dict:
             for k, v in list(dictionary.items()):
                 if type(v) == dict:
@@ -222,7 +227,7 @@ class SendManager(object):
                     for k2, v2 in v.items():
                         dictionary[k + "." + k2] = v2
 
-    def send_request_check_version(self, record):
+    def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         current_version = (
@@ -251,7 +256,7 @@ class SendManager(object):
         assert self._run
         resp.run.CopyFrom(self._run)
 
-    def send_request_attach(self, record) -> None:
+    def send_request_attach(self, record: "Record") -> None:
         assert record.control.req_resp
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._send_request_attach(
@@ -259,13 +264,13 @@ class SendManager(object):
         )
         self._result_q.put(result)
 
-    def send_request_stop_status(self, record):
+    def send_request_stop_status(self, record: "Record") -> None:
         assert record.control.req_resp
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         status_resp = result.response.stop_status_response
         status_resp.run_should_stop = False
-        if self._entity and self._project and self._run.run_id:
+        if self._entity and self._project and self._run and self._run.run_id:
             try:
                 status_resp.run_should_stop = self._api.check_stop_requested(
                     self._project, self._entity, self._run.run_id
@@ -278,7 +283,7 @@ class SendManager(object):
         if self._config_needs_debounce:
             self._debounce_config()
 
-    def _debounce_config(self):
+    def _debounce_config(self) -> None:
         config_value_dict = self._config_format(self._consolidated_config)
         # TODO(jhr): check result of upsert_run?
         if self._run:
@@ -288,12 +293,12 @@ class SendManager(object):
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
 
-    def send_request_status(self, record):
+    def send_request_status(self, record: "Record") -> None:
         assert record.control.req_resp
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._result_q.put(result)
 
-    def send_request_network_status(self, record):
+    def send_request_network_status(self, record: "Record") -> None:
         assert record.control.req_resp
 
         result = wandb_internal_pb2.Result(uuid=record.uuid)
@@ -307,7 +312,7 @@ class SendManager(object):
                 logger.warning("Error emptying retry queue: {}".format(e))
         self._result_q.put(result)
 
-    def send_request_login(self, record):
+    def send_request_login(self, record: "Record") -> None:
         # TODO: do something with api_key or anonymous?
         # TODO: return an error if we aren't logged in?
         self._api.reauth()
@@ -324,7 +329,7 @@ class SendManager(object):
                 result.response.login_response.active_entity = self._entity
             self._result_q.put(result)
 
-    def send_exit(self, data):
+    def send_exit(self, data: "Record") -> None:
         exit = data.exit
         self._exit_code = exit.exit_code
         logger.info("handling exit code: %s", exit.exit_code)
@@ -342,10 +347,10 @@ class SendManager(object):
         logger.info("send defer")
         self._interface.publish_defer()
 
-    def send_final(self, data):
+    def send_final(self, data: "Record") -> None:
         pass
 
-    def send_request_defer(self, data):
+    def send_request_defer(self, data: "Record") -> None:
         defer = data.request.defer
         state = defer.state
         logger.info("handle sender defer: {}".format(state))
@@ -420,7 +425,7 @@ class SendManager(object):
         # mark exit done in case we are polling on exit
         self._exit_result = exit_result
 
-    def send_request_poll_exit(self, record):
+    def send_request_poll_exit(self, record: "Record") -> None:
         if not record.control.req_resp:
             return
 
@@ -450,7 +455,9 @@ class SendManager(object):
             result.response.poll_exit_response.done = True
         self._result_q.put(result)
 
-    def _maybe_setup_resume(self, run) -> "Optional[wandb_internal_pb2.ErrorInfo]":
+    def _maybe_setup_resume(
+        self, run: RunRecord
+    ) -> "Optional[wandb_internal_pb2.ErrorInfo]":
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
         if not self._settings.resume:

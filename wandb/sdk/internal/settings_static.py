@@ -5,7 +5,6 @@ static settings.
 """
 
 from typing import Any, Dict, Iterable, Optional, Tuple, Union
-from typing import TYPE_CHECKING
 
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
