@@ -157,7 +157,7 @@ class LocalRunner(AbstractRunner):
         raise LaunchError("asynchronous mode not yet available")
 
 
-def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
+def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":     # @@@ unused
     """Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
 
     Arguments:
@@ -182,7 +182,7 @@ def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
         )
 
 
-def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
+def _run_entry_point(command: str, work_dir: str) -> AbstractRun:   # @@@ fix this to split early, run in main
     """Run an entry point command in a subprocess.
 
     Arguments:
@@ -203,5 +203,7 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         process = subprocess.Popen(
             ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
         )
+
+        print('@@@@@@@@@@', process)
 
     return LocalSubmittedRun(process)

@@ -87,6 +87,7 @@ class LaunchAgent(object):
                 self._project, " ".join(self._queues)
             )
         )
+        print("@@@ {}".format(os.getpid()))
 
     def finish_job_id(self, job_id: int) -> None:
         """Removes the job from our list for now."""
@@ -144,7 +145,7 @@ class LaunchAgent(object):
                 ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
-        backend = load_backend(resource, self._api, backend_config)
+        backend = load_backend(resource, self._api, backend_config)     # @@@ backend loaded
         backend.verify()
 
         run = backend.run(project)
@@ -173,12 +174,13 @@ class LaunchAgent(object):
                     if agent_response['stopPolling']:
                         # shutdown process if requested from ui
                         raise KeyboardInterrupt
-                    for job_id in self.job_ids:
+                    for job_id in self.job_ids:         # @@@ ???????? also not hit wtf
                         self._update_finished(job_id)
                     if self._ticks % 2 == 0:
                         self.print_status()
+                        self._api.update_launch_agent_heartbeat(self._id, self.gorilla_supports_agents)
                     continue
-                self.run_job(job)
+                self.run_job(job)   # @@@ run job calls backend loader
         except KeyboardInterrupt:
             shutdown_update = self._api.update_launch_agent_status(
                 self._id, AGENT_KILLED, self.gorilla_supports_agents

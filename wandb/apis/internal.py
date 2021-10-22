@@ -155,6 +155,9 @@ class Api(object):
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)
 
+    def update_launch_agent_heartbeat(self, *args, **kwargs):
+        return self.api.update_launch_agent_heartbeat(*args, **kwargs)
+
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
 

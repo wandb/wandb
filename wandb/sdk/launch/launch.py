@@ -64,7 +64,7 @@ def _run(
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
 
-    backend = loader.load_backend(resource, api, runner_config)
+    backend = loader.load_backend(resource, api, runner_config)     # @@@ backend loaded
     if backend:
         submitted_run = backend.run(launch_project)
         # this check will always pass, run is only optional in the agent case where

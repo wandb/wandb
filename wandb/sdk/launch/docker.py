@@ -69,7 +69,7 @@ def generate_docker_base_image(
         )
     ).bouncingBar.blue as spinner:
         with open(build_log, "w") as f:
-            process = subprocess.Popen(cmd, stdout=f, stderr=f)
+            process = subprocess.Popen(cmd, stdout=f, stderr=f)     # @@@
             res = process.wait()
             if res == 0:
                 spinner.text = "Generated docker base image {}".format(

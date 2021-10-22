@@ -45,7 +45,7 @@ class AgentProcess(object):
                 kwargs = dict(preexec_fn=os.setpgrp)
             self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
-            self._proc = multiprocessing.Process(
+            self._proc = multiprocessing.Process(    # @@@
                 target=self._start,
                 args=(self._finished_q, env, function, run_id, in_jupyter),
             )
