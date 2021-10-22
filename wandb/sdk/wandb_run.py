@@ -71,7 +71,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import BackendSenderBase
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -126,7 +126,7 @@ class RunStatusChecker(object):
 
     def __init__(
         self,
-        interface: BackendSenderBase,
+        interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -494,7 +494,11 @@ class Run(object):
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
-        repo = GitRepo(remote=self._settings.git_remote)
+        try:
+            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+        except Exception:
+            wandb.termwarn("Cannot find valid git repo associated with this directory.")
+            return
         self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> Any:
