@@ -65,7 +65,7 @@ class SendManager(object):
 
     def __init__(
         self, settings, record_q, result_q, interface,
-    ):
+    ) -> None:
         self._settings = settings
         self._record_q = record_q
         self._result_q = result_q
@@ -167,7 +167,7 @@ class SendManager(object):
             interface=publish_interface,
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
         return self._record_q.qsize()
 
     def retry_callback(self, status, response_text):
