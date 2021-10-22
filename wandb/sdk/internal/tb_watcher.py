@@ -21,7 +21,7 @@ from . import run as internal_run
 
 
 if TYPE_CHECKING:
-    from ..interface.interface import BackendSender
+    from ..interface.interface_queue import InterfaceQueue
     from .settings_static import SettingsStatic
     from typing import Dict, List, Optional
     from wandb.proto.wandb_internal_pb2 import RunRecord
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 def _link_and_save_file(
-    path: str, base_path: str, interface: "BackendSender", settings: "SettingsStatic"
+    path: str, base_path: str, interface: "InterfaceQueue", settings: "SettingsStatic"
 ) -> None:
     # TODO(jhr): should this logic be merged with Run.save()
     files_dir = settings.files_dir
@@ -103,7 +103,7 @@ class TBWatcher(object):
         self,
         settings: "SettingsStatic",
         run_proto: "RunRecord",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         force: bool = False,
     ) -> None:
         self._logdirs = {}
