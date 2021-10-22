@@ -123,7 +123,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             intervals.append(item)
         return intervals
 
-    def split(self, chunk):
+    def split_chunk(self, chunk):
         """
         chunk: object of type Chunk with two fields: filename (str) & data (str)
         The `data` field contains the lines we want and usually contains \n or \r or both.
@@ -136,13 +136,11 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         """
         prefix = ""
         token, rest = chunk.data.split(" ", 1)
-        is_err = False
         if token == "ERROR":
-            is_err = True
             prefix += token + " "
             token, rest = rest.split(" ", 1)
         prefix += token + " "
-        return prefix, rest, is_err
+        return prefix, rest
 
     def process_chunks(self, chunks):
         # Dict[int->str], each offset (line number) mapped to a line.
@@ -150,10 +148,9 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         console = {}
 
         for c in chunks:
-            prefix, logs_str, _ = self.split(c)
+            prefix, logs_str = self.split_chunk(c)
             logs = logs_str.split(os.linesep)
 
-            reset = False
             for line in logs:
                 stream = self.stderr if prefix.startswith("ERROR ") else self.stdout
                 if line.startswith("\r"):
@@ -163,17 +160,15 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                     stream.found_cr = True
                     console[offset] = prefix + line[1:] + "\n"
 
-                    # Usually `logs_str` = "\r progress bar \n" for progress bar updates.
-                    # If instead `logs_str` = "\r progress bar\n something \n something \n",
+                    # Usually logs_str = "\r progress bar\n" for progress bar updates.
+                    # If instead logs_str = "\r progress bar\n text\n text\n",
                     # treat this as the end of a progress bar and reset accordingly.
                     if logs_str.count(os.linesep) > 1 and logs_str.count("\r") == 1:
-                        reset = True
+                        stream.found_cr = False
 
                 elif line:
                     stream.last_normal = self.global_offset
                     console[self.global_offset] = prefix + line + "\n"
-                    if reset:
-                        stream.cr = self.global_offset
                     self.global_offset += 1
 
         intervals = self.get_consecutive_offsets(console)
