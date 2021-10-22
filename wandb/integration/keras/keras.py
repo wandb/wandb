@@ -23,6 +23,7 @@ from wandb.util import add_import_hook
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
 
 import tensorflow as tf
+import tensorflow.keras.backend as K
 
 
 def _check_keras_version():
@@ -134,7 +135,7 @@ def patch_tf_keras():
                 # Graph mode dataset generator
                 def gen():
                     while True:
-                        yield tf.keras.backend.get_session().run(val_data)
+                        yield K.get_session().run(val_data)
 
                 cbk.generator = gen()
             else:
