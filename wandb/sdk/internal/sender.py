@@ -13,6 +13,7 @@ import logging
 import os
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+from typing import cast
 
 from pkg_resources import parse_version
 import requests
@@ -23,14 +24,14 @@ from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import HttpResponse
-from wandb.proto.wandb_internal_pb2 import Record
+from wandb.proto.wandb_internal_pb2 import Record, Result
 
 from . import artifacts
 from . import file_stream
 from . import internal_api
-from . import settings_static
 from . import update
 from .file_pusher import FilePusher
+from .settings_static import SettingsStatic, SettingsDict
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
@@ -61,10 +62,21 @@ def _framework_priority(
 
 class SendManager(object):
 
+    _settings: SettingsStatic
+    _record_q: "Queue[Record]"
+    _result_q: "Queue[Result]"
+    _interface: InterfaceQueue
+    _api_settings: Dict[str, str]
+    _partial_output: Dict[str, str]
+
     _telemetry_obj: telemetry.TelemetryRecord
 
     def __init__(
-        self, settings, record_q, result_q, interface,
+        self,
+        settings: SettingsStatic,
+        record_q: "Queue[Record]",
+        result_q: "Queue[Result]",
+        interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -84,7 +96,7 @@ class SendManager(object):
         self._project = None
 
         # keep track of config from key/val updates
-        self._consolidated_config: DictNoValues = dict()
+        self._consolidated_config: DictNoValues = cast(DictNoValues, dict())
         self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
@@ -114,7 +126,7 @@ class SendManager(object):
         # State added when run_exit is complete
         self._exit_result = None
 
-        self._api = internal_api.Api(
+        self._api = internal_api.Api(  # type: ignore[no-untyped-call]
             default_settings=settings, retry_callback=self.retry_callback
         )
         self._api_settings = dict()
@@ -131,12 +143,12 @@ class SendManager(object):
         self._exit_code = 0
 
     @classmethod
-    def setup(cls, root_dir):
+    def setup(cls, root_dir: str) -> "SendManager":
         """This is a helper class method to setup a standalone SendManager.
         Currently we're using this primarily for `sync.py`.
         """
         files_dir = os.path.join(root_dir, "files")
-        sd = dict(
+        sd: SettingsDict = dict(
             files_dir=files_dir,
             root_dir=root_dir,
             _start_time=0,
@@ -156,9 +168,9 @@ class SendManager(object):
             email=None,
             silent=None,
         )
-        settings = settings_static.SettingsStatic(sd)
-        record_q = queue.Queue()
-        result_q = queue.Queue()
+        settings = SettingsStatic(sd)
+        record_q: "Queue[Record]" = queue.Queue()
+        result_q: "Queue[Result]" = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         return SendManager(
             settings=settings,
@@ -170,7 +182,7 @@ class SendManager(object):
     def __len__(self) -> int:
         return self._record_q.qsize()
 
-    def retry_callback(self, status, response_text):
+    def retry_callback(self, status: int, response_text: str) -> None:
         response = wandb_internal_pb2.HttpResponse()
         response.http_status_code = status
         response.http_response_text = response_text

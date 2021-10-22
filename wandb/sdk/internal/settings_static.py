@@ -4,12 +4,10 @@
 static settings.
 """
 
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Optional, Union
-
-    SettingsDict = Dict[str, Union[str, float]]
+SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
 
 class SettingsStatic(object):
