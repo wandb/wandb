@@ -201,6 +201,7 @@ def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool
 def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
     entity, project, name = parse_wandb_uri(uri)
     metadata = api.download_url(project, "requirements.txt", run=name, entity=entity)
+    print("Metadata", metadata)
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
 

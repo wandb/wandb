@@ -59,7 +59,7 @@ def main():
             reqs = []
             failed = set()
             for req in f:
-                if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
+                if len(ONLY_INCLUDE) != 0 and req.split("=")[0].lower() in ONLY_INCLUDE:
                     reqs.append(req.strip())
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")

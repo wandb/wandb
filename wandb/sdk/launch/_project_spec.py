@@ -170,6 +170,7 @@ class LaunchProject(object):
 
             run_info = utils.fetch_wandb_project_run_info(self.uri, internal_api)
             entry_point = run_info.get("codePath", run_info["program"])
+
             downloaded_code_artifact = self._check_and_download_code_artifacts(
                 internal_api
             )
