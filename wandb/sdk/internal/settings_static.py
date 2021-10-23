@@ -18,6 +18,10 @@ class SettingsStatic(object):
     files_dir: str
     log_internal: str
     _internal_check_process: bool
+    resume: "Optional[str]"
+    program: "Optional[str]"
+    silent: "Optional[bool]"
+    email: "Optional[str]"
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

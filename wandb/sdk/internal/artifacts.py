@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import threading
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, Sequence, TYPE_CHECKING
 
 import wandb
 from wandb import util
@@ -79,7 +79,7 @@ class ArtifactSaver(object):
         finalize: bool = True,
         metadata: Optional[Dict] = None,
         description: Optional[str] = None,
-        aliases: Optional[List[str]] = None,
+        aliases: Optional[Sequence[str]] = None,
         labels: Optional[List[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,

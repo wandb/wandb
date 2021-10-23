@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
+from typing import Any, Dict, Generator, List, NewType, Optional, Tuple, Union
 from typing import cast
 
 from pkg_resources import parse_version
@@ -25,7 +25,7 @@ from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import HttpResponse
 from wandb.proto.wandb_internal_pb2 import Record, Result
-from wandb.proto.wandb_internal_pb2 import RunExitResult, RunRecord
+from wandb.proto.wandb_internal_pb2 import RunExitResult, RunRecord, ArtifactRecord, LocalInfo
 
 from . import artifacts
 from . import file_stream
@@ -61,6 +61,29 @@ def _framework_priority(
     yield imp.sklearn, "sklearn"
 
 
+class ResumeState:
+    resumed: bool
+    step: int
+    history: int
+    events: int
+    output: int
+    runtime: int
+    wandb_runtime: Optional[int]
+    summary: Optional[Dict[str,Any]]
+    config: Optional[Dict[str,Any]]
+
+    def __init__(self) -> None:
+        self.resumed = False
+        self.step = 0
+        self.history = 0
+        self.events = 0
+        self.output = 0
+        self.runtime = 0
+        self.wandb_runtime = None
+        self.summary = None
+        self.config = None
+
+
 class SendManager(object):
 
     _settings: SettingsStatic
@@ -79,6 +102,9 @@ class SendManager(object):
     _dir_watcher: "Optional[DirWatcher]"
     _pusher: "Optional[FilePusher]"
     _exit_result: "Optional[RunExitResult]"
+    _resume_state: ResumeState
+    _cached_server_info: Dict[str, Any]
+    _cached_viewer: Dict[str, Any]
 
     def __init__(
         self,
@@ -114,20 +140,11 @@ class SendManager(object):
         self._config_metric_index_dict: Dict[str, int] = {}
         self._config_metric_dict: Dict[str, wandb_internal_pb2.MetricRecord] = {}
 
-        self._cached_server_info: Dict[str, Any] = dict()
-        self._cached_viewer: Dict[str, Any] = dict()
+        self._cached_server_info = dict()
+        self._cached_viewer = dict()
 
         # State updated by resuming
-        self._resume_state = {
-            "step": 0,
-            "history": 0,
-            "events": 0,
-            "output": 0,
-            "runtime": 0,
-            "summary": None,
-            "config": None,
-            "resumed": False,
-        }
+        self._resume_state = ResumeState()
 
         # State added when run_exit needs results
         self._exit_sync_uuid = None
@@ -514,9 +531,7 @@ class SendManager(object):
             summary = json.loads(resume_status["summaryMetrics"] or "{}")
             new_runtime = summary.get("_wandb", {}).get("runtime", None)
             if new_runtime is not None:
-                if "_wandb" not in self._resume_state:
-                    self._resume_state["_wandb"] = {}
-                self._resume_state["_wandb"].update({"runtime": new_runtime})
+                self._resume_state.wandb_runtime = new_runtime
 
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
@@ -528,14 +543,14 @@ class SendManager(object):
 
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
-        self._resume_state["runtime"] = max(events_rt, history_rt)
-        self._resume_state["step"] = history.get("_step", -1) + 1 if history else 0
-        self._resume_state["history"] = resume_status["historyLineCount"]
-        self._resume_state["events"] = resume_status["eventsLineCount"]
-        self._resume_state["output"] = resume_status["logLineCount"]
-        self._resume_state["config"] = config
-        self._resume_state["summary"] = summary
-        self._resume_state["resumed"] = True
+        self._resume_state.runtime = max(events_rt, history_rt)
+        self._resume_state.step = history.get("_step", -1) + 1 if history else 0
+        self._resume_state.history = resume_status["historyLineCount"]
+        self._resume_state.events = resume_status["eventsLineCount"]
+        self._resume_state.output = resume_status["logLineCount"]
+        self._resume_state.config = config
+        self._resume_state.summary = summary
+        self._resume_state.resumed = True
         logger.info("configured resuming with: %s" % self._resume_state)
         return None
 
@@ -601,25 +616,28 @@ class SendManager(object):
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
-    def _sync_spell(self, env=None):
+    def _sync_spell(self) -> None:
         """Syncs this run with spell"""
+        if not self._run:
+            return
         try:
-            env = env or os.environ
+            env = os.environ
             self._interface.publish_config(
                 key=("_wandb", "spell_url"), val=env.get("SPELL_RUN_URL")
             )
             url = "{}/{}/{}/runs/{}".format(
                 self._api.app_url, self._run.entity, self._run.project, self._run.run_id
             )
-            return requests.put(
+            requests.put(
                 env.get("SPELL_API_URL", "https://api.spell.run") + "/wandb_url",
                 json={"access_token": env.get("WANDB_ACCESS_TOKEN"), "url": url},
                 timeout=2,
             )
         except requests.RequestException:
-            return False
+            pass
+        # TODO: do something if sync spell is not successful?
 
-    def send_run(self, data, file_dir=None) -> None:
+    def send_run(self, data: "Record", file_dir: str=None) -> None:
         run = data.run
         error = None
         is_wandb_init = self._run is None
@@ -656,10 +674,10 @@ class SendManager(object):
             return
 
         # Save the resumed config
-        if self._resume_state["config"] is not None:
+        if self._resume_state.config is not None:
             # TODO: should we merge this with resumed config?
             config_override = self._consolidated_config
-            config_dict = self._resume_state["config"]
+            config_dict = self._resume_state.config
             config_dict = config_util.dict_strip_value_dict(config_dict)
             config_dict.update(config_override)
             self._consolidated_config.update(config_dict)
@@ -674,6 +692,7 @@ class SendManager(object):
             self._config_save(config_value_dict)
 
         self._init_run(run, config_value_dict)
+        assert self._run  # self._run is configured in _init_run()
 
         if data.control.req_resp:
             resp = wandb_internal_pb2.Result(uuid=data.uuid)
@@ -689,9 +708,9 @@ class SendManager(object):
         else:
             logger.info("updated run: %s", self._run.run_id)
 
-    def _init_run(self, run, config_dict):
+    def _init_run(self, run: RunRecord, config_dict: Optional[DictWithValues]) -> None:
         # We subtract the previous runs runtime when resuming
-        start_time = run.start_time.ToSeconds() - self._resume_state["runtime"]
+        start_time = run.start_time.ToSeconds() - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
         # the upsert know the resume state and fail transactionally
         server_run, inserted = self._api.upsert_run(
@@ -711,19 +730,16 @@ class SendManager(object):
             commit=run.git.last_commit or None,
         )
         self._run = run
-        if self._resume_state.get("resumed"):
+        if self._resume_state.resumed:
             self._run.resumed = True
-            if (
-                "_wandb" in self._resume_state
-                and "runtime" in self._resume_state["_wandb"]
-            ):
-                self._run.runtime = self._resume_state["_wandb"]["runtime"]
-        self._run.starting_step = self._resume_state["step"]
+            if self._resume_state.wandb_runtime is not None:
+                self._run.runtime = self._resume_state.wandb_runtime
+        self._run.starting_step = self._resume_state.step
         self._run.start_time.FromSeconds(int(start_time))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
-        if self._resume_state["summary"] is not None:
+        if self._resume_state.summary is not None:
             self._run.summary.CopyFrom(
-                self._interface._make_summary_from_dict(self._resume_state["summary"])
+                self._interface._make_summary_from_dict(self._resume_state.summary)
             )
         storage_id = server_run.get("id")
         if storage_id:
@@ -757,7 +773,8 @@ class SendManager(object):
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self, file_dir=None):
+    def _start_run_threads(self, file_dir: str=None) -> None:
+        assert self._run  # self._run is configured by caller
         self._fs = file_stream.FileStreamApi(
             self._api,
             self._run.run_id,
@@ -768,15 +785,15 @@ class SendManager(object):
         self._fs.set_file_policy("wandb-summary.json", file_stream.SummaryFilePolicy())
         self._fs.set_file_policy(
             "wandb-history.jsonl",
-            file_stream.JsonlFilePolicy(start_chunk_id=self._resume_state["history"]),
+            file_stream.JsonlFilePolicy(start_chunk_id=self._resume_state.history),
         )
         self._fs.set_file_policy(
             "wandb-events.jsonl",
-            file_stream.JsonlFilePolicy(start_chunk_id=self._resume_state["events"]),
+            file_stream.JsonlFilePolicy(start_chunk_id=self._resume_state.events),
         )
         self._fs.set_file_policy(
             "output.log",
-            file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state["output"]),
+            file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state.output),
         )
         util.sentry_set_scope(
             "internal",
@@ -795,21 +812,21 @@ class SendManager(object):
             self._run.start_time.ToSeconds(),
         )
 
-    def _save_history(self, history_dict):
+    def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
-    def send_history(self, data):
+    def send_history(self, data: "Record") -> None:
         history = data.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 
-    def send_summary(self, data):
+    def send_summary(self, data: "Record") -> None:
         summary_dict = proto_util.dict_from_proto_list(data.summary.update)
         self._cached_summary = summary_dict
         self._update_summary()
 
-    def _update_summary(self):
+    def _update_summary(self) -> None:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         if self._metadata_summary:
@@ -823,17 +840,19 @@ class SendManager(object):
             f.write(json_summary)
         self._save_file(filenames.SUMMARY_FNAME)
 
-    def send_stats(self, data):
+    def send_stats(self, data: "Record") -> None:
         stats = data.stats
         if stats.stats_type != wandb_internal_pb2.StatsRecord.StatsType.SYSTEM:
             return
         if not self._fs:
             return
+        if not self._run:
+            return
         now = stats.timestamp.seconds
         d = dict()
         for item in stats.item:
             d[item.key] = json.loads(item.value_json)
-        row = dict(system=d)
+        row: Dict[str, Any] = dict(system=d)
         self._flatten(row)
         row["_wandb"] = True
         row["_timestamp"] = now
@@ -841,7 +860,7 @@ class SendManager(object):
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
-    def send_output(self, data):
+    def send_output(self, data: "Record") -> None:
         if not self._fs:
             return
         out = data.output
@@ -869,15 +888,15 @@ class SendManager(object):
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
-    def _update_config(self):
+    def _update_config(self) -> None:
         self._config_needs_debounce = True
 
-    def send_config(self, data):
+    def send_config(self, data: "Record") -> None:
         cfg = data.config
         config_util.update_from_proto(self._consolidated_config, cfg)
         self._update_config()
 
-    def send_metric(self, data: wandb_internal_pb2.Record) -> None:
+    def send_metric(self, data: "Record") -> None:
         metric = data.metric
         if metric.glob_name:
             logger.warning("Seen metric with glob (shouldnt happen)")
@@ -916,40 +935,41 @@ class SendManager(object):
             self._config_metric_index_dict[metric.name] = next_idx
         self._update_config()
 
-    def send_telemetry(self, data):
+    def send_telemetry(self, data: "Record") -> None:
         telem = data.telemetry
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
-    def _save_file(self, fname, policy="end"):
+    def _save_file(self, fname: str, policy: str="end") -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
 
-    def send_files(self, data):
+    def send_files(self, data: "Record") -> None:
         files = data.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
             self._save_file(k.path, interface.file_enum_to_policy(k.policy))
 
-    def send_header(self, data):
+    def send_header(self, data: "Record") -> None:
         pass
 
-    def send_footer(self, data):
+    def send_footer(self, data: "Record") -> None:
         pass
 
-    def send_tbrecord(self, data):
+    def send_tbrecord(self, data: "Record") -> None:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def send_request_log_artifact(self, record):
+    def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         artifact = record.request.log_artifact.artifact
 
         try:
             res = self._send_artifact(artifact)
-            result.response.log_artifact_response.artifact_id = res.get("id")
+            assert res, "Unable to send artifact"
+            result.response.log_artifact_response.artifact_id = res["id"]
             logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
@@ -969,7 +989,8 @@ class SendManager(object):
         artifact = record.request.artifact_send.artifact
         try:
             res = self._send_artifact(artifact)
-            done_msg.artifact_id = res.get("id")
+            assert res, "Unable to send artifact"
+            done_msg.artifact_id = res["id"]
             logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
             done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
@@ -979,7 +1000,7 @@ class SendManager(object):
         logger.info("send artifact done")
         self._interface._publish_artifact_done(done_msg)
 
-    def send_artifact(self, data):
+    def send_artifact(self, data: Record) -> None:
         artifact = data.artifact
         try:
             res = self._send_artifact(artifact)
@@ -991,7 +1012,8 @@ class SendManager(object):
                 )
             )
 
-    def _send_artifact(self, artifact):
+    def _send_artifact(self, artifact: "ArtifactRecord") -> Optional[Dict]:
+        assert self._pusher
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -1009,7 +1031,7 @@ class SendManager(object):
                     "This W&B server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return
+                return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
         return saver.save(
@@ -1026,7 +1048,7 @@ class SendManager(object):
             incremental=artifact.incremental_beta1,
         )
 
-    def send_alert(self, data):
+    def send_alert(self, data: "Record") -> None:
         alert = data.alert
         max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
@@ -1049,7 +1071,7 @@ class SendManager(object):
                     'send_alert: failed for alert "{}": {}'.format(alert.title, e)
                 )
 
-    def finish(self):
+    def finish(self) -> None:
         logger.info("shutting down sender")
         # if self._tb_watcher:
         #     self._tb_watcher.finish()
@@ -1064,31 +1086,31 @@ class SendManager(object):
             self._fs.finish(self._exit_code)
             self._fs = None
 
-    def _max_cli_version(self):
+    def _max_cli_version(self) -> Optional[str]:
         server_info = self.get_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
+        if not isinstance(max_cli_version, str):
+            return None
         return max_cli_version
 
-    def get_viewer_server_info(self):
-        if not self._cached_server_info or not self._cached_viewer:
-            (
-                self._cached_viewer,
-                self._cached_server_info,
-            ) = self._api.viewer_server_info()
+    def get_viewer_server_info(self) -> None:
+        if self._cached_server_info and self._cached_viewer:
+            return
+        self._cached_viewer, self._cached_server_info = self._api.viewer_server_info()
 
-    def get_viewer_info(self):
+    def get_viewer_info(self) -> Dict[str, Any]:
         if not self._cached_viewer:
             self.get_viewer_server_info()
         return self._cached_viewer
 
-    def get_server_info(self):
+    def get_server_info(self) -> Dict[str, Any]:
         if not self._cached_server_info:
             self.get_viewer_server_info()
         return self._cached_server_info
 
-    def get_local_info(self):
+    def get_local_info(self) -> "LocalInfo":
         """
         This is a helper function that queries the server to get the the local version information.
         First, we perform an introspection, if it returns empty we deduce that the docker image is
@@ -1115,7 +1137,7 @@ class SendManager(object):
             )
         return local_info
 
-    def __next__(self):
+    def __next__(self) -> "Record":
         return self._record_q.get(block=True)
 
     next = __next__
