@@ -13,7 +13,7 @@ import logging
 import os
 import time
 from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
-from typing import cast
+from typing import cast, TYPE_CHECKING
 
 from pkg_resources import parse_version
 import requests
@@ -23,15 +23,6 @@ import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.proto.wandb_internal_pb2 import (
-    ArtifactRecord,
-    HttpResponse,
-    LocalInfo,
-    Record,
-    Result,
-    RunExitResult,
-    RunRecord,
-)
 
 from . import artifacts
 from . import file_stream
@@ -42,6 +33,18 @@ from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
+
+
+if TYPE_CHECKING:
+    from wandb.proto.wandb_internal_pb2 import (
+        ArtifactRecord,
+        HttpResponse,
+        LocalInfo,
+        Record,
+        Result,
+        RunExitResult,
+        RunRecord,
+    )
 
 
 logger = logging.getLogger(__name__)
@@ -360,8 +363,8 @@ class SendManager(object):
                 result.response.login_response.active_entity = self._entity
             self._result_q.put(result)
 
-    def send_exit(self, data: "Record") -> None:
-        exit = data.exit
+    def send_exit(self, record: "Record") -> None:
+        exit = record.exit
         self._exit_code = exit.exit_code
         logger.info("handling exit code: %s", exit.exit_code)
         runtime = exit.runtime
@@ -370,19 +373,19 @@ class SendManager(object):
         self._update_summary()
 
         # Pass the responsibility to respond to handle_request_defer()
-        if data.control.req_resp:
-            self._exit_sync_uuid = data.uuid
+        if record.control.req_resp:
+            self._exit_sync_uuid = record.uuid
 
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
         logger.info("send defer")
         self._interface.publish_defer()
 
-    def send_final(self, data: "Record") -> None:
+    def send_final(self, record: "Record") -> None:
         pass
 
-    def send_request_defer(self, data: "Record") -> None:
-        defer = data.request.defer
+    def send_request_defer(self, record: "Record") -> None:
+        defer = record.request.defer
         state = defer.state
         logger.info("handle sender defer: {}".format(state))
 
@@ -487,7 +490,7 @@ class SendManager(object):
         self._result_q.put(result)
 
     def _maybe_setup_resume(
-        self, run: RunRecord
+        self, run: "RunRecord"
     ) -> "Optional[wandb_internal_pb2.ErrorInfo]":
         """This maybe queries the backend for a run and fails if the settings are
         incompatible."""
@@ -647,8 +650,8 @@ class SendManager(object):
             pass
         # TODO: do something if sync spell is not successful?
 
-    def send_run(self, data: "Record", file_dir: str = None) -> None:
-        run = data.run
+    def send_run(self, record: "Record", file_dir: str = None) -> None:
+        run = record.run
         error = None
         is_wandb_init = self._run is None
 
@@ -674,8 +677,8 @@ class SendManager(object):
             error = self._maybe_setup_resume(run)
 
         if error is not None:
-            if data.control.req_resp:
-                resp = wandb_internal_pb2.Result(uuid=data.uuid)
+            if record.control.req_resp:
+                resp = wandb_internal_pb2.Result(uuid=record.uuid)
                 resp.run_result.run.CopyFrom(run)
                 resp.run_result.error.CopyFrom(error)
                 self._result_q.put(resp)
@@ -704,8 +707,8 @@ class SendManager(object):
         self._init_run(run, config_value_dict)
         assert self._run  # self._run is configured in _init_run()
 
-        if data.control.req_resp:
-            resp = wandb_internal_pb2.Result(uuid=data.uuid)
+        if record.control.req_resp:
+            resp = wandb_internal_pb2.Result(uuid=record.uuid)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
@@ -826,13 +829,13 @@ class SendManager(object):
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
 
-    def send_history(self, data: "Record") -> None:
-        history = data.history
+    def send_history(self, record: "Record") -> None:
+        history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 
-    def send_summary(self, data: "Record") -> None:
-        summary_dict = proto_util.dict_from_proto_list(data.summary.update)
+    def send_summary(self, record: "Record") -> None:
+        summary_dict = proto_util.dict_from_proto_list(record.summary.update)
         self._cached_summary = summary_dict
         self._update_summary()
 
@@ -850,8 +853,8 @@ class SendManager(object):
             f.write(json_summary)
         self._save_file(filenames.SUMMARY_FNAME)
 
-    def send_stats(self, data: "Record") -> None:
-        stats = data.stats
+    def send_stats(self, record: "Record") -> None:
+        stats = record.stats
         if stats.stats_type != wandb_internal_pb2.StatsRecord.StatsType.SYSTEM:
             return
         if not self._fs:
@@ -870,10 +873,10 @@ class SendManager(object):
         self._fs.push(filenames.EVENTS_FNAME, json.dumps(row))
         # TODO(jhr): check fs.push results?
 
-    def send_output(self, data: "Record") -> None:
+    def send_output(self, record: "Record") -> None:
         if not self._fs:
             return
-        out = data.output
+        out = record.output
         prepend = ""
         stream = "stdout"
         if out.output_type == wandb_internal_pb2.OutputRecord.OutputType.STDERR:
@@ -901,13 +904,13 @@ class SendManager(object):
     def _update_config(self) -> None:
         self._config_needs_debounce = True
 
-    def send_config(self, data: "Record") -> None:
-        cfg = data.config
+    def send_config(self, record: "Record") -> None:
+        cfg = record.config
         config_util.update_from_proto(self._consolidated_config, cfg)
         self._update_config()
 
-    def send_metric(self, data: "Record") -> None:
-        metric = data.metric
+    def send_metric(self, record: "Record") -> None:
+        metric = record.metric
         if metric.glob_name:
             logger.warning("Seen metric with glob (shouldnt happen)")
             return
@@ -945,8 +948,8 @@ class SendManager(object):
             self._config_metric_index_dict[metric.name] = next_idx
         self._update_config()
 
-    def send_telemetry(self, data: "Record") -> None:
-        telem = data.telemetry
+    def send_telemetry(self, record: "Record") -> None:
+        telem = record.telemetry
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
@@ -955,19 +958,19 @@ class SendManager(object):
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
 
-    def send_files(self, data: "Record") -> None:
-        files = data.files
+    def send_files(self, record: "Record") -> None:
+        files = record.files
         for k in files.files:
             # TODO(jhr): fix paths with directories
             self._save_file(k.path, interface.file_enum_to_policy(k.policy))
 
-    def send_header(self, data: "Record") -> None:
+    def send_header(self, record: "Record") -> None:
         pass
 
-    def send_footer(self, data: "Record") -> None:
+    def send_footer(self, record: "Record") -> None:
         pass
 
-    def send_tbrecord(self, data: "Record") -> None:
+    def send_tbrecord(self, record: "Record") -> None:
         # tbrecord watching threads are handled by handler.py
         pass
 
@@ -988,7 +991,7 @@ class SendManager(object):
 
         self._result_q.put(result)
 
-    def send_request_artifact_send(self, record: Record) -> None:
+    def send_request_artifact_send(self, record: "Record") -> None:
         # TODO: combine and eventually remove send_request_log_artifact()
 
         # for now we are using req/resp uuid for transaction id
@@ -1010,8 +1013,8 @@ class SendManager(object):
         logger.info("send artifact done")
         self._interface._publish_artifact_done(done_msg)
 
-    def send_artifact(self, data: Record) -> None:
-        artifact = data.artifact
+    def send_artifact(self, record: "Record") -> None:
+        artifact = record.artifact
         try:
             res = self._send_artifact(artifact)
             logger.info("sent artifact {} - {}".format(artifact.name, res))
@@ -1058,8 +1061,8 @@ class SendManager(object):
             incremental=artifact.incremental_beta1,
         )
 
-    def send_alert(self, data: "Record") -> None:
-        alert = data.alert
+    def send_alert(self, record: "Record") -> None:
+        alert = record.alert
         max_cli_version = self._max_cli_version()
         if max_cli_version is None or parse_version(max_cli_version) < parse_version(
             "0.10.9"
