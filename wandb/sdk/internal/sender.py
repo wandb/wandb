@@ -88,6 +88,10 @@ class ResumeState:
         self.summary = None
         self.config = None
 
+    def __str__(self) -> str:
+        obj = ",".join(map(lambda it: f"{it[0]}={it[1]}", vars(self).items()))
+        return f"ResumeState({obj})"
+
 
 class SendManager(object):
 
@@ -889,7 +893,7 @@ class SendManager(object):
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = u"{}{}{}{}".format(prepend, timestamp, prev_str, line)
+            line = "{}{}{}{}".format(prepend, timestamp, prev_str, line)
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
