@@ -25,7 +25,7 @@ from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import HttpResponse
 from wandb.proto.wandb_internal_pb2 import Record, Result
-from wandb.proto.wandb_internal_pb2 import RunRecord
+from wandb.proto.wandb_internal_pb2 import RunExitResult, RunRecord
 
 from . import artifacts
 from . import file_stream
@@ -75,6 +75,10 @@ class SendManager(object):
     _run: "Optional[RunRecord]"
     _entity: "Optional[str]"
     _project: "Optional[str]"
+    _exit_sync_uuid: "Optional[str]"
+    _dir_watcher: "Optional[DirWatcher]"
+    _pusher: "Optional[FilePusher]"
+    _exit_result: "Optional[RunExitResult]"
 
     def __init__(
         self,
@@ -355,7 +359,7 @@ class SendManager(object):
         state = defer.state
         logger.info("handle sender defer: {}".format(state))
 
-        def transition_state():
+        def transition_state() -> None:
             state = defer.state + 1
             logger.info("send defer: {}".format(state))
             self._interface.publish_defer(state)

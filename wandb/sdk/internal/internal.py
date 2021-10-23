@@ -39,7 +39,7 @@ from ..interface.interface_queue import InterfaceQueue
 
 
 if TYPE_CHECKING:
-    from .settings_static import SettingsStatic
+    from .settings_static import SettingsDict, SettingsStatic
     from typing import Any, Dict, List, Optional, Union
     from six.moves.queue import Queue
     from .internal_util import RecordLoopThread
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 def wandb_internal(
-    settings: "Dict[str, Union[str, float]]",
+    settings: "SettingsDict",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
     port: int = None,
