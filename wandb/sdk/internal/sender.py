@@ -88,6 +88,7 @@ class ResumeState:
         self.events = 0
         self.output = 0
         self.runtime = 0
+        # wandb_runtime is the canonical runtime (stored in summary._wandb.runtime)
         self.wandb_runtime = None
         self.summary = None
         self.config = None
