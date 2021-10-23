@@ -26,13 +26,10 @@ assert:
     - 5  # sklearn
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-
 import wandb
 
 # yea test will grab this
@@ -43,9 +40,9 @@ import wandb
 wine_quality = pd.read_csv("wine.csv")
 y = wine_quality["quality"]
 y = y.values
-X = wine_quality.drop(["quality"], axis = 1)
+X = wine_quality.drop(["quality"], axis=1)
 X = X.values
-feature_names=wine_quality.columns
+feature_names = wine_quality.columns
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 labels = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
