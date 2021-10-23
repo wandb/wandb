@@ -722,7 +722,9 @@ class SendManager(object):
         else:
             logger.info("updated run: %s", self._run.run_id)
 
-    def _init_run(self, run: RunRecord, config_dict: Optional[DictWithValues]) -> None:
+    def _init_run(
+        self, run: "RunRecord", config_dict: Optional[DictWithValues]
+    ) -> None:
         # We subtract the previous runs runtime when resuming
         start_time = run.start_time.ToSeconds() - self._resume_state.runtime
         # TODO: we don't check inserted currently, ultimately we should make
