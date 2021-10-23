@@ -25,7 +25,12 @@ from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import HttpResponse
 from wandb.proto.wandb_internal_pb2 import Record, Result
-from wandb.proto.wandb_internal_pb2 import RunExitResult, RunRecord, ArtifactRecord, LocalInfo
+from wandb.proto.wandb_internal_pb2 import (
+    RunExitResult,
+    RunRecord,
+    ArtifactRecord,
+    LocalInfo,
+)
 
 from . import artifacts
 from . import file_stream
@@ -69,8 +74,8 @@ class ResumeState:
     output: int
     runtime: int
     wandb_runtime: Optional[int]
-    summary: Optional[Dict[str,Any]]
-    config: Optional[Dict[str,Any]]
+    summary: Optional[Dict[str, Any]]
+    config: Optional[Dict[str, Any]]
 
     def __init__(self) -> None:
         self.resumed = False
@@ -637,7 +642,7 @@ class SendManager(object):
             pass
         # TODO: do something if sync spell is not successful?
 
-    def send_run(self, data: "Record", file_dir: str=None) -> None:
+    def send_run(self, data: "Record", file_dir: str = None) -> None:
         run = data.run
         error = None
         is_wandb_init = self._run is None
@@ -773,7 +778,7 @@ class SendManager(object):
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
 
-    def _start_run_threads(self, file_dir: str=None) -> None:
+    def _start_run_threads(self, file_dir: str = None) -> None:
         assert self._run  # self._run is configured by caller
         self._fs = file_stream.FileStreamApi(
             self._api,
@@ -940,7 +945,7 @@ class SendManager(object):
         self._telemetry_obj.MergeFrom(telem)
         self._update_config()
 
-    def _save_file(self, fname: str, policy: str="end") -> None:
+    def _save_file(self, fname: str, policy: str = "end") -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
             self._dir_watcher.update_policy(fname, policy)
