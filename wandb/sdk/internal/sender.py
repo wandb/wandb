@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, Generator, List, NewType, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, NewType, Optional, Tuple
 from typing import cast
 
 from pkg_resources import parse_version
@@ -23,13 +23,14 @@ import wandb
 from wandb import util
 from wandb.filesync.dir_watcher import DirWatcher
 from wandb.proto import wandb_internal_pb2
-from wandb.proto.wandb_internal_pb2 import HttpResponse
-from wandb.proto.wandb_internal_pb2 import Record, Result
 from wandb.proto.wandb_internal_pb2 import (
+    ArtifactRecord,
+    HttpResponse,
+    LocalInfo,
+    Record,
+    Result,
     RunExitResult,
     RunRecord,
-    ArtifactRecord,
-    LocalInfo,
 )
 
 from . import artifacts

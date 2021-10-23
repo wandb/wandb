@@ -40,7 +40,7 @@ from ..interface.interface_queue import InterfaceQueue
 
 if TYPE_CHECKING:
     from .settings_static import SettingsDict, SettingsStatic
-    from typing import Any, Dict, List, Optional, Union
+    from typing import Any, List, Optional
     from six.moves.queue import Queue
     from .internal_util import RecordLoopThread
     from wandb.proto.wandb_internal_pb2 import Record, Result
