@@ -6,8 +6,10 @@ command:
 tag:
   shard: py310
 depend:
-    requirements:
-        - torch>=1.10.0
+  requirements:
+    - torch==1.10.0 -f https://download.pytorch.org/whl/cpu/torch_stable.html
+    - torchvision==0.11.1 -f https://download.pytorch.org/whl/cpu/torch_stable.html
+    - torchaudio==0.10.0 -f https://download.pytorch.org/whl/cpu/torch_stable.html
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
