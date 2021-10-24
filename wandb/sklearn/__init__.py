@@ -1107,15 +1107,10 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
         and test_fitted(clf)
     ):
         y = np.asarray(y)
-        # Create dataset of classification task with many redundant and few
-        # informative features
-        X, y = datasets.make_classification(
-            n_samples=100000,
-            n_features=20,
-            n_informative=2,
-            n_redundant=10,
-            random_state=42,
-        )
+        if not ((y == 0) | (y == 1)).all():
+            raise ValueError(
+                "This function only supports binary classification at the moment and therefore expects labels to be binary."
+            )
 
         # ComplementNB (introduced in 0.20.0) requires non-negative features
         if int(sklearn.__version__.split(".")[1]) >= 20 and isinstance(
@@ -1123,9 +1118,6 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
         ):
             X = X - X.min()
 
-        X_train, X_test, y_train, y_test = model_selection.train_test_split(
-            X, y, test_size=0.99, random_state=42
-        )
         # Calibrated with isotonic calibration
         isotonic = CalibratedClassifierCV(clf, cv=2, method="isotonic")
 
@@ -1159,23 +1151,20 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
         )
 
         # Add curve for LogisticRegression baseline and other models
-        for clf, name in [
+
+        for model, name in [
             (lr, "Logistic"),
-            (clf, clf_name),
             (isotonic, clf_name + " + Isotonic"),
             (sigmoid, clf_name + " + Sigmoid"),
         ]:
-            clf.fit(X_train, y_train)
-            y_pred = clf.predict(X_test)
-            if hasattr(clf, "predict_proba"):
-                prob_pos = clf.predict_proba(X_test)[:, 1]
+            model.fit(X_train, y_train)
+            if hasattr(model, "predict_proba"):
+                prob_pos = model.predict_proba(X_test)[:, 1]
             else:  # use decision function
-                prob_pos = clf.decision_function(X_test)
+                prob_pos = model.decision_function(X_test)
                 prob_pos = (prob_pos - prob_pos.min()) / (
                     prob_pos.max() - prob_pos.min()
                 )
-
-            clf_score = brier_score_loss(y_test, prob_pos, pos_label=y.max())
 
             fraction_of_positives, mean_predicted_value = calibration_curve(
                 y_test, prob_pos, n_bins=10
