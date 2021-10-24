@@ -7,8 +7,6 @@ plugin:
   - wandb
 tag:
   shard: py310
-command:
-  program: 02-with-finish.py
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
