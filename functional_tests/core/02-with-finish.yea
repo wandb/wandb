@@ -9,5 +9,5 @@ assert:
       m2: 2
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-    - :wandb:runs[1][telemetry][3]  # feature
+    - :wandb:runs[0][telemetry][3]  # feature
     - 2  # finish
