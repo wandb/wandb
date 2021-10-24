@@ -81,7 +81,9 @@ class Meta(object):
             with open(
                 os.path.join(self._settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
             ) as f:
-                subprocess.call(["conda", "env", "export"], stdout=f)
+                subprocess.call(
+                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                )
         except Exception:
             logger.exception("Error saving conda packages")
         logger.debug("save conda done")
