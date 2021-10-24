@@ -165,11 +165,12 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                 # ascending recall, descending precision for the same recall values
                 data = sorted(data, key=lambda x: (x[0], -x[1]))
                 data_table = wandb.Table(data=data, columns=["recall", "precision"])
-                values[namespaced_tag(value.tag, namespace)] = create_custom_chart(
+                name = namespaced_tag(value.tag, namespace)
+                values[name] = create_custom_chart(
                     "wandb/line/v0",
                     data_table,
                     {"x": "recall", "y": "precision"},
-                    {"title": "Precision v. Recall"},
+                    {"title": f"{name} Precision v. Recall"},
                 )
         elif kind == "image":
             img_str = value.image.encoded_image_string
