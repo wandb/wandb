@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Base case - main process init/finish.
 
---
+---
 id: 0.py310.01-basic
 plugin:
   - wandb
