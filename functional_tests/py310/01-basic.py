@@ -1,6 +1,14 @@
-id: 0.core.02-with-finish
+#!/usr/bin/env python
+"""Base case - main process init/finish.
+
+--
+id: 0.py310.01-basic
 plugin:
   - wandb
+tag:
+  shard: py310
+command:
+  program: 02-with-finish.py
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -11,3 +19,11 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
     - 2  # finish
+"""
+
+import wandb
+
+wandb.init()
+wandb.log(dict(m1=1))
+wandb.log(dict(m2=2))
+wandb.finish()
