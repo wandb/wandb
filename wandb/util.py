@@ -736,7 +736,7 @@ class JSONEncoderUncompressed(json.JSONEncoder):
         if is_numpy_array(obj):
             return obj.tolist()
         elif np and isinstance(obj, np.generic):
-            obj = obj.item()
+            return obj.item()
         return json.JSONEncoder.default(self, obj)
 
 
