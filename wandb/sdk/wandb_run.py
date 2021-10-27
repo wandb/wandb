@@ -2300,10 +2300,7 @@ class Run(object):
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id,
-                entity_name=artifact.entity,
-                project_name=artifact.project,
-                use_as=use_as or artifact_or_name,
+                artifact.id, use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
