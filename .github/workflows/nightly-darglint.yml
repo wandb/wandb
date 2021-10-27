@@ -1,0 +1,22 @@
+name: Runs darglint tox job
+on:
+  schedule:
+    - cron: '01 17 * * *'  # Each day at 01:17 UTC,
+  push:  # TODO: remove before merge to wandb/client
+jobs:
+  darglint:  # run our tox darglint job.
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout client repo
+        uses: actions/checkout@v2
+        with:
+          repository: wandb/client
+          persist-credentials: false
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: setup tox
+        run: python -m pip install tox
+      - name: run darglint
+        run: tox -e darglint
