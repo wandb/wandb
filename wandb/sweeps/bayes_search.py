@@ -57,12 +57,14 @@ def sigmoid(x: ArrayLike) -> ArrayLike:
 
 
 def random_sample(X_bounds: ArrayLike, num_test_samples: integer) -> ArrayLike:
+    if hasattr(X_bounds, "tolist"):
+        X_bounds = X_bounds.tolist()
     num_hyperparameters = len(X_bounds)
     test_X = np.empty((int(num_test_samples), num_hyperparameters))
     for ii in range(num_test_samples):
         for jj in range(num_hyperparameters):
-            if type(X_bounds[jj][0].tolist()) == int:
-                assert type(X_bounds[jj][1].tolist()) == int
+            if type(X_bounds[jj][0]) == int:
+                assert type(X_bounds[jj][1]) == int
                 test_X[ii, jj] = np.random.randint(X_bounds[jj][0], X_bounds[jj][1])
             else:
                 test_X[ii, jj] = (
