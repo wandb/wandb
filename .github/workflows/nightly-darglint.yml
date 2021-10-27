@@ -19,7 +19,6 @@ jobs:
       - name: setup tox
         run: python -m pip install tox
       - name: run darglint
-        working-directory: client
         run: tox -e darglint \
           wandb/__init__.py\
           wandb/apis/public.py\
