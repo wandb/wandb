@@ -1,11 +1,16 @@
-"""
-Wandb has special data types for logging rich visualizations.
+"""This modules defines data types for logging rich, interactive visualizations to W&B.
+
+Data types include common media types, like images, audio, and videos,
+flexible containers for information, like tables and HTML, and more.
+
+For more on logging media, see [our guide](https://docs.wandb.com/guides/track/log/media)
+
+For more on logging tables for interactive data and model analysis,
+see [our guide to W&B Tables](https://docs.wandb.com/guides/data-vis).
 
 All of the special data types are subclasses of WBValue. All of the data types
 serialize to JSON, since that is what wandb uses to save the objects locally
-and upload them to the W&B server.
-"""
-
+and upload them to the W&B server."""
 from __future__ import print_function
 
 import base64
