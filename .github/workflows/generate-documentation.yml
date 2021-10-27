@@ -23,13 +23,15 @@ jobs:  # update the docs.
           path: documentation/gitbook
           ref: en
           persist-credentials: false
-      # setup: bring in python plus the requirements for generating docs
+      # setup: bring in python plus the requirements for generating docs and the new release
       - name: setup python
         uses: actions/setup-python@v2
         with:
           python-version: "3.9"
-      - name: setup python environment
-        run: python -m pip install -r ./documentation/docugen/requirements.txt
+      - name: setup python environment, including wandb client
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: python -m pip install -r ./documentation/docugen/requirements.txt git+https://github.com/wandb/client.git@$VERSION
 
       # generate the docs from the latest client library and overwrite gitbook contents
       - name: generate documentation
