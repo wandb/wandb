@@ -1,3 +1,22 @@
+## 0.12.5 (October 19, 2021)
+
+#### :bug: Bug Fix
+
+- Report errors for invalid characters in logged media keys on windows
+- Handle errors when probing for TPUs in unsupported environments
+- Fixed bug where `%%wandb` followed by wandb.init() does not display run links
+- Fixed api.runs() to correctly return all runs for the current entity/project
+
+#### :nail_care: Enhancement
+
+- Add `wandb.require(experiment="service")` to improve multiprocessing support
+- Add support for swappable artifacts in launch context
+- Add `wandb.login(timeout=)` support for jupyter environments
+- Add ability to disable git ref saving with `WANDB_DISABLE_GIT`
+- Support newer versions of pytest-mock and PyYAML
+- Add ability to delete artifacts with aliases: `artifact.delete(delete_aliases=True)`
+- Add `unwatch()` method to the Run object
+
 ## 0.12.4 (October 5, 2021)
 
 #### :bug: Bug Fix

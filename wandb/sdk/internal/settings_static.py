@@ -4,12 +4,9 @@
 static settings.
 """
 
-from typing import TYPE_CHECKING
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
-if TYPE_CHECKING:
-    from typing import Any, Dict, Iterable, Optional, Union
-
-    SettingsDict = Dict[str, Union[str, float]]
+SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
 
 class SettingsStatic(object):
@@ -21,6 +18,10 @@ class SettingsStatic(object):
     files_dir: str
     log_internal: str
     _internal_check_process: bool
+    resume: "Optional[str]"
+    program: "Optional[str]"
+    silent: "Optional[bool]"
+    email: "Optional[str]"
 
     # TODO(jhr): clean this up, it is only in SettingsStatic and not in Settings
     _log_level: int

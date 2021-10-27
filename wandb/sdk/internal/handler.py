@@ -32,7 +32,7 @@ from wandb.proto.wandb_internal_pb2 import Record, Result
 from . import meta, sample, stats
 from . import tb_watcher
 from .settings_static import SettingsStatic
-from ..interface.interface import BackendSender
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
 
 SummaryDict = Dict[str, Any]
@@ -62,7 +62,7 @@ class HandleManager(object):
     _stopped: Event
     _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
-    _interface: BackendSender
+    _interface: InterfaceQueue
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
@@ -71,6 +71,7 @@ class HandleManager(object):
     _metric_copy: Dict[Tuple[str, ...], Any]
     _track_time: Optional[float]
     _accumulate_time: float
+    _artifact_xid_done: Dict[str, wandb_internal_pb2.ArtifactDoneRequest]
 
     def __init__(
         self,
@@ -80,7 +81,7 @@ class HandleManager(object):
         stopped: Event,
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
-        interface: BackendSender,
+        interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -105,6 +106,9 @@ class HandleManager(object):
         self._metric_globs = dict()
         self._metric_track = dict()
         self._metric_copy = dict()
+
+        # TODO: implement release protocol to clean this up
+        self._artifact_xid_done = dict()
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -515,8 +519,49 @@ class HandleManager(object):
     def handle_request_check_version(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_attach(self, record: Record) -> None:
+        self._dispatch_record(record)
+
     def handle_request_log_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
+
+    def handle_request_artifact_send(self, record: Record) -> None:
+        assert record.control.req_resp
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+
+        self._dispatch_record(record)
+
+        # send response immediately, the request will be polled for result
+        xid = record.uuid
+        result.response.artifact_send_response.xid = xid
+        self._result_q.put(result)
+
+    def handle_request_artifact_poll(self, record: Record) -> None:
+        assert record.control.req_resp
+        xid = record.request.artifact_poll.xid
+        assert xid
+
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        done_req = self._artifact_xid_done.get(xid)
+        if done_req:
+            result.response.artifact_poll_response.artifact_id = done_req.artifact_id
+            result.response.artifact_poll_response.error_message = (
+                done_req.error_message
+            )
+            result.response.artifact_poll_response.ready = True
+        self._result_q.put(result)
+
+    def handle_request_artifact_done(self, record: Record) -> None:
+        assert not record.control.req_resp
+        done_req = record.request.artifact_done
+        xid = done_req.xid
+        assert xid
+
+        self._artifact_xid_done[xid] = done_req
+
+    # def handle_request_artifact_release(self, record: Record) -> None:
+    #     assert record.control.req_resp
+    #     # TODO: implement release protocol to clean up _artifact_xid_done dict
 
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
@@ -577,6 +622,9 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_request_network_status(self, record: Record) -> None:
+        self._dispatch_record(record)
+
+    def handle_request_status(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_request_get_summary(self, record: Record) -> None:

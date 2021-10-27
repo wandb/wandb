@@ -46,7 +46,6 @@ from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
-from wandb.errors import Error
 from wandb.proto.wandb_internal_pb2 import (
     FilePusherStats,
     MetricRecord,
@@ -72,7 +71,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import BackendSender
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -86,16 +85,16 @@ from .lib import (
     sparkline,
     telemetry,
 )
+from .lib.exit_hooks import ExitHooks
+from .lib.git import GitRepo
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
-
 if TYPE_CHECKING:
-    from typing import NoReturn
-
     from .data_types import WBValue
+    from .wandb_alerts import AlertLevel
 
     from .interface.artifacts import (
         ArtifactEntry,
@@ -119,53 +118,6 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
-class ExitHooks(object):
-
-    exception: Optional[BaseException] = None
-
-    def __init__(self) -> None:
-        self.exit_code = 0
-        self.exception = None
-
-    def hook(self) -> None:
-        self._orig_exit = sys.exit
-        sys.exit = self.exit
-        self._orig_excepthook = (
-            sys.excepthook
-            if sys.excepthook
-            != sys.__excepthook__  # respect hooks by other libraries like pdb
-            else None
-        )
-        sys.excepthook = self.exc_handler
-
-    def exit(self, code: object = 0) -> "NoReturn":
-        orig_code = code
-        if code is None:
-            code = 0
-        elif not isinstance(code, int):
-            code = 1
-        self.exit_code = code
-        self._orig_exit(orig_code)
-
-    def was_ctrl_c(self) -> bool:
-        return isinstance(self.exception, KeyboardInterrupt)
-
-    def exc_handler(
-        self, exc_type: Type[BaseException], exc: BaseException, tb: TracebackType
-    ) -> None:
-        self.exit_code = 1
-        self.exception = exc
-        if issubclass(exc_type, Error):
-            wandb.termerror(str(exc))
-
-        if self.was_ctrl_c():
-            self.exit_code = 255
-
-        traceback.print_exception(exc_type, exc, tb)
-        if self._orig_excepthook:
-            self._orig_excepthook(exc_type, exc, tb)
-
-
 class RunStatusChecker(object):
     """Periodically polls the background process for relevant updates.
 
@@ -174,7 +126,7 @@ class RunStatusChecker(object):
 
     def __init__(
         self,
-        interface: BackendSender,
+        interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -285,13 +237,18 @@ class Run(object):
     _run_status_checker: Optional[RunStatusChecker]
     _poll_exit_response: Optional[PollExitResponse]
 
-    _sampled_history: Optional[Dict[str, Union[List[int], List[float]]]]
+    _sampled_history: Optional[Dict[str, Union[Sequence[int], Sequence[float]]]]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
     _stderr_slave_fd: Optional[int]
+    _artifact_slots: List[str]
 
-    _pid: int
+    _init_pid: int
+    _iface_pid: Optional[int]
+    _iface_port: Optional[int]
+
+    _attach_id: Optional[str]
 
     def __init__(
         self,
@@ -326,6 +283,8 @@ class Run(object):
         self._name = None
         self._notes = None
         self._tags = None
+        self._remote_url = None
+        self._last_commit = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -351,6 +310,7 @@ class Run(object):
         self._upgraded_version_message = None
         self._deleted_version_message = None
         self._yanked_version_message = None
+        self._used_artifact_slots: List[str] = []
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -380,6 +340,8 @@ class Run(object):
         config = config or dict()
         wandb_key = "_wandb"
         config.setdefault(wandb_key, dict())
+        self._launch_artifact_mapping: Dict[str, Any] = {}
+        self._unique_launch_artifact_sequence_names: Dict[str, Any] = {}
         if settings.save_code and settings.program_relpath:
             config[wandb_key]["code_path"] = to_forward_slash_path(
                 os.path.join("code", settings.program_relpath)
@@ -396,16 +358,57 @@ class Run(object):
         ):
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
-            self._config.update_locked(
-                launch_config, user="launch", _allow_val_change=True
-            )
+            if launch_config.get("overrides", {}).get("artifacts") is not None:
+                for key, item in (
+                    launch_config.get("overrides").get("artifacts").items()
+                ):
+                    self._launch_artifact_mapping[key] = item
+                    artifact_sequence_tuple_or_slot = key.split(":")
+
+                    if len(artifact_sequence_tuple_or_slot) == 2:
+                        sequence_name = artifact_sequence_tuple_or_slot[0].split("/")[
+                            -1
+                        ]
+                        if self._unique_launch_artifact_sequence_names.get(
+                            sequence_name
+                        ):
+                            self._unique_launch_artifact_sequence_names.pop(
+                                sequence_name
+                            )
+                        else:
+                            self._unique_launch_artifact_sequence_names[
+                                sequence_name
+                            ] = item
+
+            launch_run_config = launch_config.get("overrides", {}).get("run_config")
+            if launch_run_config:
+                self._config.update_locked(
+                    launch_run_config, user="launch", _allow_val_change=True
+                )
         self._config._update(config, ignore_locked=True)
 
         self._atexit_cleanup_called = False
         self._use_redirect = True
         self._progress_step = 0
 
-        self._pid = os.getpid()
+        # pid is set so we know if this run object was initialized by this process
+        self._init_pid = os.getpid()
+
+        # interface pid and port configured when backend is configured (See _hack_set_run)
+        # TODO: using pid isnt the best for windows as pid reuse can happen more often than unix
+        self._iface_pid = None
+        self._iface_port = None
+        self._attach_id = None
+
+        # for now, use runid as attach id, this could/should be versioned in the future
+        if self._settings._require_service:
+            self._attach_id = self._settings.run_id
+
+    def _set_iface_pid(self, iface_pid: int) -> None:
+        self._iface_pid = iface_pid
+
+    def _set_iface_port(self, iface_port: int) -> None:
+        self._iface_port = iface_port
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
@@ -484,13 +487,43 @@ class Run(object):
                 run.tags.append(tag)
         if self._start_time is not None:
             run.start_time.FromSeconds(int(self._start_time))
+        if self._remote_url is not None:
+            run.git.remote_url = self._remote_url
+        if self._last_commit is not None:
+            run.git.last_commit = self._last_commit
         # Note: run.config is set in interface/interface:_make_run()
 
-    def __getstate__(self) -> None:
-        pass
+    def _populate_git_info(self) -> None:
+        try:
+            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+        except Exception:
+            wandb.termwarn("Cannot find valid git repo associated with this directory.")
+            return
+        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
+
+    def __getstate__(self) -> Any:
+        """Custom pickler."""
+
+        # We only pickle in service mode
+        if not self._settings or not self._settings._require_service:
+            return
+
+        _attach_id = self._attach_id
+        if not _attach_id:
+            return
+
+        return dict(_attach_id=_attach_id)
 
     def __setstate__(self, state: Any) -> None:
-        pass
+        """Custom unpickler."""
+        if not state:
+            return
+
+        _attach_id = state.get("_attach_id")
+        if not _attach_id:
+            return
+
+        self._attach_id = _attach_id
 
     @property
     def dir(self) -> str:
@@ -524,7 +557,7 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_name = True
         self._name = name
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -543,7 +576,7 @@ class Run(object):
     @notes.setter
     def notes(self, notes: str) -> None:
         self._notes = notes
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -561,7 +594,7 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             tel.feature.set_run_tags = True
         self._tags = tuple(tags)
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_run(self)
 
     @property
@@ -796,8 +829,8 @@ class Run(object):
         self._label_internal(code=code, repo=repo, code_version=code_version)
 
         # update telemetry in the backend immediately for _label() callers
-        if self._backend:
-            self._backend.interface.publish_telemetry(self._telemetry_obj)
+        if self._backend and self._backend.interface:
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines: List[str]) -> None:
         if not lines:
@@ -884,21 +917,23 @@ class Run(object):
         self._config_callback(key=("_wandb", key), val=val)
 
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
-        if not self._backend:
+        if not self._backend or not self._backend.interface:
             return {}
-        ret = self._backend.interface.communicate_summary()
+        ret = self._backend.interface.communicate_get_summary()
+        if not ret:
+            return {}
         return proto_util.dict_from_proto_list(ret.item)
 
     def _metric_callback(self, metric_record: MetricRecord) -> None:
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface._publish_metric(metric_record)
 
     def _datatypes_callback(self, fname: str) -> None:
-        if not self._backend:
+        if not self._backend or not self._backend.interface:
             return
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
@@ -932,7 +967,7 @@ class Run(object):
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
 
-        if self._backend:
+        if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
                 row, step, publish_step=not_using_tensorboard
@@ -940,7 +975,7 @@ class Run(object):
 
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_output(name, data)
 
     def _tensorboard_callback(
@@ -948,7 +983,7 @@ class Run(object):
     ) -> None:
         logger.info("tensorboard callback: %s, %s", logdir, save)
         save = True if save is None else save
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_tbdata(logdir, save, root_logdir)
 
     def _set_library(self, library: _WandbSetup) -> None:
@@ -1145,18 +1180,19 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-        current_pid = os.getpid()
-        if current_pid != self._pid:
-            message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                current_pid, self._pid
-            )
-            if self._settings._strict:
-                wandb.termerror(message, repeat=False)
-                raise errors.LogMultiprocessError(
-                    "log() does not support multiprocessing"
+        if not self._settings._require_service:
+            current_pid = os.getpid()
+            if current_pid != self._init_pid:
+                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                    current_pid, self._init_pid
                 )
-            wandb.termwarn(message, repeat=False)
-            return
+                if self._settings._strict:
+                    wandb.termerror(message, repeat=False)
+                    raise errors.LogMultiprocessError(
+                        "log() does not support multiprocessing"
+                    )
+                wandb.termwarn(message, repeat=False)
+                return
 
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
@@ -1281,7 +1317,7 @@ class Run(object):
                 % file_str
             )
         files_dict = dict(files=[(wandb_glob_str, policy)])
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
 
@@ -1313,6 +1349,7 @@ class Run(object):
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
+
         self._atexit_cleanup(exit_code=exit_code)
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
@@ -1322,6 +1359,11 @@ class Run(object):
                 hook.call()
         self._teardown_hooks = []
         module.unset_globals()
+
+        # inform manager this run is finished
+        manager = self._wl and self._wl._get_manager()
+        if manager:
+            manager._inform_finish(run_id=self.id)
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
@@ -1651,7 +1693,11 @@ class Run(object):
         logger.info("atexit reg")
         self._hooks = ExitHooks()
         self._hooks.hook()
-        atexit.register(lambda: self._atexit_cleanup())
+
+        manager = self._wl and self._wl._get_manager()
+        if not manager:
+            # NB: manager will perform atexit hook like behavior for outstanding runs
+            atexit.register(lambda: self._atexit_cleanup())
 
         if self._use_redirect:
             # setup fake callback
@@ -1674,19 +1720,20 @@ class Run(object):
         # TODO: make offline mode in jupyter use HTML
         if self._settings._offline and not self._quiet:
             message = (
-                "W&B syncing is set to `offline` in this directory.  "
-                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing."
+                "W&B syncing is set to `offline` in this directory.  ",
+                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.",
             )
             if self._settings._jupyter and ipython.in_jupyter():
                 ipython.display_html("<br/>\n".join(message))
             else:
-                wandb.termlog(message)
+                for m in message:
+                    wandb.termlog(m)
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
-        if self._backend and not self._settings._offline:
+        if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
@@ -1741,7 +1788,7 @@ class Run(object):
 
     def _wait_for_finish(self) -> PollExitResponse:
         while True:
-            if self._backend:
+            if self._backend and self._backend.interface:
                 poll_exit_resp = self._backend.interface.communicate_poll_exit()
             logger.info("got exit ret: %s", poll_exit_resp)
 
@@ -1793,26 +1840,31 @@ class Run(object):
                 wandb.termlog(status_str)
 
         # telemetry could have changed, publish final data
-        if self._backend:
-            self._backend.interface.publish_telemetry(self._telemetry_obj)
+        if self._backend and self._backend.interface:
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_exit(self._exit_code)
 
         # Wait for data to be synced
         self._poll_exit_response = self._wait_for_finish()
 
-        if self._backend:
-            ret = self._backend.interface.communicate_summary()
-            self._final_summary = proto_util.dict_from_proto_list(ret.item)
+        if self._backend and self._backend.interface:
+            ret = self._backend.interface.communicate_get_summary()
+            if ret:
+                self._final_summary = proto_util.dict_from_proto_list(ret.item)
 
-        if self._backend:
-            ret = self._backend.interface.communicate_sampled_history()
-            d = {item.key: item.values_float or item.values_int for item in ret.item}
-            self._sampled_history = d
-
+        if self._backend and self._backend.interface:
+            sampled = self._backend.interface.communicate_sampled_history()
+            if sampled:
+                d: Dict[str, Union[Sequence[int], Sequence[float]]] = {}
+                for item in sampled.item:
+                    d[item.key] = (
+                        item.values_float if item.values_float else item.values_int
+                    )
+                self._sampled_history = d
         if self._backend:
             self._backend.cleanup()
 
@@ -2150,7 +2202,57 @@ class Run(object):
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None):  # type: ignore
+    def unwatch(self, models=None) -> None:  # type: ignore
+        wandb.unwatch(models=models)
+
+    def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
+        artifact_key_string = use_as or artifact_name
+        replacement_artifact_info = self._launch_artifact_mapping.get(
+            artifact_key_string
+        )
+        if replacement_artifact_info is not None:
+            new_name = replacement_artifact_info.get("name")
+            entity = replacement_artifact_info.get("entity")
+            project = replacement_artifact_info.get("project")
+            if new_name is None or entity is None or project is None:
+                raise ValueError(
+                    "Misconfigured artifact in launch config. Must include name, project and entity keys."
+                )
+            return f"{entity}/{project}/{new_name}"
+        elif replacement_artifact_info is None and use_as is None:
+            wandb.termwarn(
+                f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
+            )
+            sequence_name = artifact_name.split(":")[0].split("/")[-1]
+            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
+                sequence_name
+            )
+            if unique_artifact_replacement_info is not None:
+                new_name = unique_artifact_replacement_info.get("name")
+                entity = unique_artifact_replacement_info.get("entity")
+                project = unique_artifact_replacement_info.get("project")
+                if new_name is None or entity is None or project is None:
+                    raise ValueError(
+                        "Misconfigured artifact in launch config. Must include name, project and entity keys."
+                    )
+                return f"{entity}/{project}/{new_name}"
+
+        else:
+            wandb.termwarn(
+                f"Could not find swappable artifact at key: {use_as}. Using {artifact_name}"
+            )
+            return artifact_name
+
+        wandb.termwarn(
+            f"Could not find {artifact_key_string} in launch artifact mapping. Using {artifact_name}"
+        )
+        return artifact_name
+
+    def _detach(self) -> None:
+        pass
+
+    # TODO(jhr): annotate this
+    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2165,18 +2267,29 @@ class Run(object):
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
+            use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
         Returns:
             An `Artifact` object.
         """
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-
+        if use_as:
+            if use_as in self._used_artifact_slots:
+                raise ValueError(
+                    "Cannot call use_artifact with the same use_as argument more than once"
+                )
+            elif ":" in use_as or "/" in use_as:
+                raise ValueError("use_as cannot contain special characters ':' or '/'")
+            self._used_artifact_slots.append(use_as)
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
         if isinstance(artifact_or_name, str):
-            name = artifact_or_name
+            if self._launch_artifact_mapping:
+                name = self._swap_artifact_name(artifact_or_name, use_as)
+            else:
+                name = artifact_or_name
             public_api = self._public_api()
             artifact = public_api.artifact(type=type, name=name)
             if type is not None and type != artifact.type:
@@ -2185,7 +2298,10 @@ class Run(object):
                         type, artifact.type, artifact.name
                     )
                 )
-            api.use_artifact(artifact.id)
+            artifact._use_as = use_as or artifact_or_name
+            api.use_artifact(
+                artifact.id, use_as=use_as or artifact_or_name,
+            )
             return artifact
         else:
             artifact = artifact_or_name
@@ -2194,12 +2310,22 @@ class Run(object):
             elif isinstance(aliases, str):
                 aliases = [aliases]
             if isinstance(artifact_or_name, wandb.Artifact):
+                if use_as is not None:
+                    wandb.termwarn(
+                        "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
+                    )
                 self._log_artifact(
                     artifact, aliases, is_user_created=True, use_after_commit=True
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                api.use_artifact(artifact.id)
+                if self._launch_artifact_mapping is not None:
+                    wandb.termwarn(
+                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                    )
+                api.use_artifact(
+                    artifact.id, use_as=use_as or artifact._use_as or artifact.name
+                )
                 return artifact
             else:
                 raise ValueError(
@@ -2366,7 +2492,7 @@ class Run(object):
         )
         artifact.distributed_id = distributed_id
         self._assert_can_log_artifact(artifact)
-        if self._backend:
+        if self._backend and self._backend.interface:
             if not self._settings._offline:
                 future = self._backend.interface.communicate_artifact(
                     self,
@@ -2458,7 +2584,7 @@ class Run(object):
         self,
         title: str,
         text: str,
-        level: Union[str, None] = None,
+        level: Union[str, "AlertLevel"] = None,
         wait_duration: Union[int, float, timedelta, None] = None,
     ) -> None:
         """Launch an alert with the given title and text.
@@ -2471,13 +2597,8 @@ class Run(object):
                 alert with this title.
         """
         level = level or wandb.AlertLevel.INFO
-        if isinstance(level, wandb.AlertLevel):
-            level = level.value
-        if level not in (
-            wandb.AlertLevel.INFO.value,
-            wandb.AlertLevel.WARN.value,
-            wandb.AlertLevel.ERROR.value,
-        ):
+        level_str: str = level.value if isinstance(level, wandb.AlertLevel) else level
+        if level_str not in {lev.value for lev in wandb.AlertLevel}:
             raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
 
         wait_duration = wait_duration or timedelta(minutes=1)
@@ -2489,8 +2610,8 @@ class Run(object):
             )
         wait_duration = int(wait_duration.total_seconds() * 1000)
 
-        if self._backend:
-            self._backend.interface.publish_alert(title, text, level, wait_duration)
+        if self._backend and self._backend.interface:
+            self._backend.interface.publish_alert(title, text, level_str, wait_duration)
 
     def __enter__(self) -> "Run":
         return self
@@ -2510,7 +2631,7 @@ class Run(object):
 
         Also tells the internal process to immediately report this to server.
         """
-        if self._backend:
+        if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
 
 

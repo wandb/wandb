@@ -5,6 +5,8 @@ canonicalsrc =
     .tox/func-s_tf115-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf21-py37/lib/python3.7/site-packages/wandb/
     .tox/func-s_tf25-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_service-py37/lib/python3.7/site-packages/wandb/
+    .tox/func-s_py310-py310/lib/python3.10/site-packages/wandb/
 
 [run]
 # TODO(jhr): enable this in the future
@@ -17,6 +19,7 @@ source =
 omit =
     wandb/sweeps/*
     wandb/vendor/*
+    wandb/proto/*
 
 [report]
 exclude_lines =
@@ -26,3 +29,4 @@ exclude_lines =
 omit =
     wandb/sweeps/*
     wandb/vendor/*
+    wandb/proto/*
