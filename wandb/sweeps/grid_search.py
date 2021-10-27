@@ -4,6 +4,8 @@ import hashlib
 import yaml
 from typing import Any, List, Optional, Union
 
+import numpy as np
+
 from .config.cfg import SweepConfig
 from .run import SweepRun
 from .params import HyperParameter, HyperParameterSet
@@ -53,10 +55,38 @@ def grid_search_next_runs(
 
     # Check that all parameters are categorical or constant
     for p in params:
-        if p.type != HyperParameter.CATEGORICAL and p.type != HyperParameter.CONSTANT:
+        if p.type not in [
+            HyperParameter.CATEGORICAL,
+            HyperParameter.CONSTANT,
+            HyperParameter.INT_UNIFORM,
+            HyperParameter.Q_UNIFORM,
+        ]:
             raise ValueError(
-                "Parameter %s is a disallowed type with grid search. Grid search requires all parameters to be categorical or constant"
-                % p.name
+                f"Parameter {p.name} is a disallowed type with grid search. Grid search requires all parameters "
+                f"to be categorical, constant, int_uniform, or q_uniform."
+            )
+
+    # convert bounded int_uniform and q_uniform parameters to categorical parameters
+    for i, p in enumerate(params):
+        if p.type == HyperParameter.INT_UNIFORM:
+            params[i] = HyperParameter(
+                p.name,
+                {
+                    "distribution": "categorical",
+                    "values": [
+                        val for val in range(p.config["min"], p.config["max"] + 1)
+                    ],
+                },
+            )
+        elif p.type == HyperParameter.Q_UNIFORM:
+            params[i] = HyperParameter(
+                p.name,
+                {
+                    "distribution": "categorical",
+                    "values": np.arange(
+                        p.config["min"], p.config["max"], p.config["q"]
+                    ).tolist(),
+                },
             )
 
     # we can only deal with discrete params in a grid search

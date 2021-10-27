@@ -171,10 +171,12 @@ def next_sample(
     X_bounds: Optional[ArrayLike] = None,
     current_X: Optional[ArrayLike] = None,
     nu: floating = 1.5,
-    max_samples_for_gp: integer = 100,
-    improvement: floating = 0.01,
+    max_samples_for_model: integer = 100,
+    improvement: floating = 0.1,
+    bw_multiplier=0.2,
     num_points_to_try: integer = 1000,
     opt_func: str = "expected_improvement",
+    model: str = "gp",
     test_X: Optional[ArrayLike] = None,
 ) -> Tuple[ArrayLike, floating, floating, floating, floating]:
     """Calculates the best next sample to look at via bayesian optimization.
@@ -194,12 +196,14 @@ def next_sample(
 
                http://scikit-learn.org/stable/modules/generated/sklearn.gaussian_process.kernels.Matern.html
 
-        max_samples_for_gp: integer, optional, default 100
+        max_samples_for_model: integer, optional, default 100
             maximum samples to consider (since algo is O(n^3)) for performance,
             but also adds some randomness. this number of samples will be chosen
             randomly from the sample_X and used to train the GP.
         improvement: floating, optional, default 0.1
             amount of improvement to optimize for -- higher means take more exploratory risks
+        bw_multiplier: floating, optional, default 0.2
+            scaling factor for kernel density estimation bandwidth for tpe_multi algorithm
         num_points_to_try: integer, optional, default 1000
             number of X values to try when looking for value with highest expected probability
             of improvement
@@ -207,6 +211,8 @@ def next_sample(
                 improvement of probability of improvement.  Expected improvement is generally better - may want
                 to remove probability of improvement at some point.  (But I think prboability of improvement
                 is a little easier to calculate)
+        model: one of {"gp", "tpe", "tpe_multi"} - whether to use a Gaussian Process as a surrogate model,
+            a Tree-structured Parzen Estimator, or a multivariate TPE
         test_X: X values to test when looking for the best values to try
 
     Returns:
@@ -263,9 +269,61 @@ def next_sample(
             np.nan,
         )
 
+    if model == "bayes-tpe":
+        return next_sample_tpe(
+            filtered_X=filtered_X,
+            filtered_y=filtered_y,
+            X_bounds=X_bounds,
+            current_X=current_X,
+            max_samples_for_model=max_samples_for_model,
+            improvement=improvement,
+            num_points_to_try=num_points_to_try,
+            test_X=test_X,
+            multivariate=False,
+        )
+    elif model == "bayes-tpe-multi":
+        return next_sample_tpe(
+            filtered_X=filtered_X,
+            filtered_y=filtered_y,
+            X_bounds=X_bounds,
+            current_X=current_X,
+            max_samples_for_model=max_samples_for_model,
+            improvement=improvement,
+            num_points_to_try=num_points_to_try,
+            test_X=test_X,
+            multivariate=True,
+            bw_multiplier=bw_multiplier,
+        )
+    else:  # GP
+        return next_sample_gp(
+            filtered_X=filtered_X,
+            filtered_y=filtered_y,
+            X_bounds=X_bounds,
+            current_X=current_X,
+            nu=nu,
+            max_samples_for_model=max_samples_for_model,
+            improvement=improvement,
+            num_points_to_try=num_points_to_try,
+            opt_func=opt_func,
+            test_X=test_X,
+        )
+
+
+def next_sample_gp(
+    filtered_X: ArrayLike,
+    filtered_y: ArrayLike,
+    X_bounds: Optional[ArrayLike] = None,
+    current_X: Optional[ArrayLike] = None,
+    nu: floating = 1.5,
+    max_samples_for_model: integer = 100,
+    improvement: floating = 0.01,
+    num_points_to_try: integer = 1000,
+    opt_func: str = "expected_improvement",
+    test_X: Optional[ArrayLike] = None,
+) -> Tuple[ArrayLike, floating, floating, Optional[floating], Optional[floating]]:
     # build the acquisition function
     gp, y_mean, y_stddev, = train_gaussian_process(
-        filtered_X, filtered_y, X_bounds, current_X, nu, max_samples_for_gp
+        filtered_X, filtered_y, X_bounds, current_X, nu, max_samples_for_model
     )
     # Look for the minimum value of our fitted-target-function + (kappa * fitted-target-std_dev)
     if test_X is None:  # this is the usual case
@@ -324,7 +382,178 @@ def next_sample(
     )
 
 
-def _construct_gp_data(
+def fit_parzen_estimator_scott_bw(X, X_bounds, multiplier=1.06):
+    extended_X = np.insert(X_bounds.T, 1, X, axis=0)
+    mu = np.mean(extended_X, axis=0)
+    sumsqrs = np.sum(np.square(extended_X - mu), axis=0)
+    sigmahat = np.sqrt(sumsqrs / (len(extended_X) - 1))
+    sigmas = multiplier * sigmahat * len(extended_X) ** (-1.0 / (4.0 + len(X_bounds)))
+    return np.tile(sigmas, [len(X), 1])
+
+
+def fit_1D_parzen_estimator_heuristic_bw(X, X_bounds):
+    sorted_ind = np.argsort(X.copy())
+    sorted_mus = X[sorted_ind]
+
+    # Treat endpoints of interval as data points
+    # extended_mus = np.insert(X_bounds, 1, sorted_mus)
+
+    # Ignore endpoints of interval
+    extended_mus = np.insert([sorted_mus[0], sorted_mus[-1]], 1, sorted_mus)
+
+    sigmas = np.zeros(len(X))
+    sigmas[sorted_ind] = np.maximum(
+        extended_mus[2:] - extended_mus[1:-1], extended_mus[1:-1] - extended_mus[0:-2]
+    )
+
+    # Magic formula from reference implementation
+    prior_sigma = (X_bounds[1] - X_bounds[0]) / np.sqrt(12.0)
+    minsigma = prior_sigma / min(100.0, (1.0 + len(X)))
+    sigmas = np.clip(sigmas, minsigma, prior_sigma)
+
+    return sigmas
+
+
+def sample_from_parzen_estimator(mus, sigmas, X_bounds, num_samples):
+    indices = np.random.default_rng().integers(-1, len(mus), num_samples)
+    samples = np.zeros((num_samples, len(X_bounds)))
+    uniform_ind = indices == -1
+    num_uniform = np.count_nonzero(uniform_ind)
+    samples[uniform_ind] = np.random.default_rng().uniform(
+        np.tile(X_bounds[:, 0], [num_uniform, 1]),
+        np.tile(X_bounds[:, 1], [num_uniform, 1]),
+    )
+    normal_ind = indices >= 0
+    samples[normal_ind] = np.random.default_rng().normal(
+        loc=mus[indices[normal_ind]], scale=sigmas[indices[normal_ind]]
+    )
+    return np.clip(samples, X_bounds[:, 0], X_bounds[:, 1])
+
+
+def sample_from_1D_parzen_estimator(mus, sigmas, X_bounds, num_points_to_try):
+    indices = np.random.default_rng().integers(-1, len(mus), num_points_to_try)
+    new_samples = np.zeros(num_points_to_try)
+
+    # For which_mu == -1, sample from the (uniform) prior
+    new_samples[indices == -1] = np.random.default_rng().uniform(
+        X_bounds[0], X_bounds[1], np.sum(indices == -1)
+    )
+    # Other samples are from mus
+    new_samples[indices >= 0] = np.random.default_rng().normal(
+        loc=mus[indices[indices >= 0]], scale=sigmas[indices[indices >= 0]]
+    )
+    return np.clip(new_samples, X_bounds[0], X_bounds[1])
+
+
+def llik_from_parzen_estimator(samples, mus, sigmas, X_bounds):
+    samp_norm = (np.tile(samples, [len(mus), 1, 1]).transpose((1, 0, 2)) - mus) / sigmas
+    samp_norm = np.square(samp_norm)
+    normalization = (2.0 * np.pi) ** (-len(X_bounds) / 2.0) / np.prod(sigmas, axis=1)
+    pdf = normalization * np.exp(-0.5 * np.sum(samp_norm, axis=2))
+    uniform_pdf = 1.0 / np.prod(X_bounds[:, 1] - X_bounds[:, 0])
+    mixture = (np.sum(pdf, axis=1) + uniform_pdf) / (len(mus) + 1.0)
+    return np.log(mixture)
+
+
+def llik_from_1D_parzen_estimator(samples, mus, sigmas, X_bounds):
+    samp_norm = (np.tile(samples, [len(mus), 1]).T - mus) / sigmas
+    llik = np.log(
+        (
+            np.sum(scipy_stats.norm.pdf(samp_norm) / sigmas, axis=1)
+            + 1.0 / (X_bounds[1] - X_bounds[0])
+        )
+        / (len(mus) + 1.0)
+    )
+    return llik
+
+
+def parzen_threshold(y, gamma):
+    num_low = int(np.ceil(gamma * np.sqrt(len(y))))
+    low_ind = np.argsort(y)[0:num_low]
+    ret_val = np.array([False] * len(y))
+    ret_val[low_ind] = True
+    return ret_val
+
+
+def next_sample_tpe(
+    filtered_X: ArrayLike,
+    filtered_y: ArrayLike,
+    X_bounds: Optional[ArrayLike] = None,
+    current_X: Optional[ArrayLike] = None,
+    max_samples_for_model: integer = 100,
+    improvement: floating = 0.01,
+    num_points_to_try: integer = 1000,
+    test_X: Optional[ArrayLike] = None,
+    multivariate: Optional[bool] = False,
+    bw_multiplier: Optional[floating] = 1.0,
+) -> Tuple[
+    ArrayLike,
+    Optional[floating],
+    Optional[floating],
+    Optional[floating],
+    Optional[floating],
+]:
+
+    if X_bounds is None:
+        hp_min = np.min(filtered_X, axis=0)
+        hp_max = np.max(filtered_X, axis=0)
+        X_bounds = np.column_stack(hp_min, hp_max)
+    else:
+        X_bounds = np.array(X_bounds)
+
+    low_ind = parzen_threshold(filtered_y, improvement)
+    low_X = filtered_X[low_ind]
+    high_X = filtered_X[np.logical_not(low_ind)]
+    num_hp = len(X_bounds)
+    if multivariate:
+        low_mus = low_X.copy()
+        low_sigmas = np.zeros((len(low_X), num_hp))
+        high_mus = high_X.copy()
+        high_sigmas = np.zeros((len(high_X), num_hp))
+
+        low_sigmas = fit_parzen_estimator_scott_bw(low_X, X_bounds, bw_multiplier)
+        high_sigmas = fit_parzen_estimator_scott_bw(high_X, X_bounds)
+
+        new_samples = sample_from_parzen_estimator(
+            low_mus, low_sigmas, X_bounds, num_points_to_try
+        )
+        low_llik = llik_from_parzen_estimator(
+            new_samples, low_mus, low_sigmas, X_bounds
+        )
+        high_llik = llik_from_parzen_estimator(
+            new_samples, high_mus, high_sigmas, X_bounds
+        )
+        score = low_llik - high_llik
+        best_sample = new_samples[np.argmax(score), :]
+    else:
+        # Fit separate 1D Parzen estimators to each hyperparameter
+        best_sample = np.zeros(num_hp)
+        for i in range(num_hp):
+            low_mus = low_X[:, i]
+            high_mus = high_X[:, i]
+            low_sigmas = fit_1D_parzen_estimator_heuristic_bw(low_mus, X_bounds[i])
+            high_sigmas = fit_1D_parzen_estimator_heuristic_bw(high_mus, X_bounds[i])
+            new_samples = sample_from_1D_parzen_estimator(
+                low_mus, low_sigmas, X_bounds[i], num_points_to_try
+            )
+            low_llik = llik_from_1D_parzen_estimator(
+                new_samples, low_mus, low_sigmas, X_bounds[i]
+            )
+            high_llik = llik_from_1D_parzen_estimator(
+                new_samples, high_mus, high_sigmas, X_bounds[i]
+            )
+            best_sample[i] = new_samples[np.argmax(low_llik - high_llik)]
+
+    return (
+        best_sample,
+        None,
+        None,
+        None,
+        None,
+    )
+
+
+def _construct_bayes_data(
     runs: List[SweepRun], config: Union[dict, SweepConfig]
 ) -> Tuple[HyperParameterSet, ArrayLike, ArrayLike, ArrayLike]:
     goal = config["metric"]["goal"]
@@ -432,9 +661,18 @@ def bayes_search_next_run(
     if validate:
         config = SweepConfig(config)
 
-    config = bayes_baseline_validate_and_fill(config)
+    if "metric" not in config:
+        raise ValueError('Bayesian search requires "metric" section')
 
-    params, sample_X, current_X, y = _construct_gp_data(runs, config)
+    if "method" not in config:
+        raise ValueError("Method must be specified")
+
+    if config["method"] not in ["bayes", "bayes-tpe", "bayes-tpe-multi"]:
+        raise ValueError(
+            'Invalid method for bayes_search_next_run, must be one of "bayes", "bayes-tpe", "bayes-tpe-multi"'
+        )
+
+    params, sample_X, current_X, y = _construct_bayes_data(runs, config)
     X_bounds = [[0.0, 1.0]] * len(params.searchable_params)
 
     (
@@ -448,6 +686,7 @@ def bayes_search_next_run(
         sample_y=y,
         X_bounds=X_bounds,
         current_X=current_X if len(current_X) > 0 else None,
+        model=config["method"],
         improvement=minimum_improvement,
     )
 

@@ -191,13 +191,13 @@ def next_runs(
         )
     elif method == "random":
         return random_search_next_runs(sweep_config, validate=validate, n=n)
-    elif method == "bayes":
+    elif method in ["bayes", "bayes-tpe", "bayes-tpe-multi"]:
         return bayes_search_next_runs(
             runs, sweep_config, validate=validate, n=n, **kwargs
         )
     else:
         raise ValueError(
-            f'Invalid search type {method}, must be one of ["grid", "random", "bayes"]'
+            f'Invalid search type {method}, must be one of ["grid", "random", "bayes", "bayes-tpe", or "bayes-tpe-multi"]'
         )
 
 

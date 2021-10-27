@@ -566,11 +566,14 @@
       "description": "The project for this sweep"
     },
     "method": {
-      "description": "Possible values: bayes, random, grid",
+      "description": "Possible values: bayes, random, grid, bayes-tpe, bayes-tpe-multi, custom",
+      "type": "string",
       "enum": [
         "bayes",
         "random",
         "grid",
+        "bayes-tpe",
+        "bayes-tpe-multi",
         "custom"
       ]
     },
