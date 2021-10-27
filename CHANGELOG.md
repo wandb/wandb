@@ -1,3 +1,16 @@
+## 0.12.6 (October 27, 2021)
+
+#### :bug: Bug Fix
+
+* Fix sklearn `plot_calibration_curve()` issue breaking the provided model by @vwrj in https://github.com/wandb/client/pull/2791
+* Fix CondaEnvExportError by redirecting stderr by @charlesfrye in https://github.com/wandb/client/pull/2814
+* Fix `use_artifact()` when specifying an artifact from a different project by @KyleGoyette in https://github.com/wandb/client/pull/2832
+
+#### :nail_care: Enhancement
+* Add metric names to pr curve charts in tensorboard by @vanpelt in https://github.com/wandb/client/pull/2822
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.5...0.12.6
+
 ## 0.12.5 (October 19, 2021)
 
 #### :bug: Bug Fix
