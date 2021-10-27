@@ -10,7 +10,7 @@ jobs:
       - name: checkout client repo
         uses: actions/checkout@v2
         with:
-          repository: wandb/client
+          repository: charlesfrye/client  # TODO: change before merge to wandb/client
           persist-credentials: false
       - name: setup python
         uses: actions/setup-python@v2
