@@ -71,7 +71,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import BackendSenderBase
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -86,6 +86,7 @@ from .lib import (
     telemetry,
 )
 from .lib.exit_hooks import ExitHooks
+from .lib.git import GitRepo
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
@@ -125,7 +126,7 @@ class RunStatusChecker(object):
 
     def __init__(
         self,
-        interface: BackendSenderBase,
+        interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -282,6 +283,8 @@ class Run(object):
         self._name = None
         self._notes = None
         self._tags = None
+        self._remote_url = None
+        self._last_commit = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -484,7 +487,19 @@ class Run(object):
                 run.tags.append(tag)
         if self._start_time is not None:
             run.start_time.FromSeconds(int(self._start_time))
+        if self._remote_url is not None:
+            run.git.remote_url = self._remote_url
+        if self._last_commit is not None:
+            run.git.last_commit = self._last_commit
         # Note: run.config is set in interface/interface:_make_run()
+
+    def _populate_git_info(self) -> None:
+        try:
+            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+        except Exception:
+            wandb.termwarn("Cannot find valid git repo associated with this directory.")
+            return
+        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
@@ -2186,6 +2201,10 @@ class Run(object):
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
+    # TODO(jhr): annotate this
+    def unwatch(self, models=None) -> None:  # type: ignore
+        wandb.unwatch(models=models)
+
     def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
         artifact_key_string = use_as or artifact_name
         replacement_artifact_info = self._launch_artifact_mapping.get(
@@ -2281,10 +2300,7 @@ class Run(object):
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id,
-                entity_name=artifact.entity,
-                project_name=artifact.project,
-                use_as=use_as or artifact_or_name,
+                artifact.id, use_as=use_as or artifact_or_name,
             )
             return artifact
         else:

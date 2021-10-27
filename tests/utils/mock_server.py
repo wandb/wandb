@@ -73,6 +73,11 @@ def default_ctx():
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
+        "alerts": [],
+        "gorilla_supports_launch_agents": True,
+        "launch_agents": {},
+        "successfully_create_default_queue": True,
+        "launch_agent_update_fail": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
     }
@@ -394,6 +399,7 @@ def create_app(user_ctx=None):
 
         body = request.get_json()
         app.logger.info("graphql post body: %s", body)
+
         if body["variables"].get("run"):
             ctx["current_run"] = body["variables"]["run"]
 
@@ -585,7 +591,12 @@ def create_app(user_ctx=None):
                     {
                         "data": {
                             "QueryType": {"fields": [{"name": "serverInfo"},]},
-                            "ServerInfoType": {"fields": [{"name": "cliVersionInfo"},]},
+                            "ServerInfoType": {
+                                "fields": [
+                                    {"name": "cliVersionInfo"},
+                                    {"name": "exposesExplicitRunQueueAckPath"},
+                                ]
+                            },
                         }
                     }
                 )
@@ -598,11 +609,13 @@ def create_app(user_ctx=None):
                             "fields": [
                                 {"name": "cliVersionInfo"},
                                 {"name": "latestLocalVersionInfo"},
+                                {"name": "exposesExplicitRunQueueAckPath"},
                             ]
                         },
                     }
                 }
             )
+
         if "query ProbeServerUseArtifactInput" in body["query"]:
             return json.dumps(
                 {
@@ -724,6 +737,29 @@ def create_app(user_ctx=None):
                     c["git"]["remote"] = git_remote
                     c["git"]["commit"] = git_commit
 
+            for c in ctx, run_ctx:
+                tags = body["variables"].get("tags")
+                if tags is not None:
+                    c["tags"] = tags
+                notes = body["variables"].get("notes")
+                if notes is not None:
+                    c["notes"] = notes
+                group = body["variables"].get("groupName")
+                if group is not None:
+                    c["group"] = group
+                job_type = body["variables"].get("jobType")
+                if job_type is not None:
+                    c["job_type"] = job_type
+                name = body["variables"].get("displayName")
+                if name is not None:
+                    c["name"] = name
+                program = body["variables"].get("program")
+                if program is not None:
+                    c["program"] = program
+                host = body["variables"].get("host")
+                if host is not None:
+                    c["host"] = host
+
             param_config = body["variables"].get("config")
             if param_config:
                 for c in ctx, run_ctx:
@@ -822,6 +858,13 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation DeleteArtifact(" in body["query"]:
+            id = body["variables"]["artifactID"]
+            delete_aliases = body["variables"]["deleteAliases"]
+            art = artifact(ctx, id_override=id)
+            if len(art.get("aliases", [])) and not delete_aliases:
+                raise Exception("delete_aliases not set, but artifact has aliases")
+            return {"data": {"deleteArtifact": {"artifact": art, "success": True,}}}
         if "mutation CreateArtifactManifest(" in body["query"]:
             manifest = {
                 "id": 1,
@@ -981,7 +1024,9 @@ def create_app(user_ctx=None):
             }
         if "query Artifact(" in body["query"]:
             if ART_EMU:
-                return ART_EMU.query(variables=body.get("variables", {}))
+                return ART_EMU.query(
+                    variables=body.get("variables", {}), query=body.get("query")
+                )
             art = artifact(
                 ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
             )
@@ -1090,6 +1135,10 @@ def create_app(user_ctx=None):
                     }
                 )
         if "mutation createRunQueue" in body["query"]:
+            if not ctx["successfully_create_default_queue"]:
+                return json.dumps(
+                    {"data": {"createRunQueue": {"success": False, "queueID": None}}}
+                )
             ctx["run_queues_return_default"] = True
             return json.dumps(
                 {"data": {"createRunQueue": {"success": True, "queueID": 1}}}
@@ -1149,6 +1198,19 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        if "mutation NotifyScriptableRunAlert" in body["query"]:
+            avars = body.get("variables", {})
+            run_name = avars.get("runName", "unknown")
+            adict = dict(
+                title=avars["title"], text=avars["text"], severity=avars["severity"]
+            )
+            atime = avars.get("waitDuration")
+            if atime is not None:
+                adict["wait"] = atime
+            run_ctx = ctx["runs"].setdefault(run_name, default_ctx())
+            for c in ctx, run_ctx:
+                c["alerts"].append(adict)
+            return {"data": {"notifyScriptableRunAlert": {"success": True}}}
         if "query SearchUsers" in body["query"]:
 
             return {
@@ -1208,6 +1270,33 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation createLaunchAgent(" in body["query"]:
+            agent_id = len(ctx["launch_agents"].keys())
+            ctx["launch_agents"][agent_id] = "POLLING"
+            return json.dumps(
+                {
+                    "data": {
+                        "createLaunchAgent": {
+                            "success": True,
+                            "launchAgentId": agent_id,
+                        }
+                    }
+                }
+            )
+        if "mutation updateLaunchAgent(" in body["query"]:
+            if ctx["launch_agent_update_fail"]:
+                return json.dumps({"data": {"updateLaunchAgent": {"success": False}}})
+            status = body["variables"]["agentStatus"]
+            agent_id = body["variables"]["agentId"]
+            ctx["launch_agents"][agent_id] = status
+            return json.dumps({"data": {"updateLaunchAgent": {"success": True}}})
+        if "query LaunchAgentIntrospection" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {"data": {"LaunchAgentType": {"name": "LaunchAgent"}}}
+                )
+            else:
+                return json.dumps({"data": {}})
 
         if "query GetSweeps" in body["query"]:
             if body["variables"]["project"] == "testnosweeps":
@@ -1819,6 +1908,38 @@ class ParseCTX(object):
     @property
     def artifacts(self):
         return self._ctx.get("artifacts_created") or {}
+
+    @property
+    def tags(self):
+        return self._ctx.get("tags") or []
+
+    @property
+    def notes(self):
+        return self._ctx.get("notes") or ""
+
+    @property
+    def group(self):
+        return self._ctx.get("group") or ""
+
+    @property
+    def job_type(self):
+        return self._ctx.get("job_type") or ""
+
+    @property
+    def name(self):
+        return self._ctx.get("name") or ""
+
+    @property
+    def program(self):
+        return self._ctx.get("program") or ""
+
+    @property
+    def host(self):
+        return self._ctx.get("host") or ""
+
+    @property
+    def alerts(self):
+        return self._ctx.get("alerts") or []
 
     def _debug(self):
         if not self._run_id:

@@ -1,18 +1,22 @@
 #!/usr/bin/env python
-"""Error case - main process init/finish.
+"""Base case - main process init/finish.
 
 ---
-id: 0.0.3
+id: 0.py310.01-basic
 plugin:
   - wandb
+tag:
+  shard: py310
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
   - :wandb:runs[0][summary]:
       m1: 1
       m2: 2
-  - :wandb:runs[0][exitcode]: 1
-  - :yea:exit: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 2  # finish
 """
 
 import wandb
@@ -20,4 +24,4 @@ import wandb
 wandb.init()
 wandb.log(dict(m1=1))
 wandb.log(dict(m2=2))
-print(1 / 0)
+wandb.finish()

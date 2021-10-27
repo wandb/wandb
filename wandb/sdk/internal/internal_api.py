@@ -12,6 +12,7 @@ import re
 import click
 import logging
 import requests
+import socket
 import sys
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -290,7 +291,6 @@ class Api(object):
 
     @normalize_exceptions
     def server_info_introspection(self):
-
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
@@ -344,6 +344,21 @@ class Api(object):
                 )
             ]
         return self.server_use_artifact_input_info
+
+    @normalize_exceptions
+    def launch_agent_introspection(self):
+        query = gql(
+            """
+            query LaunchAgentIntrospection {
+                LaunchAgentType: __type(name: "LaunchAgent") {
+                    name
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
     def viewer(self):
@@ -984,11 +999,16 @@ class Api(object):
         return response["pushToRunQueue"]
 
     @normalize_exceptions
-    def pop_from_run_queue(self, queue_name, entity=None, project=None):
+    def pop_from_run_queue(self, queue_name, entity=None, project=None, agent_id=None):
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName }) {
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
+            popFromRunQueue(input: {
+                entityName: $entity,
+                projectName: $project,
+                queueName: $queueName,
+                launchAgentId: $launchAgentId
+            }) {
                 runQueueItemId
                 runSpec
             }
@@ -1001,6 +1021,7 @@ class Api(object):
                 "entity": entity,
                 "project": project,
                 "queueName": queue_name,
+                "launchAgentId": agent_id,
             },
         )
         return response["popFromRunQueue"]
@@ -1024,6 +1045,91 @@ class Api(object):
                 "Error acking run queue item. Item may have already been acknowledged by another process"
             )
         return response["ackRunQueueItem"]["success"]
+
+    @normalize_exceptions
+    def create_launch_agent(self, entity, project, queues, gorilla_agent_support):
+        project_queues = self.get_project_run_queues(entity, project)
+        if not project_queues:
+            # create default queue if it doesn't already exist
+            default = self.create_run_queue(
+                entity, project, "default", access="PROJECT"
+            )
+            if default is None or default.get("queueID") is None:
+                raise CommError(
+                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
+                        entity, project
+                    )
+                )
+            project_queues = [{"id": default["queueID"], "name": "default"}]
+        polling_queue_ids = [
+            q["id"] for q in project_queues if q["name"] in queues
+        ]  # filter to poll specified queues
+        if len(polling_queue_ids) != len(queues):
+            raise CommError(
+                "Could not start launch agent: Not all of requested queues ({}) found. Available queues for this project: {}".format(
+                    ", ".join(queues), ",".join([q["name"] for q in project_queues])
+                )
+            )
+
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, return a client-generated id
+            return {
+                "success": True,
+                "launchAgentId": None,
+            }
+
+        hostname = socket.gethostname()
+        mutation = gql(
+            """
+            mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
+                createLaunchAgent(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        runQueues: $queues,
+                        hostname: $hostname
+                    }
+                ) {
+                    launchAgentId
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queues": polling_queue_ids,
+            "hostname": hostname,
+        }
+        return self.gql(mutation, variable_values)["createLaunchAgent"]
+
+    @normalize_exceptions
+    def update_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, this is a no-op
+            return {
+                "success": True,
+            }
+
+        mutation = gql(
+            """
+            mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
+                updateLaunchAgent(
+                    input: {
+                        launchAgentId: $agentId
+                        agentStatus: $agentStatus
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+            "agentStatus": status,
+        }
+        return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
     def upsert_run(

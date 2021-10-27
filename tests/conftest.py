@@ -33,7 +33,7 @@ from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface import BackendSender
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 from wandb.proto import wandb_internal_pb2
 from wandb.proto import wandb_internal_pb2 as pb
@@ -169,6 +169,13 @@ def test_dir(test_name):
     os.chdir(test_dir)
     yield test_dir
     os.chdir(orig_dir)
+
+
+@pytest.fixture
+def disable_git_save():
+    os.environ["WANDB_DISABLE_GIT"] = "true"
+    yield
+    os.environ["WANDB_DISABLE_GIT"] = "false"
 
 
 @pytest.fixture
@@ -525,7 +532,7 @@ def record_q():
 
 @pytest.fixture()
 def fake_interface(record_q):
-    return BackendSender(record_q=record_q)
+    return InterfaceQueue(record_q=record_q)
 
 
 @pytest.fixture
@@ -621,7 +628,7 @@ class MockProcess:
 
 @pytest.fixture()
 def _internal_sender(record_q, internal_result_q, internal_process):
-    return BackendSender(
+    return InterfaceQueue(
         record_q=record_q, result_q=internal_result_q, process=internal_process,
     )
 
