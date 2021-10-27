@@ -10,7 +10,7 @@
 
 - Add metric names to pr curve charts in tensorboard by @vanpelt in https://github.com/wandb/client/pull/2822
 
-**Full Changelog**: https://github.com/wandb/client/compare/v0.12.5...0.12.6
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.5...v0.12.6
 
 ## 0.12.5 (October 19, 2021)
 
