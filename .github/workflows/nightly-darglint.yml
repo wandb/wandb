@@ -19,8 +19,7 @@ jobs:
       - name: setup tox
         run: python -m pip install tox
       - name: run darglint
-        run: tox -e darglint wandb/__init__.py
-        #           wandb/apis/public.py\
+        run: tox -e darglint wandb/__init__.py wandb/apis/public.py
         #           wandb/data_types.py\
         #           wandb/integration/keras/__init__.py\
         #           wandb/integration/keras/keras.py\
