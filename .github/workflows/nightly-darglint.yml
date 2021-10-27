@@ -19,16 +19,4 @@ jobs:
       - name: setup tox
         run: python -m pip install tox
       - name: run darglint
-        run: tox -e darglint wandb/__init__.py wandb/apis/public.py
-        #           wandb/data_types.py\
-        #           wandb/integration/keras/__init__.py\
-        #           wandb/integration/keras/keras.py\
-        #           wandb/sdk/data_types.py\
-        #           wandb/sdk/wandb_artifacts.py\
-        #           wandb/sdk/wandb_config.py\
-        #           wandb/sdk/wandb_init.py\
-        #           wandb/sdk/wandb_run.py\
-        #           wandb/sdk/wandb_summary.py\
-        #           wandb/sdk/wandb_sweep.py\
-        #           wandb/sdk/wandb_watch.py\
-        #           wandb/wandb_agent.py
+        run: tox -e darglint wandb/__init__.py wandb/apis/public.py wandb/data_types.py wandb/integration/keras/__init__.py wandb/integration/keras/keras.py wandb/sdk/data_types.py wandb/sdk/wandb_artifacts.py wandb/sdk/wandb_config.py wandb/sdk/wandb_init.py wandb/sdk/wandb_run.py wandb/sdk/wandb_summary.py wandb/sdk/wandb_sweep.py wandb/sdk/wandb_watch.py wandb/wandb_agent.py
