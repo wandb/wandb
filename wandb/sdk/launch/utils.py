@@ -105,7 +105,11 @@ def construct_launch_spec(
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
-        uri, api, project, entity, launch_config,
+        uri,
+        api,
+        project,
+        entity,
+        launch_config,
     )
     launch_spec["entity"] = entity
 
@@ -243,6 +247,10 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
+def _convert_uri(uri):
+    return uri.replace(":", "/").replace("git@", "https://")
+
+
 def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
@@ -255,6 +263,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     import git  # type: ignore
 
     repo = git.Repo.init(dst_dir)
+    uri = _convert_uri(uri)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
     if version is not None:
