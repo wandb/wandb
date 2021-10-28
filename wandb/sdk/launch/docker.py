@@ -54,7 +54,8 @@ def generate_docker_base_image(
         "jupyter-repo2docker",
         "--no-run",
         "--image-name={}".format(launch_project.base_image),
-        "--user-name=jovyan1" "--user-id={}".format(launch_project.docker_user_id),
+        # "--user-name=jovyan1",
+        "--user-id={}".format(launch_project.docker_user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
