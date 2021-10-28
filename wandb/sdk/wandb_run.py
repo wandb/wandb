@@ -1133,12 +1133,15 @@ class Run(object):
             <!--yeadoc-test:log-and-init-basic-->
             ```python
             import wandb
-            run = wandb.init()
+            wandb.init()
             wandb.log({'accuracy': 0.9, 'epoch': 5})
             ```
 
             Incremental logging
+            <!--yeadoc-test:log-and-init-incremental-->
             ```python
+            import wandb
+            wandb.init()
             wandb.log({'loss': 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
             wandb.log({'accuracy': 0.8})
