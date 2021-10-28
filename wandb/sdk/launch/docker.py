@@ -54,7 +54,7 @@ def generate_docker_base_image(
         "jupyter-repo2docker",
         "--no-run",
         "--image-name={}".format(launch_project.base_image),
-        "--user-id={}".format(launch_project.docker_user_id),
+        "--use-name=jovyan1" "--user-id={}".format(launch_project.docker_user_id),
         path,
         '"{}"'.format(entry_cmd),
     ]
@@ -150,8 +150,10 @@ def build_docker_image_if_needed(
     if copy_code:
         copy_code_line = "COPY ./src/ {}\n".format(workdir)
         if docker.is_buildx_installed():
-            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
-                homedir, launch_project.docker_user_id
+            requirements_line = (
+                "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                    homedir, launch_project.docker_user_id
+                )
             )
         else:
             wandb.termwarn(
@@ -320,13 +322,16 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: _project_spec.LaunchProject, dockerfile_contents: str,
+    launch_project: _project_spec.LaunchProject,
+    dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
-        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+        src=launch_project.project_dir,
+        dst=dst_path,
+        symlinks=True,
     )
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
