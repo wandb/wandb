@@ -2,6 +2,7 @@ name: Runs darglint tox job
 on:
   schedule:
     - cron: '01 17 * * *'  # Each day at 01:17 UTC,
+  push:  # TODO: remove before merging into wandb/client
 jobs:
   darglint:  # run our tox darglint job on files in the reference documentation.
     runs-on: ubuntu-latest
