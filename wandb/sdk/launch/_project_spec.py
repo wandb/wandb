@@ -63,7 +63,7 @@ class LaunchProject(object):
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self._runtime: Optional[str] = None
-        self.run_id = generate_id()
+        self.run_id = launch_spec.get("run_id") or generate_id()
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
