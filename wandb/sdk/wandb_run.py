@@ -1131,7 +1131,10 @@ class Run(object):
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
             Basic usage
+            <!--yeadoc-test:log-and-init-basic-->
             ```python
+            import wandb
+            run = wandb.init()
             wandb.log({'accuracy': 0.9, 'epoch': 5})
             ```
 
