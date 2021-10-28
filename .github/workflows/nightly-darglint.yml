@@ -2,7 +2,6 @@ name: Runs darglint tox job
 on:
   schedule:
     - cron: '01 17 * * *'  # Each day at 01:17 UTC,
-  push:  # TODO: remove before PR into wandb/client
 jobs:
   darglint:  # run our tox darglint job on files in the reference documentation.
     runs-on: ubuntu-latest
@@ -10,7 +9,7 @@ jobs:
       - name: checkout client repo
         uses: actions/checkout@v2
         with:
-          repository: charlesfrye/client  # TODO: retarget before PR into wandb/client
+          repository: wandb/client
           persist-credentials: false
           path: client
       - name: setup python
@@ -29,5 +28,5 @@ jobs:
       - name: apply darglint to reference files
         working-directory: client
         run: |
-          # Find the "View source on" links | extract url path relative to tree/client | extract path to .py files | remove duplicates | pass to tox env
+          # Find the "View source on" links | extract url path relative to client/tree | extract path to .py files | remove duplicates | pass to tox env
           grep -r "View source on" ../gitbook/ref/python | grep -o "client/tree/.*" | grep -o "wandb/.*\.py" | sort | uniq | xargs tox -e darglint
