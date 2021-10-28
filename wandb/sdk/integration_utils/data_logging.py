@@ -16,7 +16,7 @@ CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.min
 
 
 class ValidationDataLogger(object):
-    """The ValidationDataLogger logs validation data as a wandb.Table.
+    """Logs validation data as a wandb.Table.
 
     ValidationDataLogger is intended to be used inside of library integrations
     in order to facilitate the process of optionally building a validation dataset
