@@ -1871,8 +1871,7 @@ class Classes(Media):
 
 
 class Image(BatchableMedia):
-    """
-    Wandb class for images.
+    """Create images to log to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io) Accepts numpy array of
