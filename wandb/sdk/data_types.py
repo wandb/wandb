@@ -1045,9 +1045,7 @@ class Html(BatchableMedia):
 
 
 class Video(BatchableMedia):
-
-    """
-    Wandb representation of video.
+    """Format a video for logging to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io)
@@ -1061,6 +1059,19 @@ class Video(BatchableMedia):
         caption: (string) caption associated with the video for display
         fps: (int) frames per second for video. Default is 4.
         format: (string) format of video, necessary if initializing with path or io object.
+
+    Examples:
+        ### Log a numpy array as a video
+        <!--yeadoc-test:video-log-numpy-->
+        ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        # axes are (time, channel, height, width)
+        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        wandb.log({"video": wandb.Video(frames, fps=4)})
+        ```
     """
 
     _log_type = "video-file"
