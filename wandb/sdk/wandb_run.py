@@ -1151,19 +1151,28 @@ class Run(object):
             Histogram
             <!--yeadoc-test:init-and-log-histogram-->
             ```python
-            import wandb
             import numpy as np
-            wandb.init()
+            import wandb
 
             # sample gradients at random from normal distribution
-
             gradients = np.random.randn(100, 100)
+            wandb.init()
             wandb.log({"gradients": wandb.Histogram(gradients)})
             ```
 
             Image
+            <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
-            wandb.log({"examples": [wandb.Image(numpy_array_or_pil, caption="Label")]})
+            import numpy as np
+            import wandb
+
+            wandb.init()
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}")
+                examples.append(image)
+            wandb.log({"examples": examples})
             ```
 
             Video
