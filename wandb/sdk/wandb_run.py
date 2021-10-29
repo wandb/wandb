@@ -1170,7 +1170,7 @@ class Run(object):
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
             Basic usage
-            <!--yeadoc-test:log-and-init-basic-->
+            <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
             wandb.init()
@@ -1178,7 +1178,7 @@ class Run(object):
             ```
 
             Incremental logging
-            <!--yeadoc-test:log-and-init-incremental-->
+            <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
             wandb.init()
@@ -1199,7 +1199,7 @@ class Run(object):
             wandb.log({"gradients": wandb.Histogram(gradients)})
             ```
 
-            Image
+            Image from numpy
             <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
             import numpy as np
@@ -1214,10 +1214,33 @@ class Run(object):
             wandb.log({"examples": examples})
             ```
 
-            Video
+            Image from PIL
+            <!--yeadoc-test:init-and-log-image-pillow-->
             ```python
-            wandb.log({"video": wandb.Video(numpy_array_or_video_path, fps=4,
-                format="gif")})
+            import numpy as np
+            from PIL import Image as PILImage
+            import wandb
+
+            wandb.init()
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+                pil_image = PILImage.fromarray(pixels, mode="RGB")
+                image = wandb.Image(pil_image, caption=f"random field {i}")
+                examples.append(image)
+            wandb.log({"examples": examples})
+            ```
+
+            Video from numpy
+            <!--yeadoc-test:init-and-log-video-numpy-->
+            ```python
+            import numpy as np
+            import wandb
+
+            wandb.init()
+            # axes are (time, channel, height, width)
+            frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+            wandb.log({"video": wandb.Video(frames, fps=4)})
             ```
 
             Matplotlib Plot

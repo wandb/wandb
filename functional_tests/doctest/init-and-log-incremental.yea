@@ -1,4 +1,4 @@
-id: log-and-init-incremental
+id: init-and-log-incremental
 plugin:
     - wandb
 assert:
