@@ -1171,7 +1171,7 @@ class Run(object):
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
             Basic usage
-            <!--yeadoc-test:log-and-init-basic-->
+            <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
             wandb.init()
@@ -1179,7 +1179,7 @@ class Run(object):
             ```
 
             Incremental logging
-            <!--yeadoc-test:log-and-init-incremental-->
+            <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
             wandb.init()
