@@ -193,7 +193,8 @@ class Run(object):
     run = wandb.init()
     ```
 
-    There is only ever at most one active `wandb.Run`, and it is accessible as `wandb.run`:
+    There is only ever at most one active `wandb.Run` in any process,
+    and it is accessible as `wandb.run`:
     <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
