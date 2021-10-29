@@ -15,7 +15,9 @@ from wandb.errors import CommError, ExecutionError, LaunchError
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
-_WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
+ValidWandBAddress = r"^https?://(api.)?wandb"
+ValidIpAddressRegex = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
+_WANDB_URI_REGEX = re.compile(r"|".join([ValidWandBAddress, ValidIpAddressRegex]))
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
@@ -248,7 +250,10 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
 
 
 def _convert_uri(uri):
-    return uri.replace(":", "/").replace("git@", "https://")
+    if uri.startswith("git@"):
+        return uri.replace(":", "/").replace("git@", "https://")
+    else:
+        return uri
 
 
 def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
