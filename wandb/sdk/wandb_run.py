@@ -185,12 +185,37 @@ class RunStatusChecker(object):
 class Run(object):
     """A unit of computation logged by wandb. Typically this is an ML experiment.
 
-    Create a run with `wandb.init()`.
+    Create a run with `wandb.init()`:
+    <!--yeadoc-test:run-object-basic-->
+    ```python
+    import wandb
 
-    In distributed training, use `wandb.init()` to create a run for
-    each process, and set the group argument to organize runs into a larger experiment.
+    run = wandb.init()
+    ```
 
-    Currently there is a parallel Run object in the wandb.Api. Eventually these
+    There is only ever at most one `wandb.Run`, and it is accessible as `wandb.run`:
+
+    <!--yeadoc-test:global-run-object-->
+    ```python
+    import wandb
+
+    assert wandb.run is not None
+
+    run = wandb.init()
+
+    assert wandb.run is not None
+    ```
+
+    See the documentation for `wandb.init` for more details, or check out
+    [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
+
+    In distributed training, you can either create a single run in the rank 0 process
+    and then log information only from that process or you can create a run in each process,
+    logging from each separately, and group the results together with the `group` argument
+    to `wandb.init`. For more details on distributed training with W&B, check out
+    [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
+
+    Currently there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
 
     Attributes:
