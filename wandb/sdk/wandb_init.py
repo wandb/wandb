@@ -715,7 +715,7 @@ def init(
     ```
 
     `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`:
+    via `wandb.run`:
     <!--yeadoc-test:init-and-assert-global-->
     ```python
     import wandb
@@ -850,20 +850,6 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
-
-    Examples:
-        Basic usage
-        ```
-        wandb.init()
-        ```
-
-        Launch multiple runs from the same script
-        ```
-        for x in range(10):
-            with wandb.init(project="my-projo") as run:
-                for y in range(100):
-                    run.log({"metric": x+y})
-        ```
 
     Raises:
         Exception: if problem.
