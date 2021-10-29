@@ -1,0 +1,9 @@
+# NOTE: this test is not implemented
+id: init-change-entity-project
+plugin:
+    - wandb
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0]:entity_name: geoff
+    - :wandb:runs[0][exitcode]: 0
+    - :yea:exit: 0

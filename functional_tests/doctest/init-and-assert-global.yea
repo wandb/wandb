@@ -1,4 +1,4 @@
-id: global-run-object
+id: init-and-assert-global
 plugin:
     - wandb
 assert:
