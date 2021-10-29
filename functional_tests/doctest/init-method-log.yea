@@ -7,3 +7,4 @@ assert:
       - :wandb:runs[0][summary]
       - accuracy
     - :wandb:runs[0][exitcode]: 0
+    - :yea:exit: 0
