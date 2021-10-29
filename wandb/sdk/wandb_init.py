@@ -851,6 +851,35 @@ def init(
             contain special characters.
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
+    Examples:
+
+    ### Set where the run is logged
+
+    You can change where the run is logged, just like changing
+    the organization, repository, and branch in git:
+    ```python
+    import wandb
+
+    user = "geoff"
+    project = "capsules"
+    display_name = "experiment-2021-10-31"
+
+    wandb.init(entity=user, project=project, name=display_name)
+    ```
+
+    ### Add metadata about the run to the config
+
+    Pass a dictionary-style object as the `config` keyword argument to add
+    metadata, like hyperparameters, to your run.
+    <!--yeadoc-test:init-set-config--->
+    ```python
+    import wandb
+
+    config = {"lr": 3e-4, "batch_size": 32}
+    config.update({"architecture": "resnet", "depth": 34})
+    wandb.init(config=config)
+    ```
+
     Raises:
         Exception: if problem.
 
