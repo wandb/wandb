@@ -1,5 +1,4 @@
-"""
-Wandb has special data types for logging rich visualizations.
+"""Wandb has special data types for logging rich visualizations.
 
 All of the special data types are subclasses of WBValue. All of the data types
 serialize to JSON, since that is what wandb uses to save the objects locally
@@ -111,6 +110,11 @@ def _json_helper(val, artifact):
 class Table(Media):
     """The Table class is used to display and analyze tabular data.
 
+    Unlike traditional spreadsheets, Tables support numerous types of data:
+    scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
+    This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
+    directly in Tables, alongside other traditional scalar values.
+
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
@@ -150,17 +154,28 @@ class Table(Media):
     ```
 
     Tables can be logged directly to runs using `run.log({"my_table": table})`
-    or added to artifacts using `artifact.add(table, "my_table")`.
+    or added to artifacts using `artifact.add(table, "my_table")`:
+    <!--yeadoc-test:table-logging-direct-->
+    ```python
+    import numpy as np
+    import wandb
 
-    Tables added directly to runs will produce a corresponding Table Visualizer in the
+    wandb.init()
+
+    tbl = wandb.Table(columns=["image", "label"])
+
+    images = np.random.randint(0, 255, [2, 100, 100, 3], dtype=np.uint8)
+    labels = ["panda", "gibbon"]
+    [tbl.add_data(wandb.Image(image), label) for image, label in zip(images, labels)]
+
+    wandb.log({"classifier_out": tbl})
+    ```
+
+    Tables added directly to runs as above will produce a corresponding Table Visualizer in the
     Workspace which can be used for further analysis and exporting to reports.
+
     Tables added to artifacts can be viewed in the Artifact Tab and will render
     an equivalent Table Visualizer directly in the artifact browser.
-
-    Note that Tables support numerous types of data: traditional scalar values,
-    numpy arrays, and most subclasses of wandb.data_types.Media. This means you
-    can embed Images, Video, Audio, and other sorts of rich, annotated media
-    directly in Tables, alongside other traditional scalar values.
 
     Tables expect each value for a column to be of the same type. By default, a column supports
     optional values, but not mixed values. If you absolutely need to mix types,
