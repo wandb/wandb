@@ -1172,7 +1172,7 @@ class Run(object):
             For more and more detailed examples, see
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
-            Basic usage
+            ### Basic usage
             <!--yeadoc-test:init-and-log-basic-->
             ```python
             import wandb
@@ -1180,7 +1180,7 @@ class Run(object):
             wandb.log({'accuracy': 0.9, 'epoch': 5})
             ```
 
-            Incremental logging
+            ### Incremental logging
             <!--yeadoc-test:init-and-log-incremental-->
             ```python
             import wandb
@@ -1190,7 +1190,7 @@ class Run(object):
             wandb.log({'accuracy': 0.8})
             ```
 
-            Histogram
+            ### Histogram
             <!--yeadoc-test:init-and-log-histogram-->
             ```python
             import numpy as np
@@ -1202,7 +1202,7 @@ class Run(object):
             wandb.log({"gradients": wandb.Histogram(gradients)})
             ```
 
-            Image from numpy
+            ### Image from numpy
             <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
             import numpy as np
@@ -1217,7 +1217,7 @@ class Run(object):
             wandb.log({"examples": examples})
             ```
 
-            Image from PIL
+            ### Image from PIL
             <!--yeadoc-test:init-and-log-image-pillow-->
             ```python
             import numpy as np
@@ -1234,7 +1234,7 @@ class Run(object):
             wandb.log({"examples": examples})
             ```
 
-            Video from numpy
+            ### Video from numpy
             <!--yeadoc-test:init-and-log-video-numpy-->
             ```python
             import numpy as np
@@ -1246,7 +1246,7 @@ class Run(object):
             wandb.log({"video": wandb.Video(frames, fps=4)})
             ```
 
-            Matplotlib Plot
+            ### Matplotlib Plot
             <!--yeadoc-test:init-and-log-matplotlib-->
             ```python
             from matplotlib import pyplot as plt
@@ -1261,12 +1261,12 @@ class Run(object):
             wandb.log({"chart": fig})
             ```
 
-            PR Curve
+            ### PR Curve
             ```python
             wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
-            3D Object
+            ### 3D Object
             ```python
             wandb.log({"generated_samples":
             [wandb.Object3D(open("sample.obj")),
