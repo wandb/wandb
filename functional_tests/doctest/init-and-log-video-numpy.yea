@@ -4,6 +4,8 @@ plugin:
 depend:
     requirements:
         - numpy
+        - moviepy
+        - imageio
 assert:
     - :wandb:runs_len: 1
     - :op:contains:
