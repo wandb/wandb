@@ -1,0 +1,8 @@
+id: table-construct-dataframe
+plugin:
+    - wandb
+depend:
+    requirements:
+        - pandas
+assert:
+    - :yea:exit: 0
