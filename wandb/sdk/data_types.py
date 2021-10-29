@@ -1270,8 +1270,7 @@ class JSONMetadata(Media):
 
 
 class ImageMask(Media):
-    """
-    Wandb class for image masks or overlays, useful for tasks like semantic segmentation.
+    """Format image masks or overlays for logging to W&B.
 
     Arguments:
         val: (dictionary)
@@ -1871,7 +1870,7 @@ class Classes(Media):
 
 
 class Image(BatchableMedia):
-    """Create images to log to W&B.
+    """Format images for logging to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io) Accepts numpy array of
