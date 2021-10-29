@@ -59,6 +59,7 @@ jobs:  # update the docs.
           echo 'echo $SSH_PASSPHRASE' > ~/.ssh_askpass && chmod +x ~/.ssh_askpass
           # pass the private key | sans carriage returns | to ssh-add, along with the password returned by the file > hiding output
           echo "$SSH_PRIVATE_KEY" | tr -d '\r' | DISPLAY=NONE SSH_ASKPASS=~/.ssh_askpass ssh-add - > /dev/null
+          rm ~/.ssh_askpass
 
       # debug step: print out the added identity
       - name: print ssh-add identities
