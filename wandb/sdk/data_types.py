@@ -1451,6 +1451,7 @@ class BoundingBoxes2D(JSONMetadata):
     """
     Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
 
+
     Arguments:
         val: (dictionary) A dictionary of the following form:
             box_data: (list of dictionaries) One dictionary for each bounding box, containing:
@@ -1483,13 +1484,21 @@ class BoundingBoxes2D(JSONMetadata):
 
     Examples:
         Log a set of predicted and ground truth bounding boxes for a given image
+        <!--yeadoc-test:boundingbox-2d-->
         ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(200, 300, 3))
+
         class_labels = {
             0: "person",
             1: "car",
             2: "road",
             3: "building"
         }
+
         img = wandb.Image(image, boxes={
             "predictions": {
                 "box_data": [
@@ -1523,14 +1532,9 @@ class BoundingBoxes2D(JSONMetadata):
                             "loss": 0.7
                         }
                     },
-                    ...
                     # Log as many boxes an as needed
                 ],
                 "class_labels": class_labels
-            },
-            # Log each meaningful group of boxes with a unique key name
-            "ground_truth": {
-            ...
             }
         })
 
