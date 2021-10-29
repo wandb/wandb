@@ -2,4 +2,4 @@ id: global-run-object
 plugin:
     - wandb
 assert:
-    - :wandb:runs_len: 0
+    - :wandb:runs_len: 1
