@@ -193,7 +193,7 @@ class Run(object):
     run = wandb.init()
     ```
 
-    There is only ever at most one `wandb.Run`, and it is accessible as `wandb.run`:
+    There is only ever at most one active `wandb.Run`, and it is accessible as `wandb.run`:
     <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
@@ -204,6 +204,7 @@ class Run(object):
 
     assert wandb.run is not None
     ```
+    anything you log with `wandb.log` will be sent to that run.
 
     If you want to start more runs in the same script or notebook, you'll need to
     finish the run that is in-flight. Runs can be finished with `wandb.finish` or

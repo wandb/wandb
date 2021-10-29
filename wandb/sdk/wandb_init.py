@@ -703,17 +703,34 @@ def init(
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default so you can see live visualizations.
-    Call `wandb.init()` to start a run before logging data with `wandb.log()`.
+
+    Call `wandb.init()` to start a run before logging data with `wandb.log()`:
+    <!--yeadoc-test:init-method-log-->
+    ```python
+    import wandb
+
+    wandb.init()
+    # ... calculate metrics, generate media
+    wandb.log({"accuracy": 0.9})
+    ```
 
     `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`.
+    with `wandb.run`:
+    <!--yeadoc-test:init-and-assert-global-->
+    ```python
+    import wandb
+
+    run = wandb.init()
+
+    assert run is wandb.run
+    ```
 
     At the end of your script, we will automatically call `wandb.finish` to
     finalize and cleanup the run. However, if you call `wandb.init` from a
     child process, you must explicitly call `wandb.finish` at the end of the
     child process.
 
-    For more on using `wandb.init()`, including code snippets, check out our
+    For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
     Arguments:
