@@ -1828,8 +1828,7 @@ class Image(BatchableMedia):
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
 
-    Examples
-
+    Examples:
         Image from numpy
         ```python
         import numpy as np
@@ -1859,7 +1858,6 @@ class Image(BatchableMedia):
             examples.append(image)
         wandb.log({"examples": examples})
         ```
-
     """
 
     MAX_ITEMS = 108
