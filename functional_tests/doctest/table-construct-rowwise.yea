@@ -1,0 +1,5 @@
+id: table-construct-rowwise
+plugin:
+    - wandb
+assert:
+    - :yea:exit: 0
