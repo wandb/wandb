@@ -1827,6 +1827,39 @@ class Image(BatchableMedia):
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
+
+    Examples
+
+        Image from numpy
+        ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        wandb.log({"examples": examples})
+        ```
+
+        Image from PIL
+        ```python
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
+
+        wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        wandb.log({"examples": examples})
+        ```
+
     """
 
     MAX_ITEMS = 108
