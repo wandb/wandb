@@ -194,19 +194,36 @@ class Run(object):
     ```
 
     There is only ever at most one `wandb.Run`, and it is accessible as `wandb.run`:
-
     <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
 
-    assert wandb.run is not None
+    assert wandb.run is None
 
-    run = wandb.init()
+    wandb.init()
 
     assert wandb.run is not None
     ```
 
-    See the documentation for `wandb.init` for more details, or check out
+    If you want to start more runs in the same script or notebook, you'll need to
+    finish the run that is in-flight. Runs can be finished with `wandb.finish` or
+    by using them in a `with` block:
+    <!--yeadoc-test:run-context-manager-->
+    ```python
+    import wandb
+
+    wandb.init()
+    wandb.finish()
+
+    assert wandb.run is None
+
+    with wandb.init() as run:
+        pass  # log data here
+
+    assert wandb.run is None
+    ```
+
+    See the documentation for `wandb.init` for more on creating runs, or check out
     [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
 
     In distributed training, you can either create a single run in the rank 0 process
@@ -727,22 +744,20 @@ class Run(object):
         include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
-        """Saves the current state of your code to a W&B artifact.
+        """Saves the current state of your code to a W&B Artifact.
 
         By default it walks the current directory and logs all files that end with `.py`.
 
         Arguments:
-            root (str, optional): The relative (to `os.getcwd()`) or absolute path to
-                recursively find code from.
-            name (str, optional): The name of our code artifact. By default we'll name
+            root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
+            name: (str, optional) The name of our code artifact. By default we'll name
                 the artifact `source-$RUN_ID`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn (callable, optional): A callable that accepts a file path and
+            include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
                 defaults to: `lambda path: path.endswith(".py")`
-            exclude_fn (callable, optional): A callable that accepts a file path and
-                returns `True` when it should be excluded and `False` otherwise. This
-                defaults to: `lambda path: False`
+            exclude_fn: A callable that accepts a file path and returns `True` when it should be
+                excluded and `False` otherwise. Thisdefaults to: `lambda path: False`
 
         Examples:
             Basic usage
