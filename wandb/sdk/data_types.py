@@ -1062,7 +1062,7 @@ class Video(BatchableMedia):
 
     Examples:
         ### Log a numpy array as a video
-        <!--yeadoc-test:video-log-numpy-->
+        <!--yeadoc-test:log-video-numpy-->
         ```python
         import numpy as np
         import wandb
@@ -1297,8 +1297,8 @@ class ImageMask(Media):
             The readable name or id for this mask type (e.g. predictions, ground_truth)
 
     Examples:
-        Log a mask overlay for a given image
-        <!--yeadoc-test:log-img-mask-->
+        ### Logging a single masked image
+        <!--yeadoc-test:log-image-mask-->
         ```python
         import numpy as np
         import wandb
@@ -1338,8 +1338,8 @@ class ImageMask(Media):
         wandb.log({"img_with_masks" : masked_image})
         ```
 
-        Prepare an image mask to be added to a wandb.Table
-        <!--yeadoc-test:log-img-mask-table-->
+        ### Log a masked image inside a Table
+        <!--yeadoc-test:log-image-mask-table-->
         ```python
 
         import numpy as np
@@ -1512,9 +1512,7 @@ class ImageMask(Media):
 
 
 class BoundingBoxes2D(JSONMetadata):
-    """
-    Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
-
+    """Format images with 2D bounding box overlays for logging to W&B.
 
     Arguments:
         val: (dictionary) A dictionary of the following form:
@@ -1547,7 +1545,7 @@ class BoundingBoxes2D(JSONMetadata):
             The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
 
     Examples:
-        Log a set of predicted and ground truth bounding boxes for a given image
+        ### Log bounding boxes for a single image
         <!--yeadoc-test:boundingbox-2d-->
         ```python
         import numpy as np
@@ -1605,7 +1603,7 @@ class BoundingBoxes2D(JSONMetadata):
         wandb.log({"driving_scene": img})
         ```
 
-        Prepare an image with bounding boxes to be added to a wandb.Table
+        ### Log a bounding box overlay to a Table
         <!--yeadoc-test:bb2d-image-with-labels-->
         ```python
 
@@ -1892,7 +1890,8 @@ class Image(BatchableMedia):
         caption: (string) Label for display of image.
 
     Examples:
-        Image from numpy
+        ### Create a wandb.Image from a numpy array
+        <!--yeadoc-test:log-image-numpy->
         ```python
         import numpy as np
         import wandb
@@ -1906,7 +1905,8 @@ class Image(BatchableMedia):
         wandb.log({"examples": examples})
         ```
 
-        Image from PIL
+        ### Create a wandb.Image from a PILImage
+        <!--yeadoc-test:log-image-pil->
         ```python
         import numpy as np
         from PIL import Image as PILImage

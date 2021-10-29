@@ -1,4 +1,4 @@
-id: log-img-mask-table
+id: log-image-mask-table
 plugin:
     - wandb
 depend:
