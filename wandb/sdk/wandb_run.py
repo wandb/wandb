@@ -194,19 +194,36 @@ class Run(object):
     ```
 
     There is only ever at most one `wandb.Run`, and it is accessible as `wandb.run`:
-
     <!--yeadoc-test:global-run-object-->
     ```python
     import wandb
 
-    assert wandb.run is not None
+    assert wandb.run is None
 
-    run = wandb.init()
+    wandb.init()
 
     assert wandb.run is not None
     ```
 
-    See the documentation for `wandb.init` for more details, or check out
+    If you want to start more runs in the same script or notebook, you'll need to
+    finish the run that is in-flight. Runs can be finished with `wandb.finish` or
+    by using them in a `with` block:
+    <!--yeadoc-test:run-context-manager-->
+    ```python
+    import wandb
+
+    wandb.init()
+    wandb.finish()
+
+    assert wandb.run is None
+
+    with wandb.init() as run:
+        pass  # log data here
+
+    assert wandb.run is None
+    ```
+
+    See the documentation for `wandb.init` for more on creating runs, or check out
     [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
 
     In distributed training, you can either create a single run in the rank 0 process
@@ -528,7 +545,6 @@ class Run(object):
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
-
         # We only pickle in service mode
         if not self._settings or not self._settings._require_service:
             return
@@ -676,7 +692,8 @@ class Run(object):
     def step(self) -> int:
         """Returns the current value of the step.
 
-        This counter is incremented by `wandb.log`."""
+        This counter is incremented by `wandb.log`.
+        """
         return self.history._step
 
     def project_name(self) -> str:
@@ -727,22 +744,20 @@ class Run(object):
         include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
-        """Saves the current state of your code to a W&B artifact.
+        """Saves the current state of your code to a W&B Artifact.
 
         By default it walks the current directory and logs all files that end with `.py`.
 
         Arguments:
-            root (str, optional): The relative (to `os.getcwd()`) or absolute path to
-                recursively find code from.
-            name (str, optional): The name of our code artifact. By default we'll name
+            root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
+            name: (str, optional) The name of our code artifact. By default we'll name
                 the artifact `source-$RUN_ID`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn (callable, optional): A callable that accepts a file path and
+            include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
                 defaults to: `lambda path: path.endswith(".py")`
-            exclude_fn (callable, optional): A callable that accepts a file path and
-                returns `True` when it should be excluded and `False` otherwise. This
-                defaults to: `lambda path: False`
+            exclude_fn: A callable that accepts a file path and returns `True` when it should be
+                excluded and `False` otherwise. Thisdefaults to: `lambda path: False`
 
         Examples:
             Basic usage
@@ -814,7 +829,8 @@ class Run(object):
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
-        Entity can be a user name or the name of a team or organization."""
+        Entity can be a user name or the name of a team or organization.
+        """
         return self._entity or ""
 
     def _label_internal(
@@ -904,7 +920,7 @@ class Run(object):
             self._label_probe_lines(lines)
 
     def display(self, height: int = 420, hidden: bool = False) -> bool:
-        """Display this run in jupyter"""
+        """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
             ipython.display_html(self.to_html(height, hidden))
             return True
@@ -913,7 +929,7 @@ class Run(object):
             return False
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying the current run"""
+        """Generates HTML containing an iframe displaying the current run."""
         url = self._get_run_url() + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
@@ -1418,8 +1434,8 @@ class Run(object):
         call this method when your script exits or if you use the run context manager.
 
         Arguments:
-            exit_code (int): set to something other than 0 to mark a run as failed
-            quite (bool): set to true to minimize log output
+            exit_code: Set to something other than 0 to mark a run as failed
+            quiet: Set to true to minimize log output
         """
         if quiet is not None:
             self._quiet = quiet
@@ -2349,6 +2365,7 @@ class Run(object):
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
             use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+
         Returns:
             An `Artifact` object.
         """
@@ -2788,8 +2805,8 @@ def finish(exit_code: int = None, quiet: bool = None) -> None:
     We automatically call this method when your script exits.
 
     Arguments:
-        exit_code (int): set to something other than 0 to mark a run as failed
-        quite (bool): set to true to minimize log output
+        exit_code: Set to something other than 0 to mark a run as failed
+        quiet: Set to true to minimize log output
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
