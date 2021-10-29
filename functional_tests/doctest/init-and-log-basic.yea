@@ -1,4 +1,4 @@
-id: log-and-init-basic
+id: init-and-log-basic
 plugin:
     - wandb
 assert:
