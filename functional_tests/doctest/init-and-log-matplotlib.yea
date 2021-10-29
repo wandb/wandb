@@ -1,0 +1,13 @@
+id: init-and-log-matplotlib
+plugin:
+    - wandb
+depend:
+    requirements:
+        - numpy
+        - matplotlib
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - chart
+    - :wandb:runs[0][exitcode]: 0

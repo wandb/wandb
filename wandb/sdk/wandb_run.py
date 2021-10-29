@@ -1229,8 +1229,18 @@ class Run(object):
             ```
 
             Matplotlib Plot
+            <!--yeadoc-test:init-and-log-matplotlib-->
             ```python
-            wandb.log({"chart": plt})
+            from matplotlib import pyplot as plt
+            import numpy as np
+            import wandb
+
+            wandb.init()
+            fig, ax = plt.subplots()
+            x = np.linspace(0, 10)
+            y = x * x
+            ax.plot(x, y)  # plot y = x^2
+            wandb.log({"chart": fig})
             ```
 
             PR Curve
