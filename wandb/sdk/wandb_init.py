@@ -852,7 +852,6 @@ def init(
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
     Examples:
-
     ### Set where the run is logged
 
     You can change where the run is logged, just like changing
