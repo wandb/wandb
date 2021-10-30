@@ -1,52 +1,30 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
-import wandb
-import time
 import itertools
-import sklearn
+import time
+from warnings import simplefilter
+
 import numpy as np
-import scipy as sp
-from wandb.sklearn.utils import *
+import pandas as pd
+import sklearn
 from sklearn.base import clone
 from sklearn import model_selection
-from sklearn import datasets
 from sklearn import metrics
-from sklearn.metrics import (
-    roc_curve,
-    auc,
-    precision_recall_curve,
-    average_precision_score,
-)
-from sklearn.metrics import brier_score_loss, precision_score, recall_score, f1_score
 from sklearn.metrics import silhouette_score, silhouette_samples
-from sklearn.preprocessing import label_binarize
 from sklearn.preprocessing import LabelEncoder
 from sklearn.calibration import calibration_curve
 from sklearn import naive_bayes
-from sklearn.utils.multiclass import unique_labels, type_of_target
-from sklearn.calibration import CalibratedClassifierCV, calibration_curve
+from sklearn.utils.multiclass import unique_labels
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
-from warnings import simplefilter
+
+import wandb
+from wandb.plots.roc import roc
+from wandb.plots.precision_recall import precision_recall
+from wandb.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-from wandb.plots.roc import roc
-from wandb.plots.precision_recall import precision_recall
-
-
-def round_3(n):
-    return round(n, 3)
-
-
-def round_2(n):
-    return round(n, 2)
-
-
-chart_limit = 1000
-
-
-def get_named_labels(labels, numeric_labels):
-    return np.array([labels[num_label] for num_label in numeric_labels])
+CHART_LIMIT = 1000
 
 
 def plot_classifier(
@@ -63,42 +41,43 @@ def plot_classifier(
     feature_names=None,
     log_learning_curve=False,
 ):
-    """
-    Generates all sklearn classifier plots supported by W&B.
-        The following plots are generated:
+    """Generates all sklearn classifier plots supported by W&B.
+
+    The following plots are generated:
         feature importances, confusion matrix, summary metrics,
-        class balance plot, calibration curve, roc curve, precision-recall curve,
-        and optionally learning curve.
+        class balance plot, calibration curve, roc curve, precision-recall curve.
 
     Should only be called with a fitted classifer (otherwise an error is thrown).
 
     Arguments:
-        model (classifier): Takes in a fitted classifier.
-        X_train (arr): Training set features.
-        y_train (arr): Training set labels.
-        X_test (arr): Test set features.
-        y_test (arr): Test set labels.
-        y_pred (arr): Test set predictions by the model passed.
-        y_probas (arr): Test set predicted probabilities by the model passed.
-        labels (list): Named labels for target varible (y). Makes plots easier to
+        model: (classifier) Takes in a fitted classifier.
+        X_train: (arr) Training set features.
+        y_train: (arr) Training set labels.
+        X_test: (arr) Test set features.
+        y_test: (arr) Test set labels.
+        y_pred: (arr) Test set predictions by the model passed.
+        y_probas: (arr) Test set predicted probabilities by the model passed.
+        labels: (list) Named labels for target varible (y). Makes plots easier to
                         read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
-        is_binary (bool): Is the model passed a binary classifier? Defaults to False
-        model_name (str): Model name. Defaults to 'Classifier'
-        feature_names (list): Names for features. Makes plots easier to read by
+                        For example if `labels=['dog', 'cat', 'owl']` all 0s are
+                        replaced by dog, 1s by cat.
+        is_binary: (bool) Is the model passed a binary classifier? Defaults to False
+        model_name: (str) Model name. Defaults to 'Classifier'
+        feature_names: (list) Names for features. Makes plots easier to read by
                                 replacing feature indexes with corresponding names.
-        log_learning_curve (bool): Whether or not to log the learning curve.
+        log_learning_curve: (bool) Whether or not to log the learning curve.
                                     Defaults to False.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
             under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_classifier(model, X_train, X_test, y_train, y_test,
                         y_pred, y_probas, ['cat', 'dog'], False,
                         'RandomForest', ['barks', 'drools, 'plays_fetch', 'breed'])
+    ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
     if not isinstance(model, naive_bayes.MultinomialNB):
@@ -126,27 +105,29 @@ def plot_classifier(
 
 
 def plot_regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):
-    """
-    Generates all sklearn regressor plots supported by W&B.
-        The following plots are generated:
+    """Generates all sklearn regressor plots supported by W&B.
+
+    The following plots are generated:
         learning curve, summary metrics, residuals plot, outlier candidates.
 
     Should only be called with a fitted regressor (otherwise an error is thrown).
 
     Arguments:
-        model (regressor): Takes in a fitted regressor.
-        X_train (arr): Training set features.
-        y_train (arr): Training set labels.
-        X_test (arr): Test set features.
-        y_test (arr): Test set labels.
-        model_name (str): Model name. Defaults to 'Regressor'
+        model: (regressor) Takes in a fitted regressor.
+        X_train: (arr) Training set features.
+        y_train: (arr) Training set labels.
+        X_test: (arr) Test set features.
+        y_test: (arr) Test set labels.
+        model_name: (str) Model name. Defaults to 'Regressor'
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
             under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_regressor(reg, X_train, X_test, y_train, y_test, 'Ridge')
+    ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
     plot_summary_metrics(model, X_train, y_train, X_test, y_test)
@@ -160,30 +141,32 @@ def plot_regressor(model, X_train, X_test, y_train, y_test, model_name="Regresso
 
 
 def plot_clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer"):
-    """
-    Generates all sklearn clusterer plots supported by W&B.
-        The following plots are generated:
+    """Generates all sklearn clusterer plots supported by W&B.
+
+    The following plots are generated:
         elbow curve, silhouette plot.
 
     Should only be called with a fitted clusterer (otherwise an error is thrown).
 
     Arguments:
-        model (clusterer): Takes in a fitted clusterer.
-        X_train (arr): Training set features.
-        cluster_labels (list): Names for cluster labels. Makes plots easier to read
+        model: (clusterer) Takes in a fitted clusterer.
+        X_train: (arr) Training set features.
+        cluster_labels: (list) Names for cluster labels. Makes plots easier to read
                             by replacing cluster indexes with corresponding names.
-        labels (list): Named labels for target varible (y). Makes plots easier to
+        labels: (list) Named labels for target varible (y). Makes plots easier to
                         read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
-        model_name (str): Model name. Defaults to 'Clusterer'
+                        For example if `labels=['dog', 'cat', 'owl']` all 0s are
+                        replaced by dog, 1s by cat.
+        model_name: (str) Model name. Defaults to 'Clusterer'
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, 'KMeans')
+    ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
     if isinstance(model, sklearn.cluster.KMeans):
@@ -196,17 +179,15 @@ def plot_clusterer(model, X_train, cluster_labels, labels=None, model_name="Clus
 
 
 def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
-    """
-    Calculates summary metrics (like mse, mae, r2 score) for both regression and
-    classification algorithms.
+    """Calculates summary metrics for both regressors and classifiers.
 
     Called by plot_summary_metrics to visualize metrics. Please use the function
     plot_summary_metric() if you wish to visualize your summary metrics.
     """
     if (
-        test_missing(model=model, X=X, y=y, X_test=X_test, y_test=y_test)
-        and test_types(model=model, X=X, y=y, X_test=X_test, y_test=y_test)
-        and test_fitted(model)
+        utils.test_missing(model=model, X=X, y=y, X_test=X_test, y_test=y_test)
+        and utils.test_types(model=model, X=X, y=y, X_test=X_test, y_test=y_test)
+        and utils.test_fitted(model)
     ):
         y = np.asarray(y)
         y_test = np.asarray(y_test)
@@ -228,7 +209,6 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
         # Classifier Metrics
         if sklearn.base.is_classifier(model):
             y_pred = model.predict(X_test)
-            y_probas = model.predict_proba(X_test)
 
             metric_name.append("accuracy_score")
             metric_value.append(round_2(sklearn.metrics.accuracy_score(y_test, y_pred)))
@@ -277,20 +257,19 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
 
 
 def plot_summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
-    """
-    Logs the charts generated by summary_metrics in wandb.
+    """Logs the charts generated by summary_metrics in wandb.
 
     Should only be called with a fitted model (otherwise an error is thrown).
 
     Arguments:
-        model (clf or reg): Takes in a fitted regressor or classifier.
-        X (arr): Training set features.
-        y (arr): Training set labels.
-        X_test (arr): Test set features.
-        y_test (arr): Test set labels.
+        model: (clf or reg) Takes in a fitted regressor or classifier.
+        X: (arr) Training set features.
+        y: (arr) Training set labels.
+        X_test: (arr) Test set features.
+        y_test: (arr) Test set labels.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
@@ -310,17 +289,16 @@ def learning_curve(
     n_jobs=1,
     scoring=None,
 ):
-    """
-    Trains model on datasets of varying lengths and generates a plot of
-    scores vs training sizes for both training and test sets.
+    """Trains model on datasets of varying size and generates plot of score vs size.
 
     Called by plot_learning_curve to visualize learning curve. Please use the function
     plot_learning_curve() if you wish to visualize your learning curves.
-
     """
     if train_sizes is None:
         train_sizes = np.linspace(0.1, 1.0, 5)
-    if test_missing(model=model, X=X, y=y) and test_types(model=model, X=X, y=y):
+    if utils.test_missing(model=model, X=X, y=y) and utils.test_types(
+        model=model, X=X, y=y
+    ):
         y = np.asarray(y)
         train_sizes, train_scores, test_scores = model_selection.learning_curve(
             model,
@@ -334,14 +312,12 @@ def learning_curve(
             random_state=random_state,
         )
         train_scores_mean = np.mean(train_scores, axis=1)
-        train_scores_std = np.std(train_scores, axis=1)
         test_scores_mean = np.mean(test_scores, axis=1)
-        test_scores_std = np.std(test_scores, axis=1)
 
         def learning_curve_table(train, test, trainsize):
             data = []
             for i in range(len(train)):
-                if i >= chart_limit / 2:
+                if i >= CHART_LIMIT / 2:
                     wandb.termwarn(
                         "wandb uses only the first %d datapoints to create the plots."
                         % wandb.Table.MAX_ROWS
@@ -370,21 +346,23 @@ def plot_learning_curve(
     n_jobs=1,
     scoring=None,
 ):
-    """
-    Logs the plots generated by learning_curve() to wandb.
+    """Logs the plots generated by learning_curve() to wandb.
+
     Please note this function fits the model to datasets of varying sizes when called.
 
     Arguments:
-        model (clf or reg): Takes in a fitted regressor or classifier.
-        X (arr): Dataset features.
-        y (arr): Dataset labels.
+        model: (clf or reg) Takes in a fitted regressor or classifier.
+        X: (arr) Dataset features.
+        y: (arr) Dataset labels.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_learning_curve(model, X, y)
+    ```
     """
     wandb.log(
         {
@@ -403,23 +381,24 @@ def plot_roc(
     plot_macro=True,
     classes_to_plot=None,
 ):
-    """
-    Logs the plots generated by roc() to wandb.
+    """Logs the plots generated by roc() to wandb.
 
     Arguments:
-        y_true (arr): Test set labels.
-        y_probas (arr): Test set predicted probabilities.
-        labels (list): Named labels for target varible (y). Makes plots easier to
-                        read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
+        y_true: (arr) Test set labels.
+        y_probas: (arr) Test set predicted probabilities.
+        labels: (list) Named labels for target variable (y). Makes plots easier to
+                       read by replacing target values with corresponding index.
+                       For example if `labels=['dog', 'cat', 'owl']` all 0s are
+                       replaced by dog, 1s by cat.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_roc(y_true, y_probas, labels)
+    ```
     """
     wandb.log(
         {"roc": roc(y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot)}
@@ -437,8 +416,7 @@ def confusion_matrix(
     hide_zeros=False,
     hide_counts=False,
 ):
-    """
-    Computes the confusion matrix to evaluate the accuracy of a classification.
+    """Computes the confusion matrix to evaluate the performance of a classification.
 
     Called by plot_confusion_matrix to visualize roc curves. Please use the function
     plot_confusion_matrix() if you wish to visualize your confusion matrix.
@@ -446,7 +424,7 @@ def confusion_matrix(
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
 
-    if test_missing(y_true=y_true, y_pred=y_pred) and test_types(
+    if utils.test_missing(y_true=y_true, y_pred=y_pred) and utils.test_types(
         y_true=y_true, y_pred=y_pred
     ):
         cm = metrics.confusion_matrix(y_true, y_pred)
@@ -495,7 +473,7 @@ def confusion_matrix(
                     true_dict = true_classes[j]
                 data.append([pred_dict, true_dict, cm[i, j]])
                 count += 1
-                if count >= chart_limit:
+                if count >= CHART_LIMIT:
                     wandb.termwarn(
                         "wandb uses only the first %d datapoints to create the plots."
                         % wandb.Table.MAX_ROWS
@@ -520,23 +498,24 @@ def plot_confusion_matrix(
     hide_zeros=False,
     hide_counts=False,
 ):
-    """
-    Logs the plots generated by confusion_matrix() to wandb.
+    """Logs the plots generated by confusion_matrix() to wandb.
 
     Arguments:
-        y_true (arr): Test set labels.
-        y_probas (arr): Test set predicted probabilities.
-        labels (list): Named labels for target varible (y). Makes plots easier to
-                        read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
+        y_true: (arr) Test set labels.
+        y_probas: (arr) Test set predicted probabilities.
+        labels: (list) Named labels for target variable (y). Makes plots easier to
+                       read by replacing target values with corresponding index.
+                       For example if `labels=['dog', 'cat', 'owl']` all 0s are
+                       replaced by dog, 1s by cat.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_confusion_matrix(y_true, y_probas, labels)
+    ```
     """
     wandb.log(
         {
@@ -558,23 +537,24 @@ def plot_confusion_matrix(
 def plot_precision_recall(
     y_true=None, y_probas=None, labels=None, plot_micro=True, classes_to_plot=None
 ):
-    """
-    Logs the plots generated by precision_recall() to wandb.
+    """Logs the plots generated by precision_recall() to wandb.
 
     Arguments:
-        y_true (arr): Test set labels.
-        y_probas (arr): Test set predicted probabilities.
-        labels (list): Named labels for target varible (y). Makes plots easier to
-                        read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
+        y_true: (arr) Test set labels.
+        y_probas: (arr) Test set predicted probabilities.
+        labels: (list) Named labels for target variable (y). Makes plots easier to
+                       read by replacing target values with corresponding index.
+                       For example if `labels=['dog', 'cat', 'owl']` all 0s are
+                       replaced by dog, 1s by cat.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
+    ```
     """
     wandb.log(
         {
@@ -588,23 +568,24 @@ def plot_precision_recall(
 def plot_feature_importances(
     model=None, feature_names=None, title="Feature Importance", max_num_features=50
 ):
-    """
-    Evaluates & plots the importance of each feature for the classification task.
+    """Evaluates & plots the importance of each feature for a classifier.
 
     Should only be called with a fitted classifer (otherwise an error is thrown).
     Only works with classifiers that have a feature_importances_ attribute, like trees.
 
     Arguments:
-        model (clf): Takes in a fitted classifier.
-        feature_names (list): Names for features. Makes plots easier to read by
-                                replacing feature indexes with corresponding names.
+        model: (clf) Takes in a fitted classifier.
+        feature_names: (list) Names for features. Makes plots easier to read by
+                              replacing feature indexes with corresponding names.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_feature_importances(model, ['width', 'height, 'length'])
+    ```
     """
     attributes_to_check = ["feature_importances_", "feature_log_prob_", "coef_"]
 
@@ -632,7 +613,11 @@ def plot_feature_importances(
         )
         return
 
-    if test_missing(model=model) and test_types(model=model) and test_fitted(model):
+    if (
+        utils.test_missing(model=model)
+        and utils.test_types(model=model)
+        and utils.test_fitted(model)
+    ):
         if found_attribute == "feature_importances_":
             importances = model.feature_importances_
         elif found_attribute == "coef_":  # ElasticNet or ElasticNetCV like models
@@ -693,24 +678,26 @@ def plot_feature_importances(
 def plot_elbow_curve(
     clusterer=None, X=None, cluster_ranges=None, n_jobs=1, show_cluster_time=True
 ):
-    """
-    Measures and plots the percentage of variance explained as a function of the
-        number of clusters, along with training times. Useful in picking the
-        optimal number of clusters.
+    """Measures and plots variance explained as a function of the number of clusters.
+
+    Useful in picking the optimal number of clusters.
 
     Should only be called with a fitted clusterer (otherwise an error is thrown).
+
     Please note this function fits the model on the training set when called.
 
     Arguments:
-        model (clusterer): Takes in a fitted clusterer.
-        X (arr): Training set features.
+        model: (clusterer) Takes in a fitted clusterer.
+        X: (arr) Training set features.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_elbow_curve(model, X_train)
+    ```
     """
     if not hasattr(clusterer, "n_clusters"):
         wandb.termlog(
@@ -718,9 +705,9 @@ def plot_elbow_curve(
         )
         return
     if (
-        test_missing(clusterer=clusterer)
-        and test_types(clusterer=clusterer)
-        and test_fitted(clusterer)
+        utils.test_missing(clusterer=clusterer)
+        and utils.test_types(clusterer=clusterer)
+        and utils.test_fitted(clusterer)
     ):
         try:
             from joblib import Parallel, delayed
@@ -785,34 +772,36 @@ def plot_silhouette(
     metric="euclidean",
     kmeans=True,
 ):
-    """
-    Measures & plots a measure of how close each point in one cluster is to points
-        in the neighboring clusters. Silhouette coefficients near +1 indicate that
-        the sample is far away from the neighboring clusters. A value of 0 indicates
-         that the sample is on or very close to the decision boundary between two
-         neighboring clusters and negative values indicate that those samples might
-         have been assigned to the wrong cluster.
+    """Measures & plots silhouette coefficients.
+
+    Silhouette coefficients near +1 indicate that the sample is far away from
+    the neighboring clusters. A value near 0 indicates that the sample is on or
+    very close to the decision boundary between two neighboring clusters and
+    negative values indicate that the samples might have been assigned to the wrong cluster.
 
     Should only be called with a fitted clusterer (otherwise an error is thrown).
+
     Please note this function fits the model on the training set when called.
 
     Arguments:
-        model (clusterer): Takes in a fitted clusterer.
-        X (arr): Training set features.
-        cluster_labels (list): Names for cluster labels. Makes plots easier to read
-                            by replacing cluster indexes with corresponding names.
+        model: (clusterer) Takes in a fitted clusterer.
+        X: (arr) Training set features.
+        cluster_labels: (list) Names for cluster labels. Makes plots easier to read
+                               by replacing cluster indexes with corresponding names.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_silhouette(model, X_train, ['spam', 'not spam'])
+    ```
     """
     if (
-        test_missing(clusterer=clusterer)
-        and test_types(clusterer=clusterer)
-        and test_fitted(clusterer)
+        utils.test_missing(clusterer=clusterer)
+        and utils.test_types(clusterer=clusterer)
+        and utils.test_fitted(clusterer)
     ):
         if isinstance(X, (pd.DataFrame)):
             X = X.values
@@ -825,7 +814,7 @@ def plot_silhouette(
         labels = np.asarray(labels)
 
         le = LabelEncoder()
-        cluster_labels_encoded = le.fit_transform(cluster_labels)
+        _ = le.fit_transform(cluster_labels)
         n_clusters = len(np.unique(cluster_labels))
 
         # The silhouette_score gives the average value for all the samples.
@@ -868,10 +857,10 @@ def plot_silhouette(
                 x_sil.append(ith_cluster_silhouette_values[j])
                 color_sil.append(i)
                 count += 1
-                if count >= chart_limit:
+                if count >= CHART_LIMIT:
                     wandb.termwarn(
                         "wandb uses only the first %d datapoints to create the plots."
-                        % wandb.Table.MAX_ROWS
+                        % CHART_LIMIT
                     )
                     break
 
@@ -994,26 +983,28 @@ def plot_silhouette(
 
 
 def plot_class_proportions(y_train=None, y_test=None, labels=None):
-    """
-    Plots the distribution of target classses in training and test sets.
-        Useful for detecting imbalanced classes.
+    """Plots the distribution of target classses in training and test sets.
+
+    Useful for detecting imbalanced classes.
 
     Arguments:
-        y_train (arr): Training set labels.
-        y_test (arr): Test set labels.
-        labels (list): Named labels for target varible (y). Makes plots easier to
-                        read by replacing target values with corresponding index.
-                        For example labels= ['dog', 'cat', 'owl'] all 0s are
-                        replaced by 'dog', 1s by 'cat'.
+        y_train: (arr) Training set labels.
+        y_test: (arr) Test set labels.
+        labels: (list) Named labels for target variable (y). Makes plots easier to
+                       read by replacing target values with corresponding index.
+                       For example if `labels=['dog', 'cat', 'owl']` all 0s are
+                       replaced by dog, 1s by cat.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_class_proportions(y_train, y_test, ['dog', 'cat', 'owl'])
+    ```
     """
-    if test_missing(y_train=y_train, y_test=y_test) and test_types(
+    if utils.test_missing(y_train=y_train, y_test=y_test) and utils.test_types(
         y_train=y_train, y_test=y_test
     ):
         # Get the unique values from the dataset
@@ -1039,7 +1030,7 @@ def plot_class_proportions(y_train=None, y_test=None, labels=None):
                 class_dict.append(classes_[i])
                 dataset_dict.append("test")
                 count_dict.append(class_counts_test[i])
-                if i >= chart_limit:
+                if i >= CHART_LIMIT:
                     wandb.termwarn(
                         "wandb uses only the first %d datapoints to create the plots."
                         % wandb.Table.MAX_ROWS
@@ -1071,39 +1062,42 @@ def plot_class_proportions(y_train=None, y_test=None, labels=None):
 
 
 def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
-    """
-    Plots how well calibrated the predicted probabilities of a classifier are and
-        how to calibrate an uncalibrated classifier. Compares estimated predicted
-        probabilities by a baseline logistic regression model, the model passed as
-        an argument, and by both its isotonic calibration and sigmoid calibrations.
-        The closer the calibration curves are to a diagonal the better.
-        A sine wave like curve represents an overfitted classifier, while a cosine
-        wave like curve represents an underfitted classifier.
-        By training isotonic and sigmoid calibrations of the model and comparing
-        their curves we can figure out whether the model is over or underfitting and
-        if so which calibration (sigmoid or isotonic) might help fix this.
-        For more details, see https://scikit-learn.org/stable/auto_examples/calibration/plot_calibration_curve.html.
+    """Plots how well-calibrated the predicted probabilities of a classifier are.
+
+    Also suggests how to calibrate an uncalibrated classifier. Compares estimated predicted
+    probabilities by a baseline logistic regression model, the model passed as
+    an argument, and by both its isotonic calibration and sigmoid calibrations.
+    The closer the calibration curves are to a diagonal the better.
+    A sine wave like curve represents an overfitted classifier, while a cosine
+    wave like curve represents an underfitted classifier.
+    By training isotonic and sigmoid calibrations of the model and comparing
+    their curves we can figure out whether the model is over or underfitting and
+    if so which calibration (sigmoid or isotonic) might help fix this.
+    For more details, see https://scikit-learn.org/stable/auto_examples/calibration/plot_calibration_curve.html.
 
     Should only be called with a fitted classifer (otherwise an error is thrown).
+
     Please note this function fits variations of the model on the training set when called.
 
     Arguments:
-        model (clf): Takes in a fitted classifier.
-        X (arr): Training set features.
-        y (arr): Training set labels.
-        model_name (str): Model name. Defaults to 'Classifier'
+        model: (clf) Takes in a fitted classifier.
+        X: (arr) Training set features.
+        y: (arr) Training set labels.
+        model_name: (str) Model name. Defaults to 'Classifier'
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_calibration_curve(clf, X, y, 'RandomForestClassifier')
+    ```
     """
     if (
-        test_missing(clf=clf, X=X, y=y)
-        and test_types(clf=clf, X=X, y=y)
-        and test_fitted(clf)
+        utils.test_missing(clf=clf, X=X, y=y)
+        and utils.test_types(clf=clf, X=X, y=y)
+        and utils.test_fitted(clf)
     ):
         y = np.asarray(y)
         if not ((y == 0) | (y == 1)).all():
@@ -1177,11 +1171,7 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
                 model_dict.append(name)
                 frac_positives_dict.append(round_3(fraction_of_positives[i]))
                 mean_pred_value_dict.append(round_3(mean_predicted_value[i]))
-                if i >= (chart_limit - 2):
-                    wandb.termwarn(
-                        "wandb uses only the first %d datapoints to create the plots."
-                        % wandb.Table.MAX_ROWS
-                    )
+                if check_against_limit(i, CHART_LIMIT - 2, "calibration_curve"):
                     break
 
             def calibration_curves(
@@ -1228,30 +1218,32 @@ def plot_calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
 
 
 def plot_outlier_candidates(regressor=None, X=None, y=None):
-    """
-    Measures a datapoint's influence on regression model via cook's distance.
-        Instances with heavily skewed influences could potentially be
-        outliers. Useful for outlier detection.
+    """Measures a datapoint's influence on regression model via cook's distance.
+
+    Instances with high influences could potentially be outliers.
 
     Should only be called with a fitted regressor (otherwise an error is thrown).
+
     Please note this function fits the model on the training set when called.
 
     Arguments:
-        model (regressor): Takes in a fitted regressor.
-        X (arr): Training set features.
-        y (arr): Training set labels.
+        model: (regressor) Takes in a fitted regressor.
+        X: (arr) Training set features.
+        y: (arr) Training set labels.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_outlier_candidates(model, X, y)
+    ```
     """
     if (
-        test_missing(regressor=regressor, X=X, y=y)
-        and test_types(regressor=regressor, X=X, y=y)
-        and test_fitted(regressor)
+        utils.test_missing(regressor=regressor, X=X, y=y)
+        and utils.test_types(regressor=regressor, X=X, y=y)
+        and utils.test_fitted(regressor)
     ):
         y = np.asarray(y)
         # Fit a linear model to X and y to compute MSE
@@ -1273,9 +1265,6 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
         distance_ = residuals_studentized ** 2 / X.shape[1]
         distance_ *= leverage / (1 - leverage)
 
-        # Compute the p-values of Cook's Distance
-        p_values_ = sp.stats.f.sf(distance_, X.shape[1], df)
-
         # Compute the influence threshold rule of thumb
         influence_threshold_ = 4 / X.shape[0]
         outlier_percentage_ = sum(distance_ >= influence_threshold_) / X.shape[0]
@@ -1286,11 +1275,7 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
         for d in distance_:
             distance_dict.append(d)
             count += 1
-            if count >= chart_limit:
-                wandb.termwarn(
-                    "wandb uses only the first %d datapoints to create the plots."
-                    % wandb.Table.MAX_ROWS
-                )
+            if check_against_limit(count, CHART_LIMIT, "outlier_candidates"):
                 break
 
         # Draw a stem plot with the influence for each instance
@@ -1328,30 +1313,32 @@ def plot_outlier_candidates(regressor=None, X=None, y=None):
 
 
 def plot_residuals(regressor=None, X=None, y=None):
-    """
-    Measures and plots the predicted target values (y-axis) vs the difference
-        between actual and predicted target values (x-axis), as well as the
-        distribution of the residual error.
+    """Measures and plots the regressor's predicted value against the residual.
+
+    The marginal distribution of residuals is also calculated and plotted.
 
     Should only be called with a fitted regressor (otherwise an error is thrown).
+
     Please note this function fits variations of the model on the training set when called.
 
     Arguments:
-        model (regressor): Takes in a fitted regressor.
-        X (arr): Training set features.
-        y (arr): Training set labels.
+        model: (regressor) Takes in a fitted regressor.
+        X: (arr) Training set features.
+        y: (arr) Training set labels.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_residuals(model, X, y)
+    ```
     """
     if (
-        test_missing(regressor=regressor, X=X, y=y)
-        and test_types(regressor=regressor, X=X, y=y)
-        and test_fitted(regressor)
+        utils.test_missing(regressor=regressor, X=X, y=y)
+        and utils.test_types(regressor=regressor, X=X, y=y)
+        and utils.test_fitted(regressor)
     ):
         y = np.asarray(y)
         # Create the train and test splits
@@ -1360,7 +1347,6 @@ def plot_residuals(regressor=None, X=None, y=None):
         )
 
         # Store labels and colors for the legend ordered by call
-        _labels, _colors = [], []
         regressor.fit(X_train, y_train)
         train_score_ = regressor.score(X_train, y_train)
         test_score_ = regressor.score(X_test, y_test)
@@ -1395,11 +1381,7 @@ def plot_residuals(regressor=None, X=None, y=None):
                 dataset_dict.append("train")
                 residuals_dict.append(residual)
                 datapoints += 1
-                if datapoints >= max_datapoints_train:
-                    wandb.termwarn(
-                        "wandb uses only the first %d datapoints to create the plots."
-                        % wandb.Table.MAX_ROWS
-                    )
+                if check_against_limit(datapoints, max_datapoints_train, "residuals"):
                     break
             datapoints = 0
             for pred, residual in zip(y_pred_test, residuals_test):
@@ -1408,11 +1390,7 @@ def plot_residuals(regressor=None, X=None, y=None):
                 dataset_dict.append("test")
                 residuals_dict.append(residual)
                 datapoints += 1
-                if datapoints >= max_datapoints_train:
-                    wandb.termwarn(
-                        "wandb uses only the first %d datapoints to create the plots."
-                        % wandb.Table.MAX_ROWS
-                    )
+                if check_against_limit(datapoints, max_datapoints_train, "residuals"):
                     break
 
             return wandb.visualize(
@@ -1453,30 +1431,34 @@ def plot_residuals(regressor=None, X=None, y=None):
 
 
 def plot_decision_boundaries(binary_clf=None, X=None, y=None):
-    """
-    Visualizes decision boundaries by sampling from the feature space where the
-        classifier's uncertainty > 0.5 and projecting these point to 2D space.
-        Useful for measuring model (decision boundary) complexity, visualizing
-        regions where the model falters and determine whether any over or
-        underfitting occured.
+    """Visualizes decision boundaries of a binary classifier.
+
+    Works by sampling from the feature space where the classifier's uncertainty
+    if greater than > 0.5 and projecting these point to 2D space.
+
+     Useful for measuring model (decision boundary) complexity, visualizing
+     regions where the model falters, and to determine whether any over or
+     underfitting occured.
 
     Should only be called with a fitted **binary** classifer (otherwise an error is
-        thrown). Please note this function fits variations of the model on the
-        training set when called.
+    thrown). Please note this function fits variations of the model on the
+    training set when called.
 
     Arguments:
-        model (clf): Takes in a fitted binary classifier.
-        X_train (arr): Training set features.
-        y_train (arr): Training set labels.
+        model: (clf) Takes in a fitted binary classifier.
+        X_train: (arr) Training set features.
+        y_train: (arr) Training set labels.
 
     Returns:
-        Nothing. To see plots, go to your W&B run page then expand the 'media' tab
+        None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_decision_boundaries(binary_classifier, X, y)
+    ```
     """
-    if test_missing(binary_clf=binary_clf, X=X, y=y) and test_types(
+    if utils.test_missing(binary_clf=binary_clf, X=X, y=y) and utils.test_types(
         binary_clf=binary_clf, X=X, y=y
     ):
         y = np.asarray(y)
@@ -1506,10 +1488,7 @@ def plot_decision_boundaries(binary_clf=None, X=None, y=None):
             test_y,
             test_color,
         ):
-            x_dict = []
-            y_dict = []
-            color_dict = []
-            shape_dict = []
+            x_dict, y_dict, color_dict = [], [], []
             for i in range(min(len(decision_boundary_x), 100)):
                 x_dict.append(decision_boundary_x[i])
                 y_dict.append(decision_boundary_y[i])
@@ -1549,3 +1528,30 @@ def plot_decision_boundaries(binary_clf=None, X=None, y=None):
                 )
             }
         )
+
+
+def get_named_labels(labels, numeric_labels):
+    return np.array([labels[num_label] for num_label in numeric_labels])
+
+
+def round_3(n):
+    return round(n, 3)
+
+
+def round_2(n):
+    return round(n, 2)
+
+
+def check_against_limit(count, chart, limit=None):
+    if limit is None:
+        limit = CHART_LIMIT
+    if count > limit:
+        warn_chart_limit(limit, chart)
+        return True
+    else:
+        return False
+
+
+def warn_chart_limit(limit, chart):
+    warning = f"using only the first {limit} datapoints to create chart {chart}"
+    wandb.termwarn(warning)
