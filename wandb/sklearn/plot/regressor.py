@@ -8,12 +8,11 @@ import wandb
 
 from wandb.sklearn import utils
 from wandb.sklearn import calculate
-from wandb.sklearn.plot import shared
+
+from . import shared
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
-
-CHART_LIMIT = 1000
 
 
 def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):
@@ -110,7 +109,9 @@ def outlier_candidates(regressor=None, X=None, y=None):
         for d in distance_:
             distance_dict.append(d)
             count += 1
-            if utils.check_against_limit(count, CHART_LIMIT, "outlier_candidates"):
+            if utils.check_against_limit(
+                count, utils.chart_limit, "outlier_candidates"
+            ):
                 break
 
         wandb.log(

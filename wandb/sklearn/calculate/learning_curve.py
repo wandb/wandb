@@ -9,8 +9,6 @@ from wandb.sklearn import utils
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def learning_curve(
     model,
@@ -28,41 +26,35 @@ def learning_curve(
     Called by plot_learning_curve to visualize learning curve. Please use the function
     plot_learning_curve() if you wish to visualize your learning curves.
     """
-    if train_sizes is None:
-        train_sizes = np.linspace(0.1, 1.0, 5)
-    if utils.test_missing(model=model, X=X, y=y) and utils.test_types(
-        model=model, X=X, y=y
-    ):
-        y = np.asarray(y)
-        train_sizes, train_scores, test_scores = model_selection.learning_curve(
-            model,
-            X,
-            y,
-            cv=cv,
-            n_jobs=n_jobs,
-            train_sizes=train_sizes,
-            scoring=scoring,
-            shuffle=shuffle,
-            random_state=random_state,
-        )
-        train_scores_mean = np.mean(train_scores, axis=1)
-        test_scores_mean = np.mean(test_scores, axis=1)
+    train_sizes, train_scores, test_scores = model_selection.learning_curve(
+        model,
+        X,
+        y,
+        cv=cv,
+        n_jobs=n_jobs,
+        train_sizes=train_sizes,
+        scoring=scoring,
+        shuffle=shuffle,
+        random_state=random_state,
+    )
+    train_scores_mean = np.mean(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
 
-        return make_learning_curve_table(
-            train_scores_mean, test_scores_mean, train_sizes
-        )
+    table = make_table(train_scores_mean, test_scores_mean, train_sizes)
+    chart = wandb.visualize("wandb/learning_curve/v1", table)
+
+    return chart
 
 
-def make_learning_curve_table(train, test, trainsize):
+def make_table(train, test, train_sizes):
     data = []
     for i in range(len(train)):
-        if utils.check_against_limit(i, CHART_LIMIT / 2, "learning_curve"):
+        if utils.check_against_limit(i, utils.chart_limit / 2, "learning_curve"):
             break
-        train_set = ["train", round(train[i], 2), trainsize[i]]
-        test_set = ["test", round(test[i], 2), trainsize[i]]
+        train_set = ["train", utils.round_2(train[i]), train_sizes[i]]
+        test_set = ["test", utils.round_2(test[i]), train_sizes[i]]
         data.append(train_set)
         data.append(test_set)
-    return wandb.visualize(
-        "wandb/learning_curve/v1",
-        wandb.Table(columns=["dataset", "score", "train_size"], data=data),
-    )
+
+    table = wandb.Table(columns=["dataset", "score", "train_size"], data=data)
+    return table

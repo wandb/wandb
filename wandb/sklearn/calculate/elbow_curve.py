@@ -5,7 +5,9 @@ import wandb
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
+
+def elbow_curve(*args, **kwargs):
+    assert False  # FIXME
 
 
 def make_elbow_curve_table(cluster_ranges, clfs, times):

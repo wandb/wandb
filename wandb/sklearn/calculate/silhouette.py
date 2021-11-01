@@ -5,8 +5,6 @@ import wandb
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def silhouette(x, y, colors, centerx, centery, y_sil, x_sil, color_sil, silhouette_avg):
     return wandb.visualize(

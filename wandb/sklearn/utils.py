@@ -6,12 +6,12 @@ import scipy
 import wandb
 
 
-CHART_LIMIT = 1000
+chart_limit = 1000
 
 
 def check_against_limit(count, chart, limit=None):
     if limit is None:
-        limit = CHART_LIMIT
+        limit = chart_limit
     if count > limit:
         warn_chart_limit(limit, chart)
         return True

@@ -5,8 +5,6 @@ import wandb
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def decision_boundaries(
     decision_boundary_x,

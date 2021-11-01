@@ -1,14 +1,15 @@
 """Logs sklearn model plots to W&B."""
 from warnings import simplefilter
 
+import numpy as np
+
 import wandb
 
 from wandb.sklearn import calculate
+from wandb.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
-
-CHART_LIMIT = 1000
 
 
 def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
@@ -28,11 +29,21 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
               under 'auto visualizations'.
 
     Example:
+    ```python
         wandb.sklearn.plot_summary_metrics(model, X_train, y_train, X_test, y_test)
+    ```
     """
-    wandb.log(
-        {"summary_metrics": calculate.summary_metrics(model, X, y, X_test, y_test)}
+    not_missing = utils.test_missing(
+        model=model, X=X, y=y, X_test=X_test, y_test=y_test
     )
+    correct_types = utils.test_types(
+        model=model, X=X, y=y, X_test=X_test, y_test=y_test
+    )
+    model_fitted = utils.test_fitted(model)
+
+    if not_missing and correct_types and model_fitted:
+        metrics_chart = calculate.summary_metrics(model, X, y, X_test, y_test)
+        wandb.log({"summary_metrics": metrics_chart})
 
 
 def learning_curve(
@@ -55,6 +66,9 @@ def learning_curve(
         X: (arr) Dataset features.
         y: (arr) Dataset labels.
 
+    For details on the other keyword arguments, see the documentation for
+    `sklearn.model_selection.learning_curve`.
+
     Returns:
         None: To see plots, go to your W&B run page then expand the 'media' tab
               under 'auto visualizations'.
@@ -64,10 +78,15 @@ def learning_curve(
         wandb.sklearn.plot_learning_curve(model, X, y)
     ```
     """
-    wandb.log(
-        {
-            "learning_curve": calculate.learning_curve(
-                model, X, y, cv, shuffle, random_state, train_sizes, n_jobs, scoring
-            )
-        }
-    )
+    not_missing = utils.test_missing(model=model, X=X, y=y)
+    correct_types = utils.test_types(model=model, X=X, y=y)
+    if not_missing and correct_types:
+        if train_sizes is None:
+            train_sizes = np.linspace(0.1, 1.0, 5)
+        y = np.asarray(y)
+
+        learning_curve_chart = calculate.learning_curve(
+            model, X, y, cv, shuffle, random_state, train_sizes, n_jobs, scoring
+        )
+
+        wandb.log({"learning_curve": learning_curve_chart})

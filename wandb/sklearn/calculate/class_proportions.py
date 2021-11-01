@@ -8,8 +8,6 @@ from wandb.sklearn import utils
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def class_proportions(classes_, class_counts_train, class_counts_test, labels):
     class_dict = []
@@ -24,7 +22,7 @@ def class_proportions(classes_, class_counts_train, class_counts_test, labels):
         class_dict.append(classes_[i])
         dataset_dict.append("test")
         count_dict.append(class_counts_test[i])
-        if utils.check_against_limit(i, CHART_LIMIT, "class_proportions"):
+        if utils.check_against_limit(i, utils.chart_limit, "class_proportions"):
             break
 
     if labels is not None and (

@@ -16,8 +16,6 @@ from wandb.sklearn import calculate
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer"):
     """Generates all sklearn clusterer plots supported by W&B.
@@ -214,7 +212,7 @@ def silhouette(
                 x_sil.append(ith_cluster_silhouette_values[j])
                 color_sil.append(i)
                 count += 1
-                if utils.check_against_limit(count, CHART_LIMIT, "silhouette"):
+                if utils.check_against_limit(count, utils.CHART_LIMIT, "silhouette"):
                     break
 
             # Compute the new y_lower for next plot
