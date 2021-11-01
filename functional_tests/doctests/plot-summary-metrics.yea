@@ -1,0 +1,16 @@
+id: plot-summary-metrics
+plugin:
+    - wandb
+depend:
+    requirements:
+        - scikit-learn
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][exitcode]: 0
+    - :op:contains:
+        -:wandb:runs[0][summary]
+        - summary_metrics
+    - :op:contains:
+        -:wandb:runs[0][summary]
+        - oranges
+    - :yea:exit: 0
