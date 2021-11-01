@@ -44,7 +44,7 @@ import wandb
 from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
-from wandb.apis import internal, public, InternalApi
+from wandb.apis import internal, InternalApi, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     FilePusherStats,
