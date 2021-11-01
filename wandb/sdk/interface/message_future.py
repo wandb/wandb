@@ -1,4 +1,4 @@
-"""Message Result available in the future.
+"""MesssageFuture - represents a message result of an asynchronous operation
 
 Base class MessageFuture for MessageFutureObject and MessageFuturePoll
 
