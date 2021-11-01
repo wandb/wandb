@@ -6,14 +6,15 @@ from sklearn import metrics
 from sklearn.utils.multiclass import unique_labels
 
 import wandb
-from wandb.sklearn import utils
 
-from fakemodule import validate_labels  # TODO: fix
+from wandb.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
+
+def validate_labels(*args, **kwargs):  # FIXME
+    assert False
 
 
 def confusion_matrix(
@@ -85,7 +86,7 @@ def make_confusion_matrix_table(cm, pred_classes, true_classes, labels):
             true_dict = true_classes[j]
         data.append([pred_dict, true_dict, cm[i, j]])
         count += 1
-        if utils.check_against_limit(count, CHART_LIMIT, "confusion_matrix"):
+        if utils.check_against_limit(count, utils.chart_limit, "confusion_matrix"):
             break
     return wandb.visualize(
         "wandb/confusion_matrix/v1",

@@ -7,7 +7,7 @@ from .shared import (
 from .classifier import (
     classifier as plot_classifier,
     feature_importances as plot_feature_importances,
-    class_proportion as plot_class_proportion,
+    class_proportions as plot_class_proportions,
     calibration_curve as plot_calibration_curve,
     roc as plot_roc,
     precision_recall as plot_precision_recall,
@@ -35,7 +35,7 @@ __all__ = [
     "plot_summary_metrics",
     "plot_learning_curve",
     "plot_feature_importances",
-    "plot_class_proportion",
+    "plot_class_proportions",
     "plot_calibration_curve",
     "plot_roc",
     "plot_precision_recall",

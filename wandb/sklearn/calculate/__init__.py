@@ -1,48 +1,25 @@
 """Calculates and formats metrics and charts for introspecting sklearn models."""
-from .shared import (
-    summary_metrics as plot_summary_metrics,
-    learning_curve as plot_learning_curve,
-)
 
-from .classifier import (
-    classifier as plot_classifier,
-    feature_importances as plot_feature_importances,
-    class_proportion as plot_class_proportion,
-    calibration_curve as plot_calibration_curve,
-    roc as plot_roc,
-    precision_recall as plot_precision_recall,
-    confusion_matrix as plot_confusion_matrix,
-    decision_boundaries as plot_decision_boundaries,
-)
-
-from .clusterer import (
-    clusterer as plot_clusterer,
-    elbow_curve as plot_elbow_curve,
-    silhouette as plot_silhouette,
-)
-
-from .regressor import (
-    regressor as plot_regressor,
-    residuals as plot_residuals,
-    outlier_candidates as plot_outlier_candidates,
-)
-
+from .calibration_curves import calibration_curves
+from .class_proportions import class_proportions
+from .confusion_matrix import confusion_matrix
+from .decision_boundaries import decision_boundaries
+from .elbow_curve import elbow_curve
+from .learning_curve import learning_curve
+from .outlier_candidates import outlier_candidates
+from .residuals import residuals
+from .silhouette import silhouette
+from .summary_metrics import summary_metrics
 
 __all__ = [
-    "plot_classifier",
-    "plot_clusterer",
-    "plot_regressor",
-    "plot_summary_metrics",
-    "plot_learning_curve",
-    "plot_feature_importances",
-    "plot_class_proportion",
-    "plot_calibration_curve",
-    "plot_roc",
-    "plot_precision_recall",
-    "plot_confusion_matrix",
-    "plot_decision_boundaries",
-    "plot_elbow_curve",
-    "plot_silhouette",
-    "plot_residuals",
-    "plot_outlier_candidates",
+    "calibration_curves",
+    "class_proportions",
+    "confusion_matrix",
+    "decision_boundaries",
+    "elbow_curve",
+    "learning_curve",
+    "outlier_candidates",
+    "residuals",
+    "silhouette",
+    "summary_metrics",
 ]

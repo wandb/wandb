@@ -7,8 +7,6 @@ from wandb.sklearn import utils
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def outlier_candidates(distance, outlier_percentage, influence_threshold):
     return wandb.visualize(

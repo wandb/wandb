@@ -16,14 +16,14 @@ import wandb.plots
 from wandb.sklearn import utils
 from wandb.sklearn import calculate
 
-from wandb.sklearn.plot import shared_plots
-
-from fakemodule import DBPlot  # TODO: fix
+from . import shared
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
+
+def DBPlot(*args, **kwargs):
+    assert False  # FIXME
 
 
 def classifier(
@@ -83,13 +83,11 @@ def classifier(
         feature_importances(model, feature_names)
         wandb.termlog("Logged feature importances.")
     if log_learning_curve:
-        shared_plots.learning_curve(model, X_train, y_train)
+        shared.learning_curve(model, X_train, y_train)
         wandb.termlog("Logged learning curve.")
     confusion_matrix(y_test, y_pred, labels)
     wandb.termlog("Logged confusion matrix.")
-    shared_plots.summary_metrics(
-        model, X=X_train, y=y_train, X_test=X_test, y_test=y_test
-    )
+    shared.summary_metrics(model, X=X_train, y=y_train, X_test=X_test, y_test=y_test)
     wandb.termlog("Logged summary metrics.")
     class_proportions(y_train, y_test, labels)
     wandb.termlog("Logged class proportions.")
@@ -450,7 +448,9 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
                 model_dict.append(name)
                 frac_positives_dict.append(utils.round_3(fraction_of_positives[i]))
                 mean_pred_value_dict.append(utils.round_3(mean_predicted_value[i]))
-                if utils.check_against_limit(i, CHART_LIMIT - 2, "calibration_curve"):
+                if utils.check_against_limit(
+                    i, utils.chart_limit - 2, "calibration_curve"
+                ):
                     break
 
         wandb.log(

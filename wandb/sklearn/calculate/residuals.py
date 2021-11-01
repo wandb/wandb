@@ -6,8 +6,6 @@ from wandb.sklearn import utils
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def residuals(
     y_pred_train,
@@ -21,7 +19,6 @@ def residuals(
     dataset_dict = []
     residuals_dict = []
     datapoints = 0
-    max_datapoints_train = 900
     max_datapoints_train = 100
     for pred, residual in zip(y_pred_train, residuals_train):
         # add class counts from training set
@@ -44,13 +41,7 @@ def residuals(
     return wandb.visualize(
         "wandb/residuals_plot/v1",
         wandb.Table(
-            columns=[
-                "dataset",
-                "y_pred",
-                "residuals",
-                "train_score",
-                "test_score",
-            ],
+            columns=["dataset", "y_pred", "residuals", "train_score", "test_score",],
             data=[
                 [
                     dataset_dict[i],

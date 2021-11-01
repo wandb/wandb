@@ -5,15 +5,9 @@ import wandb
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
-CHART_LIMIT = 1000
-
 
 def calibration_curves(
-    model_dict,
-    frac_positives_dict,
-    mean_pred_value_dict,
-    hist_dict,
-    edge_dict,
+    model_dict, frac_positives_dict, mean_pred_value_dict, hist_dict, edge_dict,
 ):
     return wandb.visualize(
         "wandb/calibration/v1",
