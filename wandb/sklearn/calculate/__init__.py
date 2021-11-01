@@ -5,6 +5,7 @@ from .class_proportions import class_proportions
 from .confusion_matrix import confusion_matrix
 from .decision_boundaries import decision_boundaries
 from .elbow_curve import elbow_curve
+from .feature_importances import feature_importances
 from .learning_curve import learning_curve
 from .outlier_candidates import outlier_candidates
 from .residuals import residuals
@@ -17,6 +18,7 @@ __all__ = [
     "confusion_matrix",
     "decision_boundaries",
     "elbow_curve",
+    "feature_importances",
     "learning_curve",
     "outlier_candidates",
     "residuals",

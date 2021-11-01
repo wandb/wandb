@@ -56,7 +56,7 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
 
 
 def make_table(metrics, model_name):
-    columns = (["metric_name", "metric_value", "model_name"],)
+    columns = ["metric_name", "metric_value", "model_name"]
     table_content = [[name, value, model_name] for name, value in metrics.items()]
 
     table = wandb.Table(columns=columns, data=table_content)

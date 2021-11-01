@@ -1,14 +1,7 @@
-"""Logs sklearn model plots to W&B."""
 from warnings import simplefilter
 
 import numpy as np
-import sklearn
-from sklearn import model_selection
-import sklearn.calibration
 from sklearn import naive_bayes
-from sklearn.utils.multiclass import unique_labels
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.linear_model import LogisticRegression
 
 import wandb
 import wandb.plots
@@ -44,7 +37,7 @@ def classifier(
 
     The following plots are generated:
         feature importances, confusion matrix, summary metrics,
-        class balance plot, calibration curve, roc curve, precision-recall curve.
+        class propotions, calibration curve, roc curve, precision-recall curve.
 
     Should only be called with a fitted classifer (otherwise an error is thrown).
 
@@ -79,23 +72,31 @@ def classifier(
     ```
     """
     wandb.termlog("\nPlotting %s." % model_name)
+
     if not isinstance(model, naive_bayes.MultinomialNB):
         feature_importances(model, feature_names)
         wandb.termlog("Logged feature importances.")
+
     if log_learning_curve:
         shared.learning_curve(model, X_train, y_train)
         wandb.termlog("Logged learning curve.")
+
     confusion_matrix(y_test, y_pred, labels)
     wandb.termlog("Logged confusion matrix.")
+
     shared.summary_metrics(model, X=X_train, y=y_train, X_test=X_test, y_test=y_test)
     wandb.termlog("Logged summary metrics.")
+
     class_proportions(y_train, y_test, labels)
     wandb.termlog("Logged class proportions.")
+
     if not isinstance(model, naive_bayes.MultinomialNB):
         calibration_curve(model, X_train, y_train, model_name)
         wandb.termlog("Logged calibration curve.")
+
     roc(y_test, y_probas, labels)
     wandb.termlog("Logged roc curve.")
+
     precision_recall(y_test, y_probas, labels)
     wandb.termlog("Logged precision-recall curve.")
 
@@ -127,13 +128,10 @@ def roc(
         wandb.sklearn.plot_roc(y_true, y_probas, labels)
     ```
     """
-    wandb.log(
-        {
-            "roc": wandb.plots.roc(
-                y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot
-            )
-        }
+    roc_chart = wandb.plots.roc.roc(
+        y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot
     )
+    wandb.log({"roc": roc_chart})
 
 
 def confusion_matrix(
@@ -142,10 +140,7 @@ def confusion_matrix(
     labels=None,
     true_labels=None,
     pred_labels=None,
-    title=None,
     normalize=False,
-    hide_zeros=False,
-    hide_counts=False,
 ):
     """Logs a confusion matrix to W&B.
 
@@ -168,21 +163,18 @@ def confusion_matrix(
         wandb.sklearn.plot_confusion_matrix(y_true, y_probas, labels)
     ```
     """
-    wandb.log(
-        {
-            "confusion_matrix": calculate.confusion_matrix(
-                y_true,
-                y_pred,
-                labels,
-                true_labels,
-                pred_labels,
-                title,
-                normalize,
-                hide_zeros,
-                hide_counts,
-            )
-        }
-    )
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    not_missing = utils.test_missing(y_true=y_true, y_pred=y_pred)
+    correct_types = utils.test_types(y_true=y_true, y_pred=y_pred)
+
+    if not_missing and correct_types:
+        confusion_matrix_chart = calculate.confusion_matrix(
+            y_true, y_pred, labels, true_labels, pred_labels, normalize,
+        )
+
+        wandb.log({"confusion_matrix": confusion_matrix_chart})
 
 
 def precision_recall(
@@ -210,13 +202,11 @@ def precision_recall(
         wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
     ```
     """
-    wandb.log(
-        {
-            "precision_recall": wandb.plots.precision_recall(
-                y_true, y_probas, labels, plot_micro, classes_to_plot
-            )
-        }
+    precision_recall_chart = wandb.plots.precision_recall(
+        y_true, y_probas, labels, plot_micro, classes_to_plot
     )
+
+    wandb.log({"precision_recall": precision_recall_chart})
 
 
 def feature_importances(
@@ -241,57 +231,13 @@ def feature_importances(
         wandb.sklearn.plot_feature_importances(model, ['width', 'height, 'length'])
     ```
     """
-    attributes_to_check = ["feature_importances_", "feature_log_prob_", "coef_"]
-    found_attribute = check_for_attribute_on(model)
-    if found_attribute is None:
-        wandb.termwarn(
-            f"could not find any of attributes {attributes_to_check} on classifier. Cannot plot feature importances."
-        )
-        return
+    not_missing = utils.test_missing(model=model)
+    correct_types = utils.test_types(model=model)
+    model_fitted = utils.test_fitted(model)
 
-    if (
-        utils.test_missing(model=model)
-        and utils.test_types(model=model)
-        and utils.test_fitted(model)
-    ):
-        if found_attribute == "feature_importances_":
-            importances = model.feature_importances_
-        elif found_attribute == "coef_":  # ElasticNet or ElasticNetCV like models
-            importances = model.coef_
-        elif found_attribute == "feature_log_prob_":
-            # coef_ was deprecated in sklearn 0.24, replaced with
-            # feature_log_prob_
-            importances = model.feature_log_prob_
-
-        if len(importances.shape) > 1:
-            if np.prod(importances.shape) > importances.shape[0]:
-                nd = len(importances.shape)
-                wandb.termwarn(
-                    f"{nd}-dimensional feature importances array passed to plot_feature_importances. "
-                    f"{nd}-dimensional and higher feature importances arrays are not currently supported. "
-                    f"These importances will not be plotted."
-                )
-                return
-            else:
-                importances = np.squeeze(importances)
-
-        indices = np.argsort(importances)[::-1]
-        importances = importances[indices]
-
-        if feature_names is None:
-            feature_names = indices
-        else:
-            feature_names = np.array(feature_names)[indices]
-
-        max_num_features = min(max_num_features, len(importances))
-
-        wandb.log(
-            {
-                "feature_importances": calculate.make_feature_importances_table(
-                    feature_names, importances
-                )
-            }
-        )
+    if not_missing and correct_types and model_fitted:
+        feature_importance_chart = calculate.feature_importances(model, feature_names)
+        wandb.log({"feature_importances": feature_importance_chart})
 
 
 def class_proportions(y_train=None, y_test=None, labels=None):
@@ -316,25 +262,14 @@ def class_proportions(y_train=None, y_test=None, labels=None):
         wandb.sklearn.plot_class_proportions(y_train, y_test, ['dog', 'cat', 'owl'])
     ```
     """
-    if utils.test_missing(y_train=y_train, y_test=y_test) and utils.test_types(
-        y_train=y_train, y_test=y_test
-    ):
-        # Get the unique values from the dataset
+    not_missing = utils.test_missing(y_train=y_train, y_test=y_test)
+    correct_types = utils.test_types(y_train=y_train, y_test=y_test)
+    if not_missing and correct_types:
+
         y_train, y_test = np.array(y_train), np.array(y_test)
-        targets = (y_train,) if y_test is None else (y_train, y_test)
-        classes_ = np.array(unique_labels(*targets))
+        class_proportions_chart = calculate.class_proportions(y_train, y_test, labels)
 
-        # Compute the class counts
-        class_counts_train = np.array([(y_train == c).sum() for c in classes_])
-        class_counts_test = np.array([(y_test == c).sum() for c in classes_])
-
-        wandb.log(
-            {
-                "class_proportions": calculate.class_proportions(
-                    classes_, class_counts_train, class_counts_test
-                )
-            }
-        )
+        wandb.log({"class_proportions": class_proportions_chart})
 
 
 def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
@@ -356,7 +291,7 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
     Please note this function fits variations of the model on the training set when called.
 
     Arguments:
-        model: (clf) Takes in a fitted classifier.
+        clf: (clf) Takes in a fitted classifier.
         X: (arr) Training set features.
         y: (arr) Training set labels.
         model_name: (str) Model name. Defaults to 'Classifier'
@@ -370,100 +305,19 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
         wandb.sklearn.plot_calibration_curve(clf, X, y, 'RandomForestClassifier')
     ```
     """
-    if (
-        utils.test_missing(clf=clf, X=X, y=y)
-        and utils.test_types(clf=clf, X=X, y=y)
-        and utils.test_fitted(clf)
-    ):
+    not_missing = utils.test_missing(clf=clf, X=X, y=y)
+    correct_types = utils.test_types(clf=clf, X=X, y=y)
+    is_fitted = utils.test_fitted(clf)
+    if not_missing and correct_types and is_fitted:
         y = np.asarray(y)
         if not ((y == 0) | (y == 1)).all():
             raise ValueError(
                 "This function only supports binary classification at the moment and therefore expects labels to be binary."
             )
 
-        # ComplementNB (introduced in 0.20.0) requires non-negative features
-        if int(sklearn.__version__.split(".")[1]) >= 20 and isinstance(
-            clf, naive_bayes.ComplementNB
-        ):
-            X = X - X.min()
+        calibration_curve_chart = calculate.calibration_curves(clf, X, y, clf_name)
 
-        # Calibrated with isotonic calibration
-        isotonic = CalibratedClassifierCV(clf, cv=2, method="isotonic")
-
-        # Calibrated with sigmoid calibration
-        sigmoid = CalibratedClassifierCV(clf, cv=2, method="sigmoid")
-
-        # Logistic regression with no calibration as baseline
-        lr = LogisticRegression(C=1.0)
-
-        model_dict = []  # color
-        frac_positives_dict = []  # y axis
-        mean_pred_value_dict = []  # x axis
-        hist_dict = []  # barchart y
-        edge_dict = []  # barchart x
-
-        # Add curve for perfectly calibrated model
-        # format: model, fraction_of_positives, mean_predicted_value
-        model_dict.append("Perfectly calibrated")
-        frac_positives_dict.append(0)
-        mean_pred_value_dict.append(0)
-        hist_dict.append(0)
-        edge_dict.append(0)
-        model_dict.append("Perfectly calibrated")
-        hist_dict.append(0)
-        edge_dict.append(0)
-        frac_positives_dict.append(1)
-        mean_pred_value_dict.append(1)
-
-        X_train, X_test, y_train, y_test = model_selection.train_test_split(
-            X, y, test_size=0.98, random_state=42
-        )
-
-        # Add curve for LogisticRegression baseline and other models
-
-        for model, name in [
-            (lr, "Logistic"),
-            (isotonic, clf_name + " + Isotonic"),
-            (sigmoid, clf_name + " + Sigmoid"),
-        ]:
-            model.fit(X_train, y_train)
-            if hasattr(model, "predict_proba"):
-                prob_pos = model.predict_proba(X_test)[:, 1]
-            else:  # use decision function
-                prob_pos = model.decision_function(X_test)
-                prob_pos = (prob_pos - prob_pos.min()) / (
-                    prob_pos.max() - prob_pos.min()
-                )
-
-            (
-                fraction_of_positives,
-                mean_predicted_value,
-            ) = sklearn.calibration.calibration_curve(y_test, prob_pos, n_bins=10)
-            hist, edges = np.histogram(prob_pos, bins=10, density=False)
-
-            # format: model, fraction_of_positives, mean_predicted_value
-            for i in range(len(fraction_of_positives)):
-                hist_dict.append(hist[i])
-                edge_dict.append(edges[i])
-                model_dict.append(name)
-                frac_positives_dict.append(utils.round_3(fraction_of_positives[i]))
-                mean_pred_value_dict.append(utils.round_3(mean_predicted_value[i]))
-                if utils.check_against_limit(
-                    i, utils.chart_limit - 2, "calibration_curve"
-                ):
-                    break
-
-        wandb.log(
-            {
-                "calibration_curve": calculate.calibration_curves(
-                    model_dict,
-                    frac_positives_dict,
-                    mean_pred_value_dict,
-                    hist_dict,
-                    edge_dict,
-                )
-            }
-        )
+        wandb.log({"calibration_curve": calibration_curve_chart})
 
 
 def decision_boundaries(binary_clf=None, X=None, y=None):
@@ -472,9 +326,9 @@ def decision_boundaries(binary_clf=None, X=None, y=None):
     Works by sampling from the feature space where the classifier's uncertainty
     if greater than > 0.5 and projecting these point to 2D space.
 
-     Useful for measuring model (decision boundary) complexity, visualizing
-     regions where the model falters, and to determine whether any over or
-     underfitting occured.
+    Useful for measuring model (decision boundary) complexity, visualizing
+    regions where the model falters, and to determine whether any over or
+    underfitting occured.
 
     Should only be called with a fitted **binary** classifer (otherwise an error is
     thrown). Please note this function fits variations of the model on the
@@ -529,10 +383,3 @@ def decision_boundaries(binary_clf=None, X=None, y=None):
                 )
             }
         )
-
-
-def check_for_attribute_on(model, attributes_to_check):
-    for attr in attributes_to_check:
-        if hasattr(model, attr):
-            return attr
-    return None

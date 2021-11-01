@@ -29,19 +29,7 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
               under 'auto visualizations'.
 
     Example:
-    <!--yeadoc-test:plot-summary-metrics-->
     ```python
-    import wandb
-    import sklearn
-    from sklearn.model_selection import train_test_split
-
-    wbcd = wisconsin_breast_cancer_data = sklearn.datasets.load_breast_cancer()
-
-    X_train, X_test, y_train, y_test = train_test_split(wbcd.data, wbcd.target, test_size=0.2)
-
-    model = RandomForestClassifier()
-    model.fit(X_train, y_train)
-
     wandb.sklearn.plot_summary_metrics(model, X_train, y_train, X_test, y_test)
     ```
     """
