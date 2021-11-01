@@ -29,7 +29,7 @@ from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 from .. import lib as wandb_lib
-from ..interface import interface
+from ..interface.interface_queue import InterfaceQueue
 
 
 if TYPE_CHECKING:
@@ -83,14 +83,14 @@ class StreamThread(threading.Thread):
 class StreamRecord:
     _record_q: "queue.Queue[pb.Record]"
     _result_q: "queue.Queue[pb.Result]"
-    _iface: interface.BackendSender
+    _iface: InterfaceQueue
     _thread: StreamThread
 
     def __init__(self) -> None:
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         process = multiprocessing.current_process()
-        self._iface = interface.BackendSender(
+        self._iface = InterfaceQueue(
             record_q=self._record_q,
             result_q=self._result_q,
             process=process,
@@ -113,7 +113,7 @@ class StreamRecord:
             self._thread.join()
 
     @property
-    def interface(self) -> interface.BackendSender:
+    def interface(self) -> InterfaceQueue:
         return self._iface
 
 
@@ -387,6 +387,33 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         iface._publish_preempting(preempt)
         result = pb.RunPreemptingResult()
         return result
+
+    def Artifact(  # noqa: N802
+        self, art_data: pb.ArtifactRecord, context: grpc.ServicerContext
+    ) -> pb.ArtifactResult:
+        stream_id = art_data._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_artifact(art_data)
+        result = pb.ArtifactResult()
+        return result
+
+    def ArtifactSend(  # noqa: N802
+        self, art_send: pb.ArtifactSendRequest, context: grpc.ServicerContext
+    ) -> pb.ArtifactSendResponse:
+        stream_id = art_send._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        resp = iface._communicate_artifact_send(art_send)
+        assert resp
+        return resp
+
+    def ArtifactPoll(  # noqa: N802
+        self, art_poll: pb.ArtifactPollRequest, context: grpc.ServicerContext
+    ) -> pb.ArtifactPollResponse:
+        stream_id = art_poll._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        resp = iface._communicate_artifact_poll(art_poll)
+        assert resp
+        return resp
 
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext
