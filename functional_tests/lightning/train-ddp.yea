@@ -1,6 +1,8 @@
 id: 0.lightning.ddp
 plugin:
   - wandb
+tag:
+  shard: service
 command:
   program: train-ddp.py
 depend:
