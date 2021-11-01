@@ -77,7 +77,7 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    """Runner class, uses a project to create a LocallySubmittedRun"""
+    """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         validate_docker_installation()
@@ -199,9 +199,8 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
-    command: Entry point command to run
-    work_dir: Working directory in which to run the command
-    run: SubmittedRun object associated with the entry point execution.
+        command: Entry point command to run
+        work_dir: Working directory in which to run the command
 
     Returns:
         An instance of `LocalSubmittedRun`

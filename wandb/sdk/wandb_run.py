@@ -504,7 +504,6 @@ class Run(object):
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
-
         # We only pickle in service mode
         if not self._settings or not self._settings._require_service:
             return
@@ -652,7 +651,8 @@ class Run(object):
     def step(self) -> int:
         """Returns the current value of the step.
 
-        This counter is incremented by `wandb.log`."""
+        This counter is incremented by `wandb.log`.
+        """
         return self.history._step
 
     def project_name(self) -> str:
@@ -790,7 +790,8 @@ class Run(object):
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
-        Entity can be a user name or the name of a team or organization."""
+        Entity can be a user name or the name of a team or organization.
+        """
         return self._entity or ""
 
     def _label_internal(
@@ -880,7 +881,7 @@ class Run(object):
             self._label_probe_lines(lines)
 
     def display(self, height: int = 420, hidden: bool = False) -> bool:
-        """Display this run in jupyter"""
+        """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
             ipython.display_html(self.to_html(height, hidden))
             return True
@@ -889,7 +890,7 @@ class Run(object):
             return False
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying the current run"""
+        """Generates HTML containing an iframe displaying the current run."""
         url = self._get_run_url() + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
@@ -1338,8 +1339,8 @@ class Run(object):
         call this method when your script exits or if you use the run context manager.
 
         Arguments:
-            exit_code (int): set to something other than 0 to mark a run as failed
-            quite (bool): set to true to minimize log output
+            exit_code: Set to something other than 0 to mark a run as failed
+            quiet: Set to true to minimize log output
         """
         if quiet is not None:
             self._quiet = quiet
@@ -2269,6 +2270,7 @@ class Run(object):
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
             use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+
         Returns:
             An `Artifact` object.
         """
@@ -2301,10 +2303,7 @@ class Run(object):
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id,
-                entity_name=artifact.entity,
-                project_name=artifact.project,
-                use_as=use_as or artifact_or_name,
+                artifact.id, use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2711,8 +2710,8 @@ def finish(exit_code: int = None, quiet: bool = None) -> None:
     We automatically call this method when your script exits.
 
     Arguments:
-        exit_code (int): set to something other than 0 to mark a run as failed
-        quite (bool): set to true to minimize log output
+        exit_code: Set to something other than 0 to mark a run as failed
+        quiet: Set to true to minimize log output
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)

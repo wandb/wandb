@@ -1,20 +1,5 @@
 #!/usr/bin/env python
-"""Test stable_baselines3 integration
-
----
-id: 0.0.4
-plugin:
-  - wandb
-assert:
-  - :wandb:runs_len: 1
-  - :wandb:runs[0][config][policy_type]: MlpPolicy
-  - :wandb:runs[0][config][total_timesteps]: 200
-  - :wandb:runs[0][config][policy_class]: "<class 'stable_baselines3.common.policies.ActorCriticPolicy'>"
-  - :wandb:runs[0][config][action_space]: "Discrete(2)"
-  - :wandb:runs[0][config][batch_size]: 64
-  - :wandb:runs[0][config][n_epochs]: 10
-  - :wandb:runs[0][exitcode]: 0
-"""
+"""Test stable_baselines3 integration"""
 
 import gym
 from stable_baselines3 import PPO
