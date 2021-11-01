@@ -61,6 +61,7 @@ message Feature {
   bool set_config_item = 19;  // users set key in run config via run.config.key or run.config["key"]
   bool launch = 20; // run is created through wandb launch
   bool torch_profiler_trace = 21; // wandb.profiler.torch_trace_handler() called
+  bool sb3 = 22; // Using stable_baselines3 integration
 }
 
 message Env {
