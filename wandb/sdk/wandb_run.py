@@ -1556,7 +1556,7 @@ class Run(object):
                     wandb.termlog("Run `wandb offline` to turn off syncing.")
 
             api = InternalApi()
-            if api.settings("anonymous"):
+            if api.settings().get("anonymous") == "true":
                 wandb.termwarn(
                     "Do NOT share these links with anyone. They can be used to claim your runs."
                 )
@@ -2491,7 +2491,7 @@ class Run(object):
         use_after_commit: bool = False,
     ) -> wandb_artifacts.Artifact:
         api = InternalApi()
-        if api.settings("anonymous"):
+        if api.settings().get("anonymous") == "true":
             wandb.termerror(
                 "Cannot log artifacts in anonymous mode. Please create an account to log artifacts."
             )
