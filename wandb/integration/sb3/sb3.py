@@ -51,6 +51,7 @@ import os
 
 from stable_baselines3.common.callbacks import BaseCallback
 import wandb
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,8 @@ class WandbCallback(BaseCallback):
         super(WandbCallback, self).__init__(verbose)
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
+        with wb_telemetry.context() as tel:
+            tel.feature.sb3 = True
         self.model_save_freq = model_save_freq
         self.model_save_path = model_save_path
         self.gradient_save_freq = gradient_save_freq

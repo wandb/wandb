@@ -1,4 +1,4 @@
-id: 0.0.5
+id: 0.magic.01-mnist-convnet
 plugin:
   - wandb
 var:
