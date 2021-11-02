@@ -26,6 +26,7 @@ pip install --force git+https://github.com/wandb/pytorch-lightning.git@wandb-ser
 
 (TODO: This diagram is out of date)
 
+```text
                   |                                   |
     UserMain      |              GrpcServer           |
                   |                                   |
@@ -76,6 +77,7 @@ ManagerPoll --[d]-->
 | . ~ |
 <--[e]-----------
 | . ~ |
+```
 
 ## Files to modify:
 
