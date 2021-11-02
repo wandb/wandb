@@ -81,7 +81,7 @@ ManagerPoll --[d]-->
 
 | File                                                                                                   | Description         |
 | ------------------------------------------------------------------------------------------------------ | ------------------- |
-| [grpc_server.py]                                                                                       | Stars a GRPC server |
+| [grpc_server.py](https://github.com/wandb/client/blob/master/wandb/sdk/service/grpc_server.p)          | Stars a GRPC server |
 | [interface_grpc.py](https://github.com/wandb/client/blob/master/wandb/sdk/interface/interface_grpc.py) | TODO                |
 | [router.py](https://github.com/wandb/client/blob/master/wandb/sdk/interface/router.py)                 | TODO                |
 | [service.py](https://github.com/wandb/client/blob/master/wandb/sdk/service/service.py)                 | TODO                |
