@@ -1,9 +1,17 @@
-
 # wandb service
 
-The wandb service is still experimental.  It can be enabled with:
+The wandb service is still experimental. It can be enabled with:
+
 ```
 wandb.require(experiment="service")
+```
+
+## Installation
+
+`service` is currently installed as an extra:
+
+```bash
+pip install --upgrade wandb[service]
 ```
 
 ## Grpc Server Architecture
@@ -17,45 +25,46 @@ wandb.require(experiment="service")
                   |       Mux       ~   Internal*N    |
                     [mgr_i] [mgr_o]   [rec_q] [rsp_q]
                   |        .        ~                 |
- wandb.setup()
-                  |        .        ~                 |
- StartProcess  --[1]-->
-                  |        .        ~                 |
-              <--[2]-----------
-                  |        .        ~                 |
- EnsureUp      --[3]-->
-                  |        .        ~                 |
-              <--[4]-----------
-                  |        .        ~                 |
- wandb.init()
-                  |        .        ~                 |
- UserInitMsg   --[5]-->
-                  |        .        ~                 |
-              <--[6]-----------
-                  |        .        ~                 |
- ...
-                  |        .        ~                 |
- wandb.log()
-                  |        .        ~                 |
-               --[7]-->
-                  |        .        ~                 |
-              <--[8]-----------
-                  |        .        ~                 |
- wandb.finish()
-                  |        .        ~                 |
- UserFinMsg    --[9]-->
-                  |        .        ~                 |
-              <--[a]-----------
-                  |        .        ~                 |
- ...
-                  |        .        ~                 |
- atexit
-                  |        .        ~                 |
- ManagerStop   --[b]-->
-                  |        .        ~                 |
-              <--[c]-----------
-                  |        .        ~                 |
- ManagerPoll   --[d]-->
-                  |        .        ~                 |
-              <--[e]-----------
-                  |        .        ~                 |
+
+wandb.setup()
+| . ~ |
+StartProcess --[1]-->
+| . ~ |
+<--[2]-----------
+| . ~ |
+EnsureUp --[3]-->
+| . ~ |
+<--[4]-----------
+| . ~ |
+wandb.init()
+| . ~ |
+UserInitMsg --[5]-->
+| . ~ |
+<--[6]-----------
+| . ~ |
+...
+| . ~ |
+wandb.log()
+| . ~ |
+--[7]-->
+| . ~ |
+<--[8]-----------
+| . ~ |
+wandb.finish()
+| . ~ |
+UserFinMsg --[9]-->
+| . ~ |
+<--[a]-----------
+| . ~ |
+...
+| . ~ |
+atexit
+| . ~ |
+ManagerStop --[b]-->
+| . ~ |
+<--[c]-----------
+| . ~ |
+ManagerPoll --[d]-->
+| . ~ |
+<--[e]-----------
+| . ~ |
