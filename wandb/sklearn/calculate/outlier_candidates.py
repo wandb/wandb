@@ -38,11 +38,7 @@ def outlier_candidates(regressor, X, y):
     for d in distance_:
         distance_dict.append(d)
         count += 1
-        if utils.check_against_limit(
-            count,
-            "outlier_candidates",
-            utils.chart_limit,
-        ):
+        if utils.check_against_limit(count, "outlier_candidates", utils.chart_limit,):
             break
 
     table = make_table(distance_dict, outlier_percentage_, influence_threshold_)
