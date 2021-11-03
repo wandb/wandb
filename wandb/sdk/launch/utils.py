@@ -166,14 +166,22 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    prefix, _, _, runs, name = uri.split("/")
-    if len(prefix) == 0 and runs == "runs" and len(name) == 8:
+    if uri.startswith("http"):
+        return False
+    result = uri.split("/")
+    if (
+        len(result) == 5
+        and len(result[0]) == 0
+        and result[-2] == "runs"
+        and len(result[-1]) == 8
+    ):
         return True
     return False
 
 
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
+    print(entity, project, name)
     try:
         result = api.get_run_info(entity, project, name)
     except CommError:

@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from typing import Any, Dict, Iterable, List
+import logging
 
 import wandb
 from wandb.apis.internal import Api
@@ -25,6 +26,8 @@ AGENT_POLLING_INTERVAL = 10
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
+
+_logger = logging.getLogger(__name__)
 
 
 def _convert_access(access: str) -> str:
@@ -111,6 +114,7 @@ class LaunchAgent(object):
         # TODO: logger
         wandb.termlog(f"agent: got job f{job}")
         # update agent status
+        _logger.info("Updating agent status...")
         update_ret = self._api.update_launch_agent_status(
             self._id, AGENT_RUNNING, self.gorilla_supports_agents
         )
@@ -118,6 +122,7 @@ class LaunchAgent(object):
             wandb.termerror("Failed to update agent status while running new job")
 
         # parse job
+        _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
         if launch_spec.get("overrides") and isinstance(
             launch_spec["overrides"].get("args"), list
@@ -125,15 +130,20 @@ class LaunchAgent(object):
             launch_spec["overrides"]["args"] = util._user_args_to_dict(
                 launch_spec["overrides"].get("args", [])
             )
+        _logger.info("Creating project...")
         project = create_project_from_spec(launch_spec, self._api)
+        _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
-
+        _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: True,
         }
         if _is_wandb_local_uri(self._base_url):
+            _logger.info(
+                "Noted a local URI. Setting local network arguments for docker"
+            )
             if sys.platform == "win32":
                 backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
             else:
@@ -144,9 +154,10 @@ class LaunchAgent(object):
                 ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
+        _logger.info("Loading backend")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
-
+        _logger.info("Backend loaded...")
         run = backend.run(project)
         if run:
             self._jobs[run.id] = run

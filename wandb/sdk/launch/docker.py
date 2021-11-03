@@ -45,11 +45,13 @@ def generate_docker_base_image(
 
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
+    _logger.info("Importing repo2docker...")
     get_module(
         "repo2docker",
         required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
     )
     assert isinstance(path, str)
+    _logger.info("Running repo2docker...")
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
@@ -63,6 +65,7 @@ def generate_docker_base_image(
         "Generating docker base image from git repo or finding image if it already exists..."
     )
     build_log = os.path.join(launch_project.project_dir, "build.log")
+    _logger.info(f"Build log found at: {build_log}")
     with yaspin(
         text="Generating docker base image {}, this may take a few minutes...".format(
             launch_project.base_image
@@ -89,16 +92,21 @@ _inspected_images = {}
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,
     optionally raising an exception"""
+    _logger.info("Checking if base image exists...")
     try:
         data = docker.run(["docker", "image", "inspect", docker_image])
         # always true, since return stderr defaults to false
         assert isinstance(data, str)
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
+        _logger.info("Base image found. Won't generate new base image")
         return True
     except (DockerError, ValueError) as e:
         if should_raise:
             raise e
+        _logger.info(
+            "Base image not found. Generating new base image using repo2docker"
+        )
         return False
 
 
