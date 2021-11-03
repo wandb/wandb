@@ -1,4 +1,4 @@
-"""Create and log informative charts for scikit-learn models."""
+"""Create informative charts for scikit-learn models and log them to W&B."""
 from .plot import plot_classifier, plot_clusterer, plot_regressor
 from .plot import (
     plot_summary_metrics,
