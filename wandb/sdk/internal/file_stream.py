@@ -106,7 +106,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     def get_consecutive_offsets(self, console):
         """
         Arguments:
-            console: Dict[int->str] Each offset is mapped to a line.
+            console: Dict[int, str] dict mapping offsets (line numbers) to console lines
             It represents our console dashboard on the UI,
             with line numbers (offsets) and lines.
 
