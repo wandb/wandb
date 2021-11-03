@@ -107,6 +107,7 @@ class LaunchAgent(object):
             self.finish_job_id(job_id)
 
     def _validate_and_fix_spec_project_entity(self, launch_spec):
+        """Checks if launch spec target project/entity differs from agent. Fixes it if so"""
         if (
             launch_spec.get("project") is not None
             and launch_spec.get("project") != self._project
