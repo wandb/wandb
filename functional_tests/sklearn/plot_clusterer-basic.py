@@ -11,6 +11,12 @@ depend:
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[0][summary][elbow_curve][_type]: table-file
+    - :wandb:runs[0][summary][elbow_curve][ncols]: 3
+    - :wandb:runs[0][summary][elbow_curve][nrows]: 5
+    - :wandb:runs[0][summary][silhouette_plot][_type]: table-file
+    - :wandb:runs[0][summary][silhouette_plot][ncols]: 10
+    - :wandb:runs[0][summary][silhouette_plot][nrows]: 150
     - :yea:exit: 0
 """
 import numpy as np
@@ -30,4 +36,4 @@ kmeans = KMeans(n_clusters=4, random_state=1)
 
 cluster_labels = kmeans.fit_predict(X)
 
-wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, 'KMeans')
+wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, "KMeans")

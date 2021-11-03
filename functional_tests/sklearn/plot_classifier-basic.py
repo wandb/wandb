@@ -11,6 +11,25 @@ assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
     - :yea:exit: 0
+    - :wandb:runs[0][summary][calibration_curve][_type]: table-file
+    - :wandb:runs[0][summary][calibration_curve][ncols]: 5
+    - :wandb:runs[0][summary][class_proportions][_type]: table-file
+    - :wandb:runs[0][summary][class_proportions][ncols]: 3
+    - :wandb:runs[0][summary][class_proportions][nrows]: 4
+    - :wandb:runs[0][summary][confusion_matrix][_type]: table-file
+    - :wandb:runs[0][summary][confusion_matrix][ncols]: 3
+    - :wandb:runs[0][summary][confusion_matrix][nrows]: 4
+    - :wandb:runs[0][summary][feature_importances][_type]: table-file
+    - :wandb:runs[0][summary][feature_importances][ncols]: 2
+    - :wandb:runs[0][summary][feature_importances][nrows]: 30
+    - :wandb:runs[0][summary][precision_recall][_type]: table-file
+    - :wandb:runs[0][summary][precision_recall][ncols]: 3
+    - :wandb:runs[0][summary][precision_recall][nrows]: 40
+    - :wandb:runs[0][summary][roc][_type]: table-file
+    - :wandb:runs[0][summary][roc][ncols]: 3
+    - :wandb:runs[0][summary][summary_metrics][_type]: table-file
+    - :wandb:runs[0][summary][summary_metrics][ncols]: 3
+    - :wandb:runs[0][summary][summary_metrics][nrows]: 4
 """
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier

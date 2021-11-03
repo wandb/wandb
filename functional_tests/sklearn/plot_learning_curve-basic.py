@@ -11,6 +11,9 @@ assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
     - :yea:exit: 0
+    - :wandb:runs[0][summary][learning_curve][_type]: table-file
+    - :wandb:runs[0][summary][learning_curve][ncols]: 3
+    - :wandb:runs[0][summary][learning_curve][nrows]: 10
 """
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
