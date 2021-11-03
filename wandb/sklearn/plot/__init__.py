@@ -1,4 +1,4 @@
-"""Create and log informative charts for scikit-learn models."""
+"""Creates and logs charts introspecting models built with scikit-learn to W&B."""
 from .shared import (
     summary_metrics as plot_summary_metrics,
     learning_curve as plot_learning_curve,

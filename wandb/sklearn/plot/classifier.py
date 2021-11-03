@@ -1,3 +1,4 @@
+"""Defines plots for classification models built with scikit-learn."""
 from warnings import simplefilter
 
 import numpy as np
@@ -13,10 +14,6 @@ from . import shared
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
-
-
-def DBPlot(*args, **kwargs):
-    assert False  # FIXME
 
 
 def classifier(

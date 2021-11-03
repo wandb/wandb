@@ -1,3 +1,4 @@
+"""Shared utilities for the modules in wandb.sklearn."""
 import numpy as np
 import pandas as pd
 from six.moves.collections_abc import Sequence, Iterable

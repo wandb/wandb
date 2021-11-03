@@ -1,4 +1,4 @@
-"""Logs sklearn model plots to W&B."""
+"""Defines plots for regression models built with scikit-learn."""
 from warnings import simplefilter
 
 import numpy as np

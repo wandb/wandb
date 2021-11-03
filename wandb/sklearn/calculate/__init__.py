@@ -1,4 +1,9 @@
-"""Calculates and formats metrics and charts for introspecting sklearn models."""
+"""Calculates and formats metrics and charts for introspecting sklearn models.
+
+The functions in these modules are designed to be called by functions from the
+plot submodule that have been exported into the namespace of the wandb.sklearn
+submodule, rather than being called directly.
+"""
 
 from .calibration_curves import calibration_curves
 from .class_proportions import class_proportions
