@@ -1,6 +1,6 @@
 # wandb service
 
-The wandb service is still experimental. It can be enabled by adding this in your script:
+The wandb service is still experimental. It can be enabled by adding the following in your script:
 
 ```python
 wandb.require(experiment="service")
