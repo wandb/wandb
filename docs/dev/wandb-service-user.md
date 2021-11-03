@@ -1,6 +1,6 @@
 # wandb service
 
-The wandb service is still experimental. It can be enabled by adding the following in your script:
+The wandb service is still experimental. It can be enabled by adding the following to your script:
 
 ```python
 wandb.require(experiment="service")
@@ -8,8 +8,8 @@ wandb.require(experiment="service")
 
 ## Why would you use this feature?
 
-If you are training in a distributed setting and the current `wandb` solution seems to hang or does not scale as well as you would like.
-Please consider trying out this new feature, it is hopefully should resolve many of these issues.
+`wandb-service` improves wandb's handling of multiprocessing and thus improves reliability in a distributed training setting.
+If you are using `wandb` in a distributed training setup and experiencing hangs, please consider trying out this new feature.
 
 ## Installation
 
@@ -44,8 +44,8 @@ If the start method is not `fork` and you are running in a new enviroment try re
 
 ## Reporting issues
 
-If your issues is not listed in the the FAQs, please file a ticket on [github issue](https://github.com/wandb/client/issues).
-To help us reproduce your issue, it would be really helpful if you could provide the following:
+If you are experiencing an issue which is not listed in the the FAQs, please file a ticket on [github issue](https://github.com/wandb/client/issues).
+To help us reproduce your issue, please provide the following:
 
 - Minimal script to reproduce
 - Python version
