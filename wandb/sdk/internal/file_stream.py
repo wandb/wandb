@@ -116,7 +116,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         offsets = sorted(list(console.keys()))
         intervals = []
         # example input: offsets = [2, 3, 4, 8, 9, 10, 20]
-        # after for loop: keys = [(2, 4), (8, 10), (20, 20)]
+        # after for loop: intervals = [(2, 4), (8, 10), (20, 20)]
         for _, group in itertools.groupby(enumerate(offsets), lambda x: x[0] - x[1]):
             group = list(map(lambda x: x[1], group))
             item = (group[0], group[-1]) if len(group) > 1 else (group[0], group[0])
