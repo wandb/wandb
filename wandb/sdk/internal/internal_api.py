@@ -346,7 +346,7 @@ class Api(object):
         return self.server_use_artifact_input_info
 
     @normalize_exceptions
-    def launch_agent_introspection(self):   # @@@ introspection for stopPolling in the getlaunchagent response
+    def launch_agent_introspection(self):
         query = gql(
             """
             query LaunchAgentIntrospection {
@@ -1131,36 +1131,6 @@ class Api(object):
         }
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
-
-    @normalize_exceptions
-    def update_launch_agent_heartbeat(self, agent_id, gorilla_agent_support):
-        if not gorilla_agent_support:
-            # no-op
-            return {
-                "success": True,
-            }
-        
-        mutation = gql(
-            """
-            mutation updateLaunchAgent($agentId: ID!, $heartbeatAt: DateTime){
-                updateLaunchAgent(
-                    input: {
-                        launchAgentId: $agentId
-                        heartbeatAt: $heartbeatAt
-                    }
-                ) {
-                    success
-                }
-            }
-            """
-        )
-        variable_values = {
-            "agentId": agent_id,
-            "heartbeatAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
-        return self.gql(mutation, variable_values)["updateLaunchAgent"]
-
-
     @normalize_exceptions
     def get_launch_agent(self, agent_id, gorilla_agent_support):
         if not gorilla_agent_support:
@@ -1184,7 +1154,6 @@ class Api(object):
             "agentId": agent_id,
         }
         return self.gql(query, variable_values)["launchAgent"]
-        
 
     @normalize_exceptions
     def upsert_run(

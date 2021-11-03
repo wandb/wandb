@@ -53,7 +53,7 @@ class AbstractRun(ABC):
     def status(self) -> Status:
         return self._status
 
-    def _run_cmd(   # @@@ unused?
+    def _run_cmd(
         self, cmd: List[str], output_only: Optional[bool] = False
     ) -> Optional[Union["subprocess.Popen[bytes]", bytes]]:
         """Runs the command and returns a popen object or the stdout of the command.
