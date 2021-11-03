@@ -45,10 +45,11 @@ If the start method is not `fork` and you are running in a new enviroment try re
 ## Reporting issues
 
 If your issues is not listed in the the FAQs, please file a ticket on [github issue](https://github.com/wandb/client/issues).
-To help us reproduce your issue, it would be really helpful if you could provide the following things:
+To help us reproduce your issue, it would be really helpful if you could provide the following:
 
 - Minimal script to reproduce
 - Python version
-- Your operating System
-- Platform you are using (for example: GPUs, TPUs etc.)
+- Operating System
+- Platform (for example: GPUs, TPUs etc.)
 - Additional relevant packages installed (you can run `pip list` in your python environment)
+- Traceback (if relevant)
