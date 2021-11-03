@@ -2,12 +2,11 @@
 
 import os
 
-import pytorch_lightning as Trainer
+from pl_base import BoringModel, RandomDataset
+from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 import wandb
-
-from pl_base import RandomDataset, BoringModel
 
 
 def main():
