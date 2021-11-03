@@ -514,7 +514,6 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 def test_launch_agent(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
-    live_mock_server.set
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
