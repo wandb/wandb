@@ -12,10 +12,10 @@ assert:
     - :wandb:runs[0][exitcode]: 0
     - :yea:exit: 0
 """
-import wandb
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+import wandb
 
 wandb.init("my-scikit-integration")
 
