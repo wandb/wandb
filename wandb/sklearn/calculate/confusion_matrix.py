@@ -81,7 +81,11 @@ def make_table(cm, pred_classes, true_classes, labels):
             true = true_classes[j]
         data.append([pred, true, cm[i, j]])
         count += 1
-        if utils.check_against_limit(count, "confusion_matrix", utils.chart_limit,):
+        if utils.check_against_limit(
+            count,
+            "confusion_matrix",
+            utils.chart_limit,
+        ):
             break
 
     table = wandb.Table(columns=["Predicted", "Actual", "Count"], data=data)

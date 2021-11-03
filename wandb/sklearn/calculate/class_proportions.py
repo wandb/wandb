@@ -54,7 +54,11 @@ def make_columns(class_ids, counts_train, counts_test):
         dataset_column.append("test")
         count_column.append(counts_test[i])
 
-        if utils.check_against_limit(i, "class_proportions", utils.chart_limit,):
+        if utils.check_against_limit(
+            i,
+            "class_proportions",
+            utils.chart_limit,
+        ):
             break
 
     return class_column, dataset_column, count_column
