@@ -213,12 +213,11 @@ class TorchHistory(object):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
         # Skip logging if all values are nan or inf or the tensor is empty.
-        if flat.shape == torch.Size([0]) or torch.logical_not(flat.isfinite()).all():
+        if self._no_finite_values(flat):
             return
 
         # Remove nans and infs if present. There's no good way to represent that in histograms.
-        if not flat.isfinite().all():
-            flat = flat[flat.isfinite()]
+        flat = self._remove_infs_nans(flat)
 
         tmin = flat.min().item()
         tmax = flat.max().item()
@@ -299,6 +298,18 @@ class TorchHistory(object):
             return False
         else:
             return handle.id in d
+
+    def _no_finite_values(self, tensor):
+        return (
+            tensor.shape == torch.Size([0])
+            or torch.logical_not(tensor.isfinite()).all().item()
+        )
+
+    def _remove_infs_nans(self, tensor):
+        if not tensor.isfinite().all():
+            tensor = tensor[tensor.isfinite()]
+
+        return tensor
 
 
 class TorchGraph(wandb.data_types.Graph):
