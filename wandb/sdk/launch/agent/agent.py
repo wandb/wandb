@@ -106,8 +106,10 @@ class LaunchAgent(object):
         if self._jobs[job_id].get_status().state in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
-    def _validate_and_fix_spec_project_entity(self, launch_spec):
-        """Checks if launch spec target project/entity differs from agent. Fixes it if so"""
+    def _validate_and_fix_spec_project_entity(
+        self, launch_spec: Dict[str, Any]
+    ) -> None:
+        """Checks if launch spec target project/entity differs from agent. Forces these values to agent's if they are set."""
         if (
             launch_spec.get("project") is not None
             and launch_spec.get("project") != self._project
