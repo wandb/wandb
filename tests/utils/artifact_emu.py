@@ -24,6 +24,10 @@ class ArtifactEmulator:
             latest = {"id": last_version["digest"], "versionIndex": len(versions) - 1}
         art_seq = {"id": art_id, "latestArtifact": latest}
 
+        aliases.append(dict(artifactCollectionName=collection_name, alias="latest"))
+
+        base_url = self._base_url
+        direct_url = f"{base_url}/storage?file=wandb_manifest.json"
         art_data = {
             "id": art_id,
             "digest": "abc123",
@@ -31,6 +35,7 @@ class ArtifactEmulator:
             "labels": [],
             "aliases": aliases,
             "artifactSequence": art_seq,
+            "currentManifest": dict(file=dict(directUrl=direct_url)),
         }
 
         response = {"data": {"createArtifact": {"artifact": copy.deepcopy(art_data)}}}
@@ -80,10 +85,14 @@ class ArtifactEmulator:
         }
         return response
 
-    def query(self, variables):
+    def query(self, variables, query=None):
+        art_query = query or ""
+        public_api_query_str = "query Artifact($id: ID!) {"
         art_id = variables.get("id")
         art_name = variables.get("name")
         assert art_id or art_name
+
+        is_public_api_query = query and query.startswith(public_api_query_str)
 
         if art_name:
             collection_name, version = art_name.split(":", 1)
@@ -100,7 +109,10 @@ class ArtifactEmulator:
         elif art_id:
             artifact = self._artifacts_by_id[art_id]
 
-        response = {"data": {"project": {"artifact": artifact}}}
+        if is_public_api_query:
+            response = {"data": {"artifact": artifact}}
+        else:
+            response = {"data": {"project": {"artifact": artifact}}}
         return response
 
     def file(self, entity, digest):

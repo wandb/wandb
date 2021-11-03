@@ -1,3 +1,15 @@
+"""Use the Public API to export or update data that you have saved to W&B.
+
+Before using this API, you'll want to log data from your script — check the
+[Quickstart](https://docs.wandb.ai/quickstart) for more details.
+
+You might use the Public API to
+ - update metadata or metrics for an experiment after it has been completed,
+ - pull down your results as a dataframe for post-hoc analysis in a Jupyter notebook, or
+ - check your saved model artifacts for those tagged as `ready-to-deploy`.
+
+For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
+"""
 import datetime
 from functools import partial
 import json
@@ -27,7 +39,6 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -2026,7 +2037,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return util.load_yaml(self._attrs["config"])
 
     def load(self, force=False):
         if force or not self._attrs:

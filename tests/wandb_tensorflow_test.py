@@ -47,7 +47,7 @@ PR_CURVE_PANEL_CONFIG = {
         "panelDefId": "wandb/line/v0",
         "transform": {"name": "tableWithLeafColNames"},
         "fieldSettings": {"x": "recall", "y": "precision"},
-        "stringSettings": {"title": "Precision v. Recall"},
+        "stringSettings": {"title": "test_pr/pr_curves Precision v. Recall"},
     },
 }
 

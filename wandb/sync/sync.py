@@ -16,7 +16,7 @@ from six.moves.urllib.parse import quote as url_quote
 import wandb
 from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
-from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import datastore
 from wandb.sdk.internal import handler
 from wandb.sdk.internal import sender
@@ -158,7 +158,7 @@ class SyncThread(threading.Thread):
         # file types (like images)... but we need to remake the send_manager
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
-        new_interface = interface.BackendSender(record_q)
+        new_interface = InterfaceQueue(record_q)
         send_manager = sender.SendManager(
             send_manager._settings, sender_record_q, queue.Queue(), new_interface
         )

@@ -84,7 +84,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "protocheck,mypy,black,flake8,flake8-docstrings,verify-sweeps"
+         toxenv: "protocheck,mypy,black,flake8,docstrings,verify-sweeps"
 # Disable python2.7 for good?
 #      - test:
 #         name: "Python 2.7"
@@ -136,6 +136,10 @@ workflows:
          name: "func-s_service-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_service-py37,func-covercircle"
+      - test:
+         name: "func-s_py310-lin-py310"
+         image: "python:3.10"
+         toxenv: "func-s_py310-py310,func-covercircle"
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
