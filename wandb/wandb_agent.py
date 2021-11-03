@@ -540,7 +540,8 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
 
     Examples:
         Run a sample sweep over a function:
-       ```python
+        <!--yeadoc-test:one-parameter-sweep-agent-->
+        ```python
         import wandb
         sweep_configuration = {
             "name": "my-awesome-sweep",
