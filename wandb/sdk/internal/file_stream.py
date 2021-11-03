@@ -144,17 +144,18 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
 
     def process_chunks(self, chunks):
         # Dict[int->str], each offset (line number) mapped to a line.
-        # Represents our console dashboard on the UI.
+        # Represents a mini-version of our console pane on the UI.
         console = {}
+        sep = os.linesep
 
         for c in chunks:
             prefix, logs_str = self.split_chunk(c)
-            logs = logs_str.split(os.linesep)
+            logs = logs_str.split(sep)
 
             for line in logs:
                 stream = self.stderr if prefix.startswith("ERROR ") else self.stdout
                 if line.startswith("\r"):
-                    # any line with \r is going to overwrite a previous offset.
+                    # line starting with \r will always overwrite a previous offset.
                     offset = stream.cr if stream.found_cr else stream.last_normal or 0
                     stream.cr = offset
                     stream.found_cr = True
@@ -163,12 +164,15 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
                     # Usually logs_str = "\r progress bar\n" for progress bar updates.
                     # If instead logs_str = "\r progress bar\n text\n text\n",
                     # treat this as the end of a progress bar and reset accordingly.
-                    if logs_str.count(os.linesep) > 1 and logs_str.count("\r") == 1:
+                    if (
+                        logs_str.count(sep) > 1
+                        and logs_str.replace(sep, "").count("\r") == 1
+                    ):
                         stream.found_cr = False
 
                 elif line:
-                    stream.last_normal = self.global_offset
                     console[self.global_offset] = prefix + line + "\n"
+                    stream.last_normal = self.global_offset
                     self.global_offset += 1
 
         intervals = self.get_consecutive_offsets(console)

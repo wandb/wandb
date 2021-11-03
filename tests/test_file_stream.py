@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import json
 import pytest
+import os
 
 from wandb.sdk.internal.file_stream import CRDedupeFilePolicy
 
@@ -155,17 +156,18 @@ def test_crdedupe_split_chunk():
 
 def test_crdedupe_process_chunks():
     fp = CRDedupeFilePolicy()
+    sep = os.linesep
 
     # Test STDERR progress bar updates (\r lines) overwrite the correct offset.
     # Test STDOUT and STDERR normal messages get appended correctly.
     chunks = [
-        Chunk(data="timestamp text\n"),
-        Chunk(data="ERROR timestamp error message\n"),
-        Chunk(data="ERROR timestamp progress bar\n"),
-        Chunk(data="ERROR timestamp \rprogress bar update 1\n"),
-        Chunk(data="ERROR timestamp \rprogress bar update 2\n"),
-        Chunk(data="timestamp text\ntext\ntext\n"),
-        Chunk(data="ERROR timestamp error message\n"),
+        Chunk(data=f"timestamp text{sep}"),
+        Chunk(data=f"ERROR timestamp error message{sep}"),
+        Chunk(data=f"ERROR timestamp progress bar{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 1{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 2{sep}"),
+        Chunk(data=f"timestamp text{sep}text{sep}text{sep}"),
+        Chunk(data=f"ERROR timestamp error message{sep}"),
     ]
     ret = fp.process_chunks(chunks)
     want = [
@@ -190,11 +192,11 @@ def test_crdedupe_process_chunks():
     # maps to the correct offset.
     # Test that we can handle STDOUT progress bars (\r lines) as well.
     chunks = [
-        Chunk(data="ERROR timestamp \rprogress bar update 3\n"),
-        Chunk(data="ERROR timestamp \rprogress bar update 4\n"),
-        Chunk(data="timestamp \rstdout progress bar\n"),
-        Chunk(data="timestamp text\n"),
-        Chunk(data="timestamp \rstdout progress bar update\n"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 3{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 4{sep}"),
+        Chunk(data=f"timestamp \rstdout progress bar{sep}"),
+        Chunk(data=f"timestamp text{sep}"),
+        Chunk(data=f"timestamp \rstdout progress bar update{sep}"),
     ]
     ret = fp.process_chunks(chunks)
     want = [
@@ -209,11 +211,11 @@ def test_crdedupe_process_chunks():
     # Test that code handles final progress bar output and correctly
     # offsets any new progress bars.
     chunks = [
-        Chunk(data="timestamp text\n"),
-        Chunk(data="ERROR timestamp \rprogress bar final\ntext\ntext\n"),
-        Chunk(data="ERROR timestamp error message\n"),
-        Chunk(data="ERROR timestamp new progress bar\n"),
-        Chunk(data="ERROR timestamp \rnew progress bar update 1\n"),
+        Chunk(data=f"timestamp text{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar final{sep}text{sep}text{sep}"),
+        Chunk(data=f"ERROR timestamp error message{sep}"),
+        Chunk(data=f"ERROR timestamp new progress bar{sep}"),
+        Chunk(data=f"ERROR timestamp \rnew progress bar update 1{sep}"),
     ]
     ret = fp.process_chunks(chunks)
     want = [
