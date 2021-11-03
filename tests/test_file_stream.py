@@ -10,6 +10,8 @@ import pytest
 import os
 
 from wandb.sdk.internal.file_stream import CRDedupeFilePolicy
+from wandb.sdk.lib import file_stream_utils
+from wandb import util
 
 
 def generate_history():
@@ -157,6 +159,7 @@ def test_crdedupe_split_chunk():
 def test_crdedupe_process_chunks():
     fp = CRDedupeFilePolicy()
     sep = os.linesep
+    files = {"output.log": None}
 
     # Test STDERR progress bar updates (\r lines) overwrite the correct offset.
     # Test STDOUT and STDERR normal messages get appended correctly.
@@ -187,6 +190,11 @@ def test_crdedupe_process_chunks():
     print(f"\n{ret}")
     print(want)
     assert ret == want
+    files["output.log"] = ret
+    file_requests = list(
+        file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES)
+    )
+    assert 1 == len(file_requests)
 
     # Test that STDERR progress bar updates in next list of chunks still
     # maps to the correct offset.
@@ -207,6 +215,11 @@ def test_crdedupe_process_chunks():
     print(f"\n{ret}")
     print(want)
     assert ret == want
+    files["output.log"] = ret
+    file_requests = list(
+        file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES)
+    )
+    assert 3 == len(file_requests)
 
     # Test that code handles final progress bar output and correctly
     # offsets any new progress bars.
@@ -234,3 +247,8 @@ def test_crdedupe_process_chunks():
     print(f"\n{ret}")
     print(want)
     assert ret == want
+    files["output.log"] = ret
+    file_requests = list(
+        file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES)
+    )
+    assert 2 == len(file_requests)
