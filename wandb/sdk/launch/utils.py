@@ -165,6 +165,13 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     return entity, project, name
 
 
+def is_bare_wandb_uri(uri: str) -> bool:
+    entity, project, runs, name = uri.split("/")[1:]
+    if runs == "runs" and len(name) == 8:
+        return True
+    return False
+
+
 def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     entity, project, name = parse_wandb_uri(uri)
     try:

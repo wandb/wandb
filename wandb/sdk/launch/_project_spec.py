@@ -36,6 +36,7 @@ class LaunchProject(object):
     def __init__(
         self,
         uri: str,
+        api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
@@ -44,8 +45,10 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
     ):
-
+        if utils.is_bare_wandb_uri(uri):
+            uri = api.settings("base_url") + uri
         self.uri = uri
+        self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
@@ -69,7 +72,6 @@ class LaunchProject(object):
         ] = {}  # todo: keep multiple entrypoint support?
         if "entry_point" in overrides:
             self.add_entry_point(overrides["entry_point"])
-
         if utils._is_wandb_uri(self.uri):
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
@@ -317,6 +319,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
 
     return LaunchProject(
         uri,
+        api,
         launch_spec,
         launch_spec["entity"],
         launch_spec["project"],

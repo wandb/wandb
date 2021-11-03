@@ -109,7 +109,7 @@ class LaunchAgent(object):
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         # TODO: logger
-        wandb.termlog("agent: got job", job)
+        wandb.termlog(f"agent: got job f{job}")
         # update agent status
         update_ret = self._api.update_launch_agent_status(
             self._id, AGENT_RUNNING, self.gorilla_supports_agents
