@@ -1134,7 +1134,11 @@ class Api(object):
     @normalize_exceptions
     def get_launch_agent(self, agent_id, gorilla_agent_support):
         if not gorilla_agent_support:
-            return {}
+            return {
+                "id": None,
+                "name": "",
+                "stopPolling": False,
+            }
         query = gql(
             """
             query LaunchAgent($agentId: ID!) {

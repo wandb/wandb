@@ -538,11 +538,16 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
     assert agent._id is None
+    assert agent._name == ""
 
     update_response = api.update_launch_agent_status(
         agent._id, "POLLING", agent.gorilla_supports_agents
     )
     assert update_response["success"]
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == ""
+    assert get_agent_response["stopPolling"] == False
 
 
 @pytest.mark.timeout(320)
