@@ -113,6 +113,7 @@ class LaunchAgent(object):
         """Sets up project and runs the job."""
         # TODO: logger
         wandb.termlog(f"agent: got job f{job}")
+        _logger.info(f"Agent job: {job}")
         # update agent status
         _logger.info("Updating agent status...")
         update_ret = self._api.update_launch_agent_status(
