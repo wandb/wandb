@@ -166,8 +166,8 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    entity, project, runs, name = uri.split("/")[1:]
-    if runs == "runs" and len(name) == 8:
+    prefix, _, _, runs, name = uri.split("/")
+    if len(prefix) == 0 and runs == "runs" and len(name) == 8:
         return True
     return False
 
