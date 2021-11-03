@@ -106,6 +106,20 @@ class LaunchAgent(object):
         if self._jobs[job_id].get_status().state in ["failed", "finished"]:
             self.finish_job_id(job_id)
 
+    def _validate_and_fix_spec_project_entity(self, launch_spec):
+        if (
+            launch_spec.get("project") is not None
+            and launch_spec.get("project") != self._project
+        ) or (
+            launch_spec.get("entity") is not None
+            and launch_spec.get("entity") != self._entity
+        ):
+            wandb.termwarn(
+                f"Launch agents only support sending runs to their own project and entity. This run will be sent to {self._entity}/{self._project}"
+            )
+            launch_spec["entity"] = self._entity
+            launch_spec["project"] = self._project
+
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         # TODO: logger
@@ -125,6 +139,8 @@ class LaunchAgent(object):
             launch_spec["overrides"]["args"] = util._user_args_to_dict(
                 launch_spec["overrides"].get("args", [])
             )
+        self._validate_and_fix_spec_project_entity(launch_spec)
+
         project = create_project_from_spec(launch_spec, self._api)
         project = fetch_and_validate_project(project, self._api)
 
