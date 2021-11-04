@@ -355,7 +355,7 @@ class TBEventConsumer(object):
 
         # this is only used for logging artifacts
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
-        self._internal_run._internal_runs_interface = self._tbwatcher._interface
+        self._internal_run._internal_run_interface = self._tbwatcher._interface
 
     def start(self) -> None:
         self._start_time = time.time()
