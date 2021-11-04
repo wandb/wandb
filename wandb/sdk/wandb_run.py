@@ -2485,7 +2485,6 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
-        print(artifact_or_path.__dict__)
         if aliases is not None:
             if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
                 raise ValueError(
