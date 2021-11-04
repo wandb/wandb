@@ -433,6 +433,7 @@ class TBEventConsumer(object):
             table = row[chart_key]
             row.pop(chart_key)
             row[chart_key + "_table"] = table
+
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False
         )
