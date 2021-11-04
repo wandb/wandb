@@ -8,6 +8,7 @@ depend:
     - numpy
     - tensorflow
     - pillow
+    - keras<=2.6
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][dropout]: 0.2
