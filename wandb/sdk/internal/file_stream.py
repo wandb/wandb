@@ -10,7 +10,7 @@ import requests
 import threading
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, Iterator, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Tuple
 
 import wandb
 from wandb import util
