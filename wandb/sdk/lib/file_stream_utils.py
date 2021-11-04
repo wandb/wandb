@@ -53,7 +53,7 @@ def split_files(
 
     files_stack = []
     for k, v in files.items():
-        if type(v) is list:
+        if isinstance(v, list):
             for item in v:
                 files_stack.append(
                     {"name": k, "offset": item["offset"], "content": item["content"]}

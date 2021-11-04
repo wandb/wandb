@@ -131,7 +131,7 @@ def test_crdedupe_consecutive_offsets():
     console = {1: "a", 2: "a", 3: "a", 8: "a", 12: "a", 13: "a", 30: "a"}
     intervals = fp.get_consecutive_offsets(console)
     print(intervals)
-    assert intervals == [(1, 3), (8, 8), (12, 13), (30, 30)]
+    assert intervals == [[1, 3], [8, 8], [12, 13], [30, 30]]
 
 
 @dataclass

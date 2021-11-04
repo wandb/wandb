@@ -10,6 +10,7 @@ import requests
 import threading
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, Iterator, List, Tuple
 
 import wandb
 from wandb import util
@@ -23,6 +24,9 @@ from ..lib import file_stream_utils
 logger = logging.getLogger(__name__)
 
 Chunk = collections.namedtuple("Chunk", ("filename", "data"))
+
+if TYPE_CHECKING:
+    from typing import Any, List, Dict
 
 
 class DefaultFilePolicy(object):
@@ -73,11 +77,19 @@ class SummaryFilePolicy(DefaultFilePolicy):
 
 @dataclass
 class StreamCRState:
+    """There are two streams: stdout and stderr.
+    We create two instances for each stream.
+    An instance holds state about:
+        found_cr:       if a carriage return has been found in this stream.
+        cr:             most recent offset (line number) where we found \r.
+                        We update this offset with every progress bar update.
+        last_normal:    most recent offset without a \r in this stream.
+                        i.e the most recent "normal" line.
+    """
+
     found_cr: bool = False
-    offset = None
-    # most recent offsets
-    last_normal = None
     cr = None
+    last_normal = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
@@ -103,36 +115,54 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         self.stderr = StreamCRState()
         self.stdout = StreamCRState()
 
-    def get_consecutive_offsets(self, console):
+    def get_consecutive_offsets(self, console: Dict) -> List[Any]:
         """
-        Arguments:
-            console: Dict[int, str] dict mapping offsets (line numbers) to console lines
-            It represents our console dashboard on the UI,
-            with line numbers (offsets) and lines.
+        Args:
+            console: Dict[int, str] which maps offsets (line numbers) to lines of text.
+            It represents a mini version of our console dashboard on the UI.
 
-        The backend accepts an offset and a series of consecutive lines starting at that offset.
-        We extract this data from `console`.
+        Returns:
+            A list of intervals (we compress consecutive line numbers into an interval).
+
+        Example:
+            >>> console = {2: "", 3: "", 4: "", 5: "", 10: "", 11: "", 20: ""}
+            >>> get_consecutive_offsets(console)
+            [(2, 5), (10, 11), (20, 20)]
         """
         offsets = sorted(list(console.keys()))
-        intervals = []
-        # example input: offsets = [2, 3, 4, 8, 9, 10, 20]
-        # after for loop: intervals = [(2, 4), (8, 10), (20, 20)]
-        for _, group in itertools.groupby(enumerate(offsets), lambda x: x[0] - x[1]):
-            group = list(map(lambda x: x[1], group))
-            item = (group[0], group[-1]) if len(group) > 1 else (group[0], group[0])
-            intervals.append(item)
+        intervals: List = []
+        for i, num in enumerate(offsets):
+            if i == 0:
+                intervals.append([num, num])
+                continue
+            largest = intervals[-1][1]
+            if num == largest + 1:
+                intervals[-1][1] = num
+            else:
+                intervals.append([num, num])
         return intervals
 
-    def split_chunk(self, chunk):
+    def split_chunk(self, chunk: Chunk) -> Tuple[str, str]:
         """
-        chunk: object of type Chunk with two fields: filename (str) & data (str)
-        The `data` field contains the lines we want and usually contains \n or \r or both.
+        Args:
+            chunk: object with two fields: filename (str) & data (str)
+            `chunk.data` is a str containing the lines we want. It usually contains \n or \r or both.
+            `chunk.data` has two possible formats (for the two streams - stdout and stderr):
+                - "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n"
+                - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n"
 
-        Line has two possible formats:
-            - "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n"
-            - "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\nthird\n"
+                Here's another example with a carriage return \r.
+                - "ERROR 2020-08-25T20:38:36.895321 \r progress bar\n"
 
-        `prefix` is either "2020-08-25T20:38:36.895321" or "ERROR 2020-08-25T20:38:36.895321"
+        Returns:
+            A 2-tuple of strings.
+            First str is prefix, either "ERROR {timestamp} " or "{timestamp} ".
+            Second str is the rest of the string.
+
+        Example:
+            >>> chunk = Chunk(filename="output.log", data="ERROR 2020-08-25T20:38 this is my line of text\n")
+            >>> split_chunk(chunk)
+            ("ERROR 2020-08-25T20:38 ", "this is my line of text\n")
         """
         prefix = ""
         token, rest = chunk.data.split(" ", 1)
@@ -142,7 +172,31 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks):
+    def process_chunks(self, chunks: List) -> List[Dict]:
+        """
+        Args:
+            chunks: List of Chunk objects. See description of chunk above in `split_chunk(...)`.
+
+        Returns:
+            List[Dict]. Each dict in the list contains two keys: an `offset` which holds the line number
+            and `content` which maps to a list of consecutive lines starting from that offset.
+            `offset` here means global line number in our console on the UI.
+
+        Example:
+            >>> chunks = [
+                Chunk("output.log", "ERROR 2020-08-25T20:38 this is my line of text\nboom\n"),
+                Chunk("output.log", "2020-08-25T20:38 this is test\n"),
+            ]
+            >>> process_chunks(chunks)
+            [
+                {"offset": 0, "content": [
+                    "ERROR 2020-08-25T20:38 this is my line of text\n",
+                    "ERROR 2020-08-25T20:38 boom\n",
+                    "2020-08-25T20:38 this is test\n"
+                    ]
+                }
+            ]
+        """
         # Dict[int->str], each offset (line number) mapped to a line.
         # Represents a mini-version of our console pane on the UI.
         console = {}
