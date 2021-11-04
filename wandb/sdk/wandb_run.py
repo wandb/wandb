@@ -1000,6 +1000,15 @@ class Run(object):
     def _set_backend(self, backend: "wandb.sdk.backend.backend.Backend") -> None:
         self._backend = backend
 
+    def _set_internal_run_interface(
+        self,
+        interface: Union[
+            "wandb.sdk.interface.interface_queue.InterfaceQueue",
+            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
+        ],
+    ) -> None:
+        self._internal_run_interface = interface
+
     def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
 
