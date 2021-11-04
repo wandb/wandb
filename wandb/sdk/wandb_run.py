@@ -260,6 +260,7 @@ class Run(object):
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
         self._backend = None
+        self._internal_runs_interface = None
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
@@ -2484,6 +2485,7 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
+        print(artifact_or_path.__dict__)
         if aliases is not None:
             if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
                 raise ValueError(
@@ -2514,6 +2516,15 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
+        elif self._internal_runs_interface:
+            self._internal_runs_interface.publish_artifact(
+                self,
+                artifact,
+                aliases,
+                finalize=finalize,
+                is_user_created=is_user_created,
+                use_after_commit=use_after_commit,
+            )
         return artifact
 
     def _public_api(self) -> PublicApi:

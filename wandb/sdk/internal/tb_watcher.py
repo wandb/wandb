@@ -353,7 +353,9 @@ class TBEventConsumer(object):
             files = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
+        # this is only used for logging artifacts
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
+        self._internal_run._internal_runs_interface = self._tbwatcher._interface
 
     def start(self) -> None:
         self._start_time = time.time()
@@ -429,9 +431,10 @@ class TBEventConsumer(object):
 
         for chart_key in chart_keys:
             table = row[chart_key]
+            print("TABLE", table.__dict__)
             row.pop(chart_key)
             row[chart_key + "_table"] = table
-
+        print(row)
         self._tbwatcher._interface.publish_history(
             row, run=self._internal_run, publish_step=False
         )

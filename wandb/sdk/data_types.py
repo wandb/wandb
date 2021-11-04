@@ -2391,10 +2391,13 @@ def val_to_json(
                 # we sanitize the key to meet the constraints defined in wandb_artifacts.py
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
+                print(key, sanitized_key)
+                print("I'm doing the sanitized key thing!")
                 art = wandb.wandb_sdk.wandb_artifacts.Artifact(
                     "run-{}-{}".format(run.id, sanitized_key), "run_table"
                 )
-                art.add(val, key)
+
+                art.add(val, sanitized_key)
                 run.log_artifact(art)
 
             # Partitioned tables and joined tables do not support being bound to runs.
