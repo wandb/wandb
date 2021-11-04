@@ -181,10 +181,9 @@ class LaunchAgent(object):
                     for job_id in self.job_ids:
                         self._update_finished(job_id)
                     if self._ticks % 2 == 0:
-                        self.print_status()
-                        # heartbeat
                         if self._running == 0:
                             self.update_status(AGENT_POLLING)
+                            self.print_status()
                         else:
                             self.update_status(AGENT_RUNNING)
                     continue
