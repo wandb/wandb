@@ -1,9 +1,9 @@
 #
-from typing import Dict, Iterable
+from typing import Any, Dict, Iterable
 
 
 def split_files(
-    files: Dict[str, Dict], max_bytes: int = 10 * 1024 * 1024
+    files: Dict[str, Any], max_bytes: int = 10 * 1024 * 1024
 ) -> Iterable[Dict[str, Dict]]:
     """
     Splits a files dict (see `files` arg) into smaller dicts of at most `MAX_BYTES` size.
@@ -12,9 +12,10 @@ def split_files(
 
     Arguments:
     files (dict): `dict` of form {file_name: {'content': ".....", 'offset': 0}}
+                The key `file_name` can also be mapped to a List [{"offset": int, "content": str}]
     `max_bytes`: max size for chunk in bytes
     """
-    current_volume = {}
+    current_volume: Dict[str, Dict] = {}
     current_size = 0
 
     def _str_size(x):
@@ -50,13 +51,26 @@ def split_files(
             num_lines += 1
         return num_lines
 
-    files_stack = [
-        {"name": k, "offset": v["offset"], "content": v["content"]}
-        for k, v in files.items()
-    ]
+    files_stack = []
+    for k, v in files.items():
+        if isinstance(v, list):
+            for item in v:
+                files_stack.append(
+                    {"name": k, "offset": item["offset"], "content": item["content"]}
+                )
+        else:
+            files_stack.append(
+                {"name": k, "offset": v["offset"], "content": v["content"]}
+            )
 
     while files_stack:
         f = files_stack.pop()
+        if f["name"] in current_volume:
+            files_stack.append(f)
+            yield current_volume
+            current_volume = {}
+            current_size = 0
+            continue
         # For each file, we have to do 1 of 4 things:
         # - Add the file as such to the current volume if possible.
         # - Split the file and add the first part to the current volume and push the second part back onto the stack.
