@@ -3,9 +3,15 @@ file_stream tests.
 """
 
 from __future__ import print_function
+from dataclasses import dataclass
 
 import json
 import pytest
+import os
+
+from wandb.sdk.internal.file_stream import CRDedupeFilePolicy
+from wandb.sdk.lib import file_stream_utils
+from wandb import util
 
 
 def generate_history():
@@ -118,3 +124,131 @@ def test_fstream_requests_error(
     publish_util(history=history)
     stdout, stderr = capsys.readouterr()
     assert "Dropped streaming file chunk" in stderr
+
+
+def test_crdedupe_consecutive_offsets():
+    fp = CRDedupeFilePolicy()
+    console = {1: "a", 2: "a", 3: "a", 8: "a", 12: "a", 13: "a", 30: "a"}
+    intervals = fp.get_consecutive_offsets(console)
+    print(intervals)
+    assert intervals == [[1, 3], [8, 8], [12, 13], [30, 30]]
+
+
+@dataclass
+class Chunk:
+    data: str = None
+
+
+def test_crdedupe_split_chunk():
+    fp = CRDedupeFilePolicy()
+    answer = [
+        ("2020-08-25T20:38:36.895321 ", "this is my line of text\nsecond line\n"),
+        ("ERROR 2020-08-25T20:38:36.895321 ", "this is my line of text\nsecond line\n"),
+    ]
+    test_data = [
+        "2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n",
+        "ERROR 2020-08-25T20:38:36.895321 this is my line of text\nsecond line\n",
+    ]
+    for i, data in enumerate(test_data):
+        c = Chunk(data=data)
+        prefix, rest = fp.split_chunk(c)
+        assert prefix == answer[i][0]
+        assert rest == answer[i][1]
+
+
+def test_crdedupe_process_chunks():
+    fp = CRDedupeFilePolicy()
+    sep = os.linesep
+    files = {"output.log": None}
+
+    # Test STDERR progress bar updates (\r lines) overwrite the correct offset.
+    # Test STDOUT and STDERR normal messages get appended correctly.
+    chunks = [
+        Chunk(data=f"timestamp text{sep}"),
+        Chunk(data=f"ERROR timestamp error message{sep}"),
+        Chunk(data=f"ERROR timestamp progress bar{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 1{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 2{sep}"),
+        Chunk(data=f"timestamp text{sep}text{sep}text{sep}"),
+        Chunk(data=f"ERROR timestamp error message{sep}"),
+    ]
+    ret = fp.process_chunks(chunks)
+    want = [
+        {
+            "offset": 0,
+            "content": [
+                "timestamp text\n",
+                "ERROR timestamp error message\n",
+                "ERROR timestamp progress bar update 2\n",
+                "timestamp text\n",
+                "timestamp text\n",
+                "timestamp text\n",
+                "ERROR timestamp error message\n",
+            ],
+        }
+    ]
+    print(f"\n{ret}")
+    print(want)
+    assert ret == want
+    files["output.log"] = ret
+    file_requests = list(
+        file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES)
+    )
+    assert 1 == len(file_requests)
+
+    # Test that STDERR progress bar updates in next list of chunks still
+    # maps to the correct offset.
+    # Test that we can handle STDOUT progress bars (\r lines) as well.
+    chunks = [
+        Chunk(data=f"ERROR timestamp \rprogress bar update 3{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar update 4{sep}"),
+        Chunk(data=f"timestamp \rstdout progress bar{sep}"),
+        Chunk(data=f"timestamp text{sep}"),
+        Chunk(data=f"timestamp \rstdout progress bar update{sep}"),
+    ]
+    ret = fp.process_chunks(chunks)
+    want = [
+        {"offset": 2, "content": ["ERROR timestamp progress bar update 4\n"]},
+        {"offset": 5, "content": ["timestamp stdout progress bar update\n"]},
+        {"offset": 7, "content": ["timestamp text\n"]},
+    ]
+    print(f"\n{ret}")
+    print(want)
+    assert ret == want
+    files["output.log"] = ret
+    file_requests = list(
+        file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES)
+    )
+    assert 3 == len(file_requests)
+
+    # Test that code handles final progress bar output and correctly
+    # offsets any new progress bars.
+    chunks = [
+        Chunk(data=f"timestamp text{sep}"),
+        Chunk(data=f"ERROR timestamp \rprogress bar final{sep}text{sep}text{sep}"),
+        Chunk(data=f"ERROR timestamp error message{sep}"),
+        Chunk(data=f"ERROR timestamp new progress bar{sep}"),
+        Chunk(data=f"ERROR timestamp \rnew progress bar update 1{sep}"),
+    ]
+    ret = fp.process_chunks(chunks)
+    want = [
+        {"offset": 2, "content": ["ERROR timestamp progress bar final\n"]},
+        {
+            "offset": 8,
+            "content": [
+                "timestamp text\n",
+                "ERROR timestamp text\n",
+                "ERROR timestamp text\n",
+                "ERROR timestamp error message\n",
+                "ERROR timestamp new progress bar update 1\n",
+            ],
+        },
+    ]
+    print(f"\n{ret}")
+    print(want)
+    assert ret == want
+    files["output.log"] = ret
+    file_requests = list(
+        file_stream_utils.split_files(files, max_bytes=util.MAX_LINE_BYTES)
+    )
+    assert 2 == len(file_requests)
