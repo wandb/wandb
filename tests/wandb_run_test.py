@@ -301,6 +301,7 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
 
+
 def test_anonymous_mode(live_mock_server, test_settings, capsys):
     api_key = os.environ.pop("WANDB_API_KEY")
     uname = os.environ.pop("WANDB_USERNAME")
@@ -318,6 +319,7 @@ def test_anonymous_mode(live_mock_server, test_settings, capsys):
         "Do NOT share these links with anyone. They can be used to claim your runs."
         in err
     )
+
 
 def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys):
     api_key = os.environ.pop("WANDB_API_KEY")
