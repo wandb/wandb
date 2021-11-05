@@ -54,6 +54,7 @@ def test_magic(notebook):
             iframes += 1
         assert iframes == 4
 
+
 @pytest.mark.flaky
 @pytest.mark.xfail(
     platform.system() == "Windows", reason="flaky test that fails on windows"
