@@ -51,7 +51,7 @@ def calibration_curves(clf, X, y, clf_name):
     mean_pred_value_column.append(1)
 
     X_train, X_test, y_train, y_test = model_selection.train_test_split(
-        X, y, test_size=0.95, random_state=42
+        X, y, test_size=0.9, random_state=42
     )
 
     # Add curve for LogisticRegression baseline and other models
