@@ -2491,10 +2491,9 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         api = InternalApi()
         if api.settings().get("anonymous") == "true":
-            wandb.termerror(
+            raise wandb.Error(
                 "Cannot log artifacts in anonymous mode. Please create an account to log artifacts."
             )
-            sys.exit(1)
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:

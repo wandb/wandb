@@ -238,13 +238,14 @@ def test_login_invalid_key_arg(runner, empty_netrc, local_netrc):
         assert result.exit_code == 1
 
 
-@pytest.mark.skip(reason="Just need to make the mocking work correctly")
 def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
     with runner.isolated_filesystem():
         api = InternalApi()
         monkeypatch.setattr(cli, "api", api)
         monkeypatch.setattr(
-            api, "create_anonymous_api_key", lambda *args, **kwargs: DUMMY_API_KEY
+            wandb.sdk.internal.internal_api.Api,
+            "create_anonymous_api_key",
+            lambda *args, **kwargs: DUMMY_API_KEY,
         )
         result = runner.invoke(cli.login, ["--anonymously"])
         print("Output: ", result.output)

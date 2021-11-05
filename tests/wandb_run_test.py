@@ -300,3 +300,40 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             str(e_info.value)
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
+
+def test_anonymous_mode(live_mock_server, test_settings, capsys):
+    api_key = os.environ.pop("WANDB_API_KEY")
+    uname = os.environ.pop("WANDB_USERNAME")
+    test_settings.update({"anonymous": "must", "api_key": None})
+
+    run = wandb.init(settings=test_settings, anonymous="must")
+
+    os.environ["WANDB_USERNAME"] = uname
+    os.environ["WANDB_API_KEY"] = api_key
+
+    run.log({"something": 1})
+    _, err = capsys.readouterr()
+
+    assert (
+        "Do NOT share these links with anyone. They can be used to claim your runs."
+        in err
+    )
+
+def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys):
+    api_key = os.environ.pop("WANDB_API_KEY")
+    uname = os.environ.pop("WANDB_USERNAME")
+    test_settings.update({"anonymous": "must", "api_key": None})
+
+    run = wandb.init(settings=test_settings, anonymous="must")
+
+    os.environ["WANDB_USERNAME"] = uname
+    os.environ["WANDB_API_KEY"] = api_key
+
+    with pytest.raises(wandb.Error) as e:
+        artifact = wandb.Artifact("my-arti", type="dataset")
+        run.log_artifact(artifact)
+
+    assert (
+        e.value.message
+        == "Cannot log artifacts in anonymous mode. Please create an account to log artifacts."
+    )
