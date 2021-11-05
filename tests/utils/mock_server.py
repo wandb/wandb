@@ -81,6 +81,7 @@ def default_ctx():
         "launch_agent_update_fail": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
+        "invalid_launch_spec_project": False,
         "checkpoints": {},
     }
 
@@ -1171,6 +1172,22 @@ def create_app(user_ctx=None):
             if ctx["num_popped"] != 0:
                 return json.dumps({"data": {"popFromRunQueue": None}})
             ctx["num_popped"] += 1
+            if ctx["invalid_launch_spec_project"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "popFromRunQueue": {
+                                "runQueueItemId": 1,
+                                "runSpec": {
+                                    "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                    "project": "test_project2",
+                                    "entity": "mock_server_entity",
+                                    "resource": "local",
+                                },
+                            }
+                        }
+                    }
+                )
             return json.dumps(
                 {
                     "data": {

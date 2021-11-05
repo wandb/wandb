@@ -7,7 +7,7 @@ from multiprocessing import Process
 from _pytest.config import get_config  # type: ignore
 from wandb.proto import wandb_internal_pb2  # type: ignore
 
-from wandb.sdk.interface import interface
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 from .utils import get_mock_module
 
 
@@ -102,7 +102,7 @@ class BackendMock(object):
     def ensure_launched(self, *args, **kwargs):
         print("Fake Backend Launched")
         wandb_process = ProcessMock()
-        self.interface = interface.BackendSender(
+        self.interface = InterfaceQueue(
             process=wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
         self.interface._communicate = self._communicate

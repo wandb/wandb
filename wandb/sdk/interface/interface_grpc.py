@@ -6,7 +6,6 @@ Manage backend sender.
 """
 
 import logging
-import time
 from typing import Any, Optional
 from typing import TYPE_CHECKING
 
@@ -15,8 +14,9 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .interface import BackendSenderBase
+from .interface import InterfaceBase
 from .message_future import MessageFuture
+from .message_future_poll import MessageFuturePoll
 
 
 if TYPE_CHECKING:
@@ -26,54 +26,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-class MessageFuturePoll(MessageFuture):
-    _fn: Any
-    _xid: str
-
-    def __init__(self, fn: Any, xid: str) -> None:
-        super(MessageFuturePoll, self).__init__()
-        self._fn = fn
-        self._xid = xid
-
-    def get(self, timeout: int = None) -> Optional[pb.Result]:
-        self._poll(timeout=timeout)
-        if self._object_ready.is_set():
-            return self._object
-        return None
-
-    def _poll(self, timeout: int = None) -> None:
-        if self._object_ready.is_set():
-            return
-        done = False
-        start_time = time.time()
-        sleep_time = 0.5
-        while not done:
-            result = self._fn(xid=self._xid)
-            if result:
-                self._set_object(result)
-                done = True
-                continue
-            now_time = time.time()
-            if timeout and start_time - now_time > timeout:
-                done = True
-                continue
-            time.sleep(sleep_time)
-            sleep_time = min(sleep_time * 2, 5)
-
-
-class BackendGrpcSender(BackendSenderBase):
+class InterfaceGrpc(InterfaceBase):
 
     _stub: Optional[pbgrpc.InternalServiceStub]
     _stream_id: Optional[str]
 
     def __init__(self) -> None:
-        super(BackendGrpcSender, self).__init__()
+        super(InterfaceGrpc, self).__init__()
         self._stub = None
         self._process_check = None
         self._stream_id = None
 
     def _hack_set_run(self, run: "Run") -> None:
-        super(BackendGrpcSender, self)._hack_set_run(run)
+        super(InterfaceGrpc, self)._hack_set_run(run)
         assert run.id
         self._stream_id = run.id
 
@@ -316,4 +281,4 @@ class BackendGrpcSender(BackendSenderBase):
         _ = self._stub.Resume(resume)
 
     def join(self) -> None:
-        super(BackendGrpcSender, self).join()
+        super(InterfaceGrpc, self).join()

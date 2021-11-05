@@ -34,7 +34,7 @@ launch_requirements = [
 
 setup(
     name="wandb",
-    version="0.12.5.dev1",
+    version="0.12.7.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",

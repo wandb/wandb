@@ -32,7 +32,7 @@ from wandb.proto.wandb_internal_pb2 import Record, Result
 from . import meta, sample, stats
 from . import tb_watcher
 from .settings_static import SettingsStatic
-from ..interface.interface import BackendSender
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
 
 SummaryDict = Dict[str, Any]
@@ -62,7 +62,7 @@ class HandleManager(object):
     _stopped: Event
     _sender_q: "Queue[Record]"
     _writer_q: "Queue[Record]"
-    _interface: BackendSender
+    _interface: InterfaceQueue
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
     _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
@@ -81,7 +81,7 @@ class HandleManager(object):
         stopped: Event,
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
-        interface: BackendSender,
+        interface: InterfaceQueue,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
