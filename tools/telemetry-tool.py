@@ -39,6 +39,9 @@ def write_csv(record: str, fields: List[Any]):
         writer = csv.DictWriter(fp, fieldnames=[record, "key"], lineterminator="\n")
         writer.writeheader()
         for f in fields:
+            # lets skip private fields
+            if f.name.startswith("_"):
+                continue
             writer.writerow({record: f.name, "key": f.number})
 
 
