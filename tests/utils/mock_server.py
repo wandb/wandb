@@ -1850,12 +1850,6 @@ class ParseCTX(object):
         return history
 
     @property
-    def events(self):
-        fs_files = self.get_filestream_file_items()
-        events = fs_files.get("wandb-events.jsonl")
-        return events
-
-    @property
     def output(self):
         fs_files = self.get_filestream_file_items()
         output_items = fs_files.get("output.log", [])

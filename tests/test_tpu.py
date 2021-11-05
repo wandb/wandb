@@ -87,4 +87,6 @@ def test_tpu_instance():
     time.sleep(1)
     tpu_profiler.stop()
 
+    # For TPU local (i.e. TPU_VM), TF doesn't support monitoring. Hence to avoid reporting 0%,
+    # we return `None` instead for the utilization and filter out before sending to the backend
     assert tpu_profiler.get_tpu_utilization() is None
