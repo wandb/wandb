@@ -171,6 +171,7 @@ message RunPreemptingResult {
 
 message CheckpointRecord {
   string name = 1;
+  bool overwrite = 2;
   _RecordInfo _info = 200;
 }
 
@@ -187,8 +188,6 @@ message CheckpointResult {
   string config = 4;
   string summary_metrics = 5;
 }
-
-
 
 /*
  * SettingsRecord: wandb/sdk/wandb_settings/Settings

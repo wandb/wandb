@@ -19,6 +19,7 @@ import six
 from six.moves import queue
 
 from ..lib import file_stream_utils
+from . import internal_api
 
 
 logger = logging.getLogger(__name__)
@@ -154,13 +155,13 @@ class FileStreamApi(object):
 
     Finish = collections.namedtuple("Finish", ("exitcode",))
     Preempting = collections.namedtuple("Preempting", ())
-    LogCheckpoint = collections.namedtuple("LogCheckpoint", ("name",))
+    LogCheckpoint = collections.namedtuple("LogCheckpoint", ("name", "overwrite"))
     PushSuccess = collections.namedtuple("PushSuccess", ("artifact_id", "save_name"))
 
     HTTP_TIMEOUT = env.get_http_timeout(10)
     MAX_ITEMS_PER_PUSH = 10000
 
-    def __init__(self, api, run_id, start_time, settings=None):
+    def __init__(self, api: internal_api.Api, run_id, start_time, settings=None):
         if settings is None:
             settings = dict()
         # NOTE: exc_info is set in thread_except_body context and readable by calling threads
@@ -275,15 +276,17 @@ class FileStreamApi(object):
                         self._send(ready_chunks)
                         ready_chunks = []
 
-                    response = request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "log_checkpoint_name": item.name,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(uploaded),
-                        },
+                    # this needs to be done in a way that is synchronized with the rest of the filestream queue.
+                    # doing this inside of filestream ensures that all history / events /logs that were logged
+                    # before the call to log_checkpoint was made are propagated to the backend before the log
+                    # checkpoint request goes through,
+
+                    response = self._api.log_checkpoint(
+                        self._settings["entity"],
+                        self._settings["project"],
+                        self._run_id,
+                        item.name,
+                        item.overwrite,
                     )
 
                     if isinstance(response, requests.exceptions.HTTPError):
@@ -407,8 +410,8 @@ class FileStreamApi(object):
     def enqueue_preempting(self):
         self._queue.put(self.Preempting())
 
-    def log_checkpoint(self, name: str):
-        self._queue.put(self.LogCheckpoint(name))
+    def log_checkpoint(self, name: str, overwrite: bool):
+        self._queue.put(self.LogCheckpoint(name, overwrite))
         r: List[Any] = list()
         while len(r) == 0:
             r = util.read_many_from_queue(

@@ -750,9 +750,9 @@ class Api(object):
         """Overwrite run metadata on the backend with a checkpoint.
 
         Arguments:
-            entity (str): The entity to scope this project to.
-            project_name (str): The project to download, (can include bucket)
-            checkpoint (str): The name of the checkpoint to resume from
+            entity (str): The entity of the checkpoint's run
+            project_name (str): The project of the checkpoint's run
+            checkpoint_name (str): The name of the checkpoint to resume from
         """
 
         query_string = """
@@ -788,6 +788,49 @@ class Api(object):
             response["resumeFromCheckpoint"]["checkpoint"],
             response["resumeFromCheckpoint"]["task"]["id"],
         )
+
+    @normalize_exceptions
+    def log_checkpoint(
+        self, entity, project_name, run_name, checkpoint_name, overwrite=False
+    ):
+        """Log a run checkpoint to the backend.
+
+        Arguments:
+            entity (str): The entity of the checkpoint's run - if None, the user's default entity will be used.
+            project_name (str): The project of the checkpoint's run
+            run_name (str): The name of the run to checkpoint
+            checkpoint_name (str): The name of the checkpoint to resume from
+            overwrite (bool, default=False): If a checkpoint with this name already exists, whether to
+                overwrite it.
+        """
+
+        query_string = """
+        mutation LogCheckpoint($project: String!, $entity: String, $checkpoint: String!, $runName: String!, $overwrite: Boolean!) {
+            logCheckpoint(input: { projectName: $project, entityName: $entity, runName: $runName, name: $checkpoint, overwrite: $overwrite }) {
+                checkpoint {
+                    name
+                }
+            }
+        }
+        """
+
+        variable_values = {
+            "entity": entity,
+            "project": project_name,
+            "checkpoint": checkpoint_name,
+            "overwrite": overwrite,
+            "runName": run_name,
+        }
+        query = gql(query_string)
+        response = self.gql(query, variable_values=variable_values,)
+
+        if (
+            "logCheckpoint" not in response
+            or "checkpoint" not in response["logCheckpoint"]
+        ):
+            return None
+
+        return response["logCheckpoint"]["checkpoint"]
 
     @normalize_exceptions
     def check_task_progress(self, task_id: str) -> Tuple[bool, float]:

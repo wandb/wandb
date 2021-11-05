@@ -193,7 +193,7 @@ class SendManager(object):
     def send_checkpoint(self, record):
         self.debounce()  # flush config updates, if any, before logging checkpoint
         if self._fs:
-            self._fs.log_checkpoint(record.checkpoint.name)
+            self._fs.log_checkpoint(record.checkpoint.name, record.checkpoint.overwrite)
 
     def send_request(self, record):
         request_type = record.request.WhichOneof("request_type")

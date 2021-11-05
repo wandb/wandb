@@ -603,8 +603,8 @@ class BackendSenderBase(object):
     def _publish_checkpoint(self, checkpoint: pb.CheckpointRecord) -> None:
         raise NotImplementedError
 
-    def publish_checkpoint(self, name: str) -> None:
-        checkpoint_rec = pb.CheckpointRecord(name=name)
+    def publish_checkpoint(self, name: str, overwrite: bool) -> None:
+        checkpoint_rec = pb.CheckpointRecord(name=name, overwrite=overwrite)
         self._publish_checkpoint(checkpoint=checkpoint_rec)
 
 
