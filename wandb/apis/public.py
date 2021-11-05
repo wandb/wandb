@@ -171,6 +171,21 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
     }
 }"""
 
+SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
+    id
+    name
+    method
+    state
+    description
+    displayName
+    bestLoss
+    config
+    createdAt
+    updatedAt
+    runCount
+}
+"""
+
 
 class RetryingClient(object):
     def __init__(self, client):
@@ -1212,6 +1227,53 @@ class Project(Attrs):
     def artifacts_types(self, per_page=50):
         return ProjectArtifactTypes(self.client, self.entity, self.name)
 
+    @normalize_exceptions
+    def sweeps(self):
+        query = gql(
+            """
+            query GetSweeps($project: String!, $entity: String!) {
+                project(name: $project, entityName: $entity) {
+                    totalSweeps
+                    sweeps {
+                        edges {
+                            node {
+                                ...SweepFragment
+                            }
+                            cursor
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                    }
+                }
+            }
+            %s
+            """
+            % SWEEP_FRAGMENT
+        )
+        variable_values = {"project": self.name, "entity": self.entity}
+        ret = self.client.execute(query, variable_values)
+        if ret["project"]["totalSweeps"] < 1:
+            return []
+
+        return [
+            # match format of existing public sweep apis
+            Sweep(
+                self.client,
+                self.entity,
+                self.name,
+                e["node"]["name"],
+                attrs={
+                    "id": e["node"]["id"],
+                    "name": e["node"]["name"],
+                    "bestLoss": e["node"]["bestLoss"],
+                    "config": e["node"]["config"],
+                },
+            )
+            for e in ret["project"]["sweeps"]["edges"]
+        ]
+
 
 class Runs(Paginator):
     """An iterable collection of runs associated with a project and optional filter.
@@ -2096,6 +2158,10 @@ class Sweep(Attrs):
         path = self.path
         path.insert(2, "sweeps")
         return self.client.app_url + "/".join(path)
+
+    @property
+    def name(self):
+        return self.config.get("name") or self.id
 
     @classmethod
     def get(
