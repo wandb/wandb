@@ -1,0 +1,32 @@
+name: Runs darglint tox job
+on:
+  schedule:
+    - cron: '01 17 * * *'  # Each day at 01:17 UTC,
+jobs:
+  darglint:  # run our tox darglint job on files in the reference documentation.
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout client repo
+        uses: actions/checkout@v2
+        with:
+          repository: wandb/client
+          persist-credentials: false
+          path: client
+      - name: setup python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.7"
+      - name: setup tox
+        run: python -m pip install tox
+      - name: checkout doc repo
+        uses: actions/checkout@v2
+        with:
+          repository: wandb/gitbook
+          persist-credentials: false
+          path: gitbook
+          ref: en
+      - name: apply darglint to reference files
+        working-directory: client
+        run: |
+          # Find the "View source on" links | extract url path relative to client/tree | extract path to .py files | remove duplicates | pass to tox env
+          grep -r "View source on" ../gitbook/ref/python | grep -o "client/tree/.*" | grep -o "wandb/.*\.py" | sort | uniq | xargs tox -e darglint
