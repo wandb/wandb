@@ -343,6 +343,42 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         assert arti_info["used_name"] == "test/test/old_name:v0"
 
 
+def test_launch_code_artifact(
+    runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
+):
+    def download_func(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("testing")
+
+    run_with_artifacts = mock.MagicMock()
+    code_artifact = mock.MagicMock()
+    code_artifact.type = "code"
+    code_artifact.download = download_func
+
+    run_with_artifacts.logged_artifacts.return_value = [code_artifact]
+    monkeypatch.setattr(
+        wandb.PublicApi, "run", lambda *arg, **kwargs: run_with_artifacts
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
 def test_run_in_launch_context_with_artifact_string_used_as_config(
     runner, live_mock_server, test_settings
 ):
