@@ -363,6 +363,7 @@ class Run(object):
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
