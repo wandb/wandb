@@ -500,14 +500,10 @@ def test_log_checkpoint(live_mock_server, test_settings, log_history_first):
 
     for _ in range(5):
         ctx = live_mock_server.get_ctx()
-        fs = ctx.get("file_stream", [])
-        for rec in fs:
-            if (
-                "log_checkpoint_name" in rec
-                and rec["log_checkpoint_name"] == "checkpoint"
-            ):
-                return
-        time.sleep(1)
+        chkpts = ctx.get("checkpoints", {})
+        if len(chkpts) > 0:
+            return
+        time.sleep(1.0)
     assert False
 
 

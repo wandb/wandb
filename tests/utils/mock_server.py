@@ -828,6 +828,23 @@ def create_app(user_ctx=None):
                     }
                 }
             )
+        if "mutation LogCheckpoint(" in body["query"]:
+            name = body["variables"]["checkpoint"]
+            run_name = body["variables"]["runName"]
+            run_ctx = get_run_ctx(run_name)
+            run_ctx["checkpoint_logged"] = time.time()
+            run_ctx["config_logged_in_checkpoint"] = run_ctx.get("config", [{}])[
+                -1
+            ].copy()
+            if name in ctx["checkpoints"]:
+                raise HttpException(
+                    f"checkpoint with name {name} already exists", status_code=409
+                )
+            ctx["checkpoints"][name] = run_name
+            return json.dumps(
+                {"data": {"logCheckpoint": {"checkpoint": {"name": name}}}}
+            )
+
         if "mutation DeleteRun(" in body["query"]:
             return json.dumps({"data": {}})
         if "mutation CreateAnonymousApiKey " in body["query"]:
@@ -1703,22 +1720,9 @@ index 30d74d2..9a2c773 100644
     def file_stream(entity, project, run):
         ctx = get_ctx()
         run_ctx = get_run_ctx(run)
-        data = request.get_json()
         for c in ctx, run_ctx:
             c["file_stream"] = c.get("file_stream", [])
-            c["file_stream"].append(data)
-
-        if "log_checkpoint_name" in data:
-            run_ctx["checkpoint_logged"] = time.time()
-            run_ctx["config_logged_in_checkpoint"] = run_ctx.get("config", [{}])[
-                -1
-            ].copy()
-            cpname = data["log_checkpoint_name"]
-            if cpname in ctx["checkpoints"]:
-                raise HttpException(
-                    f"checkpoint with name {cpname} already exists", status_code=409
-                )
-            ctx["checkpoints"][cpname] = run
+            c["file_stream"].append(request.get_json())
 
         response = json.dumps({"exitcode": None, "limits": {}})
 

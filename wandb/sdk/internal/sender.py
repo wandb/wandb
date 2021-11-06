@@ -243,7 +243,7 @@ class SendManager(object):
         if self._fs:
             self._fs.enqueue_preempting()
 
-    def send_checkpoint(self, record: Record) -> None:
+    def send_checkpoint(self, record: "Record") -> None:
         self.debounce()  # flush config updates, if any, before logging checkpoint
         if self._fs:
             self._fs.log_checkpoint(record.checkpoint.name, record.checkpoint.overwrite)
