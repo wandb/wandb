@@ -219,6 +219,12 @@ class Run(object):
     _run_obj_offline: Optional[RunRecord]
     # Use string literal anotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
+    _internal_run_interface: Optional[
+        Union[
+            "wandb.sdk.interface.interface_queue.InterfaceQueue",
+            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
+        ]
+    ]
     _wl: Optional[_WandbSetup]
 
     _upgraded_version_message: Optional[str]
@@ -261,6 +267,7 @@ class Run(object):
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
         self._backend = None
+        self._internal_run_interface = None
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
@@ -358,6 +365,7 @@ class Run(object):
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -996,6 +1004,15 @@ class Run(object):
 
     def _set_backend(self, backend: "wandb.sdk.backend.backend.Backend") -> None:
         self._backend = backend
+
+    def _set_internal_run_interface(
+        self,
+        interface: Union[
+            "wandb.sdk.interface.interface_queue.InterfaceQueue",
+            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
+        ],
+    ) -> None:
+        self._internal_run_interface = interface
 
     def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
@@ -2518,6 +2535,15 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
+        elif self._internal_run_interface:
+            self._internal_run_interface.publish_artifact(
+                self,
+                artifact,
+                aliases,
+                finalize=finalize,
+                is_user_created=is_user_created,
+                use_after_commit=use_after_commit,
+            )
         return artifact
 
     def _public_api(self) -> PublicApi:
