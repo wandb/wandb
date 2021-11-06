@@ -523,12 +523,13 @@ class SendManager(object):
                 checkpoint_step = keys_info["lastStep"]
 
             # poll until the task for range deleting is complete
+            wandb.termlog(
+                f"Resuming run {run.run_id} from checkpoint {run.checkpoint}..."
+            )
             while True:
-                done, progress = self._api.check_task_progress(task_id=task_id)
-                wandb.termlog(
-                    f"Resuming run {run.run_id} from checkpoint {run.checkpoint}, progress: {progress}%"
-                )
+                done, _ = self._api.check_task_progress(task_id=task_id)
                 if done:
+                    wandb.termlog("Done.")
                     break
                 time.sleep(1.0)
 

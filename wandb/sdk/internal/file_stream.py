@@ -380,22 +380,25 @@ class FileStreamApi(object):
                     # before the call to log_checkpoint was made are propagated to the backend before the log
                     # checkpoint request goes through,
 
-                    response = self._api.log_checkpoint(
-                        self._settings["entity"],
-                        self._settings["project"],
-                        self._run_id,
-                        item.name,
-                        item.overwrite,
-                    )
+                    try:
+                        response = self._api.log_checkpoint(
+                            self._settings["entity"],
+                            self._settings["project"],
+                            self._run_id,
+                            item.name,
+                            item.overwrite,
+                        )
+                    except wandb.CommError as e:
+                        response = e
 
                     if isinstance(response, requests.exceptions.HTTPError):
                         if (
                             response.response is not None
                             and response.response.status_code == 409
                         ):
-                            wandb.termwarn(
+                            wandb.termerror(
                                 f'Log checkpoint failed: a checkpoint with the name "{item.name}" '
-                                f'already exists in project "{self._settings["project"]}".'
+                                f'already exists in project "{self._settings["project"]}". Continuing...'
                             )
                     else:
                         uploaded = set()

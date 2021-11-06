@@ -178,6 +178,7 @@ class InterfaceQueue(InterfaceBase):
         request: pb.Request = None,
         telemetry: tpb.TelemetryRecord = None,
         preempting: pb.RunPreemptingRecord = None,
+        checkpoint: pb.CheckpointRecord = None,
     ) -> pb.Record:
         record = pb.Record()
         if run:
@@ -214,6 +215,8 @@ class InterfaceQueue(InterfaceBase):
             record.metric.CopyFrom(metric)
         elif preempting:
             record.preempting.CopyFrom(preempting)
+        elif checkpoint:
+            record.checkpoint.CopyFrom(checkpoint)
         else:
             raise Exception("Invalid record")
         return record
@@ -294,6 +297,10 @@ class InterfaceQueue(InterfaceBase):
 
     def _publish_config(self, cfg: pb.ConfigRecord) -> None:
         rec = self._make_record(config=cfg)
+        self._publish(rec)
+
+    def _publish_checkpoint(self, checkpoint: pb.CheckpointRecord) -> None:
+        rec = self._make_record(checkpoint=checkpoint)
         self._publish(rec)
 
     def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
