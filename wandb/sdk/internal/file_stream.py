@@ -272,7 +272,7 @@ class FileStreamApi(object):
         self._start_time = start_time
         self._client = requests.Session()
         self._client.auth = ("api", api.api_key)
-        self._client.timeout = self.HTTP_TIMEOUT
+        self._client.timeout = self.HTTP_TIMEOUT  # type: ignore
         self._client.headers.update(
             {
                 "User-Agent": api.user_agent,
@@ -280,10 +280,10 @@ class FileStreamApi(object):
                 "X-WANDB-USER-EMAIL": env.get_user_email(),
             }
         )
-        self._file_policies = {}
+        self._file_policies: Dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks = 0
-        self._queue = queue.Queue()
-        self._log_checkpoint_result_q = queue.Queue()
+        self._queue: queue.Queue = queue.Queue()
+        self._log_checkpoint_result_q: queue.Queue = queue.Queue()
         self._thread = threading.Thread(target=self._thread_except_body)
         # It seems we need to make this a daemon thread to get sync.py's atexit handler to run, which
         # cleans this thread up.
