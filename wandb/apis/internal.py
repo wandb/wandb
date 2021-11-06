@@ -158,5 +158,14 @@ class Api(object):
     def launch_agent_introspection(self, *args, **kwargs):
         return self.api.launch_agent_introspection(*args, **kwargs)
 
+    def log_checkpoint(self, *args, **kwargs):
+        return self.api.log_checkpoint(*args, **kwargs)
+
+    def resume_from_checkpoint(self, *args, **kwargs):
+        return self.api.resume_from_checkpoint(*args, **kwargs)
+
+    def check_task_progress(self, *args, **kwargs):
+        return self.api.check_task_progress(*args, **kwargs)
+
 
 __all__ = ["Api"]
