@@ -4,16 +4,14 @@ Router to manage responses from a queue.
 
 """
 
-from six.moves import queue
-import socket
-import time
+from typing import Optional
 from typing import TYPE_CHECKING
 
 from .router import MessageRouter
 from ..lib.sock_client import SockClient
 
 if TYPE_CHECKING:
-    from six.moves.queue import Queue
+    from wandb.proto import wandb_internal_pb2 as pb
 
 
 class MessageSockRouter(MessageRouter):

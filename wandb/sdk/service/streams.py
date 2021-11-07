@@ -8,28 +8,18 @@
 
 """
 
-from concurrent import futures
-import logging
 import multiprocessing
-import os
-import socket
-import sys
+import queue
 import threading
 from threading import Event
 import time
 from typing import Any, Callable, Dict, List, Optional, Union
 from typing import TYPE_CHECKING
 
-import grpc
-from six.moves import queue
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
-from wandb.proto import wandb_server_pb2_grpc as spb_grpc
-from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from . import port_file
-from .. import lib as wandb_lib
 from ..interface.interface_relay import InterfaceRelay
 
 

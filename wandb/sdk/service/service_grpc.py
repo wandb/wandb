@@ -3,23 +3,19 @@
 Reliably launch and connect to grpc process.
 """
 
-from abc import abstractmethod
 import logging
-import os
-import subprocess
-import sys
-import tempfile
-import time
-from typing import Any, Dict, Optional
+from typing import Optional
 from typing import TYPE_CHECKING
 
 import grpc
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
-from wandb.sdk.wandb_settings import Settings
 
-from .service_base import ServiceInterface
 from .service_base import _pbmap_apply_dict
+from .service_base import ServiceInterface
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_settings import Settings
 
 
 class ServiceGrpcInterface(ServiceInterface):
@@ -38,7 +34,7 @@ class ServiceGrpcInterface(ServiceInterface):
     def _svc_get_stub(self) -> Optional[pbgrpc.InternalServiceStub]:
         return self._stub
 
-    def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
+    def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
         settings_dict = dict(settings)
         settings_dict["_log_level"] = logging.DEBUG

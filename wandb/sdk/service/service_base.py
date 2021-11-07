@@ -6,7 +6,7 @@ Reliably launch and connect to grpc process.
 from abc import abstractmethod
 import datetime
 import enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb

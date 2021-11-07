@@ -3,24 +3,17 @@
 Reliably launch and connect to grpc process.
 """
 
-from abc import abstractmethod
 import logging
-import os
-import subprocess
-import sys
-import tempfile
-import time
-from typing import Any, Dict, Optional
 from typing import TYPE_CHECKING
 
-import grpc
 from wandb.proto import wandb_server_pb2 as spb
-from wandb.proto import wandb_server_pb2_grpc as pbgrpc
-from wandb.sdk.wandb_settings import Settings
 
-from ..lib.sock_client import SockClient
-from .service_base import ServiceInterface
 from .service_base import _pbmap_apply_dict
+from .service_base import ServiceInterface
+from ..lib.sock_client import SockClient
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_settings import Settings
 
 
 class ServiceSockInterface(ServiceInterface):
@@ -37,7 +30,7 @@ class ServiceSockInterface(ServiceInterface):
         print("sc1 port", port)
         self._sock_client.connect(port=port)
 
-    def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
+    def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
         settings_dict = dict(settings)
         settings_dict["_log_level"] = logging.DEBUG
@@ -58,7 +51,7 @@ class ServiceSockInterface(ServiceInterface):
     def _svc_inform_attach(self, attach_id: str) -> None:
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
-        # FIXME: implement
+        # TODO: implement
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)

@@ -9,7 +9,6 @@ import logging
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional
 from typing import cast
-from typing import TYPE_CHECKING
 
 import six
 import wandb
@@ -24,9 +23,6 @@ from . import summary_record as sr
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter
-
-if TYPE_CHECKING:
-    from six.moves.queue import Queue
 
 
 logger = logging.getLogger("wandb")

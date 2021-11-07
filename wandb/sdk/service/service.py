@@ -3,25 +3,18 @@
 Reliably launch and connect to grpc process.
 """
 
-from abc import abstractmethod
-import logging
 import os
 import subprocess
 import sys
 import tempfile
 import time
 from typing import Any, Dict, Optional
-from typing import TYPE_CHECKING
-
-import grpc
-from wandb.proto import wandb_server_pb2 as spb
-from wandb.proto import wandb_server_pb2_grpc as pbgrpc
-from wandb.sdk.wandb_settings import Settings
 
 from . import port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
-from .service_grpc import ServiceGrpcInterface
+
+# from .service_grpc import ServiceGrpcInterface
 
 
 class _Service:
@@ -39,7 +32,6 @@ class _Service:
 
     def _wait_for_ports(self, fname: str, proc: subprocess.Popen = None) -> bool:
         time_max = time.time() + 30
-        port = None
         while time.time() < time_max:
             if proc and proc.poll():
                 # process finished

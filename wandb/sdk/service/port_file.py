@@ -45,11 +45,11 @@ class PortFile:
             lines = f.readlines()
             if lines[-1] != self.EOF_TOKEN:
                 return
-            for l in lines:
-                if l.startswith(self.GRPC_TOKEN):
-                    self._grpc_port = int(l[len(self.GRPC_TOKEN) :])
-                elif l.startswith(self.SOCK_TOKEN):
-                    self._sock_port = int(l[len(self.SOCK_TOKEN) :])
+            for ln in lines:
+                if ln.startswith(self.GRPC_TOKEN):
+                    self._grpc_port = int(ln[len(self.GRPC_TOKEN) :])
+                elif ln.startswith(self.SOCK_TOKEN):
+                    self._sock_port = int(ln[len(self.SOCK_TOKEN) :])
             self._valid = True
 
     @property

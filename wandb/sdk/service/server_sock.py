@@ -1,15 +1,18 @@
+import queue
 import socket
-import struct
 import threading
-import time
-from typing import Any
-from six.moves import queue
+from typing import Any, Callable
+from typing import TYPE_CHECKING
 
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 
+from .streams import _dict_from_pbmap
+from .streams import StreamMux
 from ..lib.sock_client import SockClient
-from .streams import StreamMux, _dict_from_pbmap
+
+
+if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
 
 
 class SockServerInterfaceReaderThread(threading.Thread):
@@ -48,7 +51,7 @@ class SockServerReadThread(threading.Thread):
             sreq_type = sreq.WhichOneof("server_request_type")
             print(f"SERVER read: {sreq_type}")
             shandler_str = "server_" + sreq_type
-            shandler: Callable[[Record], None] = getattr(self, shandler_str, None)
+            shandler: "Callable[[pb.Record], None]" = getattr(self, shandler_str, None)
             assert shandler, "unknown handle: {}".format(shandler_str)
             shandler(sreq)
 
@@ -72,12 +75,6 @@ class SockServerReadThread(threading.Thread):
         stream_id = record._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
         iface.record_q.put(record)
-        # print("GOT res", result)
-        # assert result  # TODO: handle errors
-        # FIXME: pack this int ServerResponse
-        # sresp = spb.ServerResponse()
-        # sresp.result_communicate.CopyFrom(result)
-        # return sresp
 
     def server_record_publish(self, sreq):
         record = sreq.record_publish

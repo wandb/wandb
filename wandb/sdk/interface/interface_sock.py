@@ -5,24 +5,18 @@ See interface.py for how interface classes relate to each other.
 """
 
 import logging
-import socket
 from typing import Any, Optional
 from typing import TYPE_CHECKING
 
-import grpc
-from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_server_pb2_grpc as pbgrpc
-from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .interface import InterfaceBase
 from .interface_shared import InterfaceShared
 from .message_future import MessageFuture
-from .message_future_poll import MessageFuturePoll
 from .router_sock import MessageSockRouter
 from ..lib.sock_client import SockClient
 
 
 if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
     from ..wandb_run import Run
 
 
@@ -51,11 +45,11 @@ class InterfaceSock(InterfaceShared):
         assert self._stream_id
         record._info.stream_id = self._stream_id
 
-    def _publish(self, record: pb.Record, local: bool = None) -> None:
+    def _publish(self, record: "pb.Record", local: bool = None) -> None:
         self._assign(record)
         self._sock_client.send_record_publish(record)
 
-    def _communicate_async(self, rec: pb.Record, local: bool = None) -> MessageFuture:
+    def _communicate_async(self, rec: "pb.Record", local: bool = None) -> MessageFuture:
         self._assign(rec)
         rec.control.relay = True
         assert self._router

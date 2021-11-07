@@ -5,12 +5,12 @@ Router to manage responses from a queue with relay.
 """
 
 from typing import TYPE_CHECKING
-from six.moves import queue
 
 from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:
-    from six.moves.queue import Queue
+    from queue import Queue
+    from wandb.proto import wandb_internal_pb2 as pb
 
 
 class MessageRelayRouter(MessageQueueRouter):

@@ -6,22 +6,12 @@ See interface.py for how interface classes relate to each other.
 
 import logging
 from multiprocessing.process import BaseProcess
-from typing import Any, Optional
-from typing import cast
+from typing import Optional
 from typing import TYPE_CHECKING
 
-import six
-import wandb
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.util import (
-    json_dumps_safer,
-    json_friendly,
-)
 
-from . import summary_record as sr
 from .interface_queue import InterfaceQueue
-from .message_future import MessageFuture
 from .router_relay import MessageRelayRouter
 
 if TYPE_CHECKING:

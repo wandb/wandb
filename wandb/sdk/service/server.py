@@ -10,18 +10,11 @@
 
 from concurrent import futures
 import logging
-import multiprocessing
-import os
-import socket
 import sys
-import threading
-from threading import Event
-import time
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Optional
 from typing import TYPE_CHECKING
 
 import grpc
-from six.moves import queue
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
@@ -30,13 +23,12 @@ from wandb.proto import wandb_telemetry_pb2 as tpb
 
 from . import port_file
 from .server_sock import SocketServer
+from .streams import _dict_from_pbmap
+from .streams import StreamMux
 from .. import lib as wandb_lib
-from ..interface.interface_queue import InterfaceQueue
-from .streams import StreamMux, _dict_from_pbmap
 
 
 if TYPE_CHECKING:
-    from google.protobuf.internal.containers import MessageMap
 
     class GrpcServerType(object):
         def __init__(self) -> None:
@@ -413,7 +405,7 @@ class WandbServer:
     def _start_sock(self, mux: StreamMux) -> int:
         address: str = self._address or "127.0.0.1"
         port: int = self._sock_port or 0
-        pid: int = self._pid or 0
+        # pid: int = self._pid or 0
         sock_server = SocketServer(mux=mux, address=address, port=port)
         try:
             sock_server.start()

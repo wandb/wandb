@@ -4,13 +4,15 @@ Router to manage responses from a queue.
 
 """
 
+import queue
+from typing import Optional
 from typing import TYPE_CHECKING
-from six.moves import queue
 
 from .router import MessageRouter
 
 if TYPE_CHECKING:
-    from six.moves.queue import Queue
+    from queue import Queue
+    from wandb.proto import wandb_internal_pb2 as pb
 
 
 class MessageQueueRouter(MessageRouter):

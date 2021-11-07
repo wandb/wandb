@@ -6,26 +6,15 @@ See interface.py for how interface classes relate to each other.
 
 import logging
 from multiprocessing.process import BaseProcess
-from typing import Any, Optional
-from typing import cast
+from typing import Optional
 from typing import TYPE_CHECKING
 
-import six
-import wandb
-from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_telemetry_pb2 as tpb
-from wandb.util import (
-    json_dumps_safer,
-    json_friendly,
-)
-
-from . import summary_record as sr
 from .interface_shared import InterfaceShared
-from .message_future import MessageFuture
 from .router_queue import MessageQueueRouter
 
 if TYPE_CHECKING:
-    from six.moves.queue import Queue
+    from queue import Queue
+    from wandb.proto import wandb_internal_pb2 as pb
 
 
 logger = logging.getLogger("wandb")
@@ -52,7 +41,7 @@ class InterfaceQueue(InterfaceShared):
         if self.record_q and self.result_q:
             self._router = MessageQueueRouter(self.record_q, self.result_q)
 
-    def _publish(self, record: pb.Record, local: bool = None) -> None:
+    def _publish(self, record: "pb.Record", local: bool = None) -> None:
         if self._process_check and self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")
         if local:
