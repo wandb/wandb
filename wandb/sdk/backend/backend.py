@@ -146,7 +146,7 @@ class Backend(object):
 
         if service.use_socket:
             print("use socket")
-            sock_client = service._sock_client
+            sock_client = service.service_interface._get_sock_client()
             sock_interface = InterfaceSock(sock_client)
             self.interface = sock_interface
             return

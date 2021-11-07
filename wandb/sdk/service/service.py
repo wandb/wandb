@@ -3,8 +3,7 @@
 Reliably launch and connect to grpc process.
 """
 
-import datetime
-import enum
+from abc import abstractmethod
 import logging
 import os
 import subprocess
@@ -19,49 +18,24 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as pbgrpc
 from wandb.sdk.wandb_settings import Settings
 
-from ..lib.sock_client import SockClient
 from . import port_file
-
-if TYPE_CHECKING:
-    from google.protobuf.internal.containers import MessageMap
-
-
-def _pbmap_apply_dict(
-    m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
-) -> None:
-    for k, v in d.items():
-        if isinstance(v, datetime.datetime):
-            continue
-        if isinstance(v, enum.Enum):
-            continue
-        sv = spb.SettingsValue()
-        if v is None:
-            sv.null_value = True
-        elif isinstance(v, int):
-            sv.int_value = v
-        elif isinstance(v, float):
-            sv.float_value = v
-        elif isinstance(v, str):
-            sv.string_value = v
-        elif isinstance(v, bool):
-            sv.bool_value = v
-        elif isinstance(v, tuple):
-            sv.tuple_value.string_values.extend(v)
-        m[k].CopyFrom(sv)
+from .service_base import ServiceInterface
+from .service_sock import ServiceSockInterface
+from .service_grpc import ServiceGrpcInterface
 
 
 class _Service:
-    _stub: Optional[pbgrpc.InternalServiceStub]
     _use_socket: bool
-    _sock_client: Optional[SockClient]
     _grpc_port: Optional[int]
     _sock_port: Optional[int]
+    _service_interface: ServiceInterface
 
     def __init__(self) -> None:
         self._stub = None
         self._use_socket = False
         self._grpc_port = None
         self._sock_port = None
+        self._service_interface = ServiceSockInterface()
 
     def _wait_for_ports(self, fname: str, proc: subprocess.Popen = None) -> bool:
         time_max = time.time() + 30
@@ -138,63 +112,6 @@ class _Service:
     def sock_port(self) -> Optional[int]:
         return self._sock_port
 
-    def connect(self, port: int) -> None:
-        if self._use_socket:
-            print("sc1 port", port)
-            self._sock_client = SockClient()
-            self._sock_client.connect(port=port)
-            return
-        print("sc1")
-        channel = grpc.insecure_channel("localhost:{}".format(port))
-        stub = pbgrpc.InternalServiceStub(channel)
-        self._stub = stub
-        # TODO: make sure service is up
-
-    def _get_stub(self) -> Optional[pbgrpc.InternalServiceStub]:
-        return self._stub
-
-    def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
-        inform_init = spb.ServerInformInitRequest()
-        settings_dict = dict(settings)
-        settings_dict["_log_level"] = logging.DEBUG
-        _pbmap_apply_dict(inform_init._settings_map, settings_dict)
-        inform_init._info.stream_id = run_id
-
-        if self._use_socket:
-            assert self._sock_client
-            self._sock_client.send(inform_init=inform_init)
-            return
-
-        assert self._stub
-        _ = self._stub.ServerInformInit(inform_init)
-
-    def _svc_inform_finish(self, run_id: str = None) -> None:
-        assert run_id
-        inform_fin = spb.ServerInformFinishRequest()
-        inform_fin._info.stream_id = run_id
-
-        if self._use_socket:
-            assert self._sock_client
-            self._sock_client.send(inform_finish=inform_fin)
-            return
-
-        assert self._stub
-        _ = self._stub.ServerInformFinish(inform_fin)
-
-    def _svc_inform_attach(self, attach_id: str) -> None:
-        assert self._stub
-
-        inform_attach = spb.ServerInformAttachRequest()
-        inform_attach._info.stream_id = attach_id
-        _ = self._stub.ServerInformAttach(inform_attach)
-
-    def _svc_inform_teardown(self, exit_code: int) -> None:
-        inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)
-
-        if self._use_socket:
-            assert self._sock_client
-            self._sock_client.send(inform_teardown=inform_teardown)
-            return
-
-        assert self._stub
-        _ = self._stub.ServerInformTeardown(inform_teardown)
+    @property
+    def service_interface(self) -> ServiceInterface:
+        return self._service_interface

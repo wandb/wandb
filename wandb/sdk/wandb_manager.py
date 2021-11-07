@@ -13,6 +13,7 @@ from wandb.sdk.lib.exit_hooks import ExitHooks
 
 if TYPE_CHECKING:
     from wandb.sdk.service import service
+    from wandb.sdk.service.service_base import ServiceInterface
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -85,7 +86,8 @@ class _Manager:
             self._setup_service()
 
         port = self._token.port
-        self._service.connect(port=port)
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_connect(port=port)
 
     def _setup_service(self) -> None:
         self._service.start()
@@ -115,22 +117,24 @@ class _Manager:
     def _get_service(self) -> "service._Service":
         return self._service
 
+    def _get_service_interface(self) -> "ServiceInterface":
+        assert self._service
+        svc_iface = self._service.service_interface
+        assert svc_iface
+        return svc_iface
+
     def _inform_init(self, settings: "Settings", run_id: str) -> None:
-        svc = self._service
-        assert svc
-        svc._svc_inform_init(settings=settings, run_id=run_id)
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_init(settings=settings, run_id=run_id)
 
     def _inform_attach(self, attach_id: str) -> None:
-        svc = self._service
-        assert svc
-        svc._svc_inform_attach(attach_id=attach_id)
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_attach(attach_id=attach_id)
 
     def _inform_finish(self, run_id: str = None) -> None:
-        svc = self._service
-        assert svc
-        svc._svc_inform_finish(run_id=run_id)
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_finish(run_id=run_id)
 
     def _inform_teardown(self, exit_code: int) -> None:
-        svc = self._service
-        assert svc
-        svc._svc_inform_teardown(exit_code)
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_teardown(exit_code)
