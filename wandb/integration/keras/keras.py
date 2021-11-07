@@ -20,8 +20,26 @@ from pkg_resources import parse_version
 import wandb
 from wandb.util import add_import_hook
 
-
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+
+import tensorflow as tf
+import tensorflow.keras.backend as K
+
+
+def _check_keras_version():
+    from keras import __version__ as keras_version
+
+    if parse_version(keras_version) < parse_version("2.4.0"):
+        wandb.termwarn(
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
+        )
+
+
+if "keras" in sys.modules:
+    _check_keras_version()
+else:
+    add_import_hook("keras", _check_keras_version)
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +58,7 @@ def is_dataset(data):
 def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
-    types = (keras.utils.Sequence,)
+    types = (tf.keras.utils.Sequence,)
     iterator_ops = wandb.util.get_module("tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
@@ -168,24 +186,6 @@ def patch_tf_keras():
         wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
-def _check_keras_version():
-    from keras import __version__ as keras_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
-        wandb.termwarn(
-            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
-        )
-
-
-if "keras" in sys.modules:
-    _check_keras_version()
-else:
-    add_import_hook("keras", _check_keras_version)
-
-import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
-
 tf_logger = tf.get_logger()
 
 patch_tf_keras()
@@ -229,7 +229,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
 ###
 
 
-class WandbCallback(keras.callbacks.Callback):
+class WandbCallback(tf.keras.callbacks.Callback):
     """`WandbCallback` automatically integrates keras with wandb.
 
     Example:

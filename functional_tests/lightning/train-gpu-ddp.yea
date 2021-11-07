@@ -1,10 +1,11 @@
-id: 0.lightning.ddp
+id: 0.lightning.ddp.gpu
 plugin:
   - wandb
 tag:
   shard: service
+  skip: True
 command:
-  program: train-ddp.py
+  program: train-gpu-ddp.py
 depend:
   requirements:
     - torch
