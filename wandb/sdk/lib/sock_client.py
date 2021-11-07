@@ -1,8 +1,13 @@
 import socket
 import struct
 from typing import Any, Optional
+from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
+
+
+if TYPE_CHECKING:
+    from wandb.proto import wandb_internal_pb2 as pb
 
 
 class SockClient:
@@ -50,12 +55,12 @@ class SockClient:
             raise Exception("unmatched")
         self.send_server_request(server_req)
 
-    def send_record_communicate(self, record):
+    def send_record_communicate(self, record: "pb.Record") -> None:
         server_req = spb.ServerRequest()
         server_req.record_communicate.CopyFrom(record)
         self.send_server_request(server_req)
 
-    def send_record_publish(self, record):
+    def send_record_publish(self, record: "pb.Record") -> None:
         server_req = spb.ServerRequest()
         server_req.record_publish.CopyFrom(record)
         self.send_server_request(server_req)
