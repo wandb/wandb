@@ -38,7 +38,10 @@ X = np.random.uniform(size=(100, 10))
 # binary classification problem
 y = np.round(np.random.uniform(size=100)).astype(int)
 
-# Train model, get predictions
+# Train model, log feature importances.
 model = LogisticRegression()
 model.fit(X, y)
+
+# before the fix in wb-6697 this should have produced a warning and
+# caused the feature importances not to be logged
 wandb.sklearn.plot_feature_importances(model)
