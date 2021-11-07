@@ -14,6 +14,7 @@ import sys
 import threading
 from typing import Any, Callable, Dict, Optional
 from typing import TYPE_CHECKING
+from typing import cast
 
 import wandb
 
@@ -27,6 +28,8 @@ from ..wandb_settings import Settings
 if TYPE_CHECKING:
     from ..wandb_run import Run
     from wandb.proto.wandb_internal_pb2 import Record, Result
+    from ..service.service_grpc import ServiceGrpcInterface
+    from ..service.service_sock import ServiceSockInterface
 
 logger = logging.getLogger("wandb")
 
@@ -141,21 +144,24 @@ class Backend(object):
         #     grpc_port = int(attach_id)
 
         assert self._manager
-        service = self._manager._get_service()
-        assert service
+        svc = self._manager._get_service()
+        assert svc
+        svc_iface = svc.service_interface
 
-        if service.use_socket:
-            print("use socket")
-            sock_client = service.service_interface._get_sock_client()
+        svc_method = svc_iface.get_method()
+        if svc_method == "sock":
+            svc_iface_sock = cast("ServiceSockInterface", svc_iface)
+            sock_client = svc_iface_sock._get_sock_client()
             sock_interface = InterfaceSock(sock_client)
             self.interface = sock_interface
-            return
-
-        stub = service._get_stub()
-        assert stub
-        grpc_interface = InterfaceGrpc()
-        grpc_interface._connect(stub=stub)
-        self.interface = grpc_interface
+        elif svc_method == "grpc":
+            svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
+            stub = svc_iface_grpc._get_stub()
+            grpc_interface = InterfaceGrpc()
+            grpc_interface._connect(stub=stub)
+            self.interface = grpc_interface
+        else:
+            raise AssertionError(f"Unsupported service method: {svc_method}")
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""

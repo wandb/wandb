@@ -30,7 +30,7 @@ class InterfaceSock(InterfaceShared):
     def __init__(self, sock_client: SockClient) -> None:
         self._sock_client = sock_client
         super(InterfaceSock, self).__init__()
-        self._process_check = None
+        self._process_check = False
         self._stream_id = None
 
     def _init_router(self) -> None:

@@ -18,14 +18,12 @@ from .service_sock import ServiceSockInterface
 
 
 class _Service:
-    _use_socket: bool
     _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
 
     def __init__(self) -> None:
         self._stub = None
-        self._use_socket = False
         self._grpc_port = None
         self._sock_port = None
         self._service_interface = ServiceSockInterface()
@@ -89,12 +87,7 @@ class _Service:
             self._wait_for_ports(fname, proc=internal_proc)
 
     def start(self) -> None:
-        self._use_socket = True
         self._launch_server()
-
-    @property
-    def use_socket(self):
-        return self._use_socket
 
     @property
     def grpc_port(self) -> Optional[int]:

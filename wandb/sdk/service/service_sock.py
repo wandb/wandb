@@ -22,6 +22,9 @@ class ServiceSockInterface(ServiceInterface):
     def __init__(self) -> None:
         self._sock_client = SockClient()
 
+    def get_method(self) -> str:
+        return "sock"
+
     def _get_sock_client(self) -> SockClient:
         # TODO: remove this
         return self._sock_client

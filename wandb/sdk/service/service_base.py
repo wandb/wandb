@@ -45,6 +45,10 @@ class ServiceInterface:
         pass
 
     @abstractmethod
+    def get_method(self) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
     def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
         raise NotImplementedError
 
@@ -61,5 +65,5 @@ class ServiceInterface:
         raise NotImplementedError
 
     @abstractmethod
-    def connect(self, port: int) -> None:
+    def _svc_connect(self, port: int) -> None:
         raise NotImplementedError

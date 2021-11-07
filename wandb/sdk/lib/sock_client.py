@@ -96,6 +96,7 @@ class SockClient:
 
     def read_server_request(self) -> spb.ServerRequest:
         data = self._read_packet_bytes()
+        assert data
         rec = spb.ServerRequest()
         rec.ParseFromString(data)
         return rec
