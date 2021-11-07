@@ -13,8 +13,8 @@ import os
 import sys
 import threading
 from typing import Any, Callable, Dict, Optional
-from typing import TYPE_CHECKING
 from typing import cast
+from typing import TYPE_CHECKING
 
 import wandb
 

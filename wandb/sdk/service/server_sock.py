@@ -12,16 +12,19 @@ from ..lib.sock_client import SockClient
 
 
 if TYPE_CHECKING:
-    from wandb.proto import wandb_internal_pb2 as pb
+    from ..interface.interface_relay import InterfaceRelay
 
 
 class SockServerInterfaceReaderThread(threading.Thread):
-    def __init__(self, sock_client: socket.socket, iface: Any) -> None:
+    _socket_client: SockClient
+
+    def __init__(self, sock_client: SockClient, iface: "InterfaceRelay") -> None:
         self._iface = iface
         self._sock_client = sock_client
         threading.Thread.__init__(self)
 
-    def run(self):
+    def run(self) -> None:
+        assert self._iface.relay_q
         while True:
             try:
                 result = self._iface.relay_q.get(timeout=1)
@@ -43,7 +46,7 @@ class SockServerReadThread(threading.Thread):
         self._sock_client = sock_client
         self._mux = mux
 
-    def run(self):
+    def run(self) -> None:
         while True:
             sreq = self._sock_client.read_server_request()
             if not sreq:
@@ -51,13 +54,15 @@ class SockServerReadThread(threading.Thread):
             sreq_type = sreq.WhichOneof("server_request_type")
             print(f"SERVER read: {sreq_type}")
             shandler_str = "server_" + sreq_type
-            shandler: "Callable[[pb.Record], None]" = getattr(self, shandler_str, None)
+            shandler: "Callable[[spb.ServerRequest], None]" = getattr(
+                self, shandler_str, None
+            )
             assert shandler, "unknown handle: {}".format(shandler_str)
             shandler(sreq)
 
         print("done read")
 
-    def server_inform_init(self, sreq):
+    def server_inform_init(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_init
         stream_id = request._info.stream_id
         settings = _dict_from_pbmap(request._settings_map)
@@ -69,27 +74,29 @@ class SockServerReadThread(threading.Thread):
         )
         iface_reader_thread.start()
 
-    def server_record_communicate(self, sreq):
+    def server_record_communicate(self, sreq: "spb.ServerRequest") -> None:
         record = sreq.record_communicate
         # print("GOT rec", record)
         stream_id = record._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
+        assert iface.record_q
         iface.record_q.put(record)
 
-    def server_record_publish(self, sreq):
+    def server_record_publish(self, sreq: "spb.ServerRequest") -> None:
         record = sreq.record_publish
         # print("GOT rec", record)
         stream_id = record._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
+        assert iface.record_q
         iface.record_q.put(record)
 
-    def server_inform_finish(self, sreq):
+    def server_inform_finish(self, sreq: "spb.ServerRequest") -> None:
         print("INF FIN")
         request = sreq.inform_finish
         stream_id = request._info.stream_id
         self._mux.del_stream(stream_id)
 
-    def server_inform_teardown(self, sreq):
+    def server_inform_teardown(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_teardown
         exit_code = request.exit_code
         self._mux.teardown(exit_code)
@@ -104,7 +111,7 @@ class SockAcceptThread(threading.Thread):
         self._sock = sock
         self._mux = mux
 
-    def run(self):
+    def run(self) -> None:
         self._sock.listen(5)
         conn, addr = self._sock.accept()
         print("GOT", type(conn))
