@@ -999,4 +999,4 @@ def test_cli_login_reprompts_when_no_key_specified(
         debug_result(result, "login")
         with open("netrc", "r") as f:
             print(f.read())
-        assert "ERROR No API key specified. Please specify an API key" in result.output
+        assert "ERROR No API key specified." in result.output
