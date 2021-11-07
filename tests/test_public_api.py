@@ -123,6 +123,18 @@ def test_to_html(mock_server, api):
     assert "<button" in report_html
 
 
+def test_project_sweeps(mock_server, api):
+    project = api.from_path("test")
+    psweeps = project.sweeps()
+    assert len(psweeps) == 1
+    assert psweeps[0].id == "testid"
+    assert psweeps[0].name == "testname"
+
+    no_sweeps_project = api.from_path("testnosweeps")
+    nspsweeps = no_sweeps_project.sweeps()
+    assert len(nspsweeps) == 0
+
+
 def test_display(mock_server, api):
     run = api.from_path("test/test/test")
     assert not run.display()
