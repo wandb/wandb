@@ -1351,7 +1351,9 @@ class Run(object):
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
 
+        print("FIN1")
         self._atexit_cleanup(exit_code=exit_code)
+        print("FIN2")
         if self._wl and len(self._wl._global_run_stack) > 0:
             self._wl._global_run_stack.pop()
         # detach logger / others meant to be run after we've shutdown the backend
@@ -1360,11 +1362,13 @@ class Run(object):
                 hook.call()
         self._teardown_hooks = []
         module.unset_globals()
+        print("FIN3")
 
         # inform manager this run is finished
         manager = self._wl and self._wl._get_manager()
         if manager:
             manager._inform_finish(run_id=self.id)
+        print("FIN4")
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
@@ -1653,6 +1657,7 @@ class Run(object):
         logger.info("restore done")
 
     def _atexit_cleanup(self, exit_code: int = None) -> None:
+        print("CLEAN1")
         if self._backend is None:
             logger.warning("process exited without backend configured")
             return
@@ -1669,7 +1674,9 @@ class Run(object):
 
         self._exit_code = exit_code
         try:
+            print("CLEAN2")
             self._on_finish()
+            print("CLEAN3")
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
@@ -1685,6 +1692,7 @@ class Run(object):
             if ipython._get_python_type() == "python":
                 os._exit(-1)
         else:
+            print("CLEAN4")
             # if silent, skip this as it is used to output stuff
             if self._settings._silent:
                 return
@@ -1866,8 +1874,10 @@ class Run(object):
                         item.values_float if item.values_float else item.values_int
                     )
                 self._sampled_history = d
+        print("ONFIN1")
         if self._backend:
             self._backend.cleanup()
+        print("ONFIN2")
 
         if self._run_status_checker:
             self._run_status_checker.join()

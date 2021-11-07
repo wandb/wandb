@@ -1,8 +1,10 @@
-#
-# -*- coding: utf-8 -*-
-"""Backend Sender - Send to internal process
+"""Interface base class - Used to send messages to the internal process
 
-Manage backend sender.
+InterfaceBase: The abstract class
+InterfaceGrpc: Use grpc to send and recieve meessages
+InterfaceShared: Common routines for socket and queue based implementtaions
+InterfaceQueue: Use multiprocessing queues to send and receive messages
+InterfaceSock: Use socket to send and receive messages
 
 """
 
@@ -588,7 +590,9 @@ class InterfaceBase(object):
         raise NotImplementedError
 
     def join(self) -> None:
-        self._communicate_shutdown()
+        print("INTJOINCOM1")
+        ret = self._communicate_shutdown()
+        print("INTJOINCOM2", ret)
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:

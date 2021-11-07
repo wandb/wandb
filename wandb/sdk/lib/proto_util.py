@@ -3,8 +3,9 @@ import json
 from typing import Any, Dict, Union
 from typing import TYPE_CHECKING
 
+from wandb.proto import wandb_internal_pb2 as pb
+
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.proto import wandb_internal_pb2 as pb
     from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
@@ -13,6 +14,11 @@ def dict_from_proto_list(obj_list):
     for item in obj_list:
         d[item.key] = json.loads(item.value_json)
     return d
+
+
+def _result_from_record(record) -> "pb.Result":
+    result = pb.Result(uuid=record.uuid, control=record.control)
+    return result
 
 
 def proto_encode_to_dict(

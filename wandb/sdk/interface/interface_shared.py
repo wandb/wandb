@@ -1,11 +1,10 @@
-"""InterfaceQueue - Derived from InterfaceBase using queues to send to internal thread
+"""InterfaceShared - Derived from InterfaceBase - shared with InterfaceQueue and InterfaceSock
 
-InterfaceBase: The abstract class
-InterfaceQueue: Mechanism to send Record messages and receive Result messages
-  using queues.
+See interface.py for how interface classes relate to each other.
 
 """
 
+from abc import abstractmethod
 import logging
 from multiprocessing.process import BaseProcess
 from typing import Any, Optional
@@ -33,32 +32,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-class InterfaceQueue(InterfaceBase):
-    record_q: Optional["Queue[pb.Record]"]
-    result_q: Optional["Queue[pb.Result]"]
+class InterfaceShared(InterfaceBase):
     process: Optional[BaseProcess]
-    _router: Optional[MessageRouter]
     _process_check: bool
+    _router: Optional[MessageRouter]
 
     def __init__(
-        self,
-        record_q: "Queue[pb.Record]" = None,
-        result_q: "Queue[pb.Result]" = None,
-        process: BaseProcess = None,
-        process_check: bool = True,
+        self, process: BaseProcess = None, process_check: bool = True,
     ) -> None:
-        super(InterfaceQueue, self).__init__()
-        self.record_q = record_q
-        self.result_q = result_q
+        super(InterfaceShared, self).__init__()
         self._process = process
         self._router = None
         self._process_check = process_check
-
         self._init_router()
 
+    @abstractmethod
     def _init_router(self) -> None:
-        if self.record_q and self.result_q:
-            self._router = MessageRouter(self.record_q, self.result_q)
+        raise NotImplementedError
 
     def _publish_output(self, outdata: pb.OutputRecord) -> None:
         rec = pb.Record()
@@ -218,13 +208,9 @@ class InterfaceQueue(InterfaceBase):
             raise Exception("Invalid record")
         return record
 
+    @abstractmethod
     def _publish(self, record: pb.Record, local: bool = None) -> None:
-        if self._process_check and self._process and not self._process.is_alive():
-            raise Exception("The wandb backend process has shutdown")
-        if local:
-            record.control.local = local
-        if self.record_q:
-            self.record_q.put(record)
+        raise NotImplementedError
 
     def _communicate(
         self, rec: pb.Record, timeout: Optional[int] = 5, local: bool = None
@@ -478,7 +464,9 @@ class InterfaceQueue(InterfaceBase):
         _ = self._communicate(record)
 
     def join(self) -> None:
-        super(InterfaceQueue, self).join()
+        super(InterfaceShared, self).join()
 
         if self._router:
+            print("ROUTERJ1")
             self._router.join()
+            print("ROUTERJ2")

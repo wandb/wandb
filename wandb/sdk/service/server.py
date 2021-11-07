@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """wandb grpc server.
 
-- GrpcServer:
+- WandbServer:
 - StreamMux:
 - StreamRecord:
 - WandbServicer:
@@ -12,8 +12,8 @@ from concurrent import futures
 import logging
 import multiprocessing
 import os
+import socket
 import sys
-import tempfile
 import threading
 from threading import Event
 import time
@@ -28,8 +28,11 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
+from . import port_file
+from .server_sock import SocketServer
 from .. import lib as wandb_lib
 from ..interface.interface_queue import InterfaceQueue
+from .streams import StreamMux, _dict_from_pbmap
 
 
 if TYPE_CHECKING:
@@ -41,246 +44,6 @@ if TYPE_CHECKING:
 
         def stop(self, num: int) -> None:
             pass
-
-
-def _dict_from_pbmap(pbmap: "MessageMap[str, spb.SettingsValue]") -> Dict[str, Any]:
-    d: Dict[str, Any] = dict()
-    for k in pbmap:
-        v_obj = pbmap[k]
-        v_type = v_obj.WhichOneof("value_type")
-        v: Union[int, str, float, None, tuple] = None
-        if v_type == "int_value":
-            v = v_obj.int_value
-        elif v_type == "string_value":
-            v = v_obj.string_value
-        elif v_type == "float_value":
-            v = v_obj.float_value
-        elif v_type == "bool_value":
-            v = v_obj.bool_value
-        elif v_type == "null_value":
-            v = None
-        elif v_type == "tuple_value":
-            v = tuple(v_obj.tuple_value.string_values)
-        d[k] = v
-    return d
-
-
-class StreamThread(threading.Thread):
-    """Class to running internal process as a thread."""
-
-    def __init__(self, target: Callable, kwargs: Dict[str, Any]) -> None:
-        threading.Thread.__init__(self)
-        self._target = target
-        self._kwargs = kwargs
-        self.daemon = True
-        self.pid = 0
-
-    def run(self) -> None:
-        # TODO: catch exceptions and report errors to scheduler
-        self._target(**self._kwargs)
-
-
-class StreamRecord:
-    _record_q: "queue.Queue[pb.Record]"
-    _result_q: "queue.Queue[pb.Result]"
-    _iface: InterfaceQueue
-    _thread: StreamThread
-
-    def __init__(self) -> None:
-        self._record_q = multiprocessing.Queue()
-        self._result_q = multiprocessing.Queue()
-        process = multiprocessing.current_process()
-        self._iface = InterfaceQueue(
-            record_q=self._record_q,
-            result_q=self._result_q,
-            process=process,
-            process_check=False,
-        )
-
-    def start_thread(self, thread: StreamThread) -> None:
-        self._thread = thread
-        thread.start()
-        self._wait_thread_active()
-
-    def _wait_thread_active(self) -> None:
-        result = self._iface.communicate_status()
-        # TODO: using the default communicate timeout, is that enough? retries?
-        assert result
-
-    def join(self) -> None:
-        self._iface.join()
-        if self._thread:
-            self._thread.join()
-
-    @property
-    def interface(self) -> InterfaceQueue:
-        return self._iface
-
-
-class StreamAction:
-    _action: str
-    _stream_id: str
-    _processed: Event
-    _data: Any
-
-    def __init__(self, action: str, stream_id: str, data: Any = None):
-        self._action = action
-        self._stream_id = stream_id
-        self._data = data
-        self._processed = Event()
-
-    def __repr__(self) -> str:
-        return f"StreamAction({self._action},{self._stream_id})"
-
-    def wait_handled(self) -> None:
-        self._processed.wait()
-
-    def set_handled(self) -> None:
-        self._processed.set()
-
-    @property
-    def stream_id(self) -> str:
-        return self._stream_id
-
-
-class StreamMux:
-    _streams_lock: threading.Lock
-    _streams: Dict[str, StreamRecord]
-    _port: Optional[int]
-    _pid: Optional[int]
-    _action_q: "queue.Queue[StreamAction]"
-    _stopped: Event
-
-    def __init__(self) -> None:
-        self._streams_lock = threading.Lock()
-        self._streams = dict()
-        self._port = None
-        self._pid = None
-        self._stopped = Event()
-        self._action_q = queue.Queue()
-
-    def set_port(self, port: int) -> None:
-        self._port = port
-
-    def set_pid(self, pid: int) -> None:
-        self._pid = pid
-
-    def add_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
-        action = StreamAction(action="add", stream_id=stream_id, data=settings)
-        self._action_q.put(action)
-        action.wait_handled()
-
-    def del_stream(self, stream_id: str) -> None:
-        action = StreamAction(action="del", stream_id=stream_id)
-        self._action_q.put(action)
-        action.wait_handled()
-
-    def teardown(self, exit_code: int) -> None:
-        action = StreamAction(action="teardown", stream_id="na", data=exit_code)
-        self._action_q.put(action)
-        action.wait_handled()
-
-    def stream_names(self) -> List[str]:
-        with self._streams_lock:
-            names = list(self._streams.keys())
-            return names
-
-    def has_stream(self, stream_id: str) -> bool:
-        with self._streams_lock:
-            return stream_id in self._streams
-
-    def get_stream(self, stream_id: str) -> StreamRecord:
-        with self._streams_lock:
-            stream = self._streams[stream_id]
-            return stream
-
-    def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord()
-        # run_id = action.stream_id  # will want to fix if a streamid != runid
-        settings = action._data
-        thread = StreamThread(
-            target=wandb.wandb_sdk.internal.internal.wandb_internal,
-            kwargs=dict(
-                settings=settings,
-                record_q=stream._record_q,
-                result_q=stream._result_q,
-                port=self._port,
-                user_pid=self._pid,
-            ),
-        )
-        stream.start_thread(thread)
-        with self._streams_lock:
-            self._streams[action._stream_id] = stream
-
-    def _process_del(self, action: StreamAction) -> None:
-        with self._streams_lock:
-            _ = self._streams.pop(action._stream_id)
-        # TODO: we assume stream has already been shutdown.  should we verify?
-
-    def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
-        if not streams:
-            return
-
-        for sid, stream in streams.items():
-            wandb.termlog(f"Finishing run: {sid}...")  # type: ignore
-            stream.interface.publish_exit(exit_code)
-
-        streams_to_join = []
-        while streams:
-            for sid, stream in list(streams.items()):
-                poll_exit_resp = stream.interface.communicate_poll_exit()
-                if poll_exit_resp and poll_exit_resp.done:
-                    streams.pop(sid)
-                    streams_to_join.append(stream)
-                time.sleep(0.1)
-
-        # TODO: this would be nice to do in parallel
-        for stream in streams_to_join:
-            stream.join()
-
-        wandb.termlog("Done!")  # type: ignore
-
-    def _process_teardown(self, action: StreamAction) -> None:
-        exit_code: int = action._data
-        with self._streams_lock:
-            # TODO: mark streams to prevent new modifications?
-            streams_copy = self._streams.copy()
-        self._finish_all(streams_copy, exit_code)
-        with self._streams_lock:
-            self._streams = dict()
-        self._stopped.set()
-
-    def _process_action(self, action: StreamAction) -> None:
-        if action._action == "add":
-            self._process_add(action)
-            return
-        if action._action == "del":
-            self._process_del(action)
-            return
-        if action._action == "teardown":
-            self._process_teardown(action)
-            return
-        raise AssertionError(f"Unsupported action: {action._action}")
-
-    def _loop(self) -> None:
-        while not self._stopped.is_set():
-            # TODO: check for parent process going away
-            try:
-                action = self._action_q.get(timeout=1)
-            except queue.Empty:
-                continue
-            self._process_action(action)
-            action.set_handled()
-            self._action_q.task_done()
-
-    def loop(self) -> None:
-        try:
-            self._loop()
-        except Exception as e:
-            raise e
-
-    def cleanup(self) -> None:
-        pass
 
 
 class WandbServicer(spb_grpc.InternalServiceServicer):
@@ -586,41 +349,48 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         return result
 
 
-class GrpcServer:
+class WandbServer:
+    _pid: Optional[int]
+    _grpc_port: Optional[int]
+    _sock_port: Optional[int]
+    _debug: bool
+    _serve_grpc: bool
+    _serve_sock: bool
+
     def __init__(
         self,
-        port: int = None,
+        grpc_port: int = None,
+        sock_port: int = None,
         port_fname: str = None,
         address: str = None,
         pid: int = None,
         debug: bool = False,
+        serve_grpc: bool = False,
+        serve_sock: bool = False,
     ) -> None:
-        self._port = port
+        self._grpc_port = grpc_port
+        self._sock_port = sock_port
         self._port_fname = port_fname
         self._address = address
         self._pid = pid
         self._debug = debug
+        self._serve_grpc = serve_grpc
+        self._serve_sock = serve_sock
         debug = True
         if debug:
             logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-    def _inform_used_port(self, port: int) -> None:
+    def _inform_used_ports(
+        self, grpc_port: Optional[int], sock_port: Optional[int]
+    ) -> None:
         if not self._port_fname:
             return
-        dname, bname = os.path.split(self._port_fname)
-        f = tempfile.NamedTemporaryFile(prefix=bname, dir=dname, mode="w", delete=False)
-        tmp_filename = f.name
-        try:
-            with f:
-                f.write("%d" % port)
-            os.rename(tmp_filename, self._port_fname)
-        except Exception:
-            os.unlink(tmp_filename)
-            raise
+        pf = port_file.PortFile(grpc_port=grpc_port, sock_port=sock_port)
+        pf.write(self._port_fname)
 
-    def _launch(self, mux: StreamMux) -> int:
+    def _start_grpc(self, mux: StreamMux) -> int:
         address: str = self._address or "127.0.0.1"
-        port: int = self._port or 0
+        port: int = self._grpc_port or 0
         pid: int = self._pid or 0
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         servicer = WandbServicer(server=server, mux=mux)
@@ -630,7 +400,6 @@ class GrpcServer:
             mux.set_port(port)
             mux.set_pid(pid)
             server.start()
-            self._inform_used_port(port)
         except KeyboardInterrupt:
             mux.cleanup()
             server.stop(0)
@@ -641,12 +410,31 @@ class GrpcServer:
             raise
         return port
 
+    def _start_sock(self, mux: StreamMux) -> int:
+        address: str = self._address or "127.0.0.1"
+        port: int = self._sock_port or 0
+        pid: int = self._pid or 0
+        sock_server = SocketServer(mux=mux, address=address, port=port)
+        try:
+            sock_server.start()
+            port = sock_server.port
+        except KeyboardInterrupt:
+            mux.cleanup()
+            raise
+        except Exception:
+            mux.cleanup()
+            raise
+        return port
+
     def serve(self) -> None:
         mux = StreamMux()
-        port = self._launch(mux=mux)
+        grpc_port = self._start_grpc(mux=mux) if self._serve_grpc else None
+        sock_port = self._start_sock(mux=mux) if self._serve_sock else None
+        self._inform_used_ports(grpc_port=grpc_port, sock_port=sock_port)
         setproctitle = wandb.util.get_optional_module("setproctitle")
         if setproctitle:
             service_ver = 0
+            port = grpc_port or sock_port or 0
             service_id = f"{service_ver}-{port}"
             proc_title = f"wandb-service({service_id})"
             setproctitle.setproctitle(proc_title)

@@ -88,7 +88,9 @@ class _Manager:
         self._service.connect(port=port)
 
     def _setup_service(self) -> None:
-        port = self._service.start()
+        self._service.start()
+        # port = self._service.grpc_port
+        port = self._service.sock_port
         assert port
         self._token.configure(port=port)
         self._atexit_setup()

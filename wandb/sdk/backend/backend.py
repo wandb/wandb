@@ -131,6 +131,7 @@ class Backend(object):
 
     def _ensure_launched_manager(self) -> None:
         from ..interface.interface_grpc import InterfaceGrpc
+        from ..interface.interface_sock import InterfaceSock
 
         # grpc_port: Optional[int] = None
         # attach_id = self._settings._attach_id if self._settings else None
@@ -142,6 +143,14 @@ class Backend(object):
         assert self._manager
         service = self._manager._get_service()
         assert service
+
+        if service.use_socket:
+            print("use socket")
+            sock_client = service._sock_client
+            sock_interface = InterfaceSock(sock_client)
+            self.interface = sock_interface
+            return
+
         stub = service._get_stub()
         assert stub
         grpc_interface = InterfaceGrpc()
@@ -225,7 +234,9 @@ class Backend(object):
             return
         self._done = True
         if self.interface:
+            print("BACKJOIN1")
             self.interface.join()
+            print("BACKJOIN2")
         if self.wandb_process:
             self.wandb_process.join()
 

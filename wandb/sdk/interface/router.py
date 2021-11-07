@@ -1,11 +1,10 @@
-#
-# -*- coding: utf-8 -*-
-"""Router - handle message router
+"""Router - handle message router (base class)
 
-Manage backend sender.
+Router to manage responses.
 
 """
 
+from abc import abstractmethod
 import logging
 import threading
 from typing import Dict, Optional
@@ -40,12 +39,7 @@ class MessageRouter(object):
     _request_queue: "Queue[pb.Record]"
     _response_queue: "Queue[pb.Result]"
 
-    def __init__(
-        self, request_queue: "Queue[pb.Record]", response_queue: "Queue[pb.Result]"
-    ) -> None:
-        self._request_queue = request_queue
-        self._response_queue = response_queue
-
+    def __init__(self) -> None:
         self._pending_reqs = {}
         self._lock = threading.Lock()
 
@@ -54,11 +48,18 @@ class MessageRouter(object):
         self._thread.daemon = True
         self._thread.start()
 
+    @abstractmethod
+    def _read_message(self) -> "Optional[pb.Result]":
+        raise NotImplementedError
+
+    @abstractmethod
+    def _send_message(self, record: "pb.Record") -> None:
+        raise NotImplementedError
+
     def message_loop(self) -> None:
         while not self._join_event.is_set():
-            try:
-                msg = self._response_queue.get(timeout=1)
-            except queue.Empty:
+            msg = self._read_message()
+            if not msg:
                 continue
             self._handle_msg_rcv(msg)
 
@@ -73,13 +74,16 @@ class MessageRouter(object):
         with self._lock:
             self._pending_reqs[rec.uuid] = future
 
-        self._request_queue.put(rec)
+        self._send_message(rec)
 
         return future
 
     def join(self) -> None:
+        print("RBASEJ1")
         self._join_event.set()
+        print("RBASEJ2")
         self._thread.join()
+        print("RBASEJ3")
 
     def _handle_msg_rcv(self, msg: pb.Result) -> None:
         with self._lock:

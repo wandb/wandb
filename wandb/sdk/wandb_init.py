@@ -436,8 +436,10 @@ class _WandbInit(object):
 
         manager = self._wl._get_manager()
         if manager:
+            print("i1")
             manager._inform_init(settings=s, run_id=s.run_id)
 
+        print("i2")
         backend = Backend(settings=s, manager=manager)
         backend.ensure_launched()
         backend.server_connect()

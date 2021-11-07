@@ -48,11 +48,13 @@ message Record {
   }
   Control          control = 16;
   string           uuid = 19;
+  _RecordInfo _info = 200;
 }
 
 message Control {
   bool req_resp = 1;  // record is expecting a result
   bool local = 2;     // should not be persisted or synchronized
+  bool relay = 3;     // internal use to ignore req_resp by router
 }
 
 /*
@@ -69,6 +71,7 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  Control             control = 16;
   string              uuid = 24;
 }
 
