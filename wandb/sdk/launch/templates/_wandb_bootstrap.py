@@ -60,8 +60,9 @@ def main():
             failed = set()
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
+                    # can't pip install wandb dev1 through pip. Lets just install wandb for now
                     if ".dev1" in req:
-                        req = req.rsplit(".", 1)[0]
+                        req = req.rsplit("=", 1)[0]
                     reqs.append(req.strip())
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
