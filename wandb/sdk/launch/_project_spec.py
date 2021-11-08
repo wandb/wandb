@@ -153,10 +153,10 @@ class LaunchProject(object):
 
         run_entity, run_project, run_name = utils.parse_wandb_uri(self.uri)
         run = public_api.run(f"{run_entity}/{run_project}/{run_name}")
-
         run_artifacts = run.logged_artifacts()
+
         for artifact in run_artifacts:
-            if artifact.type == "code":
+            if hasattr(artifact, "type") and artifact.type == "code":
                 artifact.download(self.project_dir)
                 self.build_image = True
                 return True
@@ -228,7 +228,7 @@ class LaunchProject(object):
                 )
                 self.add_entry_point("main.py")
 
-            utils._fetch_git_repo(self.project_dir, parsed_uri, self.git_version)
+            utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
 class EntryPoint(object):

@@ -218,6 +218,7 @@ def artifact(
             }
         ],
         "artifactSequence": {"name": collection_name,},
+        "artifactType": {"name": "dataset"},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
