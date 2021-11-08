@@ -308,13 +308,13 @@ class TorchHistory(object):
         else:
             return handle.id in d
 
-    def _no_finite_values(self, tensor):
+    def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
         return (
             tensor.shape == torch.Size([0])
             or torch.logical_not(tensor.isfinite()).all().item()
         )
 
-    def _remove_infs_nans(self, tensor):
+    def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
         if not tensor.isfinite().all():
             tensor = tensor[tensor.isfinite()]
 
