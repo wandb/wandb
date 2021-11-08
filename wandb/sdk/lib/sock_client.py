@@ -86,7 +86,7 @@ class SockClient:
                 return rec_data
         return None
 
-    def _read_packet_bytes(self, timeout: int=None) -> Optional[bytes]:
+    def _read_packet_bytes(self, timeout: int = None) -> Optional[bytes]:
         while True:
             rec = self._extract_packet_bytes()
             if rec:
@@ -110,7 +110,7 @@ class SockClient:
         rec.ParseFromString(data)
         return rec
 
-    def read_server_response(self, timeout: int=None) -> Optional[spb.ServerResponse]:
+    def read_server_response(self, timeout: int = None) -> Optional[spb.ServerResponse]:
         data = self._read_packet_bytes(timeout=timeout)
         if not data:
             return None
