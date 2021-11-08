@@ -5,8 +5,9 @@ import pytest
 import json
 import sys
 import wandb
-
 from wandb.errors import UsageError
+
+import nbclient
 
 
 def test_login_timeout(notebook, monkeypatch):
@@ -222,3 +223,19 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
     magic.wandb("test/test/runs/test")
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     assert "test/test/runs/test?jupyter=true" in displayed_html[-1]
+
+
+def test_repeated_interrupt(notebook, test_settings):
+    with notebook("repeated_interrupt.ipynb") as nb:
+        nb.execute_cells(0)
+        nb.timeout = 1  # seconds
+        nb.interrupt_on_timeout = True
+
+        for _ in range(3):
+            try:
+                nb.execute_cells(1)
+            except nbclient.exceptions.CellExecutionError:
+                assert (
+                    "The wandb backend process has shutdown"
+                    not in nb.cell_output_text(1)
+                )
