@@ -60,6 +60,8 @@ def main():
             failed = set()
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
+                    if ".dev1" in req:
+                        req = req.rsplit(".", 1)[0]
                     reqs.append(req.strip())
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")
