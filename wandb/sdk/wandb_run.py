@@ -1760,8 +1760,12 @@ class Run(object):
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
-        if self._backend and self._backend.interface and not self._settings._offline:
-            self._run_status_checker = RunStatusChecker(self._backend.interface)
+
+        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
+        manager = self._wl and self._wl._get_manager()
+        if not manager:
+            if self._backend and self._backend.interface and not self._settings._offline:
+                self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
     def _pusher_print_status(
