@@ -39,6 +39,7 @@ class BackendThread(threading.Thread):
 
     def __init__(self, target: Callable, kwargs: Dict[str, Any]) -> None:
         threading.Thread.__init__(self)
+        self.name = "BackendThr"
         self._target = target
         self._kwargs = kwargs
         self.daemon = True

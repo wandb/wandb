@@ -1,6 +1,7 @@
 import queue
 import socket
 import threading
+import time
 from typing import Any, Callable
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,7 @@ class SockServerInterfaceReaderThread(threading.Thread):
         self._iface = iface
         self._sock_client = sock_client
         threading.Thread.__init__(self)
+        self.name = "SockSrvIntRdThr"
 
     def run(self) -> None:
         assert self._iface.relay_q
@@ -40,11 +42,12 @@ class SockServerReadThread(threading.Thread):
     _mux: StreamMux
 
     def __init__(self, conn: socket.socket, mux: StreamMux) -> None:
+        self._mux = mux
         threading.Thread.__init__(self)
+        self.name = "SockSrvRdThr"
         sock_client = SockClient()
         sock_client.set_socket(conn)
         self._sock_client = sock_client
-        self._mux = mux
 
     def run(self) -> None:
         while True:
@@ -107,9 +110,10 @@ class SockAcceptThread(threading.Thread):
     _mux: StreamMux
 
     def __init__(self, sock: socket.socket, mux: StreamMux) -> None:
-        threading.Thread.__init__(self)
         self._sock = sock
         self._mux = mux
+        threading.Thread.__init__(self)
+        self.name = "SockAcceptThr"
 
     def run(self) -> None:
         self._sock.listen(5)
@@ -118,6 +122,18 @@ class SockAcceptThread(threading.Thread):
         print("Connected by", addr)
         sr = SockServerReadThread(conn=conn, mux=self._mux)
         sr.start()
+
+
+class DebugThread(threading.Thread):
+    def __init__(self) -> None:
+        threading.Thread.__init__(self)
+        self.name = "DebugThr"
+
+    def run(self) -> None:
+        while True:
+            time.sleep(30)
+            for thread in threading.enumerate():
+                print(f"DEBUG: {thread.name}")
 
 
 class SocketServer:
@@ -145,3 +161,5 @@ class SocketServer:
         print(f"Running at port: {self.port}")
         self._thread = SockAcceptThread(sock=self._sock, mux=self._mux)
         self._thread.start()
+        self._dbg_thread = DebugThread()
+        self._dbg_thread.start()

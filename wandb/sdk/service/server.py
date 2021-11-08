@@ -384,7 +384,9 @@ class WandbServer:
         address: str = self._address or "127.0.0.1"
         port: int = self._grpc_port or 0
         pid: int = self._pid or 0
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="GrpcPoolThr")
+        )
         servicer = WandbServicer(server=server, mux=mux)
         try:
             spb_grpc.add_InternalServiceServicer_to_server(servicer, server)

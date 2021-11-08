@@ -80,7 +80,7 @@ class _Service:
                 "--debug",
             ]
             service_args.append("--serve-sock")
-            service_args.append("--serve-grpc")
+            # service_args.append("--serve-grpc")
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args, env=os.environ, **kwargs,
             )

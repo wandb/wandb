@@ -44,6 +44,7 @@ class MessageRouter(object):
 
         self._join_event = threading.Event()
         self._thread = threading.Thread(target=self.message_loop)
+        self._thread.name = "MsgRouterThr"
         self._thread.daemon = True
         self._thread.start()
 
