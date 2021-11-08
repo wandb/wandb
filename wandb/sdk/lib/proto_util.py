@@ -7,16 +7,17 @@ from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.proto import wandb_telemetry_pb2 as tpb
+    from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
 
 
-def dict_from_proto_list(obj_list):
+def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
     d = dict()
     for item in obj_list:
         d[item.key] = json.loads(item.value_json)
     return d
 
 
-def _result_from_record(record) -> "pb.Result":
+def _result_from_record(record: "pb.Record") -> "pb.Result":
     result = pb.Result(uuid=record.uuid, control=record.control)
     return result
 

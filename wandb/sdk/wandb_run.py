@@ -249,6 +249,7 @@ class Run(object):
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _final_summary: Optional[Dict[str, Any]]
 
     def __init__(
         self,

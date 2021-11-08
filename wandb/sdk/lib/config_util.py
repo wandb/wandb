@@ -14,7 +14,7 @@ from . import filesystem
 logger = logging.getLogger("wandb")
 
 
-class ConfigError(Error):  # type: ignore
+class ConfigError(Error):
     pass
 
 
