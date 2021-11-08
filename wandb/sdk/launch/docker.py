@@ -165,7 +165,6 @@ def build_docker_image_if_needed(
         # TODO: make this configurable or change the default behavior...
         requirements_line += _parse_existing_requirements(launch_project)
         requirements_line += "python _wandb_bootstrap.py\n"
-        print(requirements_line)
 
     name_line = ""
     if launch_project.name:
