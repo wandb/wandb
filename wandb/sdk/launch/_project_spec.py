@@ -11,7 +11,6 @@ import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
-from wandb.apis import public
 from wandb.apis.internal import Api
 import wandb.docker as docker
 from wandb.errors import Error as ExecutionError, LaunchError
