@@ -51,7 +51,7 @@ class TPUProfiler(object):
         service_addr = service_addr.replace("grpc://", "").replace(":8470", ":8466")
         self.service_addr = service_addr
         self.duration_ms = duration_ms
-        self._tpu_utilization = 0.0
+        self._tpu_utilization = None
         self._stop = True
         self._profiler_client = profiler_client
         self.start()
