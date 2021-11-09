@@ -145,36 +145,27 @@ class LaunchProject(object):
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
-    def _check_and_download_code_artifacts(self, internal_api: Api) -> bool:
-        public_api = wandb.PublicApi(
-            overrides={"base_url": internal_api.settings("base_url")}
-        )
-
-        run_entity, run_project, run_name = utils.parse_wandb_uri(self.uri)
-        run = public_api.run(f"{run_entity}/{run_project}/{run_name}")
-        run_artifacts = run.logged_artifacts()
-
-        for artifact in run_artifacts:
-            if hasattr(artifact, "type") and artifact.type == "code":
-                artifact.download(self.project_dir)
-                self.build_image = True
-                return True
-
-        return False
-
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         if utils._is_wandb_uri(self.uri):
-
+            source_project, source_entity, source_run_name = utils.parse_wandb_uri(
+                self.uri
+            )
             run_info = utils.fetch_wandb_project_run_info(self.uri, internal_api)
             entry_point = run_info.get("codePath", run_info["program"])
 
-            downloaded_code_artifact = self._check_and_download_code_artifacts(
-                internal_api
+            downloaded_code_artifact = utils.check_and_download_code_artifacts(
+                source_entity,
+                source_project,
+                source_run_name,
+                internal_api,
+                self.project_dir,
             )
 
-            if not downloaded_code_artifact:
+            if downloaded_code_artifact:
+                self.build_image = True
+            elif not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise ExecutionError("Run must have git repo associated")
                 utils._fetch_git_repo(
@@ -182,14 +173,21 @@ class LaunchProject(object):
                     run_info["git"]["remote"],
                     run_info["git"]["commit"],
                 )
-                patch = utils.fetch_project_diff(self.uri, internal_api)
+                patch = utils.fetch_project_diff(
+                    source_entity, source_project, source_run_name, internal_api
+                )
 
                 if patch:
                     utils.apply_patch(patch, self.project_dir)
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, entry_point)):
                     downloaded_entrypoint = utils.download_entry_point(
-                        self.uri, internal_api, entry_point, self.project_dir
+                        source_entity,
+                        source_project,
+                        source_run_name,
+                        internal_api,
+                        entry_point,
+                        self.project_dir,
                     )
                     if not downloaded_entrypoint:
                         raise LaunchError(
@@ -206,7 +204,13 @@ class LaunchProject(object):
                 )
 
             # Download any frozen requirements
-            utils.download_wandb_python_deps(self.uri, internal_api, self.project_dir)
+            utils.download_wandb_python_deps(
+                source_entity,
+                source_project,
+                source_run_name,
+                internal_api,
+                self.project_dir,
+            )
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
 
