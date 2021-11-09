@@ -149,10 +149,12 @@ class LaunchProject(object):
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         if utils._is_wandb_uri(self.uri):
-            source_project, source_entity, source_run_name = utils.parse_wandb_uri(
+            source_entity, source_project, source_run_name = utils.parse_wandb_uri(
                 self.uri
             )
-            run_info = utils.fetch_wandb_project_run_info(self.uri, internal_api)
+            run_info = utils.fetch_wandb_project_run_info(
+                source_entity, source_project, source_run_name, internal_api
+            )
             entry_point = run_info.get("codePath", run_info["program"])
 
             downloaded_code_artifact = utils.check_and_download_code_artifacts(

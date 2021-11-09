@@ -178,7 +178,7 @@ def fetch_wandb_project_run_info(
         # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
         # it from wandb-metadata.json if we can.
         metadata = api.download_url(
-            project, "wandb-metadata.json", run=name, entity=entity
+            project, "wandb-metadata.json", run=run_name, entity=entity
         )
         if metadata is not None:
             _, response = api.download_file(metadata["url"])
