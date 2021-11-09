@@ -882,7 +882,9 @@ class Molecule(BatchableMedia):
     }
     _log_type = "molecule-file"
 
-    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: Union[str, int]) -> None:
+    def __init__(
+        self, data_or_path: Union[str, "TextIO"], **kwargs
+    ) -> None:
         super(Molecule, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -933,7 +935,7 @@ class Molecule(BatchableMedia):
             # data_or_path is an rdkit.Chem.rdchem.Mol object
             self._initialize_with_rdkit(data_or_path, **kwargs)
 
-    def _initialize_with_rdkit(self, data: "RDKitDataType", **kwargs: int) -> None:
+    def _initialize_with_rdkit(self, data: "RDKitDataType", **kwargs) -> None:
         rdkit_chem = util.get_module(
             "rdkit.Chem",
             required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
