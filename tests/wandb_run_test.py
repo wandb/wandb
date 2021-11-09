@@ -302,15 +302,19 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
         )
 
 
-def test_anonymous_mode(live_mock_server, test_settings, capsys):
-    api_key = os.environ.pop("WANDB_API_KEY")
-    uname = os.environ.pop("WANDB_USERNAME")
+def test_anonymous_mode(live_mock_server, test_settings, capsys, monkeypatch):
+    api_key = os.getenv("WANDB_API_KEY")
+    uname = os.getenv("WANDB_USERNAME")
+
+    monkeypatch.delenv("WANDB_API_KEY")
+    monkeypatch.delenv("WANDB_USERNAME")
+
     test_settings.update({"anonymous": "must", "api_key": None})
 
     run = wandb.init(settings=test_settings, anonymous="must")
 
-    os.environ["WANDB_USERNAME"] = uname
-    os.environ["WANDB_API_KEY"] = api_key
+    monkeypatch.setenv("WANDB_USERNAME", uname)
+    monkeypatch.setenv("WANDB_API_KEY", api_key)
 
     run.log({"something": 1})
     _, err = capsys.readouterr()
@@ -321,21 +325,22 @@ def test_anonymous_mode(live_mock_server, test_settings, capsys):
     )
 
 
-def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys):
-    api_key = os.environ.pop("WANDB_API_KEY")
-    uname = os.environ.pop("WANDB_USERNAME")
+def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkeypatch):
+    api_key = os.getenv("WANDB_API_KEY")
+    uname = os.getenv("WANDB_USERNAME")
+
+    monkeypatch.delenv("WANDB_API_KEY")
+    monkeypatch.delenv("WANDB_USERNAME")
+
     test_settings.update({"anonymous": "must", "api_key": None})
 
     run = wandb.init(settings=test_settings, anonymous="must")
 
-    os.environ["WANDB_USERNAME"] = uname
-    os.environ["WANDB_API_KEY"] = api_key
+    monkeypatch.setenv("WANDB_USERNAME", uname)
+    monkeypatch.setenv("WANDB_API_KEY", api_key)
 
-    with pytest.raises(wandb.Error) as e:
-        artifact = wandb.Artifact("my-arti", type="dataset")
-        run.log_artifact(artifact)
+    artifact = wandb.Artifact("my-arti", type="dataset")
+    run.log_artifact(artifact)
+    _, err = capsys.readouterr()
 
-    assert (
-        e.value.message
-        == "Cannot log artifacts in anonymous mode. Please create an account to log artifacts."
-    )
+    assert "Artifacts won't be claimed when you claim the run." in err

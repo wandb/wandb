@@ -44,7 +44,7 @@ import wandb
 from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
-from wandb.apis import internal, InternalApi, public
+from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     FilePusherStats,
@@ -1573,7 +1573,7 @@ class Run(object):
                 if not self._settings._offline:
                     wandb.termlog("Run `wandb offline` to turn off syncing.")
 
-            api = InternalApi()
+            api = internal.Api()
             if api.settings().get("anonymous") == "true":
                 wandb.termwarn(
                     "Do NOT share these links with anyone. They can be used to claim your runs."
@@ -2506,11 +2506,9 @@ class Run(object):
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> wandb_artifacts.Artifact:
-        api = InternalApi()
+        api = internal.Api()
         if api.settings().get("anonymous") == "true":
-            raise wandb.Error(
-                "Cannot log artifacts in anonymous mode. Please create an account to log artifacts."
-            )
+            wandb.termwarn("Artifacts won't be claimed when you claim the run.")
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:
