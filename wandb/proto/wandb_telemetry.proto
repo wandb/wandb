@@ -73,6 +73,7 @@ message Env {
   bool start_fork = 6;        // multiprocessing fork
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
+  string process_name = 9;
 }
 
 message Labels {
