@@ -496,7 +496,7 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
-def test_launch_agent(
+def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(
@@ -511,6 +511,19 @@ def test_launch_agent(
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1
     assert len(ctx["launch_agents"].keys()) == 1
+
+
+def test_launch_agent_instance(test_settings, live_mock_server):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["launch_agents"]) == 1
+    assert agent._id == int(list(ctx["launch_agents"].keys())[0])
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == "test_agent"
 
 
 def test_agent_queues_notfound(test_settings, live_mock_server):
