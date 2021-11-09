@@ -1,3 +1,4 @@
+import platform
 import pytest
 import sys
 
@@ -246,6 +247,7 @@ def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
     )
 
 
+@pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
 def test_keras_log_gradients(dummy_model, dummy_data, wandb_init_run):
     dummy_model.fit(
         *dummy_data,
