@@ -884,7 +884,7 @@ class Molecule(BatchableMedia):
     )
     _log_type = "molecule-file"
 
-    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
+    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: Union[str, int]) -> None:
         super(Molecule, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -925,15 +925,15 @@ class Molecule(BatchableMedia):
                     )
                 if extension == "mol":
                     # rdkit mol file format
-                    self._initialize_with_rdkit(data_or_path)
+                    self._initialize_with_rdkit(data_or_path, **kwargs)
                 else:
                     self._set_file(data_or_path, is_tmp=False)
             else:
                 # data_or_path is a SMILES string
-                self._initialize_with_rdkit(data_or_path)
+                self._initialize_with_rdkit(data_or_path, **kwargs)
         else:
             # data_or_path is an rdkit.Chem.rdchem.Mol object
-            self._initialize_with_rdkit(data_or_path)
+            self._initialize_with_rdkit(data_or_path, **kwargs)
 
     def _initialize_with_rdkit(self, data: "RDKitDataType", **kwargs: int) -> None:
         rdkit_chem = util.get_module(
@@ -962,14 +962,16 @@ class Molecule(BatchableMedia):
             )
 
         # Convert to rdkit.Chem.rdchem.Mol with 3D coordinates
-        molecule = rdkit_chem.AddHs(molecule)
-        rdkit_chem_all_chem.EmbedMolecule(molecule)
-        mmff_optimize_molecule_max_iterations = kwargs.get(
-            "mmff_optimize_molecule_max_iterations", 200
-        )
-        rdkit_chem_all_chem.MMFFOptimizeMolecule(
-            molecule, maxIters=mmff_optimize_molecule_max_iterations,
-        )
+        # this is an expensive operation that may take a long time for complicated molecules
+        if kwargs.pop("convert_to_3d_and_optimize", True):
+            molecule = rdkit_chem.AddHs(molecule)
+            rdkit_chem_all_chem.EmbedMolecule(molecule)
+            mmff_optimize_molecule_max_iterations = kwargs.pop(
+                "mmff_optimize_molecule_max_iterations", 200
+            )
+            rdkit_chem_all_chem.MMFFOptimizeMolecule(
+                molecule, maxIters=mmff_optimize_molecule_max_iterations,
+            )
         # convert into the pdb format
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pdb")
