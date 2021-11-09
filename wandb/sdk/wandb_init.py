@@ -14,7 +14,6 @@ from __future__ import print_function
 
 import datetime
 import logging
-import multiprocessing as mp
 import os
 import platform
 import sys
@@ -60,6 +59,22 @@ def _huggingface_version():
         if hasattr(trans, "__version__"):
             return trans.__version__
     return None
+
+
+def _maybe_mp_process(backend: Backend) -> bool:
+    parent_process = getattr(
+        backend._multiprocessing, "parent_process", None
+    )  # New in version 3.8.
+    if parent_process:
+        return parent_process() is not None
+    process = backend._multiprocessing.current_process()
+    if not process:
+        return False
+    if process.name == "MainProcess":
+        return False
+    if process.name.startswith("Process-"):
+        return True
+    return False
 
 
 class _WandbInit(object):
@@ -495,8 +510,7 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
-            tel.process_name = mp.current_process().name
-            tel.env.multiprocessing = tel.process_name.startswith("Process-")
+            tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not s.label_disable:
             if self.notebook:
