@@ -53,6 +53,7 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
+        self._max_jobs = 1  # default to 1 concurrent job until --jobs arg is added
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -163,10 +164,11 @@ class LaunchAgent(object):
             while True:
                 self._ticks += 1
                 job = None
-                for queue in self._queues:
-                    job = self.pop_from_queue(queue)
-                    if job:
-                        break
+                if self._running < self._max_jobs:
+                    for queue in self._queues:
+                        job = self.pop_from_queue(queue)
+                        if job:
+                            break
                 if not job:
                     time.sleep(AGENT_POLLING_INTERVAL)
                     agent_response = self._api.get_launch_agent(
