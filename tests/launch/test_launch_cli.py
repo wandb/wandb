@@ -105,8 +105,6 @@ def test_agent_update_failed(runner, test_settings, live_mock_server):
 
 
 def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
-    count = 0
-
     def patched_pop_empty_queue(self, queue):
         # patch to no result, agent should read stopPolling and stop
         return None
