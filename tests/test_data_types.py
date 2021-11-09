@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from . import utils
 from .utils import dummy_data
 import matplotlib
+import rdkit.Chem
 from wandb import Api
 import time
 
@@ -470,6 +471,36 @@ def test_molecule_file(runner, mocked_run):
         with open("test.pdb", "w") as f:
             f.write("00000")
         mol = wandb.Molecule(open("test.pdb", "r"))
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_smiles(runner, mocked_run):
+    with runner.isolated_filesystem():
+        mol = wandb.Molecule("CC(=O)Nc1ccc(O)cc1")
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_rdkit_mol_object(runner, mocked_run):
+    with runner.isolated_filesystem():
+        mol = wandb.Molecule(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_rdkit_mol_file(runner, mocked_run):
+    with runner.isolated_filesystem():
+        substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
+        mol_file_name = f"{substance}.mol"
+        rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
+        mol = wandb.Molecule(mol_file_name)
         mol.bind_to_run(mocked_run, "rad", "summary")
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 

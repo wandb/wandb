@@ -867,21 +867,19 @@ class Molecule(BatchableMedia):
             a SMILES string, or an rdkit.Chem.rdchem.Mol object.
     """
 
-    SUPPORTED_TYPES = set(
-        [
-            "pdb",
-            "pqr",
-            "mmcif",
-            "mcif",
-            "cif",
-            "sdf",
-            "sd",
-            "gro",
-            "mol2",
-            "mmtf",
-            "mol",
-        ]
-    )
+    SUPPORTED_TYPES = {
+        "pdb",
+        "pqr",
+        "mmcif",
+        "mcif",
+        "cif",
+        "sdf",
+        "sd",
+        "gro",
+        "mol2",
+        "mmtf",
+        "mol",
+    }
     _log_type = "molecule-file"
 
     def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: Union[str, int]) -> None:
