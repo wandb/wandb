@@ -68,8 +68,6 @@ def _maybe_mp_process(backend: Backend) -> bool:
     if parent_process:
         return parent_process() is not None
     process = backend._multiprocessing.current_process()
-    if not process:
-        return False
     if process.name == "MainProcess":
         return False
     if process.name.startswith("Process-"):
