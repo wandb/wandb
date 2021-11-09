@@ -882,9 +882,7 @@ class Molecule(BatchableMedia):
     }
     _log_type = "molecule-file"
 
-    def __init__(
-        self, data_or_path: Union[str, "TextIO"], **kwargs
-    ) -> None:
+    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs) -> None:
         super(Molecule, self).__init__()
 
         if hasattr(data_or_path, "name"):
@@ -950,7 +948,8 @@ class Molecule(BatchableMedia):
                 # .mol file?
                 molecule = rdkit_chem.MolFromMolFile(data)
             else:
-                molecule = rdkit_chem.MolFromSmiles(data)  # add sanitize=True?
+                sanitize = kwargs.pop("sanitize", True)
+                molecule = rdkit_chem.MolFromSmiles(data, sanitize=sanitize)
                 if molecule is None:
                     raise ValueError("Failed to parse the SMILES string.")
         elif isinstance(data, rdkit_chem.rdchem.Mol):
