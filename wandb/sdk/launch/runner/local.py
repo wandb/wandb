@@ -144,9 +144,11 @@ class LocalRunner(AbstractRunner):
 
         command_str = command_separator.join(command_args)
         sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-            )
-        with open(os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w") as fp:
+            r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+        )
+        with open(
+            os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
+        ) as fp:
             json.dump(
                 {
                     **launch_project.launch_spec,
