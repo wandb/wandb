@@ -1746,6 +1746,7 @@ class Run(object):
             else:
                 for m in message:
                     wandb.termlog(m)
+
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
