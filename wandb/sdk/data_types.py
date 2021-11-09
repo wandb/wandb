@@ -868,7 +868,19 @@ class Molecule(BatchableMedia):
     """
 
     SUPPORTED_TYPES = set(
-        ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf", "mol"]
+        [
+            "pdb",
+            "pqr",
+            "mmcif",
+            "mcif",
+            "cif",
+            "sdf",
+            "sd",
+            "gro",
+            "mol2",
+            "mmtf",
+            "mol",
+        ]
     )
     _log_type = "molecule-file"
 
@@ -952,10 +964,11 @@ class Molecule(BatchableMedia):
         # Convert to rdkit.Chem.rdchem.Mol with 3D coordinates
         molecule = rdkit_chem.AddHs(molecule)
         rdkit_chem_all_chem.EmbedMolecule(molecule)
-        mmff_optimize_molecule_max_iterations = kwargs.get("mmff_optimize_molecule_max_iterations", 200)
+        mmff_optimize_molecule_max_iterations = kwargs.get(
+            "mmff_optimize_molecule_max_iterations", 200
+        )
         rdkit_chem_all_chem.MMFFOptimizeMolecule(
-            molecule,
-            maxIters=mmff_optimize_molecule_max_iterations,
+            molecule, maxIters=mmff_optimize_molecule_max_iterations,
         )
         # convert into the pdb format
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
