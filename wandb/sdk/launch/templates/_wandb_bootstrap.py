@@ -5,7 +5,9 @@ import subprocess
 import sys
 
 CORES = multiprocessing.cpu_count()
-ONLY_INCLUDE = set(os.getenv("WANDB_ONLY_INCLUDE", "").split(",")).discard("") or []
+ONLY_INCLUDE = set(
+    [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
+)
 OPTS = []
 # If the builder doesn't support buildx no need to use the cache
 if os.getenv("WANDB_DISABLE_CACHE"):
