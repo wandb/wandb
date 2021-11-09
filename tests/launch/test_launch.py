@@ -77,6 +77,21 @@ def mock_load_backend():
         yield mock_load_backend
 
 
+@pytest.fixture
+def mock_load_backend_agent():
+    def side_effect(*args, **kwargs):
+        mock_props = mock.Mock()
+        mock_props.args = args
+        mock_props.kwargs = kwargs
+        return mock_props
+
+    with mock.patch("wandb.sdk.launch.agent.agent.load_backend") as mock_load_backend:
+        m = mock.Mock(side_effect=side_effect)
+        m.run = mock.Mock(side_effect=side_effect)
+        mock_load_backend.return_value = m
+        yield mock_load_backend
+
+
 def check_project_spec(
     project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
 ):
@@ -236,7 +251,7 @@ def test_launch_args_supersede_config_vals(
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
         test_settings.launch = True
@@ -263,7 +278,7 @@ def test_run_in_launch_context_with_artifact_string_no_used_as(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -297,7 +312,7 @@ def test_run_in_launch_context_with_artifact_unique(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -328,7 +343,7 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -359,7 +374,7 @@ def test_run_in_launch_context_with_artifact_string_used_as_config(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -394,7 +409,7 @@ def test_run_in_launch_context_with_artifacts_api(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -433,7 +448,7 @@ def test_run_in_launch_context_with_artifacts_no_match(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -524,6 +539,32 @@ def test_launch_agent_instance(test_settings, live_mock_server):
 
     get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
     assert get_agent_response["name"] == "test_agent"
+
+
+def test_launch_agent_different_project_in_spec(
+    test_settings,
+    live_mock_server,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+    mock_load_backend_agent,
+    capsys,
+):
+    live_mock_server.set_ctx({"invalid_launch_spec_project": True})
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: patched_pop_from_queue(c, queue),
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
+    _, err = capsys.readouterr()
+
+    ctx = live_mock_server.get_ctx()
+    assert (
+        "Launch agents only support sending runs to their own project and entity. This run will be sent to mock_server_entity/test_project"
+        in err
+    )
 
 
 def test_agent_queues_notfound(test_settings, live_mock_server):
