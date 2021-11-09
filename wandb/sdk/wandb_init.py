@@ -14,6 +14,7 @@ from __future__ import print_function
 
 import datetime
 import logging
+import multiprocessing as mp
 import os
 import platform
 import sys
@@ -457,8 +458,6 @@ class _WandbInit(object):
             get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
             active_start_method = get_start_fn() if get_start_fn else None
 
-        import multiprocessing as mp
-
         # Populate intial telemetry
         with telemetry.context(run=run) as tel:
             tel.cli_version = wandb.__version__
@@ -496,7 +495,8 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
-            tel.env.process_name = mp.current_process().name
+            tel.process_name = mp.current_process().name
+            tel.env.multiprocessing = tel.process_name.startswith("Process-")
 
         if not s.label_disable:
             if self.notebook:

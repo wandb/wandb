@@ -14,6 +14,7 @@ message TelemetryRecord {
   string  python_version = 4;
   string  cli_version = 5;
   string  huggingface_version = 6;
+  string process_name = 23;
   // string  framework = 7;
   Env     env = 8;
   Labels  label = 9;
@@ -62,6 +63,7 @@ message Feature {
   bool launch = 20; // run is created through wandb launch
   bool torch_profiler_trace = 21; // wandb.profiler.torch_trace_handler() called
   bool sb3 = 22; // Using stable_baselines3 integration
+
 }
 
 message Env {
@@ -73,7 +75,7 @@ message Env {
   bool start_fork = 6;        // multiprocessing fork
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
-  string process_name = 9;
+  bool multiprocessing = 9;
 }
 
 message Labels {
