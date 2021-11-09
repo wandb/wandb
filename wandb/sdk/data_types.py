@@ -935,7 +935,7 @@ class Molecule(BatchableMedia):
             # data_or_path is an rdkit.Chem.rdchem.Mol object
             self._initialize_with_rdkit(data_or_path)
 
-    def _initialize_with_rdkit(self, data: RDKitDataType, **kwargs: int) -> None:
+    def _initialize_with_rdkit(self, data: "RDKitDataType", **kwargs: int) -> None:
         rdkit_chem = util.get_module(
             "rdkit.Chem",
             required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
