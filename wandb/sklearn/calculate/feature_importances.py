@@ -26,7 +26,8 @@ def feature_importances(model, feature_names):
         importances = model.feature_log_prob_
 
     if len(importances.shape) > 1:
-        if np.prod(importances.shape) > importances.shape[0]:
+        n_significant_dims = sum([i > 1 for i in importances.shape])
+        if n_significant_dims > 1:
             nd = len(importances.shape)
             wandb.termwarn(
                 f"{nd}-dimensional feature importances array passed to plot_feature_importances. "
