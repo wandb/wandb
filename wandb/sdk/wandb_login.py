@@ -177,26 +177,26 @@ class _WandbLogin(object):
     def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
 
         api = Api(self._settings)
-        try:
-            key = apikey.prompt_api_key(
-                self._settings,
-                api=api,
-                no_offline=self._settings.force if self._settings else None,
-                no_create=self._settings.force if self._settings else None,
-            )
-        except ValueError as e:
-            # invalid key provided, try again
-            wandb.termerror(e.args[0])
-            return self._prompt_api_key()
-
-        except TimeoutError:
-            wandb.termlog("W&B disabled due to login timeout.")
-            return None, ApiKeyStatus.DISABLED
-        if key is False:
-            return None, ApiKeyStatus.NOTTY
-        if not key:
-            return None, ApiKeyStatus.OFFLINE
-        return key, ApiKeyStatus.VALID
+        while True:
+            try:
+                key = apikey.prompt_api_key(
+                    self._settings,
+                    api=api,
+                    no_offline=self._settings.force if self._settings else None,
+                    no_create=self._settings.force if self._settings else None,
+                )
+            except ValueError as e:
+                # invalid key provided, try again
+                wandb.termerror(e.args[0])
+                continue
+            except TimeoutError:
+                wandb.termlog("W&B disabled due to login timeout.")
+                return None, ApiKeyStatus.DISABLED
+            if key is False:
+                return None, ApiKeyStatus.NOTTY
+            if not key:
+                return None, ApiKeyStatus.OFFLINE
+            return key, ApiKeyStatus.VALID
 
     def prompt_api_key(self):
         key, status = self._prompt_api_key()
