@@ -45,7 +45,7 @@ X = X.values
 feature_names = wine_quality.columns
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-labels = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+labels = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 
 # Train model, get predictions
 model = RandomForestClassifier()
@@ -57,9 +57,9 @@ indices = np.argsort(importances)[::-1]
 
 print(model.n_features_)
 
-run = wandb.init(project='my-scikit-integration')
+run = wandb.init(project="my-scikit-integration")
 
-wandb.sklearn.plot_calibration_curve(model, X_train, y_train, 'RandomForestClassifier')
+wandb.sklearn.plot_calibration_curve(model, X_train, y_train, "RandomForestClassifier")
 
 print(model.n_features_)
 
