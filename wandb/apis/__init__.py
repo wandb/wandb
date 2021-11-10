@@ -27,11 +27,7 @@ if env.ssl_disabled():
 
     requests.Session.merge_environment_settings = merge_environment_settings
 
-reset_path = util.vendor_setup()
-
 from .internal import Api as InternalApi  # noqa
 from .public import Api as PublicApi  # noqa
-
-reset_path()
 
 __all__ = ["InternalApi", "PublicApi"]

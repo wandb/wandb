@@ -400,6 +400,8 @@ def create_app(user_ctx=None):
             ART_EMU = None
 
         body = request.get_json()
+        if body.get("variables") is None:
+            body["variables"] = {}
         app.logger.info("graphql post body: %s", body)
 
         if body["variables"].get("run"):
