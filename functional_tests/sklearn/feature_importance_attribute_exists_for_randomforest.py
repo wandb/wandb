@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Demonstrate basic API of plot_summary_metrics.
+"""Tests that feature importance visualization is produced on RandomForest model
 ---
-id: 0.sklearn.plot_summary_metrics-basic
+id: 0.sklearn.feature_importance_attribute_exists_for_randomforest
 plugin:
     - wandb
 depend:
@@ -11,9 +11,9 @@ assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][exitcode]: 0
     - :yea:exit: 0
-    - :wandb:runs[0][summary][summary_metrics][_type]: table-file
-    - :wandb:runs[0][summary][summary_metrics][ncols]: 3
-    - :wandb:runs[0][summary][summary_metrics][nrows]: 4
+    - :wandb:runs[0][summary][feature_importances][_type]: table-file
+    - :wandb:runs[0][summary][feature_importances][ncols]: 2
+    - :wandb:runs[0][summary][feature_importances][nrows]: 30
 """
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
@@ -27,8 +27,9 @@ wbcd = wisconsin_breast_cancer_data = datasets.load_breast_cancer()
 X_train, X_test, y_train, y_test = train_test_split(
     wbcd.data, wbcd.target, test_size=0.2
 )
+labels = wbcd.target_names
 
 model = RandomForestClassifier()
 model.fit(X_train, y_train)
 
-wandb.sklearn.plot_summary_metrics(model, X_train, y_train, X_test, y_test)
+wandb.sklearn.plot_feature_importances(model)

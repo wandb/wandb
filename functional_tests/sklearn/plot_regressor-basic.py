@@ -16,10 +16,8 @@ assert:
     - :wandb:runs[0][summary][learning_curve][nrows]: 10
     - :wandb:runs[0][summary][outlier_candidates][_type]: table-file
     - :wandb:runs[0][summary][outlier_candidates][ncols]: 4
-    - :wandb:runs[0][summary][outlier_candidates][nrows]: 1000
     - :wandb:runs[0][summary][residuals][_type]: table-file
     - :wandb:runs[0][summary][residuals][ncols]: 5
-    - :wandb:runs[0][summary][residuals][nrows]: 200
     - :wandb:runs[0][summary][summary_metrics][_type]: table-file
     - :wandb:runs[0][summary][summary_metrics][ncols]: 3
     - :wandb:runs[0][summary][summary_metrics][nrows]: 3
@@ -41,7 +39,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 model = Ridge()
 model.fit(X_train, y_train)
 
-wandb.sklearn.plot_regressor(model,
-                             X_train, X_test,
-                             y_train, y_test,
-                             model_name="Ridge")
+wandb.sklearn.plot_regressor(
+    model, X_train, X_test, y_train, y_test, model_name="Ridge"
+)
