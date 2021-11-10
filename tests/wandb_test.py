@@ -187,6 +187,58 @@ def test_custom_dir_env(wandb_init_run):
     assert len(glob.glob("/tmp/wandb/offline-*")) > 0
 
 
+def test_anonymous_mode(live_mock_server, test_settings, capsys, monkeypatch):
+    api_key = os.getenv("WANDB_API_KEY")
+    uname = os.getenv("WANDB_USERNAME")
+
+    os.environ.pop("WANDB_API_KEY")
+    os.environ.pop("WANDB_USERNAME")
+
+    test_settings.update({"anonymous": "must", "api_key": None})
+
+    run = wandb.init(settings=test_settings, anonymous="must")
+
+    os.environ["WANDB_API_KEY"] = api_key
+    os.environ["WANDB_USERNAME"] = uname
+
+    # monkeypatch.setenv("WANDB_USERNAME", uname)
+    # monkeypatch.setenv("WANDB_API_KEY", api_key)
+
+    run.log({"something": 1})
+    _, err = capsys.readouterr()
+
+    assert (
+        "Do NOT share these links with anyone. They can be used to claim your runs."
+        in err
+    )
+
+
+def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkeypatch):
+    api_key = os.getenv("WANDB_API_KEY")
+    uname = os.getenv("WANDB_USERNAME")
+
+    # monkeypatch.delenv("WANDB_API_KEY")
+    # monkeypatch.delenv("WANDB_USERNAME")
+    os.environ.pop("WANDB_API_KEY")
+    os.environ.pop("WANDB_USERNAME")
+
+    test_settings.update({"anonymous": "must", "api_key": None})
+
+    run = wandb.init(settings=test_settings, anonymous="must")
+
+    os.environ["WANDB_API_KEY"] = api_key
+    os.environ["WANDB_USERNAME"] = uname
+
+    # monkeypatch.setenv("WANDB_USERNAME", uname)
+    # monkeypatch.setenv("WANDB_API_KEY", api_key)
+
+    artifact = wandb.Artifact("my-arti", type="dataset")
+    run.log_artifact(artifact)
+    _, err = capsys.readouterr()
+
+    assert "Artifacts won't be claimed when you claim the run." in err
+
+
 def test_login_key(capsys):
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
