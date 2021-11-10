@@ -477,30 +477,30 @@ def test_molecule_file(runner, mocked_run):
         assert os.path.exists(mol._path)
 
 
-def test_molecule_smiles(runner, mocked_run):
+def test_molecule_from_smiles(runner, mocked_run):
     with runner.isolated_filesystem():
-        mol = wandb.Molecule("CC(=O)Nc1ccc(O)cc1")
+        mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
         mol.bind_to_run(mocked_run, "rad", "summary")
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
         assert os.path.exists(mol._path)
 
 
-def test_molecule_rdkit_mol_object(runner, mocked_run):
+def test_molecule_from_rdkit_mol_object(runner, mocked_run):
     with runner.isolated_filesystem():
-        mol = wandb.Molecule(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
+        mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
         mol.bind_to_run(mocked_run, "rad", "summary")
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
         assert os.path.exists(mol._path)
 
 
-def test_molecule_rdkit_mol_file(runner, mocked_run):
+def test_molecule_from_rdkit_mol_file(runner, mocked_run):
     with runner.isolated_filesystem():
         substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
         mol_file_name = f"{substance}.mol"
         rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
-        mol = wandb.Molecule(mol_file_name)
+        mol = wandb.Molecule.from_rdkit(mol_file_name)
         mol.bind_to_run(mocked_run, "rad", "summary")
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
