@@ -932,7 +932,7 @@ class Molecule(BatchableMedia):
         data_or_path: "RDKitDataType",
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
-    ) -> wandb.Molecule:
+    ) -> "Molecule":
         """
         Convert RDKit-supported file/object types to wandb.Molecule
 
@@ -968,7 +968,9 @@ class Molecule(BatchableMedia):
                 with rdkit_chem.SDMolSupplier(data_or_path) as supplier:
                     molecule = next(supplier)  # get only the first molecule
             else:
-                molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(data_or_path)
+                molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
+                    data_or_path
+                )
             # save the original file
             tmp_path = os.path.join(_MEDIA_TMP.name, path.name)
             with open(data_or_path, "r") as f_in, open(tmp_path, "w") as f_out:
@@ -977,7 +979,9 @@ class Molecule(BatchableMedia):
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
-            raise ValueError("Data must be file name or an rdkit.Chem.rdchem.Mol object")
+            raise ValueError(
+                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
+            )
 
         if convert_to_3d_and_optimize:
             molecule = rdkit_chem.AddHs(molecule)
@@ -997,7 +1001,7 @@ class Molecule(BatchableMedia):
         sanitize: bool = True,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
-    ) -> wandb.Molecule:
+    ) -> "Molecule":
         """
         Convert SMILES string to wandb.Molecule
 
@@ -1021,7 +1025,7 @@ class Molecule(BatchableMedia):
             raise ValueError("Unable to parse the SMILES string.")
 
         return cls.from_rdkit(
-            data_or_path=molecule, 
+            data_or_path=molecule,
             convert_to_3d_and_optimize=convert_to_3d_and_optimize,
             mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
         )
