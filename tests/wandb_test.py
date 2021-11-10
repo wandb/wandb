@@ -215,7 +215,10 @@ def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkey
         run.log_artifact(artifact)
         _, err = capsys.readouterr()
 
-        assert "Artifacts logged anonymously cannot be claimed and expire after 7 days." in err
+        assert (
+            "Artifacts logged anonymously cannot be claimed and expire after 7 days."
+            in err
+        )
 
 
 def test_login_key(capsys):

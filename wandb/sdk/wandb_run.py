@@ -2606,7 +2606,9 @@ class Run(object):
     ) -> wandb_artifacts.Artifact:
         api = internal.Api()
         if api.settings().get("anonymous") == "true":
-            wandb.termwarn("Artifacts logged anonymously cannot be claimed and expire after 7 days.")
+            wandb.termwarn(
+                "Artifacts logged anonymously cannot be claimed and expire after 7 days."
+            )
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:
