@@ -10,9 +10,12 @@ from __future__ import absolute_import
 from typing import Any, Dict, Union
 
 from gql.transport import Transport
-from graphql.execution import ExecutionResult
-from graphql.language.ast import Document
-from graphql.language.printer import print_ast
+try:
+    from graphql.execution import ExecutionResult
+    from graphql.language.printer import print_ast
+except ImportError:
+    # gql 3.x exposes these at the top level
+    from graphql import print_ast, ExecutionResult
 import requests
 from requests.adapters import HTTPAdapter, Retry
 from requests.auth import AuthBase

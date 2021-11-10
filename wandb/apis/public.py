@@ -24,7 +24,6 @@ from typing import Optional
 
 from dateutil.relativedelta import relativedelta
 from gql import Client, gql
-from gql.client import RetryError
 import requests
 import six
 from six.moves import urllib
@@ -199,7 +198,7 @@ class RetryingClient(object):
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException,),
     )
     def execute(self, *args, **kwargs):
         try:
@@ -2352,7 +2351,7 @@ class File(object):
     @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException,),
     )
     def download(self, root=".", replace=False):
         """Downloads a file previously saved by a run from the wandb server.
@@ -2709,7 +2708,7 @@ class HistoryScan(object):
     @normalize_exceptions
     @retry.retriable(
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException,),
     )
     def _load_next(self):
         max_step = self.page_offset + self.page_size
@@ -2776,7 +2775,7 @@ class SampledHistoryScan(object):
     @normalize_exceptions
     @retry.retriable(
         check_retry_fn=util.no_retry_auth,
-        retryable_exceptions=(RetryError, requests.RequestException),
+        retryable_exceptions=(requests.RequestException,),
     )
     def _load_next(self):
         max_step = self.page_offset + self.page_size
