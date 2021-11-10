@@ -39,7 +39,6 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 model = Ridge()
 model.fit(X_train, y_train)
 
-wandb.sklearn.plot_regressor(model,
-                             X_train, X_test,
-                             y_train, y_test,
-                             model_name="Ridge")
+wandb.sklearn.plot_regressor(
+    model, X_train, X_test, y_train, y_test, model_name="Ridge"
+)

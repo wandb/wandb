@@ -16,15 +16,17 @@ assert:
       - Cannot plot feature importances
 """
 from sklearn import datasets
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsClassifier
 import wandb
 
 wandb.init("my-scikit-integration")
 
 wbcd = wisconsin_breast_cancer_data = datasets.load_breast_cancer()
 
-X_train, X_test, y_train, y_test = train_test_split(wbcd.data, wbcd.target, test_size=0.2)
+X_train, X_test, y_train, y_test = train_test_split(
+    wbcd.data, wbcd.target, test_size=0.2
+)
 labels = wbcd.target_names
 
 model = KNeighborsClassifier()

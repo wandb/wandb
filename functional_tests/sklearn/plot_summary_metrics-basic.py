@@ -24,7 +24,9 @@ wandb.init("my-scikit-integration")
 
 wbcd = wisconsin_breast_cancer_data = datasets.load_breast_cancer()
 
-X_train, X_test, y_train, y_test = train_test_split(wbcd.data, wbcd.target, test_size=0.2)
+X_train, X_test, y_train, y_test = train_test_split(
+    wbcd.data, wbcd.target, test_size=0.2
+)
 
 model = RandomForestClassifier()
 model.fit(X_train, y_train)
