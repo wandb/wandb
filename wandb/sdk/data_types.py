@@ -991,7 +991,13 @@ class Molecule(BatchableMedia):
         return cls(io.StringIO(pdb_block), file_type="pdb")
 
     @classmethod
-    def from_smiles(cls, data: str, sanitize: bool = True) -> wandb.Molecule:
+    def from_smiles(
+        cls,
+        data: str,
+        sanitize: bool = True,
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> wandb.Molecule:
         """
         Convert SMILES string to wandb.Molecule
 
@@ -1000,6 +1006,11 @@ class Molecule(BatchableMedia):
                 SMILES string.
             sanitize: bool
                 Check if the molecule is chemically reasonable by the RDKit's definition.
+            convert_to_3d_and_optimize: bool
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: int
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -1009,7 +1020,11 @@ class Molecule(BatchableMedia):
         if molecule is None:
             raise ValueError("Unable to parse the SMILES string.")
 
-        return cls.from_rdkit(molecule)
+        return cls.from_rdkit(
+            data_or_path=molecule, 
+            convert_to_3d_and_optimize=convert_to_3d_and_optimize,
+            mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
+        )
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
