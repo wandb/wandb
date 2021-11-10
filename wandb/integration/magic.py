@@ -12,7 +12,7 @@ import re
 
 import wandb
 from wandb import trigger
-from wandb.util import add_import_hook, get_module
+from wandb.util import add_import_hook
 
 
 _import_hook = None
@@ -336,7 +336,7 @@ def _magic_fit_generator(
 
 
 def _monkey_tfkeras():
-    tfkeras = get_module("tensorflow.keras", required="Magic requires Keras.")
+    from tensorflow import keras as tfkeras
 
     models = getattr(tfkeras, "models", None)
     if not models:
