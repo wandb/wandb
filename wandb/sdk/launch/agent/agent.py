@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, List
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
@@ -212,7 +213,8 @@ class LaunchAgent(object):
             # temp: for local, kill all jobs. we don't yet have good handling for different
             # types of runners in general
             for _, run in self._jobs.items():
-                run.command_proc.kill()
+                if isinstance(run, LocalSubmittedRun):
+                    run.command_proc.kill()
             self.update_status(AGENT_KILLED)
             wandb.termlog("Shutting down, active jobs:")
             self.print_status()
