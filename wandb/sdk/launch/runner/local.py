@@ -11,7 +11,11 @@ import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import DEFAULT_CONFIG_PATH, get_entry_point_command, LaunchProject
+from .._project_spec import (
+    DEFAULT_LAUNCH_METADATA_PATH,
+    get_entry_point_command,
+    LaunchProject,
+)
 from ..docker import (
     build_docker_image_if_needed,
     docker_image_exists,
@@ -73,7 +77,7 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    """Runner class, uses a project to create a LocallySubmittedRun"""
+    """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         validate_docker_installation()
@@ -139,16 +143,25 @@ class LocalRunner(AbstractRunner):
             command_args += get_entry_point_command(
                 entry_point, launch_project.override_args
             )
-            with open(
-                os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
-            ) as fp:
-                json.dump(launch_project.launch_spec, fp)
+
             command_str = command_separator.join(command_args)
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
+            with open(
+                os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
+            ) as fp:
+                json.dump(
+                    {
+                        **launch_project.launch_spec,
+                        "command": sanitized_command_str,
+                        "dockerfile_contents": launch_project._dockerfile_contents,
+                    },
+                    fp,
+                )
 
             wandb.termlog(
-                "Launching run in docker with command: {}".format(
-                    re.sub(r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str)
-                )
+                "Launching run in docker with command: {}".format(sanitized_command_str)
             )
             run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()
@@ -186,9 +199,8 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
-    command: Entry point command to run
-    work_dir: Working directory in which to run the command
-    run: SubmittedRun object associated with the entry point execution.
+        command: Entry point command to run
+        work_dir: Working directory in which to run the command
 
     Returns:
         An instance of `LocalSubmittedRun`

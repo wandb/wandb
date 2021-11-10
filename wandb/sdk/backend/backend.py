@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING
 
 import wandb
 
-from ..interface import interface
+from ..interface.interface import InterfaceBase
+from ..interface.interface_queue import InterfaceQueue
 from ..internal.internal import wandb_internal
 from ..wandb_manager import _Manager
 from ..wandb_settings import Settings
@@ -47,7 +48,7 @@ class BackendThread(threading.Thread):
 class Backend(object):
     # multiprocessing context or module
     _multiprocessing: multiprocessing.context.BaseContext
-    interface: Optional[interface.BackendSenderBase]
+    interface: Optional[InterfaceBase]
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Optional[Settings]
@@ -129,7 +130,7 @@ class Backend(object):
             main_module.__file__ = self._save_mod_path
 
     def _ensure_launched_manager(self) -> None:
-        from ..interface import iface_grpc
+        from ..interface.interface_grpc import InterfaceGrpc
 
         # grpc_port: Optional[int] = None
         # attach_id = self._settings._attach_id if self._settings else None
@@ -143,7 +144,7 @@ class Backend(object):
         assert service
         stub = service._get_stub()
         assert stub
-        grpc_interface = iface_grpc.BackendGrpcSender()
+        grpc_interface = InterfaceGrpc()
         grpc_interface._connect(stub=stub)
         self.interface = grpc_interface
 
@@ -206,7 +207,7 @@ class Backend(object):
 
         self._module_main_uninstall()
 
-        self.interface = interface.BackendSender(
+        self.interface = InterfaceQueue(
             process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
 

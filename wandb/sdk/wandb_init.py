@@ -513,6 +513,12 @@ class _WandbInit(object):
         assert backend.interface
         backend.interface.publish_header()
 
+        # Using GitRepo() blocks & can be slow, depending on user's current git setup.
+        # We don't want to block run initialization/start request, so populate run's git
+        # info beforehand.
+        if not s.disable_git:
+            run._populate_git_info()
+
         if s._offline:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
@@ -537,12 +543,6 @@ class _WandbInit(object):
                 if check.yank_message:
                     run._set_yanked_version_message(check.yank_message)
             run._on_init()
-
-            # Using GitRepo() blocks & can be slow, depending on user's current git setup.
-            # We don't want to block run initialization/start request, so populate run's git
-            # info beforehand.
-            if not s.disable_git:
-                run._populate_git_info()
 
         if not s._offline:
             logger.info("communicating run to backend with 30 second timeout")
@@ -703,17 +703,34 @@ def init(
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default so you can see live visualizations.
-    Call `wandb.init()` to start a run before logging data with `wandb.log()`.
+
+    Call `wandb.init()` to start a run before logging data with `wandb.log()`:
+    <!--yeadoc-test:init-method-log-->
+    ```python
+    import wandb
+
+    wandb.init()
+    # ... calculate metrics, generate media
+    wandb.log({"accuracy": 0.9})
+    ```
 
     `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`.
+    via `wandb.run`:
+    <!--yeadoc-test:init-and-assert-global-->
+    ```python
+    import wandb
+
+    run = wandb.init()
+
+    assert run is wandb.run
+    ```
 
     At the end of your script, we will automatically call `wandb.finish` to
     finalize and cleanup the run. However, if you call `wandb.init` from a
     child process, you must explicitly call `wandb.finish` at the end of the
     child process.
 
-    For more on using `wandb.init()`, including code snippets, check out our
+    For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
     Arguments:
@@ -835,18 +852,32 @@ def init(
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
     Examples:
-        Basic usage
-        ```
-        wandb.init()
-        ```
+    ### Set where the run is logged
 
-        Launch multiple runs from the same script
-        ```
-        for x in range(10):
-            with wandb.init(project="my-projo") as run:
-                for y in range(100):
-                    run.log({"metric": x+y})
-        ```
+    You can change where the run is logged, just like changing
+    the organization, repository, and branch in git:
+    ```python
+    import wandb
+
+    user = "geoff"
+    project = "capsules"
+    display_name = "experiment-2021-10-31"
+
+    wandb.init(entity=user, project=project, name=display_name)
+    ```
+
+    ### Add metadata about the run to the config
+
+    Pass a dictionary-style object as the `config` keyword argument to add
+    metadata, like hyperparameters, to your run.
+    <!--yeadoc-test:init-set-config--->
+    ```python
+    import wandb
+
+    config = {"lr": 3e-4, "batch_size": 32}
+    config.update({"architecture": "resnet", "depth": 34})
+    wandb.init(config=config)
+    ```
 
     Raises:
         Exception: if problem.

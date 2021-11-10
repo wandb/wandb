@@ -13,14 +13,32 @@ import numpy as np
 import operator
 import os
 import sys
+
 from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
 from wandb.util import add_import_hook
-
-
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+
+import tensorflow as tf
+import tensorflow.keras.backend as K
+
+
+def _check_keras_version():
+    from keras import __version__ as keras_version
+
+    if parse_version(keras_version) < parse_version("2.4.0"):
+        wandb.termwarn(
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
+        )
+
+
+if "keras" in sys.modules:
+    _check_keras_version()
+else:
+    add_import_hook("keras", _check_keras_version)
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +57,7 @@ def is_dataset(data):
 def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
-    types = (keras.utils.Sequence,)
+    types = (tf.keras.utils.Sequence,)
     iterator_ops = wandb.util.get_module("tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
@@ -167,15 +185,6 @@ def patch_tf_keras():
         wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
-def _check_keras_version():
-    from keras import __version__ as keras_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
-        wandb.termwarn(
-            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
-        )
-
-
 def _array_has_dtype(array):
     return hasattr(array, "dtype") or hasattr(array, "_dtype")
 
@@ -213,15 +222,6 @@ def _warn_not_logging(name):
     )
 
 
-if "keras" in sys.modules:
-    _check_keras_version()
-else:
-    add_import_hook("keras", _check_keras_version)
-
-import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
-
 tf_logger = tf.get_logger()
 
 patch_tf_keras()
@@ -234,15 +234,9 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
-        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
-
-    # this needs to be implemented to prevent a NotImplementedError when
-    # using Lookup layers. Since these
-    def _resource_apply_sparse(self, grad, var, indices):
-        pass
 
     def get_config(self):
         return super(_CustomOptimizer, self).get_config()
@@ -271,7 +265,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
 ###
 
 
-class WandbCallback(keras.callbacks.Callback):
+class WandbCallback(tf.keras.callbacks.Callback):
     """`WandbCallback` automatically integrates keras with wandb.
 
     Example:
@@ -541,11 +535,15 @@ class WandbCallback(keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
@@ -890,7 +888,6 @@ class WandbCallback(keras.callbacks.Callback):
             verbose=0,
             callbacks=[self._grad_accumulator_callback],
         )
-
         tf_logger.setLevel(og_level)
         weights = self.model.trainable_weights
         grads = self._grad_accumulator_callback.grads

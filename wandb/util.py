@@ -54,9 +54,6 @@ from wandb.errors import CommError, term
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
-# Boolean, unsigned integer, signed integer, float, complex.
-NUMERIC_KINDS = set("buifc")
-
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 RE_WINFNAMES = re.compile('[<>:"/\?*]')

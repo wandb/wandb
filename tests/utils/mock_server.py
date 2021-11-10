@@ -80,6 +80,8 @@ def default_ctx():
         "launch_agent_update_fail": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
+        "invalid_launch_spec_project": False,
+        "n_sweep_runs": 0,
     }
 
 
@@ -696,20 +698,31 @@ def create_app(user_ctx=None):
                 {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
             )
         if "mutation Heartbeat(" in body["query"]:
+            new_run_needed = body["variables"]["runState"] == "{}"
+            if new_run_needed:
+                ctx["n_sweep_runs"] += 1
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
                             "agent": {"id": "mock-server-agent-93xy",},
-                            "commands": json.dumps(
-                                [
-                                    {
-                                        "type": "run",
-                                        "run_id": "mocker-sweep-run-x9",
-                                        "args": {"learning_rate": {"value": 0.99124}},
-                                    }
-                                ]
-                            ),
+                            "commands": (
+                                json.dumps(
+                                    [
+                                        {
+                                            "type": "run",
+                                            "run_id": f"mocker-sweep-run-x9{ctx['n_sweep_runs']}",
+                                            "args": {
+                                                "a": {"value": ctx["n_sweep_runs"]}
+                                            },
+                                        }
+                                    ]
+                                )
+                                if ctx["n_sweep_runs"] <= 4
+                                else json.dumps([{"type": "exit"}])
+                            )
+                            if new_run_needed
+                            else "[]",
                         }
                     }
                 }
@@ -796,7 +809,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-            if body["variables"].get("name") == "mocker-sweep-run-x9":
+            if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
@@ -1024,7 +1037,9 @@ def create_app(user_ctx=None):
             }
         if "query Artifact(" in body["query"]:
             if ART_EMU:
-                return ART_EMU.query(variables=body.get("variables", {}))
+                return ART_EMU.query(
+                    variables=body.get("variables", {}), query=body.get("query")
+                )
             art = artifact(
                 ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
             )
@@ -1145,6 +1160,22 @@ def create_app(user_ctx=None):
             if ctx["num_popped"] != 0:
                 return json.dumps({"data": {"popFromRunQueue": None}})
             ctx["num_popped"] += 1
+            if ctx["invalid_launch_spec_project"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "popFromRunQueue": {
+                                "runQueueItemId": 1,
+                                "runSpec": {
+                                    "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                    "project": "test_project2",
+                                    "entity": "mock_server_entity",
+                                    "resource": "local",
+                                },
+                            }
+                        }
+                    }
+                )
             return json.dumps(
                 {
                     "data": {
@@ -1295,6 +1326,29 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {}})
+
+        if "query GetSweeps" in body["query"]:
+            if body["variables"]["project"] == "testnosweeps":
+                return {"data": {"project": {"totalSweeps": 0, "sweeps": {}}}}
+            return {
+                "data": {
+                    "project": {
+                        "totalSweeps": 1,
+                        "sweeps": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "id": "testdatabaseid",
+                                        "name": "testid",
+                                        "bestLoss": 0.5,
+                                        "config": yaml.dump({"name": "testname"}),
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
@@ -1752,7 +1806,7 @@ class ParseCTX(object):
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                if k == u"output.log":
+                if k == "output.log":
                     lines = content
                 else:
                     lines = map(json.loads, content)

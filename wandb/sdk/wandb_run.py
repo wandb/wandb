@@ -71,7 +71,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import BackendSenderBase
+from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -126,7 +126,7 @@ class RunStatusChecker(object):
 
     def __init__(
         self,
-        interface: BackendSenderBase,
+        interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
     ) -> None:
@@ -185,12 +185,56 @@ class RunStatusChecker(object):
 class Run(object):
     """A unit of computation logged by wandb. Typically this is an ML experiment.
 
-    Create a run with `wandb.init()`.
+    Create a run with `wandb.init()`:
+    <!--yeadoc-test:run-object-basic-->
+    ```python
+    import wandb
 
-    In distributed training, use `wandb.init()` to create a run for
-    each process, and set the group argument to organize runs into a larger experiment.
+    run = wandb.init()
+    ```
 
-    Currently there is a parallel Run object in the wandb.Api. Eventually these
+    There is only ever at most one active `wandb.Run` in any process,
+    and it is accessible as `wandb.run`:
+    <!--yeadoc-test:global-run-object-->
+    ```python
+    import wandb
+
+    assert wandb.run is None
+
+    wandb.init()
+
+    assert wandb.run is not None
+    ```
+    anything you log with `wandb.log` will be sent to that run.
+
+    If you want to start more runs in the same script or notebook, you'll need to
+    finish the run that is in-flight. Runs can be finished with `wandb.finish` or
+    by using them in a `with` block:
+    <!--yeadoc-test:run-context-manager-->
+    ```python
+    import wandb
+
+    wandb.init()
+    wandb.finish()
+
+    assert wandb.run is None
+
+    with wandb.init() as run:
+        pass  # log data here
+
+    assert wandb.run is None
+    ```
+
+    See the documentation for `wandb.init` for more on creating runs, or check out
+    [our guide to `wandb.init`](https://docs.wandb.ai/guides/track/launch).
+
+    In distributed training, you can either create a single run in the rank 0 process
+    and then log information only from that process or you can create a run in each process,
+    logging from each separately, and group the results together with the `group` argument
+    to `wandb.init`. For more details on distributed training with W&B, check out
+    [our guide](https://docs.wandb.ai/guides/track/advanced/distributed-training).
+
+    Currently there is a parallel `Run` object in the `wandb.Api`. Eventually these
     two objects will be merged.
 
     Attributes:
@@ -218,6 +262,12 @@ class Run(object):
     _run_obj_offline: Optional[RunRecord]
     # Use string literal anotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
+    _internal_run_interface: Optional[
+        Union[
+            "wandb.sdk.interface.interface_queue.InterfaceQueue",
+            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
+        ]
+    ]
     _wl: Optional[_WandbSetup]
 
     _upgraded_version_message: Optional[str]
@@ -260,6 +310,7 @@ class Run(object):
         self._config._set_callback(self._config_callback)
         self._config._set_settings(settings)
         self._backend = None
+        self._internal_run_interface = None
         self.summary = wandb_summary.Summary(
             self._summary_get_current_summary_callback,
         )
@@ -356,6 +407,7 @@ class Run(object):
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -494,12 +546,15 @@ class Run(object):
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
-        repo = GitRepo(remote=self._settings.git_remote)
+        try:
+            repo = GitRepo(remote=self._settings.git_remote, lazy=False)
+        except Exception:
+            wandb.termwarn("Cannot find valid git repo associated with this directory.")
+            return
         self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
-
         # We only pickle in service mode
         if not self._settings or not self._settings._require_service:
             return
@@ -647,7 +702,8 @@ class Run(object):
     def step(self) -> int:
         """Returns the current value of the step.
 
-        This counter is incremented by `wandb.log`."""
+        This counter is incremented by `wandb.log`.
+        """
         return self.history._step
 
     def project_name(self) -> str:
@@ -698,22 +754,20 @@ class Run(object):
         include_fn: Callable[[str], bool] = lambda path: path.endswith(".py"),
         exclude_fn: Callable[[str], bool] = filenames.exclude_wandb_fn,
     ) -> Optional[Artifact]:
-        """Saves the current state of your code to a W&B artifact.
+        """Saves the current state of your code to a W&B Artifact.
 
         By default it walks the current directory and logs all files that end with `.py`.
 
         Arguments:
-            root (str, optional): The relative (to `os.getcwd()`) or absolute path to
-                recursively find code from.
-            name (str, optional): The name of our code artifact. By default we'll name
+            root: The relative (to `os.getcwd()`) or absolute path to recursively find code from.
+            name: (str, optional) The name of our code artifact. By default we'll name
                 the artifact `source-$RUN_ID`. There may be scenarios where you want
                 many runs to share the same artifact. Specifying name allows you to achieve that.
-            include_fn (callable, optional): A callable that accepts a file path and
+            include_fn: A callable that accepts a file path and
                 returns True when it should be included and False otherwise. This
                 defaults to: `lambda path: path.endswith(".py")`
-            exclude_fn (callable, optional): A callable that accepts a file path and
-                returns `True` when it should be excluded and `False` otherwise. This
-                defaults to: `lambda path: False`
+            exclude_fn: A callable that accepts a file path and returns `True` when it should be
+                excluded and `False` otherwise. Thisdefaults to: `lambda path: False`
 
         Examples:
             Basic usage
@@ -785,7 +839,8 @@ class Run(object):
     def entity(self) -> str:
         """Returns the name of the W&B entity associated with the run.
 
-        Entity can be a user name or the name of a team or organization."""
+        Entity can be a user name or the name of a team or organization.
+        """
         return self._entity or ""
 
     def _label_internal(
@@ -875,7 +930,7 @@ class Run(object):
             self._label_probe_lines(lines)
 
     def display(self, height: int = 420, hidden: bool = False) -> bool:
-        """Display this run in jupyter"""
+        """Displays this run in jupyter."""
         if self._settings._jupyter and ipython.in_jupyter():
             ipython.display_html(self.to_html(height, hidden))
             return True
@@ -884,7 +939,7 @@ class Run(object):
             return False
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
-        """Generate HTML containing an iframe displaying the current run"""
+        """Generates HTML containing an iframe displaying the current run."""
         url = self._get_run_url() + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
@@ -987,6 +1042,15 @@ class Run(object):
 
     def _set_backend(self, backend: "wandb.sdk.backend.backend.Backend") -> None:
         self._backend = backend
+
+    def _set_internal_run_interface(
+        self,
+        interface: Union[
+            "wandb.sdk.interface.interface_queue.InterfaceQueue",
+            "wandb.sdk.interface.interface_grpc.InterfaceGrpc",
+        ],
+    ) -> None:
+        self._internal_run_interface = interface
 
     def _set_reporter(self, reporter: Reporter) -> None:
         self._reporter = reporter
@@ -1125,45 +1189,101 @@ class Run(object):
             For more and more detailed examples, see
             [our guides to logging](https://docs.wandb.com/guides/track/log).
 
-            Basic usage
+            ### Basic usage
+            <!--yeadoc-test:init-and-log-basic-->
             ```python
+            import wandb
+            wandb.init()
             wandb.log({'accuracy': 0.9, 'epoch': 5})
             ```
 
-            Incremental logging
+            ### Incremental logging
+            <!--yeadoc-test:init-and-log-incremental-->
             ```python
+            import wandb
+            wandb.init()
             wandb.log({'loss': 0.2}, commit=False)
             # Somewhere else when I'm ready to report this step:
             wandb.log({'accuracy': 0.8})
             ```
 
-            Histogram
+            ### Histogram
+            <!--yeadoc-test:init-and-log-histogram-->
             ```python
-            wandb.log({"gradients": wandb.Histogram(numpy_array_or_sequence)})
+            import numpy as np
+            import wandb
+
+            # sample gradients at random from normal distribution
+            gradients = np.random.randn(100, 100)
+            wandb.init()
+            wandb.log({"gradients": wandb.Histogram(gradients)})
             ```
 
-            Image
+            ### Image from numpy
+            <!--yeadoc-test:init-and-log-image-numpy-->
             ```python
-            wandb.log({"examples": [wandb.Image(numpy_array_or_pil, caption="Label")]})
+            import numpy as np
+            import wandb
+
+            wandb.init()
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+                image = wandb.Image(pixels, caption=f"random field {i}")
+                examples.append(image)
+            wandb.log({"examples": examples})
             ```
 
-            Video
+            ### Image from PIL
+            <!--yeadoc-test:init-and-log-image-pillow-->
             ```python
-            wandb.log({"video": wandb.Video(numpy_array_or_video_path, fps=4,
-                format="gif")})
+            import numpy as np
+            from PIL import Image as PILImage
+            import wandb
+
+            wandb.init()
+            examples = []
+            for i in range(3):
+                pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+                pil_image = PILImage.fromarray(pixels, mode="RGB")
+                image = wandb.Image(pil_image, caption=f"random field {i}")
+                examples.append(image)
+            wandb.log({"examples": examples})
             ```
 
-            Matplotlib Plot
+            ### Video from numpy
+            <!--yeadoc-test:init-and-log-video-numpy-->
             ```python
-            wandb.log({"chart": plt})
+            import numpy as np
+            import wandb
+
+            wandb.init()
+            # axes are (time, channel, height, width)
+            frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+            wandb.log({"video": wandb.Video(frames, fps=4)})
             ```
 
-            PR Curve
+            ### Matplotlib Plot
+            <!--yeadoc-test:init-and-log-matplotlib-->
+            ```python
+            from matplotlib import pyplot as plt
+            import numpy as np
+            import wandb
+
+            wandb.init()
+            fig, ax = plt.subplots()
+            x = np.linspace(0, 10)
+            y = x * x
+            ax.plot(x, y)  # plot y = x^2
+            wandb.log({"chart": fig})
+            ```
+
+            ### PR Curve
             ```python
             wandb.log({'pr': wandb.plots.precision_recall(y_test, y_probas, labels)})
             ```
 
-            3D Object
+            ### 3D Object
             ```python
             wandb.log({"generated_samples":
             [wandb.Object3D(open("sample.obj")),
@@ -1333,8 +1453,8 @@ class Run(object):
         call this method when your script exits or if you use the run context manager.
 
         Arguments:
-            exit_code (int): set to something other than 0 to mark a run as failed
-            quite (bool): set to true to minimize log output
+            exit_code: Set to something other than 0 to mark a run as failed
+            quiet: Set to true to minimize log output
         """
         if quiet is not None:
             self._quiet = quiet
@@ -2264,6 +2384,7 @@ class Run(object):
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
             use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+
         Returns:
             An `Artifact` object.
         """
@@ -2296,10 +2417,7 @@ class Run(object):
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id,
-                entity_name=artifact.entity,
-                project_name=artifact.project,
-                use_as=use_as or artifact_or_name,
+                artifact.id, use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2511,6 +2629,15 @@ class Run(object):
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
+        elif self._internal_run_interface:
+            self._internal_run_interface.publish_artifact(
+                self,
+                artifact,
+                aliases,
+                finalize=finalize,
+                is_user_created=is_user_created,
+                use_after_commit=use_after_commit,
+            )
         return artifact
 
     def _public_api(self) -> PublicApi:
@@ -2706,8 +2833,8 @@ def finish(exit_code: int = None, quiet: bool = None) -> None:
     We automatically call this method when your script exits.
 
     Arguments:
-        exit_code (int): set to something other than 0 to mark a run as failed
-        quite (bool): set to true to minimize log output
+        exit_code: Set to something other than 0 to mark a run as failed
+        quiet: Set to true to minimize log output
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
