@@ -17,14 +17,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras import backend as K
 from wandb.keras import WandbCallback
 import wandb
-from wandb.sklearn import (
-    learning_curve,
-    roc,
-    confusion_matrix,
-    precision_recall,
-    plot_classifier,
-    plot_feature_importances,
-)
+from wandb.sklearn import plot_feature_importances
 
 
 @pytest.fixture
@@ -88,91 +81,6 @@ def dummy_data(request):
     if image_output:
         labels = data
     return (data, labels)
-
-
-def test_learning_curve(dummy_classifier):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
-    lc_table = learning_curve(nb, x_train, y_train)
-    assert len(lc_table.value.data) == 10
-    assert lc_table.value.data[0][0] == "train"
-    assert lc_table.value.data[1][0] == "test"
-
-
-def test_roc(dummy_classifier):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
-    r = roc(y_test, y_probas)
-
-    assert r.value.data[0] == [0, 0.0, 0.0]
-
-
-def test_confusion_matrix(dummy_classifier):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
-    cm = confusion_matrix(y_test, y_pred)
-    assert len(cm.value.data) == 4
-    assert cm.value.data[0] == [0, 0, 0]
-
-
-def test_precision_recall(dummy_classifier):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
-    pr = precision_recall(y_test, y_probas)
-
-    assert pr.value.data[0] == [0, 1.0, 1.0]
-
-
-def test_plot_classifier(dummy_classifier, wandb_init_run):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
-    plot_classifier(
-        nb,
-        x_train,
-        x_test,
-        y_train,
-        y_test,
-        y_pred,
-        y_probas,
-        ["cat", "dog"],
-        False,
-        "RandomForest",
-        ["fur", "sound"],
-        True,
-    )
-
-    hist = wandb.run._backend.history
-    logged_keys = [[k for k in r.keys() if not k.startswith("_")][0] for r in hist]
-    assert logged_keys == [
-        "learning_curve",
-        "confusion_matrix",
-        "summary_metrics",
-        "class_proportions",
-        "roc",
-        "precision_recall",
-    ]
-
-
-def test_plot_classifier_no_learning_curve(dummy_classifier, wandb_init_run):
-    (nb, x_train, y_train, x_test, y_test, y_pred, y_probas) = dummy_classifier
-    plot_classifier(
-        nb,
-        x_train,
-        x_test,
-        y_train,
-        y_test,
-        y_pred,
-        y_probas,
-        ["cat", "dog"],
-        False,
-        "RandomForest",
-        ["fur", "sound"],
-    )
-
-    hist = wandb.run._backend.history
-    logged_keys = [[k for k in r.keys() if not k.startswith("_")][0] for r in hist]
-    assert logged_keys == [
-        "confusion_matrix",
-        "summary_metrics",
-        "class_proportions",
-        "roc",
-        "precision_recall",
-    ]
 
 
 def test_feature_importance_attribute_does_not_exists(
