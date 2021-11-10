@@ -196,8 +196,7 @@ class _WandbLogin(object):
                 return None, ApiKeyStatus.NOTTY
             if not key:
                 return None, ApiKeyStatus.OFFLINE
-            else:
-                return key, ApiKeyStatus.VALID
+            return key, ApiKeyStatus.VALID
 
     def prompt_api_key(self):
         key, status = self._prompt_api_key()
