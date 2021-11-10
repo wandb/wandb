@@ -94,7 +94,8 @@ class RequestsHTTPTransport(Transport):
             `errors` is null if no errors occurred, and is a non-empty array if an error occurred.
         """
         query_str = print_ast(document)
-        payload = {"query": query_str}  # type: Dict
+        # CVP: added variables to every request
+        payload = {"query": query_str, "variables": {}}  # type: Dict
         if variable_values:
             payload["variables"] = variable_values
         if operation_name:
