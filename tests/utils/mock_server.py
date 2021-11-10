@@ -809,7 +809,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-            if "mocker-sweep-run-x9" in body["variables"].get("name"):
+            if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
