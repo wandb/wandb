@@ -7,9 +7,8 @@ import re
 import sys
 
 # from wandb.git_repo import GitRepo
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from gql import Client, gql
+from gql.client import RetryError
 import requests
 import six
 from six import BytesIO
@@ -20,6 +19,8 @@ from wandb.errors import CommError, UsageError
 from wandb.old.settings import Settings
 from wandb.sdk.lib import retry
 import yaml
+
+from .transport import RequestsHTTPTransport
 
 
 logger = logging.getLogger(__name__)

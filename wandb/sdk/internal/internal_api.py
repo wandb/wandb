@@ -1,7 +1,4 @@
 #
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import ast
 import os
@@ -21,6 +18,8 @@ else:
     import subprocess  # type: ignore[no-redef]
 
 from copy import deepcopy
+from gql import Client, gql  # type: ignore
+from gql.client import RetryError  # type: ignore
 import six
 from six import BytesIO
 import wandb
@@ -29,6 +28,7 @@ from wandb import env
 from wandb.old.settings import Settings
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.transport import RequestsHTTPTransport
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib import retry
