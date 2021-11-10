@@ -1,9 +1,12 @@
 id: boundingbox-2d
 plugin:
     - wandb
+tag:
+  shard: docs
 depend:
     requirements:
         - numpy
+        - pillow
 assert:
     - :wandb:runs_len: 1
     - :op:contains:

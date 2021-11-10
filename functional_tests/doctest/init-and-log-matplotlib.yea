@@ -1,6 +1,8 @@
 id: init-and-log-matplotlib
 plugin:
     - wandb
+tag:
+  shard: docs
 depend:
     requirements:
         - numpy

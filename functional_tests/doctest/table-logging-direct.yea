@@ -1,6 +1,8 @@
 id: table-logging-direct
 plugin:
     - wandb
+tag:
+  shard: docs
 depend:
     requirements:
         - pandas

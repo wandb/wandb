@@ -1,6 +1,8 @@
 id: init-and-log-video-numpy
 plugin:
     - wandb
+tag:
+  shard: docs
 depend:
     requirements:
         - numpy

@@ -1,6 +1,8 @@
 id: init-and-log-image-numpy
 plugin:
     - wandb
+tag:
+  shard: docs
 depend:
     requirements:
         - numpy

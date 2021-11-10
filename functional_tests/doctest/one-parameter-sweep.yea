@@ -1,6 +1,8 @@
 id: one-parameter-sweep
 plugin:
     - wandb
+tag:
+  shard: docs
 assert:
     - :wandb:runs_len: 4
     - :op:contains:
