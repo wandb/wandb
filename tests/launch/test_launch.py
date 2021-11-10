@@ -546,7 +546,7 @@ def test_launch_agent_different_project_in_spec(
     live_mock_server,
     mocked_fetchable_git_repo,
     monkeypatch,
-    mock_load_backend_agent,
+    # mock_load_backend_agent,
     capsys,
 ):
     live_mock_server.set_ctx({"invalid_launch_spec_project": True})
@@ -658,7 +658,7 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False

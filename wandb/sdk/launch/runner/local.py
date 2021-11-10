@@ -135,9 +135,6 @@ class LocalRunner(AbstractRunner):
                 )
                 return None
 
-        # In synchronous mode, run the entry point command in a blocking fashion, sending status
-        # updates to the tracking server when finished. Note that the run state may not be
-        # persisted to the tracking server if interrupted
         command_args += get_entry_point_command(
             entry_point, launch_project.override_args
         )

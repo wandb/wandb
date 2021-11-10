@@ -12,7 +12,7 @@ from wandb.apis.internal import Api
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
-from ..runner.abstract import AbstractRun, State
+from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
     _is_wandb_local_uri,
@@ -38,8 +38,6 @@ def _convert_access(access: str) -> str:
 
 class LaunchAgent(object):
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
-
-    STATE_MAP: Dict[str, State] = {}
 
     def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
         self._entity = entity
@@ -184,32 +182,37 @@ class LaunchAgent(object):
                 self._ticks += 1
                 job = None
                 if self._running < self._max_jobs:
+                    # only check for new jobs if we're not at max
                     for queue in self._queues:
                         job = self.pop_from_queue(queue)
                         if job:
-                            break
-                if not job:
-                    time.sleep(AGENT_POLLING_INTERVAL)
-                    agent_response = self._api.get_launch_agent(
-                        self._id, self.gorilla_supports_agents
-                    )
-                    self._name = agent_response[
-                        "name"
-                    ]  # hacky, but we don't return the name on create so this is first time
-                    if agent_response["stopPolling"]:
-                        # shutdown process if requested from ui
-                        raise KeyboardInterrupt
-                    for job_id in self.job_ids:
-                        self._update_finished(job_id)
-                    if self._ticks % 2 == 0:
-                        if self._running == 0:
-                            self.update_status(AGENT_POLLING)
-                            self.print_status()
-                        else:
-                            self.update_status(AGENT_RUNNING)
-                    continue
-                self.run_job(job)
+                            self.run_job(job)
+                            break  # do a full housekeeping loop before popping more jobs
+
+                agent_response = self._api.get_launch_agent(
+                    self._id, self.gorilla_supports_agents
+                )
+                self._name = agent_response[
+                    "name"
+                ]  # hacky, but we don't return the name on create so this is first time
+                if agent_response["stopPolling"]:
+                    # shutdown process and all jobs if requested from ui
+                    raise KeyboardInterrupt
+                for job_id in self.job_ids:
+                    self._update_finished(job_id)
+                if self._ticks % 2 == 0:
+                    if self._running == 0:
+                        self.update_status(AGENT_POLLING)
+                        self.print_status()
+                    else:
+                        self.update_status(AGENT_RUNNING)
+                time.sleep(AGENT_POLLING_INTERVAL)
+
         except KeyboardInterrupt:
+            # temp: for local, kill all jobs. we don't yet have good handling for different
+            # types of runners in general
+            for _, run in self._jobs.items():
+                run.command_proc.kill()
             self.update_status(AGENT_KILLED)
             wandb.termlog("Shutting down, active jobs:")
             self.print_status()
