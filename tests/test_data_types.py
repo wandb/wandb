@@ -372,6 +372,24 @@ def test_image_from_matplotlib_with_image():
     plt.close()
 
 
+def test_image_from_smiles(runner, mocked_run):
+    """Ensures that wandb.Image.from_smiles supports valid SMILES molecule string representations"""
+    wandb.Image.from_smiles("CC(=O)Nc1ccc(O)cc1")  # this should not error.
+
+
+def test_image_from_rdkit_mol_object(runner, mocked_run):
+    molecule = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
+    wandb.Image.from_rdkit(molecule)  # this should not error.
+
+
+def test_image_from_rdkit_mol_file(runner, mocked_run):
+    with runner.isolated_filesystem():
+        substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
+        mol_file_name = f"{substance}.mol"
+        rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
+        wandb.Image.from_rdkit(mol_file_name)  # this should not error.
+
+
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
 )
