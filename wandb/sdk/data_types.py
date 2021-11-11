@@ -879,7 +879,6 @@ class Molecule(BatchableMedia):
         "gro",
         "mol2",
         "mmtf",
-        "mol",
     }
     SUPPORTED_RDKIT_TYPES = {"mol", "mol2", "pdb", "png", "tpl", "sdf"}
     _log_type = "molecule-file"
