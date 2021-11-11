@@ -957,7 +957,7 @@ class Molecule(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             # path to a file?
             path = pathlib.Path(data_or_path)
-            extension = path.suffix
+            extension = path.suffix.split(".")[-1]
             if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
                 raise ValueError(
                     "Molecule.from_rdkit only supports files of the type: "
