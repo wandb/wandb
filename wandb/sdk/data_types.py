@@ -2111,6 +2111,14 @@ class Image(BatchableMedia):
             "rdkit.Chem",
             required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
         )
+        rdkit_chem_draw = util.get_module(
+            "rdkit.Chem.Draw",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        rdkit_chem_allchem = util.get_module(
+            "rdkit.Chem.AllChem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
 
         if isinstance(data_or_path, six.string_types):
             # path to a file?
@@ -2136,10 +2144,10 @@ class Image(BatchableMedia):
                 "Data must be file name or an rdkit.Chem.rdchem.Mol object"
             )
 
-        rdkit_chem.AllChem.Compute2DCoords(molecule)
-        rdkit_chem.AllChem.GenerateDepictionMatching2DStructure(molecule, molecule)
+        rdkit_chem_allchem.Compute2DCoords(molecule)
+        rdkit_chem_allchem.GenerateDepictionMatching2DStructure(molecule, molecule)
 
-        pil_image = rdkit_chem.Draw.MolToImage(
+        pil_image = rdkit_chem_draw.MolToImage(
             molecule, size=(width, height), **kwargs,
         )
 
