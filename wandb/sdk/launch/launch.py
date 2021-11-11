@@ -168,10 +168,6 @@ def run(
         api=api,
     )
 
-    if synchronous:
-        _wait_for(submitted_run_obj)
-    else:
-        raise LaunchError("Non synchronous mode not supported")
     return submitted_run_obj
 
 
