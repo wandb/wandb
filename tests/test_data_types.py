@@ -378,11 +378,13 @@ def test_image_from_smiles(runner, mocked_run):
 
 
 def test_image_from_rdkit_mol_object(runner, mocked_run):
+    """Ensures that wandb.Image.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
     molecule = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
     wandb.Image.from_rdkit(molecule)  # this should not error.
 
 
 def test_image_from_rdkit_mol_file(runner, mocked_run):
+    """Ensures that wandb.Image.from_rdkit supports .mol files"""
     with runner.isolated_filesystem():
         substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
         mol_file_name = f"{substance}.mol"
@@ -496,6 +498,7 @@ def test_molecule_file(runner, mocked_run):
 
 
 def test_molecule_from_smiles(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_smiles supports valid SMILES molecule string representations"""
     with runner.isolated_filesystem():
         mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
         mol.bind_to_run(mocked_run, "rad", "summary")
@@ -505,6 +508,7 @@ def test_molecule_from_smiles(runner, mocked_run):
 
 
 def test_molecule_from_rdkit_mol_object(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
     with runner.isolated_filesystem():
         mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
         mol.bind_to_run(mocked_run, "rad", "summary")
@@ -514,6 +518,7 @@ def test_molecule_from_rdkit_mol_object(runner, mocked_run):
 
 
 def test_molecule_from_rdkit_mol_file(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_rdkit supports .mol files"""
     with runner.isolated_filesystem():
         substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
         mol_file_name = f"{substance}.mol"

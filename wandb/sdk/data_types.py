@@ -971,13 +971,7 @@ class Molecule(BatchableMedia):
                 molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
                     data_or_path
                 )
-            # save the original file
-            tmp_path = os.path.join(_MEDIA_TMP.name, path.name)
-            with open(data_or_path, "r") as f_in, open(tmp_path, "w") as f_out:
-                f_out.write(f_in.read())
-            # fixme?
-            cls._set_file(tmp_path, is_tmp=False)
-
+            # todo: save the original file
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
@@ -2092,8 +2086,7 @@ class Image(BatchableMedia):
         )
 
     @classmethod
-    def from_rdkit(cls, data_or_path: "RDKitDataType",
-    ) -> "Image":
+    def from_rdkit(cls, data_or_path: "RDKitDataType") -> "Image":
         """
         Convert RDKit-supported Molecule file/object types to 2D images
 
@@ -2113,7 +2106,7 @@ class Image(BatchableMedia):
         if isinstance(data_or_path, six.string_types):
             # path to a file?
             path = pathlib.Path(data_or_path)
-            extension = path.suffix
+            extension = path.suffix.split(".")[-1]
             if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
                 raise ValueError(
                     "Molecule.from_rdkit only supports files of the type: "
@@ -2127,11 +2120,7 @@ class Image(BatchableMedia):
                 molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
                     data_or_path
                 )
-            # save the original file
-            tmp_path = os.path.join(_MEDIA_TMP.name, path.name)
-            with open(data_or_path, "r") as f_in, open(tmp_path, "w") as f_out:
-                f_out.write(f_in.read())
-
+            # todo: save the original file
         elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
             molecule = data_or_path
         else:
