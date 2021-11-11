@@ -10,12 +10,14 @@ from __future__ import absolute_import
 from typing import Any, Dict, Union
 
 from gql.transport import Transport
+
 try:
     from graphql.execution import ExecutionResult
+    from graphql.language.ast import Document as DocumentNode
     from graphql.language.printer import print_ast
 except ImportError:
     # gql 3.x exposes these at the top level
-    from graphql import print_ast, ExecutionResult
+    from graphql import print_ast, ExecutionResult, DocumentNode
 import requests
 from requests.adapters import HTTPAdapter, Retry
 from requests.auth import AuthBase
@@ -85,7 +87,7 @@ class RequestsHTTPTransport(Transport):
     def execute(
         self, document, variable_values=None, operation_name=None, timeout=None
     ):
-        # type: (Document, Dict, str, int) -> ExecutionResult
+        # type: (DocumentNode, Dict, str, int) -> ExecutionResult
         """Execute the provided document AST against the configured remote server.
         This uses the requests library to perform a HTTP POST request to the remote server.
         :param document: GraphQL query as AST Node object.
