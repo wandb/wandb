@@ -1158,9 +1158,7 @@ class Html(BatchableMedia):
 
 
 class Video(BatchableMedia):
-
-    """
-    Wandb representation of video.
+    """Format a video for logging to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io)
@@ -1174,6 +1172,19 @@ class Video(BatchableMedia):
         caption: (string) caption associated with the video for display
         fps: (int) frames per second for video. Default is 4.
         format: (string) format of video, necessary if initializing with path or io object.
+
+    Examples:
+        ### Log a numpy array as a video
+        <!--yeadoc-test:log-video-numpy-->
+        ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        # axes are (time, channel, height, width)
+        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        wandb.log({"video": wandb.Video(frames, fps=4)})
+        ```
     """
 
     _log_type = "video-file"
@@ -1383,8 +1394,7 @@ class JSONMetadata(Media):
 
 
 class ImageMask(Media):
-    """
-    Wandb class for image masks or overlays, useful for tasks like semantic segmentation.
+    """Format image masks or overlays for logging to W&B.
 
     Arguments:
         val: (dictionary)
@@ -1400,10 +1410,26 @@ class ImageMask(Media):
             The readable name or id for this mask type (e.g. predictions, ground_truth)
 
     Examples:
-        Log a mask overlay for a given image
+        ### Logging a single masked image
+        <!--yeadoc-test:log-image-mask-->
         ```python
-        predicted_mask = np.array([[1, 2, 2, ... , 3, 2, 1], ...])
-        ground_truth_mask = np.array([[1, 1, 1, ... , 2, 3, 1], ...])
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+        predicted_mask = np.empty((100, 100), dtype=np.uint8)
+        ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
+
+        predicted_mask[:50, :50] = 0
+        predicted_mask[50:, :50] = 1
+        predicted_mask[:50, 50:] = 2
+        predicted_mask[50:, 50:] = 3
+
+        ground_truth_mask[:25, :25] = 0
+        ground_truth_mask[25:, :25] = 1
+        ground_truth_mask[:25, 25:] = 2
+        ground_truth_mask[25:, 25:] = 3
 
         class_labels = {
             0: "person",
@@ -1421,22 +1447,60 @@ class ImageMask(Media):
                 "mask_data": ground_truth_mask,
                 "class_labels": class_labels
             }
-        }
+        })
         wandb.log({"img_with_masks" : masked_image})
         ```
 
-        Prepare an image mask to be added to a wandb.Table
+        ### Log a masked image inside a Table
+        <!--yeadoc-test:log-image-mask-table-->
         ```python
-        raw_image_path = "sample_image.png"
-        predicted_mask_path = "predicted_mask.png"
+
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+        predicted_mask = np.empty((100, 100), dtype=np.uint8)
+        ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
+
+        predicted_mask[:50, :50] = 0
+        predicted_mask[50:, :50] = 1
+        predicted_mask[:50, 50:] = 2
+        predicted_mask[50:, 50:] = 3
+
+        ground_truth_mask[:25, :25] = 0
+        ground_truth_mask[25:, :25] = 1
+        ground_truth_mask[:25, 25:] = 2
+        ground_truth_mask[25:, 25:] = 3
+
+        class_labels = {
+            0: "person",
+            1: "tree",
+            2: "car",
+            3: "road"
+        }
+
         class_set = wandb.Classes([
             {"name" : "person", "id" : 0},
             {"name" : "tree", "id" : 1},
             {"name" : "car", "id" : 2},
             {"name" : "road", "id" : 3}
         ])
-        masked_image = wandb.Image(raw_image_path, classes=class_set,
-            masks={"prediction" : {"path" : predicted_mask_path}})
+
+        masked_image = wandb.Image(image, masks={
+            "predictions": {
+                "mask_data": predicted_mask,
+                "class_labels": class_labels
+            },
+            "ground_truth": {
+                "mask_data": ground_truth_mask,
+                "class_labels": class_labels
+            }
+        }, classes=class_set)
+
+        table = wandb.Table(columns=["image"])
+        table.add_data(masked_image)
+        wandb.log({"random_field": table})
         ```
     """
 
@@ -1561,8 +1625,7 @@ class ImageMask(Media):
 
 
 class BoundingBoxes2D(JSONMetadata):
-    """
-    Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
+    """Format images with 2D bounding box overlays for logging to W&B.
 
     Arguments:
         val: (dictionary) A dictionary of the following form:
@@ -1595,14 +1658,22 @@ class BoundingBoxes2D(JSONMetadata):
             The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
 
     Examples:
-        Log a set of predicted and ground truth bounding boxes for a given image
+        ### Log bounding boxes for a single image
+        <!--yeadoc-test:boundingbox-2d-->
         ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(200, 300, 3))
+
         class_labels = {
             0: "person",
             1: "car",
             2: "road",
             3: "building"
         }
+
         img = wandb.Image(image, boxes={
             "predictions": {
                 "box_data": [
@@ -1636,23 +1707,31 @@ class BoundingBoxes2D(JSONMetadata):
                             "loss": 0.7
                         }
                     },
-                    ...
                     # Log as many boxes an as needed
                 ],
                 "class_labels": class_labels
-            },
-            # Log each meaningful group of boxes with a unique key name
-            "ground_truth": {
-            ...
             }
         })
 
         wandb.log({"driving_scene": img})
         ```
 
-        Prepare an image with bounding boxes to be added to a wandb.Table
+        ### Log a bounding box overlay to a Table
+        <!--yeadoc-test:bb2d-image-with-labels-->
         ```python
-        raw_image_path = "sample_image.png"
+
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(200, 300, 3))
+
+        class_labels = {
+            0: "person",
+            1: "car",
+            2: "road",
+            3: "building"
+        }
 
         class_set = wandb.Classes([
             {"name" : "person", "id" : 0},
@@ -1661,8 +1740,48 @@ class BoundingBoxes2D(JSONMetadata):
             {"name" : "building", "id" : 3}
         ])
 
-        image_with_boxes = wandb.Image(raw_image_path, classes=class_set,
-            boxes=[...identical to previous example...])
+        img = wandb.Image(image, boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        # one box expressed in the default relative/fractional domain
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4
+                        },
+                        "class_id" : 1,
+                        "box_caption": class_labels[1],
+                        "scores" : {
+                            "acc": 0.2,
+                            "loss": 1.2
+                        }
+                    },
+                    {
+                        # another box expressed in the pixel domain
+                        "position": {
+                            "middle": [150, 20],
+                            "width": 68,
+                            "height": 112
+                        },
+                        "domain" : "pixel",
+                        "class_id" : 3,
+                        "box_caption": "a building",
+                        "scores" : {
+                            "acc": 0.5,
+                            "loss": 0.7
+                        }
+                    },
+                    # Log as many boxes an as needed
+                ],
+                "class_labels": class_labels
+            }
+        }, classes=class_set)
+
+        table = wandb.Table(columns=["image"])
+        table.add_data(img)
+        wandb.log({"driving_scene": table})
         ```
     """
 
@@ -1873,8 +1992,7 @@ class Classes(Media):
 
 
 class Image(BatchableMedia):
-    """
-    Wandb class for images.
+    """Format images for logging to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io) Accepts numpy array of
@@ -1883,6 +2001,39 @@ class Image(BatchableMedia):
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
+
+    Examples:
+        ### Create a wandb.Image from a numpy array
+        <!--yeadoc-test:log-image-numpy->
+        ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        wandb.log({"examples": examples})
+        ```
+
+        ### Create a wandb.Image from a PILImage
+        <!--yeadoc-test:log-image-pil->
+        ```python
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
+
+        wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        wandb.log({"examples": examples})
+        ```
     """
 
     MAX_ITEMS = 108
