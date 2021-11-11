@@ -9,10 +9,11 @@ import os
 import yaml
 import importlib
 import re
+import warnings
 
 import wandb
 from wandb import trigger
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, get_optional_module
 
 
 _import_hook = None
@@ -113,7 +114,11 @@ _magic_defaults = {
         #       'loss': None,
         #    },
     },
-    "args": {"absl": None, "argparse": None, "sys": None,},
+    "args": {
+        "absl": None,
+        "argparse": None,
+        "sys": None,
+    },
 }
 
 
@@ -484,6 +489,9 @@ def magic_install(init_args=None):
     if _run_once:
         return
     _run_once = True
+    if get_optional_module("tensorflow") is None:
+        warnings.warn("Auto-instrumentation is disabled. Magic requires tensorflow.")
+        return
 
     global _magic_config
     global _import_hook
