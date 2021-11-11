@@ -378,7 +378,7 @@ def test_image_from_smiles(runner, mocked_run):
 
 
 def test_image_from_rdkit_mol_object(runner, mocked_run):
-    molecule = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
+    molecule = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
     wandb.Image.from_rdkit(molecule)  # this should not error.
 
 
