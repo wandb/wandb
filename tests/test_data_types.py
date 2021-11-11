@@ -377,6 +377,12 @@ def test_image_from_smiles(runner, mocked_run):
     wandb.Image.from_smiles("CC(=O)Nc1ccc(O)cc1")  # this should not error.
 
 
+def test_image_from_invalid_smiles(runner, mocked_run):
+    """Ensures that wandb.Image.from_smiles errs if passed an invalid SMILES string"""
+    with pytest.raises(ValueError):
+        wandb.Image.from_smiles("TEST")
+
+
 def test_image_from_rdkit_mol_object(runner, mocked_run):
     """Ensures that wandb.Image.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
     molecule = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
@@ -390,6 +396,12 @@ def test_image_from_rdkit_mol_file(runner, mocked_run):
         mol_file_name = "test.mol"
         rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
         wandb.Image.from_rdkit(mol_file_name)  # this should not error.
+
+
+def test_image_from_rdkit_invalid_input(runner, mocked_run):
+    """Ensures that wandb.Image.from_rdkit errs on invalid input"""
+    with pytest.raises(ValueError):
+        wandb.Image.from_rdkit("test")
 
 
 @pytest.mark.skipif(
@@ -507,6 +519,12 @@ def test_molecule_from_smiles(runner, mocked_run):
         assert os.path.exists(mol._path)
 
 
+def test_molecule_from_invalid_smiles(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_smiles errs if passed an invalid SMILES string"""
+    with pytest.raises(ValueError):
+        wandb.Molecule.from_smiles("TEST")
+
+
 def test_molecule_from_rdkit_mol_object(runner, mocked_run):
     """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
     with runner.isolated_filesystem():
@@ -528,6 +546,13 @@ def test_molecule_from_rdkit_mol_file(runner, mocked_run):
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
         assert os.path.exists(mol._path)
+
+
+def test_molecule_from_rdkit_invalid_input(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_rdkit errs on invalid input"""
+    mol_file_name = "test"
+    with pytest.raises(ValueError):
+        wandb.Molecule.from_rdkit(mol_file_name)
 
 
 def test_html_str(mocked_run):
