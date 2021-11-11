@@ -3,7 +3,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
-from wandb.errors import ExecutionError, LaunchError
+from wandb.errors import ExecutionError
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
