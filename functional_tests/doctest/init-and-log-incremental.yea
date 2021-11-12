@@ -1,0 +1,11 @@
+id: init-and-log-incremental
+plugin:
+    - wandb
+tag:
+  shard: docs
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][summary]:
+        loss: 0.2
+        accuracy: 0.8
+    - :wandb:runs[0][exitcode]: 0
