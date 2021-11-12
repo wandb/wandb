@@ -9,10 +9,11 @@ from typing import Any, Dict, Iterable, List
 
 import wandb
 from wandb.apis.internal import Api
+from wandb.sdk.launch.runner.local import LocalSubmittedRun
 import wandb.util as util
 
 from .._project_spec import create_project_from_spec, fetch_and_validate_project
-from ..runner.abstract import AbstractRun, State
+from ..runner.abstract import AbstractRun
 from ..runner.loader import load_backend
 from ..utils import (
     _is_wandb_local_uri,
@@ -39,8 +40,6 @@ def _convert_access(access: str) -> str:
 class LaunchAgent(object):
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    STATE_MAP: Dict[str, State] = {}
-
     def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
         self._entity = entity
         self._project = project
@@ -53,6 +52,7 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
+        self._max_jobs = 1  # default to 1 concurrent job until --jobs arg is added
 
         # serverside creation
         self.gorilla_supports_agents = (
@@ -62,6 +62,7 @@ class LaunchAgent(object):
             entity, project, queues, self.gorilla_supports_agents
         )
         self._id = create_response["launchAgentId"]
+        self._name = ""  # hacky: want to display this to the user but we don't get it back from gql until polling starts. fix later
         self._queues = queues if queues else ["default"]
 
     @property
@@ -83,10 +84,17 @@ class LaunchAgent(object):
     def print_status(self) -> None:
         """Prints the current status of the agent."""
         wandb.termlog(
-            "polling on project {}, queues {} for jobs".format(
-                self._project, " ".join(self._queues)
+            "agent {} polling on project {}, queues {} for jobs".format(
+                self._name, self._project, " ".join(self._queues)
             )
         )
+
+    def update_status(self, status: str) -> None:
+        update_ret = self._api.update_launch_agent_status(
+            self._id, status, self.gorilla_supports_agents
+        )
+        if not update_ret["success"]:
+            wandb.termerror("Failed to update agent status to {}".format(status))
 
     def finish_job_id(self, job_id: int) -> None:
         """Removes the job from our list for now."""
@@ -95,11 +103,7 @@ class LaunchAgent(object):
         self._running -= 1
         # update status back to polling if no jobs are running
         if self._running == 0:
-            update_ret = self._api.update_launch_agent_status(
-                self._id, AGENT_POLLING, self.gorilla_supports_agents
-            )
-            if not update_ret["success"]:
-                wandb.termerror("Failed to update agent status to polling")
+            self.update_status(AGENT_POLLING)
 
     def _update_finished(self, job_id: int) -> None:
         """Check our status enum."""
@@ -128,11 +132,7 @@ class LaunchAgent(object):
         # TODO: logger
         wandb.termlog("agent: got job", job)
         # update agent status
-        update_ret = self._api.update_launch_agent_status(
-            self._id, AGENT_RUNNING, self.gorilla_supports_agents
-        )
-        if not update_ret["success"]:
-            wandb.termerror("Failed to update agent status while running new job")
+        self.update_status(AGENT_RUNNING)
 
         # parse job
         launch_spec = job["runSpec"]
@@ -150,7 +150,7 @@ class LaunchAgent(object):
         resource = launch_spec.get("resource") or "local"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
-            PROJECT_SYNCHRONOUS: True,
+            PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
         if _is_wandb_local_uri(self._base_url):
             if sys.platform == "win32":
@@ -182,23 +182,39 @@ class LaunchAgent(object):
             while True:
                 self._ticks += 1
                 job = None
-                for queue in self._queues:
-                    job = self.pop_from_queue(queue)
-                    if job:
-                        break
-                if not job:
-                    time.sleep(AGENT_POLLING_INTERVAL)
-                    for job_id in self.job_ids:
-                        self._update_finished(job_id)
-                    if self._ticks % 2 == 0:
+                if self._running < self._max_jobs:
+                    # only check for new jobs if we're not at max
+                    for queue in self._queues:
+                        job = self.pop_from_queue(queue)
+                        if job:
+                            self.run_job(job)
+                            break  # do a full housekeeping loop before popping more jobs
+
+                agent_response = self._api.get_launch_agent(
+                    self._id, self.gorilla_supports_agents
+                )
+                self._name = agent_response[
+                    "name"
+                ]  # hacky, but we don't return the name on create so this is first time
+                if agent_response["stopPolling"]:
+                    # shutdown process and all jobs if requested from ui
+                    raise KeyboardInterrupt
+                for job_id in self.job_ids:
+                    self._update_finished(job_id)
+                if self._ticks % 2 == 0:
+                    if self._running == 0:
+                        self.update_status(AGENT_POLLING)
                         self.print_status()
-                    continue
-                self.run_job(job)
+                    else:
+                        self.update_status(AGENT_RUNNING)
+                time.sleep(AGENT_POLLING_INTERVAL)
+
         except KeyboardInterrupt:
-            shutdown_update = self._api.update_launch_agent_status(
-                self._id, AGENT_KILLED, self.gorilla_supports_agents
-            )
-            if not shutdown_update["success"]:
-                wandb.termerror("Failed to update agent status during shutdown")
+            # temp: for local, kill all jobs. we don't yet have good handling for different
+            # types of runners in general
+            for _, run in self._jobs.items():
+                if isinstance(run, LocalSubmittedRun):
+                    run.command_proc.kill()
+            self.update_status(AGENT_KILLED)
             wandb.termlog("Shutting down, active jobs:")
             self.print_status()

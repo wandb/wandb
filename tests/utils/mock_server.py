@@ -78,6 +78,7 @@ def default_ctx():
         "launch_agents": {},
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
+        "stop_launch_agent": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
         "invalid_launch_spec_project": False,
@@ -1324,6 +1325,20 @@ def create_app(user_ctx=None):
             if ctx["gorilla_supports_launch_agents"]:
                 return json.dumps(
                     {"data": {"LaunchAgentType": {"name": "LaunchAgent"}}}
+                )
+            else:
+                return json.dumps({"data": {}})
+        if "query LaunchAgent" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "launchAgent": {
+                                "name": "test_agent",
+                                "stopPolling": ctx["stop_launch_agent"],
+                            }
+                        }
+                    }
                 )
             else:
                 return json.dumps({"data": {}})
