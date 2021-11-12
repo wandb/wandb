@@ -372,38 +372,6 @@ def test_image_from_matplotlib_with_image():
     plt.close()
 
 
-def test_image_from_smiles(runner, mocked_run):
-    """Ensures that wandb.Image.from_smiles supports valid SMILES molecule string representations"""
-    wandb.Image.from_smiles("CC(=O)Nc1ccc(O)cc1")  # this should not error.
-
-
-def test_image_from_invalid_smiles(runner, mocked_run):
-    """Ensures that wandb.Image.from_smiles errs if passed an invalid SMILES string"""
-    with pytest.raises(ValueError):
-        wandb.Image.from_smiles("TEST")
-
-
-def test_image_from_rdkit_mol_object(runner, mocked_run):
-    """Ensures that wandb.Image.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
-    molecule = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
-    wandb.Image.from_rdkit(molecule)  # this should not error.
-
-
-def test_image_from_rdkit_mol_file(runner, mocked_run):
-    """Ensures that wandb.Image.from_rdkit supports .mol files"""
-    with runner.isolated_filesystem():
-        substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
-        mol_file_name = "test.mol"
-        rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
-        wandb.Image.from_rdkit(mol_file_name)  # this should not error.
-
-
-def test_image_from_rdkit_invalid_input(runner, mocked_run):
-    """Ensures that wandb.Image.from_rdkit errs on invalid input"""
-    with pytest.raises(ValueError):
-        wandb.Image.from_rdkit("test")
-
-
 @pytest.mark.skipif(
     sys.version_info >= (3, 9), reason="plotly doesn't support py3.9 yet"
 )

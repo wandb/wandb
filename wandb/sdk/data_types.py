@@ -879,8 +879,9 @@ class Molecule(BatchableMedia):
         "gro",
         "mol2",
         "mmtf",
+        "mol",
     }
-    SUPPORTED_RDKIT_TYPES = {"mol", "mol2", "pdb", "png", "tpl", "sdf"}
+    SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
     _log_type = "molecule-file"
 
     def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
@@ -2232,112 +2233,6 @@ class Image(BatchableMedia):
             classes=classes,
             boxes=_boxes,
             masks=_masks,
-        )
-
-    @classmethod
-    def from_rdkit(
-        cls,
-        data_or_path: "RDKitDataType",
-        width: int = 300,
-        height: int = 300,
-        **kwargs: Union[bool, int, str],
-    ) -> "Image":
-        """
-        Convert RDKit-supported Molecule file/object types to 2D images
-
-        Arguments:
-            data_or_path: (string, rdkit.Chem.rdchem.Mol)
-                Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
-            width: integer
-                Output image width in pixels
-            height: integer
-                Output image height in pixels
-            kwargs:
-                additional parameters to be passed to rdkit.Chem.Draw.MolToImage
-                See https://rdkit.org/docs/source/rdkit.Chem.Draw.html#rdkit.Chem.Draw.MolToImage
-
-        """
-        rdkit_chem = util.get_module(
-            "rdkit.Chem",
-            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
-        )
-        rdkit_chem_draw = util.get_module(
-            "rdkit.Chem.Draw",
-            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
-        )
-        rdkit_chem_allchem = util.get_module(
-            "rdkit.Chem.AllChem",
-            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
-        )
-
-        if isinstance(data_or_path, six.string_types):
-            # path to a file?
-            path = pathlib.Path(data_or_path)
-            extension = path.suffix.split(".")[-1]
-            if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
-                raise ValueError(
-                    "Molecule.from_rdkit only supports files of the type: "
-                    + ", ".join(Molecule.SUPPORTED_RDKIT_TYPES)
-                )
-            # use the appropriate method
-            if extension == "sdf":
-                with rdkit_chem.SDMolSupplier(data_or_path) as supplier:
-                    molecule = next(supplier)  # get only the first molecule
-            else:
-                molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
-                    data_or_path
-                )
-        elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
-            molecule = data_or_path
-        else:
-            raise ValueError(
-                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
-            )
-
-        rdkit_chem_allchem.Compute2DCoords(molecule)
-        rdkit_chem_allchem.GenerateDepictionMatching2DStructure(molecule, molecule)
-
-        pil_image = rdkit_chem_draw.MolToImage(
-            molecule, size=(width, height), **kwargs,
-        )
-
-        return cls(pil_image)
-
-    @classmethod
-    def from_smiles(
-        cls,
-        data: str,
-        sanitize: bool = True,
-        width: int = 300,
-        height: int = 300,
-        **kwargs: Union[bool, int, str],
-    ) -> "Image":
-        """
-        Convert SMILES string representations of molecules to 2D images
-
-        Arguments:
-            data: string
-                SMILES string.
-            sanitize: bool
-                Check if the molecule is chemically reasonable by the RDKit's definition.
-            width: integer
-                Output image width in pixels
-            height: integer
-                Output image height in pixels
-            kwargs:
-                additional parameters to be passed to rdkit.Chem.Draw.MolToImage
-                See https://rdkit.org/docs/source/rdkit.Chem.Draw.html#rdkit.Chem.Draw.MolToImage
-        """
-        rdkit_chem = util.get_module(
-            "rdkit.Chem",
-            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
-        )
-        molecule = rdkit_chem.MolFromSmiles(data, sanitize=sanitize)
-        if molecule is None:
-            raise ValueError("Unable to parse the SMILES string.")
-
-        return cls.from_rdkit(
-            data_or_path=molecule, width=width, height=height, **kwargs
         )
 
     @classmethod
