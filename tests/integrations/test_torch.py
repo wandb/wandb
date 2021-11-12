@@ -2,8 +2,6 @@ import wandb
 import pytest
 import sys
 
-from wandb.sdk.data_types import history_dict_to_json
-
 if sys.version_info >= (3, 9):
     pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
 
@@ -49,7 +47,12 @@ class EmbModel(nn.Module):
         self.emb2 = nn.Embedding(x, y)
 
     def forward(self, x):
-        return {"key": {"emb1": self.emb1(x), "emb2": self.emb2(x),}}
+        return {
+            "key": {
+                "emb1": self.emb1(x),
+                "emb2": self.emb2(x),
+            }
+        }
 
 
 class EmbModelWrapper(nn.Module):
