@@ -1749,7 +1749,7 @@ class _ImageFileType(_dtypes.Type):
                 or isinstance(class_set, _dtypes.InvalidType)
                 or isinstance(box_score_keys, _dtypes.InvalidType)
             ):
-                return _ImageFileType(box_keys, mask_keys)
+                return _ImageFileType(box_keys, box_score_keys, mask_keys, class_set)
 
         return _dtypes.InvalidType()
 
