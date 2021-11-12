@@ -311,12 +311,12 @@ class TorchHistory(object):
     def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
         return (
             tensor.shape == torch.Size([0])
-            or torch.logical_not(tensor.isfinite()).all().item()
+            or torch.logical_not(torch.isfinite(tensor)).all().item()
         )
 
     def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
-        if not tensor.isfinite().all():
-            tensor = tensor[tensor.isfinite()]
+        if not torch.isfinite(tensor).all():
+            tensor = tensor[torch.isfinite(tensor)]
 
         return tensor
 
