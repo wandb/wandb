@@ -287,16 +287,21 @@ class Api(object):
     )
 
     def __init__(self, overrides={}, timeout: Optional[int] = None):
-        self.settings = InternalApi().settings()
-        if self.api_key is None:
-            wandb.login()
-        self.settings.update(overrides)
+
         if "username" in overrides and "entity" not in overrides:
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
-            self.settings["entity"] = overrides["username"]
-        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+            overrides["entity"] = overrides["username"]
+
+        _api = InternalApi()
+        for key, value in overrides.items():
+            _api.set_setting(key, value)
+
+        self.settings = _api.settings()
+
+        if self.api_key is None:
+            wandb.login()
 
         self._viewer = None
         self._projects = {}
