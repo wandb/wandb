@@ -1683,7 +1683,9 @@ class _ImageFileType(_dtypes.Type):
     legacy_names = ["wandb.Image"]
     types = [Image]
 
-    def __init__(self, box_keys=None, mask_keys=None, class_set=None):
+    def __init__(
+        self, box_keys=None, box_score_keys=None, mask_keys=None, class_set=None
+    ):
         if box_keys is None:
             box_keys = _dtypes.UnknownType()
         elif isinstance(box_keys, _dtypes.ConstType):
@@ -1692,6 +1694,15 @@ class _ImageFileType(_dtypes.Type):
             raise TypeError("box_keys must be a list")
         else:
             box_keys = _dtypes.ConstType(set(box_keys))
+
+        if box_score_keys is None:
+            box_score_keys = _dtypes.UnknownType()
+        elif isinstance(box_score_keys, _dtypes.ConstType):
+            box_score_keys = box_score_keys
+        elif not isinstance(box_score_keys, list):
+            raise TypeError("box_score_keys must be a list")
+        else:
+            box_score_keys = _dtypes.ConstType(set(box_score_keys))
 
         if mask_keys is None:
             mask_keys = _dtypes.UnknownType()
@@ -1712,12 +1723,20 @@ class _ImageFileType(_dtypes.Type):
             class_set = _dtypes.ConstType(class_set)
 
         self.params.update(
-            {"box_keys": box_keys, "mask_keys": mask_keys, "class_set": class_set}
+            {
+                "box_keys": box_keys,
+                "box_score_keys": box_score_keys,
+                "mask_keys": mask_keys,
+                "class_set": class_set,
+            }
         )
 
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _ImageFileType):
             box_keys = self.params["box_keys"].assign_type(wb_type.params["box_keys"])
+            box_score_keys = self.params["box_score_keys"].assign_type(
+                wb_type.params["box_score_keys"]
+            )
             mask_keys = self.params["mask_keys"].assign_type(
                 wb_type.params["mask_keys"]
             )
@@ -1728,6 +1747,7 @@ class _ImageFileType(_dtypes.Type):
                 isinstance(box_keys, _dtypes.InvalidType)
                 or isinstance(mask_keys, _dtypes.InvalidType)
                 or isinstance(class_set, _dtypes.InvalidType)
+                or isinstance(box_score_keys, _dtypes.InvalidType)
             ):
                 return _ImageFileType(box_keys, mask_keys)
 
@@ -1740,8 +1760,12 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_keys = list(py_obj._boxes.keys())
+                box_score_keys = (
+                    py_obj._boxes.values().get("box_data", {}).get("scores", {}).keys()
+                )
             else:
                 box_keys = []
+                box_score_keys = []
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_keys = list(py_obj._masks.keys())
@@ -1755,7 +1779,7 @@ class _ImageFileType(_dtypes.Type):
             else:
                 class_set = {}
 
-            return cls(box_keys, mask_keys, class_set)
+            return cls(box_keys, box_score_keys, mask_keys, class_set)
 
 
 class _TableType(_dtypes.Type):
