@@ -1683,7 +1683,7 @@ class _ImageFileType(_dtypes.Type):
     legacy_names = ["wandb.Image"]
     types = [Image]
 
-    def __init__(self, box_keys=None, mask_keys=None):
+    def __init__(self, box_keys=None, mask_keys=None, class_set=None):
         if box_keys is None:
             box_keys = _dtypes.UnknownType()
         elif isinstance(box_keys, _dtypes.ConstType):
@@ -1702,8 +1702,17 @@ class _ImageFileType(_dtypes.Type):
         else:
             mask_keys = _dtypes.ConstType(set(mask_keys))
 
+        if class_set is None:
+            class_set = _dtypes.UnknownType()
+        elif isinstance(class_set, _dtypes.ConstType):
+            class_set = class_set
+        elif not isinstance(class_set, dict):
+            raise TypeError("class_set must be a dict")
+        else:
+            class_set = _dtypes.ConstType(class_set)
+
         self.params.update(
-            {"box_keys": box_keys, "mask_keys": mask_keys,}
+            {"box_keys": box_keys, "mask_keys": mask_keys, "class_set": class_set}
         )
 
     def assign_type(self, wb_type=None):
@@ -1712,9 +1721,13 @@ class _ImageFileType(_dtypes.Type):
             mask_keys = self.params["mask_keys"].assign_type(
                 wb_type.params["mask_keys"]
             )
+            class_set = self.params["class_set"].assign_type(
+                wb_type.params["class_set"]
+            )
             if not (
                 isinstance(box_keys, _dtypes.InvalidType)
                 or isinstance(mask_keys, _dtypes.InvalidType)
+                or isinstance(class_set, _dtypes.InvalidType)
             ):
                 return _ImageFileType(box_keys, mask_keys)
 
@@ -1730,12 +1743,19 @@ class _ImageFileType(_dtypes.Type):
             else:
                 box_keys = []
 
-            if hasattr(py_obj, "masks") and py_obj.masks:
-                mask_keys = list(py_obj.masks.keys())
+            if hasattr(py_obj, "_masks") and py_obj._masks:
+                mask_keys = list(py_obj._masks.keys())
             else:
                 mask_keys = []
 
-            return cls(box_keys, mask_keys)
+            if hasattr(py_obj, "_classes") and py_obj._classes:
+                class_set = {
+                    item["id"]: item["name"] for item in py_obj._classes._class_set
+                }
+            else:
+                class_set = {}
+
+            return cls(box_keys, mask_keys, class_set)
 
 
 class _TableType(_dtypes.Type):
