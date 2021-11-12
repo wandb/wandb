@@ -44,8 +44,6 @@ class AbstractRun(ABC):
     run.
     """
 
-    STATE_MAP: Dict[str, "State"] = {}
-
     def __init__(self) -> None:
         self._status = Status()
 
