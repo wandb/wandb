@@ -296,6 +296,8 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self.settings["base_url"] = self.settings["base_url"].strip("/")
+
         self._viewer = None
         self._projects = {}
         self._runs = {}
