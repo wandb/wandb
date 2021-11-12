@@ -337,13 +337,18 @@ class TorchHistory(object):
 >>>>>>> 1abd02774 (add type annotations and apply formatting)
         return (
             tensor.shape == torch.Size([0])
-            or torch.logical_not(tensor.isfinite()).all().item()
+            or torch.logical_not(torch.isfinite(tensor)).all().item()
         )
 
     def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
+<<<<<<< HEAD
         if not tensor.isfinite().all():
             tensor = tensor[tensor.isfinite()]
 >>>>>>> d4e6961f8 (add unit tests for checking for tensors with no finite values and removing infs and nans)
+=======
+        if not torch.isfinite(tensor).all():
+            tensor = tensor[torch.isfinite(tensor)]
+>>>>>>> f5cd70c3b (fix compatibility with older versions of pytorch in response to regression testing)
 
         return tensor
 
