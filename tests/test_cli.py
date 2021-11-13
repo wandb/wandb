@@ -244,7 +244,9 @@ def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
         api = InternalApi()
         monkeypatch.setattr(cli, "api", api)
         monkeypatch.setattr(
-            api, "create_anonymous_api_key", lambda *args, **kwargs: DUMMY_API_KEY
+            wandb.sdk.internal.internal_api.Api,
+            "create_anonymous_api_key",
+            lambda *args, **kwargs: DUMMY_API_KEY,
         )
         result = runner.invoke(cli.login, ["--anonymously"])
         print("Output: ", result.output)
