@@ -1867,10 +1867,8 @@ class Run(object):
             self._display_run()
 
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
-        manager = self._wl and self._wl._get_manager()
-        if True:
-            if self._backend and self._backend.interface and not self._settings._offline:
-                self._run_status_checker = RunStatusChecker(self._backend.interface)
+        if self._backend and self._backend.interface and not self._settings._offline:
+            self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
 
     def _pusher_print_status(
