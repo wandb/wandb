@@ -61,6 +61,20 @@ def _huggingface_version():
     return None
 
 
+def _maybe_mp_process(backend: Backend) -> bool:
+    parent_process = getattr(
+        backend._multiprocessing, "parent_process", None
+    )  # New in version 3.8.
+    if parent_process:
+        return parent_process() is not None
+    process = backend._multiprocessing.current_process()
+    if process.name == "MainProcess":
+        return False
+    if process.name.startswith("Process-"):
+        return True
+    return False
+
+
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
@@ -493,6 +507,8 @@ class _WandbInit(object):
                 tel.env.start_forkserver = True
             elif active_start_method == "thread":
                 tel.env.start_thread = True
+
+            tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not s.label_disable:
             if self.notebook:
