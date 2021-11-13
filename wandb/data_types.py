@@ -1765,7 +1765,8 @@ class _ImageFileType(_dtypes.Type):
                         [
                             key
                             for val in py_obj._boxes.values()
-                            for key in val.get("box_data", {}).get("scores", {}).keys()
+                            for box in val._val
+                            for key in box.get("scores", {}).keys()
                         ]
                     )
                 )
