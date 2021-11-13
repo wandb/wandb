@@ -144,6 +144,10 @@ workflows:
          name: "func-s_py310-lin-py310"
          image: "python:3.10"
          toxenv: "func-s_py310-py310,func-covercircle"
+      - test:
+         name: "func-s_docs-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_docs-py37,func-covercircle"
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
