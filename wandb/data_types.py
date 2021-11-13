@@ -1760,8 +1760,14 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_keys = list(py_obj._boxes.keys())
-                box_score_keys = (
-                    py_obj._boxes.values().get("box_data", {}).get("scores", {}).keys()
+                box_score_keys = list(
+                    set(
+                        [
+                            key
+                            for val in py_obj._boxes.values()
+                            for key in val.get("box_data", {}).get("scores", {}).keys()
+                        ]
+                    )
                 )
             else:
                 box_keys = []
