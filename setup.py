@@ -21,7 +21,7 @@ gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
 service_requirements = ["grpcio>=1.27.2", "setproctitle"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
-media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
+media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly", "rdkit-pypi"]
 launch_requirements = [
     "jupyter-repo2docker",
     "nbconvert",

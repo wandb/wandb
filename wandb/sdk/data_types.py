@@ -1,9 +1,11 @@
 import codecs
 import hashlib
+import io
 import json
 import logging
 import numbers
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -44,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
     import plotly  # type: ignore
     import PIL  # type: ignore
+    import rdkit.Chem  # type: ignore
     import torch  # type: ignore
     from typing import TextIO
 
@@ -63,6 +66,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ]
     ImageDataOrPathType = Union[str, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
+    RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -857,16 +861,26 @@ class Object3D(BatchableMedia):
 
 class Molecule(BatchableMedia):
     """
-    Wandb class for Molecular data
+    Wandb class for 3D Molecular data
 
     Arguments:
         data_or_path: (string, io)
             Molecule can be initialized from a file name or an io object.
     """
 
-    SUPPORTED_TYPES = set(
-        ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf"]
-    )
+    SUPPORTED_TYPES = {
+        "pdb",
+        "pqr",
+        "mmcif",
+        "mcif",
+        "cif",
+        "sdf",
+        "sd",
+        "gro",
+        "mol2",
+        "mmtf",
+    }
+    SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
     _log_type = "molecule-file"
 
     def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
@@ -884,7 +898,7 @@ class Molecule(BatchableMedia):
             extension = kwargs.pop("file_type", None)
             if extension is None:
                 raise ValueError(
-                    "Must pass file type keyword argument when using io objects."
+                    "Must pass file_type keyword argument when using io objects."
                 )
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -910,6 +924,105 @@ class Molecule(BatchableMedia):
             self._set_file(data_or_path, is_tmp=False)
         else:
             raise ValueError("Data must be file name or a file object")
+
+    @classmethod
+    def from_rdkit(
+        cls,
+        data_or_path: "RDKitDataType",
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> "Molecule":
+        """
+        Convert RDKit-supported file/object types to wandb.Molecule
+
+        Arguments:
+            data_or_path: (string, rdkit.Chem.rdchem.Mol)
+                Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
+            convert_to_3d_and_optimize: bool
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: int
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+        """
+        rdkit_chem = util.get_module(
+            "rdkit.Chem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        rdkit_chem_all_chem = util.get_module(
+            "rdkit.Chem.AllChem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+
+        if isinstance(data_or_path, six.string_types):
+            # path to a file?
+            path = pathlib.Path(data_or_path)
+            extension = path.suffix.split(".")[-1]
+            if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
+                raise ValueError(
+                    "Molecule.from_rdkit only supports files of the type: "
+                    + ", ".join(Molecule.SUPPORTED_RDKIT_TYPES)
+                )
+            # use the appropriate method
+            if extension == "sdf":
+                with rdkit_chem.SDMolSupplier(data_or_path) as supplier:
+                    molecule = next(supplier)  # get only the first molecule
+            else:
+                molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
+                    data_or_path
+                )
+        elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
+            molecule = data_or_path
+        else:
+            raise ValueError(
+                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
+            )
+
+        if convert_to_3d_and_optimize:
+            molecule = rdkit_chem.AddHs(molecule)
+            rdkit_chem_all_chem.EmbedMolecule(molecule)
+            rdkit_chem_all_chem.MMFFOptimizeMolecule(
+                molecule, maxIters=mmff_optimize_molecule_max_iterations,
+            )
+        # convert to the pdb format supported by Molecule
+        pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
+
+        return cls(io.StringIO(pdb_block), file_type="pdb")
+
+    @classmethod
+    def from_smiles(
+        cls,
+        data: str,
+        sanitize: bool = True,
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> "Molecule":
+        """
+        Convert SMILES string to wandb.Molecule
+
+        Arguments:
+            data: string
+                SMILES string.
+            sanitize: bool
+                Check if the molecule is chemically reasonable by the RDKit's definition.
+            convert_to_3d_and_optimize: bool
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: int
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+        """
+        rdkit_chem = util.get_module(
+            "rdkit.Chem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        molecule = rdkit_chem.MolFromSmiles(data, sanitize=sanitize)
+        if molecule is None:
+            raise ValueError("Unable to parse the SMILES string.")
+
+        return cls.from_rdkit(
+            data_or_path=molecule,
+            convert_to_3d_and_optimize=convert_to_3d_and_optimize,
+            mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
+        )
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
