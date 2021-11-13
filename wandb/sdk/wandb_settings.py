@@ -610,7 +610,9 @@ class Settings(object):
 
     @property
     def is_local(self) -> bool:
-        return self.base_url != "https://api.wandb.ai/"
+        if self.base_url is not None:
+            return self.base_url.rstrip("/") != "https://api.wandb.ai"
+        return False
 
     def _validate_project(self, value: Optional[str]) -> Optional[str]:
         invalid_chars_list = list("/\\#?%:")
