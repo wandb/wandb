@@ -32,7 +32,7 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
-from wandb.errors import LaunchError
+from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 
@@ -1070,10 +1070,10 @@ def launch(
                 config=config,
                 synchronous=(not run_async),
             )
-        except wandb_launch.LaunchError as e:
+        except LaunchError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
-        except wandb_launch.ExecutionError as e:
+        except ExecutionError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
     else:
