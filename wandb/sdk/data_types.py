@@ -2001,7 +2001,7 @@ class Image(BatchableMedia):
                 elif isinstance(box_item, dict):
                     # TODO: Consider injecting top-level classes if user-provided is empty
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
-                total_classes.update(boxes_final[key]._val["_class_labels"])
+                total_classes.update(boxes_final[key]._class_labels)
             self._boxes = boxes_final
 
         if masks:
