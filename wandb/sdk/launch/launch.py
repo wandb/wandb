@@ -142,7 +142,6 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-
     if docker_args is None:
         docker_args = {}
 
