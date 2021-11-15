@@ -993,7 +993,7 @@ def _check_launch_imports():
     is_flag=True,
     help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
     "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
-    "set on wandb launch-agent."
+    "set on wandb launch-agent.",
 )
 @display_error
 def launch(
@@ -1032,7 +1032,9 @@ def launch(
     api = _get_cling_api()
 
     if run_async and queue is not None:
-        raise LaunchError("Cannot use both --async and --queue with wandb launch, see help for details.")
+        raise LaunchError(
+            "Cannot use both --async and --queue with wandb launch, see help for details."
+        )
 
     args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
@@ -1105,7 +1107,7 @@ def launch(
     "--max-jobs",
     "-j",
     default=1,
-    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1."
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1.",
 )
 @display_error
 def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):

@@ -40,7 +40,13 @@ def _convert_access(access: str) -> str:
 class LaunchAgent(object):
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    def __init__(self, entity: str, project: str, queues: Iterable[str] = None, max_jobs: int = None):
+    def __init__(
+        self,
+        entity: str,
+        project: str,
+        queues: Iterable[str] = None,
+        max_jobs: int = None,
+    ):
         self._entity = entity
         self._project = project
         self._api = Api()
