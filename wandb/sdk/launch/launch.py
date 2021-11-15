@@ -138,6 +138,7 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
+
     if docker_args is None:
         docker_args = {}
 
@@ -170,8 +171,6 @@ def run(
 
     if synchronous:
         _wait_for(submitted_run_obj)
-    else:
-        raise LaunchError("Non synchronous mode not supported")
     return submitted_run_obj
 
 
