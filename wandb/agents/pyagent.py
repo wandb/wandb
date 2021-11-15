@@ -169,6 +169,7 @@ class Agent(object):
             }
             commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
             if not commands:
+                time.sleep(1)
                 continue
             job = Job(commands[0])
             logger.debug("Job received: {}".format(job))
