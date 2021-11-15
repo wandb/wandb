@@ -40,7 +40,7 @@ def _convert_access(access: str) -> str:
 class LaunchAgent(object):
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
-    def __init__(self, entity: str, project: str, queues: Iterable[str] = None):
+    def __init__(self, entity: str, project: str, queues: Iterable[str] = None, max_jobs: int = None):
         self._entity = entity
         self._project = project
         self._api = Api()
@@ -52,7 +52,7 @@ class LaunchAgent(object):
         self._cwd = os.getcwd()
         self._namespace = wandb.util.generate_id()
         self._access = _convert_access("project")
-        self._max_jobs = 1  # default to 1 concurrent job until --jobs arg is added
+        self._max_jobs = max_jobs or 1
 
         # serverside creation
         self.gorilla_supports_agents = (

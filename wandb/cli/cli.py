@@ -1101,8 +1101,14 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
+@click.option(
+    "--max-jobs",
+    "-j",
+    default=1,
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1."
+)
 @display_error
-def launch_agent(ctx, project=None, entity=None, queues=None):
+def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1125,7 +1131,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues)
+    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
