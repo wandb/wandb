@@ -1988,11 +1988,7 @@ class Image(BatchableMedia):
         if caption is not None:
             self._caption = caption
 
-        if classes is not None:
-            if not isinstance(classes, Classes):
-                self._classes = Classes(classes)
-            else:
-                self._classes = classes
+        total_classes = {}
 
         if boxes:
             if not isinstance(boxes, dict):
@@ -2003,7 +1999,9 @@ class Image(BatchableMedia):
                 if isinstance(box_item, BoundingBoxes2D):
                     boxes_final[key] = box_item
                 elif isinstance(box_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
+                total_classes.update(boxes_final[key]._val["_class_labels"])
             self._boxes = boxes_final
 
         if masks:
@@ -2015,9 +2013,22 @@ class Image(BatchableMedia):
                 if isinstance(mask_item, ImageMask):
                     masks_final[key] = mask_item
                 elif isinstance(mask_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
+                total_classes.update(masks_final[key]._val["_class_labels"])
             self._masks = masks_final
 
+        if classes is not None:
+            if isinstance(classes, Classes):
+                total_classes.update(
+                    {val["id"]: val["name"] for val in classes._class_set}
+                )
+            else:
+                total_classes.update({val["id"]: val["name"] for val in classes})
+
+        self._classes = Classes(
+            [{"id": key, "name": total_classes[key]} for key in total_classes.keys()]
+        )
         self._width, self._height = self.image.size  # type: ignore
         self._free_ram()
 

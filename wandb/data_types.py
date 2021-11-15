@@ -1676,80 +1676,98 @@ class Edge(WBValue):
 
 
 # Custom dtypes for typing system
-
-
 class _ImageFileType(_dtypes.Type):
     name = "image-file"
     legacy_names = ["wandb.Image"]
     types = [Image]
 
     def __init__(
-        self, box_keys=None, box_score_keys=None, mask_keys=None, class_set=None
+        self, box_layers=None, box_score_keys=None, mask_layers=None, class_map=None
     ):
-        if box_keys is None:
-            box_keys = _dtypes.UnknownType()
-        elif isinstance(box_keys, _dtypes.ConstType):
-            box_keys = box_keys
-        elif not isinstance(box_keys, list):
-            raise TypeError("box_keys must be a list")
-        else:
-            box_keys = _dtypes.ConstType(set(box_keys))
+        box_layers = box_layers or {}
+        box_score_keys = box_score_keys or []
+        mask_layers = mask_layers or {}
+        class_map = class_map or {}
 
-        if box_score_keys is None:
-            box_score_keys = _dtypes.UnknownType()
-        elif isinstance(box_score_keys, _dtypes.ConstType):
+        if isinstance(box_layers, _dtypes.ConstType):
+            box_layers = box_layers
+        elif not isinstance(box_layers, dict):
+            raise TypeError("box_layers must be a dict")
+        else:
+            box_layers = _dtypes.ConstType(box_layers)
+
+        if isinstance(mask_layers, _dtypes.ConstType):
+            mask_layers = mask_layers
+        elif not isinstance(mask_layers, dict):
+            raise TypeError("mask_layers must be a dict")
+        else:
+            mask_layers = _dtypes.ConstType(mask_layers)
+
+        if isinstance(box_score_keys, _dtypes.ConstType):
             box_score_keys = box_score_keys
-        elif not isinstance(box_score_keys, list):
-            raise TypeError("box_score_keys must be a list")
+        elif not isinstance(box_score_keys, list) and not isinstance(
+            box_score_keys, set
+        ):
+            raise TypeError("box_score_keys must be a list or a set")
         else:
             box_score_keys = _dtypes.ConstType(set(box_score_keys))
 
-        if mask_keys is None:
-            mask_keys = _dtypes.UnknownType()
-        elif isinstance(mask_keys, _dtypes.ConstType):
-            mask_keys = mask_keys
-        elif not isinstance(mask_keys, list):
-            raise TypeError("mask_keys must be a list")
+        if isinstance(class_map, _dtypes.ConstType):
+            class_map = class_map
+        elif not isinstance(class_map, dict):
+            raise TypeError("class_map must be a dict")
         else:
-            mask_keys = _dtypes.ConstType(set(mask_keys))
-
-        if class_set is None:
-            class_set = _dtypes.UnknownType()
-        elif isinstance(class_set, _dtypes.ConstType):
-            class_set = class_set
-        elif not isinstance(class_set, dict):
-            raise TypeError("class_set must be a dict")
-        else:
-            class_set = _dtypes.ConstType(class_set)
+            class_map = _dtypes.ConstType(class_map)
 
         self.params.update(
             {
-                "box_keys": box_keys,
+                "box_layers": box_layers,
                 "box_score_keys": box_score_keys,
-                "mask_keys": mask_keys,
-                "class_set": class_set,
+                "mask_layers": mask_layers,
+                "class_map": class_map,
             }
         )
 
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _ImageFileType):
-            box_keys = self.params["box_keys"].assign_type(wb_type.params["box_keys"])
-            box_score_keys = self.params["box_score_keys"].assign_type(
-                wb_type.params["box_score_keys"]
-            )
-            mask_keys = self.params["mask_keys"].assign_type(
-                wb_type.params["mask_keys"]
-            )
-            class_set = self.params["class_set"].assign_type(
-                wb_type.params["class_set"]
-            )
-            if not (
-                isinstance(box_keys, _dtypes.InvalidType)
-                or isinstance(mask_keys, _dtypes.InvalidType)
-                or isinstance(class_set, _dtypes.InvalidType)
-                or isinstance(box_score_keys, _dtypes.InvalidType)
-            ):
-                return _ImageFileType(box_keys, box_score_keys, mask_keys, class_set)
+            box_layers_self = self.params["box_layers"].params["val"] or {}
+            box_score_keys_self = self.params["box_score_keys"].params["val"] or []
+            mask_layers_self = self.params["mask_layers"].params["val"] or {}
+            class_map_self = self.params["class_map"].params["val"] or {}
+
+            box_layers_other = wb_type.params["box_layers"].params["val"] or {}
+            box_score_keys_other = wb_type.params["box_score_keys"].params["val"] or []
+            mask_layers_other = wb_type.params["mask_layers"].params["val"] or {}
+            class_map_other = wb_type.params["class_map"].params["val"] or {}
+
+            # Merge the class_ids from each set of box_layers
+            box_layers = {
+                key: set(box_layers_self.get(key, []) + box_layers_other.get(key, []))
+                for key in set(
+                    list(box_layers_self.keys()) + list(box_layers_other.keys())
+                )
+            }
+
+            # Merge the class_ids from each set of mask_layers
+            mask_layers = {
+                key: set(mask_layers_self.get(key, []) + mask_layers_other.get(key, []))
+                for key in set(
+                    list(mask_layers_self.keys()) + list(mask_layers_other.keys())
+                )
+            }
+
+            # Merge the box score keys
+            box_score_keys = set(box_score_keys_self + box_score_keys_other)
+
+            # Merge the class_map
+            class_map = {
+                key: class_map_self.get(key, class_map_other.get(key, None))
+                for key in set(
+                    list(class_map_self.keys()) + list(class_map_other.keys())
+                )
+            }
+
+            return _ImageFileType(box_layers, box_score_keys, mask_layers, class_map)
 
         return _dtypes.InvalidType()
 
@@ -1759,7 +1777,10 @@ class _ImageFileType(_dtypes.Type):
             raise TypeError("py_obj must be a wandb.Image")
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
-                box_keys = list(py_obj._boxes.keys())
+                box_layers = {
+                    key: py_obj._boxes[key]._val["_class_labels"].keys()
+                    for key in py_obj._boxes.keys()
+                }
                 box_score_keys = list(
                     set(
                         [
@@ -1771,13 +1792,16 @@ class _ImageFileType(_dtypes.Type):
                     )
                 )
             else:
-                box_keys = []
+                box_layers = {}
                 box_score_keys = []
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
-                mask_keys = list(py_obj._masks.keys())
+                mask_layers = {
+                    key: py_obj._masks[key]._val["_class_labels"].keys()
+                    for key in py_obj._masks.keys()
+                }
             else:
-                mask_keys = []
+                mask_layers = {}
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
@@ -1786,7 +1810,7 @@ class _ImageFileType(_dtypes.Type):
             else:
                 class_set = {}
 
-            return cls(box_keys, box_score_keys, mask_keys, class_set)
+            return cls(box_layers, box_score_keys, mask_layers, class_set)
 
 
 class _TableType(_dtypes.Type):
