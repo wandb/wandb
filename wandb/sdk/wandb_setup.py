@@ -177,6 +177,8 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._server = s
 
     def _load_user_settings(self, settings=None):
+        if self._settings and self._settings._offline:
+            return dict()
         if self._server is None:
             self._load_viewer()
 
