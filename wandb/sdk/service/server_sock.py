@@ -115,20 +115,26 @@ class SockServerReadThread(threading.Thread):
 class SockAcceptThread(threading.Thread):
     _sock: socket.socket
     _mux: StreamMux
+    _stopped: "Event"
 
     def __init__(self, sock: socket.socket, mux: StreamMux) -> None:
         self._sock = sock
         self._mux = mux
+        self._stopped = mux._get_stopped_event()
         threading.Thread.__init__(self)
         self.name = "SockAcceptThr"
 
     def run(self) -> None:
         self._sock.listen(5)
-        conn, addr = self._sock.accept()
-        # print("GOT", type(conn))
-        # print("Connected by", addr)
-        sr = SockServerReadThread(conn=conn, mux=self._mux)
-        sr.start()
+        while not self._stopped.is_set():
+            try:
+                conn, addr = self._sock.accept()
+            except ConnectionAbortedError:
+                break
+            # print("GOT", type(conn))
+            # print("Connected by", addr)
+            sr = SockServerReadThread(conn=conn, mux=self._mux)
+            sr.start()
 
 
 class DebugThread(threading.Thread):
@@ -172,5 +178,6 @@ class SocketServer:
         # self._dbg_thread.start()
 
     def stop(self) -> None:
-        # TODO: we should try and block on stopping all internal threads
-        pass
+        if self._sock:
+            # we need to stop the SockAcceptThread
+            self._sock.close()
