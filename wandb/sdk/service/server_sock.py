@@ -21,7 +21,9 @@ class SockServerInterfaceReaderThread(threading.Thread):
     _socket_client: SockClient
     _stopped: "Event"
 
-    def __init__(self, sock_client: SockClient, iface: "InterfaceRelay", stopped: "Event") -> None:
+    def __init__(
+        self, sock_client: SockClient, iface: "InterfaceRelay", stopped: "Event"
+    ) -> None:
         self._iface = iface
         self._sock_client = sock_client
         threading.Thread.__init__(self)
@@ -130,7 +132,6 @@ class SockAcceptThread(threading.Thread):
 
 
 class DebugThread(threading.Thread):
-
     def __init__(self, mux: "StreamMux") -> None:
         threading.Thread.__init__(self)
         self.name = "DebugThr"
