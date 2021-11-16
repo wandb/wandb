@@ -734,7 +734,7 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+            "my-classes.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
