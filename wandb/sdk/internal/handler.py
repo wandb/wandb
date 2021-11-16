@@ -724,10 +724,8 @@ class HandleManager(object):
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
         result = proto_util._result_from_record(record)
-        print("SHUT1")
         self._result_q.put(result)
         self._stopped.set()
-        print("SHUT2")
 
     def finish(self) -> None:
         logger.info("shutting down handler")

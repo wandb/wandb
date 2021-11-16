@@ -28,7 +28,6 @@ class ServiceGrpcInterface(ServiceInterface):
         return "sock"
 
     def _svc_connect(self, port: int) -> None:
-        print("sc1")
         channel = grpc.insecure_channel("localhost:{}".format(port))
         stub = pbgrpc.InternalServiceStub(channel)
         self._stub = stub

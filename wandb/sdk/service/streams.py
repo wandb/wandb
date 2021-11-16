@@ -155,6 +155,10 @@ class StreamMux:
         self._stopped = Event()
         self._action_q = queue.Queue()
 
+    def _get_stopped_event(self) -> "Event":
+        # TODO: clean this up, there should be a better way to abstract this
+        return self._stopped
+
     def set_port(self, port: int) -> None:
         self._port = port
 
@@ -221,7 +225,6 @@ class StreamMux:
             wandb.termlog(f"Finishing run: {sid}...")  # type: ignore
             stream.interface.publish_exit(exit_code)
 
-        print("STREAMJOIN1")
         streams_to_join = []
         while streams:
             for sid, stream in list(streams.items()):
@@ -231,11 +234,9 @@ class StreamMux:
                     streams_to_join.append(stream)
                 time.sleep(0.1)
 
-        print("STREAMJOIN2")
         # TODO: this would be nice to do in parallel
         for stream in streams_to_join:
             stream.join()
-        print("STREAMJOIN3")
 
         wandb.termlog("Done!")  # type: ignore
 

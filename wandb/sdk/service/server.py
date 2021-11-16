@@ -43,10 +43,12 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
 
     _server: "GrpcServerType"
     _mux: StreamMux
+    _sock_server: Optional[SocketServer]
 
     def __init__(self, server: "GrpcServerType", mux: StreamMux) -> None:
         self._server = server
         self._mux = mux
+        self._sock_server = None
 
     def RunUpdate(  # noqa: N802
         self, run_data: pb.RunRecord, context: grpc.ServicerContext
@@ -408,10 +410,10 @@ class WandbServer:
         address: str = self._address or "127.0.0.1"
         port: int = self._sock_port or 0
         # pid: int = self._pid or 0
-        sock_server = SocketServer(mux=mux, address=address, port=port)
+        self._sock_server = SocketServer(mux=mux, address=address, port=port)
         try:
-            sock_server.start()
-            port = sock_server.port
+            self._sock_server.start()
+            port = self._sock_server.port
         except KeyboardInterrupt:
             mux.cleanup()
             raise
@@ -419,6 +421,10 @@ class WandbServer:
             mux.cleanup()
             raise
         return port
+
+    def _stop_servers(self) -> None:
+        if self._sock_server:
+            self._sock_server.stop()
 
     def serve(self) -> None:
         mux = StreamMux()
@@ -433,3 +439,4 @@ class WandbServer:
             proc_title = f"wandb-service({service_id})"
             setproctitle.setproctitle(proc_title)
         mux.loop()
+        self._stop_servers()

@@ -241,9 +241,7 @@ class Backend(object):
             return
         self._done = True
         if self.interface:
-            print("BACKJOIN1")
             self.interface.join()
-            print("BACKJOIN2")
         if self.wandb_process:
             self.wandb_process.join()
 

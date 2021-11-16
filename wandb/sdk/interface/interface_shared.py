@@ -463,6 +463,4 @@ class InterfaceShared(InterfaceBase):
         super(InterfaceShared, self).join()
 
         if self._router:
-            print("ROUTERJ1")
             self._router.join()
-            print("ROUTERJ2")

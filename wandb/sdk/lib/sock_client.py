@@ -38,7 +38,6 @@ class SockClient:
         self._send_message(msg)
 
     def send_server_response(self, msg: Any) -> None:
-        print("SEND_S_RESP", msg)
         self._send_message(msg)
 
     def send(

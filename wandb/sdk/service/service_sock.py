@@ -30,7 +30,6 @@ class ServiceSockInterface(ServiceInterface):
         return self._sock_client
 
     def _svc_connect(self, port: int) -> None:
-        print("sc1 port", port)
         self._sock_client.connect(port=port)
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:

@@ -79,11 +79,8 @@ class MessageRouter(object):
         return future
 
     def join(self) -> None:
-        print("RBASEJ1")
         self._join_event.set()
-        print("RBASEJ2")
         self._thread.join()
-        print("RBASEJ3")
 
     def _handle_msg_rcv(self, msg: "pb.Result") -> None:
         with self._lock:
