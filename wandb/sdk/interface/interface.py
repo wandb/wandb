@@ -590,7 +590,7 @@ class InterfaceBase(object):
         raise NotImplementedError
 
     def join(self) -> None:
-        ret = self._communicate_shutdown()
+        _ = self._communicate_shutdown()
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
