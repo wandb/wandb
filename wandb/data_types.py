@@ -1797,7 +1797,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    key: py_obj._masks[key]._val["_class_labels"].keys()
+                    key: py_obj._masks[key]._val["class_labels"].keys()
                     for key in py_obj._masks.keys()
                 }
             else:

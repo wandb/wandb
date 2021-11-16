@@ -2015,7 +2015,7 @@ class Image(BatchableMedia):
                 elif isinstance(mask_item, dict):
                     # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
-                total_classes.update(masks_final[key]._val["_class_labels"])
+                total_classes.update(masks_final[key]._val["class_labels"])
             self._masks = masks_final
 
         if classes is not None:
