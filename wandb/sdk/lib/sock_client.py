@@ -97,6 +97,8 @@ class SockClient:
                 data = self._sock.recv(4096)
             except socket.timeout:
                 break
+            except ConnectionResetError:
+                break
             if timeout:
                 self._sock.settimeout(None)
             self._data += data

@@ -21,6 +21,7 @@ class _Service:
     _grpc_port: Optional[int]
     _sock_port: Optional[int]
     _service_interface: ServiceInterface
+    _internal_proc: Optional[subprocess.Popen]
 
     def __init__(self) -> None:
         self._stub = None
@@ -85,6 +86,7 @@ class _Service:
                 exec_cmd_list + service_args, env=os.environ, **kwargs,
             )
             self._wait_for_ports(fname, proc=internal_proc)
+            self._internal_proc = internal_proc
 
     def start(self) -> None:
         self._launch_server()
@@ -100,3 +102,8 @@ class _Service:
     @property
     def service_interface(self) -> ServiceInterface:
         return self._service_interface
+
+    def join(self) -> None:
+        if self._internal_proc:
+            ret = self._internal_proc.wait()
+            assert ret == 0

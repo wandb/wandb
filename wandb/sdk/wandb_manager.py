@@ -107,6 +107,7 @@ class _Manager:
     def _atexit_teardown(self) -> None:
         exit_code = self._hooks.exit_code if self._hooks else 0
         self._teardown(exit_code)
+        self._service.join()
 
     def _teardown(self, exit_code: int) -> None:
         if self._atexit_lambda:
