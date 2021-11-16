@@ -1742,7 +1742,10 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of box_layers
             box_layers = {
-                key: set(box_layers_self.get(key, []) + box_layers_other.get(key, []))
+                key: set(
+                    list(box_layers_self.get(key, []))
+                    + list(box_layers_other.get(key, []))
+                )
                 for key in set(
                     list(box_layers_self.keys()) + list(box_layers_other.keys())
                 )
@@ -1750,7 +1753,10 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of mask_layers
             mask_layers = {
-                key: set(mask_layers_self.get(key, []) + mask_layers_other.get(key, []))
+                key: set(
+                    list(mask_layers_self.get(key, []))
+                    + list(mask_layers_other.get(key, []))
+                )
                 for key in set(
                     list(mask_layers_self.keys()) + list(mask_layers_other.keys())
                 )
@@ -1778,26 +1784,29 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_layers = {
-                    key: list(py_obj._boxes[key]._class_labels.keys())
+                    key: set(py_obj._boxes[key]._class_labels.keys())
                     for key in py_obj._boxes.keys()
                 }
-                box_score_keys = list(
-                    set(
-                        [
-                            key
-                            for val in py_obj._boxes.values()
-                            for box in val._val
-                            for key in box.get("scores", {}).keys()
-                        ]
-                    )
+                box_score_keys = set(
+                    [
+                        key
+                        for val in py_obj._boxes.values()
+                        for box in val._val
+                        for key in box.get("scores", {}).keys()
+                    ]
                 )
+
             else:
                 box_layers = {}
-                box_score_keys = []
+                box_score_keys = set([])
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    key: list(py_obj._masks[key]._val["class_labels"].keys())
+                    key: set(
+                        py_obj._masks[key]._val["class_labels"].keys()
+                        if hasattr(py_obj._masks[key], "_val")
+                        else []
+                    )
                     for key in py_obj._masks.keys()
                 }
             else:

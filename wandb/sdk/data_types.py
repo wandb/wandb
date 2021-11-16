@@ -2015,7 +2015,8 @@ class Image(BatchableMedia):
                 elif isinstance(mask_item, dict):
                     # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
-                total_classes.update(masks_final[key]._val["class_labels"])
+                if hasattr(masks_final[key], "_val"):
+                    total_classes.update(masks_final[key]._val["class_labels"])
             self._masks = masks_final
 
         if classes is not None:
@@ -2026,9 +2027,13 @@ class Image(BatchableMedia):
             else:
                 total_classes.update({val["id"]: val["name"] for val in classes})
 
-        self._classes = Classes(
-            [{"id": key, "name": total_classes[key]} for key in total_classes.keys()]
-        )
+        if len(total_classes.keys()) > 0:
+            self._classes = Classes(
+                [
+                    {"id": key, "name": total_classes[key]}
+                    for key in total_classes.keys()
+                ]
+            )
         self._width, self._height = self.image.size  # type: ignore
         self._free_ram()
 
@@ -2093,7 +2098,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".png")
+        tmp_path = os.path.join(_MEDIA_TMP.name, str(util.generate_id()) + ".png")
         self.format = "png"
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -2184,11 +2189,11 @@ class Image(BatchableMedia):
                 # are expected in a single artifact. However, we want to catch this user pattern
                 # if it exists and dive deeper. The alternative code is provided below.
                 #
-                class_name = os.path.join("media", "cls")
+                # class_name = os.path.join("media", "cls")
                 #
-                # class_name = os.path.join(
-                #     "media", "classes", os.path.basename(self._path) + "_cls"
-                # )
+                class_name = os.path.join(
+                    "media", "classes", util.generate_id() + "_cls",
+                )
                 #
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
