@@ -573,9 +573,9 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
+        assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -584,8 +584,8 @@ def test_add_obj_wbimage(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
-                "size": 305,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -599,9 +599,9 @@ def test_add_obj_using_brackets(runner):
         artifact["my-image"] = wb_image
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
+        assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -610,8 +610,8 @@ def test_add_obj_using_brackets(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
-                "size": 305,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -707,7 +707,7 @@ def test_add_obj_wbimage_classes_obj(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -716,8 +716,8 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
-                "size": 305,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -734,7 +734,7 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "my-classes.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -743,8 +743,8 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "4IA8mYMQrmtyGGPj/Azdpg==",
-                "size": 306,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -761,13 +761,13 @@ def test_add_obj_wbimage_image_already_added(runner):
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
             "my-image.image-file.json": {
-                "digest": "8ZJmhiCv9lrjXBCz5oVl8g==",
-                "size": 271,
+                "digest": "BPGPVjCBRxX6MNySpv2Rmg==",
+                "size": 312,
             },
         }
 
@@ -786,7 +786,7 @@ def test_add_obj_wbtable_images(runner):
         manifest = artifact.manifest.to_manifest_json()
 
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -794,7 +794,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "fKDUs5BkpRmCKUWdxpqwng==", "size": 1208},
+            "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
         }
 
 

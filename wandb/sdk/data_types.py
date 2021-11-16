@@ -2183,18 +2183,10 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                # Here, rather than give each class definition it's own name (and entry), we
-                # purposely are giving a non-unique class name of /media/cls.classes.json.
-                # This may create user confusion if if multiple different class definitions
-                # are expected in a single artifact. However, we want to catch this user pattern
-                # if it exists and dive deeper. The alternative code is provided below.
-                #
-                # class_name = os.path.join("media", "cls")
-                #
-                class_name = os.path.join(
-                    "media", "classes", util.generate_id() + "_cls",
-                )
-                #
+                class_id = hashlib.md5(
+                    str(self._classes._class_set).encode("utf-8")
+                ).hexdigest()
+                class_name = os.path.join("media", "classes", class_id + "_cls",)
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
