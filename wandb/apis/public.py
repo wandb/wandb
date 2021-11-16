@@ -624,14 +624,26 @@ class Api(object):
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+            )
             ```
 
             Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}}
+            )
+            ```
+
+            Find runs in my_project where the run name matches a regex (anchors are not supported)
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}}
+            )
             ```
 
             Find runs in my_project sorted by ascending loss
