@@ -10,7 +10,6 @@ from __future__ import absolute_import
 from typing import Any, Dict, Union
 
 from gql.transport import Transport
-
 try:
     from graphql.execution import ExecutionResult
     from graphql.language.ast import Document as DocumentNode
