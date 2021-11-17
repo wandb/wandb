@@ -12,7 +12,18 @@ from wandb import util
 from wandb.data_types import Node
 import wandb
 
+from typing import Tuple
+
 torch = None
+
+# The machine epsilon, or smallest relative difference between any two
+# numbers, for 32 bit floats. Equivalent to torch.finfo(torch.float32).eps
+# in pytorch v1.0.0 and later.
+EPSILON = float.fromhex("0x1p-23")
+
+# The smallest normal number for 32 bit floats. Equivalent to
+# torch.finfo(torch.float32).tiny in pytorch v1.0.0 and later.
+TINY = float.fromhex("0x1p-126")
 
 
 def nested_shape(array_or_tuple, seen=None):
@@ -247,10 +258,14 @@ class TorchHistory(object):
             # If we've got zeros to add in, make sure zero is in the hist range.
             tmin = 0 if tmin > 0 else tmin
             tmax = 0 if tmax < 0 else tmax
-        # Anecdotally, this can somehow happen sometimes. Maybe a precision error
-        # in min()/max() above. Swap here to prevent a runtime error.
-        if tmin > tmax:
-            tmin, tmax = tmax, tmin
+
+        # Ensure min and max aren't too close together. This (1) addresses
+        # a corner case where torch.histc can fail, (2) ensures that the
+        # bins tensor contains distinct values, and (3) avoids rare
+        # instances in which the bins tensor may not match the actual
+        # bounds of the bins.
+        tmin, tmax = self._widen_min_max(tmin, tmax)
+
         tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
@@ -353,6 +368,24 @@ class TorchHistory(object):
 >>>>>>> f5cd70c3b (fix compatibility with older versions of pytorch in response to regression testing)
 
         return tensor
+
+    def _widen_min_max(self, tmin: float, tmax: float) -> tuple[float, float]:
+        """If necessary, separate min from max while avoiding increasing
+        max to inf or decreasing min to -inf if their values are close
+        to the limits of the range of 32 bit floats. Should be a no-op
+        except in very unusual circumstances.
+        """
+        if tmin > 0:
+            # tmin is far from -infinity, so safe to decrease.
+            step = max(tmax, TINY) * EPSILON
+            tmin = min(tmin, tmax - self._num_bins * step)
+        else:
+            # tmax is either far from +infinity (so safe to increase)
+            # or far from tmin (so no need to increase).
+            step = max(abs(tmin), abs(tmax), TINY) * EPSILON
+            tmax = max(tmax, tmin + self._num_bins * step)
+
+        return tmin, tmax
 
 
 class TorchGraph(wandb.data_types.Graph):
