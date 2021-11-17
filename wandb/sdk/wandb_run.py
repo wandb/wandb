@@ -1670,6 +1670,13 @@ class Run(object):
                 wandb.termlog(dir_str)
                 if not self._settings._offline:
                     wandb.termlog("Run `wandb offline` to turn off syncing.")
+
+            api = internal.Api()
+            if api.settings().get("anonymous") == "true":
+                wandb.termwarn(
+                    "Do NOT share these links with anyone. They can be used to claim your runs."
+                )
+
             print("")
 
     def _redirect(
@@ -2597,6 +2604,11 @@ class Run(object):
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> wandb_artifacts.Artifact:
+        api = internal.Api()
+        if api.settings().get("anonymous") == "true":
+            wandb.termwarn(
+                "Artifacts logged anonymously cannot be claimed and expire after 7 days."
+            )
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:

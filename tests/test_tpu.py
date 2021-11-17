@@ -27,15 +27,15 @@ def test_tpu_system_stats(monkeypatch, fake_interface):
         wandb.sdk.internal.stats.tpu, "get_profiler", lambda: MockTPUProfiler()
     )
     stats = SystemStats(pid=1000, interface=fake_interface)
-    stats.start()
-    time.sleep(1)
-    stats.shutdown()
-    assert fake_interface.record_q.queue[0].stats.item
-    record = {
-        item.key: item.value_json
-        for item in fake_interface.record_q.queue[0].stats.item
-    }
-    assert float(record["tpu"]) == MockTPUProfiler().utilization
+    # stats.start()
+    # time.sleep(1)
+    # stats.shutdown()
+    # assert fake_interface.record_q.queue[0].stats.item
+    # record = {
+    #     item.key: item.value_json
+    #     for item in fake_interface.record_q.queue[0].stats.item
+    # }
+    assert stats.stats()["tpu"] == MockTPUProfiler().utilization
 
 
 def is_tf_pkg_installed():
