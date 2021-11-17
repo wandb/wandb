@@ -39,21 +39,8 @@ class WandbHook(SessionRunHook):
         )
 
     def after_run(self, run_context, run_values):
-        # See https://github.com/tensorflow/tensorflow/blob/v2.7.0/tensorflow/python/training/session_run_hook.py#L267
-        # for background
-        if hasattr(run_values.results, "items"):
-            # Mapping?
-            step = run_values.results["global_step"]
-            summary = run_values.results["summary"]
-        elif hasattr(run_values.results, "__iter__") and not isinstance(run_values.results, (str, bytes)):
-            # Sequence?
-            # fixme: this corresponds to the fetches attribute returned in SessionRunArgs,
-            #        which is set to a dict in before_run, so I am not sure when and why this would come up
-            summary, step = run_values.results[-2:]
-        else:
-            return
-
+        step = run_values.results["global_step"]
         if step % self._steps_per_log == 0:
             wandb.tensorboard.log(
-                summary, history=self._history, step=step,
+                run_values.results["summary"], history=self._history, step=step,
             )
