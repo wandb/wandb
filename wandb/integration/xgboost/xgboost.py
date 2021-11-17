@@ -10,11 +10,21 @@ import xgboost as xgb
 from typing import cast
 
 
-MINIMIZE_METRICS = ['rmse', 'rmsle', 'mae', 'mape', 'mphe', 
-                    'logloss', 'error', 'error@t', 'merror', 
-                    'mlogloss']
+MINIMIZE_METRICS = [
+    "rmse",
+    "rmsle",
+    "mae",
+    "mape",
+    "mphe",
+    "logloss",
+    "error",
+    "error@t",
+    "merror",
+    "mlogloss",
+]
 
-MAXIMIZE_METRICS = ['auc', 'aucpr', 'ndcg', 'map', 'ndcg@n', 'map@n']
+MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
+
 
 def wandb_callback():
     """
@@ -23,8 +33,9 @@ def wandb_callback():
     warnings.warn(
         "wandb_callback will be deprecated in favor of WandbCallback. Please use WandbCallback for more features.",
         UserWarning,
-        stacklevel=2
+        stacklevel=2,
     )
+
     def callback(env):
         for k, v in env.evaluation_result_list:
             wandb.log({k: v}, commit=False)
@@ -72,50 +83,57 @@ class WandbCallback(xgb.callback.TrainingCallback):
         )
         ```
     """
-    def __init__(self,
-                 log_model=False,
-                 log_feature_importance=True,
-                 importance_type='gain',
-                 define_metric=True):
-        
+
+    def __init__(
+        self,
+        log_model=False,
+        log_feature_importance=True,
+        importance_type="gain",
+        define_metric=True,
+    ):
+
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
-        
+
         self.log_model = log_model
         self.log_feature_importance = log_feature_importance
         self.importance_type = importance_type
         self.define_metric = define_metric
-        
+
     def before_training(self, model):
-        '''Run before training is finished'''
-        
-        # Update W&B config 
+        """Run before training is finished"""
+
+        # Update W&B config
         config = model.save_config()
         wandb.config.update(json.loads(config))
-        
+
         return model
 
     def after_training(self, model):
-        '''Run after training is finished.'''
-        
+        """Run after training is finished."""
+
         # Log the booster model as artifacts
         if self.log_model:
             self._log_model_as_artifact(model)
-            
+
         # Plot feature importance
         if self.log_feature_importance:
             self._log_feature_importance(model)
-            
+
         # Log the best score and best iteration
-        if model.attr('best_score') is not None:
-            wandb.log({'best_score': float(cast(str, model.attr('best_score'))), 
-                       'best_iteration': int(cast(str, model.attr('best_iteration')))})   
-        
+        if model.attr("best_score") is not None:
+            wandb.log(
+                {
+                    "best_score": float(cast(str, model.attr("best_score"))),
+                    "best_iteration": int(cast(str, model.attr("best_iteration"))),
+                }
+            )
+
         return model
 
     def after_iteration(self, model, epoch, evals_log):
-        '''Run after each iteration. Return True when training should stop.'''
-  
+        """Run after each iteration. Return True when training should stop."""
+
         # Log metrics
         for data, metric in evals_log.items():
             for metric_name, log in metric.items():
@@ -123,37 +141,41 @@ class WandbCallback(xgb.callback.TrainingCallback):
                     self._define_metric(data, metric_name)
                     wandb.log({f"{data}-{metric_name}": log[-1]}, commit=False)
                 else:
-                    wandb.log({f"{data}-{metric_name}": log[-1]}, commit=False)  
-            
-        wandb.log({'epoch': epoch})
-        
+                    wandb.log({f"{data}-{metric_name}": log[-1]}, commit=False)
+
+        wandb.log({"epoch": epoch})
+
         self.define_metric = False
-        
+
         return False
-    
+
     def _log_model_as_artifact(self, model):
-        model_name = f'{wandb.run.id}_model.json'
+        model_name = f"{wandb.run.id}_model.json"
         model_path = f"{wandb.run.dir}/{model_name}"
         model.save_model(str(model_path))
-        
-        model_artifact = wandb.Artifact(name=model_name, type='model')
+
+        model_artifact = wandb.Artifact(name=model_name, type="model")
         model_artifact.add_file(model_path)
         wandb.log_artifact(model_artifact)
-        
+
     def _log_feature_importance(self, model):
         fi = model.get_score(importance_type=self.importance_type)
         fi_data = [[k, fi[k]] for k in fi]
-        table = wandb.Table(data=fi_data, columns = ["Feature", "Importance"])
-        wandb.log({"Feature Importance" : wandb.plot.bar(table, "Feature",
-                                                         "Importance", title="Feature Importance")})
-        
+        table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
+        wandb.log(
+            {
+                "Feature Importance": wandb.plot.bar(
+                    table, "Feature", "Importance", title="Feature Importance"
+                )
+            }
+        )
+
     def _define_metric(self, data, metric_name):
         if "loss" in str.lower(metric_name):
-            wandb.define_metric(f"{data}-{metric_name}", summary="min") 
+            wandb.define_metric(f"{data}-{metric_name}", summary="min")
         elif str.lower(metric_name) in MINIMIZE_METRICS:
             wandb.define_metric(f"{data}-{metric_name}", summary="min")
         elif str.lower(metric_name) in MAXIMIZE_METRICS:
             wandb.define_metric(f"{data}-{metric_name}", summary="max")
         else:
             pass
-        

@@ -1,18 +1,14 @@
 #!/usr/bin/env python
 """Test new xgboost integration for regression task."""
 
-import os
-import json
 import numpy as np
 import pandas as pd
-
-import xgboost as xgb
+from sklearn.datasets import fetch_california_housing
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn.datasets import fetch_california_housing
-
 import wandb
 from wandb.integration.xgboost import WandbCallback
+import xgboost as xgb
 
 # load data
 housing = fetch_california_housing()
@@ -25,13 +21,13 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_
 
 # Define regressor
 bst_params = dict(
-    objective ='reg:squarederror',
-    colsample_bytree = 0.3,
-    learning_rate = 0.1,
-    max_depth = 5,
-    alpha = 10,
-    n_estimators = 100,
-    tree_method = 'hist'
+    objective='reg:squarederror',
+    colsample_bytree=0.3,
+    learning_rate=0.1,
+    max_depth=5,
+    alpha=10,
+    n_estimators=100,
+    tree_method='hist'
 )
 
 xg_reg = xgb.XGBRegressor(**bst_params)
@@ -39,7 +35,7 @@ xg_reg = xgb.XGBRegressor(**bst_params)
 # Initialize run
 wandb.init(project="xgboost-housing")
 
-xg_reg.fit(X_train, y_train, 
+xg_reg.fit(X_train, y_train,
            eval_set=[(X_train, y_train), (X_test, y_test)],
            early_stopping_rounds=20,
            callbacks=[WandbCallback()],
