@@ -4,7 +4,6 @@ Create a grpc manager channel.
 """
 
 import atexit
-import multiprocessing
 import os
 from typing import Callable, Optional, Tuple, TYPE_CHECKING
 
@@ -75,10 +74,11 @@ class _Manager:
 
     def _setup_mp(self) -> None:
         # NOTE: manager does not support fork yet, support coming later
-        start_method = multiprocessing.get_start_method(allow_none=True)
-        assert start_method != "fork", "start method 'fork' is not supported yet"
-        if start_method is None:
-            multiprocessing.set_start_method("spawn")
+        # start_method = multiprocessing.get_start_method(allow_none=True)
+        # assert start_method != "fork", "start method 'fork' is not supported yet"
+        # if start_method is None:
+        #     multiprocessing.set_start_method("spawn")
+        pass
 
     def _setup(self) -> None:
         self._token.probe()

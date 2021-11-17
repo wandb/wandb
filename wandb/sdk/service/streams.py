@@ -73,9 +73,9 @@ class StreamThread(threading.Thread):
 
 
 class StreamRecord:
-    _record_q: "queue.Queue[pb.Record]"
-    _result_q: "queue.Queue[pb.Result]"
-    _relay_q: "queue.Queue[pb.Result]"
+    _record_q: "multiprocessing.Queue[pb.Record]"
+    _result_q: "multiprocessing.Queue[pb.Result]"
+    _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
 
@@ -105,6 +105,9 @@ class StreamRecord:
 
     def join(self) -> None:
         self._iface.join()
+        self._record_q.close()
+        self._result_q.close()
+        self._relay_q.close()
         if self._thread:
             self._thread.join()
 
@@ -214,7 +217,8 @@ class StreamMux:
 
     def _process_del(self, action: StreamAction) -> None:
         with self._streams_lock:
-            _ = self._streams.pop(action._stream_id)
+            stream = self._streams.pop(action._stream_id)
+            stream.join()
         # TODO: we assume stream has already been shutdown.  should we verify?
 
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
@@ -272,6 +276,7 @@ class StreamMux:
             self._process_action(action)
             action.set_handled()
             self._action_q.task_done()
+        self._action_q.join()
 
     def loop(self) -> None:
         try:

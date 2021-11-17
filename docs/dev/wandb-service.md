@@ -27,6 +27,7 @@ wandb.init()
     wandb_setup._setup_manager()
       wandb_manager._Manager()
         service._Service()
+        # if there there is no token then call:
         service._Service.start()
           service._Service._launch_server()
             subprocess.Popen("wandb service")

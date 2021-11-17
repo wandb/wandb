@@ -24,6 +24,9 @@ class SockClient:
         s.connect(("localhost", port))
         self._sock = s
 
+    def close(self) -> None:
+        self._sock.close()
+
     def set_socket(self, sock: socket.socket) -> None:
         self._sock = sock
 
@@ -99,14 +102,17 @@ class SockClient:
                 break
             except ConnectionResetError:
                 break
+            except OSError:
+                break
             if timeout:
                 self._sock.settimeout(None)
             self._data += data
         return None
 
-    def read_server_request(self) -> spb.ServerRequest:
+    def read_server_request(self) -> Optional[spb.ServerRequest]:
         data = self._read_packet_bytes()
-        assert data
+        if not data:
+            return None
         rec = spb.ServerRequest()
         rec.ParseFromString(data)
         return rec

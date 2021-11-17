@@ -37,6 +37,8 @@ class SockServerInterfaceReaderThread(threading.Thread):
                 result = self._iface.relay_q.get(timeout=1)
             except queue.Empty:
                 continue
+            except OSError:
+                continue
             sresp = spb.ServerResponse()
             sresp.result_communicate.CopyFrom(result)
             self._sock_client.send_server_response(sresp)
@@ -69,7 +71,9 @@ class SockServerReadThread(threading.Thread):
             )
             assert shandler, "unknown handle: {}".format(shandler_str)
             shandler(sreq)
-        # print("done read")
+
+    def stop(self) -> None:
+        self._sock_client.close()
 
     def server_inform_init(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_init
@@ -126,6 +130,8 @@ class SockAcceptThread(threading.Thread):
 
     def run(self) -> None:
         self._sock.listen(5)
+        read_threads = []
+
         while not self._stopped.is_set():
             try:
                 conn, addr = self._sock.accept()
@@ -135,11 +141,16 @@ class SockAcceptThread(threading.Thread):
             # print("Connected by", addr)
             sr = SockServerReadThread(conn=conn, mux=self._mux)
             sr.start()
+            read_threads.append(sr)
+
+        for rt in read_threads:
+            rt.stop()
 
 
 class DebugThread(threading.Thread):
     def __init__(self, mux: "StreamMux") -> None:
         threading.Thread.__init__(self)
+        self.daemon = True
         self.name = "DebugThr"
 
     def run(self) -> None:
@@ -159,6 +170,7 @@ class SocketServer:
         self._mux = mux
         self._address = address
         self._port = port
+        # This is the server socket that we accept new connections from
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def _bind(self) -> None:
