@@ -9,6 +9,7 @@ from wandb import Settings
 from wandb.errors import UsageError
 import os
 import copy
+from wandb.sdk import wandb_settings
 
 
 def test_attrib_get():
@@ -277,3 +278,11 @@ def test_code_saving_disable_code(live_mock_server, test_settings):
     os.environ["WANDB_DISABLE_CODE"] = "true"
     run = wandb.init(settings=test_settings)
     assert run._settings.save_code is False
+
+
+def test_redact():
+    redacted = wandb_settings._redact_dict({"this": 2, "that": 9, "api_key": "secret"})
+    assert redacted == {"this": 2, "that": 9, "api_key": "***REDACTED***"}
+
+    redacted = wandb_settings._redact_dict({"ok": "keep", "unsafe": 9, "bad": "secret"}, unsafe={"unsafe","bad"}, redact_str="OMIT")
+    assert redacted == {"ok": "keep", "unsafe": "OMIT", "bad": "OMIT"}
