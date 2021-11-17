@@ -201,7 +201,11 @@ def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
     return ret_val
 
 
-def _redact_dict(d: Dict[str, Any], unsafe: Set[str]={"api_key"}, redact_str: str = "***REDACTED***") -> Dict[str, Any]:
+def _redact_dict(
+    d: Dict[str, Any],
+    unsafe: Set[str] = {"api_key"},
+    redact_str: str = "***REDACTED***",
+) -> Dict[str, Any]:
     """Redact a dict of unsafe values specified by their key."""
     if not d or unsafe.isdisjoint(d):
         return d
@@ -781,14 +785,18 @@ class Settings(object):
         self, user_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info("setting user settings: {}".format(_redact_dict(user_settings)))
+            _logger.info(
+                "setting user settings: {}".format(_redact_dict(user_settings))
+            )
         self._update(user_settings, _source=self.Source.USER)
 
     def _apply_source_login(
         self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info("setting login settings: {}".format(_redact_dict(login_settings)))
+            _logger.info(
+                "setting login settings: {}".format(_redact_dict(login_settings))
+            )
         self._update(login_settings, _source=self.Source.LOGIN)
 
     def _apply_setup(
