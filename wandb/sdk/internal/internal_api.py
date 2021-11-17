@@ -1131,6 +1131,34 @@ class Api(object):
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
 
     @normalize_exceptions
+    def get_launch_agent(self, agent_id, gorilla_agent_support):
+        if not gorilla_agent_support:
+            return {
+                "id": None,
+                "name": "",
+                "stopPolling": False,
+            }
+        query = gql(
+            """
+            query LaunchAgent($agentId: ID!) {
+                launchAgent(id: $agentId) {
+                    id
+                    name
+                    runQueues
+                    hostname
+                    agentStatus
+                    stopPolling
+                    heartbeatAt
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+        }
+        return self.gql(query, variable_values)["launchAgent"]
+
+    @normalize_exceptions
     def upsert_run(
         self,
         id=None,
