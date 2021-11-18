@@ -50,6 +50,8 @@ import autokeras  # noqa: F401
 # import avalanche
 import catalyst  # noqa: F401
 import catboost  # noqa: F401
+# transformerss needed for dalle_pytorch
+import transformers  # noqa: F401
 import dalle_pytorch  # noqa: F401
 # import datasets
 import deepchem  # noqa: F401
