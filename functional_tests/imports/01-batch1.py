@@ -8,8 +8,8 @@ tag:
 plugin:
   - wandb
 depend:
+  pip_install_timeout: 900  # 15m
   requirements:
-    - coverage  # move to yea deps
     - "-r 01-batch1-requirements.txt"
 assert:
   - :wandb:runs_len: 1
