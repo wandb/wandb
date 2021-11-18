@@ -11,10 +11,49 @@ lgb = lgb.train(param_list, d_train, callbacks=[wandb_callback()])
 
 import lightgbm
 import wandb
+from typing import Callable
+
+MINIMIZE_METRICS = [
+    "l1",
+    "l2",
+    "rmse",
+    "mape",
+    "huber",
+    "fair",
+    "poisson",
+    "gamma",
+    "binary_logloss",
+]
+
+MAXIMIZE_METRICS = ["map", "auc", "average_precision"]
 
 
-def wandb_callback():
-    def callback(env):
+def wandb_callback(log_params=True, define_metric=True) -> Callable:
+    log_params = [log_params]
+    define_metric = [define_metric]
+
+    def _init(env):
+        wandb.config.update(env.params)
+        log_params[0] = False
+
+        if define_metric[0]:
+            for i in range(len(env.evaluation_result_list)):
+                data_type = env.evaluation_result_list[i][0]
+                metric_name = env.evaluation_result_list[i][1]
+                _define_metric(data_type, metric_name)
+
+    def _define_metric(data, metric_name):
+        if "loss" in str.lower(metric_name):
+            wandb.define_metric(f"{data_type}_{metric_name}", summary="min")
+        elif str.lower(metric_name) in MINIMIZE_METRICS:
+            wandb.define_metric(f"{data}_{metric_name}", summary="min")
+        elif str.lower(metric_name) in MAXIMIZE_METRICS:
+            wandb.define_metric(f"{data}_{metric_name}", summary="max")
+
+    def _callback(env) -> None:
+        if log_params[0]:
+            _init(env)
+
         eval_results = {}
         recorder = lightgbm.record_evaluation(eval_results)
         recorder(env)
@@ -28,4 +67,4 @@ def wandb_callback():
         # Previous log statements use commit=False. This commits them.
         wandb.log({})
 
-    return callback
+    return _callback
