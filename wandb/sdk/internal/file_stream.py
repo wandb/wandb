@@ -9,7 +9,7 @@ import random
 import requests
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
 
 import wandb
 from wandb import util
@@ -85,10 +85,14 @@ class StreamCRState:
                         i.e the most recent "normal" line.
     """
 
+    found_cr: bool
+    cr: Optional[int]
+    last_normal: Optional[int]
+
     def __init__(self):
-        self.found_cr: bool = False
-        self.cr: int = None
-        self.last_normal: int = None
+        self.found_cr = False
+        self.cr = None
+        self.last_normal = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
