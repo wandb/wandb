@@ -24,12 +24,7 @@ if pb:
     Summary = pb.Summary
 else:
     Summary = None
-# [
-#     (
-#         <google.protobuf.pyext._message.FieldDescriptor object at 0x1783f9e90>,
-#         [tag: "c1" simple_value: 42.0]
-#     )
-# ]
+
 
 def make_ndarray(tensor):
     if tensor_util:

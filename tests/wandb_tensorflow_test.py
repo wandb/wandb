@@ -173,11 +173,10 @@ def test_hook(mocked_run):
         with MonitoredTrainingSession(hooks=[hook]) as sess:
             summary2, acc2 = sess.run([summary_op, c2])
         history.add({})
-    assert (
-            wandb.tensorboard.tf_summary_to_dict(
-                [summary, summary2]
-            ) == {"c1": 42.0, "c2": 23.0}
-    )
+    assert wandb.tensorboard.tf_summary_to_dict([summary, summary2]) == {
+        "c1": 42.0,
+        "c2": 23.0,
+    }
     assert summaries_logged[1]["c2"] == 23.0
 
 
