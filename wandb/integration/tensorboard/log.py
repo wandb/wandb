@@ -246,7 +246,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
 
 
 def reset_state():
-    """Internal method for reseting state, called by wandb.join"""
+    """Internal method for resetting state, called by wandb.join"""
     global STEPS
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
@@ -255,7 +255,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
-    history object is passed.  Can optionally namespace events.  Results are commited
+    history object is passed.  Can optionally namespace events.  Results are committed
     when step increases for this namespace.
 
     NOTE: This assumes that events being passed in are in chronological order
