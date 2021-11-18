@@ -46,20 +46,20 @@ assert:
     - 23  # deeppavlov
 """
 
-import wandb
 
-import allennlp
-import autogluon
-import autokeras
+import allennlp  # noqa: F401
+import autogluon  # noqa: F401
+import autokeras  # noqa: F401
 # import avalanche
-import catalyst
-import catboost
-import dalle_pytorch
+import catalyst  # noqa: F401
+import catboost  # noqa: F401
+import dalle_pytorch  # noqa: F401
 # import datasets
-import deepchem
-import deepctr
-import deeppavlov
+import deepchem  # noqa: F401
+import deepctr  # noqa: F401
+import deeppavlov  # noqa: F401
 # import detectron
+import wandb
 
 run = wandb.init()
 wandb.log(dict(loss=1))
