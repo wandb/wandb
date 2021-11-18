@@ -4,6 +4,7 @@ autokeras
 # avalanche
 catalyst
 catboost
+transformers  # needed for dalle-pytorch
 dalle-pytorch
 # datasets
 deepchem
