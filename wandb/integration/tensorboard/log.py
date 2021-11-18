@@ -24,7 +24,12 @@ if pb:
     Summary = pb.Summary
 else:
     Summary = None
-
+# [
+#     (
+#         <google.protobuf.pyext._message.FieldDescriptor object at 0x1783f9e90>,
+#         [tag: "c1" simple_value: 42.0]
+#     )
+# ]
 
 def make_ndarray(tensor):
     if tensor_util:
@@ -66,8 +71,8 @@ def history_image_key(key, namespace=""):
 def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     """Convert a Tensorboard Summary to a dictionary
 
-    Accepts either a tensorflow.summary.Summary
-    or one encoded as a string.
+    Accepts a tensorflow.summary.Summary, one encoded as a string,
+    or a list of such encoded as strings.
     """
     values = {}
     if hasattr(tf_summary_str_or_pb, "summary"):
@@ -77,6 +82,13 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     elif isinstance(tf_summary_str_or_pb, (str, bytes, bytearray)):
         summary_pb = Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
+    elif hasattr(tf_summary_str_or_pb, "__iter__"):
+        summary_pb = [Summary() for _ in range(len(tf_summary_str_or_pb))]
+        for i, summary in enumerate(tf_summary_str_or_pb):
+            summary_pb[i].ParseFromString(summary)
+            if i > 0:
+                summary_pb[0].MergeFrom(summary_pb[i])
+        summary_pb = summary_pb[0]
     else:
         summary_pb = tf_summary_str_or_pb
 
