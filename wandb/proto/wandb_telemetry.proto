@@ -37,6 +37,17 @@ message Imports {
   bool transformers_huggingface = 11;
   bool jax = 12;
   bool metaflow = 13;
+  bool allennlp = 14;
+  bool autogluon = 15;
+  bool autokeras = 16;
+  // bool avalanche = 17;
+  bool catalyst = 18;
+  bool dalle_pytorch = 19;
+  // bool datasets = 20;
+  bool deepchem = 21;
+  bool deepctr = 22;
+  bool deeppavlov = 23;
+  // bool detectron = 24;
 }
 
 message Feature {
