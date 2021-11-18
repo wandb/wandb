@@ -34,9 +34,6 @@ assert:
     - 7  # catboost
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 19  # dalle_pytorch
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
     - 21  # deepchem
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
@@ -50,9 +47,7 @@ import autokeras  # noqa: F401
 # import avalanche
 import catalyst  # noqa: F401
 import catboost  # noqa: F401
-# transformerss needed for dalle_pytorch
-import transformers  # noqa: F401
-import dalle_pytorch  # noqa: F401
+# import dalle_pytorch
 # import datasets
 import deepchem  # noqa: F401
 import deepctr  # noqa: F401
