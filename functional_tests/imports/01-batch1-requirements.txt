@@ -5,8 +5,8 @@ autokeras
 catalyst
 catboost
 dalle-pytorch
-datasets
+# datasets
 deepchem
 deepctr
-deeppavlov
+# deeppavlov
 # detectron

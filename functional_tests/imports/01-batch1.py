@@ -8,7 +8,7 @@ tag:
 plugin:
   - wandb
 depend:
-  pip_install_timeout: 900  # 15m
+  pip_install_timeout: 1500  # 25m
   requirements:
     - "-r 01-batch1-requirements.txt"
 assert:
@@ -41,9 +41,6 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 22  # deepctr
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 23  # deeppavlov
 """
 
 
@@ -57,7 +54,7 @@ import dalle_pytorch  # noqa: F401
 # import datasets
 import deepchem  # noqa: F401
 import deepctr  # noqa: F401
-import deeppavlov  # noqa: F401
+# import deeppavlov
 # import detectron
 import wandb
 

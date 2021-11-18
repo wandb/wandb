@@ -214,7 +214,7 @@ jobs:
                   name: Run tests
                   command: |
                       tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 10m
+                  no_output_timeout: 25m
             - save-tox-cache
             - save-test-results
     win:
