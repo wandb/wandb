@@ -86,9 +86,9 @@ class StreamCRState:
     """
 
     def __init__(self):
-        self.found_cr = False
-        self.cr = None
-        self.last_normal = None
+        self.found_cr: bool = False
+        self.cr: int = None
+        self.last_normal: int = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
