@@ -286,7 +286,7 @@ def test_redact():
 
     redacted = wandb_settings._redact_dict(
         {"ok": "keep", "unsafe": 9, "bad": "secret"},
-        unsafe={"unsafe", "bad"},
+        unsafe_keys={"unsafe", "bad"},
         redact_str="OMIT",
     )
     assert redacted == {"ok": "keep", "unsafe": "OMIT", "bad": "OMIT"}

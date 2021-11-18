@@ -42,6 +42,7 @@ from typing import (
     Callable,
     cast,
     Dict,
+    FrozenSet,
     Generator,
     Iterable,
     Iterator,
@@ -203,14 +204,14 @@ def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
 
 def _redact_dict(
     d: Dict[str, Any],
-    unsafe: Set[str] = {"api_key"},
+    unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
     redact_str: str = "***REDACTED***",
 ) -> Dict[str, Any]:
     """Redact a dict of unsafe values specified by their key."""
-    if not d or unsafe.isdisjoint(d):
+    if not d or unsafe_keys.isdisjoint(d):
         return d
     safe_dict = d.copy()
-    safe_dict.update({k: redact_str for k in unsafe.intersection(d)})
+    safe_dict.update({k: redact_str for k in unsafe_keys.intersection(d)})
     return safe_dict
 
 
