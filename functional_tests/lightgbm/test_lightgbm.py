@@ -4,7 +4,6 @@
 import lightgbm as lgb
 import pandas as pd
 import requests
-from sklearn.metrics import mean_squared_error
 import wandb
 from wandb.integration.lightgbm import wandb_callback
 
@@ -36,7 +35,8 @@ params = {
     'feature_fraction': 0.9,
     'bagging_fraction': 0.8,
     'bagging_freq': 5,
-    'verbosity': -1
+    'verbosity': -1,
+    'seed': 42
 }
 
 # initialize a new wandb project
@@ -46,13 +46,7 @@ wandb.init(project='lightgbm-reg')
 # add lightgbm callback
 gbm = lgb.train(params,
                 lgb_train,
-                num_boost_round=100,
+                num_boost_round=10,
                 valid_sets=lgb_eval,
                 valid_names=('validation'),
-                callbacks=[wandb_callback(),
-                           lgb.early_stopping(stopping_rounds=5)])
-
-# predict
-y_pred = gbm.predict(X_test, num_iteration=gbm.best_iteration)
-# eval
-print('The rmse of prediction is:', mean_squared_error(y_test, y_pred) ** 0.5)
+                callbacks=[wandb_callback()])
