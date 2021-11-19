@@ -5,7 +5,7 @@ command:
     program: lightgbm.py
 depend:
     requirements:
-        - lightgbm>=3.3.1
+        - lightgbm
 
 assert:
   - :wandb:runs_len: 1
