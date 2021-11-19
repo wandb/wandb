@@ -1,0 +1,22 @@
+id: 0.lightgbm.lightgbm
+plugin:
+  - wandb
+command:
+    program: lightgbm.py
+depend:
+    requirements:
+        - lightgbm>=3.3.1
+
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][config][bagging_fraction]: 0.8
+  - :wandb:runs[0][config][bagging_freq]: 5
+  - :wandb:runs[0][config][boosting_type]: gbdt
+  - :wandb:runs[0][config][feature_fraction]: 0.9
+  - :wandb:runs[0][config][learning_rate]: 0.05
+  - :wandb:runs[0][config][objective]: regression
+  - :wandb:runs[0][summary][validation_l1.min]: 0.3685
+  - :wandb:runs[0][summary][validation_l2.min]: 0.1714
+  - :wandb:runs[0][summary][validation_rmse.min]: 0.414
+  - :wandb:runs[0][summary][validation_huber.min]: 0.08568
+  - :wandb:runs[0][exitcode]: 0
