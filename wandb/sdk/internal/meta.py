@@ -51,7 +51,29 @@ class Meta(object):
         self._saved_program = None
         # Locations under files directory where diff patches were saved.
         self._saved_patches = []
+        #
+        self.probe_process = None
         logger.debug("meta init done")
+
+    def start(self, timeout):
+        self.probe_process = multiprocessing.Process(
+            target=self.create_process, args=(timeout, self._interface.record_q)
+        )
+        self.probe_process.start()
+        logger.debug("meta started parent process")
+
+    def create_process(self, timeout, record_q):
+        p = multiprocessing.Process(target=self.run, args=(record_q,))
+        p.start()
+        logger.debug(f"meta started child process (probe) with timeout {timeout}")
+        p.join(timeout)
+        if p.is_alive():
+            p.terminate()
+
+    def run(self, record_q):
+        self.probe()
+        self.write()
+        # put record queue request here
 
     def _save_pip(self):
         """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
