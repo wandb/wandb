@@ -42,11 +42,11 @@ message Imports {
   bool autokeras = 16;
   // bool avalanche = 17;
   bool catalyst = 18;
-  bool dalle_pytorch = 19;
+  // bool dalle_pytorch = 19;
   // bool datasets = 20;
   bool deepchem = 21;
   bool deepctr = 22;
-  bool deeppavlov = 23;
+  // bool deeppavlov = 23;
   // bool detectron = 24;
 }
 
