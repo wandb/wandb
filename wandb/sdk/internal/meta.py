@@ -10,10 +10,12 @@ import logging
 import multiprocessing
 import os
 from shutil import copyfile
+import time
 import sys
 from urllib.parse import unquote
 
 from wandb import util
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.vendor.pynvml import pynvml
 
 from ..lib.filenames import (
@@ -57,23 +59,46 @@ class Meta(object):
 
     def start(self, timeout):
         self.probe_process = multiprocessing.Process(
-            target=self.create_process, args=(timeout, self._interface.record_q)
+            target=self.create_child_process,
+            args=(timeout, self._interface),
         )
         self.probe_process.start()
         logger.debug("meta started parent process")
 
-    def create_process(self, timeout, record_q):
-        p = multiprocessing.Process(target=self.run, args=(record_q,))
+    def create_child_process(self, timeout, interface):
+        p = multiprocessing.Process(target=self.run, args=())
         p.start()
-        logger.debug(f"meta started child process (probe) with timeout {timeout}")
+        logger.debug(f"meta started child process with timeout {timeout}")
+        print(f"meta started child process with timeout {timeout}")
+        start = time.time()
         p.join(timeout)
+        elapsed = time.time() - start
+        print(f"meta child process elapsed in {elapsed} seconds")
+        print(f"p.exitcode is {p.exitcode}")
+        # We assume exitcode can take one of three values: None (timed out), 0 (completed), 1 (errored).
+        timed_out, error = False, False
+        if p.exitcode is None:
+            timed_out = True
+        elif p.exitcode == 1:
+            error = True
+        # Put a MetaDoneRequest on the handler queue
+        interface.publish_meta_done(timed_out, error)
+
         if p.is_alive():
             p.terminate()
 
-    def run(self, record_q):
+        # if self.probe_process.is_alive():
+        #     self.probe_process.terminate()
+
+    def run(self):
+        logger.debug("meta inside child process, started git probe")
+        print("meta inside child process started git probe")
+        start = time.time()
         self.probe()
         self.write()
-        # put record queue request here
+        time.sleep(2)
+        elapsed = time.time() - start
+        print(f"meta inside child process, git probe elapsed in {elapsed} seconds")
 
     def _save_pip(self):
         """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""

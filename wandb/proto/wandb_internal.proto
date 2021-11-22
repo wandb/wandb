@@ -448,6 +448,7 @@ message Request {
     ArtifactSendRequest   artifact_send = 14;
     ArtifactPollRequest   artifact_poll = 15;
     ArtifactDoneRequest   artifact_done = 16;
+    MetaDoneRequest       meta_done = 17;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -744,4 +745,10 @@ message ArtifactDoneRequest {
   string xid = 16;
 
   // Internal message, no _info field needed
+}
+
+message MetaDoneRequest {
+  bool timed_out = 1;
+  bool error = 2;
+  _RequestInfo _info = 200;
 }

@@ -566,6 +566,10 @@ class HandleManager(object):
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
 
+    def handle_request_meta_done(self, record: Record) -> None:
+        print("Received MetaDoneRequest!")
+        logger.info("Received MetaDoneRequest!")
+
     def handle_request_run_start(self, record: Record) -> None:
         run_start = record.request.run_start
         assert run_start
@@ -586,8 +590,10 @@ class HandleManager(object):
 
         if not self._settings._disable_meta and not run_start.run.resumed:
             run_meta = meta.Meta(settings=self._settings, interface=self._interface)
-            run_meta.probe()
-            run_meta.write()
+            # TODO: Vish delete
+            run_meta.start(timeout=60)
+            # run_meta.probe()
+            # run_meta.write()
 
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run

@@ -65,6 +65,10 @@ class InterfaceQueue(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _publish_meta_done(self, meta_done: pb.MetaDoneRequest):
+        rec = self._make_request(meta_done=meta_done)
+        self._publish(rec)
+
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
@@ -116,6 +120,7 @@ class InterfaceQueue(InterfaceBase):
         artifact_send: pb.ArtifactSendRequest = None,
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
+        meta_done: pb.MetaDoneRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -152,6 +157,8 @@ class InterfaceQueue(InterfaceBase):
             request.artifact_poll.CopyFrom(artifact_poll)
         elif artifact_done:
             request.artifact_done.CopyFrom(artifact_done)
+        elif meta_done:
+            request.meta_done.CopyFrom(meta_done)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
