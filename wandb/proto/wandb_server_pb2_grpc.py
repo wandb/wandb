@@ -26,6 +26,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
                 )
+        self.MetaDone = channel.unary_unary(
+                '/wandb_internal.InternalService/MetaDone',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneResult.FromString,
+                )
         self.TBSend = channel.unary_unary(
                 '/wandb_internal.InternalService/TBSend',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.SerializeToString,
@@ -188,6 +193,12 @@ class InternalServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Attach(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MetaDone(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -387,6 +398,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.SerializeToString,
             ),
+            'MetaDone': grpc.unary_unary_rpc_method_handler(
+                    servicer.MetaDone,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneResult.SerializeToString,
+            ),
             'TBSend': grpc.unary_unary_rpc_method_handler(
                     servicer.TBSend,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.TBRecord.FromString,
@@ -578,6 +594,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Attach',
             wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def MetaDone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/MetaDone',
+            wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

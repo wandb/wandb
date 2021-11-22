@@ -10,12 +10,11 @@ import logging
 import multiprocessing
 import os
 from shutil import copyfile
-import time
 import sys
+import time
 from urllib.parse import unquote
 
 from wandb import util
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.vendor.pynvml import pynvml
 
 from ..lib.filenames import (
@@ -59,8 +58,7 @@ class Meta(object):
 
     def start(self, timeout):
         self.probe_process = multiprocessing.Process(
-            target=self.create_child_process,
-            args=(timeout, self._interface),
+            target=self.create_child_process, args=(timeout, self._interface),
         )
         self.probe_process.start()
         logger.debug("meta started parent process")

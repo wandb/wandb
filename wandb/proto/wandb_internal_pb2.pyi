@@ -1071,6 +1071,13 @@ class ArtifactResult(google.protobuf.message.Message):
         ) -> None: ...
 global___ArtifactResult = ArtifactResult
 
+class MetaDoneResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___MetaDoneResult = MetaDoneResult
+
 class TBRecord(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     LOG_DIR_FIELD_NUMBER: builtins.int

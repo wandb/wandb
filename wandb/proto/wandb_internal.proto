@@ -397,6 +397,9 @@ message StoragePolicyConfigItem {
 message ArtifactResult {
 }
 
+message MetaDoneResult {
+}
+
 /*
  * TBRecord: store tb locations
  */

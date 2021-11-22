@@ -415,6 +415,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert resp
         return resp
 
+    def MetaDone(  # noqa: N802
+        self, meta_done: pb.MetaDoneRequest, context: grpc.ServicerContext
+    ) -> pb.MetaDoneResult:
+        stream_id = meta_done._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_meta_done(meta_done)
+        result = pb.MetaDoneResult()
+        return result
+
     def TBSend(  # noqa: N802
         self, tb_data: pb.TBRecord, context: grpc.ServicerContext
     ) -> pb.TBResult:

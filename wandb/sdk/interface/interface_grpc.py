@@ -230,6 +230,11 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(alert)
         _ = self._stub.Alert(alert)
 
+    def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
+        assert self._stub
+        self._assign(meta_done)
+        _ = self._stub.MetaDone(meta_done)
+
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         assert self._stub
         self._assign(tbrecord)

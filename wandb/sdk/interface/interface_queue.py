@@ -65,7 +65,7 @@ class InterfaceQueue(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
-    def _publish_meta_done(self, meta_done: pb.MetaDoneRequest):
+    def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
         rec = self._make_request(meta_done=meta_done)
         self._publish(rec)
 

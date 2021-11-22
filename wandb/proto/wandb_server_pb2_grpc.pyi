@@ -18,6 +18,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.AttachRequest,
     ) -> wandb.proto.wandb_internal_pb2.AttachResponse: ...
 
+    def MetaDone(self,
+        request: wandb.proto.wandb_internal_pb2.MetaDoneRequest,
+    ) -> wandb.proto.wandb_internal_pb2.MetaDoneResult: ...
+
     def TBSend(self,
         request: wandb.proto.wandb_internal_pb2.TBRecord,
     ) -> wandb.proto.wandb_internal_pb2.TBResult: ...
@@ -151,6 +155,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.AttachRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.AttachResponse: ...
+
+    @abc.abstractmethod
+    def MetaDone(self,
+        request: wandb.proto.wandb_internal_pb2.MetaDoneRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.MetaDoneResult: ...
 
     @abc.abstractmethod
     def TBSend(self,
