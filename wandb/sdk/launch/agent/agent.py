@@ -2,11 +2,11 @@
 Implementation of launch agent.
 """
 
+import logging
 import os
 import sys
 import time
 from typing import Any, Dict, Iterable, List
-import logging
 
 import wandb
 from wandb.apis.internal import Api
@@ -77,10 +77,7 @@ class LaunchAgent(object):
         """Pops an item off the runqueue to run as a job."""
         try:
             ups = self._api.pop_from_run_queue(
-                queue,
-                entity=self._entity,
-                project=self._project,
-                agent_id=self._id,
+                queue, entity=self._entity, project=self._project, agent_id=self._id,
             )
         except Exception as e:
             print("Exception:", e)
