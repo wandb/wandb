@@ -172,8 +172,6 @@ def run(
         api=api,
     )
 
-    if synchronous:
-        _wait_for(submitted_run_obj)
     return submitted_run_obj
 
 
