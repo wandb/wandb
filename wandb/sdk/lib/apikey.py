@@ -94,7 +94,10 @@ def prompt_api_key(  # noqa: C901
             choices, input_timeout=settings.login_timeout, jupyter=jupyter
         )
 
-    api_ask = "%s: Paste an API key from your profile and hit enter: " % log_string
+    api_ask = (
+        "%s: Paste an API key from your profile and hit enter, or press ctrl+c to quit: "
+        % log_string
+    )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
 
@@ -126,6 +129,8 @@ def prompt_api_key(  # noqa: C901
     elif result == LOGIN_CHOICE_NOTTY:
         # TODO: Needs refactor as this needs to be handled by caller
         return False
+    elif result == LOGIN_CHOICE_DRYRUN:
+        return None
     else:
         # Jupyter environments don't have a tty, but we can still try logging in using
         # the browser callback if one is supplied.
@@ -200,7 +205,7 @@ def write_netrc(host, entity, key):
 
 def write_key(settings, key, api=None, anonymous=False):
     if not key:
-        return
+        raise ValueError("No API key specified.")
 
     # TODO(jhr): api shouldn't be optional or it shouldnt be passed, clean up callers
     api = api or InternalApi()

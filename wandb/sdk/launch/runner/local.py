@@ -4,7 +4,6 @@ import os
 import re
 import signal
 import subprocess
-import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
@@ -136,63 +135,33 @@ class LocalRunner(AbstractRunner):
                 )
                 return None
 
-        # In synchronous mode, run the entry point command in a blocking fashion, sending status
-        # updates to the tracking server when finished. Note that the run state may not be
-        # persisted to the tracking server if interrupted
+        command_args += get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
+
+        command_str = command_separator.join(command_args)
+        sanitized_command_str = re.sub(
+            r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+        )
+        with open(
+            os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
+        ) as fp:
+            json.dump(
+                {
+                    **launch_project.launch_spec,
+                    "command": sanitized_command_str,
+                    "dockerfile_contents": launch_project._dockerfile_contents,
+                },
+                fp,
+            )
+
+        wandb.termlog(
+            "Launching run in docker with command: {}".format(sanitized_command_str)
+        )
+        run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            command_args += get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
-
-            command_str = command_separator.join(command_args)
-            sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-            )
-            with open(
-                os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
-            ) as fp:
-                json.dump(
-                    {
-                        **launch_project.launch_spec,
-                        "command": sanitized_command_str,
-                        "dockerfile_contents": launch_project._dockerfile_contents,
-                    },
-                    fp,
-                )
-
-            wandb.termlog(
-                "Launching run in docker with command: {}".format(sanitized_command_str)
-            )
-            run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()
-            return run
-        # Otherwise, invoke `wandb launch` in a subprocess
-        raise LaunchError("asynchronous mode not yet available")
-
-
-def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
-    """Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
-
-    Arguments:
-    cmd: List of strings indicating the command to run
-
-    Returns:
-        A handle to the subprocess. Popen launched to invoke ``wandb launch``.
-    """
-    final_env = os.environ.copy()
-    # Launch `wandb launch` command as the leader of its own process group so that we can do a
-    # best-effort cleanup of all its descendant processes if needed
-    if sys.platform == "win32":
-        return subprocess.Popen(
-            cmd,
-            env=final_env,
-            universal_newlines=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        )
-    else:
-        return subprocess.Popen(
-            cmd, env=final_env, universal_newlines=True, preexec_fn=os.setsid
-        )
+        return run
 
 
 def _run_entry_point(command: str, work_dir: str) -> AbstractRun:

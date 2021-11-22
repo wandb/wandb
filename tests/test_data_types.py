@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from . import utils
 from .utils import dummy_data
 import matplotlib
+import rdkit.Chem
 from wandb import Api
 import time
 
@@ -474,6 +475,52 @@ def test_molecule_file(runner, mocked_run):
         wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
         assert os.path.exists(mol._path)
+
+
+def test_molecule_from_smiles(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_smiles supports valid SMILES molecule string representations"""
+    with runner.isolated_filesystem():
+        mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_from_invalid_smiles(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_smiles errs if passed an invalid SMILES string"""
+    with pytest.raises(ValueError):
+        wandb.Molecule.from_smiles("TEST")
+
+
+def test_molecule_from_rdkit_mol_object(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
+    with runner.isolated_filesystem():
+        mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_from_rdkit_mol_file(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_rdkit supports .mol files"""
+    with runner.isolated_filesystem():
+        substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
+        mol_file_name = "test.mol"
+        rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
+        mol = wandb.Molecule.from_rdkit(mol_file_name)
+        mol.bind_to_run(mocked_run, "rad", "summary")
+        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+        assert os.path.exists(mol._path)
+
+
+def test_molecule_from_rdkit_invalid_input(runner, mocked_run):
+    """Ensures that wandb.Molecule.from_rdkit errs on invalid input"""
+    mol_file_name = "test"
+    with pytest.raises(ValueError):
+        wandb.Molecule.from_rdkit(mol_file_name)
 
 
 def test_html_str(mocked_run):

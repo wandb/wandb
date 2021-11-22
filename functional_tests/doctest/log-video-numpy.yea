@@ -1,0 +1,19 @@
+id: log-video-numpy
+plugin:
+    - wandb
+tag:
+  shard: docs
+depend:
+    requirements:
+        - numpy
+        - moviepy
+        - imageio
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - video
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[0][summary][video][width]: 100
+    - :wandb:runs[0][summary][video][height]: 100
+    - :wandb:runs[0][summary][video][_type]: video-file
