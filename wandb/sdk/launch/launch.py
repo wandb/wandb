@@ -3,7 +3,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
-from wandb.errors import ExecutionError, LaunchError
+from wandb.errors import ExecutionError
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -168,10 +168,6 @@ def run(
         api=api,
     )
 
-    if synchronous:
-        _wait_for(submitted_run_obj)
-    else:
-        raise LaunchError("Non synchronous mode not supported")
     return submitted_run_obj
 
 

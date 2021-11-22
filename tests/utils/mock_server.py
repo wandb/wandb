@@ -79,9 +79,11 @@ def default_ctx():
         "launch_agents": {},
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
+        "stop_launch_agent": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
         "invalid_launch_spec_project": False,
+        "n_sweep_runs": 0,
     }
 
 
@@ -219,6 +221,7 @@ def artifact(
             }
         ],
         "artifactSequence": {"name": collection_name,},
+        "artifactType": {"name": "dataset"},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -698,21 +701,32 @@ def create_app(user_ctx=None):
                 {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
             )
         if "mutation Heartbeat(" in body["query"]:
+            new_run_needed = body["variables"]["runState"] == "{}"
+            if new_run_needed:
+                ctx["n_sweep_runs"] += 1
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
                             "agent": {"id": "mock-server-agent-93xy",},
-                            "commands": json.dumps(
-                                [
-                                    {
-                                        "type": "run",
-                                        "run_id": "mocker-sweep-run-x9",
-                                        "args": {"learning_rate": {"value": 0.99124}},
-                                        "runqueue_item_id": "1jfskn2z",
-                                    }
-                                ]
-                            ),
+                            "commands": (
+                                json.dumps(
+                                    [
+                                        {
+                                            "type": "run",
+                                            "run_id": f"mocker-sweep-run-x9{ctx['n_sweep_runs']}",
+                                            "args": {
+                                                "a": {"value": ctx["n_sweep_runs"]}
+                                            },
+                                            "runqueue_item_id": "1jfskn2z",
+                                        }
+                                    ]
+                                )
+                                if ctx["n_sweep_runs"] <= 4
+                                else json.dumps([{"type": "exit"}])
+                            )
+                            if new_run_needed
+                            else "[]",
                         }
                     }
                 }
@@ -799,7 +813,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-            if body["variables"].get("name") == "mocker-sweep-run-x9":
+            if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
@@ -1318,6 +1332,20 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {}})
+        if "query LaunchAgent" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "launchAgent": {
+                                "name": "test_agent",
+                                "stopPolling": ctx["stop_launch_agent"],
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {}})
 
         if "query GetSweeps" in body["query"]:
             if body["variables"]["project"] == "testnosweeps":
@@ -1798,7 +1826,7 @@ class ParseCTX(object):
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                if k == u"output.log":
+                if k == "output.log":
                     lines = content
                 else:
                     lines = map(json.loads, content)

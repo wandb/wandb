@@ -358,6 +358,42 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         assert arti_info["used_name"] == "test/test/old_name:v0"
 
 
+def test_launch_code_artifact(
+    runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
+):
+    def download_func(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("testing")
+
+    run_with_artifacts = mock.MagicMock()
+    code_artifact = mock.MagicMock()
+    code_artifact.type = "code"
+    code_artifact.download = download_func
+
+    run_with_artifacts.logged_artifacts.return_value = [code_artifact]
+    monkeypatch.setattr(
+        wandb.PublicApi, "run", lambda *arg, **kwargs: run_with_artifacts
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
 def test_run_in_launch_context_with_artifact_string_used_as_config(
     runner, live_mock_server, test_settings
 ):
@@ -511,7 +547,7 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
-def test_launch_agent(
+def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(
@@ -528,12 +564,25 @@ def test_launch_agent(
     assert len(ctx["launch_agents"].keys()) == 1
 
 
+def test_launch_agent_instance(test_settings, live_mock_server):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["launch_agents"]) == 1
+    assert agent._id == int(list(ctx["launch_agents"].keys())[0])
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == "test_agent"
+
+
 def test_launch_agent_different_project_in_spec(
     test_settings,
     live_mock_server,
     mocked_fetchable_git_repo,
     monkeypatch,
-    mock_load_backend_agent,
+    # mock_load_backend_agent,
     capsys,
 ):
     live_mock_server.set_ctx({"invalid_launch_spec_project": True})
@@ -579,11 +628,16 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
     assert agent._id is None
+    assert agent._name == ""
 
     update_response = api.update_launch_agent_status(
         agent._id, "POLLING", agent.gorilla_supports_agents
     )
     assert update_response["success"]
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == ""
+    assert get_agent_response["stopPolling"] == False
 
 
 @pytest.mark.timeout(320)
@@ -640,7 +694,7 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False

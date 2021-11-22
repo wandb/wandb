@@ -1,9 +1,28 @@
+"""Shared utilities for the modules in wandb.sklearn."""
 import numpy as np
 import pandas as pd
 from six.moves.collections_abc import Sequence, Iterable
 import sklearn
 import scipy
 import wandb
+
+
+chart_limit = 1000
+
+
+def check_against_limit(count, chart, limit=None):
+    if limit is None:
+        limit = chart_limit
+    if count > limit:
+        warn_chart_limit(limit, chart)
+        return True
+    else:
+        return False
+
+
+def warn_chart_limit(limit, chart):
+    warning = f"using only the first {limit} datapoints to create chart {chart}"
+    wandb.termwarn(warning)
 
 
 def encode_labels(df):
@@ -152,3 +171,11 @@ def test_missing(**kwargs):
                 )
                 test_passed = False
     return test_passed
+
+
+def round_3(n):
+    return round(n, 3)
+
+
+def round_2(n):
+    return round(n, 2)
