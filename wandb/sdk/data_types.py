@@ -2101,11 +2101,7 @@ class Image(BatchableMedia):
         if caption is not None:
             self._caption = caption
 
-        if classes is not None:
-            if not isinstance(classes, Classes):
-                self._classes = Classes(classes)
-            else:
-                self._classes = classes
+        total_classes = {}
 
         if boxes:
             if not isinstance(boxes, dict):
@@ -2116,7 +2112,9 @@ class Image(BatchableMedia):
                 if isinstance(box_item, BoundingBoxes2D):
                     boxes_final[key] = box_item
                 elif isinstance(box_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
+                total_classes.update(boxes_final[key]._class_labels)
             self._boxes = boxes_final
 
         if masks:
@@ -2128,9 +2126,27 @@ class Image(BatchableMedia):
                 if isinstance(mask_item, ImageMask):
                     masks_final[key] = mask_item
                 elif isinstance(mask_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
+                if hasattr(masks_final[key], "_val"):
+                    total_classes.update(masks_final[key]._val["class_labels"])
             self._masks = masks_final
 
+        if classes is not None:
+            if isinstance(classes, Classes):
+                total_classes.update(
+                    {val["id"]: val["name"] for val in classes._class_set}
+                )
+            else:
+                total_classes.update({val["id"]: val["name"] for val in classes})
+
+        if len(total_classes.keys()) > 0:
+            self._classes = Classes(
+                [
+                    {"id": key, "name": total_classes[key]}
+                    for key in total_classes.keys()
+                ]
+            )
         self._width, self._height = self.image.size  # type: ignore
         self._free_ram()
 
@@ -2195,7 +2211,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".png")
+        tmp_path = os.path.join(_MEDIA_TMP.name, str(util.generate_id()) + ".png")
         self.format = "png"
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -2280,18 +2296,10 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                # Here, rather than give each class definition it's own name (and entry), we
-                # purposely are giving a non-unique class name of /media/cls.classes.json.
-                # This may create user confusion if if multiple different class definitions
-                # are expected in a single artifact. However, we want to catch this user pattern
-                # if it exists and dive deeper. The alternative code is provided below.
-                #
-                class_name = os.path.join("media", "cls")
-                #
-                # class_name = os.path.join(
-                #     "media", "classes", os.path.basename(self._path) + "_cls"
-                # )
-                #
+                class_id = hashlib.md5(
+                    str(self._classes._class_set).encode("utf-8")
+                ).hexdigest()
+                class_name = os.path.join("media", "classes", class_id + "_cls",)
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
