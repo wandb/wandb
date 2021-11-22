@@ -26,6 +26,11 @@ def test_api_auto_login_no_tty(mocker):
         Api()
 
 
+def test_base_url_sanitization(runner):
+    api = Api({"base_url": "https://wandb.corp.net///"})
+    assert api.settings["base_url"] == "https://wandb.corp.net"
+
+
 def test_parse_project_path(api):
     e, p = api._parse_project_path("user/proj")
     assert e == "user"
@@ -121,6 +126,18 @@ def test_to_html(mock_server, api):
     report_html = report.to_html(hidden=True)
     assert "test/test/reports/My-Report--XXX" in report_html
     assert "<button" in report_html
+
+
+def test_project_sweeps(mock_server, api):
+    project = api.from_path("test")
+    psweeps = project.sweeps()
+    assert len(psweeps) == 1
+    assert psweeps[0].id == "testid"
+    assert psweeps[0].name == "testname"
+
+    no_sweeps_project = api.from_path("testnosweeps")
+    nspsweeps = no_sweeps_project.sweeps()
+    assert len(nspsweeps) == 0
 
 
 def test_display(mock_server, api):

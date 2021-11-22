@@ -353,7 +353,9 @@ class TBEventConsumer(object):
             files = dict(files=[(fname, "now")])
             self._tbwatcher._interface.publish_files(files)
 
+        # this is only used for logging artifacts
         self._internal_run = internal_run.InternalRun(run_proto, settings, datatypes_cb)
+        self._internal_run._set_internal_run_interface(self._tbwatcher._interface)
 
     def start(self) -> None:
         self._start_time = time.time()

@@ -42,6 +42,7 @@ from typing import (
     Callable,
     cast,
     Dict,
+    FrozenSet,
     Generator,
     Iterable,
     Iterator,
@@ -199,6 +200,19 @@ def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
     except (AttributeError, ValueError):
         pass
     return ret_val
+
+
+def _redact_dict(
+    d: Dict[str, Any],
+    unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
+    redact_str: str = "***REDACTED***",
+) -> Dict[str, Any]:
+    """Redact a dict of unsafe values specified by their key."""
+    if not d or unsafe_keys.isdisjoint(d):
+        return d
+    safe_dict = d.copy()
+    safe_dict.update({k: redact_str for k in unsafe_keys.intersection(d)})
+    return safe_dict
 
 
 @enum.unique
@@ -610,7 +624,9 @@ class Settings(object):
 
     @property
     def is_local(self) -> bool:
-        return self.base_url != "https://api.wandb.ai/"
+        if self.base_url is not None:
+            return self.base_url.rstrip("/") != "https://api.wandb.ai"
+        return False
 
     def _validate_project(self, value: Optional[str]) -> Optional[str]:
         invalid_chars_list = list("/\\#?%:")
@@ -763,21 +779,25 @@ class Settings(object):
                     _logger.info("Unhandled environment var: {}".format(k))
 
         if _logger:
-            _logger.info("setting env: {}".format(env_dict))
+            _logger.info("setting env: {}".format(_redact_dict(env_dict)))
         self._update(env_dict, _source=self.Source.ENV)
 
     def _apply_user(
         self, user_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info("setting user settings: {}".format(user_settings))
+            _logger.info(
+                "setting user settings: {}".format(_redact_dict(user_settings))
+            )
         self._update(user_settings, _source=self.Source.USER)
 
     def _apply_source_login(
         self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info("setting login settings: {}".format(login_settings))
+            _logger.info(
+                "setting login settings: {}".format(_redact_dict(login_settings))
+            )
         self._update(login_settings, _source=self.Source.LOGIN)
 
     def _apply_setup(

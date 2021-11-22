@@ -55,7 +55,11 @@ def test_magic(notebook):
         assert iframes == 4
 
 
+@pytest.mark.flaky
 @pytest.mark.timeout(90)
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="flaky test that fails on windows"
+)
 def test_code_saving(notebook, live_mock_server):
     # TODO: this is awfully slow, we should likely run these in parallel
     with notebook("code_saving.ipynb") as nb:

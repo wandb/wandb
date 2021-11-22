@@ -164,7 +164,7 @@ with tf.Session() as sess:
 Visualize, compare, and iterate on fastai models using Weights & Biases with the `WandbCallback`.
 ```python
 import wandb
-from fastai2.callback.wandb import WandbCallback
+from fastai.callback.wandb import WandbCallback
 
 # 1. Start a new run
 wandb.init(project="gpt-3")

@@ -1,0 +1,17 @@
+id: one-parameter-sweep-agent
+plugin:
+    - wandb
+tag:
+  shard: docs
+assert:
+    - :wandb:runs_len: 4
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - accuracy
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - a
+    - :wandb:runs[0][exitcode]: 0
+    - :wandb:runs[1][exitcode]: 0
+    - :wandb:runs[2][exitcode]: 0
+    - :wandb:runs[3][exitcode]: 0

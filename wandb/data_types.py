@@ -1,11 +1,17 @@
-"""
-Wandb has special data types for logging rich visualizations.
+"""This module defines data types for logging rich, interactive visualizations to W&B.
 
-All of the special data types are subclasses of WBValue. All of the data types
+Data types include common media types, like images, audio, and videos,
+flexible containers for information, like tables and HTML, and more.
+
+For more on logging media, see [our guide](https://docs.wandb.com/guides/track/log/media)
+
+For more on logging structured data for interactive dataset and model analysis,
+see [our guide to W&B Tables](https://docs.wandb.com/guides/data-vis).
+
+All of these special data types are subclasses of WBValue. All of the data types
 serialize to JSON, since that is what wandb uses to save the objects locally
 and upload them to the W&B server.
 """
-
 from __future__ import print_function
 
 import base64
@@ -111,27 +117,74 @@ def _json_helper(val, artifact):
 class Table(Media):
     """The Table class is used to display and analyze tabular data.
 
+    Unlike traditional spreadsheets, Tables support numerous types of data:
+    scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
+    This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
+    directly in Tables, alongside other traditional scalar values.
+
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
     Tables can be constructed with initial data using the `data` or
-    `dataframe` parameters. Additionally, users can add data to Tables
-    incrementally by using the `add_data`, `add_column`, and
-    `add_computed_column` functions for adding rows, columns, and computed
-    columns, respectively.
+    `dataframe` parameters:
+    <!--yeadoc-test:table-construct-dataframe-->
+    ```python
+    import pandas as pd
+    import wandb
+
+    data = {"users": ["geoff", "juergen", "ada"],
+            "feature_01": [1, 117, 42]}
+    df = pd.DataFrame(data)
+
+    tbl = wandb.Table(data=df)
+    assert all(tbl.get_column("users") == df["users"])
+    assert all(tbl.get_column("feature_01") == df["feature_01"])
+    ```
+
+    Additionally, users can add data to Tables incrementally by using the
+    `add_data`, `add_column`, and `add_computed_column` functions for
+    adding rows, columns, and columns computed from data in other columns, respectively:
+    <!--yeadoc-test:table-construct-rowwise-->
+    ```python
+    import wandb
+
+    tbl = wandb.Table(columns=["user"])
+
+    users = ["geoff", "juergen", "ada"]
+
+    [tbl.add_data(user) for user in users]
+    assert tbl.get_column("user") == users
+
+    def get_user_name_length(index, row): return {"feature_01": len(row["user"])}
+    tbl.add_computed_columns(get_user_name_length)
+    assert tbl.get_column("feature_01") == [5, 7, 3]
+    ```
 
     Tables can be logged directly to runs using `run.log({"my_table": table})`
-    or added to artifacts using `artifact.add(table, "my_table")`. Tables added
-    directly to runs will produce a corresponding Table Visualizer in the
+    or added to artifacts using `artifact.add(table, "my_table")`:
+    <!--yeadoc-test:table-logging-direct-->
+    ```python
+    import numpy as np
+    import wandb
+
+    wandb.init()
+
+    tbl = wandb.Table(columns=["image", "label"])
+
+    images = np.random.randint(0, 255, [2, 100, 100, 3], dtype=np.uint8)
+    labels = ["panda", "gibbon"]
+    [tbl.add_data(wandb.Image(image), label) for image, label in zip(images, labels)]
+
+    wandb.log({"classifier_out": tbl})
+    ```
+
+    Tables added directly to runs as above will produce a corresponding Table Visualizer in the
     Workspace which can be used for further analysis and exporting to reports.
+
     Tables added to artifacts can be viewed in the Artifact Tab and will render
     an equivalent Table Visualizer directly in the artifact browser.
 
-    Note that Tables support numerous types of data: traditional scalar values,
-    numpy arrays, and most subclasses of wandb.data_types.Media. This means you
-    can embed Images, Video, Audio, and other sorts of rich, annotated media
-    directly in Tables, alongside other traditional scalar values. Tables expect
-    each value for a column to be of the same type. By default, a column supports
+    Tables expect each value for a column to be of the same type. By default, a column supports
     optional values, but not mixed values. If you absolutely need to mix types,
     you can enable the `allow_mixed_types` flag which will disable type checking
     on the data. This will result in some table analytics features being disabled
@@ -763,12 +816,14 @@ class Table(Media):
         """Adds one or more computed columns based on existing data
 
         Args:
-            fn (function): A function which accepts one or two paramters: ndx (int) and row (dict)
+            fn: A function which accepts one or two parameters, ndx (int) and row (dict),
                 which is expected to return a dict representing new columns for that row, keyed
                 by the new column names.
-                    - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
-                        is set to true
-                    - `row` is a dictionary keyed by existing columns
+
+                `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+                      is set to `True`.
+
+                `row` is a dictionary keyed by existing columns
         """
         new_columns = {}
         for ndx, row in self.iterrows():

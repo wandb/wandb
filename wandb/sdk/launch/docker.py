@@ -177,7 +177,7 @@ def build_docker_image_if_needed(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
-    dockerfile = (
+    dockerfile_contents = (
         "FROM {imagename}\n"
         # need to chown this directory for artifacts caching
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
@@ -192,7 +192,11 @@ def build_docker_image_if_needed(
         requirements_line=requirements_line,
         name_line=name_line,
     )
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile)
+
+    launch_project._dockerfile_contents = dockerfile_contents
+
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
+
     _logger.info("=== Building docker image %s ===", image_uri)
 
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
@@ -252,7 +256,7 @@ def get_docker_command(
         "--env",
         f"WANDB_LAUNCH={True}",
         "--env",
-        f"WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
+        f"WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
         "--env",
         f"WANDB_RUN_ID={launch_project.run_id or None}",
         "--env",
@@ -261,7 +265,7 @@ def get_docker_command(
 
     cmd += [
         "-v",
-        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_CONFIG_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_CONFIG_PATH)}",
+        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_LAUNCH_METADATA_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
     ]
 
     if docker_args:

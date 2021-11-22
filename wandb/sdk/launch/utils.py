@@ -107,7 +107,11 @@ def construct_launch_spec(
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
-        uri, api, project, entity, launch_config,
+        uri,
+        api,
+        project,
+        entity,
+        launch_config,
     )
     launch_spec["entity"] = entity
 
@@ -179,20 +183,22 @@ def is_bare_wandb_uri(uri: str) -> bool:
     return False
 
 
-def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
-    entity, project, name = parse_wandb_uri(uri)
-    print(entity, project, name)
+def fetch_wandb_project_run_info(
+    entity: str, project: str, run_name: str, api: Api
+) -> Any:
     try:
-        result = api.get_run_info(entity, project, name)
+        result = api.get_run_info(entity, project, run_name)
     except CommError:
         result = None
     if result is None:
-        raise LaunchError("Run info is invalid or doesn't exist for {}".format(uri))
+        raise LaunchError(
+            f"Run info is invalid or doesn't exist for {api.settings('base_url')}/{entity}/{project}/runs/{run_name}"
+        )
     if result.get("codePath") is None:
         # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
         # it from wandb-metadata.json if we can.
         metadata = api.download_url(
-            project, "wandb-metadata.json", run=name, entity=entity
+            project, "wandb-metadata.json", run=run_name, entity=entity
         )
         if metadata is not None:
             _, response = api.download_file(metadata["url"])
@@ -203,9 +209,12 @@ def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     return result
 
 
-def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool:
-    entity, project, name = parse_wandb_uri(uri)
-    metadata = api.download_url(project, f"code/{entry_point}", run=name, entity=entity)
+def download_entry_point(
+    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: str
+) -> bool:
+    metadata = api.download_url(
+        project, f"code/{entry_point}", run=run_name, entity=entity
+    )
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
         with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
@@ -215,9 +224,12 @@ def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool
     return False
 
 
-def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
-    entity, project, name = parse_wandb_uri(uri)
-    metadata = api.download_url(project, "requirements.txt", run=name, entity=entity)
+def download_wandb_python_deps(
+    entity: str, project: str, run_name: str, api: Api, dir: str
+) -> Optional[str]:
+    metadata = api.download_url(
+        project, "requirements.txt", run=run_name, entity=entity
+    )
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
 
@@ -230,12 +242,13 @@ def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
     return None
 
 
-def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
+def fetch_project_diff(
+    entity: str, project: str, run_name: str, api: Api
+) -> Optional[str]:
     """Fetches project diff from wandb servers."""
     patch = None
     try:
-        entity, project, name = parse_wandb_uri(uri)
-        (_, _, patch, _) = api.run_config(project, name, entity)
+        (_, _, patch, _) = api.run_config(project, run_name, entity)
     except CommError:
         pass
     return patch
@@ -314,3 +327,21 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     with open(os.path.join(project_dir, new_name), "w+") as fh:
         fh.writelines(source)
     return new_name
+
+
+def check_and_download_code_artifacts(
+    entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
+) -> bool:
+    public_api = wandb.PublicApi(
+        overrides={"base_url": internal_api.settings("base_url")}
+    )
+
+    run = public_api.run(f"{entity}/{project}/{run_name}")
+    run_artifacts = run.logged_artifacts()
+
+    for artifact in run_artifacts:
+        if hasattr(artifact, "type") and artifact.type == "code":
+            artifact.download(project_dir)
+            return True
+
+    return False
