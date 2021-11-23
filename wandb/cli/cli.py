@@ -987,6 +987,14 @@ def _check_launch_imports():
     "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
     "project and entity supplied.",
 )
+@click.option(
+    "--async",
+    "run_async",
+    is_flag=True,
+    help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
+    "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
+    "set on wandb launch-agent.",
+)
 @display_error
 def launch(
     uri,
@@ -1001,6 +1009,7 @@ def launch(
     docker_image,
     config,
     queue,
+    run_async,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1021,6 +1030,11 @@ def launch(
         "W&B launch is in an experimental state and usage APIs may change without warning. See http://wandb.me/launch"
     )
     api = _get_cling_api()
+
+    if run_async and queue is not None:
+        raise LaunchError(
+            "Cannot use both --async and --queue with wandb launch, see help for details."
+        )
 
     args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
@@ -1054,8 +1068,7 @@ def launch(
                 docker_args=docker_args_dict,
                 resource=resource,
                 config=config,
-                synchronous=resource in ("local")
-                or resource is None,  # todo currently always true
+                synchronous=(not run_async),
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1090,8 +1103,14 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
+@click.option(
+    "--max-jobs",
+    "-j",
+    default=1,
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1.",
+)
 @display_error
-def launch_agent(ctx, project=None, entity=None, queues=None):
+def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1114,7 +1133,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues)
+    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")
