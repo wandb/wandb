@@ -217,3 +217,20 @@ def test_launch_local_dir(runner):
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
     assert "main.py" in result.output
+
+
+def test_launch_queue_error(runner):
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "https://github.com/test/repo.git",
+                "--entry-point",
+                "train.py",
+                "--async",
+                "--queue",
+            ],
+        )
+
+    assert result.exit_code != 0
+    assert "Cannot use both --async and --queue with wandb launch" in result.output
