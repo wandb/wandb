@@ -287,7 +287,8 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -467,12 +468,31 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
+    def communicate_meta_start(self, timeout=0) -> Optional[pb.Result]:
+        meta_start = pb.MetaStartRequest()
+        meta_start.timeout = timeout
+        resp = self._communicate_meta_start(meta_start)
+        return resp
+
+    @abstractmethod
+    def _communicate_meta_start(self, meta_start: pb.MetaStartRequest):
+        raise NotImplementedError
+
     def publish_meta_done(self, timed_out: bool, error: bool) -> None:
         md = pb.MetaDoneRequest(timed_out=timed_out, error=error)
         self._publish_meta_done(md)
 
     @abstractmethod
     def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
+        raise NotImplementedError
+
+    def communicate_meta_poll(self) -> Optional[pb.Result]:
+        meta_poll = pb.MetaPollRequest()
+        resp = self._communicate_meta_poll(meta_poll)
+        return resp
+
+    @abstractmethod
+    def _communicate_meta_poll(self, meta_poll: pb.MetaPollRequest):
         raise NotImplementedError
 
     def publish_tbdata(

@@ -94,6 +94,7 @@ class HandleManager(object):
         self._tb_watcher = None
         self._system_stats = None
         self._step = 0
+        self._meta_done = None
 
         self._track_time = None
         self._accumulate_time = 0
@@ -566,10 +567,6 @@ class HandleManager(object):
     def handle_telemetry(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def handle_request_meta_done(self, record: Record) -> None:
-        print("Received MetaDoneRequest!")
-        logger.info("Received MetaDoneRequest!")
-
     def handle_request_run_start(self, record: Record) -> None:
         run_start = record.request.run_start
         assert run_start
@@ -588,13 +585,6 @@ class HandleManager(object):
             self._system_stats = stats.SystemStats(pid=pid, interface=self._interface)
             self._system_stats.start()
 
-        if not self._settings._disable_meta and not run_start.run.resumed:
-            run_meta = meta.Meta(settings=self._settings, interface=self._interface)
-            # TODO: Vish delete
-            run_meta.start(timeout=60)
-            # run_meta.probe()
-            # run_meta.write()
-
         self._tb_watcher = tb_watcher.TBWatcher(
             self._settings, interface=self._interface, run_proto=run_start.run
         )
@@ -602,6 +592,28 @@ class HandleManager(object):
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
         result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
+
+    def handle_request_meta_start(self, record: Record) -> None:
+        # TODO: Vish, verify conditions in which Meta should start
+        # if not self._settings._disable_meta and not run_start.run.resumed:
+        run_meta = meta.Meta(settings=self._settings, interface=self._interface)
+        run_meta.start(timeout=record.request.meta_start.timeout)
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        self._result_q.put(result)
+
+    def handle_request_meta_done(self, record: Record) -> None:
+        self._meta_done = {
+            "timed_out": record.request.meta_done.timed_out,
+            "error": record.request.meta_done.error,
+        }
+        print("Received MetaDoneRequest!")
+        logger.info("Received MetaDoneRequest!")
+
+    def handle_request_meta_poll(self, record: Record) -> None:
+        completed = self._meta_done is not None
+        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result.response.meta_poll_response.completed = completed
         self._result_q.put(result)
 
     def handle_request_resume(self, record: Record) -> None:

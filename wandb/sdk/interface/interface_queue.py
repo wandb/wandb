@@ -65,9 +65,26 @@ class InterfaceQueue(InterfaceBase):
         rec.output.CopyFrom(outdata)
         self._publish(rec)
 
+    def _communicate_meta_start(
+        self, meta_start: pb.MetaStartRequest
+    ) -> Optional[pb.Result]:
+        req = self._make_request(meta_start=meta_start)
+        resp = self._communicate(req)
+        if resp is None:
+            return None
+        return resp
+
     def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
         rec = self._make_request(meta_done=meta_done)
         self._publish(rec)
+
+    def _communicate_meta_poll(
+        self, meta_poll: pb.MetaPollRequest
+    ) -> Optional[pb.Result]:
+        print("Sending MetaPollRequest")
+        req = self._make_request(meta_poll=meta_poll)
+        resp = self._communicate(req)
+        return resp
 
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:
         rec = self._make_record(tbrecord=tbrecord)
@@ -120,7 +137,9 @@ class InterfaceQueue(InterfaceBase):
         artifact_send: pb.ArtifactSendRequest = None,
         artifact_poll: pb.ArtifactPollRequest = None,
         artifact_done: pb.ArtifactDoneRequest = None,
+        meta_start: pb.MetaStartRequest = None,
         meta_done: pb.MetaDoneRequest = None,
+        meta_poll: pb.MetaPollRequest = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -157,8 +176,12 @@ class InterfaceQueue(InterfaceBase):
             request.artifact_poll.CopyFrom(artifact_poll)
         elif artifact_done:
             request.artifact_done.CopyFrom(artifact_done)
+        elif meta_start:
+            request.meta_start.CopyFrom(meta_start)
         elif meta_done:
             request.meta_done.CopyFrom(meta_done)
+        elif meta_poll:
+            request.meta_poll.CopyFrom(meta_poll)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)

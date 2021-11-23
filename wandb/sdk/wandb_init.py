@@ -202,7 +202,10 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
+        d = dict(
+            _start_time=time.time(),
+            _start_datetime=datetime.datetime.now(),
+        )
         settings.update(d)
 
         if not settings._noop:
@@ -370,6 +373,24 @@ class _WandbInit(object):
         self._wl._early_logger_flush(logger)
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
+
+    def _poll_meta_done(self, interface, timeout):
+        start = time.time()
+        done = False
+        delay = 0.1
+
+        while not done and time.time() - start < timeout:
+            result = interface.communicate_meta_poll()
+            print(result)
+            if result is None:
+                # Handler didn't respond to our poll request in 5 seconds,
+                # What should we do here? Debug log?
+                continue
+            elif result.response.meta_poll_response.completed:
+                done = True
+                continue
+            time.sleep(delay)
+            delay = min(delay * 2, 2)
 
     def _make_run_disabled(self) -> RunDisabled:
         drun = RunDisabled()
@@ -590,11 +611,21 @@ class _WandbInit(object):
             run._set_run_obj(ret.run)
 
         logger.info("starting run threads in backend")
-        # initiate run (stats and metadata probing)
+        # initiate run (stats)
         run_obj = run._run_obj or run._run_obj_offline
         assert backend.interface
         assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
+
+        # initiate metadata probe in separate process with timeout.
+        # we do this b/c the probe makes system calls which can block indefinitely.
+        _ = backend.interface.communicate_meta_start(timeout=60)
+        start = time.time()
+        self._poll_meta_done(backend.interface, timeout=60)
+        elapsed = time.time() - start
+        print(
+            f"Waiting for meta probe to finish (meta_poll) in wandb.init() took {elapsed} seconds"
+        )
 
         self._wl._global_run_stack.append(run)
         self.run = run
@@ -639,7 +670,8 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+    attach_id: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
