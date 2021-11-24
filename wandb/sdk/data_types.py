@@ -2708,8 +2708,11 @@ def _numpy_arrays_to_lists(
         return [_numpy_arrays_to_lists(v) for v in payload]
     elif util.is_numpy_array(payload):
         if TYPE_CHECKING:
-            payload = cast("np.ndarray", payload)    
-        return [_numpy_arrays_to_lists(v) for v in (payload.tolist() if payload.ndim > 0 else [payload.tolist()])]
+            payload = cast("np.ndarray", payload)
+        return [
+            _numpy_arrays_to_lists(v)
+            for v in (payload.tolist() if payload.ndim > 0 else [payload.tolist()])
+        ]
     # Protects against logging non serializable objects
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
