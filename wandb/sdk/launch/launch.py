@@ -20,11 +20,15 @@ _logger = logging.getLogger(__name__)
 
 
 def create_and_run_agent(
-    api: Api, entity: str, project: str, queues: Optional[List[str]] = None
+    api: Api,
+    entity: str,
+    project: str,
+    queues: Optional[List[str]] = None,
+    max_jobs: int = None,
 ) -> None:
     if queues is None:
         queues = []
-    agent = LaunchAgent(entity, project, queues)
+    agent = LaunchAgent(entity, project, queues, max_jobs)
     agent.loop()
 
 
