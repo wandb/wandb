@@ -27,8 +27,18 @@ def test_api_auto_login_no_tty(mocker):
 
 
 def test_base_url_sanitization(runner):
-    api = Api({"base_url": "https://wandb.corp.net///"})
+    api = Api(overrides={"base_url": "https://wandb.corp.net///"})
     assert api.settings["base_url"] == "https://wandb.corp.net"
+
+
+def test_username_warning(runner, capsys):
+    api = Api(overrides={"username": "user"})
+    captured = capsys.readouterr()
+    assert (
+        'wandb: WARNING Passing "username" to Api is deprecated. please use "entity" instead.'
+        in captured.err
+    )
+    assert api.settings["entity"] == "user"
 
 
 def test_parse_project_path(api):
