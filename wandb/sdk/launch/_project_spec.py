@@ -159,30 +159,7 @@ class LaunchProject(object):
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
-        # parsed_uri = self.uri
         _logger.info("Fetching project locally...")
-        # if utils._is_wandb_uri(self.uri):
-        #     _logger.info("Fetching run info...")
-        #     run_info = utils.fetch_wandb_project_run_info(self.uri, api)
-        #     if not run_info["git"]:
-        #         raise ExecutionError("Run must have git repo associated")
-        #     _logger.info("Fetching git repo...")
-        #     utils._fetch_git_repo(
-        #         self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
-        #     )
-        #     _logger.info("Searching for diff.patch...")
-        #     patch = utils.fetch_project_diff(self.uri, api)
-
-        #     if patch:
-        #         _logger.info("Applying diff.patch...")
-        #         utils.apply_patch(patch, self.project_dir)
-        #     _logger.info("Setting entrypoint...")
-        #     entry_point = run_info.get("codePath", run_info["program"])
-        #     # For cases where the entry point wasn't checked into git
-        #     if not os.path.exists(os.path.join(self.project_dir, entry_point)):
-        #         _logger.info("Downloading entrypoint...")
-        #         downloaded_entrypoint = utils.download_entry_point(
-        #             self.uri, api, entry_point, self.project_dir
         if utils._is_wandb_uri(self.uri):
             _logger.info("Fetching run info...")
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
