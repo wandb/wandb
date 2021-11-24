@@ -3,6 +3,7 @@ import logging
 import os
 import platform
 import re
+import socket
 import subprocess
 import sys
 from typing import Any, Dict, Optional, Tuple
@@ -166,15 +167,14 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
 
 
 def is_bare_wandb_uri(uri: str) -> bool:
-    if uri.startswith("http"):
+    """Checks if the uri is of the format /entity/project/runs/run_name"""
+    _logger.info(f"Checking if uri {uri} is bare...")
+    if not uri.startswith("/"):
         return False
-    result = uri.split("/")
-    if (
-        len(result) == 5
-        and len(result[0]) == 0
-        and result[-2] == "runs"
-        and len(result[-1]) == 8
-    ):
+    result = uri.split("/")[1:]
+    # a bare wandb uri will have 4 parts, with the last being the run name
+    # and the second last being "runs"
+    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
         return True
     return False
 

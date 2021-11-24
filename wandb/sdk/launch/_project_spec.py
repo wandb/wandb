@@ -45,10 +45,9 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
     ):
-        _logger.info(f"Checking if uri {uri} is bare...")
         if utils.is_bare_wandb_uri(uri):
-            _logger.info("Updating uri with base url...")
             uri = api.settings("base_url") + uri
+            _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
         self.api = api
         self.launch_spec = launch_spec
@@ -76,7 +75,7 @@ class LaunchProject(object):
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
         if "entry_point" in overrides:
-            _logger.info("Adding override entry point...")
+            _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
         if utils._is_wandb_uri(self.uri):
             _logger.info("URI indicates a wandb uri")
