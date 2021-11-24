@@ -3,7 +3,6 @@ import logging
 import os
 import platform
 import re
-import socket
 import subprocess
 import sys
 from typing import Any, Dict, Optional, Tuple
