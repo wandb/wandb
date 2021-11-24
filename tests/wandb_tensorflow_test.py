@@ -11,6 +11,7 @@ import pytest
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
+from tensorboard.compat.proto import summary_pb2
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 import wandb
@@ -151,8 +152,32 @@ def test_hook(mocked_run):
             summary, acc = sess.run([summary_op, c1])
         history.add({})  # Flush the previous row.
 
+    # test digesting encoded summary
     assert wandb.tensorboard.tf_summary_to_dict(summary) == {"c1": 42.0}
     assert summaries_logged[0]["c1"] == 42.0
+
+    # test digesting Summary object
+    summary_pb = summary_pb2.Summary()
+    summary_pb.ParseFromString(summary)
+    assert wandb.tensorboard.tf_summary_to_dict(summary_pb) == {"c1": 42.0}
+
+    # test digesting a list of encoded summaries
+    g2 = tf.Graph()
+    with g2.as_default():
+        get_or_create_global_step()
+        c2 = tf.constant(23)
+        tf_summary.scalar("c2", c2)
+        summary_op = tf_summary.merge_all()
+
+        hook = wandb.tensorflow.WandbHook(summary_op, history=history, steps_per_log=1)
+        with MonitoredTrainingSession(hooks=[hook]) as sess:
+            summary2, acc2 = sess.run([summary_op, c2])
+        history.add({})
+    assert wandb.tensorboard.tf_summary_to_dict([summary, summary2]) == {
+        "c1": 42.0,
+        "c2": 23.0,
+    }
+    assert summaries_logged[1]["c2"] == 23.0
 
 
 @pytest.mark.skipif(
