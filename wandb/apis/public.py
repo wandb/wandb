@@ -292,16 +292,11 @@ class Api(object):
             wandb.termwarn(
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
-<<<<<<< HEAD
             overrides["entity"] = overrides["username"]
         self.settings = wandb.setup(Settings(**overrides)).settings
 
         if self.api_key is None:
             wandb.login()
-=======
-            self.settings["entity"] = overrides["username"]
-        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
->>>>>>> ebcfd433caf93d46d3b4b2e6cf4670547f5f4744
 
         self._viewer = None
         self._projects = {}
