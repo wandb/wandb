@@ -2646,7 +2646,7 @@ class Run(object):
         return artifact
 
     def _public_api(self) -> PublicApi:
-        overrides = {"run": self.id}
+        overrides = {"run_id": self.id}
         run_obj = self._run_obj
         if run_obj is not None:
             overrides["entity"] = run_obj.entity
