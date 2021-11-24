@@ -150,7 +150,9 @@ class LaunchAgent(object):
             )
         self._validate_and_fix_spec_project_entity(launch_spec)
 
-        project = create_project_from_spec(launch_spec, self._api)
+        project = create_project_from_spec(
+            launch_spec, self._api, run_queue_item_id=job["runQueueItemId"]
+        )
         project = fetch_and_validate_project(project, self._api)
 
         resource = launch_spec.get("resource") or "local"

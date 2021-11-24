@@ -39,6 +39,7 @@ class LaunchProject(object):
         launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
+        run_queue_item_id: Optional[str],
         name: Optional[str],
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
@@ -63,7 +64,7 @@ class LaunchProject(object):
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self._runtime: Optional[str] = None
         self._dockerfile_contents: Optional[str] = None
-        self.run_id = generate_id()
+        self.run_queue_item_id: Optional[str] = run_queue_item_id
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
@@ -330,7 +331,9 @@ def get_entry_point_command(
     return commands
 
 
-def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchProject:
+def create_project_from_spec(
+    launch_spec: Dict[str, Any], api: Api, run_queue_item_id: Optional[str]
+) -> LaunchProject:
     """Constructs a LaunchProject instance using a launch spec.
 
     Arguments:
@@ -352,6 +355,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec["entity"],
         launch_spec["project"],
         name,
+        run_queue_item_id,
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),

@@ -133,7 +133,7 @@ def build_docker_image_if_needed(
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
         work_dir=launch_project.project_dir,
-        image_id=launch_project.run_id,
+        image_id=launch_project.run_queue_item_id,
     )
     launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:
@@ -250,7 +250,7 @@ def get_docker_command(
         "--env",
         f"WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
         "--env",
-        f"WANDB_RUN_ID={launch_project.run_id or None}",
+        f"WANDB_RUNQUEUE_ITEM_ID={launch_project.run_queue_item_id or None}",
         "--env",
         f"WANDB_DOCKER={launch_project.docker_image}",
     ]

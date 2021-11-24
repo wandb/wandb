@@ -124,16 +124,6 @@ class LocalRunner(AbstractRunner):
             workdir=container_workdir,
             docker_args=docker_args,
         )
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return None
 
         command_args += get_entry_point_command(
             entry_point, launch_project.override_args
