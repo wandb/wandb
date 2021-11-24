@@ -214,7 +214,7 @@ def get_base_url(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(BASE_URL, default).rstrip("/")
+    return env.get(BASE_URL, default)
 
 
 def get_app_url(default=None, env=None):
