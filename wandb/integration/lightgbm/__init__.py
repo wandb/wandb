@@ -28,6 +28,7 @@ MINIMIZE_METRICS = [
 
 MAXIMIZE_METRICS = ["map", "auc", "average_precision"]
 
+
 def _define_metric(data, metric_name):
     """
     capture model performance at the best step, 
@@ -39,7 +40,7 @@ def _define_metric(data, metric_name):
         wandb.define_metric(f"{data}_{metric_name}", summary="min")
     elif str.lower(metric_name) in MAXIMIZE_METRICS:
         wandb.define_metric(f"{data}_{metric_name}", summary="max")
-        
+
 
 def _checkpoint_artifact(model, iteration, aliases):
     """
@@ -54,7 +55,8 @@ def _checkpoint_artifact(model, iteration, aliases):
     model_artifact = wandb.Artifact(name=model_name, type="model")
     model_artifact.add_file(model_path)
     wandb.log_artifact(model_artifact, aliases=aliases)
-    
+
+
 def _log_feature_importance(model):
     """
     Log feature importance
@@ -69,14 +71,12 @@ def _log_feature_importance(model):
                 table, "Feature", "Importance", title="Feature Importance"
             )
         },
-        commit=False
+        commit=False,
     )
- 
 
-def wandb_callback(
-    log_params: bool=True,
-    define_metric: bool=True) -> Callable:
-    
+
+def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Callable:
+
     """`wandb_callback` automatically integrates LightGBM with wandb.
     
     Arguments:
@@ -107,7 +107,7 @@ def wandb_callback(
                         callbacks=[wandb_callback()])
         ```
     """
-    
+
     log_params = [log_params]
     define_metric = [define_metric]
 
@@ -135,18 +135,17 @@ def wandb_callback(
                     {validation_key + "_" + key: eval_results[validation_key][key][0]},
                     commit=False,
                 )
-        
+
         # Previous log statements use commit=False. This commits them.
-        wandb.log({'iteration': env.iteration}, commit=True)
-                
+        wandb.log({"iteration": env.iteration}, commit=True)
+
     return _callback
 
 
 def log_summary(
-    model: Booster, 
-    feature_importance: bool=True,
-    save_model_checkpoint: bool=False) -> None:
-    
+    model: Booster, feature_importance: bool = True, save_model_checkpoint: bool = False
+) -> None:
+
     """`log_summary` logs useful metrics about lightgbm model after training is done
     
     Arguments:
@@ -178,20 +177,19 @@ def log_summary(
         log_summary(gbm)
         ```
     """
-    
+
     if wandb.run is None:
         raise wandb.Error("You must call wandb.init() before WandbCallback()")
-        
+
     if not isinstance(model, Booster):
         raise wandb.Error("Model should be an instance of lightgbm.basic.Booster")
-        
-    wandb.run.summary['best_iteration'] = model.best_iteration
-    wandb.run.summary['best_score'] = model.best_score
-    
+
+    wandb.run.summary["best_iteration"] = model.best_iteration
+    wandb.run.summary["best_score"] = model.best_score
+
     # Log feature importance
     if feature_importance:
         _log_feature_importance(model)
-                    
+
     if save_model_checkpoint:
         _checkpoint_artifact(model, model.best_iteration, aliases=["best"])
-            
