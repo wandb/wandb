@@ -66,8 +66,8 @@ def history_image_key(key, namespace=""):
 def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     """Convert a Tensorboard Summary to a dictionary
 
-    Accepts either a tensorflow.summary.Summary
-    or one encoded as a string.
+    Accepts a tensorflow.summary.Summary, one encoded as a string,
+    or a list of such encoded as strings.
     """
     values = {}
     if hasattr(tf_summary_str_or_pb, "summary"):
@@ -77,6 +77,13 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     elif isinstance(tf_summary_str_or_pb, (str, bytes, bytearray)):
         summary_pb = Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
+    elif hasattr(tf_summary_str_or_pb, "__iter__"):
+        summary_pb = [Summary() for _ in range(len(tf_summary_str_or_pb))]
+        for i, summary in enumerate(tf_summary_str_or_pb):
+            summary_pb[i].ParseFromString(summary)
+            if i > 0:
+                summary_pb[0].MergeFrom(summary_pb[i])
+        summary_pb = summary_pb[0]
     else:
         summary_pb = tf_summary_str_or_pb
 
@@ -239,7 +246,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
 
 
 def reset_state():
-    """Internal method for reseting state, called by wandb.join"""
+    """Internal method for resetting state, called by wandb.join"""
     global STEPS
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
@@ -248,7 +255,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
-    history object is passed.  Can optionally namespace events.  Results are commited
+    history object is passed.  Can optionally namespace events.  Results are committed
     when step increases for this namespace.
 
     NOTE: This assumes that events being passed in are in chronological order

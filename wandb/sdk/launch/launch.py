@@ -3,7 +3,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
-from wandb.errors import ExecutionError, LaunchError
+from wandb.errors import ExecutionError
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -20,11 +20,15 @@ _logger = logging.getLogger(__name__)
 
 
 def create_and_run_agent(
-    api: Api, entity: str, project: str, queues: Optional[List[str]] = None
+    api: Api,
+    entity: str,
+    project: str,
+    queues: Optional[List[str]] = None,
+    max_jobs: int = None,
 ) -> None:
     if queues is None:
         queues = []
-    agent = LaunchAgent(entity, project, queues)
+    agent = LaunchAgent(entity, project, queues, max_jobs)
     agent.loop()
 
 
@@ -168,10 +172,6 @@ def run(
         api=api,
     )
 
-    if synchronous:
-        _wait_for(submitted_run_obj)
-    else:
-        raise LaunchError("Non synchronous mode not supported")
     return submitted_run_obj
 
 
