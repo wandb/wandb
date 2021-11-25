@@ -296,7 +296,7 @@ class Api(object):
         self.settings = wandb.setup(Settings(**overrides)).settings
 
         if self.api_key is None:
-            wandb.login()
+            wandb.login(relogin=True)
 
         self._viewer = None
         self._projects = {}
