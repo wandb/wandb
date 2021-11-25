@@ -109,7 +109,6 @@ class GitRepo(object):
         if not self.remote:
             return None
         parsed = urlparse(self.remote.url)
-        print(parsed)
         hostname = parsed.hostname
         if parsed.port is not None:
             hostname += ":" + str(parsed.port)
