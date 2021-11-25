@@ -111,7 +111,7 @@ def dict_from_config_file(filename, must_exist=False):
         raise ConfigError("Invalid YAML in config yaml")
     if loaded is None:
         wandb.termwarn(
-            "Found an empty default config file. Proceeding with no defaults."
+            "Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
         )
         return None
     config_version = loaded.pop("wandb_version", None)
