@@ -12,6 +12,7 @@ lgb = lgb.train(param_list, d_train, callbacks=[wandb_callback()])
 import lightgbm
 import wandb
 from typing import Callable
+from lightgbm import Booster
 
 MINIMIZE_METRICS = [
     "l1",
@@ -27,8 +28,86 @@ MINIMIZE_METRICS = [
 
 MAXIMIZE_METRICS = ["map", "auc", "average_precision"]
 
+def _define_metric(data, metric_name):
+    """
+    capture model performance at the best step, 
+    instead of the last step, of training in your `wandb.summary`
+    """
+    if "loss" in str.lower(metric_name):
+        wandb.define_metric(f"{data_type}_{metric_name}", summary="min")
+    elif str.lower(metric_name) in MINIMIZE_METRICS:
+        wandb.define_metric(f"{data}_{metric_name}", summary="min")
+    elif str.lower(metric_name) in MAXIMIZE_METRICS:
+        wandb.define_metric(f"{data}_{metric_name}", summary="max")
+        
 
-def wandb_callback(log_params=True, define_metric=True) -> Callable:
+def _checkpoint_artifact(model, iteration, aliases):
+    """
+    Upload model checkpoint as W&B artifact
+    """
+    # model = env.model
+    model_name = f"model_{wandb.run.id}"
+    model_path = f"{wandb.run.dir}/model_ckpt_{iteration}.txt"
+
+    model.save_model(model_path, num_iteration=iteration)
+
+    model_artifact = wandb.Artifact(name=model_name, type="model")
+    model_artifact.add_file(model_path)
+    wandb.log_artifact(model_artifact, aliases=aliases)
+    
+def _log_feature_importance(model):
+    """
+    Log feature importance
+    """
+    feat_imps = model.feature_importance()
+    feats = model.feature_name()
+    fi_data = [[feat, feat_imp] for feat, feat_imp in zip(feats, feat_imps)]
+    table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
+    wandb.log(
+        {
+            "Feature Importance": wandb.plot.bar(
+                table, "Feature", "Importance", title="Feature Importance"
+            )
+        },
+        commit=False
+    )
+ 
+
+def wandb_callback(
+    log_params: bool=True,
+    define_metric: bool=True) -> Callable:
+    
+    """`wandb_callback` automatically integrates LightGBM with wandb.
+    
+    Arguments:
+        log_params: (boolean) if True (default) logs params passed to lightgbm.train as W&B config
+        define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary` 
+        
+    Passing `wandb_callback` to LightGBM will:
+    
+    - logs params passed to lightgbm.train as W&B config (default).
+    - log evaluation metrics collected by LightGBM, such as rmse, accuracy etc to Weights & Biases
+    - Capture the best metric in `wandb.summary` when `define_metric=True` (default).
+    
+    Please use `log_summary` as an extension of this callback. 
+    
+    Example:
+        ```python
+        params = {
+            'boosting_type': 'gbdt',
+            'objective': 'regression',
+            .
+        }
+
+        gbm = lgb.train(params,
+                        lgb_train,
+                        num_boost_round=10,
+                        valid_sets=lgb_eval,
+                        valid_names=('validation'),
+                        callbacks=[wandb_callback()])
+        ```
+    """
+    
     log_params = [log_params]
     define_metric = [define_metric]
 
@@ -41,14 +120,6 @@ def wandb_callback(log_params=True, define_metric=True) -> Callable:
                 data_type = env.evaluation_result_list[i][0]
                 metric_name = env.evaluation_result_list[i][1]
                 _define_metric(data_type, metric_name)
-
-    def _define_metric(data, metric_name):
-        if "loss" in str.lower(metric_name):
-            wandb.define_metric(f"{data_type}_{metric_name}", summary="min")
-        elif str.lower(metric_name) in MINIMIZE_METRICS:
-            wandb.define_metric(f"{data}_{metric_name}", summary="min")
-        elif str.lower(metric_name) in MAXIMIZE_METRICS:
-            wandb.define_metric(f"{data}_{metric_name}", summary="max")
 
     def _callback(env) -> None:
         if log_params[0]:
@@ -64,7 +135,63 @@ def wandb_callback(log_params=True, define_metric=True) -> Callable:
                     {validation_key + "_" + key: eval_results[validation_key][key][0]},
                     commit=False,
                 )
+        
         # Previous log statements use commit=False. This commits them.
-        wandb.log({})
-
+        wandb.log({'iteration': env.iteration}, commit=True)
+                
     return _callback
+
+
+def log_summary(
+    model: Booster, 
+    feature_importance: bool=True,
+    save_model_checkpoint: bool=False) -> None:
+    
+    """`log_summary` logs useful metrics about lightgbm model after training is done
+    
+    Arguments:
+        model: (Booster) is an instance of lightgbm.basic.Booster. 
+        feature_importance: (boolean) if True (default), logs the feature importance plot.
+        save_model_checkpoint: (boolean) if True saves the best model upload as W&B artifacts.
+    
+    Using this along with `wandb_callback` will:
+    
+    - log `best_iteration` and `best_score` as `wandb.summary`.
+    - log feature importance plot.
+    - save and upload your best trained model to Weights & Biases Artifacts (when `save_model_checkpoint = True`)
+    
+    Example:
+        ```python
+        params = {
+            'boosting_type': 'gbdt',
+            'objective': 'regression',
+            .
+        }
+
+        gbm = lgb.train(params,
+                        lgb_train,
+                        num_boost_round=10,
+                        valid_sets=lgb_eval,
+                        valid_names=('validation'),
+                        callbacks=[wandb_callback()])
+                        
+        log_summary(gbm)
+        ```
+    """
+    
+    if wandb.run is None:
+        raise wandb.Error("You must call wandb.init() before WandbCallback()")
+        
+    if not isinstance(model, Booster):
+        raise wandb.Error("Model should be an instance of lightgbm.basic.Booster")
+        
+    wandb.run.summary['best_iteration'] = model.best_iteration
+    wandb.run.summary['best_score'] = model.best_score
+    
+    # Log feature importance
+    if feature_importance:
+        _log_feature_importance(model)
+                    
+    if save_model_checkpoint:
+        _checkpoint_artifact(model, model.best_iteration, aliases=["best"])
+            
