@@ -260,7 +260,6 @@ def wandb_log(
     models=False,
     others=False,
     settings=None,
-    forward_api_key=True,
 ):
     """Automatically log parameters and artifacts to W&B by type dispatch.
 
@@ -338,9 +337,7 @@ def wandb_log(
             "others": others,
             "settings": settings,
         }
-        if forward_api_key:
-            return environment(vars={"WANDB_API_KEY": wandb.api.api_key})(wrapper)
-        return wrapper
+        return environment(vars={"WANDB_API_KEY": wandb.api.api_key})(wrapper)
 
     if func is None:
         return decorator
