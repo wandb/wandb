@@ -330,6 +330,7 @@ class Run(object):
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
+        self._runqueue_item_id = settings._runqueue_item_id
         self._start_time = time.time()
         self._starting_step = 0
         self._name = None
@@ -475,33 +476,23 @@ class Run(object):
         super(Run, self).__setattr__(attr, value)
 
     def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
-        mods = sys.modules
-        if mods.get("torch"):
-            imp.torch = True
-        if mods.get("keras"):
-            imp.keras = True
-        if mods.get("tensorflow"):
-            imp.tensorflow = True
-        if mods.get("sklearn"):
-            imp.sklearn = True
-        if mods.get("fastai"):
-            imp.fastai = True
-        if mods.get("xgboost"):
-            imp.xgboost = True
-        if mods.get("catboost"):
-            imp.catboost = True
-        if mods.get("lightgbm"):
-            imp.lightgbm = True
-        if mods.get("pytorch_lightning"):
-            imp.pytorch_lightning = True
-        if mods.get("ignite"):
-            imp.pytorch_ignite = True
-        if mods.get("transformers"):
-            imp.transformers_huggingface = True
-        if mods.get("jax"):
-            imp.jax = True
-        if mods.get("metaflow"):
-            imp.metaflow = True
+        telem_map = dict(
+            pytorch_ignite="ignite", transformers_huggingface="transformers",
+        )
+
+        # calculate mod_map, a mapping from module_name to telem_name
+        mod_map = dict()
+        for desc in imp.DESCRIPTOR.fields:
+            if desc.type != desc.TYPE_BOOL:
+                continue
+            telem_name = desc.name
+            mod_name = telem_map.get(telem_name, telem_name)
+            mod_map[mod_name] = telem_name
+
+        # set telemetry field for every module loaded that we track
+        mods_set = set(sys.modules)
+        for mod in mods_set.intersection(mod_map):
+            setattr(imp, mod_map[mod], True)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -544,6 +535,8 @@ class Run(object):
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:
             run.git.last_commit = self._last_commit
+        if self._runqueue_item_id is not None:
+            run.runqueue_item_id = self._runqueue_item_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:

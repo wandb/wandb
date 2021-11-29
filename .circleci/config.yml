@@ -148,6 +148,10 @@ workflows:
          name: "func-s_docs-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_docs-py37,func-covercircle"
+      - test:
+         name: "func-s_imports-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_imports-py37"
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
@@ -214,7 +218,7 @@ jobs:
                   name: Run tests
                   command: |
                       tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 10m
+                  no_output_timeout: 25m
             - save-tox-cache
             - save-test-results
     win:

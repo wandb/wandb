@@ -9,8 +9,7 @@ import random
 import requests
 import threading
 import time
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
 
 import wandb
 from wandb import util
@@ -75,7 +74,6 @@ class SummaryFilePolicy(DefaultFilePolicy):
         return {"offset": 0, "content": [data]}
 
 
-@dataclass
 class StreamCRState:
     """There are two streams: stdout and stderr.
     We create two instances for each stream.
@@ -87,9 +85,14 @@ class StreamCRState:
                         i.e the most recent "normal" line.
     """
 
-    found_cr: bool = False
-    cr = None
-    last_normal = None
+    found_cr: bool
+    cr: Optional[int]
+    last_normal: Optional[int]
+
+    def __init__(self):
+        self.found_cr = False
+        self.cr = None
+        self.last_normal = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
