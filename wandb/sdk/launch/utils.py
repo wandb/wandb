@@ -181,6 +181,7 @@ def is_bare_wandb_uri(uri: str) -> bool:
 def fetch_wandb_project_run_info(
     entity: str, project: str, run_name: str, api: Api
 ) -> Any:
+    _logger.info("Fetching run info...")
     try:
         result = api.get_run_info(entity, project, run_name)
     except CommError:
@@ -226,6 +227,7 @@ def download_wandb_python_deps(
         project, "requirements.txt", run=run_name, entity=entity
     )
     if metadata is not None:
+        _logger.info("Downloading python dependencies")
         _, response = api.download_file(metadata["url"])
 
         with util.fsync_open(
@@ -241,6 +243,7 @@ def fetch_project_diff(
     entity: str, project: str, run_name: str, api: Api
 ) -> Optional[str]:
     """Fetches project diff from wandb servers."""
+    _logger.info("Searching for diff.patch")
     patch = None
     try:
         (_, _, patch, _) = api.run_config(project, run_name, entity)
@@ -251,6 +254,7 @@ def fetch_project_diff(
 
 def apply_patch(patch_string: str, dst_dir: str) -> None:
     """Applies a patch file to a directory."""
+    _logger.info("Applying diff.patch")
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
@@ -279,6 +283,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     # executable is available on the PATH, so we only want to fail if we actually need it.
     import git  # type: ignore
 
+    _logger.info("Fetching git repo")
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
@@ -312,6 +317,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
         "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
     )
 
+    _logger.info("Converting notebook to script")
     new_name = fname.rstrip(".ipynb") + ".py"
     with open(os.path.join(project_dir, fname), "r") as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
@@ -327,6 +333,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
 ) -> bool:
+    _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
     )

@@ -60,7 +60,6 @@ class LaunchProject(object):
         self.docker_image: Optional[str] = docker_config.get("docker_image")
         uid = 1000
         if self._base_image:
-            _logger.info("Getting base image uid...")
             uid = docker.get_image_uid(self._base_image)
             _logger.info(f"Retrieved base image uid {uid}")
         self.docker_user_id: int = docker_config.get("user_id", uid)
@@ -78,27 +77,25 @@ class LaunchProject(object):
             _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
         if utils._is_wandb_uri(self.uri):
-            _logger.info("URI indicates a wandb uri")
+            _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
         elif utils._is_git_uri(self.uri):
-            _logger.info("URI indicates a git uri")
+            _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         else:
+            _logger.info(f"URI {self.uri} indicates a local uri")
             # assume local
             if not os.path.exists(self.uri):
                 raise LaunchError(
                     "Assumed URI supplied is a local path but path is not valid"
                 )
-            _logger.info("URI indicates a wandb uri")
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
-        _logger.info("Clearing parameter collisions")
         self.clear_parameter_run_config_collisions()
-        _logger.info("Cleared parameter collisions")
 
     @property
     def base_image(self) -> str:
@@ -161,11 +158,9 @@ class LaunchProject(object):
         assert self.source != LaunchSource.LOCAL
         _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
-            _logger.info("Fetching run info...")
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
                 self.uri
             )
-            _logger.info("Fetching run info...")
             run_info = utils.fetch_wandb_project_run_info(
                 source_entity, source_project, source_run_name, internal_api
             )
@@ -184,19 +179,16 @@ class LaunchProject(object):
             elif not downloaded_code_artifact:
                 if not run_info["git"]:
                     raise ExecutionError("Run must have git repo associated")
-                _logger.info("Fetching git repo...")
                 utils._fetch_git_repo(
                     self.project_dir,
                     run_info["git"]["remote"],
                     run_info["git"]["commit"],
                 )
-                _logger.info("Searching for diff.patch...")
                 patch = utils.fetch_project_diff(
                     source_entity, source_project, source_run_name, internal_api
                 )
 
                 if patch:
-                    _logger.info("Applying diff.patch...")
                     utils.apply_patch(patch, self.project_dir)
                 # For cases where the entry point wasn't checked into git
                 if not os.path.exists(os.path.join(self.project_dir, entry_point)):
@@ -218,13 +210,11 @@ class LaunchProject(object):
                     self.build_image = True
 
             if entry_point.endswith("ipynb"):
-                _logger.info("Converting notebook to script...")
                 entry_point = utils.convert_jupyter_notebook_to_script(
                     entry_point, self.project_dir
                 )
 
             # Download any frozen requirements
-            _logger.info("Downloading python dependencies...")
             utils.download_wandb_python_deps(
                 source_entity,
                 source_project,
@@ -237,7 +227,6 @@ class LaunchProject(object):
 
             if not self._entry_points:
                 self.add_entry_point(entry_point)
-            _logger.info("Merging args with run info args...")
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
             )
@@ -251,7 +240,6 @@ class LaunchProject(object):
                     "Entry point for repo not specified, defaulting to main.py"
                 )
                 self.add_entry_point("main.py")
-            _logger.info("Fetching git repo...")
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
@@ -364,7 +352,6 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
-    _logger.info("Constructing LaunchProject")
     return LaunchProject(
         uri,
         api,
@@ -398,7 +385,7 @@ def fetch_and_validate_project(
     else:
         launch_project._fetch_project_local(internal_api=api)
     first_entry_point = list(launch_project._entry_points.keys())[0]
-    _logger.info("Fetching entrypoint, validating parameters...")
+    _logger.info("validating entrypoint parameters")
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
         launch_project.override_args
     )
