@@ -27,6 +27,9 @@ class SockClient:
     def close(self) -> None:
         self._sock.close()
 
+    def shutdown(self, val: int) -> None:
+        self._sock.shutdown(val)
+
     def set_socket(self, sock: socket.socket) -> None:
         self._sock = sock
 

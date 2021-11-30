@@ -75,6 +75,10 @@ class SockServerReadThread(threading.Thread):
             shandler(sreq)
 
     def stop(self) -> None:
+        try:
+            self._sock_client.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self._sock_client.close()
 
     def server_inform_init(self, sreq: "spb.ServerRequest") -> None:
