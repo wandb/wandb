@@ -1,103 +1,117 @@
-# Wandb library
+# Contributing to `wandb`
 
-## Get the code / library
+We at Weights & Biases ❤️ open source and welcome contributions from the community!
+This guide discusses the development workflow and the internals of the `wandb` client library.
 
-Checkout from github:
+## Development workflow
 
-```shell
-git clone git@github.com:wandb/client.git
-cd client
-pip install -e .
-```
+1. If you are a first-timer, please go to `https://github.com/wandb/client` 
+and click the "Fork" button in the top-right corner of the page. 
+This will create your personal copy of the repository that you will use for development. 
+   - Set up [SSH authentication with GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
+   - Clone the forked project to your machine and add the upstream repository 
+     that will point to the main `wandb` project:
+    ```shell
+    git clone https://github.com/<your-username>/client.git
+    cd client
+    git remote add upstream https://github.com/wandb/client.git   
+    ```
 
-Install from pip:
+2. Develop you contribution.
+   - Make sure your fork is in sync with the main repository:
+    ```shell
+    git checkout master
+    git pull upstream master   
+    ```
+   - Create a `git` branch where you will develop your contribution. 
+     Use a sensible name for the branch, for example:
+    ```shell
+    git checkout -b new-awesome-feature
+    ```
+   - Hack! As you make progress, commit your changes locally, e.g.:
+    ```shell
+    git add changed-file.py tests/test-changed-file.py
+    git commit -m "Added integration with a new library"
+    ```
+   - Test and lint your code! Please see below for a detailed discussion.
+   
+3. Proposed changes are contributed through the 
+[GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests)
+   - When your contribution is ready and the tests all pass, push your branch to GitHub:
+    ```shell
+    git push origin new-awesome-feature
+    ```
+   - Once the branch is uploaded, `GitHub` will print a URL for submitting your contribution as a pull request. 
+     Open that URL in your browser, write an informative title and a detailed description for your pull request, 
+     and submit it.
+   - The team will review your contribution and provide feedback. 
+     To incorporate changes recommended by the reviewers, commit edits to your branch, 
+     and push to the branch again (there is no need to re-create the pull request, 
+     it will automatically track modifications to your branch), e.g.:
+    ```shell
+    git add tests/test-changed-file.py
+    git commit -m "Added another test case to address reviewer feedback"
+    git push origin new-awesome-feature
+    ```
+   - Once your pull request is approved by the reviewers, it will be merged into the main codebase.
 
-```shell
-pip install --upgrade git+git://github.com/wandb/client.git
-```
+## Setting up your development environment
 
-Or from pypi:
-
-```shell
-pip install --upgrade wandb
-```
-
-## Code organization
-
-```bash
-wandb/
-├── ...
-├── apis/   # Public api (still has internal api but this should be moved to wandb/internal)
-│   ├── ...
-│   ├── internal.py
-│   ├── ...
-│   └── public.py
-├── cli/    # Handlers for command line functionality
-├── ...
-├── integration/    # Third party integration
-│   ├── fastai/
-│   ├── gym/
-│   ├── keras/
-│   ├── lightgbm/
-│   ├── metaflow/
-│   ├── prodigy/
-│   ├── sacred/
-│   ├── sagemaker/
-│   ├── sb3/
-│   ├── tensorboard/
-│   ├── tensorflow/
-│   ├── torch/
-│   ├── xgboost/
-│   └── ...
-├── ...
-├── proto/  # Protocol buffers for inter-process communication and persist file store
-├── ...
-├── sdk/    # User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
-│   ├── backend/    # Support to launch internal process
-│   ├── ...
-│   ├── interface/  # Interface to backend execution
-│   ├── internal/   # Backend threads/processes
-│   └── ...
-├── ...
-├── sweeps/ # Hyperparameter sweep engine (see repo: https://github.com/wandb/sweeps)
-└── ...
-```
-
-## Setup development environment
-
-In order to run unittests please install pyenv:
-
-(put the output in your `~/.bashrc`)
+We test the library code against multiple `python` versions 
+and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenc` by running
 
 ```shell
 curl https://pyenv.run | bash
 ```
 
-then run:
+To load `pyenv` automatically, add the following lines to your shell's startup script, 
+such as `~/.bashrc` or `~/.zshrc` (and then either restart the shell or `source` the changed script):
 
 ```shell
-./tools/setup_dev_environment.sh
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$HOME/.pyenv/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv virtualenv-init -)"
 ```
+
+Then run the following command to set up your environment:  
+
+```shell
+./tools/setup_dev_environment.py
+```
+
+In particular, this tool will set up [`tox`](https://github.com/tox-dev/tox), which we use 
+for automating development tasks such as code linting and testing. 
 
 ## Building protocol buffers
 
-We use protocol buffers to communicate from the user process to the wandb backend process.
+We use protocol buffers to communicate from the user process to the `wandb` backend process.
 
-If you update any of the .proto files in `wandb/proto`, you'll need to run:
+If you update any of the `.proto` files in `wandb/proto`, you'll need to run:
 
 ```shell
 make proto
 ```
 
-## Code checks
+## Linting the code
 
-- Reformat: `tox -e format`
-- Type check: `tox -e flake8,mypy`
-- Misc: `tox`
+We use [`black`](https://black.readthedocs.io/), [`flake8`](https://flake8.pycqa.org/), 
+and [`mypy`](http://mypy-lang.org/) for code formatting and checks (including static type checks). 
+
+To reformat the code, run: 
+```shell
+tox -e format
+```
+
+To run checks, execute: 
+
+```shell
+tox -e flake8,mypy
+```
 
 ## Testing
 
-Tests can be found in `tests/`. We use tox to run tests, you can run all tests with:
+We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`. You can run all tests with:
 
 ```shell
 tox
@@ -109,7 +123,7 @@ You should run this before you make a commit. To run specific tests in a specifi
 tox -e py37 -- tests/test_public_api.py -k substring_of_test
 ```
 
-Sometimes pytest will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
+Sometimes, `pytest` will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
 tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
@@ -273,6 +287,47 @@ TODO: There are lots of cool things we could do with this, currently it just put
 
 ```shell
 tox -e dev
+```
+
+## Code organization
+
+```bash
+wandb/
+├── ...
+├── apis/   # Public api (still has internal api but this should be moved to wandb/internal)
+│   ├── ...
+│   ├── internal.py
+│   ├── ...
+│   └── public.py
+├── cli/    # Handlers for command line functionality
+├── ...
+├── integration/    # Third party integration
+│   ├── fastai/
+│   ├── gym/
+│   ├── keras/
+│   ├── lightgbm/
+│   ├── metaflow/
+│   ├── prodigy/
+│   ├── sacred/
+│   ├── sagemaker/
+│   ├── sb3/
+│   ├── tensorboard/
+│   ├── tensorflow/
+│   ├── torch/
+│   ├── xgboost/
+│   └── ...
+├── ...
+├── proto/  # Protocol buffers for inter-process communication and persist file store
+├── ...
+├── sdk/    # User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
+│   ├── backend/    # Support to launch internal process
+│   ├── ...
+│   ├── interface/  # Interface to backend execution
+│   ├── internal/   # Backend threads/processes
+│   └── ...
+├── ...
+├── sweeps/ # Hyperparameter sweep engine (see repo: https://github.com/wandb/sweeps)
+└── ...
 ```
 
 ## Library Objectives
