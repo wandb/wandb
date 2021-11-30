@@ -63,9 +63,11 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
 
 class InterfaceBase(object):
     _run: Optional["Run"]
+    _drop: bool
 
     def __init__(self) -> None:
         self._run = None
+        self._drop = False
 
     def _hack_set_run(self, run: "Run") -> None:
         self._run = run
@@ -590,7 +592,10 @@ class InterfaceBase(object):
         raise NotImplementedError
 
     def join(self) -> None:
-        _ = self._communicate_shutdown()
+        # Drop indicates that the internal process has already been shutdown
+        if self._drop:
+            return
+        r = self._communicate_shutdown()
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:

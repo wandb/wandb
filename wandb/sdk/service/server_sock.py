@@ -39,6 +39,8 @@ class SockServerInterfaceReaderThread(threading.Thread):
                 continue
             except OSError:
                 continue
+            except ValueError:
+                continue
             sresp = spb.ServerResponse()
             sresp.result_communicate.CopyFrom(result)
             self._sock_client.send_server_response(sresp)
@@ -107,7 +109,7 @@ class SockServerReadThread(threading.Thread):
         # print("serv INF FIN")
         request = sreq.inform_finish
         stream_id = request._info.stream_id
-        self._mux.del_stream(stream_id)
+        self._mux.drop_stream(stream_id)
 
     def server_inform_teardown(self, sreq: "spb.ServerRequest") -> None:
         # print("serv INF TEARDOWN")
@@ -136,6 +138,9 @@ class SockAcceptThread(threading.Thread):
             try:
                 conn, addr = self._sock.accept()
             except ConnectionAbortedError:
+                break
+            except OSError:
+                # on shutdown
                 break
             # print("GOT", type(conn))
             # print("Connected by", addr)
@@ -192,4 +197,5 @@ class SocketServer:
     def stop(self) -> None:
         if self._sock:
             # we need to stop the SockAcceptThread
+            self._sock.shutdown(socket.SHUT_RDWR)
             self._sock.close()

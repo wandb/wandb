@@ -111,6 +111,9 @@ class StreamRecord:
         if self._thread:
             self._thread.join()
 
+    def drop(self) -> None:
+        self._iface._drop = True
+
     @property
     def interface(self) -> InterfaceRelay:
         return self._iface
@@ -178,6 +181,11 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
+    def drop_stream(self, stream_id: str) -> None:
+        action = StreamAction(action="drop", stream_id=stream_id)
+        self._action_q.put(action)
+        action.wait_handled()
+
     def teardown(self, exit_code: int) -> None:
         action = StreamAction(action="teardown", stream_id="na", data=exit_code)
         self._action_q.put(action)
@@ -221,6 +229,12 @@ class StreamMux:
             stream.join()
         # TODO: we assume stream has already been shutdown.  should we verify?
 
+    def _process_drop(self, action: StreamAction) -> None:
+        with self._streams_lock:
+            stream = self._streams.pop(action._stream_id)
+            stream.drop()
+            stream.join()
+
     def _finish_all(self, streams: Dict[str, StreamRecord], exit_code: int) -> None:
         if not streams:
             return
@@ -260,6 +274,9 @@ class StreamMux:
             return
         if action._action == "del":
             self._process_del(action)
+            return
+        if action._action == "drop":
+            self._process_drop(action)
             return
         if action._action == "teardown":
             self._process_teardown(action)
