@@ -51,14 +51,11 @@ def main():
 
     # installed pyenv versions
     p = subprocess.run(
-        ["pyenv", "versions"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        ["pyenv", "versions"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
-
-    existing_python_versions = set(re.findall(
-        r"[*]*\s([\d.]+)", p.stdout.decode("utf-8")
-    ))
+    existing_python_versions = set(
+        re.findall(r"[*]*\s([\d.]+)", p.stdout.decode("utf-8"))
+    )
 
     p = subprocess.run(
         ["pyenv", "install", "--list"],
@@ -87,7 +84,11 @@ def main():
         if is_3_6_and_macos_gt_11_2:
             latest = "3.6.13"
             patch = subprocess.Popen(
-                ["curl", "-sSL", "https://github.com/python/cpython/commit/8ea6353.patch"],
+                [
+                    "curl",
+                    "-sSL",
+                    "https://github.com/python/cpython/commit/8ea6353.patch",
+                ],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
@@ -134,7 +135,9 @@ def main():
     print("Run all tests in all python environments:")
     print(f"{Console.CODE}  tox{Console.END}")
     print("Run a specific test in a specific environment:")
-    print(f"{Console.CODE}  tox -e py37 -- tests/test_public_api.py -k test_run_config{Console.END}")
+    print(
+        f"{Console.CODE}  tox -e py37 -- tests/test_public_api.py -k test_run_config{Console.END}"
+    )
     print("Lint code:")
     print(f"{Console.CODE}  tox -e format,flake8,mypy{Console.END}")
 
