@@ -247,13 +247,18 @@ def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
 
 
 #  @pytest.mark.skip(reason="Coverage insanity error: sqlite3.OperationalError: unable to open database file")
-def test_keras_save_model(dummy_model, dummy_data, wandb_init_run):
+@pytest.mark.parametrize('save_model_continuously', [False, True])
+def test_keras_save_model(dummy_model, dummy_data, wandb_init_run, save_model_continuously):
     dummy_model.fit(
         *dummy_data,
         epochs=2,
         batch_size=36,
         validation_data=dummy_data,
-        callbacks=[WandbCallback(data_type="image", save_model=True)]
+        callbacks=[WandbCallback(
+            data_type="image", 
+            save_model=True, 
+            save_model_continuously=save_model_continuously,
+        )],
     )
     print("DAMN", glob.glob(os.path.join(wandb_init_run.dir, "model-best.h5")))
     assert len(glob.glob(os.path.join(wandb_init_run.dir, "model-best.h5"))) == 1
