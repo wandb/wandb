@@ -327,6 +327,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         verbose=0,
         mode="auto",
         save_weights_only=False,
+        save_model_continuously=True,
         log_weights=False,
         log_gradients=False,
         save_model=True,
@@ -368,6 +369,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.monitor = monitor
         self.verbose = verbose
         self.save_weights_only = save_weights_only
+        self.save_model_continuously = save_model_continuously
         self.save_graph = save_graph
 
         wandb.save("model-best.h5")
@@ -918,3 +920,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         except (ImportError, RuntimeError, TypeError) as e:
             wandb.termerror("Can't save model, h5py returned error: %s" % e)
             self.save_model = False
+        else:
+            if self.save_model_continuously:
+                wandb.save(self.filepath)
