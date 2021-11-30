@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import itertools
 import platform
 import re
 import subprocess
@@ -38,8 +37,7 @@ def main():
     if python_versions is None:
         python_versions = PYTHON_VERSIONS
     else:
-        is_valid_version = [v not in PYTHON_VERSIONS for v in python_versions]
-        invalid_versions = list(itertools.compress(python_versions, is_valid_version))
+        invalid_versions = [v for v in python_versions if v not in PYTHON_VERSIONS]
         if invalid_versions:
             print(
                 f"Requested invalid python versions: {invalid_versions}.\n"
