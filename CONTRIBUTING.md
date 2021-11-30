@@ -33,10 +33,10 @@ This will create your personal copy of the repository that you will use for deve
     git add changed-file.py tests/test-changed-file.py
     git commit -m "Added integration with a new library"
     ```
-   - Test and lint your code! Please see below for a detailed discussion.
+   - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
    
 3. Proposed changes are contributed through the 
-[GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests)
+[GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
    - When your contribution is ready and the tests all pass, push your branch to GitHub:
     ```shell
     git push origin new-awesome-feature
@@ -85,7 +85,8 @@ for automating development tasks such as code linting and testing.
 
 ## Building protocol buffers
 
-We use protocol buffers to communicate from the user process to the `wandb` backend process.
+We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate 
+from the user process to the `wandb` backend process.
 
 If you update any of the `.proto` files in `wandb/proto`, you'll need to run:
 
