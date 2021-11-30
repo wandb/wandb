@@ -595,7 +595,7 @@ class InterfaceBase(object):
         # Drop indicates that the internal process has already been shutdown
         if self._drop:
             return
-        r = self._communicate_shutdown()
+        _ = self._communicate_shutdown()
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
