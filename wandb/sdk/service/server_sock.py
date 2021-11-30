@@ -197,5 +197,8 @@ class SocketServer:
     def stop(self) -> None:
         if self._sock:
             # we need to stop the SockAcceptThread
-            self._sock.shutdown(socket.SHUT_RDWR)
+            try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
             self._sock.close()
