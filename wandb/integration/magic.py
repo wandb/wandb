@@ -114,11 +114,7 @@ _magic_defaults = {
         #       'loss': None,
         #    },
     },
-    "args": {
-        "absl": None,
-        "argparse": None,
-        "sys": None,
-    },
+    "args": {"absl": None, "argparse": None, "sys": None,},
 }
 
 
