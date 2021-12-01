@@ -87,7 +87,7 @@ This will create your personal copy of the repository that you will use for deve
 ## Setting up your development environment
 
 We test the library code against multiple `python` versions 
-and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenc` by running
+and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenv` by running
 
 ```shell
 curl https://pyenv.run | bash
