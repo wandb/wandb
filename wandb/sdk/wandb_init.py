@@ -508,6 +508,9 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
+            if manager:
+                tel.feature.service = True
+
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
         if not s.label_disable:
