@@ -286,7 +286,7 @@ def wandb_log(
                 if callable(getattr(cls, attr)):
                     if not hasattr(attr, "_base_func"):
                         setattr(cls, attr, decorator(getattr(cls, attr)))
-            cls.WANDB_API_KEY = Parameter('WANDB_API_KEY', default=wandb.api.api_key)  # is this safe?
+            cls.WANDB_API_KEY = Parameter("WANDB_API_KEY", default=wandb.api.api_key)
             return cls
 
         # prefer the earliest decoration (i.e. method decoration overrides class decoration)
@@ -302,7 +302,9 @@ def wandb_log(
                 settings.run_group, f"{current.flow_name}/{current.run_id}"
             )
             settings.run_job_type = coalesce(settings.run_job_type, current.step_name)
-            settings.api_key = coalesce(settings.api_key, os.environ.get("WANDB_API_KEY"), self.WANDB_API_KEY)
+            settings.api_key = coalesce(
+                settings.api_key, os.environ.get("WANDB_API_KEY"), self.WANDB_API_KEY
+            )
 
             with wandb.init(settings=settings) as run:
                 with wb_telemetry.context(run=run) as tel:
