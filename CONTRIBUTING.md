@@ -33,7 +33,7 @@ This will create your personal copy of the repository that you will use for deve
     ```shell
     git clone https://github.com/<your-username>/client.git
     cd client
-    git remote add upstream https://github.com/wandb/client.git   
+    git remote add upstream https://github.com/wandb/client.git
     ```
    
 2. Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
@@ -46,7 +46,7 @@ This will create your personal copy of the repository that you will use for deve
    - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout master
-    git pull upstream master   
+    git pull upstream master
     ```
    - Create a `git` branch where you will develop your contribution. 
      Use a sensible name for the branch, for example:
@@ -71,7 +71,7 @@ This will create your personal copy of the repository that you will use for deve
      and submit it.
    - Please link the relevant issue (either the existing one or the one you created) to your PR.
      See the right column on the PR page. 
-     Alternatively, in the PR description, mention that it "Fixes <link-to-the-issue>" - 
+     Alternatively, in the PR description, mention that it "Fixes _link-to-the-issue_" - 
      GitHub will do the linking automatically.
    - The team will review your contribution and provide feedback. 
      To incorporate changes recommended by the reviewers, commit edits to your branch, 
@@ -110,7 +110,14 @@ Then run the following command to set up your environment:
 ./tools/setup_dev_environment.py
 ```
 
-In particular, this tool will set up [`tox`](https://github.com/tox-dev/tox), which we use 
+At the first invocation, this tool will set up multiple python environments, which takes some time.
+You can set up a subset of the target environments to test against, for example:
+
+```shell
+./tools/setup_dev_environment.py -p 3.7 3.8
+```
+
+The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use 
 for automating development tasks such as code linting and testing. 
 
 ## Building protocol buffers
