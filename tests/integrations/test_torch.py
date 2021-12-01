@@ -1,6 +1,27 @@
 import wandb
 import pytest
 import sys
+from typing import List, Tuple
+
+from collections import Counter
+from itertools import combinations_with_replacement
+
+# Numbers within a factor of roughly 1e8 of the maximum value supported
+# by 32 and 64 bit floats. torch.linspace and torch.histc are both prone
+# to crashing when they encounter numbers much beyond this magnitude.
+HIGH32 = 1e30
+HIGH64 = 1e300
+
+# The machine epsilon, or smallest relative difference between any two
+# numbers, for 32 and 64 bit floats. Equivalent to torch.finfo(dtype).eps
+# in pytorch v1.0.0 and later.
+EPS32 = float.fromhex("0x1p-23")
+EPS64 = float.fromhex("0x1p-52")
+
+# The smallest "normal number" for 32 and 64 bit floats. Equivalent to
+# torch.finfo(dtype).tiny in pytorch v1.0.0 and later.
+TINY32 = float.fromhex("0x1p-126")
+TINY64 = float.fromhex("0x1p-1022")
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
@@ -47,7 +68,12 @@ class EmbModel(nn.Module):
         self.emb2 = nn.Embedding(x, y)
 
     def forward(self, x):
-        return {"key": {"emb1": self.emb1(x), "emb2": self.emb2(x),}}
+        return {
+            "key": {
+                "emb1": self.emb1(x),
+                "emb2": self.emb2(x),
+            }
+        }
 
 
 class EmbModelWrapper(nn.Module):
@@ -257,10 +283,10 @@ def test_nested_shape():
         (torch.Tensor([float("nan"), float("inf"), -float("inf")]), True),
     ],
 )
-def test_no_finite_values(test_input, expected, wandb_init_run):
+def test_no_valid_values(test_input, expected, wandb_init_run):
     torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
 
-    assert torch_history._no_finite_values(test_input) is expected
+    assert torch_history._no_valid_values(test_input) is expected
 
 
 @pytest.mark.parametrize(
@@ -272,7 +298,95 @@ def test_no_finite_values(test_input, expected, wandb_init_run):
         (torch.Tensor([0.0, float("nan"), float("inf")]), torch.Tensor([0.0])),
     ],
 )
-def test_remove_infs_nans(test_input, expected, wandb_init_run):
+def test_remove_invalid_entries(test_input, expected, wandb_init_run):
     torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
 
-    assert torch.equal(torch_history._remove_infs_nans(test_input), expected)
+    assert torch.equal(torch_history._remove_invalid_entries(test_input), expected)
+
+
+def make_value_list(dtype: "torch.dtype") -> List[float]:
+    if dtype == torch.float32:
+        high = HIGH32
+        eps = EPS32
+        tiny = TINY32
+    else:  # dtype == torch.float64
+        high = HIGH64
+        eps = EPS64
+        tiny = TINY64
+
+    return sorted(
+        [
+            # finite, reasonable values
+            -2.0,
+            -1.0,
+            0.0,
+            1.0,
+            2.0,
+            # large magnitude negatives
+            -high,  # lowest
+            -high * (1 - eps),  # very close to lowest
+            -high * (1 - 65 * eps),  # low, but separated from lowest
+            # low magnitude negatives
+            -eps * tiny,  # lowest magnitude negative supported
+            -2 * eps * tiny,  # almost lowest magnitude negative supported
+            -66 * eps * tiny,  # separate from lowest
+            # low mangnitude positives
+            eps * tiny,  # lowest magnitude positive supported
+            2 * eps * tiny,  # almost lowest magnitude positive supported
+            66 * eps * tiny,  # separate from lowest
+            # large magnitude positives
+            high,  # highest
+            high * (1 - eps),  # very close to highest
+            high * (1 - 65 * eps),  # high, but separated from highest
+        ]
+    )
+
+
+def make_bounds_list(dtype: torch.dtype) -> List[Tuple[float]]:
+    values = make_value_list(dtype)
+
+    return list(combinations_with_replacement(values, 2))
+
+
+@pytest.mark.parametrize(
+    "tmin,tmax,dtype",
+    [
+        (bounds[0], bounds[1], torch.float32)
+        for bounds in make_bounds_list(torch.float32)
+    ]
+    + [
+        (bounds[0], bounds[1], torch.float64)
+        for bounds in make_bounds_list(torch.float64)
+    ],
+)
+def test_widen_min_max(
+    tmin: float, tmax: float, dtype: torch.dtype, wandb_init_run
+) -> None:
+    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+
+    if dtype == torch.float32:
+        high = HIGH32
+        eps = EPS32
+        tiny = TINY32
+    else:  # dtype == torch.float64
+        high = HIGH64
+        eps = EPS64
+        tiny = TINY64
+
+    tmin2, tmax2 = torch_history._widen_min_max(tmin, tmax, dtype)
+
+    # The magnitude is still not extreme.
+    assert -high * (1 + 32 * eps) <= tmin2 < tmax2 <= high * (1 + 32 * eps)
+
+    # The interval width hasn't decreased.
+    assert tmax2 - tmin2 >= tmax - tmin
+
+    # Make sure the bounds don't change too much.
+    middle = (tmin + tmax) / 2
+    step_size = eps * max(abs(middle), tiny)
+    assert tmin - tmin2 <= 100 * step_size
+    assert tmax2 - tmax <= 100 * step_size
+
+    # Make sure there's enough space between tmin2 and tmax2 for 64
+    # distinct bins.
+    assert torch.linspace(tmin2, tmax2, 65, dtype=dtype).unique().shape[0] == 65

@@ -246,7 +246,7 @@ class TorchHistory(object):
 
         # Separate tmin and tmax if they're equal or too close together.
         tmin, tmax = self._widen_min_max(tmin, tmax, flat.dtype)
-        tensor = flat.histc(flat, bins=self._num_bins, min=tmin, max=tmax)
+        tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
         bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1, dtype=tensor.dtype)
 
