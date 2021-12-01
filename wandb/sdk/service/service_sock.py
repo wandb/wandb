@@ -53,7 +53,9 @@ class ServiceSockInterface(ServiceInterface):
     def _svc_inform_attach(self, attach_id: str) -> None:
         inform_attach = spb.ServerInformAttachRequest()
         inform_attach._info.stream_id = attach_id
-        # TODO: implement
+
+        assert self._sock_client
+        self._sock_client.send(inform_attach=inform_attach)
 
     def _svc_inform_teardown(self, exit_code: int) -> None:
         inform_teardown = spb.ServerInformTeardownRequest(exit_code=exit_code)

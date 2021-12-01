@@ -2,6 +2,7 @@ import socket
 import struct
 from typing import Any, Optional
 from typing import TYPE_CHECKING
+import uuid
 
 from wandb.proto import wandb_server_pb2 as spb
 
@@ -13,11 +14,13 @@ if TYPE_CHECKING:
 class SockClient:
     _sock: socket.socket
     _data: bytes
+    _sockid: str
 
     HEADLEN = 1 + 4
 
     def __init__(self) -> None:
         self._data = b""
+        self._sockid = uuid.uuid4().hex
 
     def connect(self, port: int) -> None:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -50,12 +53,15 @@ class SockClient:
         self,
         *,
         inform_init: spb.ServerInformInitRequest = None,
+        inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
         inform_teardown: spb.ServerInformTeardownRequest = None
     ) -> None:
         server_req = spb.ServerRequest()
         if inform_init:
             server_req.inform_init.CopyFrom(inform_init)
+        elif inform_attach:
+            server_req.inform_attach.CopyFrom(inform_attach)
         elif inform_finish:
             server_req.inform_finish.CopyFrom(inform_finish)
         elif inform_teardown:

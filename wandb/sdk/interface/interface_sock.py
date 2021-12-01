@@ -51,7 +51,6 @@ class InterfaceSock(InterfaceShared):
 
     def _communicate_async(self, rec: "pb.Record", local: bool = None) -> MessageFuture:
         self._assign(rec)
-        rec.control.relay = True
         assert self._router
         if self._process_check and self._process and not self._process.is_alive():
             raise Exception("The wandb backend process has shutdown")

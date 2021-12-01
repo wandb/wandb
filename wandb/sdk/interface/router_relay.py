@@ -28,7 +28,7 @@ class MessageRelayRouter(MessageQueueRouter):
         )
 
     def _handle_msg_rcv(self, msg: "pb.Result") -> None:
-        if msg.control.relay:
+        if msg.control.relay_id:
             self._relay_queue.put(msg)
             return
         super(MessageRelayRouter, self)._handle_msg_rcv(msg)
