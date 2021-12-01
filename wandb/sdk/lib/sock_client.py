@@ -47,7 +47,12 @@ class SockClient:
         self._send_message(msg)
 
     def send_server_response(self, msg: Any) -> None:
-        self._send_message(msg)
+        try:
+            self._send_message(msg)
+        except BrokenPipeError:
+            # TODO(jhr): user thread might no longer be around to receive responses to
+            # things like network status poll loop, there might be a better way to quiesce
+            pass
 
     def send(
         self,
