@@ -5,7 +5,7 @@ Create a grpc manager channel.
 
 import atexit
 import os
-from typing import Callable, Optional, Tuple, TYPE_CHECKING
+from typing import Callable, Optional, TYPE_CHECKING
 
 from wandb import env
 from wandb.sdk.lib.exit_hooks import ExitHooks
@@ -17,42 +17,67 @@ if TYPE_CHECKING:
 
 
 class _ManagerToken:
-    _token_str: Optional[str]
+    _version = "2"
+    _supported_transports = {"grpc", "tcp"}
+    _token_str: str
+    _pid: int
+    _transport: str
+    _host: str
+    _port: int
 
-    def __init__(self) -> None:
-        self._token_str = None
+    def __init__(self, token: str) -> None:
+        self._token_str = token
+        self._parse()
 
-    def probe(self) -> None:
+    @classmethod
+    def from_environment(cls) -> Optional["_ManagerToken"]:
         token = os.environ.get(env.SERVICE)
         if not token:
-            return
-        self._token_str = token
+            return None
+        return cls(token=token)
 
-    def configure(self, port: int) -> None:
-        version = "1"
+    @classmethod
+    def from_params(cls, transport: str, host: str, port: int) -> "_ManagerToken":
+        version = cls._version
         pid = os.getpid()
-        token = "-".join([version, str(pid), str(port)])
-        os.environ[env.SERVICE] = token
-        self._token_str = token
+        token = "-".join([version, str(pid), transport, host, str(port)])
+        return cls(token=token)
 
-    def parse(self) -> Tuple[str, int, int]:
+    def set_environment(self) -> None:
+        os.environ[env.SERVICE] = self._token_str
+
+    def _parse(self) -> None:
         assert self._token_str
         parts = self._token_str.split("-")
-        assert len(parts) == 3, f"token must have 3 parts: {parts}"
+        assert len(parts) == 5, f"token must have 5 parts: {parts}"
         # TODO: make more robust?
-        version, pid_str, port_str = parts
-        pid_int = int(pid_str)
-        port_int = int(port_str)
-        return version, pid_int, port_int
+        version, pid_str, transport, host, port_str = parts
+        assert version == self._version
+        assert transport in self._supported_transports
+        self._pid = int(pid_str)
+        self._transport = transport
+        self._host = host
+        self._port = int(port_str)
 
     @property
-    def token(self) -> Optional[str]:
+    def token(self) -> str:
         return self._token_str
 
     @property
+    def pid(self) -> int:
+        return self._pid
+
+    @property
+    def transport(self) -> str:
+        return self._transport
+
+    @property
+    def host(self) -> str:
+        return self._host
+
+    @property
     def port(self) -> int:
-        _, _, port = self.parse()
-        return port
+        return self._port
 
 
 class _Manager:
@@ -67,35 +92,24 @@ class _Manager:
         self._atexit_lambda = None
         self._hooks = None
 
-        self._token = _ManagerToken()
         self._service = service._Service()
-        self._setup_mp()
-        self._setup()
 
-    def _setup_mp(self) -> None:
-        # NOTE: manager does not support fork yet, support coming later
-        # start_method = multiprocessing.get_start_method(allow_none=True)
-        # assert start_method != "fork", "start method 'fork' is not supported yet"
-        # if start_method is None:
-        #     multiprocessing.set_start_method("spawn")
-        pass
+        token = _ManagerToken.from_environment()
+        if not token:
+            self._service.start()
+            transport = "tcp"
+            host = "localhost"
+            port = self._service.sock_port
+            assert port
+            token = _ManagerToken.from_params(transport=transport, host=host, port=port)
+            token.set_environment()
+            self._atexit_setup()
 
-    def _setup(self) -> None:
-        self._token.probe()
-        if not self._token.token:
-            self._setup_service()
+        self._token = token
 
         port = self._token.port
         svc_iface = self._get_service_interface()
         svc_iface._svc_connect(port=port)
-
-    def _setup_service(self) -> None:
-        self._service.start()
-        # port = self._service.grpc_port
-        port = self._service.sock_port
-        assert port
-        self._token.configure(port=port)
-        self._atexit_setup()
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
