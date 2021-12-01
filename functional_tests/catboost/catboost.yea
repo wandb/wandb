@@ -1,0 +1,17 @@
+id: 0.catboost.catboost
+plugin:
+  - wandb
+command:
+    program: test_catboost.py
+depend:
+    requirements:
+        - catboost>=0.26
+        
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][summary][iteration@metric-period-1]: 10
+  - :op:>:
+    - :wandb:runs[0][summary][learn-MultiClass]
+    - 0.0
+  - :wandb:runs[0][exitcode]: 0
+  
