@@ -218,11 +218,15 @@ class TorchHistory(object):
 
         # Remove nans and infs if present. There's no good way to represent that in histograms.
 <<<<<<< HEAD
+<<<<<<< HEAD
         flat = self._remove_infs_nans(flat)
 =======
         if not flat.isfinite().all():
             flat = flat[flat.isfinite()]
 >>>>>>> ae7cd8f5d (only filter nans and infs when they are present, and copy tensor once instead of twice.)
+=======
+        flat = self._remove_infs_nans(flat)
+>>>>>>> d4e6961f8 (add unit tests for checking for tensors with no finite values and removing infs and nans)
 
         tmin = flat.min().item()
         tmax = flat.max().item()
@@ -304,6 +308,7 @@ class TorchHistory(object):
         else:
             return handle.id in d
 
+<<<<<<< HEAD
     def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
         return (
             tensor.shape == torch.Size([0])
@@ -313,6 +318,17 @@ class TorchHistory(object):
     def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
         if not torch.isfinite(tensor).all():
             tensor = tensor[torch.isfinite(tensor)]
+=======
+    def _no_finite_values(self, tensor):
+        return (
+            tensor.shape == torch.Size([0])
+            or torch.logical_not(tensor.isfinite()).all().item()
+        )
+
+    def _remove_infs_nans(self, tensor):
+        if not tensor.isfinite().all():
+            tensor = tensor[tensor.isfinite()]
+>>>>>>> d4e6961f8 (add unit tests for checking for tensors with no finite values and removing infs and nans)
 
         return tensor
 
