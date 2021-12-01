@@ -111,6 +111,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     strict=None,
     label_disable=None,
     _require_service="WANDB_REQUIRE_SERVICE",
+    _service_method="WANDB_SERVICE_METHOD",
     login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
@@ -237,6 +238,7 @@ class Settings(object):
     mode: str = "online"
     start_method: Optional[str] = None
     _require_service: Optional[str] = None
+    _service_method: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     force: Optional[bool] = None
@@ -331,6 +333,7 @@ class Settings(object):
         mode: str = None,
         start_method: str = None,
         _require_service: str = None,
+        _service_method: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
