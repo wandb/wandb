@@ -3,6 +3,25 @@
 We at Weights & Biases ❤️ open source and welcome contributions from the community!
 This guide discusses the development workflow and the internals of the `wandb` client library.
 
+### Table of Contents
+* [Development workflow](#development-workflow)
+* [Setting up your development environment](#setting-up-your-development-environment)
+* [Building protocol buffers](#building-protocol-buffers)
+* [Linting the code](#linting-the-code)
+* [Testing](#testing)
+  + [Overview](#overview)
+  + [Finding good test points](#finding-good-test-points)
+  + [Global Pytest Fixtures](#global-pytest-fixtures)
+  + [Code Coverage](#code-coverage)
+  + [Test parallelism](#test-parallelism)
+  + [Regression Testing](#regression-testing)
+* [Live development](#live-development)
+* [Code organization](#code-organization)
+* [Library Objectives](#library-objectives)
+* [Changes from production library](#changes-from-production-library)
+* [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
+* [Documentation Generation](#documentation-generation)
+
 ## Development workflow
 
 1. If you are a first-timer, please go to [`https://github.com/wandb/client`](https://github.com/wandb/client) 
