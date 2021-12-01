@@ -5,7 +5,7 @@ This guide discusses the development workflow and the internals of the `wandb` c
 
 ## Development workflow
 
-1. If you are a first-timer, please go to `https://github.com/wandb/client` 
+1. If you are a first-timer, please go to [`https://github.com/wandb/client`](https://github.com/wandb/client) 
 and click the "Fork" button in the top-right corner of the page. 
 This will create your personal copy of the repository that you will use for development. 
    - Set up [SSH authentication with GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
@@ -16,8 +16,14 @@ This will create your personal copy of the repository that you will use for deve
     cd client
     git remote add upstream https://github.com/wandb/client.git   
     ```
+   
+2. Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
+   if the feature/bug you are willing to add/fix has already been requested/reported.
+   - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
+     This will help the project keep track of feature requests and bug reports and make sure
+     effort is not duplicated.
 
-2. Develop you contribution.
+3. Develop you contribution.
    - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout master
@@ -35,7 +41,7 @@ This will create your personal copy of the repository that you will use for deve
     ```
    - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
    
-3. Proposed changes are contributed through the 
+4. Proposed changes are contributed through the 
 [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
    - When your contribution is ready and the tests all pass, push your branch to GitHub:
     ```shell
@@ -44,6 +50,10 @@ This will create your personal copy of the repository that you will use for deve
    - Once the branch is uploaded, `GitHub` will print a URL for submitting your contribution as a pull request. 
      Open that URL in your browser, write an informative title and a detailed description for your pull request, 
      and submit it.
+   - Please link the relevant issue (either the existing one or the one you created) to your PR.
+     See the right column on the PR page. 
+     Alternatively, in the PR description, mention that it "Fixes <link-to-the-issue>" - 
+     GitHub will do the linking automatically.
    - The team will review your contribution and provide feedback. 
      To incorporate changes recommended by the reviewers, commit edits to your branch, 
      and push to the branch again (there is no need to re-create the pull request, 
@@ -65,7 +75,8 @@ curl https://pyenv.run | bash
 ```
 
 To load `pyenv` automatically, add the following lines to your shell's startup script, 
-such as `~/.bashrc` or `~/.zshrc` (and then either restart the shell or `source` the changed script):
+such as `~/.bashrc` or `~/.zshrc` 
+(and then either restart the shell, run `exec $SHELL`, or `source` the changed script):
 
 ```shell
 export PYENV_ROOT="$HOME/.pyenv"
@@ -74,7 +85,7 @@ eval "$(pyenv init --path)"
 eval "$(pyenv virtualenv-init -)"
 ```
 
-Then run the following command to set up your environment:  
+Then run the following command to set up your environment:
 
 ```shell
 ./tools/setup_dev_environment.py
