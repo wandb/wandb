@@ -7,23 +7,30 @@ import itertools
 import weakref
 from six.moves import reduce
 from operator import mul
+from typing import Tuple
 
 from wandb import util
 from wandb.data_types import Node
 import wandb
 
-from typing import Tuple
-
 torch = None
 
-# The machine epsilon, or smallest relative difference between any two
-# numbers, for 32 bit floats. Equivalent to torch.finfo(torch.float32).eps
-# in pytorch v1.0.0 and later.
-EPSILON = float.fromhex("0x1p-23")
+# Numbers within a factor of roughly 1e8 of the maximum value supported
+# by 32 and 64 bit floats. torch.linspace and torch.histc are both prone
+# to crashing when they encounter numbers much beyond this magnitude.
+HIGH32 = 1e30
+HIGH64 = 1e300
 
-# The smallest normal number for 32 bit floats. Equivalent to
-# torch.finfo(torch.float32).tiny in pytorch v1.0.0 and later.
-TINY = float.fromhex("0x1p-126")
+# The machine epsilon, or smallest relative difference between any two
+# numbers, for 32 and 64 bit floats. Equivalent to torch.finfo(dtype).eps
+# in pytorch v1.0.0 and later.
+EPS32 = float.fromhex("0x1p-23")
+EPS64 = float.fromhex("0x1p-52")
+
+# The smallest "normal number" for 32 and 64 bit floats. Equivalent to
+# torch.finfo(dtype).tiny in pytorch v1.0.0 and later.
+TINY32 = float.fromhex("0x1p-126")
+TINY64 = float.fromhex("0x1p-1022")
 
 
 def nested_shape(array_or_tuple, seen=None):
@@ -224,33 +231,11 @@ class TorchHistory(object):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
         # Skip logging if all values are nan or inf or the tensor is empty.
-        if self._no_finite_values(flat):
+        if self._no_valid_values(flat):
             return
 
-        # Remove nans and infs if present. There's no good way to represent that in histograms.
-<<<<<<< HEAD
-<<<<<<< HEAD
-        flat = self._remove_infs_nans(flat)
-=======
-<<<<<<< HEAD
-        if not flat.isfinite().all():
-            flat = flat[flat.isfinite()]
->>>>>>> ae7cd8f5d (only filter nans and infs when they are present, and copy tensor once instead of twice.)
-=======
-        flat = self._remove_infs_nans(flat)
-<<<<<<< HEAD
->>>>>>> d4e6961f8 (add unit tests for checking for tensors with no finite values and removing infs and nans)
-=======
-        if flat.shape == torch.Size([0]) or torch.logical_not(flat.isfinite()).all():
-            return
-
-        # Remove nans and infs if present. There's no good way to represent that in histograms.
-        if not flat.isfinite().all():
-            flat = flat[flat.isfinite()]
->>>>>>> ef5a8c4b5 (only filter nans and infs when they are present, and copy tensor once instead of twice.)
->>>>>>> 9ffa7a3d6 (only filter nans and infs when they are present, and copy tensor once instead of twice.)
-=======
->>>>>>> 18fcfce6c (changes after rebase)
+        # Remove nans, infs and values close to the limit of the dtype if present.
+        flat = self._remove_invalid_entries(flat)
 
         tmin = flat.min().item()
         tmax = flat.max().item()
@@ -259,16 +244,11 @@ class TorchHistory(object):
             tmin = 0 if tmin > 0 else tmin
             tmax = 0 if tmax < 0 else tmax
 
-        # Ensure min and max aren't too close together. This (1) addresses
-        # a corner case where torch.histc can fail, (2) ensures that the
-        # bins tensor contains distinct values, and (3) avoids rare
-        # instances in which the bins tensor may not match the actual
-        # bounds of the bins.
-        tmin, tmax = self._widen_min_max(tmin, tmax)
-
-        tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
+        # Separate tmin and tmax if they're equal or too close together.
+        tmin, tmax = self._widen_min_max(tmin, tmax, flat.dtype)
+        tensor = flat.histc(flat, bins=self._num_bins, min=tmin, max=tmax)
         tensor = tensor.cpu().clone().detach()
-        bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
+        bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1, dtype=tensor.dtype)
 
         # Add back zeroes from a sparse tensor.
         if sparse_zeros:
@@ -336,54 +316,55 @@ class TorchHistory(object):
         else:
             return handle.id in d
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
+    def _is_valid_mask(self, tensor: "torch.Tensor") -> bool:
+        if tensor.dtype == torch.float32:
+            high = HIGH32
+        else:  # dtype == torch.float64
+            high = HIGH64
+
+        return torch.logical_and((tensor <= high), (tensor > -high))
+
+    def _no_valid_values(self, tensor: "torch.Tensor") -> bool:
         return (
             tensor.shape == torch.Size([0])
-            or torch.logical_not(torch.isfinite(tensor)).all().item()
+            or torch.logical_not(self._is_valid_mask(tensor)).all().item()
         )
 
-    def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
-        if not torch.isfinite(tensor).all():
-            tensor = tensor[torch.isfinite(tensor)]
-=======
-    def _no_finite_values(self, tensor):
-=======
-    def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
->>>>>>> 1abd02774 (add type annotations and apply formatting)
-        return (
-            tensor.shape == torch.Size([0])
-            or torch.logical_not(torch.isfinite(tensor)).all().item()
-        )
+    def _remove_invalid_entries(self, tensor: "torch.Tensor") -> "torch.Tensor":
+        if tensor.dtype == torch.float32:
+            high = HIGH32
+        else:  # dtype == torch.float64
+            high = HIGH64
 
-    def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
-<<<<<<< HEAD
-        if not tensor.isfinite().all():
-            tensor = tensor[tensor.isfinite()]
->>>>>>> d4e6961f8 (add unit tests for checking for tensors with no finite values and removing infs and nans)
-=======
         if not torch.isfinite(tensor).all():
-            tensor = tensor[torch.isfinite(tensor)]
->>>>>>> f5cd70c3b (fix compatibility with older versions of pytorch in response to regression testing)
+            tensor = tensor[self._is_valid_mask(tensor)]
 
         return tensor
 
-    def _widen_min_max(self, tmin: float, tmax: float) -> tuple[float, float]:
-        """If necessary, separate min from max while avoiding increasing
-        max to inf or decreasing min to -inf if their values are close
-        to the limits of the range of 32 bit floats. Should be a no-op
-        except in very unusual circumstances.
+    def _widen_min_max(
+        self, tmin: float, tmax: float, dtype: "torch.dtype"
+    ) -> Tuple[float, float]:
+        """If necessary, separate min from max to ensure a finite histogram range.
+
+        torch.histc tries to perform this operation automatically by setting
+        tmin=tmin-1 and tmax=tmax+1, but encounters an issue leading to a
+        runtime error when tmax == tmin and their magnitude is very large,
+        because in this case it can happen that adding one to tmax and
+        subtracting one from tmin do not change their value. Additionally,
+        torch.histc does not provide any alert that this has been done and
+        does not return the new bounds, so this can lead to offset when the
+        old bounds are used to create the bin index.
         """
-        if tmin > 0:
-            # tmin is far from -infinity, so safe to decrease.
-            step = max(tmax, TINY) * EPSILON
-            tmin = min(tmin, tmax - self._num_bins * step)
-        else:
-            # tmax is either far from +infinity (so safe to increase)
-            # or far from tmin (so no need to increase).
-            step = max(abs(tmin), abs(tmax), TINY) * EPSILON
-            tmax = max(tmax, tmin + self._num_bins * step)
+        if dtype == torch.float32:
+            eps, tiny = EPS32, TINY32
+        else:  # dtype == torch.float64
+            eps, tiny = EPS64, TINY64
+
+        middle = (tmin + tmax) / 2
+        step_size = max(abs(middle), tiny) * eps
+
+        tmin = min(tmin, middle - 32 * step_size)
+        tmax = max(tmax, middle + 32 * step_size)
 
         return tmin, tmax
 
