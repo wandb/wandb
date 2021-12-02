@@ -1,6 +1,6 @@
-"""grpc service.
+"""Reliably launch and connect to backend server process (wandb service).
 
-Reliably launch and connect to grpc process.
+Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
 import os
