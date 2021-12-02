@@ -1,6 +1,6 @@
 """grpc service.
 
-Reliably launch and connect to grpc process.
+Implement ServiceInterface for grpc transport.
 """
 
 import logging
