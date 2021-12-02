@@ -93,7 +93,6 @@ class WandbServer:
     def _start_sock(self, mux: StreamMux) -> int:
         address: str = self._address or "127.0.0.1"
         port: int = self._sock_port or 0
-        # pid: int = self._pid or 0
         self._sock_server = SocketServer(mux=mux, address=address, port=port)
         try:
             self._sock_server.start()
