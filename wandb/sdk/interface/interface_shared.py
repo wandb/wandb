@@ -278,10 +278,6 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(config=cfg)
         self._publish(rec)
 
-    def publish_summary(self, summary_record: sr.SummaryRecord) -> None:
-        pb_summary_record = self._make_summary(summary_record)
-        self._publish_summary(pb_summary_record)
-
     def _publish_summary(self, summary: pb.SummaryRecord) -> None:
         rec = self._make_record(summary=summary)
         self._publish(rec)
