@@ -16,6 +16,7 @@ class SockClient:
     _data: bytes
     _sockid: str
 
+    # current header is magic byte "W" followed by 4 byte length of the message
     HEADLEN = 1 + 4
 
     def __init__(self) -> None:
