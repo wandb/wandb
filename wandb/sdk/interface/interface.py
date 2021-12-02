@@ -2,7 +2,7 @@
 
 InterfaceBase: The abstract class
 InterfaceGrpc: Use gRPC to send and receive messages
-InterfaceShared: Common routines for socket and queue based implementtaions
+InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
 
