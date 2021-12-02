@@ -111,9 +111,6 @@ class AWSRunner(AbstractRunner):
         if access_key is None or secret_key is None:
             raise LaunchError("AWS credentials not found.")
 
-        # client = boto3.client(
-        #     "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
-        # )
         ecr_client = boto3.client(
             "ecr",
             region_name=region,
@@ -126,7 +123,7 @@ class AWSRunner(AbstractRunner):
             .decode()
             .split(":")
         )
-        print(username, password)
+
         auth_config = {"username": username, "password": password}
 
         repository = launch_project.aws.get("repository") or "my-test-repository"
@@ -173,17 +170,18 @@ class AWSRunner(AbstractRunner):
         else:
             image = launch_project.docker_image
         docker_client = docker.from_env()
-        print(aws_tag, auth_config)
-        resp = docker_client.login(
+        login_resp = docker_client.login(
             username, password, registry=token["authorizationData"][0]["proxyEndpoint"]
         )
-        print(resp)
-        resp = docker_client.images.push(
+        if login_resp.get("Status") != "Login Succeeded":
+            raise LaunchError("Unable to login to ECR")
+        wandb.termlog(f"Pushing image {image} to ECR")
+        push_resp = docker_client.images.push(
             aws_tag,
             auth_config=auth_config,
             tag="latest",
         )
-        print(resp)
+        # TODO: handle push errors
 
         command_args += get_docker_command(
             image=image,
@@ -223,6 +221,10 @@ class AWSRunner(AbstractRunner):
                 fp,
             )
         wandb.termlog("Pushing container to ECR with tag: ")
+    
+        sagemaker_client = boto3.client("sagemaker", region_name=region)
+        
+
         # wandb.termlog(
         #     "Launching run in docker with command: {}".format(sanitized_command_str)
         # )
@@ -230,6 +232,10 @@ class AWSRunner(AbstractRunner):
         # if synchronous:
         #     run.wait()
         # return run
+
+def _run_sagemaker_command(command: str, image_tag: str):
+    pass
+
 
 
 def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
