@@ -20,6 +20,7 @@ class SockClient:
 
     def __init__(self) -> None:
         self._data = b""
+        # TODO: use safe uuid's (python3.7+) or emulate this
         self._sockid = uuid.uuid4().hex
 
     def connect(self, port: int) -> None:
