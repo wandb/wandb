@@ -19,7 +19,6 @@ from wandb.util import (
     json_friendly,
 )
 
-from . import summary_record as sr
 from .interface import InterfaceBase
 from .message_future import MessageFuture
 from .router import MessageRouter

@@ -55,7 +55,8 @@ class _Service:
                 self._sock_port = pf.sock_port
             except Exception as e:
                 print("Error:", e)
-            return False
+                return False
+            return True
         return False
 
     def _launch_server(self) -> None:
@@ -93,7 +94,8 @@ class _Service:
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args, env=os.environ, **kwargs,
             )
-            self._wait_for_ports(fname, proc=internal_proc)
+            ports_found = self._wait_for_ports(fname, proc=internal_proc)
+            assert ports_found
             self._internal_proc = internal_proc
 
     def start(self) -> None:
