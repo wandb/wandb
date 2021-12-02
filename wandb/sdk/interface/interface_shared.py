@@ -456,7 +456,7 @@ class InterfaceShared(InterfaceBase):
         _ = self._communicate(record)
 
     def join(self) -> None:
-        super(InterfaceShared, self).join()
+        super().join()
 
         if self._router:
             self._router.join()
