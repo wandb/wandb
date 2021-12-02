@@ -36,7 +36,7 @@ class InterfaceShared(InterfaceBase):
     def __init__(
         self, process: BaseProcess = None, process_check: bool = True,
     ) -> None:
-        super(InterfaceShared, self).__init__()
+        super().__init__()
         self._process = process
         self._router = None
         self._process_check = process_check
