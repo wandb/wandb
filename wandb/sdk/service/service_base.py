@@ -1,6 +1,7 @@
-"""grpc service.
+"""Base service abstract class.
 
-Reliably launch and connect to grpc process.
+Derived classes for grpc and socket service interfaces classes should implement
+abstract methods.
 """
 
 from abc import abstractmethod
