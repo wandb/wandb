@@ -26,7 +26,6 @@ class ServiceSockInterface(ServiceInterface):
         return "tcp"
 
     def _get_sock_client(self) -> SockClient:
-        # TODO: remove this
         return self._sock_client
 
     def _svc_connect(self, port: int) -> None:
