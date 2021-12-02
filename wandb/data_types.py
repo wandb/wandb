@@ -566,7 +566,20 @@ class Table(Media):
                     for t in col_type.params["allowed_types"]:
                         if isinstance(t, _dtypes.NDArrayType):
                             ndarray_type = t
-                if ndarray_type is not None:
+
+                # Do not serialize 1d arrays - these are likely embeddings and
+                # will not have the some cost as higher dimensional arrays
+                is_1d_array = (
+                    ndarray_type is not None
+                    and "shape" in ndarray_type._params
+                    and type(ndarray_type._params["shape"]) == list
+                    and len(ndarray_type._params["shape"]) == 1
+                )
+                if is_1d_array:
+                    self._column_types.params["type_map"][col_name] = _dtypes.ListType(
+                        _dtypes.NumberType, ndarray_type._params["shape"][0]
+                    )
+                elif ndarray_type is not None:
                     np = util.get_module(
                         "numpy",
                         required="Serializing numpy requires numpy to be installed",
