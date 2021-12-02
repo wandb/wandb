@@ -33,9 +33,7 @@ class InterfaceQueue(InterfaceShared):
     ) -> None:
         self.record_q = record_q
         self.result_q = result_q
-        super().__init__(
-            process=process, process_check=process_check
-        )
+        super().__init__(process=process, process_check=process_check)
 
     def _init_router(self) -> None:
         if self.record_q and self.result_q:
