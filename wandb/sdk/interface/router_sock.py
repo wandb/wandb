@@ -1,6 +1,6 @@
-"""Router - handle message router (queue)
+"""Router - handle message router (sock)
 
-Router to manage responses from a queue.
+Router to manage responses from a socket client.
 
 """
 
