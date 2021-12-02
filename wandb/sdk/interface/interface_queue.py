@@ -33,7 +33,7 @@ class InterfaceQueue(InterfaceShared):
     ) -> None:
         self.record_q = record_q
         self.result_q = result_q
-        super(InterfaceQueue, self).__init__(
+        super().__init__(
             process=process, process_check=process_check
         )
 
