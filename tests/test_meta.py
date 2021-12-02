@@ -4,6 +4,7 @@ import platform
 import sys
 import subprocess
 import threading
+import time
 import wandb
 
 from six.moves import queue
@@ -124,3 +125,55 @@ def test_commit_hash_not_sent_when_disable(test_settings, git_repo, disable_git_
     assert git_repo.last_commit
     assert run._last_commit is None
     run.finish()
+
+
+@pytest.fixture
+def poll_meta_done():
+    def _poll_meta_done(interface, timeout):
+        start = time.time()
+        done = False
+        delay = 0.1
+
+        while not done and time.time() - start < timeout:
+            result = interface.communicate_meta_poll()
+            print(result)
+            response = result.response.meta_poll_response
+            if response is not None and response.completed:
+                done = True
+            time.sleep(delay)
+            delay = min(delay * 2, 2)
+
+        print("poll", interface.record_q)
+        return response.completed, response.timed_out
+
+    return _poll_meta_done
+
+
+# def test_meta_probe_long_timeout(
+#     backend_interface, monkeypatch, git_repo, poll_meta_done
+# ):
+#     timeout = 30
+#     with backend_interface() as interface:
+#         monkeypatch.setattr(
+#             wandb.sdk.internal.meta.Meta, "get_timeout", lambda x: timeout
+#         )
+#         interface.communicate_meta_start()
+#         completed, timed_out = poll_meta_done(interface, 20)
+#         assert completed is True
+#         assert timed_out is False
+
+
+def test_meta_probe_short_timeout(
+    backend_interface, monkeypatch, git_repo, poll_meta_done
+):
+    timeout = 30
+    with backend_interface() as interface:
+        monkeypatch.setattr(
+            wandb.sdk.internal.meta.Meta, "get_timeout", lambda x: timeout
+        )
+        interface.communicate_meta_start()
+        completed, timed_out = poll_meta_done(interface, 20)
+        print("COMPLETED ", completed)
+        print("TIMED_OUT ", timed_out)
+        assert completed is True
+        assert timed_out is False

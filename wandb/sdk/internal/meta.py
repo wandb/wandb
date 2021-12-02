@@ -52,11 +52,16 @@ class Meta(object):
         self._saved_program = None
         # Locations under files directory where diff patches were saved.
         self._saved_patches = []
-        #
         self.probe_process = None
         logger.debug("meta init done")
 
-    def start(self, timeout):
+    def get_timeout(self, value=None):
+        if value is None:
+            return 0.01
+        return value
+
+    def start(self):
+        timeout = self.get_timeout()
         self.probe_process = multiprocessing.Process(
             target=self.create_child_process, args=(timeout, self._interface),
         )
@@ -81,6 +86,8 @@ class Meta(object):
             error = True
         # Put a MetaDoneRequest on the handler queue
         interface.publish_meta_done(timed_out, error)
+        print("meta child process sent MetaDoneRequest")
+        print("meta child process ", interface.record_q)
 
         if p.is_alive():
             p.terminate()

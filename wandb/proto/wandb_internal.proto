@@ -760,7 +760,6 @@ message ArtifactDoneRequest {
 */
 
 message MetaStartRequest {
-  int32 timeout = 1; 
   _RequestInfo _info = 200;
 }
 
@@ -770,6 +769,7 @@ message MetaPollRequest {
 
 message MetaPollResponse {
   bool  completed = 1;
+  bool  timed_out = 2;
 }
 
 message MetaDoneRequest {

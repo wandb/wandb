@@ -598,7 +598,7 @@ class HandleManager(object):
         # TODO: Vish, verify conditions in which Meta should start
         # if not self._settings._disable_meta and not run_start.run.resumed:
         run_meta = meta.Meta(settings=self._settings, interface=self._interface)
-        run_meta.start(timeout=record.request.meta_start.timeout)
+        run_meta.start()
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         self._result_q.put(result)
 
@@ -614,6 +614,8 @@ class HandleManager(object):
         completed = self._meta_done is not None
         result = wandb_internal_pb2.Result(uuid=record.uuid)
         result.response.meta_poll_response.completed = completed
+        if self._meta_done is not None:
+            result.response.meta_poll_response.timed_out = self._meta_done["timed_out"]
         self._result_q.put(result)
 
     def handle_request_resume(self, record: Record) -> None:

@@ -25,6 +25,7 @@ import git
 import psutil
 import atexit
 import wandb
+import multiprocessing
 import shutil
 from wandb.util import mkdir_exists_ok
 from six.moves import urllib
@@ -527,7 +528,7 @@ def parse_ctx():
 
 @pytest.fixture()
 def record_q():
-    return queue.Queue()
+    return multiprocessing.Queue()
 
 
 @pytest.fixture()
@@ -599,7 +600,7 @@ def log_debug(caplog):
 
 @pytest.fixture()
 def internal_result_q():
-    return queue.Queue()
+    return multiprocessing.Queue()
 
 
 @pytest.fixture()

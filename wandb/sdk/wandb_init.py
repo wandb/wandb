@@ -202,10 +202,7 @@ class _WandbInit(object):
             settings.update({"save_code": False})
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(
-            _start_time=time.time(),
-            _start_datetime=datetime.datetime.now(),
-        )
+        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
         settings.update(d)
 
         if not settings._noop:
@@ -382,13 +379,13 @@ class _WandbInit(object):
         while not done and time.time() - start < timeout:
             result = interface.communicate_meta_poll()
             print(result)
-            if result is None:
-                # Handler didn't respond to our poll request in 5 seconds,
-                # What should we do here? Debug log?
-                continue
-            elif result.response.meta_poll_response.completed:
+            # if result is None:
+            # TODO: Vish
+            # Handler didn't respond to our poll request in 5 seconds,
+            # What should we do here? Debug log?
+            # pass
+            if result is not None and result.response.meta_poll_response.completed:
                 done = True
-                continue
             time.sleep(delay)
             delay = min(delay * 2, 2)
 
@@ -619,7 +616,7 @@ class _WandbInit(object):
 
         # initiate metadata probe in separate process with timeout.
         # we do this b/c the probe makes system calls which can block indefinitely.
-        _ = backend.interface.communicate_meta_start(timeout=60)
+        _ = backend.interface.communicate_meta_start()
         start = time.time()
         self._poll_meta_done(backend.interface, timeout=60)
         elapsed = time.time() - start
@@ -670,8 +667,7 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None,
-    run_id: Optional[str] = None,
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 

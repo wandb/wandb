@@ -70,11 +70,10 @@ class InterfaceQueue(InterfaceBase):
     ) -> Optional[pb.Result]:
         req = self._make_request(meta_start=meta_start)
         resp = self._communicate(req)
-        if resp is None:
-            return None
         return resp
 
     def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
+        print("Putting MetaDoneRequest on the handler queue")
         rec = self._make_request(meta_done=meta_done)
         self._publish(rec)
 

@@ -287,8 +287,7 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value,
-                cls=WandBJSONEncoderOld,
+                json_value, cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -468,9 +467,8 @@ class InterfaceBase(object):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def communicate_meta_start(self, timeout=0) -> Optional[pb.Result]:
+    def communicate_meta_start(self) -> Optional[pb.Result]:
         meta_start = pb.MetaStartRequest()
-        meta_start.timeout = timeout
         resp = self._communicate_meta_start(meta_start)
         return resp
 
