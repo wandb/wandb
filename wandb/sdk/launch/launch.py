@@ -62,6 +62,9 @@ def _run(
     )
     launch_project = create_project_from_spec(launch_spec, api)
     launch_project = fetch_and_validate_project(launch_project, api)
+    if resource == "aws":
+        launch_project.aws = {}
+        # TODO: populate aws config on launch project if values exist in launch_spec
 
     # construct runner config.
     runner_config: Dict[str, Any] = {}
