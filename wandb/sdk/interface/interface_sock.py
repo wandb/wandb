@@ -28,8 +28,9 @@ class InterfaceSock(InterfaceShared):
     _sock_client: SockClient
 
     def __init__(self, sock_client: SockClient) -> None:
+        # _sock_client is used when abstract method _init_router() is called by constructor
         self._sock_client = sock_client
-        super(InterfaceSock, self).__init__()
+        super().__init__()
         self._process_check = False
         self._stream_id = None
 
