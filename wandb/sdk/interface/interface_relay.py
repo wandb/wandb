@@ -1,4 +1,4 @@
-"""InterfaceQueue - Derived from InterfaceShared using queues to send to internal thread
+"""InterfaceRelay - Derived from InterfaceQueue using RelayRouter to preserve uuid req/resp
 
 See interface.py for how interface classes relate to each other.
 

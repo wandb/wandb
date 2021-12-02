@@ -5,6 +5,7 @@ InterfaceGrpc: Use gRPC to send and receive messages
 InterfaceShared: Common routines for socket and queue based implementations
 InterfaceQueue: Use multiprocessing queues to send and receive messages
 InterfaceSock: Use socket to send and receive messages
+InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
