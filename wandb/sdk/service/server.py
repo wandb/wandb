@@ -33,7 +33,7 @@ class WandbServer:
         port_fname: str = None,
         address: str = None,
         pid: int = None,
-        debug: bool = False,
+        debug: bool = True,
         serve_grpc: bool = False,
         serve_sock: bool = False,
     ) -> None:
@@ -53,7 +53,6 @@ class WandbServer:
                 required="grpc port requires the grpcio library, run pip install wandb[grpc]",
             )
 
-        debug = True
         if debug:
             logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
