@@ -85,21 +85,25 @@ class _Manager:
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
 
-    def __init__(self) -> None:
+    def __init__(self, _use_grpc: bool = False) -> None:
         # TODO: warn if user doesnt have grpc installed
         from wandb.sdk.service import service
 
         self._atexit_lambda = None
         self._hooks = None
 
-        self._service = service._Service()
+        self._service = service._Service(_use_grpc=_use_grpc)
 
         token = _ManagerToken.from_environment()
         if not token:
             self._service.start()
-            transport = "tcp"
             host = "localhost"
-            port = self._service.sock_port
+            if _use_grpc:
+                transport = "grpc"
+                port = self._service.grpc_port
+            else:
+                transport = "tcp"
+                port = self._service.sock_port
             assert port
             token = _ManagerToken.from_params(transport=transport, host=host, port=port)
             token.set_environment()

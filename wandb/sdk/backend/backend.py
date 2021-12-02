@@ -149,20 +149,20 @@ class Backend(object):
         assert svc
         svc_iface = svc.service_interface
 
-        svc_method = svc_iface.get_method()
-        if svc_method == "sock":
+        svc_transport = svc_iface.get_transport()
+        if svc_transport == "tcp":
             svc_iface_sock = cast("ServiceSockInterface", svc_iface)
             sock_client = svc_iface_sock._get_sock_client()
             sock_interface = InterfaceSock(sock_client)
             self.interface = sock_interface
-        elif svc_method == "grpc":
+        elif svc_transport == "grpc":
             svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
             stub = svc_iface_grpc._get_stub()
             grpc_interface = InterfaceGrpc()
             grpc_interface._connect(stub=stub)
             self.interface = grpc_interface
         else:
-            raise AssertionError(f"Unsupported service method: {svc_method}")
+            raise AssertionError(f"Unsupported service transport: {svc_transport}")
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""

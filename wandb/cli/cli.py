@@ -261,10 +261,6 @@ def service(
     serve_sock=False,
     serve_grpc=False,
 ):
-    _ = util.get_module(
-        "grpc",
-        required="wandb service requires the grpcio library, run pip install wandb[service]",
-    )
     from wandb.sdk.service.server import WandbServer
 
     server = WandbServer(

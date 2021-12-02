@@ -5,7 +5,7 @@ import os
 import wandb
 
 # Temporary environment variable for testing grpc service mode
-os.environ["WANDB_SERVICE_METHOD"] = "grpc"
+os.environ["WANDB_SERVICE_TRANSPORT"] = "grpc"
 
 wandb.require("service")
 wandb.init()

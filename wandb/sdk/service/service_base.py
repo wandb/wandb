@@ -45,7 +45,7 @@ class ServiceInterface:
         pass
 
     @abstractmethod
-    def get_method(self) -> str:
+    def get_transport(self) -> str:
         raise NotImplementedError
 
     @abstractmethod

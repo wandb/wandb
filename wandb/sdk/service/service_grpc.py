@@ -24,8 +24,8 @@ class ServiceGrpcInterface(ServiceInterface):
     def __init__(self) -> None:
         self._stub = None
 
-    def get_method(self) -> str:
-        return "sock"
+    def get_transport(self) -> str:
+        return "grpc"
 
     def _svc_connect(self, port: int) -> None:
         channel = grpc.insecure_channel("localhost:{}".format(port))

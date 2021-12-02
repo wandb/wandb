@@ -43,12 +43,10 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
 
     _server: "GrpcServerType"
     _mux: StreamMux
-    _sock_server: Optional[SocketServer]
 
     def __init__(self, server: "GrpcServerType", mux: StreamMux) -> None:
         self._server = server
         self._mux = mux
-        self._sock_server = None
 
     def RunUpdate(  # noqa: N802
         self, run_data: pb.RunRecord, context: grpc.ServicerContext
@@ -350,6 +348,7 @@ class WandbServer:
     _debug: bool
     _serve_grpc: bool
     _serve_sock: bool
+    _sock_server: Optional[SocketServer]
 
     def __init__(
         self,
@@ -370,6 +369,14 @@ class WandbServer:
         self._debug = debug
         self._serve_grpc = serve_grpc
         self._serve_sock = serve_sock
+        self._sock_server = None
+
+        if grpc_port:
+            _ = wandb.util.get_module(  # type: ignore
+                "grpc",
+                required="grpc port requires the grpcio library, run pip install wandb[grpc]",
+            )
+
         debug = True
         if debug:
             logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)

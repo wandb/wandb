@@ -14,8 +14,6 @@ from . import port_file
 from .service_base import ServiceInterface
 from .service_sock import ServiceSockInterface
 
-# from .service_grpc import ServiceGrpcInterface
-
 
 class _Service:
     _grpc_port: Optional[int]
@@ -23,11 +21,17 @@ class _Service:
     _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
 
-    def __init__(self) -> None:
+    def __init__(self, _use_grpc: bool = False) -> None:
+        self._use_grpc = _use_grpc
         self._stub = None
         self._grpc_port = None
         self._sock_port = None
-        self._service_interface = ServiceSockInterface()
+        if _use_grpc:
+            from .service_grpc import ServiceGrpcInterface
+
+            self._service_interface = ServiceGrpcInterface()
+        else:
+            self._service_interface = ServiceSockInterface()
 
     def _wait_for_ports(self, fname: str, proc: subprocess.Popen = None) -> bool:
         time_max = time.time() + 30
@@ -80,8 +84,10 @@ class _Service:
                 pid_str,
                 "--debug",
             ]
-            service_args.append("--serve-sock")
-            # service_args.append("--serve-grpc")
+            if self._use_grpc:
+                service_args.append("--serve-grpc")
+            else:
+                service_args.append("--serve-sock")
             internal_proc = subprocess.Popen(
                 exec_cmd_list + service_args, env=os.environ, **kwargs,
             )
