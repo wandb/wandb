@@ -45,6 +45,8 @@ def _run(
     resource: str,
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
+    ecr_name: Optional[str],
+    role_arn: Optional[str],
     api: Api,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
@@ -58,6 +60,8 @@ def _run(
         entry_point,
         version,
         parameters,
+        ecr_name,
+        role_arn,
         launch_config,
     )
     launch_project = create_project_from_spec(launch_spec, api)
@@ -100,6 +104,8 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
+    ecr_name: Optional[str] = None,
+    role_arn: Optional[str] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -125,6 +131,8 @@ def run(
         asynchronous runs launched via this method will be terminated. If
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
+    ecr_name: If running on a cloud compute environment, specify the container to push the container to.
+    role_arn: If running on a cloud compute environment, specify the role to assume.
 
 
     Example:
@@ -172,6 +180,8 @@ def run(
         resource=resource,
         launch_config=config,
         synchronous=synchronous,
+        ecr_name=ecr_name,
+        role_arn=role_arn,
         api=api,
     )
 

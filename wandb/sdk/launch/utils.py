@@ -94,10 +94,13 @@ def construct_launch_spec(
     name: Optional[str],
     project: Optional[str],
     entity: Optional[str],
+    resource: Optional[str],
     docker_image: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
+    ecr_name: Optional[str],
+    role_arn: Optional[str],
     launch_config: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
@@ -105,11 +108,18 @@ def construct_launch_spec(
     launch_spec = launch_config if launch_config is not None else {}
     launch_spec["uri"] = uri
     project, entity = set_project_entity_defaults(
-        uri, api, project, entity, launch_config,
+        uri,
+        api,
+        project,
+        entity,
+        launch_config,
     )
     launch_spec["entity"] = entity
 
     launch_spec["project"] = project
+    if resource is not None:
+        launch_spec["resource"] = resource
+
     if name:
         launch_spec["name"] = name
     if "docker" not in launch_spec:
@@ -142,6 +152,11 @@ def construct_launch_spec(
         )
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
+
+    if ecr_name is not None:
+        launch_spec["ecr_name"] = ecr_name
+    if role_arn is not None:
+        launch_spec["role_arn"] = role_arn
 
     return launch_spec
 

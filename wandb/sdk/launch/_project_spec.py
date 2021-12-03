@@ -43,6 +43,8 @@ class LaunchProject(object):
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
+        ecr_name: Optional[str] = None,
+        role_arn: Optional[str] = None,
     ):
         self.uri = uri
         self.launch_spec = launch_spec
@@ -86,6 +88,8 @@ class LaunchProject(object):
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
+        self.ecr_name = ecr_name
+        self.role_arn = role_arn
 
         self.clear_parameter_run_config_collisions()
 
@@ -355,6 +359,8 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),
+        launch_spec.get("ecr_name"),
+        launch_spec.get("role_arn"),
     )
 
 

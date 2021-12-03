@@ -88,14 +88,13 @@ class AWSRunner(AbstractRunner):
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         validate_docker_installation()
+        assert (
+            launch_project.ecr_name is not None
+        ), "AWS jobs require an ecr repository name"
+        assert launch_project.role_arn is not None, "AWS jobs require a role ARN"
+
         region = None
-        if launch_project.aws.get("region") is not None:
-            region = launch_project.aws["region"]
-        elif launch_project.aws.get("config_path") is not None:
-            config = configparser.ConfigParser()
-            config.read(launch_project.aws.get("config_path"))
-            region = config.get("default", "region")
-        elif os.path.exists(os.path.expanduser("~/.aws/config")):
+        if os.path.exists(os.path.expanduser("~/.aws/config")):
             config = configparser.ConfigParser()
             config.read(os.path.expanduser("~/.aws/config"))
             region = config.get("default", "region")
@@ -130,13 +129,16 @@ class AWSRunner(AbstractRunner):
 
         auth_config = {"username": username, "password": password}
 
-        repository = launch_project.aws.get("repository") or "my-test-repository"
+        ecr_name = launch_project.ecr_name
         aws_tag = (
             token["authorizationData"][0]["proxyEndpoint"].lstrip("https://")
-            + f"/{repository}"
+            + f"/{ecr_name}"
         )
 
-        docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        if self.backend_config[PROJECT_DOCKER_ARGS]:
+            wandb.termwarn(
+                "Docker args are not supported for AWS. Not using docker args."
+            )
 
         entry_point = launch_project.get_single_entry_point()
 
@@ -218,30 +220,23 @@ class AWSRunner(AbstractRunner):
                 )
                 return None
 
-        command_args += get_entry_point_command(
-            entry_point, launch_project.override_args
-        )
-
         command_str = command_separator.join(command_args)
-        sanitized_command_str = re.sub(
-            r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-        )
         with open(
             os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
         ) as fp:
             json.dump(
                 {
                     **launch_project.launch_spec,
-                    "command": sanitized_command_str,
+                    "command": command_str,
                     "dockerfile_contents": launch_project._dockerfile_contents,
                 },
                 fp,
             )
         wandb.termlog("Pushing container to ECR with tag: ")
 
-        arn = launch_project.aws.get("RoleArn")
-        if arn is None:
-            arn = "arn:aws:iam::620830334183:role/KyleSagemaker"
+        # arn = launch_project.aws.get("RoleArn")
+        # if arn is None:
+        #     arn = "arn:aws:iam::620830334183:role/KyleSagemaker"
 
         sagemaker_client = boto3.client("sagemaker", region_name=region)
         wandb.termlog(
@@ -266,7 +261,7 @@ class AWSRunner(AbstractRunner):
                 or 3600
             },
             TrainingJobName=launch_project.run_id,
-            RoleArn=arn,
+            RoleArn=launch_project.role_arn,
             OutputDataConfig={
                 "S3OutputPath": launch_project.aws.get("OutputDataConfig")
                 or f"s3://wandb-output/{launch_project.run_id}/output"

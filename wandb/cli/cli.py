@@ -245,7 +245,11 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @click.option("--debug", default=None)
 @display_error
 def service(
-    port=None, port_filename=None, address=None, pid=None, debug=None,
+    port=None,
+    port_filename=None,
+    address=None,
+    pid=None,
+    debug=None,
 ):
     _ = util.get_module(
         "grpc",
@@ -254,7 +258,11 @@ def service(
     from wandb.sdk.service.grpc_server import GrpcServer
 
     server = GrpcServer(
-        port=port, port_fname=port_filename, address=address, pid=pid, debug=debug,
+        port=port,
+        port_fname=port_filename,
+        address=address,
+        pid=pid,
+        debug=debug,
     )
     server.serve()
 
@@ -348,7 +356,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -884,9 +894,18 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module(
+        "docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "chardet",
+        required=req_string,
+    )
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -957,7 +976,7 @@ def _check_launch_imports():
     "-r",
     metavar="BACKEND",
     default="local",
-    help="Execution resource to use for run. Supported values: 'local'."
+    help="Execution resource to use for run. Supported values: 'local', 'aws-sagemaker'."
     " If passed in, will override the resource value passed in using a config file."
     " Defaults to 'local'.",
 )
@@ -995,6 +1014,16 @@ def _check_launch_imports():
     "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
     "set on wandb launch-agent.",
 )
+@click.option(
+    "--ecr-name",
+    "ecr_name",
+    help="Repository name to push containers to. If not specified here or in the config, launch will fail.",
+)
+@click.option(
+    "--role-arn",
+    "role_arn",
+    help="Role ARN to use for AWS sagemaker jobs. If not specified here or in the config, launch will fail.",
+)
 @display_error
 def launch(
     uri,
@@ -1010,6 +1039,8 @@ def launch(
     config,
     queue,
     run_async,
+    ecr_name,
+    role_arn,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1069,6 +1100,8 @@ def launch(
                 resource=resource,
                 config=config,
                 synchronous=(not run_async),
+                ecr_name=ecr_name,
+                role_arn=role_arn,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1090,6 +1123,8 @@ def launch(
             git_version,
             docker_image,
             args_dict,
+            ecr_name,
+            role_arn,
         )
 
 
@@ -1523,7 +1558,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

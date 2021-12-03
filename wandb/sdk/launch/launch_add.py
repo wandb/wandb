@@ -28,6 +28,8 @@ def launch_add(
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
     params: Optional[Dict[str, Any]] = None,
+    repository: Optional[str] = None,
+    role_arn: Optional[str] = None,
 ) -> "public.QueuedJob":
     api = Api()
     return _launch_add(
@@ -43,6 +45,8 @@ def launch_add(
         version,
         docker_image,
         params,
+        repository,
+        role_arn,
     )
 
 
@@ -59,9 +63,10 @@ def _launch_add(
     version: Optional[str],
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
+    repository: Optional[str],
+    role_arn: Optional[str],
 ) -> "public.QueuedJob":
 
-    resource = resource or "local"
     if config is not None:
         if isinstance(config, str):
             with open(config, "r") as fp:
@@ -80,10 +85,13 @@ def _launch_add(
         name,
         project,
         entity,
+        resource,
         docker_image,
         entry_point,
         version,
         params,
+        repository,
+        role_arn,
         launch_config,
     )
 
