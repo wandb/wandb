@@ -5,6 +5,7 @@ import os
 import re
 import signal
 import subprocess
+import time
 from typing import Any, Dict, List, Optional
 
 import base64
@@ -20,11 +21,11 @@ from .._project_spec import (
     LaunchProject,
 )
 from ..docker import (
-    build_docker_image_if_needed,
+    build_docker_image_for_aws,
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
-    get_docker_command,
+    get_docker_command_aws,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -40,43 +41,46 @@ _logger = logging.getLogger(__name__)
 class AWSSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command locally."""
 
-    def __init__(self, command_proc: "subprocess.Popen[bytes]") -> None:
+    def __init__(self, training_job_name, client) -> None:
         super().__init__()
-        self.command_proc = command_proc
+        self.client = client
+        self.training_job_name = training_job_name
+        self._status = Status("starting")
 
     @property
     def id(self) -> int:
-        return self.command_proc.pid
+        return f"sagemaker-{self.training_job_name}"
 
     def wait(self) -> bool:
-        return self.command_proc.wait() == 0
+        while True:
+            status_state = self.get_status().state
+            if status_state not in ["running", "starting", "unknown"]:
+                break
+            time.sleep(5)
+        return status_state == "finished"
 
     def cancel(self) -> None:
         # Interrupt child process if it hasn't already exited
-        if self.command_proc.poll() is None:
-            # Kill the the process tree rooted at the child if it's the leader of its own process
-            # group, otherwise just kill the child
-            try:
-                if self.command_proc.pid == os.getpgid(self.command_proc.pid):
-                    os.killpg(self.command_proc.pid, signal.SIGTERM)
-                else:
-                    self.command_proc.terminate()
-            except OSError:
-                # The child process may have exited before we attempted to terminate it, so we
-                # ignore OSErrors raised during child process termination
-                _logger.info(
-                    "Failed to terminate child process (PID %s). The process may have already exited.",
-                    self.command_proc.pid,
-                )
-            self.command_proc.wait()
+        status = self.get_status()
+        if status.state in ["running", "starting", "unknown"]:
+            self.client().stop_training_job(TrainingJobName=self.training_job_name)
+            self.wait()
 
     def get_status(self) -> Status:
-        exit_code = self.command_proc.poll()
-        if exit_code is None:
-            return Status("running")
-        if exit_code == 0:
-            return Status("finished")
-        return Status("failed")
+        job_status = self.client().describe_training_job(
+            TrainingJobName=self.training_job_name
+        )["TrainingJobStatus"]
+        if job_status == "Completed":
+            self._status = Status("finished")
+        elif job_status == "Failed":
+            self._status = Status("failed")
+        elif job_status == "Stopping":
+            self._status = Status("stopping")
+        elif job_status == "Stopped":
+            self._status = Status("finished")
+        elif job_status == "InProgress":
+            self._status = Status("running")
+        return self._status
 
 
 class AWSRunner(AbstractRunner):
@@ -158,14 +162,34 @@ class AWSRunner(AbstractRunner):
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
 
+        env_vars = {
+            "WANDB_BASE_URL": self._api.settings("base_url"),
+            "WANDB_API_KEY": self._api.api_key,
+            "WANDB_PROJECT": launch_project.target_project,
+            "WANDB_ENTITY": launch_project.target_entity,
+            "WANDB_LAUNCH": True,
+            "WANDB_LAUNCH_CONFIG_PATH": os.path.join(
+                container_workdir, DEFAULT_LAUNCH_METADATA_PATH
+            ),
+            "WANDB_RUN_ID": launch_project.run_id or None,
+            "WANDB_DOCKER": launch_project.docker_image,
+        }
+        command_args = get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
+
+        command_args = [command_arg.split(" ") for command_arg in command_args][0]
+
         if launch_project.docker_image is None or launch_project.build_image:
-            image = build_docker_image_if_needed(
+            image = build_docker_image_for_aws(
                 launch_project=launch_project,
                 api=self._api,
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
                 tag=aws_tag,
+                env_vars=env_vars,
+                command_args=command_args,
             )
         else:
             image = launch_project.docker_image
@@ -183,13 +207,6 @@ class AWSRunner(AbstractRunner):
         )
         # TODO: handle push errors
 
-        command_args += get_docker_command(
-            image=image,
-            launch_project=launch_project,
-            api=self._api,
-            workdir=container_workdir,
-            docker_args=docker_args,
-        )
         if self.backend_config.get("runQueueItemId"):
             try:
                 self._api.ack_run_queue_item(
@@ -221,45 +238,51 @@ class AWSRunner(AbstractRunner):
                 fp,
             )
         wandb.termlog("Pushing container to ECR with tag: ")
-    
-        sagemaker_client = boto3.client("sagemaker", region_name=region)
-        
 
-        # wandb.termlog(
-        #     "Launching run in docker with command: {}".format(sanitized_command_str)
-        # )
+        arn = launch_project.aws.get("RoleArn")
+        if arn is None:
+            arn = "arn:aws:iam::620830334183:role/KyleSagemaker"
+
+        sagemaker_client = boto3.client("sagemaker", region_name=region)
+        wandb.termlog(
+            "Launching run on sagemaker with entrypoint: {}".format(
+                " ".join(command_args)
+            )
+        )
+        resp = sagemaker_client.create_training_job(
+            AlgorithmSpecification={
+                "TrainingImage": aws_tag,
+                "TrainingInputMode": launch_project.aws.get("TrainingInputMode")
+                or "File",
+            },
+            ResourceConfig=launch_project.aws.get("ResourceConfig")
+            or {
+                "InstanceCount": 1,
+                "InstanceType": "ml.m4.xlarge",
+                "VolumeSizeInGB": 2,
+            },
+            StoppingCondition={
+                "MaxRuntimeInSeconds": launch_project.aws.get("MaxRuntimeInSeconds")
+                or 3600
+            },
+            TrainingJobName=launch_project.run_id,
+            RoleArn=arn,
+            OutputDataConfig={
+                "S3OutputPath": launch_project.aws.get("OutputDataConfig")
+                or f"s3://wandb-output/{launch_project.run_id}/output"
+            },
+        )
+
+        if resp.get("TrainingJobArn") is None:
+            raise LaunchError("Unable to create training job")
+        run = AWSSubmittedRun(launch_project.run_id, sagemaker_client)
+        return run
+
         # run = _run_entry_point(command_str, launch_project.project_dir)
         # if synchronous:
         #     run.wait()
         # return run
 
+
 def _run_sagemaker_command(command: str, image_tag: str):
     pass
-
-
-
-def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
-    """Run an entry point command in a subprocess.
-
-    Arguments:
-        command: Entry point command to run
-        work_dir: Working directory in which to run the command
-
-    Returns:
-        An instance of `LocalSubmittedRun`
-    """
-    env = os.environ.copy()
-    if os.name == "nt":
-        # we are running on windows
-        process = subprocess.Popen(
-            ["cmd", "/c", command], close_fds=True, cwd=work_dir, env=env
-        )
-    else:
-        process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            cwd=work_dir,
-            env=env,
-        )
-
-    return AWSSubmittedRun(process)

@@ -211,6 +211,111 @@ def build_docker_image_if_needed(
     return image
 
 
+def build_docker_image_for_aws(
+    launch_project: _project_spec.LaunchProject,
+    api: Api,
+    copy_code: bool,
+    workdir: str,
+    container_env: List[str],
+    command_args: List[str],
+    env_vars: Dict[str, str],
+    tag: Optional[str],
+) -> str:
+    """
+    Build a docker image containing the project in `work_dir`, using the base image.
+    param launch_project: LaunchProject class instance
+    :param api: instance of wandb.apis.internal Api
+    :param copy_code: boolean indicating if code should be copied into the docker container
+    """
+    image_uri = _get_docker_image_uri(
+        name=launch_project.image_name,
+        work_dir=launch_project.project_dir,
+        image_id=launch_project.run_id,
+    )
+    launch_project.docker_image = image_uri
+    if docker_image_exists(image_uri) and not launch_project.build_image:
+        wandb.termlog("Using existing image: {}".format(image_uri))
+        return image_uri
+    copy_code_line = ""
+    requirements_line = ""
+    # TODO: we currently assume the home directory holds the pip cache
+    homedir = workdir
+    # for custom base_images we attempt to introspect the homedir
+    for env in container_env:
+        if env.startswith("HOME="):
+            homedir = env.split("=", 1)[1]
+    if copy_code:
+        copy_code_line = "COPY ./src/ {}\n".format(workdir)
+        if docker.is_buildx_installed():
+            requirements_line = (
+                "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                    homedir, launch_project.docker_user_id
+                )
+            )
+        else:
+            wandb.termwarn(
+                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+            )
+            requirements_line = "RUN WANDB_DISABLE_CACHE=true "
+        shutil.copy(
+            os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
+            os.path.join(launch_project.project_dir),
+        )
+        # TODO: make this configurable or change the default behavior...
+        requirements_line += _parse_existing_requirements(launch_project)
+        requirements_line += "python _wandb_bootstrap.py\n"
+
+    name_line = ""
+    if launch_project.name:
+        name_line = "ENV WANDB_NAME={wandb_name}\n"
+
+    env_lines = ""
+    for key, value in env_vars.items():
+        env_lines += "ENV {}={}\n".format(key, value)
+    dockerfile_contents = (
+        "FROM {imagename}\n"
+        # need to chown this directory for artifacts caching
+        "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
+        "{copy_code_line}"
+        "{requirements_line}"
+        "{name_line}"
+        "{env_lines}"
+        "ENTRYPOINT {command_args}\n"
+    ).format(
+        imagename=launch_project.base_image,
+        uid=launch_project.docker_user_id,
+        homedir=homedir,
+        copy_code_line=copy_code_line,
+        requirements_line=requirements_line,
+        name_line=name_line,
+        env_lines=env_lines,
+        command_args=json.dumps(command_args),
+    )
+    print(dockerfile_contents)
+
+    launch_project._dockerfile_contents = dockerfile_contents
+
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
+
+    _logger.info("=== Building docker image %s ===", image_uri)
+
+    dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
+    tags = [image_uri, tag] if tag else [image_uri]
+    wandb.termlog("Generating launch image {}".format(image_uri))
+    try:
+        image = docker.build(tags=tags, file=dockerfile, context_path=build_ctx_path)
+    except DockerError as e:
+        raise LaunchError("Error communicating with docker client: {}".format(e))
+
+    try:
+        os.remove(build_ctx_path)
+    except Exception:
+        _logger.info(
+            "Temporary docker context file %s was not deleted.", build_ctx_path
+        )
+    return image
+
+
 def get_docker_command(
     image: str,
     launch_project: _project_spec.LaunchProject,
@@ -279,6 +384,10 @@ def get_docker_command(
 
     cmd += [image]
     return [shlex_quote(c) for c in cmd]
+
+
+def get_docker_command_aws(launch_project, api, workdir):
+    pass
 
 
 def _parse_existing_requirements(launch_project: _project_spec.LaunchProject) -> str:
