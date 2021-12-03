@@ -70,6 +70,7 @@ def default_ctx():
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "item_acked": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
@@ -78,6 +79,7 @@ def default_ctx():
         "launch_agents": {},
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
+        "stop_launch_agent": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
         "invalid_launch_spec_project": False,
@@ -219,6 +221,7 @@ def artifact(
             }
         ],
         "artifactSequence": {"name": collection_name,},
+        "artifactType": {"name": "dataset"},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -715,6 +718,7 @@ def create_app(user_ctx=None):
                                             "args": {
                                                 "a": {"value": ctx["n_sweep_runs"]}
                                             },
+                                            "runqueue_item_id": f"1jfskn2z",
                                         }
                                     ]
                                 )
@@ -813,6 +817,8 @@ def create_app(user_ctx=None):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
+            if body["variables"].get("runQueueItemId") == "1jfskn2z":
+                ctx["item_acked"] = True
             return json.dumps(response)
         if "mutation DeleteRun(" in body["query"]:
             return json.dumps({"data": {}})
@@ -1326,6 +1332,20 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {}})
+        if "query LaunchAgent" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "launchAgent": {
+                                "name": "test_agent",
+                                "stopPolling": ctx["stop_launch_agent"],
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {}})
 
         if "query GetSweeps" in body["query"]:
             if body["variables"]["project"] == "testnosweeps":
@@ -1453,7 +1473,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "6ddbe1c239de9c9fc6c397fc5591555a":
+            elif _id == "27c102831476c6ff7ce53c266c937612":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -1984,6 +2004,10 @@ class ParseCTX(object):
         for k, v in items.items():
             d[k] = getattr(self, v)
         return d
+
+    @property
+    def item_acked(self):
+        return self._ctx.get("item_acked")
 
 
 if __name__ == "__main__":

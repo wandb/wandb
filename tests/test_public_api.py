@@ -26,6 +26,11 @@ def test_api_auto_login_no_tty(mocker):
         Api()
 
 
+def test_base_url_sanitization(runner):
+    api = Api({"base_url": "https://wandb.corp.net///"})
+    assert api.settings["base_url"] == "https://wandb.corp.net"
+
+
 def test_parse_project_path(api):
     e, p = api._parse_project_path("user/proj")
     assert e == "user"

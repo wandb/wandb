@@ -41,6 +41,7 @@ MODE = "WANDB_MODE"
 START_METHOD = "WANDB_START_METHOD"
 RESUME = "WANDB_RESUME"
 RUN_ID = "WANDB_RUN_ID"
+RUNQUEUE_ITEM_ID = "WANDB_RUNQUEUE_ITEM_ID"
 RUN_STORAGE_ID = "WANDB_RUN_STORAGE_ID"
 RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
@@ -214,7 +215,7 @@ def get_base_url(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(BASE_URL, default)
+    return env.get(BASE_URL, default).rstrip("/")
 
 
 def get_app_url(default=None, env=None):
