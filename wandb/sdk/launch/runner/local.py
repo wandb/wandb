@@ -17,6 +17,7 @@ from .._project_spec import (
 )
 from ..docker import (
     build_docker_image_if_needed,
+    construct_local_image_uri,
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
@@ -108,15 +109,19 @@ class LocalRunner(AbstractRunner):
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
 
         if launch_project.docker_image is None or launch_project.build_image:
+            image_uri = construct_local_image_uri(launch_project)
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
+                runner_type='local',
+                image_uri=image_uri,
             )
         else:
             image = launch_project.docker_image
+    
         command_args += get_docker_command(
             image=image,
             launch_project=launch_project,

@@ -81,6 +81,7 @@ def _launch_add(
         project,
         entity,
         docker_image,
+        resource,
         entry_point,
         version,
         params,

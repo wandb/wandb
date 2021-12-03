@@ -55,6 +55,7 @@ def _run(
         project,
         entity,
         docker_image,
+        resource,
         entry_point,
         version,
         parameters,
