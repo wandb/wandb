@@ -1,0 +1,12 @@
+spleeter
+stable-baselines3
+syft
+tensorflow
+tensorforce
+TensorLayer
+tensorlayer
+tensortrade
+tf-agents
+tianshou
+tokenizers
+torch
