@@ -217,10 +217,6 @@ def build_docker_image_if_needed(
     ])
     dockerfile_contents += env_vars + "\n"
 
-    if runner_type == 'gcp-vertex':
-        # supply the entrypoint via the dockerfile since we don't `docker run`
-        dockerfile_contents += 'ENTRYPOINT ["python", "{entrypoint}"]\n'.format(entrypoint=launch_project.get_single_entry_point().name)
-
     launch_project._dockerfile_contents = dockerfile_contents
 
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
