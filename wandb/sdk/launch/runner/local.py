@@ -116,12 +116,12 @@ class LocalRunner(AbstractRunner):
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
-                runner_type='local',
+                runner_type="local",
                 image_uri=image_uri,
             )
         else:
             image = launch_project.docker_image
-    
+
         command_args += get_docker_command(
             image=image,
             launch_project=launch_project,
