@@ -1,3 +1,4 @@
+import multiprocessing
 import os
 import pytest
 import platform
@@ -15,13 +16,8 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 
 @pytest.fixture()
-def record_q():
-    return queue.Queue()
-
-
-@pytest.fixture()
 def result_q():
-    return queue.Queue()
+    return multiprocessing.Queue()
 
 
 @pytest.fixture()
@@ -149,21 +145,7 @@ def poll_meta_done():
     return _poll_meta_done
 
 
-# def test_meta_probe_long_timeout(
-#     backend_interface, monkeypatch, git_repo, poll_meta_done
-# ):
-#     timeout = 30
-#     with backend_interface() as interface:
-#         monkeypatch.setattr(
-#             wandb.sdk.internal.meta.Meta, "get_timeout", lambda x: timeout
-#         )
-#         interface.communicate_meta_start()
-#         completed, timed_out = poll_meta_done(interface, 20)
-#         assert completed is True
-#         assert timed_out is False
-
-
-def test_meta_probe_short_timeout(
+def test_meta_probe_long_timeout(
     backend_interface, monkeypatch, git_repo, poll_meta_done
 ):
     timeout = 30
@@ -173,7 +155,19 @@ def test_meta_probe_short_timeout(
         )
         interface.communicate_meta_start()
         completed, timed_out = poll_meta_done(interface, 20)
-        print("COMPLETED ", completed)
-        print("TIMED_OUT ", timed_out)
         assert completed is True
         assert timed_out is False
+
+
+def test_meta_probe_short_timeout(
+    backend_interface, monkeypatch, git_repo, poll_meta_done
+):
+    timeout = 0.01
+    with backend_interface() as interface:
+        monkeypatch.setattr(
+            wandb.sdk.internal.meta.Meta, "get_timeout", lambda x: timeout
+        )
+        interface.communicate_meta_start()
+        completed, timed_out = poll_meta_done(interface, 20)
+        assert completed is True
+        assert timed_out is True
