@@ -377,14 +377,14 @@ class _WandbInit(object):
         delay = 0.1
 
         while not done and time.time() - start < timeout:
-            result = interface.communicate_meta_poll()
-            print(result)
+            response = interface.communicate_meta_poll()
+            print(response)
             # if result is None:
             # TODO: Vish
             # Handler didn't respond to our poll request in 5 seconds,
             # What should we do here? Debug log?
             # pass
-            if result is not None and result.response.meta_poll_response.completed:
+            if response is not None and response.completed:
                 done = True
             time.sleep(delay)
             delay = min(delay * 2, 2)

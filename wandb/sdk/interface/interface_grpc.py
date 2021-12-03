@@ -230,6 +230,24 @@ class InterfaceGrpc(InterfaceBase):
         self._assign(alert)
         _ = self._stub.Alert(alert)
 
+    def _communicate_meta_start(
+        self, meta_start: pb.MetaStartRequest
+    ) -> Optional[pb.Result]:
+        assert self._stub
+        self._assign(meta_start)
+        resp = self._stub.MetaStart(meta_start)
+        assert resp
+        result = pb.Result()
+        return result
+
+    def _communicate_meta_poll(
+        self, meta_poll: pb.MetaPollRequest
+    ) -> Optional[pb.MetaPollResponse]:
+        assert self._stub
+        self._assign(meta_poll)
+        resp = self._stub.MetaPoll(meta_poll)
+        return resp
+
     def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
         assert self._stub
         self._assign(meta_done)

@@ -470,10 +470,14 @@ class InterfaceBase(object):
     def communicate_meta_start(self) -> Optional[pb.Result]:
         meta_start = pb.MetaStartRequest()
         resp = self._communicate_meta_start(meta_start)
+        if resp is None:
+            return None
         return resp
 
     @abstractmethod
-    def _communicate_meta_start(self, meta_start: pb.MetaStartRequest):
+    def _communicate_meta_start(
+        self, meta_start: pb.MetaStartRequest
+    ) -> Optional[pb.Result]:
         raise NotImplementedError
 
     def publish_meta_done(self, timed_out: bool, error: bool) -> None:
@@ -484,13 +488,17 @@ class InterfaceBase(object):
     def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
         raise NotImplementedError
 
-    def communicate_meta_poll(self) -> Optional[pb.Result]:
+    def communicate_meta_poll(self) -> Optional[pb.MetaPollResponse]:
         meta_poll = pb.MetaPollRequest()
         resp = self._communicate_meta_poll(meta_poll)
+        if resp is None:
+            return None
         return resp
 
     @abstractmethod
-    def _communicate_meta_poll(self, meta_poll: pb.MetaPollRequest):
+    def _communicate_meta_poll(
+        self, meta_poll: pb.MetaPollRequest
+    ) -> Optional[pb.MetaPollResponse]:
         raise NotImplementedError
 
     def publish_tbdata(

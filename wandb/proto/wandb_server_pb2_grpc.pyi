@@ -18,6 +18,14 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.AttachRequest,
     ) -> wandb.proto.wandb_internal_pb2.AttachResponse: ...
 
+    def MetaStart(self,
+        request: wandb.proto.wandb_internal_pb2.MetaStartRequest,
+    ) -> wandb.proto.wandb_internal_pb2.MetaStartResult: ...
+
+    def MetaPoll(self,
+        request: wandb.proto.wandb_internal_pb2.MetaPollRequest,
+    ) -> wandb.proto.wandb_internal_pb2.MetaPollResponse: ...
+
     def MetaDone(self,
         request: wandb.proto.wandb_internal_pb2.MetaDoneRequest,
     ) -> wandb.proto.wandb_internal_pb2.MetaDoneResult: ...
@@ -155,6 +163,18 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.AttachRequest,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.AttachResponse: ...
+
+    @abc.abstractmethod
+    def MetaStart(self,
+        request: wandb.proto.wandb_internal_pb2.MetaStartRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.MetaStartResult: ...
+
+    @abc.abstractmethod
+    def MetaPoll(self,
+        request: wandb.proto.wandb_internal_pb2.MetaPollRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.MetaPollResponse: ...
 
     @abc.abstractmethod
     def MetaDone(self,

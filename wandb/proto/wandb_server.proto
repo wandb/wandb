@@ -9,6 +9,8 @@ import "wandb/proto/wandb_telemetry.proto";
 service InternalService {
   rpc RunUpdate(RunRecord) returns (RunUpdateResult) {}
   rpc Attach(AttachRequest) returns (AttachResponse) {}
+  rpc MetaStart(MetaStartRequest) returns (MetaStartResult) {}
+  rpc MetaPoll(MetaPollRequest) returns (MetaPollResponse) {}
   rpc MetaDone(MetaDoneRequest) returns (MetaDoneResult) {}
   rpc TBSend(TBRecord) returns (TBResult) {}
   rpc RunStart(RunStartRequest) returns (RunStartResponse) {}

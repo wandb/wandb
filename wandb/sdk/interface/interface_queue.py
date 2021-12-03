@@ -68,21 +68,22 @@ class InterfaceQueue(InterfaceBase):
     def _communicate_meta_start(
         self, meta_start: pb.MetaStartRequest
     ) -> Optional[pb.Result]:
-        req = self._make_request(meta_start=meta_start)
-        resp = self._communicate(req)
+        rec = self._make_request(meta_start=meta_start)
+        resp = self._communicate(rec)
         return resp
 
     def _publish_meta_done(self, meta_done: pb.MetaDoneRequest) -> None:
-        print("Putting MetaDoneRequest on the handler queue")
         rec = self._make_request(meta_done=meta_done)
         self._publish(rec)
 
     def _communicate_meta_poll(
         self, meta_poll: pb.MetaPollRequest
-    ) -> Optional[pb.Result]:
-        print("Sending MetaPollRequest")
-        req = self._make_request(meta_poll=meta_poll)
-        resp = self._communicate(req)
+    ) -> Optional[pb.MetaPollResponse]:
+        rec = self._make_request(meta_poll=meta_poll)
+        result = self._communicate(rec)
+        if result is None:
+            return None
+        resp = result.response.meta_poll_response
         return resp
 
     def _publish_tbdata(self, tbrecord: pb.TBRecord) -> None:

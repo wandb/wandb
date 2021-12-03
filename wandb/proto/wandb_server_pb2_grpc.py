@@ -26,6 +26,16 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
                 )
+        self.MetaStart = channel.unary_unary(
+                '/wandb_internal.InternalService/MetaStart',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaStartRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaStartResult.FromString,
+                )
+        self.MetaPoll = channel.unary_unary(
+                '/wandb_internal.InternalService/MetaPoll',
+                request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaPollRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaPollResponse.FromString,
+                )
         self.MetaDone = channel.unary_unary(
                 '/wandb_internal.InternalService/MetaDone',
                 request_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneRequest.SerializeToString,
@@ -193,6 +203,18 @@ class InternalServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Attach(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MetaStart(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MetaPoll(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -398,6 +420,16 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.SerializeToString,
             ),
+            'MetaStart': grpc.unary_unary_rpc_method_handler(
+                    servicer.MetaStart,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaStartRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaStartResult.SerializeToString,
+            ),
+            'MetaPoll': grpc.unary_unary_rpc_method_handler(
+                    servicer.MetaPoll,
+                    request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaPollRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaPollResponse.SerializeToString,
+            ),
             'MetaDone': grpc.unary_unary_rpc_method_handler(
                     servicer.MetaDone,
                     request_deserializer=wandb_dot_proto_dot_wandb__internal__pb2.MetaDoneRequest.FromString,
@@ -594,6 +626,40 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/Attach',
             wandb_dot_proto_dot_wandb__internal__pb2.AttachRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__internal__pb2.AttachResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def MetaStart(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/MetaStart',
+            wandb_dot_proto_dot_wandb__internal__pb2.MetaStartRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.MetaStartResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def MetaPoll(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/MetaPoll',
+            wandb_dot_proto_dot_wandb__internal__pb2.MetaPollRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__internal__pb2.MetaPollResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

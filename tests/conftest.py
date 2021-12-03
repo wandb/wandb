@@ -528,7 +528,7 @@ def parse_ctx():
 
 @pytest.fixture()
 def record_q():
-    return multiprocessing.Queue()
+    return queue.Queue()
 
 
 @pytest.fixture()
@@ -600,7 +600,7 @@ def log_debug(caplog):
 
 @pytest.fixture()
 def internal_result_q():
-    return multiprocessing.Queue()
+    return queue.Queue()
 
 
 @pytest.fixture()

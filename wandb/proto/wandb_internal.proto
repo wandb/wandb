@@ -763,6 +763,9 @@ message MetaStartRequest {
   _RequestInfo _info = 200;
 }
 
+message MetaStartResult {
+}
+
 message MetaPollRequest {
   _RequestInfo _info = 200;
 }

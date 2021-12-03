@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"D\n\x15ServerShutdownRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerShutdownResponse\"B\n\x13ServerStatusRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x16\n\x14ServerStatusResponse\")\n\x10StringTupleValue\x12\x15\n\rstring_values\x18\x01 \x03(\t\"\xc6\x01\n\rSettingsValue\x12\x13\n\tint_value\x18\x01 \x01(\x03H\x00\x12\x16\n\x0cstring_value\x18\x02 \x01(\tH\x00\x12\x15\n\x0b\x66loat_value\x18\x03 \x01(\x01H\x00\x12\x14\n\nbool_value\x18\x04 \x01(\x08H\x00\x12\x14\n\nnull_value\x18\x05 \x01(\x08H\x00\x12\x37\n\x0btuple_value\x18\x06 \x01(\x0b\x32 .wandb_internal.StringTupleValueH\x00\x42\x0c\n\nvalue_type\"\xea\x01\n\x17ServerInformInitRequest\x12O\n\r_settings_map\x18\x32 \x03(\x0b\x32\x38.wandb_internal.ServerInformInitRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1a\n\x18ServerInformInitResponse\"H\n\x19ServerInformFinishRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformFinishResponse\"H\n\x19ServerInformAttachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformAttachResponse\"H\n\x19ServerInformDetachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformDetachResponse\"]\n\x1bServerInformTeardownRequest\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1e\n\x1cServerInformTeardownResponse2\xfe\x15\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x06\x41ttach\x12\x1d.wandb_internal.AttachRequest\x1a\x1e.wandb_internal.AttachResponse\"\x00\x12M\n\x08MetaDone\x12\x1f.wandb_internal.MetaDoneRequest\x1a\x1e.wandb_internal.MetaDoneResult\"\x00\x12>\n\x06TBSend\x12\x18.wandb_internal.TBRecord\x1a\x18.wandb_internal.TBResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12[\n\rRunPreempting\x12#.wandb_internal.RunPreemptingRecord\x1a#.wandb_internal.RunPreemptingResult\"\x00\x12\x46\n\x06Metric\x12\x1c.wandb_internal.MetricRecord\x1a\x1c.wandb_internal.MetricResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x43\n\x05\x46iles\x12\x1b.wandb_internal.FilesRecord\x1a\x1b.wandb_internal.FilesResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12\x43\n\x05\x41lert\x12\x1b.wandb_internal.AlertRecord\x1a\x1b.wandb_internal.AlertResult\"\x00\x12L\n\x08\x41rtifact\x12\x1e.wandb_internal.ArtifactRecord\x1a\x1e.wandb_internal.ArtifactResult\"\x00\x12[\n\x0c\x41rtifactSend\x12#.wandb_internal.ArtifactSendRequest\x1a$.wandb_internal.ArtifactSendResponse\"\x00\x12[\n\x0c\x41rtifactPoll\x12#.wandb_internal.ArtifactPollRequest\x1a$.wandb_internal.ArtifactPollResponse\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x46\n\x05Pause\x12\x1c.wandb_internal.PauseRequest\x1a\x1d.wandb_internal.PauseResponse\"\x00\x12I\n\x06Resume\x12\x1d.wandb_internal.ResumeRequest\x1a\x1e.wandb_internal.ResumeResponse\"\x00\x12I\n\x06Status\x12\x1d.wandb_internal.StatusRequest\x1a\x1e.wandb_internal.StatusResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x12g\n\x10ServerInformInit\x12\'.wandb_internal.ServerInformInitRequest\x1a(.wandb_internal.ServerInformInitResponse\"\x00\x12m\n\x12ServerInformFinish\x12).wandb_internal.ServerInformFinishRequest\x1a*.wandb_internal.ServerInformFinishResponse\"\x00\x12m\n\x12ServerInformAttach\x12).wandb_internal.ServerInformAttachRequest\x1a*.wandb_internal.ServerInformAttachResponse\"\x00\x12m\n\x12ServerInformDetach\x12).wandb_internal.ServerInformDetachRequest\x1a*.wandb_internal.ServerInformDetachResponse\"\x00\x12s\n\x14ServerInformTeardown\x12+.wandb_internal.ServerInformTeardownRequest\x1a,.wandb_internal.ServerInformTeardownResponse\"\x00\x62\x06proto3'
+  serialized_pb=b'\n\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a!wandb/proto/wandb_telemetry.proto\"D\n\x15ServerShutdownRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x18\n\x16ServerShutdownResponse\"B\n\x13ServerStatusRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x16\n\x14ServerStatusResponse\")\n\x10StringTupleValue\x12\x15\n\rstring_values\x18\x01 \x03(\t\"\xc6\x01\n\rSettingsValue\x12\x13\n\tint_value\x18\x01 \x01(\x03H\x00\x12\x16\n\x0cstring_value\x18\x02 \x01(\tH\x00\x12\x15\n\x0b\x66loat_value\x18\x03 \x01(\x01H\x00\x12\x14\n\nbool_value\x18\x04 \x01(\x08H\x00\x12\x14\n\nnull_value\x18\x05 \x01(\x08H\x00\x12\x37\n\x0btuple_value\x18\x06 \x01(\x0b\x32 .wandb_internal.StringTupleValueH\x00\x42\x0c\n\nvalue_type\"\xea\x01\n\x17ServerInformInitRequest\x12O\n\r_settings_map\x18\x32 \x03(\x0b\x32\x38.wandb_internal.ServerInformInitRequest.SettingsMapEntry\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x1aQ\n\x10SettingsMapEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.SettingsValue:\x02\x38\x01\"\x1a\n\x18ServerInformInitResponse\"H\n\x19ServerInformFinishRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformFinishResponse\"H\n\x19ServerInformAttachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformAttachResponse\"H\n\x19ServerInformDetachRequest\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1c\n\x1aServerInformDetachResponse\"]\n\x1bServerInformTeardownRequest\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x1e\n\x1cServerInformTeardownResponse2\xa1\x17\n\x0fInternalService\x12I\n\tRunUpdate\x12\x19.wandb_internal.RunRecord\x1a\x1f.wandb_internal.RunUpdateResult\"\x00\x12I\n\x06\x41ttach\x12\x1d.wandb_internal.AttachRequest\x1a\x1e.wandb_internal.AttachResponse\"\x00\x12P\n\tMetaStart\x12 .wandb_internal.MetaStartRequest\x1a\x1f.wandb_internal.MetaStartResult\"\x00\x12O\n\x08MetaPoll\x12\x1f.wandb_internal.MetaPollRequest\x1a .wandb_internal.MetaPollResponse\"\x00\x12M\n\x08MetaDone\x12\x1f.wandb_internal.MetaDoneRequest\x1a\x1e.wandb_internal.MetaDoneResult\"\x00\x12>\n\x06TBSend\x12\x18.wandb_internal.TBRecord\x1a\x18.wandb_internal.TBResult\"\x00\x12O\n\x08RunStart\x12\x1f.wandb_internal.RunStartRequest\x1a .wandb_internal.RunStartResponse\"\x00\x12U\n\nGetSummary\x12!.wandb_internal.GetSummaryRequest\x1a\".wandb_internal.GetSummaryResponse\"\x00\x12\x61\n\x0eSampledHistory\x12%.wandb_internal.SampledHistoryRequest\x1a&.wandb_internal.SampledHistoryResponse\"\x00\x12O\n\x08PollExit\x12\x1f.wandb_internal.PollExitRequest\x1a .wandb_internal.PollExitResponse\"\x00\x12O\n\x08Shutdown\x12\x1f.wandb_internal.ShutdownRequest\x1a .wandb_internal.ShutdownResponse\"\x00\x12I\n\x07RunExit\x12\x1d.wandb_internal.RunExitRecord\x1a\x1d.wandb_internal.RunExitResult\"\x00\x12[\n\rRunPreempting\x12#.wandb_internal.RunPreemptingRecord\x1a#.wandb_internal.RunPreemptingResult\"\x00\x12\x46\n\x06Metric\x12\x1c.wandb_internal.MetricRecord\x1a\x1c.wandb_internal.MetricResult\"\x00\x12\x45\n\x03Log\x12\x1d.wandb_internal.HistoryRecord\x1a\x1d.wandb_internal.HistoryResult\"\x00\x12I\n\x07Summary\x12\x1d.wandb_internal.SummaryRecord\x1a\x1d.wandb_internal.SummaryResult\"\x00\x12\x46\n\x06\x43onfig\x12\x1c.wandb_internal.ConfigRecord\x1a\x1c.wandb_internal.ConfigResult\"\x00\x12\x43\n\x05\x46iles\x12\x1b.wandb_internal.FilesRecord\x1a\x1b.wandb_internal.FilesResult\"\x00\x12\x46\n\x06Output\x12\x1c.wandb_internal.OutputRecord\x1a\x1c.wandb_internal.OutputResult\"\x00\x12O\n\tTelemetry\x12\x1f.wandb_internal.TelemetryRecord\x1a\x1f.wandb_internal.TelemetryResult\"\x00\x12\x43\n\x05\x41lert\x12\x1b.wandb_internal.AlertRecord\x1a\x1b.wandb_internal.AlertResult\"\x00\x12L\n\x08\x41rtifact\x12\x1e.wandb_internal.ArtifactRecord\x1a\x1e.wandb_internal.ArtifactResult\"\x00\x12[\n\x0c\x41rtifactSend\x12#.wandb_internal.ArtifactSendRequest\x1a$.wandb_internal.ArtifactSendResponse\"\x00\x12[\n\x0c\x41rtifactPoll\x12#.wandb_internal.ArtifactPollRequest\x1a$.wandb_internal.ArtifactPollResponse\"\x00\x12[\n\x0c\x43heckVersion\x12#.wandb_internal.CheckVersionRequest\x1a$.wandb_internal.CheckVersionResponse\"\x00\x12\x46\n\x05Pause\x12\x1c.wandb_internal.PauseRequest\x1a\x1d.wandb_internal.PauseResponse\"\x00\x12I\n\x06Resume\x12\x1d.wandb_internal.ResumeRequest\x1a\x1e.wandb_internal.ResumeResponse\"\x00\x12I\n\x06Status\x12\x1d.wandb_internal.StatusRequest\x1a\x1e.wandb_internal.StatusResponse\"\x00\x12\x61\n\x0eServerShutdown\x12%.wandb_internal.ServerShutdownRequest\x1a&.wandb_internal.ServerShutdownResponse\"\x00\x12[\n\x0cServerStatus\x12#.wandb_internal.ServerStatusRequest\x1a$.wandb_internal.ServerStatusResponse\"\x00\x12g\n\x10ServerInformInit\x12\'.wandb_internal.ServerInformInitRequest\x1a(.wandb_internal.ServerInformInitResponse\"\x00\x12m\n\x12ServerInformFinish\x12).wandb_internal.ServerInformFinishRequest\x1a*.wandb_internal.ServerInformFinishResponse\"\x00\x12m\n\x12ServerInformAttach\x12).wandb_internal.ServerInformAttachRequest\x1a*.wandb_internal.ServerInformAttachResponse\"\x00\x12m\n\x12ServerInformDetach\x12).wandb_internal.ServerInformDetachRequest\x1a*.wandb_internal.ServerInformDetachResponse\"\x00\x12s\n\x14ServerInformTeardown\x12+.wandb_internal.ServerInformTeardownRequest\x1a,.wandb_internal.ServerInformTeardownResponse\"\x00\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__base__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__internal__pb2.DESCRIPTOR,wandb_dot_proto_dot_wandb__telemetry__pb2.DESCRIPTOR,])
 
@@ -761,7 +761,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
   serialized_start=1286,
-  serialized_end=4100,
+  serialized_end=4263,
   methods=[
   _descriptor.MethodDescriptor(
     name='RunUpdate',
@@ -784,9 +784,29 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
     create_key=_descriptor._internal_create_key,
   ),
   _descriptor.MethodDescriptor(
+    name='MetaStart',
+    full_name='wandb_internal.InternalService.MetaStart',
+    index=2,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._METASTARTREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._METASTARTRESULT,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
+    name='MetaPoll',
+    full_name='wandb_internal.InternalService.MetaPoll',
+    index=3,
+    containing_service=None,
+    input_type=wandb_dot_proto_dot_wandb__internal__pb2._METAPOLLREQUEST,
+    output_type=wandb_dot_proto_dot_wandb__internal__pb2._METAPOLLRESPONSE,
+    serialized_options=None,
+    create_key=_descriptor._internal_create_key,
+  ),
+  _descriptor.MethodDescriptor(
     name='MetaDone',
     full_name='wandb_internal.InternalService.MetaDone',
-    index=2,
+    index=4,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._METADONEREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._METADONERESULT,
@@ -796,7 +816,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='TBSend',
     full_name='wandb_internal.InternalService.TBSend',
-    index=3,
+    index=5,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._TBRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._TBRESULT,
@@ -806,7 +826,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='RunStart',
     full_name='wandb_internal.InternalService.RunStart',
-    index=4,
+    index=6,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNSTARTREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNSTARTRESPONSE,
@@ -816,7 +836,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='GetSummary',
     full_name='wandb_internal.InternalService.GetSummary',
-    index=5,
+    index=7,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._GETSUMMARYREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._GETSUMMARYRESPONSE,
@@ -826,7 +846,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='SampledHistory',
     full_name='wandb_internal.InternalService.SampledHistory',
-    index=6,
+    index=8,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._SAMPLEDHISTORYREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._SAMPLEDHISTORYRESPONSE,
@@ -836,7 +856,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='PollExit',
     full_name='wandb_internal.InternalService.PollExit',
-    index=7,
+    index=9,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._POLLEXITREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._POLLEXITRESPONSE,
@@ -846,7 +866,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Shutdown',
     full_name='wandb_internal.InternalService.Shutdown',
-    index=8,
+    index=10,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._SHUTDOWNREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._SHUTDOWNRESPONSE,
@@ -856,7 +876,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='RunExit',
     full_name='wandb_internal.InternalService.RunExit',
-    index=9,
+    index=11,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNEXITRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNEXITRESULT,
@@ -866,7 +886,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='RunPreempting',
     full_name='wandb_internal.InternalService.RunPreempting',
-    index=10,
+    index=12,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNPREEMPTINGRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._RUNPREEMPTINGRESULT,
@@ -876,7 +896,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Metric',
     full_name='wandb_internal.InternalService.Metric',
-    index=11,
+    index=13,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._METRICRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._METRICRESULT,
@@ -886,7 +906,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Log',
     full_name='wandb_internal.InternalService.Log',
-    index=12,
+    index=14,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._HISTORYRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._HISTORYRESULT,
@@ -896,7 +916,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Summary',
     full_name='wandb_internal.InternalService.Summary',
-    index=13,
+    index=15,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._SUMMARYRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._SUMMARYRESULT,
@@ -906,7 +926,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Config',
     full_name='wandb_internal.InternalService.Config',
-    index=14,
+    index=16,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._CONFIGRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._CONFIGRESULT,
@@ -916,7 +936,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Files',
     full_name='wandb_internal.InternalService.Files',
-    index=15,
+    index=17,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._FILESRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._FILESRESULT,
@@ -926,7 +946,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Output',
     full_name='wandb_internal.InternalService.Output',
-    index=16,
+    index=18,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._OUTPUTRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._OUTPUTRESULT,
@@ -936,7 +956,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Telemetry',
     full_name='wandb_internal.InternalService.Telemetry',
-    index=17,
+    index=19,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__telemetry__pb2._TELEMETRYRECORD,
     output_type=wandb_dot_proto_dot_wandb__telemetry__pb2._TELEMETRYRESULT,
@@ -946,7 +966,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Alert',
     full_name='wandb_internal.InternalService.Alert',
-    index=18,
+    index=20,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._ALERTRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._ALERTRESULT,
@@ -956,7 +976,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Artifact',
     full_name='wandb_internal.InternalService.Artifact',
-    index=19,
+    index=21,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._ARTIFACTRECORD,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._ARTIFACTRESULT,
@@ -966,7 +986,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ArtifactSend',
     full_name='wandb_internal.InternalService.ArtifactSend',
-    index=20,
+    index=22,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._ARTIFACTSENDREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._ARTIFACTSENDRESPONSE,
@@ -976,7 +996,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ArtifactPoll',
     full_name='wandb_internal.InternalService.ArtifactPoll',
-    index=21,
+    index=23,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._ARTIFACTPOLLREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._ARTIFACTPOLLRESPONSE,
@@ -986,7 +1006,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='CheckVersion',
     full_name='wandb_internal.InternalService.CheckVersion',
-    index=22,
+    index=24,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._CHECKVERSIONREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._CHECKVERSIONRESPONSE,
@@ -996,7 +1016,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Pause',
     full_name='wandb_internal.InternalService.Pause',
-    index=23,
+    index=25,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._PAUSEREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._PAUSERESPONSE,
@@ -1006,7 +1026,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Resume',
     full_name='wandb_internal.InternalService.Resume',
-    index=24,
+    index=26,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._RESUMEREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._RESUMERESPONSE,
@@ -1016,7 +1036,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='Status',
     full_name='wandb_internal.InternalService.Status',
-    index=25,
+    index=27,
     containing_service=None,
     input_type=wandb_dot_proto_dot_wandb__internal__pb2._STATUSREQUEST,
     output_type=wandb_dot_proto_dot_wandb__internal__pb2._STATUSRESPONSE,
@@ -1026,7 +1046,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerShutdown',
     full_name='wandb_internal.InternalService.ServerShutdown',
-    index=26,
+    index=28,
     containing_service=None,
     input_type=_SERVERSHUTDOWNREQUEST,
     output_type=_SERVERSHUTDOWNRESPONSE,
@@ -1036,7 +1056,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerStatus',
     full_name='wandb_internal.InternalService.ServerStatus',
-    index=27,
+    index=29,
     containing_service=None,
     input_type=_SERVERSTATUSREQUEST,
     output_type=_SERVERSTATUSRESPONSE,
@@ -1046,7 +1066,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerInformInit',
     full_name='wandb_internal.InternalService.ServerInformInit',
-    index=28,
+    index=30,
     containing_service=None,
     input_type=_SERVERINFORMINITREQUEST,
     output_type=_SERVERINFORMINITRESPONSE,
@@ -1056,7 +1076,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerInformFinish',
     full_name='wandb_internal.InternalService.ServerInformFinish',
-    index=29,
+    index=31,
     containing_service=None,
     input_type=_SERVERINFORMFINISHREQUEST,
     output_type=_SERVERINFORMFINISHRESPONSE,
@@ -1066,7 +1086,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerInformAttach',
     full_name='wandb_internal.InternalService.ServerInformAttach',
-    index=30,
+    index=32,
     containing_service=None,
     input_type=_SERVERINFORMATTACHREQUEST,
     output_type=_SERVERINFORMATTACHRESPONSE,
@@ -1076,7 +1096,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerInformDetach',
     full_name='wandb_internal.InternalService.ServerInformDetach',
-    index=31,
+    index=33,
     containing_service=None,
     input_type=_SERVERINFORMDETACHREQUEST,
     output_type=_SERVERINFORMDETACHRESPONSE,
@@ -1086,7 +1106,7 @@ _INTERNALSERVICE = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ServerInformTeardown',
     full_name='wandb_internal.InternalService.ServerInformTeardown',
-    index=32,
+    index=34,
     containing_service=None,
     input_type=_SERVERINFORMTEARDOWNREQUEST,
     output_type=_SERVERINFORMTEARDOWNRESPONSE,

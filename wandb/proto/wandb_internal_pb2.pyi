@@ -2071,6 +2071,13 @@ class MetaStartRequest(google.protobuf.message.Message):
     def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info"]) -> None: ...
 global___MetaStartRequest = MetaStartRequest
 
+class MetaStartResult(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___MetaStartResult = MetaStartResult
+
 class MetaPollRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     _INFO_FIELD_NUMBER: builtins.int

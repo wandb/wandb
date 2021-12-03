@@ -415,6 +415,25 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         assert resp
         return resp
 
+    def MetaStart(  # noqa: N802
+        self, meta_start: pb.MetaStartRequest, context: grpc.ServicerContext
+    ) -> pb.MetaStartResult:
+        stream_id = meta_start._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        resp = iface._communicate_meta_start(meta_start)
+        assert resp
+        result = pb.MetaStartResult()
+        return result
+
+    def MetaPoll(  # noqa: N802
+        self, meta_poll: pb.MetaPollRequest, context: grpc.ServicerContext
+    ) -> pb.MetaPollResponse:
+        stream_id = meta_poll._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        resp = iface._communicate_meta_poll(meta_poll)
+        assert resp
+        return resp
+
     def MetaDone(  # noqa: N802
         self, meta_done: pb.MetaDoneRequest, context: grpc.ServicerContext
     ) -> pb.MetaDoneResult:

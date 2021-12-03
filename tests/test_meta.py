@@ -16,6 +16,11 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 
 
 @pytest.fixture()
+def record_q():
+    return multiprocessing.Queue()
+
+
+@pytest.fixture()
 def result_q():
     return multiprocessing.Queue()
 
@@ -131,9 +136,8 @@ def poll_meta_done():
         delay = 0.1
 
         while not done and time.time() - start < timeout:
-            result = interface.communicate_meta_poll()
-            print(result)
-            response = result.response.meta_poll_response
+            response = interface.communicate_meta_poll()
+            print(response)
             if response is not None and response.completed:
                 done = True
             time.sleep(delay)
