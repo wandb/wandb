@@ -96,7 +96,6 @@ class SockServerReadThread(threading.Thread):
             if not sreq:
                 break
             sreq_type = sreq.WhichOneof("server_request_type")
-            # print(f"SERVER read: {sreq_type}")
             shandler_str = "server_" + sreq_type
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(
                 self, shandler_str, None
@@ -144,20 +143,17 @@ class SockServerReadThread(threading.Thread):
 
     def server_record_publish(self, sreq: "spb.ServerRequest") -> None:
         record = sreq.record_publish
-        # print("GOT rec", record)
         stream_id = record._info.stream_id
         iface = self._mux.get_stream(stream_id).interface
         assert iface.record_q
         iface.record_q.put(record)
 
     def server_inform_finish(self, sreq: "spb.ServerRequest") -> None:
-        # print("serv INF FIN")
         request = sreq.inform_finish
         stream_id = request._info.stream_id
         self._mux.drop_stream(stream_id)
 
     def server_inform_teardown(self, sreq: "spb.ServerRequest") -> None:
-        # print("serv INF TEARDOWN")
         request = sreq.inform_teardown
         exit_code = request.exit_code
         self._mux.teardown(exit_code)
@@ -189,8 +185,6 @@ class SockAcceptThread(threading.Thread):
             except OSError:
                 # on shutdown
                 break
-            # print("GOT", type(conn))
-            # print("Connected by", addr)
             sr = SockServerReadThread(conn=conn, mux=self._mux, clients=self._clients)
             sr.start()
             read_threads.append(sr)
@@ -235,9 +229,9 @@ class SocketServer:
 
     def start(self) -> None:
         self._bind()
-        # print(f"Running at port: {self.port}")
         self._thread = SockAcceptThread(sock=self._sock, mux=self._mux)
         self._thread.start()
+        # Note: Uncomment to figure out what thread is not exiting properly
         # self._dbg_thread = DebugThread(mux=self._mux)
         # self._dbg_thread.start()
 
