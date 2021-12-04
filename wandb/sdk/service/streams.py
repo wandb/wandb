@@ -54,7 +54,6 @@ class StreamRecord:
             relay_q=self._relay_q,
             process=process,
             process_check=False,
-            # use_router=False,
         )
 
     def start_thread(self, thread: StreamThread) -> None:
@@ -209,6 +208,7 @@ class StreamMux:
 
         streams_to_join = []
         while streams:
+            # Note that we materialize the generator so we can modify the underlying list
             for sid, stream in list(streams.items()):
                 poll_exit_resp = stream.interface.communicate_poll_exit()
                 if poll_exit_resp and poll_exit_resp.done:
