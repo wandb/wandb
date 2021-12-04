@@ -240,7 +240,7 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
         var.assign(grad)
 
     # this needs to be implemented to prevent a NotImplementedError when
-    # using Lookup layers. Since these
+    # using Lookup layers.
     def _resource_apply_sparse(self, grad, var, indices):
         pass
 
