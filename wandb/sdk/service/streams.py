@@ -41,7 +41,6 @@ class StreamThread(threading.Thread):
         self._target = target
         self._kwargs = kwargs
         self.daemon = True
-        self.pid = 0
 
     def run(self) -> None:
         # TODO: catch exceptions and report errors to scheduler
