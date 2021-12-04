@@ -8,6 +8,7 @@ parametrize:
     - :yea:start_method:
       - spawn
       - forkserver
+      - fork
 assert:
   - :wandb:runs_len: 2
   - :wandb:runs[0][name]: parent-name
@@ -19,7 +20,7 @@ assert:
   - :wandb:runs[0][files][tmp/03-parent-3.txt][size]: 13
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
-    - 6  # grpc
+    - 23  # service
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
     - 17  # set_run_name
@@ -33,7 +34,7 @@ assert:
   - :wandb:runs[1][files][tmp/03-child.txt][size]: 10
   - :op:contains:
     - :wandb:runs[1][telemetry][3]  # feature
-    - 6  # grpc
+    - 23  # service
   - :op:contains:
     - :wandb:runs[1][telemetry][3]  # feature
     - 17  # set_run_name
