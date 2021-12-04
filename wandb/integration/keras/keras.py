@@ -196,7 +196,7 @@ def _update_if_numeric(metrics, key, values):
     if not is_numeric_array(values):
         _warn_not_logging_non_numeric(key)
         return
-
+    values = K.get_value(values)
     metrics[key] = wandb.Histogram(values)
 
 
@@ -875,6 +875,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     # and weight index. Happens with all TrackableWeightHandler weights
                     # eg. https://github.com/tensorflow/tensorboard/issues/4530
                     name_string = f"parameters/{layer.name}:{index}"
+                    print(type(w))
                     _update_if_numeric(metrics, name_string, w)
 
         return metrics
