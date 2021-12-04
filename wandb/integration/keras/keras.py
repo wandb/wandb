@@ -858,26 +858,21 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def _log_weights(self):
         metrics = {}
         for layer in self.model.layers:
-            weights = layer.weights
-            for index, w in enumerate(weights):
-                if hasattr(w, "name"):
-                    # in tf 2.6 lookup layers create empty Variable tensors which should not be logged
-                    if w.name.startswith("Variable"):
-                        continue
-                    name_string = (
-                        w.name.replace("/kernel", ".weights")
-                        .replace("/bias", ".bias")
-                        .split(":")[0]
-                    )
-                    _update_if_numeric(metrics, f"parameters/{name_string}", w)
-                else:
-                    # handle case where weight does not have name by logging the layer name
-                    # and weight index. Happens with all TrackableWeightHandler weights
-                    # eg. https://github.com/tensorflow/tensorboard/issues/4530
-                    name_string = f"parameters/{layer.name}:{index}"
-                    _update_if_numeric(metrics, name_string, w)
-
-        return metrics
+            weights = layer.get_weights()
+            if len(weights) == 1:
+                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
+                    weights[0]
+                )
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                )
+            elif len(weights) == 2:
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
+                )
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".bias", weights[1]
+                )
 
     def _log_gradients(self):
         # Suppress callback warnings grad accumulator
