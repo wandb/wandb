@@ -234,9 +234,15 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
+        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
+
+    # this needs to be implemented to prevent a NotImplementedError when
+    # using Lookup layers. Since these
+    def _resource_apply_sparse(self, grad, var, indices):
+        pass
 
     def get_config(self):
         return super(_CustomOptimizer, self).get_config()
@@ -535,11 +541,15 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.log_gradients:
             wandb.log(self._log_gradients(), commit=False)
 
-        if self.input_type in (
-            "image",
-            "images",
-            "segmentation_mask",
-        ) or self.output_type in ("image", "images", "segmentation_mask"):
+        if (
+            self.input_type
+            in (
+                "image",
+                "images",
+                "segmentation_mask",
+            )
+            or self.output_type in ("image", "images", "segmentation_mask")
+        ):
             if self.generator:
                 self.validation_data = next(self.generator)
             if self.validation_data is None:
