@@ -14,22 +14,11 @@ import threading
 from threading import Event
 import time
 from typing import Any, Callable, Dict, List, Optional
-from typing import TYPE_CHECKING
 
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 
 from ..interface.interface_relay import InterfaceRelay
-
-
-if TYPE_CHECKING:
-
-    class GrpcServerType(object):
-        def __init__(self) -> None:
-            pass
-
-        def stop(self, num: int) -> None:
-            pass
 
 
 class StreamThread(threading.Thread):
