@@ -65,7 +65,7 @@ def torch_trace_handler():
         )
 
     try:
-        logdir = os.path.join(wandb.run.dir, "pytorch_traces")
+        logdir = os.path.join(wandb.run.dir, "pytorch_traces")  # type: ignore[attr-defined]
         os.mkdir(logdir)
     except AttributeError:
         raise UsageError(
