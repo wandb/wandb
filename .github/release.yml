@@ -3,12 +3,12 @@ changelog:
     labels:
       - changelog-ignore
   categories:
-    - title: ":bug: Bug Fix"
+    - title: "# :bug: Bug Fix"
       labels:
         - "*"
       exclude:
         labels:
           - changelog-enhancement
-    - title: ":nail_care: Enhancement"
+    - title: "# :nail_care: Enhancement"
       labels:
         - changelog-enhancement
