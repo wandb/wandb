@@ -133,6 +133,10 @@ workflows:
          image: "python:3.7"
          toxenv: "func-s_tf25-py37,func-covercircle"
       - test:
+         name: "func-s_tf26-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_tf26-py37,func-covercircle"
+      - test:
          name: "func-s_service-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_service-py37,func-covercircle"
