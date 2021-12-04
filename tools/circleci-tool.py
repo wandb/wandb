@@ -111,7 +111,7 @@ def trigger(args):
             tsttyp, tstshard, tstver = toxsplit
             prefix = "s_"
             if tstshard.startswith(prefix):
-                tstshard = tstshard[len(prefix):]
+                tstshard = tstshard[len(prefix) :]
             pyname = f"{pyname}-{tsttyp}-{tstshard}"
         pyimage = py_image_dict.get(pyver)
         assert pyimage, "unknown pyver: {}".format(pyver)
