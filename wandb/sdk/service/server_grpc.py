@@ -12,9 +12,9 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
-from .streams import _dict_from_pbmap
 from .streams import StreamMux
 from .. import lib as wandb_lib
+from ..lib.proto_util import settings_dict_from_pbmap
 
 
 if TYPE_CHECKING:
@@ -294,7 +294,7 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         self, request: spb.ServerInformInitRequest, context: grpc.ServicerContext,
     ) -> spb.ServerInformInitResponse:
         stream_id = request._info.stream_id
-        settings = _dict_from_pbmap(request._settings_map)
+        settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.add_stream(stream_id, settings=settings)
         result = spb.ServerInformInitResponse()
         return result

@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
 
-from .streams import _dict_from_pbmap
 from .streams import StreamMux
+from ..lib.proto_util import settings_dict_from_pbmap
 from ..lib.sock_client import SockClient
 
 
@@ -115,7 +115,7 @@ class SockServerReadThread(threading.Thread):
     def server_inform_init(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_init
         stream_id = request._info.stream_id
-        settings = _dict_from_pbmap(request._settings_map)
+        settings = settings_dict_from_pbmap(request._settings_map)
         self._mux.add_stream(stream_id, settings=settings)
 
         iface = self._mux.get_stream(stream_id).interface

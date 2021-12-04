@@ -13,18 +13,16 @@ import queue
 import threading
 from threading import Event
 import time
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 from typing import TYPE_CHECKING
 
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.proto import wandb_server_pb2 as spb
 
 from ..interface.interface_relay import InterfaceRelay
 
 
 if TYPE_CHECKING:
-    from google.protobuf.internal.containers import MessageMap
 
     class GrpcServerType(object):
         def __init__(self) -> None:
@@ -32,28 +30,6 @@ if TYPE_CHECKING:
 
         def stop(self, num: int) -> None:
             pass
-
-
-def _dict_from_pbmap(pbmap: "MessageMap[str, spb.SettingsValue]") -> Dict[str, Any]:
-    d: Dict[str, Any] = dict()
-    for k in pbmap:
-        v_obj = pbmap[k]
-        v_type = v_obj.WhichOneof("value_type")
-        v: Union[int, str, float, None, tuple] = None
-        if v_type == "int_value":
-            v = v_obj.int_value
-        elif v_type == "string_value":
-            v = v_obj.string_value
-        elif v_type == "float_value":
-            v = v_obj.float_value
-        elif v_type == "bool_value":
-            v = v_obj.bool_value
-        elif v_type == "null_value":
-            v = None
-        elif v_type == "tuple_value":
-            v = tuple(v_obj.tuple_value.string_values)
-        d[k] = v
-    return d
 
 
 class StreamThread(threading.Thread):
