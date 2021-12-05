@@ -26,6 +26,7 @@ from typing import (
 )
 
 from wandb.sdk.interface import _dtypes
+from wandb.sdk.launch.launch_add import launch_add
 
 from pkg_resources import parse_version
 import six
@@ -1995,24 +1996,43 @@ class Classes(Media):
 class Job(Media):
     _log_type = "job"
 
+    _name: str
     _config_type: _dtypes.Type
+    # we store the config defaults in the job itself. seems reasonable
+    # but how do we expect defaults to work using our run config system in the
+    # logging API?
+    _config_defaults: dict # TODO: type?
     _summary_type: _dtypes.Type
+    _entity: str
+    _project: str
+
+    # TODO(end-to-end): I don't think in its final form Job should have a backing
+    # run id. Instead we should store the info we need to run the job (requirements
+    # docker file, etc). And we should probably use the Jobs table in the database
     _run_id: str
 
-    def __init__(self, config_type, summary_type, run_id) -> None:
+    def __init__(self, name, config_type, config_defaults, summary_type, entity, project, run_id) -> None:
         """Init"""
         super(Job, self).__init__()
+        self._name = name
         self._config_type = config_type
+        self._config_defaults = config_defaults
         self._summary_type = summary_type
+        self._entity = entity
+        self._project = project
         self._run_id = run_id
 
     @classmethod
-    def from_run(cls: Type["Classes"], run):
+    def from_run(cls: Type["Classes"], run, name):
+        # TODO: don't allow creating template from running run, we may
+        #     miss part of the type!
+        # TODO: maybe make name optional and infer a good name? (like from
+        #     the program name? or <repo>-<program_name> maybe)
         # I initially tried making these TypedDictType but then the assign
         # line produced "invalid" as the new type. Why? We can't expand
         # dict keys maybe?
-        config_type = _dtypes.UnknownType({})
-        summary_type = _dtypes.UnknownType({})
+        config_type = _dtypes.UnknownType()
+        summary_type = _dtypes.UnknownType()
         config_type = config_type.assign(run.config)
         # Note this doesn't work totally correctly yet, if there are media objects
         # in summary or config, we interpret them as raw TypedDict types with an
@@ -2023,7 +2043,14 @@ class Job(Media):
         # run = api.run('shawn/fasion-sweep/ficow30e')
         # which has media types in its summary
         summary_type = summary_type.assign(run.summaryMetrics)
-        return cls(config_type.to_json(), summary_type.to_json(), run.id)
+        return cls(
+            name,
+            config_type,
+            run.config,  # use the run's config as the defaults for this job
+            summary_type,
+            run.entity,
+            run.project,
+            run.id)
 
     @classmethod
     def from_json(
@@ -2031,20 +2058,103 @@ class Job(Media):
         json_obj: dict,
         source_artifact: Optional["PublicArtifact"],
     ) -> "Classes":
-        return cls(json_obj.get("config_type"), json_obj.get("summary_type"), json_obj.get("run_id"))  # type: ignore
+        return cls(
+            json_obj.get("name"),
+            # TODO(end-to-end): Why doesn't this work?
+            #_dtypes.Type.from_json(json_obj.get("config_type")),
+            _dtypes.TypeRegistry.type_from_dict(json_obj.get("config_type")),
+            json_obj.get("config_defaults"),
+            _dtypes.TypeRegistry.type_from_dict(json_obj.get("summary_type")),
+            json_obj.get("entity"),
+            json_obj.get("project"),
+            json_obj.get("run_id"))  # type: ignore
 
     def to_json(
         self, run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]]
     ) -> dict:
         json_obj = {}
         json_obj["_type"] = Job._log_type
-        json_obj["config_type"] = self._config_type
-        json_obj["summary_type"] = self._summary_type
+        json_obj["name"] = self._name
+        json_obj["config_type"] = self._config_type.to_json()
+        json_obj["config_defaults"] = self._config_defaults
+        json_obj["summary_type"] = self._summary_type.to_json()
+        json_obj["entity"] = self._entity
+        json_obj["project"] = self._project
         json_obj["run_id"] = self._run_id
         return json_obj
 
     def get_type(self) -> "_ClassesIdType":
         return _ClassesIdType(self)
+
+    def call(self, config):
+        run_config = self._config_defaults.copy()
+        run_config.update(config)
+        assigned_config_type = self._config_type.assign(run_config)
+        # TODO: also be helpful and check if the user passed additional
+        #     keys that are not part of the run config. The type system
+        #     will allow this. But its probably a typo on the user's part.
+        if isinstance(assigned_config_type, _dtypes.InvalidType):
+            # TODO: Better Exception, like some kind of TypeError?
+            # TODO: This message prints all the dict keys, which can be
+            #     a lot, even though the user probably only provided a subset
+            #     since they're overriding defaults. Make the message more
+            #     specific to the subset the user provided
+            # TODO: Improve message: The message looks like a type error, but
+            #     we should say something like "Invalid arguments passed to
+            #     to job..."
+            raise Exception(self._config_type.explain(run_config))
+        # TODO check not invalid
+
+        # We return a QueuedJob object. That seems ok. 
+        # you can then do:
+        #   run = qj.wait_until_running()
+        #   run.wait_until_finished()
+        # an alternative would be to put a queued state on Run itself
+        #   so the user only has to deal with one object.
+
+        # TODO(end-to-end): launch_add defaults to adding runs in the 
+        #     in the project the original run was in. It should instead
+        #     add them in the current project (via api settings)
+
+        # TODO: Is this really what I have to do to get the right settings still?
+        #     This is terrible.
+        from wandb.apis import InternalApi
+        api = InternalApi()
+
+        # Return a simpler interface
+        # TODO: This is a bit of a hack. Figure out what we actually want
+        class LaunchJob(object):
+            def __init__(self, launch_job):
+                self._launch_job = launch_job
+
+            def get_result(self):
+                self._launch_job.wait_until_running()
+                run = self._launch_job.run
+                run.wait_until_finished()
+                run.load(force=True)
+                return run
+
+        # TODO(end-to-end)
+        # For now we construct args, I dont' know how to do this with
+        # just config, but we should be able to.
+        launch_args = []
+        for key, val in config.items():
+            launch_args.append('--%s=%s' % (key, val))
+
+        return LaunchJob(launch_add(
+            '%s/%s/%s/runs/%s' % (
+                api.settings('base_url'),
+                self._entity,
+                self._project,
+                self._run_id),
+            config={
+                "overrides": {
+                    "args": launch_args,
+                    "run_config": config
+                }
+            },
+            entity=api.settings('entity'),
+            project=api.settings('project')))
 
 
 
