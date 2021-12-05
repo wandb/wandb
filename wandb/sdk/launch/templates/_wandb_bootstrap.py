@@ -63,7 +63,7 @@ def main():
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
                     # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
-                    if req.startswith("wandb==") and req.endswith(".dev1"):
+                    if req.startswith("wandb==") and 'dev1' in req:
                         req = "wandb"
                     reqs.append(req.strip())
                 else:
