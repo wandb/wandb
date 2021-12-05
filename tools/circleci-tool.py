@@ -9,14 +9,15 @@ Get the current status of a circleci pipeline based on branch/commit
 
 Trigger (re)execution of a branch
     ```
-    $ ./circleci-tool trigger
-    $ ./circleci-tool trigger --wait
-    $ ./circleci-tool trigger --platform mac
-    $ ./circleci-tool trigger --platform mac --test-file tests/test.py
-    $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this
-    $ ./circleci-tool trigger --platform win --test-file tests/test.py --test-name test_this --test-repeat 4
-    $ ./circleci-tool trigger --toxenv py36,py37 --loop 3
+    $ ./circleci-tool.py trigger
+    $ ./circleci-tool.py trigger --wait
+    $ ./circleci-tool.py trigger --platform mac
+    $ ./circleci-tool.py trigger --platform mac --test-file tests/test.py
+    $ ./circleci-tool.py trigger --platform win --test-file tests/test.py --test-name test_this
+    $ ./circleci-tool.py trigger --platform win --test-file tests/test.py --test-name test_this --test-repeat 4
+    $ ./circleci-tool.py trigger --toxenv py36,py37 --loop 3
     $ ./circleci-tool.py trigger --wait --platform win --test-file tests/test_notebooks.py --parallelism 5 --xdist 2
+    $ ./circleci-tool.py trigger --toxenv func-s_service-py37 --loop 3
 
     ```
 
@@ -99,11 +100,21 @@ def trigger(args):
                 toxcmd += " -k " + args.test_name
         if args.test_repeat:
             toxcmd += " --flake-finder --flake-runs={}".format(args.test_repeat)
-        pyname = py_name_dict.get(toxenv)
-        assert pyname, "unknown toxenv: {}".format(toxenv)
-        pyimage = py_image_dict.get(toxenv)
-        assert pyimage, "unknown toxenv: {}".format(toxenv)
-        pyname = py_name_dict[toxenv]
+        # get last token split by hyphen as python version
+        pyver = toxenv.split("-")[-1]
+        pyname = py_name_dict.get(pyver)
+        assert pyname, "unknown pyver: {}".format(pyver)
+        # handle more complex pyenv (func tests)
+        if pyver != toxenv:
+            toxsplit = toxenv.split("-")
+            assert len(toxsplit) == 3
+            tsttyp, tstshard, tstver = toxsplit
+            prefix = "s_"
+            if tstshard.startswith(prefix):
+                tstshard = tstshard[len(prefix) :]
+            pyname = f"{pyname}-{tsttyp}-{tstshard}"
+        pyimage = py_image_dict.get(pyver)
+        assert pyimage, "unknown pyver: {}".format(pyver)
         for p in platforms:
             job = platforms_dict.get(p)
             assert job, "unknown platform: {}".format(p)
