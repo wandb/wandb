@@ -7,8 +7,11 @@ import wandb
 
 dftrain = pd.read_csv("https://storage.googleapis.com/tf-datasets/titanic/train.csv")
 y_train = dftrain.pop("survived")
-
-STRING_CATEGORICAL_COLUMNS = ["sex", "class", "deck", "embark_town", "alone"]
+dftrain = dftrain[["sex", "class", "age", "fare", "n_siblings_spouses", "parch"]]
+STRING_CATEGORICAL_COLUMNS = [
+    "sex",
+    "class",
+]
 INT_CATEGORICAL_COLUMNS = ["n_siblings_spouses", "parch"]
 NUMERIC_COLUMNS = ["age", "fare"]
 wandb.init(project="keras-experimental")
@@ -19,12 +22,11 @@ for key in STRING_CATEGORICAL_COLUMNS:
     keras_inputs[key] = keras_input
     vocab = dftrain[key].unique()
     keras_preproc_input = tf.keras.layers.experimental.preprocessing.StringLookup(
-        output_mode="tf-idf",
-        name="lookup" + key,
-    )
-    random_weights = [random.uniform(0, 1) for _ in range(len(vocab))]
-    keras_preproc_input.set_vocabulary(vocabulary=vocab, idf_weights=random_weights)
-    keras_preproc_input = keras_preproc_input(keras_input)
+        output_mode="int", name="lookup" + key, vocabulary=vocab
+    )(keras_input)
+    # random_weights = [random.uniform(0, 1) for _ in range(len(vocab))]
+    # keras_preproc_input.set_vocabulary(vocabulary=vocab, idf_weights=random_weights)
+    # keras_preproc_input = keras_preproc_input(keras_input)
     keras_preproc_inputs.append(keras_preproc_input)
 
 for key in INT_CATEGORICAL_COLUMNS:

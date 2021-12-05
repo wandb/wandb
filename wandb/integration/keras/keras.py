@@ -186,13 +186,14 @@ def patch_tf_keras():
 
 
 def _array_has_dtype(array):
-    return hasattr(array, "dtype") or hasattr(array, "_dtype")
+    return hasattr(array, "dtype")
 
 
 def _update_if_numeric(metrics, key, values):
     if not _array_has_dtype(values):
         _warn_not_logging(key)
         return
+
     if not is_numeric_array(values):
         _warn_not_logging_non_numeric(key)
         return
@@ -201,11 +202,7 @@ def _update_if_numeric(metrics, key, values):
 
 
 def is_numeric_array(array):
-    if hasattr(array, "dtype") and isinstance(array.dtype, tf.dtypes.DType):
-        return array.dtype.is_floating or array.dtype.is_integer
-    elif hasattr(array, "_dtype") and isinstance(array._dtype, str):
-        return array._dtype.startswith("int") or array._dtype.startswith("float")
-    return False
+    return np.issubdtype(array.dtype, np.number)
 
 
 def _warn_not_logging_non_numeric(name):
@@ -860,9 +857,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
-                )
                 _update_if_numeric(
                     metrics, "parameters/" + layer.name + ".weights", weights[0]
                 )
@@ -873,6 +867,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 _update_if_numeric(
                     metrics, "parameters/" + layer.name + ".bias", weights[1]
                 )
+        return metrics
 
     def _log_gradients(self):
         # Suppress callback warnings grad accumulator
