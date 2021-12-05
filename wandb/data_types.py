@@ -46,6 +46,7 @@ from wandb.sdk.data_types import (
     Plotly,
     val_to_json,
     Video,
+    Job,
     WBValue,
 )
 from wandb.sdk.interface import _dtypes
@@ -57,6 +58,7 @@ __all__ = [
     "Molecule",
     "Html",
     "Video",
+    "Job",
     "ImageMask",
     "BoundingBoxes2D",
     "Classes",

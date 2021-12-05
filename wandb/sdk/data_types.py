@@ -25,6 +25,8 @@ from typing import (
     Union,
 )
 
+from wandb.sdk.interface import _dtypes
+
 from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
@@ -1990,6 +1992,61 @@ class Classes(Media):
         else:
             return False
 
+class Job(Media):
+    _log_type = "job"
+
+    _config_type: _dtypes.Type
+    _summary_type: _dtypes.Type
+    _run_id: str
+
+    def __init__(self, config_type, summary_type, run_id) -> None:
+        """Init"""
+        super(Job, self).__init__()
+        self._config_type = config_type
+        self._summary_type = summary_type
+        self._run_id = run_id
+
+    @classmethod
+    def from_run(cls: Type["Classes"], run):
+        # I initially tried making these TypedDictType but then the assign
+        # line produced "invalid" as the new type. Why? We can't expand
+        # dict keys maybe?
+        config_type = _dtypes.UnknownType({})
+        summary_type = _dtypes.UnknownType({})
+        config_type = config_type.assign(run.config)
+        # Note this doesn't work totally correctly yet, if there are media objects
+        # in summary or config, we interpret them as raw TypedDict types with an
+        # an _type field. We need to interpret them as our actual types instead!
+        #
+        # For example, I'm trying this with the following run
+        # api = wandb.Api()
+        # run = api.run('shawn/fasion-sweep/ficow30e')
+        # which has media types in its summary
+        summary_type = summary_type.assign(run.summaryMetrics)
+        return cls(config_type.to_json(), summary_type.to_json(), run.id)
+
+    @classmethod
+    def from_json(
+        cls: Type["Classes"],
+        json_obj: dict,
+        source_artifact: Optional["PublicArtifact"],
+    ) -> "Classes":
+        return cls(json_obj.get("config_type"), json_obj.get("summary_type"), json_obj.get("run_id"))  # type: ignore
+
+    def to_json(
+        self, run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]]
+    ) -> dict:
+        json_obj = {}
+        json_obj["_type"] = Job._log_type
+        json_obj["config_type"] = self._config_type
+        json_obj["summary_type"] = self._summary_type
+        json_obj["run_id"] = self._run_id
+        return json_obj
+
+    def get_type(self) -> "_ClassesIdType":
+        return _ClassesIdType(self)
+
+
 
 class Image(BatchableMedia):
     """Format images for logging to W&B.
@@ -2946,6 +3003,7 @@ __all__ = [
     "ImageMask",
     "BoundingBoxes2D",
     "Classes",
+    "Job",
     "Image",
     "Plotly",
     "history_dict_to_json",

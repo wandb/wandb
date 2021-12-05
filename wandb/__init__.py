@@ -78,6 +78,7 @@ from wandb.data_types import Html
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
+from wandb.data_types import Job
 from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
 
@@ -215,6 +216,7 @@ __all__ = [
     "Api",
     "Graph",
     "Image",
+    "Job",
     "Plotly",
     "Video",
     "Audio",

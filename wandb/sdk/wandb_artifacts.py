@@ -474,6 +474,7 @@ class Artifact(ArtifactInterface):
             data_types.ImageMask,
             data_types.BoundingBoxes2D,
             data_types.Audio,
+            data_types.Job,
             data_types.Image,
             data_types.Video,
             data_types.Html,
