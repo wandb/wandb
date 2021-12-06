@@ -202,6 +202,14 @@ def git_repo_with_remote(runner):
 
 
 @pytest.fixture
+def git_repo_with_remote_and_port(runner):
+    with runner.isolated_filesystem():
+        r = git.Repo.init(".")
+        r.create_remote("origin", "https://foo:bar@github.com:8080/FooTest/Foo.git")
+        yield GitRepo(lazy=False)
+
+
+@pytest.fixture
 def git_repo_with_remote_and_empty_pass(runner):
     with runner.isolated_filesystem():
         r = git.Repo.init(".")

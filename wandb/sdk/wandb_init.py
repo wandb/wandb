@@ -461,8 +461,19 @@ class _WandbInit(object):
                         )
                     )
         elif isinstance(wandb.run, Run):
-            logger.info("wandb.init() called when a run is still active")
-            return wandb.run
+            allow_return_run = True
+            manager = self._wl._get_manager()
+            if manager:
+                current_pid = os.getpid()
+                if current_pid != wandb.run._init_pid:
+                    # We shouldnt return a stale global run if we are in a new pid
+                    allow_return_run = False
+
+            if allow_return_run:
+                logger.info("wandb.init() called when a run is still active")
+                with telemetry.context() as tel:
+                    tel.feature.init_return_run = True
+                return wandb.run
 
         logger.info("starting backend")
 
@@ -525,6 +536,9 @@ class _WandbInit(object):
                 tel.env.start_forkserver = True
             elif active_start_method == "thread":
                 tel.env.start_thread = True
+
+            if manager:
+                tel.feature.service = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 

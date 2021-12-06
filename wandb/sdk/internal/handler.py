@@ -529,7 +529,7 @@ class HandleManager(object):
 
     def handle_request_artifact_send(self, record: Record) -> None:
         assert record.control.req_resp
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
 
         self._dispatch_record(record)
 
@@ -543,7 +543,7 @@ class HandleManager(object):
         xid = record.request.artifact_poll.xid
         assert xid
 
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         done_req = self._artifact_xid_done.get(xid)
         if done_req:
             result.response.artifact_poll_response.artifact_id = done_req.artifact_id
@@ -592,7 +592,7 @@ class HandleManager(object):
 
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         self._result_q.put(result)
 
     def handle_request_meta_start(self, record: Record) -> None:
@@ -649,7 +649,7 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_request_get_summary(self, record: Record) -> None:
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         for key, value in six.iteritems(self._consolidated_summary):
             item = wandb_internal_pb2.SummaryItem()
             item.key = key
@@ -730,7 +730,7 @@ class HandleManager(object):
             self._handle_glob_metric(record)
 
     def handle_request_sampled_history(self, record: Record) -> None:
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         for key, sampled in six.iteritems(self._sampled_history):
             item = wandb_internal_pb2.SampledHistoryItem()
             item.key = key
@@ -744,7 +744,7 @@ class HandleManager(object):
 
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         self._result_q.put(result)
         self._stopped.set()
 

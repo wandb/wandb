@@ -114,3 +114,30 @@ message ServerInformTeardownRequest {
 
 message ServerInformTeardownResponse {
 }
+
+/*
+ * ServerRequest, ServerResponse: used in sock server
+ */
+
+message ServerRequest {
+  oneof server_request_type {
+    Record record_publish = 1;
+    Record record_communicate = 2;
+    ServerInformInitRequest inform_init = 3;
+    ServerInformFinishRequest inform_finish = 4;
+    ServerInformAttachRequest inform_attach = 5;
+    ServerInformDetachRequest inform_detach = 6;
+    ServerInformTeardownRequest inform_teardown = 7;
+  }
+}
+
+message ServerResponse {
+  oneof server_response_type {
+    Result result_communicate = 2;
+    ServerInformInitResponse inform_init_response = 3;
+    ServerInformFinishResponse inform_finish_response = 4;
+    ServerInformAttachResponse inform_attach_response = 5;
+    ServerInformDetachResponse inform_detach_response = 6;
+    ServerInformTeardownResponse inform_teardown_response = 7;
+  }
+}
