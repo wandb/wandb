@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 from typing import Any, Callable, Dict, Optional
+from typing import cast
 from typing import TYPE_CHECKING
 
 import wandb
@@ -27,6 +28,8 @@ from ..wandb_settings import Settings
 if TYPE_CHECKING:
     from ..wandb_run import Run
     from wandb.proto.wandb_internal_pb2 import Record, Result
+    from ..service.service_grpc import ServiceGrpcInterface
+    from ..service.service_sock import ServiceSockInterface
 
 logger = logging.getLogger("wandb")
 
@@ -36,6 +39,7 @@ class BackendThread(threading.Thread):
 
     def __init__(self, target: Callable, kwargs: Dict[str, Any]) -> None:
         threading.Thread.__init__(self)
+        self.name = "BackendThr"
         self._target = target
         self._kwargs = kwargs
         self.daemon = True
@@ -131,6 +135,7 @@ class Backend(object):
 
     def _ensure_launched_manager(self) -> None:
         from ..interface.interface_grpc import InterfaceGrpc
+        from ..interface.interface_sock import InterfaceSock
 
         # grpc_port: Optional[int] = None
         # attach_id = self._settings._attach_id if self._settings else None
@@ -140,13 +145,24 @@ class Backend(object):
         #     grpc_port = int(attach_id)
 
         assert self._manager
-        service = self._manager._get_service()
-        assert service
-        stub = service._get_stub()
-        assert stub
-        grpc_interface = InterfaceGrpc()
-        grpc_interface._connect(stub=stub)
-        self.interface = grpc_interface
+        svc = self._manager._get_service()
+        assert svc
+        svc_iface = svc.service_interface
+
+        svc_transport = svc_iface.get_transport()
+        if svc_transport == "tcp":
+            svc_iface_sock = cast("ServiceSockInterface", svc_iface)
+            sock_client = svc_iface_sock._get_sock_client()
+            sock_interface = InterfaceSock(sock_client)
+            self.interface = sock_interface
+        elif svc_transport == "grpc":
+            svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
+            stub = svc_iface_grpc._get_stub()
+            grpc_interface = InterfaceGrpc()
+            grpc_interface._connect(stub=stub)
+            self.interface = grpc_interface
+        else:
+            raise AssertionError(f"Unsupported service transport: {svc_transport}")
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
