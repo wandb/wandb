@@ -24,7 +24,14 @@ This guide discusses the development workflow and the internals of the `wandb` c
 
 ## Development workflow
 
-1. If you are a first-timer, please go to [`https://github.com/wandb/client`](https://github.com/wandb/client) 
+1. Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
+   if the feature/bug you are willing to add/fix has already been requested/reported.
+   - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
+     This will help the project keep track of feature requests and bug reports and make sure
+     effort is not duplicated.
+
+2. If you are a first-time contributor, please go to 
+[`https://github.com/wandb/client`](https://github.com/wandb/client) 
 and click the "Fork" button in the top-right corner of the page. 
 This will create your personal copy of the repository that you will use for development. 
    - Set up [SSH authentication with GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
@@ -35,14 +42,8 @@ This will create your personal copy of the repository that you will use for deve
     cd client
     git remote add upstream https://github.com/wandb/client.git
     ```
-   
-2. Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
-   if the feature/bug you are willing to add/fix has already been requested/reported.
-   - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
-     This will help the project keep track of feature requests and bug reports and make sure
-     effort is not duplicated.
 
-3. Develop you contribution.
+4. Develop you contribution.
    - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout master
@@ -60,7 +61,7 @@ This will create your personal copy of the repository that you will use for deve
     ```
    - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
    
-4. Proposed changes are contributed through  
+5. Proposed changes are contributed through  
 [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
    - When your contribution is ready and the tests all pass, push your branch to GitHub:
     ```shell
