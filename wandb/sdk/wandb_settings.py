@@ -223,7 +223,7 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
-class Settings(object):
+class Settings:
     """Settings Constructor
 
     Arguments:
