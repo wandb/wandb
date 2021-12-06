@@ -2157,7 +2157,7 @@ class Job(Media):
         # For now we construct args, I dont' know how to do this with
         # just config, but we should be able to.
         launch_args = []
-        for key, val in config.items():
+        for key, val in run_config.items():
             launch_args.append('--%s=%s' % (key, val))
 
         return LaunchJob(launch_add(
