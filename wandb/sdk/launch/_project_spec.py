@@ -84,6 +84,8 @@ class LaunchProject(object):
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
+        if launch_spec.get("resource_args"):
+            self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
 

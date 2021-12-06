@@ -6,12 +6,13 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 
 from .local import LocalRunner
+from .aws import AWSSagemakerRunner
 
 __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-WANDB_RUNNERS = {"local": LocalRunner}
+WANDB_RUNNERS = {"local": LocalRunner, "aws-sagemaker": AWSSagemakerRunner}
 
 
 def load_backend(

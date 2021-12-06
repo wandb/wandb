@@ -7,6 +7,8 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Sequence
 
+from click.decorators import command
+
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources
@@ -144,6 +146,7 @@ def build_docker_image_if_needed(
     container_env: List[str],
     runner_type: str,
     image_uri: str,
+    command_args: Optional[List[str]] = None,
 ) -> str:
     """
     Build a docker image containing the project in `work_dir`, using the base image.
@@ -167,8 +170,10 @@ def build_docker_image_if_needed(
     if copy_code:
         copy_code_line = "COPY ./src/ {}\n".format(workdir)
         if docker.is_buildx_installed():
-            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
-                homedir, launch_project.docker_user_id
+            requirements_line = (
+                "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                    homedir, launch_project.docker_user_id
+                )
             )
         else:
             wandb.termwarn(
@@ -223,6 +228,13 @@ def build_docker_image_if_needed(
         ]
     )
     dockerfile_contents += env_vars + "\n"
+
+    if runner_type == "aws":
+        if command_args is None:
+            raise LaunchError(
+                "AWS runner requires command args to create entrypoint in dockerfile"
+            )
+        dockerfile_contents += f"ENTRYPOINT {json.dumps(command_args)} "
 
     launch_project._dockerfile_contents = dockerfile_contents
 
@@ -330,13 +342,16 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: _project_spec.LaunchProject, dockerfile_contents: str,
+    launch_project: _project_spec.LaunchProject,
+    dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
-        src=launch_project.project_dir, dst=dst_path, symlinks=True,
+        src=launch_project.project_dir,
+        dst=dst_path,
+        symlinks=True,
     )
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
