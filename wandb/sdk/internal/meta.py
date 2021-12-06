@@ -57,16 +57,22 @@ class Meta(object):
         """Saves the current working set of pip packages to {REQUIREMENTS_FNAME}"""
         logger.debug("save pip")
         try:
-            import pkg_resources
+            # TODO(end-to-end): Hacked here to capture requirements that are
+            #    installed from git repo branches correctly. But not at all sure
+            #    this is ok!
+            import subprocess
+            with open(os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w") as file_:
+                subprocess.call(['pip', 'freeze'], stdout=file_)
+            #import pkg_resources
 
-            installed_packages = [d for d in iter(pkg_resources.working_set)]
-            installed_packages_list = sorted(
-                ["%s==%s" % (i.key, i.version) for i in installed_packages]
-            )
-            with open(
-                os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w"
-            ) as f:
-                f.write("\n".join(installed_packages_list))
+            #installed_packages = [d for d in iter(pkg_resources.working_set)]
+            #installed_packages_list = sorted(
+            #    ["%s==%s" % (i.key, i.version) for i in installed_packages]
+            #)
+            #with open(
+            #    os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w"
+            #) as f:
+            #    f.write("\n".join(installed_packages_list))
         except Exception:
             logger.exception("Error saving pip packages")
         logger.debug("save pip done")
