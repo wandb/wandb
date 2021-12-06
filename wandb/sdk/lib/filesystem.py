@@ -6,7 +6,7 @@ import threading
 from typing import BinaryIO
 
 
-def _safe_makedirs(dir_name):
+def _safe_makedirs(dir_name: str) -> None:
     try:
         os.makedirs(dir_name)
     except OSError as e:
