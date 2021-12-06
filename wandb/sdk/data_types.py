@@ -2011,7 +2011,7 @@ class Job(Media):
     # docker file, etc). And we should probably use the Jobs table in the database
     _run_id: str
 
-    def __init__(self, name, config_type, config_defaults, summary_type, entity, project, run_id) -> None:
+    def __init__(self, name, config_type, config_defaults, summary_type, entity, project, run_id, source_artifact) -> None:
         """Init"""
         super(Job, self).__init__()
         self._name = name
@@ -2021,6 +2021,16 @@ class Job(Media):
         self._entity = entity
         self._project = project
         self._run_id = run_id
+        self._source_artifact = source_artifact
+
+    # This forces a config key to a specific val (can be used to create
+    # closure behavior).
+    # TODO(end-to-end): weird that this is called set_default_input
+    #    instead of set_config_default or something like that. But I'd like
+    #    to thing of config and summary as input/output. We may want to switch
+    #    terms at this API-level?
+    def set_default_input(self, key, val):
+        self._config_defaults[key] = val
 
     @classmethod
     def from_run(cls: Type["Classes"], run, name):
@@ -2050,7 +2060,8 @@ class Job(Media):
             summary_type,
             run.entity,
             run.project,
-            run.id)
+            run.id,
+            None)
 
     @classmethod
     def from_json(
@@ -2067,7 +2078,8 @@ class Job(Media):
             _dtypes.TypeRegistry.type_from_dict(json_obj.get("summary_type")),
             json_obj.get("entity"),
             json_obj.get("project"),
-            json_obj.get("run_id"))  # type: ignore
+            json_obj.get("run_id"),
+            source_artifact)  # type: ignore
 
     def to_json(
         self, run_or_artifact: Optional[Union["LocalRun", "LocalArtifact"]]
@@ -2088,6 +2100,13 @@ class Job(Media):
 
     def call(self, config):
         run_config = self._config_defaults.copy()
+
+        # Replace the special value token "${job_artifact}" with the artifact
+        # uri this job file is inside of.
+        for key, val in run_config.items():
+            if val == '${job_artifact}':
+                run_config[key] = 'wandb-artifact://%s/%s/%s' % (self._source_artifact.entity, self._source_artifact.project, self._source_artifact.name)
+
         run_config.update(config)
         assigned_config_type = self._config_type.assign(run_config)
         # TODO: also be helpful and check if the user passed additional
