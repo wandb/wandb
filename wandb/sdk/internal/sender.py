@@ -112,7 +112,6 @@ class SendManager(object):
     _run: "Optional[RunRecord]"
     _entity: "Optional[str]"
     _project: "Optional[str]"
-    _exit_sync_uuid: "Optional[str]"
     _dir_watcher: "Optional[DirWatcher]"
     _pusher: "Optional[FilePusher]"
     _exit_result: "Optional[RunExitResult]"
@@ -159,9 +158,6 @@ class SendManager(object):
 
         # State updated by resuming
         self._resume_state = ResumeState()
-
-        # State added when run_exit needs results
-        self._exit_sync_uuid = None
 
         # State added when run_exit is complete
         self._exit_result = None
@@ -264,7 +260,7 @@ class SendManager(object):
 
     def send_request_check_version(self, record: "Record") -> None:
         assert record.control.req_resp
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         current_version = (
             record.request.check_version.current_version or wandb.__version__
         )
@@ -293,7 +289,7 @@ class SendManager(object):
 
     def send_request_attach(self, record: "Record") -> None:
         assert record.control.req_resp
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         self._send_request_attach(
             record.request.attach, result.response.attach_response
         )
@@ -302,7 +298,7 @@ class SendManager(object):
     def send_request_stop_status(self, record: "Record") -> None:
         assert record.control.req_resp
 
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
         status_resp.run_should_stop = False
         if self._entity and self._project and self._run and self._run.run_id:
@@ -330,13 +326,13 @@ class SendManager(object):
 
     def send_request_status(self, record: "Record") -> None:
         assert record.control.req_resp
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         self._result_q.put(result)
 
     def send_request_network_status(self, record: "Record") -> None:
         assert record.control.req_resp
 
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         status_resp = result.response.network_status_response
         while True:
             try:
@@ -359,7 +355,7 @@ class SendManager(object):
             logger.info("Login server info: {}".format(server_info))
         self._entity = viewer.get("entity")
         if record.control.req_resp:
-            result = wandb_internal_pb2.Result(uuid=record.uuid)
+            result = proto_util._result_from_record(record)
             if self._entity:
                 result.response.login_response.active_entity = self._entity
             self._result_q.put(result)
@@ -372,10 +368,6 @@ class SendManager(object):
         logger.info("handling runtime: %s", exit.runtime)
         self._metadata_summary["runtime"] = runtime
         self._update_summary()
-
-        # Pass the responsibility to respond to handle_request_defer()
-        if record.control.req_resp:
-            self._exit_sync_uuid = record.uuid
 
         # We need to give the request queue a chance to empty between states
         # so use handle_request_defer as a state machine.
@@ -444,19 +436,6 @@ class SendManager(object):
 
         exit_result = wandb_internal_pb2.RunExitResult()
 
-        # This path is not the prefered method to return exit results
-        # as it could take a long time to flush the file pusher buffers
-        if self._exit_sync_uuid:
-            if self._pusher:
-                # NOTE: This will block until finished
-                self._pusher.print_status()
-                self._pusher.join()
-                self._pusher = None
-            resp = wandb_internal_pb2.Result(
-                exit_result=exit_result, uuid=self._exit_sync_uuid
-            )
-            self._result_q.put(resp)
-
         # mark exit done in case we are polling on exit
         self._exit_result = exit_result
 
@@ -464,7 +443,7 @@ class SendManager(object):
         if not record.control.req_resp:
             return
 
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
 
         alive = False
         if self._pusher:
@@ -679,10 +658,10 @@ class SendManager(object):
 
         if error is not None:
             if record.control.req_resp:
-                resp = wandb_internal_pb2.Result(uuid=record.uuid)
-                resp.run_result.run.CopyFrom(run)
-                resp.run_result.error.CopyFrom(error)
-                self._result_q.put(resp)
+                result = proto_util._result_from_record(record)
+                result.run_result.run.CopyFrom(run)
+                result.run_result.error.CopyFrom(error)
+                self._result_q.put(result)
             else:
                 logger.error("Got error in async mode: %s", error.message)
             return
@@ -709,12 +688,12 @@ class SendManager(object):
         assert self._run  # self._run is configured in _init_run()
 
         if record.control.req_resp:
-            resp = wandb_internal_pb2.Result(uuid=record.uuid)
+            result = proto_util._result_from_record(record)
             # TODO: we could do self._interface.publish_defer(resp) to notify
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
-            resp.run_result.run.CopyFrom(self._run)
-            self._result_q.put(resp)
+            result.run_result.run.CopyFrom(self._run)
+            self._result_q.put(result)
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
@@ -980,7 +959,7 @@ class SendManager(object):
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
 
         try:
