@@ -3,12 +3,9 @@ changelog:
     labels:
       - changelog-ignore
   categories:
-    - title: ":bug: Bug Fix"
-      labels:
-        - "*"
-      exclude:
-        labels:
-          - changelog-enhancement
     - title: ":nail_care: Enhancement"
       labels:
         - changelog-enhancement
+    - title: ":bug: Bug Fix"
+      labels:
+        - "*"
