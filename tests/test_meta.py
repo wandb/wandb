@@ -144,6 +144,8 @@ def poll_meta_done():
             delay = min(delay * 2, 2)
 
         print("poll", interface.record_q)
+        if response is None:
+            return None, None
         return response.completed, response.timed_out
 
     return _poll_meta_done
@@ -152,13 +154,13 @@ def poll_meta_done():
 def test_meta_probe_long_timeout(
     backend_interface, monkeypatch, git_repo, poll_meta_done
 ):
-    timeout = 30
+    timeout = 20
     with backend_interface() as interface:
         monkeypatch.setattr(
             wandb.sdk.internal.meta.Meta, "get_timeout", lambda x: timeout
         )
         interface.communicate_meta_start()
-        completed, timed_out = poll_meta_done(interface, 20)
+        completed, timed_out = poll_meta_done(interface, timeout)
         assert completed is True
         assert timed_out is False
 

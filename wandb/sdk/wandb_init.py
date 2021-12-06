@@ -371,7 +371,7 @@ class _WandbInit(object):
         logger.info("Logging user logs to {}".format(settings.log_user))
         logger.info("Logging internal logs to {}".format(settings.log_internal))
 
-    def _poll_meta_done(self, interface, timeout):
+    def _poll_meta_done(self, interface, timeout=30):
         start = time.time()
         done = False
         delay = 0.1
@@ -632,7 +632,7 @@ class _WandbInit(object):
         # we do this b/c the probe makes system calls which can block indefinitely.
         _ = backend.interface.communicate_meta_start()
         start = time.time()
-        self._poll_meta_done(backend.interface, timeout=60)
+        self._poll_meta_done(backend.interface, timeout=30)
         elapsed = time.time() - start
         print(
             f"Waiting for meta probe to finish (meta_poll) in wandb.init() took {elapsed} seconds"

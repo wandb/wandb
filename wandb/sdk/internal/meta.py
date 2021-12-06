@@ -57,7 +57,7 @@ class Meta(object):
 
     def get_timeout(self, value=None):
         if value is None:
-            return 0.01
+            return 20
         return value
 
     def start(self):
