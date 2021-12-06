@@ -135,9 +135,18 @@ class LocalRunner(AbstractRunner):
                 )
                 return None
 
+        # TODO(end-to-end): DO NOT MERGE THIS CHANGE! Dev only
+        #command_args += get_entry_point_command(
+        #    entry_point, launch_project.override_args
+        #)
+
+        command_args += ["/bin/bash -c"]
+        command_args += ['"pip', "install", "-e", "./client", ";"]
+                
         command_args += get_entry_point_command(
             entry_point, launch_project.override_args
         )
+        command_args += ['"']
 
         command_str = command_separator.join(command_args)
         sanitized_command_str = re.sub(

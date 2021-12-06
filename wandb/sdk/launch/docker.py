@@ -260,6 +260,9 @@ def get_docker_command(
         f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_LAUNCH_METADATA_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
     ]
 
+    # TODO(end-to-end): DO NOT MERGE THIS CHANGE! Dev only
+    cmd += ["-v", f"/Users/shawn/code/wandb/client:{os.path.join(workdir,'client')}"]
+
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
