@@ -60,7 +60,7 @@ This will create your personal copy of the repository that you will use for deve
     ```
    - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
    
-4. Proposed changes are contributed through the 
+4. Proposed changes are contributed through  
 [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
    - When your contribution is ready and the tests all pass, push your branch to GitHub:
     ```shell
@@ -114,11 +114,52 @@ At the first invocation, this tool will set up multiple python environments, whi
 You can set up a subset of the target environments to test against, for example:
 
 ```shell
-./tools/setup_dev_environment.py -p 3.7 3.8
+./tools/setup_dev_environment.py --python-versions 3.7 3.8
 ```
 
 The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use 
-for automating development tasks such as code linting and testing. 
+for automating development tasks such as code linting and testing.
+
+## Code organization
+
+```bash
+wandb/
+├── ...
+├── apis/   # Public api (still has internal api but this should be moved to wandb/internal)
+│   ├── ...
+│   ├── internal.py
+│   ├── ...
+│   └── public.py
+├── cli/    # Handlers for command line functionality
+├── ...
+├── integration/    # Third party integration
+│   ├── fastai/
+│   ├── gym/
+│   ├── keras/
+│   ├── lightgbm/
+│   ├── metaflow/
+│   ├── prodigy/
+│   ├── sacred/
+│   ├── sagemaker/
+│   ├── sb3/
+│   ├── tensorboard/
+│   ├── tensorflow/
+│   ├── torch/
+│   ├── xgboost/
+│   └── ...
+├── ...
+├── proto/  # Protocol buffers for inter-process communication and persist file store
+├── ...
+├── sdk/    # User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
+│   ├── backend/    # Support to launch internal process
+│   ├── ...
+│   ├── interface/  # Interface to backend execution
+│   ├── internal/   # Backend threads/processes
+│   └── ...
+├── ...
+├── sweeps/ # Hyperparameter sweep engine (see repo: https://github.com/wandb/sweeps)
+└── ...
+```
 
 ## Building protocol buffers
 
@@ -149,16 +190,18 @@ tox -e flake8,mypy
 
 ## Testing
 
-We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`. You can run all tests with:
+We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
 
-```shell
-tox
-```
-
-You should run this before you make a commit. To run specific tests in a specific environment:
+To run specific tests in a specific environment:
 
 ```shell
 tox -e py37 -- tests/test_public_api.py -k substring_of_test
+```
+
+To run all tests in a specific environment:
+
+```shell
+tox -e py38
 ```
 
 Sometimes, `pytest` will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
@@ -325,47 +368,6 @@ TODO: There are lots of cool things we could do with this, currently it just put
 
 ```shell
 tox -e dev
-```
-
-## Code organization
-
-```bash
-wandb/
-├── ...
-├── apis/   # Public api (still has internal api but this should be moved to wandb/internal)
-│   ├── ...
-│   ├── internal.py
-│   ├── ...
-│   └── public.py
-├── cli/    # Handlers for command line functionality
-├── ...
-├── integration/    # Third party integration
-│   ├── fastai/
-│   ├── gym/
-│   ├── keras/
-│   ├── lightgbm/
-│   ├── metaflow/
-│   ├── prodigy/
-│   ├── sacred/
-│   ├── sagemaker/
-│   ├── sb3/
-│   ├── tensorboard/
-│   ├── tensorflow/
-│   ├── torch/
-│   ├── xgboost/
-│   └── ...
-├── ...
-├── proto/  # Protocol buffers for inter-process communication and persist file store
-├── ...
-├── sdk/    # User accessed functions [wandb.init()] and objects [WandbRun, WandbConfig, WandbSummary, WandbSettings]
-│   ├── backend/    # Support to launch internal process
-│   ├── ...
-│   ├── interface/  # Interface to backend execution
-│   ├── internal/   # Backend threads/processes
-│   └── ...
-├── ...
-├── sweeps/ # Hyperparameter sweep engine (see repo: https://github.com/wandb/sweeps)
-└── ...
 ```
 
 ## Library Objectives
