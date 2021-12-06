@@ -299,6 +299,7 @@ class Run(object):
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _final_summary: Optional[Dict[str, Any]]
 
     def __init__(
         self,
@@ -1849,6 +1850,8 @@ class Run(object):
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
+
+        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
