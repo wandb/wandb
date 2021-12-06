@@ -48,3 +48,9 @@ class TestGitRepo:
             git_repo_with_remote_and_empty_pass.remote_url
             == "https://foo:@github.com/FooTest/Foo.git"
         )
+
+    def test_remote_with_port(self, git_repo_with_remote_and_port):
+        assert (
+            git_repo_with_remote_and_port.remote_url
+            == "https://foo:@github.com:8080/FooTest/Foo.git"
+        )
