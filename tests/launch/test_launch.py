@@ -775,6 +775,7 @@ def test_bare_wandb_uri(
         "entity": "mock_server_entity",
         "project": "test",
     }
-    kwargs["uri"] = live_mock_server.base_url + uri
+
     mock_with_run_info = launch.run(**kwargs)
+    kwargs["uri"] = live_mock_server.base_url + uri
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
