@@ -12,8 +12,10 @@ from click.decorators import command
 
 import base64
 import boto3
-import docker
+
+# import docker
 import wandb
+import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -133,14 +135,12 @@ class AWSSagemakerRunner(AbstractRunner):
             .split(":")
         )
 
-        auth_config = {"username": username, "password": password}
-
         ecr_name = launch_project.resource_args.get("ecr_name")
-        aws_tag = (
+        aws_registry = (
             token["authorizationData"][0]["proxyEndpoint"].lstrip("https://")
             + f"/{ecr_name}"
         )
-        print("aws_tag", aws_tag)
+        print(aws_registry)
 
         if self.backend_config[PROJECT_DOCKER_ARGS]:
             wandb.termwarn(
@@ -217,18 +217,24 @@ class AWSSagemakerRunner(AbstractRunner):
             )
             image_uri = launch_project.docker_image
 
-        docker_client = docker.from_env()
-        login_resp = docker_client.login(
-            username, password, registry=token["authorizationData"][0]["proxyEndpoint"]
-        )
-        if login_resp.get("Status") != "Login Succeeded":
-            raise LaunchError("Unable to login to ECR")
-        wandb.termlog(f"Pushing image {image} to ECR")
-        push_resp = docker_client.images.push(
-            aws_tag,
-            auth_config=auth_config,
-            tag="latest",
-        )
+        # docker_client = docker.from_env()
+        # login_resp = docker_client.login(
+        #     username, password, registry=token["authorizationData"][0]["proxyEndpoint"]
+        # )
+        # if login_resp.get("Status") != "Login Succeeded":
+        #     raise LaunchError("Unable to login to ECR")
+        # wandb.termlog(f"Pushing image {image} to ECR")
+        # push_resp = docker_client.images.push(
+        #     aws_tag,
+        #     auth_config=auth_config,
+        #     tag="latest",
+        # )
+        resp = docker.login(username=username, password=password, registry=aws_registry)
+        print(resp)
+        aws_tag = f"{aws_registry}:{launch_project.run_id}"
+        print(aws_tag)
+        resp = docker.push(image, aws_tag)
+        print(resp)
         # TODO: handle push errors
 
         if self.backend_config.get("runQueueItemId"):
@@ -262,13 +268,15 @@ class AWSSagemakerRunner(AbstractRunner):
                 "InstanceType": "ml.m4.xlarge",
                 "VolumeSizeInGB": 2,
             },
-            StoppingCondition={
+            StoppingCondition=launch_project.resource_args.get("StoppingCondition")
+            or {
                 "MaxRuntimeInSeconds": launch_project.resource_args.get(
                     "MaxRuntimeInSeconds"
                 )
                 or 3600
             },
-            TrainingJobName=launch_project.run_id,
+            TrainingJobName=launch_project.resource_args.get("TrainingJobName")
+            or launch_project.run_id,
             RoleArn=launch_project.resource_args.get("role_arn"),
             OutputDataConfig={
                 "S3OutputPath": launch_project.resource_args.get("OutputDataConfig")
@@ -278,5 +286,6 @@ class AWSSagemakerRunner(AbstractRunner):
 
         if resp.get("TrainingJobArn") is None:
             raise LaunchError("Unable to create training job")
+
         run = AWSSubmittedRun(launch_project.run_id, sagemaker_client)
         return run
