@@ -628,15 +628,17 @@ class _WandbInit(object):
         assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
 
-        # initiate metadata probe in separate process with timeout.
-        # we do this b/c the probe makes system calls which can block indefinitely.
-        _ = backend.interface.communicate_meta_start()
-        start = time.time()
-        self._poll_meta_done(backend.interface, timeout=30)
-        elapsed = time.time() - start
-        print(
-            f"Waiting for meta probe to finish (meta_poll) in wandb.init() took {elapsed} seconds"
-        )
+        if not s._disable_meta and not s.resume:
+            # kick off metadata probe in separate, short-lived process (with timeout).
+            # we do this here b/c the probe makes system calls which can block indefinitely,
+            # and we don't want to block the handler/internal process.
+            _ = backend.interface.communicate_meta_start()
+            start = time.time()
+            self._poll_meta_done(backend.interface, timeout=30)
+            elapsed = time.time() - start
+            print(
+                f"Waiting for meta probe to finish (meta_poll) in wandb.init() took {elapsed} seconds"
+            )
 
         self._wl._global_run_stack.append(run)
         self.run = run
