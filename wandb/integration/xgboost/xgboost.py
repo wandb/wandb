@@ -3,6 +3,7 @@
 xgboost init
 """
 
+import os
 import json
 import wandb
 import warnings
@@ -20,7 +21,6 @@ MINIMIZE_METRICS = [
     "error",
     "error@t",
     "merror",
-    "mlogloss",
 ]
 
 MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
@@ -151,7 +151,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
     def _log_model_as_artifact(self, model):
         model_name = f"{wandb.run.id}_model.json"
-        model_path = f"{wandb.run.dir}/{model_name}"
+        model_path = os.path.join(wandb.run.dir, model_name)
         model.save_model(str(model_path))
 
         model_artifact = wandb.Artifact(name=model_name, type="model")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test new xgboost integration for regression task."""
+"""Test xgboost integration for regression task."""
 
 import numpy as np
 import pandas as pd
