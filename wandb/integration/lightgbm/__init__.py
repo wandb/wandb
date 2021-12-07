@@ -13,6 +13,7 @@ import lightgbm
 import wandb
 from typing import Callable
 from lightgbm import Booster
+from pathlib import Path
 
 MINIMIZE_METRICS = [
     "l1",
@@ -48,7 +49,7 @@ def _checkpoint_artifact(model, iteration, aliases):
     """
     # model = env.model
     model_name = f"model_{wandb.run.id}"
-    model_path = f"{wandb.run.dir}/model_ckpt_{iteration}.txt"
+    model_path = Path(wandb.run.dir) / "model_ckpt_{iteration}.txt"
 
     model.save_model(model_path, num_iteration=iteration)
 
