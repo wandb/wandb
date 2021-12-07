@@ -117,7 +117,7 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError("Docker server returned error: {}".format(e))
 
 
-def construct_local_image_uri(launch_project: _project_spec.LaunchProject):
+def construct_local_image_uri(launch_project: _project_spec.LaunchProject) -> str:
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
         work_dir=launch_project.project_dir,
@@ -126,9 +126,14 @@ def construct_local_image_uri(launch_project: _project_spec.LaunchProject):
     return image_uri
 
 
-def construct_gcp_image_uri(launch_project: _project_spec.LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str):
+def construct_gcp_image_uri(
+    launch_project: _project_spec.LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
+) -> str:
     base_uri = construct_local_image_uri(launch_project)
-    return '/'.join([gcp_registry, gcp_project, gcp_repo, base_uri])
+    return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
 def build_docker_image_if_needed(
@@ -146,7 +151,7 @@ def build_docker_image_if_needed(
     :param api: instance of wandb.apis.internal Api
     :param copy_code: boolean indicating if code should be copied into the docker container
     """
-    
+
     launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
@@ -205,16 +210,18 @@ def build_docker_image_if_needed(
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    env_vars = '\n'.join([
-        f"ENV WANDB_BASE_URL={base_url}",
-        f"ENV WANDB_API_KEY={api.api_key}",
-        f"ENV WANDB_PROJECT={launch_project.target_project}",
-        f"ENV WANDB_ENTITY={launch_project.target_entity}",
-        f"ENV WANDB_LAUNCH={True}",
-        f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
-        f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
-        f"ENV WANDB_DOCKER={launch_project.docker_image}",
-    ])
+    env_vars = "\n".join(
+        [
+            f"ENV WANDB_BASE_URL={base_url}",
+            f"ENV WANDB_API_KEY={api.api_key}",
+            f"ENV WANDB_PROJECT={launch_project.target_project}",
+            f"ENV WANDB_ENTITY={launch_project.target_entity}",
+            f"ENV WANDB_LAUNCH={True}",
+            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
+            f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
+            f"ENV WANDB_DOCKER={launch_project.docker_image}",
+        ]
+    )
     dockerfile_contents += env_vars + "\n"
 
     launch_project._dockerfile_contents = dockerfile_contents

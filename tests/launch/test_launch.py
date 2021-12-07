@@ -93,7 +93,7 @@ def mock_load_backend_agent():
 
 
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
+    project_spec, api, uri, project=None, entity=None, config=None, resource="local"
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -109,6 +109,7 @@ def check_project_spec(
         assert (
             project_spec.override_config == config["config"]["overrides"]["run_config"]
         )
+    assert project_spec.resource == resource
 
     with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
         contents = fp.read()
@@ -152,6 +153,7 @@ def test_launch_base_case(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
+        "resource": "local",
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
