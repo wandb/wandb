@@ -208,6 +208,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
+    _MAX_EMBEDDING_DIMENSIONS = 150
     _log_type = "table"
 
     def __init__(
@@ -574,6 +575,8 @@ class Table(Media):
                     and "shape" in ndarray_type._params
                     and type(ndarray_type._params["shape"]) == list
                     and len(ndarray_type._params["shape"]) == 1
+                    and ndarray_type._params["shape"][0]
+                    <= self._MAX_EMBEDDING_DIMENSIONS
                 )
                 if is_1d_array:
                     self._column_types.params["type_map"][col_name] = _dtypes.ListType(
