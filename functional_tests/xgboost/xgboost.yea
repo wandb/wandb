@@ -2,7 +2,7 @@ id: 0.xgboost.xgboost
 plugin:
   - wandb
 command:
-    program: test_xgboost.py
+    program: xgboost.py
 depend:
     requirements:
         - xgboost>=1.3.0
@@ -17,11 +17,7 @@ assert:
   - :wandb:runs[0][summary][best_score]: 0.573646
   - :wandb:runs[0][summary][best_iteration]: 99
   - :wandb:runs[0][summary][epoch]: 99
-  - :op:>:
-    - :wandb:runs[0][summary][validation_0-rmse][min]
-    - 0.0
-  - :op:>:
-    - :wandb:runs[0][summary][validation_1-rmse][min]
-    - 0.0
+  - :wandb:runs[0][summary][validation_0-rmse.min]: 0.546673
+  - :wandb:runs[0][summary][validation_1-rmse.min]: 0.573646
   - :wandb:runs[0][exitcode]: 0
   
