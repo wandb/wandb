@@ -634,7 +634,7 @@ class _WandbInit(object):
             # and we don't want to block the handler/internal process.
             _ = backend.interface.communicate_meta_start()
             start = time.time()
-            self._poll_meta_done(backend.interface, timeout=30)
+            self._poll_meta_done(backend.interface, timeout=20)
             elapsed = time.time() - start
             print(
                 f"Waiting for meta probe to finish (meta_poll) in wandb.init() took {elapsed} seconds"
