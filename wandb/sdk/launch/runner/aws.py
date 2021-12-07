@@ -288,4 +288,5 @@ class AWSSagemakerRunner(AbstractRunner):
             raise LaunchError("Unable to create training job")
 
         run = AWSSubmittedRun(launch_project.run_id, sagemaker_client)
+        print("Run job submitted with arn: {}".format(run["TrainingJobArn"]))
         return run
