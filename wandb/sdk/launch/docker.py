@@ -266,11 +266,6 @@ def get_docker_command(
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
 
-    cmd += [
-        "-v",
-        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_LAUNCH_METADATA_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
-    ]
-
     if docker_args:
         for name, value in docker_args.items():
             # Passed just the name as boolean flag
@@ -353,3 +348,35 @@ def _create_docker_build_ctx(
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory
+
+
+def get_full_command(
+    image_uri: str,
+    launch_project: _project_spec.LaunchProject,
+    api: Api,
+    container_workdir: str,
+    docker_args: Dict[str, Any],
+    entry_point: _project_spec.EntryPoint,
+) -> List[str]:
+    """Returns the full shell command to execute in order to run the specified entry point.
+
+    Arguments:
+    image_uri: image uri to run
+    launch_project: LaunchProject instance used to construct the command
+    api: Instance of wandb.apis.internal Api
+    container_workdir: The working directory to use inside the container
+    docker_args: Dictionary of docker args to pass to the container
+    entry_point: Entry point to run
+
+    Returns:
+        List of strings representing the shell command to be executed
+    """
+
+    commands = []
+    commands += get_docker_command(
+        image_uri, launch_project, api, container_workdir, docker_args
+    )
+    commands += _project_spec.get_entry_point_command(
+        entry_point, launch_project.override_args
+    )
+    return commands
