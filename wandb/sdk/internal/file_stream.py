@@ -391,16 +391,19 @@ class FileStreamApi(object):
                 # If we encountered an error trying to publish the
                 # list of uploaded files, don't reset the `uploaded`
                 # list. Retry publishing the list on the next attempt.
-                if not isinstance(request_with_retry(
-                    self._client.post,
-                    self._endpoint,
-                    json={
-                        "complete": False,
-                        "failed": False,
-                        "dropped": self._dropped_chunks,
-                        "uploaded": list(uploaded),
-                    },
-                ), Exception):
+                if not isinstance(
+                    request_with_retry(
+                        self._client.post,
+                        self._endpoint,
+                        json={
+                            "complete": False,
+                            "failed": False,
+                            "dropped": self._dropped_chunks,
+                            "uploaded": list(uploaded),
+                        },
+                    ),
+                    Exception,
+                ):
                     uploaded = set()
 
         # post the final close message. (item is self.Finish instance now)
