@@ -5,6 +5,7 @@ from typing import (
     Dict,
     Optional,
     Sequence,
+    Union,
 )
 
 import attr
@@ -37,12 +38,11 @@ class Property:
         self,
         name: str,
         value: Optional[Any] = None,
-        preprocessor: Optional[Sequence[Callable]] = tuple(),
-        validator: Optional[Sequence[Callable]] = tuple(),
+        preprocessor: Union[Callable, Sequence[Callable], None] = None,
+        validator: Union[Callable, Sequence[Callable], None] = None,
         is_policy: bool = False,
         frozen: bool = False,
         source: int = Source.BASE,
-
     ):
         self.name = name
         self._preprocessor = preprocessor
@@ -56,20 +56,24 @@ class Property:
         self.__frozen = frozen
 
     def _preprocess(self, value):
-        for p in self._preprocessor:
-            value = p(value)
+        if self._preprocessor is not None:
+            _preprocessor = [self._preprocessor] if callable(self._preprocessor) else self._preprocessor
+            for p in _preprocessor:
+                value = p(value)
         return value
 
     def _validate(self, value):
-        for v in self._validator:
-            if not v(value):
-                raise ValueError(f"Invalid value for property {self.name}: {value}")
+        if self._validator is not None:
+            _validator = [self._validator] if callable(self._validator) else self._validator
+            for v in _validator:
+                if not v(value):
+                    raise ValueError(f"Invalid value for property {self.name}: {value}")
         return value
 
     def update(
-        self,
-        value: Optional[Any] = None,
-        source: Optional[int] = Source.OVERRIDE,
+            self,
+            value: Optional[Any] = None,
+            source: Optional[int] = Source.OVERRIDE,
     ):
         if self.__frozen:
             raise TypeError("Property object is frozen")
@@ -78,9 +82,9 @@ class Property:
         #   - update value if source is lower than or equal to current source and property is policy
         #   - update value if source is higher than or equal to current source and property is not policy
         if (
-            (source == Source.OVERRIDE)
-            or (self._is_policy and self._source != Source.OVERRIDE and source <= self._source)
-            or (not self._is_policy and self._source != Source.OVERRIDE and source >= self._source)
+                (source == Source.OVERRIDE)
+                or (self._is_policy and self._source != Source.OVERRIDE and source <= self._source)
+                or (not self._is_policy and self._source != Source.OVERRIDE and source >= self._source)
         ):
             self.__dict__["value"] = self._validate(self._preprocess(value))
             self._source = source
