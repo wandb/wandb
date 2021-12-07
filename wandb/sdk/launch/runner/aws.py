@@ -96,7 +96,7 @@ class AWSSagemakerRunner(AbstractRunner):
             launch_project.resource_args.get("ecr_name") is not None
         ), "AWS jobs require an ecr repository name, set this using `--resource_args ecr_name=<repo_name>`"
         assert (
-            launch_project.role_arn is not None
+            launch_project.resource_args.get("role_arn") is not None
         ), "AWS jobs require a role ARN, set this using `resource_args role_arn=<role_arn>` "
 
         region = None
@@ -135,7 +135,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         auth_config = {"username": username, "password": password}
 
-        ecr_name = launch_project.ecr_name
+        ecr_name = launch_project.resource_args.get("ecr_name")
         aws_tag = (
             token["authorizationData"][0]["proxyEndpoint"].lstrip("https://")
             + f"/{ecr_name}"
@@ -269,7 +269,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 or 3600
             },
             TrainingJobName=launch_project.run_id,
-            RoleArn=launch_project.resource_args.get("RoleArn"),
+            RoleArn=launch_project.resource_args.get("role_arn"),
             OutputDataConfig={
                 "S3OutputPath": launch_project.resource_args.get("OutputDataConfig")
                 or f"s3://wandb-output/{launch_project.run_id}/output"
