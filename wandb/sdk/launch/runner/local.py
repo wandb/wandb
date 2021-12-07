@@ -6,15 +6,12 @@ import signal
 import subprocess
 from typing import Any, Dict, List, Optional
 
-from click.decorators import command
-
 import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
     DEFAULT_LAUNCH_METADATA_PATH,
-    get_entry_point_command,
     LaunchProject,
 )
 from ..docker import (
@@ -23,7 +20,6 @@ from ..docker import (
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
-    get_docker_command,
     get_full_command,
     pull_docker_image,
     validate_docker_installation,
@@ -140,7 +136,7 @@ class LocalRunner(AbstractRunner):
                     f,
                 )
             _logger.info("Building docker image...")
-            image = build_docker_image_if_needed(
+            build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
                 copy_code=copy_code,
