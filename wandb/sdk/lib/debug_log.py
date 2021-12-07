@@ -127,7 +127,7 @@ def log_message_link(src: "MessageType", dest: "MessageType") -> None:
     return None
 
 
-def log_message_assert(src: "MessageType", dest: "MessageType") -> None:
+def log_message_assert(msg: "MessageType") -> None:
     return None
 
 
@@ -148,5 +148,5 @@ def enable() -> None:
     log_message_assert = _log_message_assert
 
 
-# Uncomment to enable
+# Uncomment to force enable
 # enable()
