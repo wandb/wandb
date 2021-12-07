@@ -378,9 +378,10 @@ class FileStreamApi(object):
             ):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
-                self._send(ready_chunks, uploaded=uploaded)
+                success = self._send(ready_chunks, uploaded=uploaded)
                 ready_chunks = []
-                uploaded = set()
+                if success:
+                    uploaded = set()
 
             # If there aren't ready chunks or uploaded files, we still want to
             # send regular heartbeats so the backend doesn't erroneously mark this
@@ -468,14 +469,27 @@ class FileStreamApi(object):
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
-                    json={
-                        "files": fs,
-                        "dropped": self._dropped_chunks,
-                        "uploaded": uploaded,
-                    },
+                    json={"files": fs, "dropped": self._dropped_chunks},
                     retry_callback=self._api.retry_callback,
                 )
             )
+
+        if uploaded:
+            if isinstance(
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "failed": False,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": uploaded,
+                    },
+                ),
+                Exception,
+            ):
+                return False
+        return True
 
     def stream_file(self, path):
         name = path.split("/")[-1]
