@@ -207,7 +207,13 @@ def test_compat_tensorboard(live_mock_server, test_settings):
     wandb.finish()
     server_ctx = live_mock_server.get_ctx()
     print("CONTEXT!", server_ctx)
-    first_stream_hist = server_ctx["file_stream"][-2]["files"]["wandb-history.jsonl"]
+    filtered = list(
+        filter(
+            lambda resp: "files" in resp and "wandb-history.jsonl" in resp["files"],
+            server_ctx["file_stream"],
+        )
+    )
+    first_stream_hist = filtered[-1]["files"]["wandb-history.jsonl"]
     print(first_stream_hist)
     assert json.loads(first_stream_hist["content"][-1])["_step"] == 9
     assert json.loads(first_stream_hist["content"][-1])["global_step"] == 9

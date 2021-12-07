@@ -378,24 +378,31 @@ class FileStreamApi(object):
             ):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
-                self._send(ready_chunks)
+                self._send(ready_chunks, uploaded=uploaded)
                 ready_chunks = []
+                uploaded = set()
 
+            # If there aren't ready chunks or uploaded files, we still want to
+            # send regular heartbeats so the backend doesn't erroneously mark this
+            # run as crashed.
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
-                self._handle_response(
-                    request_with_retry(
-                        self._client.post,
-                        self._endpoint,
-                        json={
-                            "complete": False,
-                            "failed": False,
-                            "dropped": self._dropped_chunks,
-                            "uploaded": list(uploaded),
-                        },
-                    )
-                )
-                uploaded = set()
+
+                # If we encountered an error trying to publish the
+                # list of uploaded files, don't reset the `uploaded`
+                # list. Retry publishing the list on the next attempt.
+                if not isinstance(request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "failed": False,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": list(uploaded),
+                    },
+                ), Exception):
+                    uploaded = set()
+
         # post the final close message. (item is self.Finish instance now)
         request_with_retry(
             self._client.post,
@@ -438,7 +445,8 @@ class FileStreamApi(object):
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks):
+    def _send(self, chunks, uploaded=None):
+        uploaded = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
@@ -457,7 +465,11 @@ class FileStreamApi(object):
                 request_with_retry(
                     self._client.post,
                     self._endpoint,
-                    json={"files": fs, "dropped": self._dropped_chunks},
+                    json={
+                        "files": fs,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": uploaded,
+                    },
                     retry_callback=self._api.retry_callback,
                 )
             )
