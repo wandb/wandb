@@ -21,7 +21,7 @@ from typing import (
 
 import click
 from gql import gql  # type: ignore
-from pkg_resources import parse_version  # type: ignore
+from pkg_resources import parse_version
 import requests
 import wandb
 
@@ -473,7 +473,7 @@ def check_wandb_version(api: Api) -> None:
     print_results(fail_string, warning)
 
 
-def retry_fn(fn: Callable):
+def retry_fn(fn: Callable) -> Any:
     ini_time = time.time()
     res = None
     i = 0
