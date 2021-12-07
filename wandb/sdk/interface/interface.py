@@ -1,8 +1,11 @@
-#
-# -*- coding: utf-8 -*-
-"""Backend Sender - Send to internal process
+"""Interface base class - Used to send messages to the internal process
 
-Manage backend sender.
+InterfaceBase: The abstract class
+InterfaceGrpc: Use gRPC to send and receive messages
+InterfaceShared: Common routines for socket and queue based implementations
+InterfaceQueue: Use multiprocessing queues to send and receive messages
+InterfaceSock: Use socket to send and receive messages
+InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
@@ -61,9 +64,11 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
 
 class InterfaceBase(object):
     _run: Optional["Run"]
+    _drop: bool
 
     def __init__(self) -> None:
         self._run = None
+        self._drop = False
 
     def _hack_set_run(self, run: "Run") -> None:
         self._run = run
@@ -377,7 +382,7 @@ class InterfaceBase(object):
             cfg.key = k
             cfg.value_json = json.dumps(v)
 
-        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):  # type: ignore
+        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest
@@ -588,7 +593,10 @@ class InterfaceBase(object):
         raise NotImplementedError
 
     def join(self) -> None:
-        self._communicate_shutdown()
+        # Drop indicates that the internal process has already been shutdown
+        if self._drop:
+            return
+        _ = self._communicate_shutdown()
 
     @abstractmethod
     def _communicate_shutdown(self) -> None:
