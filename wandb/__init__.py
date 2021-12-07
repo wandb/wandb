@@ -80,6 +80,7 @@ from wandb.data_types import Molecule
 from wandb.data_types import Histogram
 from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
+from wandb.data_types import Model
 
 from wandb.wandb_agent import agent
 
@@ -223,5 +224,6 @@ __all__ = [
     "Object3D",
     "Molecule",
     "Histogram",
+    "Model",
     "_enable",
 ]
