@@ -236,3 +236,30 @@ def test_launch_queue_error(runner):
 
     assert result.exit_code != 0
     assert "Cannot use both --async and --queue with wandb launch" in result.output
+
+
+def test_launch_supplied_docker_image(
+    runner, monkeypatch, live_mock_server, mocked_fetchable_git_repo
+):
+    def patched_pull_docker_image(docker_image):
+        return  # noop
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local.pull_docker_image",
+        lambda docker_image: patched_pull_docker_image(docker_image),
+    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "https://github.com/test/repo.git",
+                "--entry-point",
+                "train.py",
+                "--docker-image",
+                "test:tag",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert "Using supplied docker image: test:tag" in result.output
+    assert "test:tag python train.py" in result.output

@@ -43,6 +43,7 @@ def _run(
     parameters: Optional[Dict[str, Any]],
     docker_args: Optional[Dict[str, Any]],
     resource: str,
+    resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
     api: Api,
@@ -55,9 +56,11 @@ def _run(
         project,
         entity,
         docker_image,
+        resource,
         entry_point,
         version,
         parameters,
+        resource_args,
         launch_config,
     )
     launch_project = create_project_from_spec(launch_spec, api)
@@ -92,6 +95,7 @@ def run(
     docker_args: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     resource: str = "local",
+    resource_args: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     docker_image: Optional[str] = None,
@@ -111,6 +115,7 @@ def run(
     docker_args: Arguments (dictionary) for the docker command.
     name: Name run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    resource_args: Resource related arguments for launching runs onto a remote backend.
     project: Target project to send launched run to
     entity: Target entity to send launched run to
     config: A dictionary which will be passed as config to the backend. The exact content
@@ -167,6 +172,7 @@ def run(
         parameters=parameters,
         docker_args=docker_args,
         resource=resource,
+        resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
         api=api,
