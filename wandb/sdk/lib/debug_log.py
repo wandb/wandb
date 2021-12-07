@@ -149,4 +149,4 @@ def enable() -> None:
 
 
 # Uncomment to enable
-enable()
+# enable()
