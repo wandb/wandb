@@ -10,6 +10,7 @@ import platform
 import re
 import shutil
 import sys
+from copy import deepcopy
 from typing import (
     Any,
     cast,
@@ -2583,6 +2584,7 @@ def history_dict_to_json(
     run: "Optional[LocalRun]", payload: dict, step: Optional[int] = None
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
+    payload = deepcopy(payload)
 
     if step is None:
         # We should be at the top level of the History row; assume this key is set.
