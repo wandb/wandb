@@ -79,15 +79,16 @@ class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+        _logger.info("Validating docker installation")
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-
         entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
         copy_code = True
         if launch_project.docker_image:
+            _logger.info("Pulling user provided docker image")
             pull_docker_image(launch_project.docker_image)
             copy_code = False
         else:
@@ -102,12 +103,13 @@ class LocalRunner(AbstractRunner):
 
         command_args = []
         command_separator = " "
-
+        _logger.info("Inspecting base image for env, and working dir...")
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
 
         if launch_project.docker_image is None or launch_project.build_image:
+            _logger.info("Building docker image...")
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
@@ -117,6 +119,7 @@ class LocalRunner(AbstractRunner):
             )
         else:
             image = launch_project.docker_image
+        _logger.info("Getting docker command...")
         command_args += get_docker_command(
             image=image,
             launch_project=launch_project,
@@ -126,6 +129,7 @@ class LocalRunner(AbstractRunner):
         )
         if self.backend_config.get("runQueueItemId"):
             try:
+                _logger.info("Acking run queue item...")
                 self._api.ack_run_queue_item(
                     self.backend_config["runQueueItemId"], launch_project.run_id
                 )
@@ -134,7 +138,7 @@ class LocalRunner(AbstractRunner):
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
                 return None
-
+        _logger.info("Getting entry point command...")
         command_args += get_entry_point_command(
             entry_point, launch_project.override_args
         )
