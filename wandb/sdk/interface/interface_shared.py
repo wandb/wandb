@@ -82,7 +82,7 @@ class InterfaceShared(InterfaceBase):
             login.api_key = api_key
         return login
 
-    def _make_request(
+    def _make_request(  # noqa
         self,
         login: pb.LoginRequest = None,
         get_summary: pb.GetSummaryRequest = None,
