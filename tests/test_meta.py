@@ -151,6 +151,7 @@ def poll_meta_done():
     return _poll_meta_done
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="debug")
 def test_meta_probe_long_timeout(
     backend_interface, monkeypatch, git_repo, poll_meta_done
 ):
@@ -165,6 +166,7 @@ def test_meta_probe_long_timeout(
         assert timed_out is False
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="debug")
 def test_meta_probe_short_timeout(
     backend_interface, monkeypatch, git_repo, poll_meta_done
 ):
