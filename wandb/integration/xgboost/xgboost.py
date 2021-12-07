@@ -9,6 +9,7 @@ import wandb
 import warnings
 import xgboost as xgb
 from typing import cast
+from pathlib import Path
 
 
 MINIMIZE_METRICS = [
@@ -151,7 +152,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
     def _log_model_as_artifact(self, model):
         model_name = f"{wandb.run.id}_model.json"
-        model_path = os.path.join(wandb.run.dir, model_name)
+        model_path = Path(wandb.run.dir) / model_name
         model.save_model(str(model_path))
 
         model_artifact = wandb.Artifact(name=model_name, type="model")
