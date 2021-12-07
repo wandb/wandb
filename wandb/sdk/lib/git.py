@@ -109,13 +109,15 @@ class GitRepo(object):
         if not self.remote:
             return None
         parsed = urlparse(self.remote.url)
+        hostname = parsed.hostname
+        if parsed.port is not None:
+            hostname += ":" + str(parsed.port)
         if parsed.password is not None:
+
             return urlunparse(
-                parsed._replace(
-                    netloc="{}:@{}".format(parsed.username, parsed.hostname)
-                )
+                parsed._replace(netloc="{}:@{}".format(parsed.username, hostname))
             )
-        return urlunparse(parsed._replace(netloc=parsed.hostname))
+        return urlunparse(parsed._replace(netloc=hostname))
 
     @property
     def root_dir(self):

@@ -88,8 +88,8 @@ class TPUProfiler(object):
 
 def is_tpu_available():
     try:
-        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore  # noqa
-        from tensorflow.python.profiler import profiler_client  # type: ignore  # noqa
+        from tensorflow.python.distribute.cluster_resolver import tpu_cluster_resolver  # type: ignore # noqa
+        from tensorflow.python.profiler import profiler_client  # type: ignore # noqa
     except (
         ImportError,
         TypeError,

@@ -36,6 +36,7 @@ class LaunchProject(object):
     def __init__(
         self,
         uri: str,
+        api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
@@ -43,8 +44,14 @@ class LaunchProject(object):
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
+        resource: str,
+        resource_args: Dict[str, str],
     ):
+        if utils.is_bare_wandb_uri(uri):
+            uri = api.settings("base_url") + uri
+            _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
+        self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
@@ -56,11 +63,14 @@ class LaunchProject(object):
         uid = 1000
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
+            _logger.info(f"Retrieved base image uid {uid}")
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self.resource = resource
+        self.resource_args = resource_args
         self._runtime: Optional[str] = None
         self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
@@ -68,15 +78,18 @@ class LaunchProject(object):
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
         if "entry_point" in overrides:
+            _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
-
         if utils._is_wandb_uri(self.uri):
+            _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
         elif utils._is_git_uri(self.uri):
+            _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         else:
+            _logger.info(f"URI {self.uri} indicates a local uri")
             # assume local
             if not os.path.exists(self.uri):
                 raise LaunchError(
@@ -88,7 +101,6 @@ class LaunchProject(object):
             self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
-
         self.clear_parameter_run_config_collisions()
 
     @property
@@ -96,7 +108,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
         generated_name = "{}_base:{}".format(
-            self.target_project, self.python_version or "3"
+            self.target_project.replace(" ", "-"), self.python_version or "3"
         )
         return self._base_image or generated_name
 
@@ -150,6 +162,7 @@ class LaunchProject(object):
     def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
+        _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
             source_entity, source_project, source_run_name = utils.parse_wandb_uri(
                 self.uri
@@ -220,7 +233,6 @@ class LaunchProject(object):
 
             if not self._entry_points:
                 self.add_entry_point(entry_point)
-
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
             )
@@ -234,7 +246,6 @@ class LaunchProject(object):
                     "Entry point for repo not specified, defaulting to main.py"
                 )
                 self.add_entry_point("main.py")
-
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
@@ -347,9 +358,9 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
-
     return LaunchProject(
         uri,
+        api,
         launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
@@ -357,6 +368,8 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),
+        launch_spec.get("resource", "local"),
+        launch_spec.get("resource_args", {}),
     )
 
 
@@ -380,6 +393,7 @@ def fetch_and_validate_project(
     else:
         launch_project._fetch_project_local(internal_api=api)
     first_entry_point = list(launch_project._entry_points.keys())[0]
+    _logger.info("validating entrypoint parameters")
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
         launch_project.override_args
     )

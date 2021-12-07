@@ -1872,8 +1872,7 @@ class ParseCTX(object):
 
     @property
     def summary_wandb(self):
-        # TODO: move this to config_user eventually
-        return self.summary_raw["_wandb"]
+        return self.summary_raw.get("_wandb", {})
 
     @property
     def history(self):

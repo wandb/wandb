@@ -232,7 +232,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
     def _setup_manager(self) -> None:
         if not self._settings._require_service:
             return
-        self._manager = wandb_manager._Manager()
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        use_grpc = self._settings._service_transport == "grpc"
+        self._manager = wandb_manager._Manager(_use_grpc=use_grpc)
 
     def _teardown_manager(self, exit_code: int) -> None:
         if not self._manager:
