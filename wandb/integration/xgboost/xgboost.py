@@ -86,10 +86,10 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
     def __init__(
         self,
-        log_model: bool = False,
-        log_feature_importance: bool = True,
-        importance_type: str = "gain",
-        define_metric: bool = True,
+        log_model=False,
+        log_feature_importance=True,
+        importance_type="gain",
+        define_metric=True,
     ):
 
         if wandb.run is None:
