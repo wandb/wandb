@@ -260,7 +260,4 @@ def test_launch_supplied_docker_image(
 
     assert result.exit_code == 0
     assert "Using supplied docker image: test:tag" in result.output
-    assert (
-        "Launching run in docker with command: docker run --rm --network host test:tag python train.py"
-        in result.output
-    )
+    assert "test:tag python train.py" in result.output

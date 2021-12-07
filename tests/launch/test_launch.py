@@ -93,7 +93,14 @@ def mock_load_backend_agent():
 
 
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, resource="local"
+    project_spec,
+    api,
+    uri,
+    project=None,
+    entity=None,
+    config=None,
+    resource="local",
+    resource_args=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -110,6 +117,10 @@ def check_project_spec(
             project_spec.override_config == config["config"]["overrides"]["run_config"]
         )
     assert project_spec.resource == resource
+    if resource_args:
+        assert set([(k, v) for k, v in resource_args.items()]) == set(
+            [(k, v) for k, v in project_spec.resource_args.items()]
+        )
 
     with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
         contents = fp.read()
@@ -153,7 +164,31 @@ def test_launch_base_case(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
+    }
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
+def test_launch_resource_args(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
         "resource": "local",
+        "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)

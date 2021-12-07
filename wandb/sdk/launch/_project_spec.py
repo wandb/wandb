@@ -45,6 +45,7 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
         resource: str,
+        resource_args: Dict[str, str],
     ):
         if utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -69,6 +70,7 @@ class LaunchProject(object):
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.resource = resource
+        self.resource_args = resource_args
         self._runtime: Optional[str] = None
         self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
@@ -365,6 +367,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),
         launch_spec.get("resource", "local"),
+        launch_spec.get("resource_args", {}),
     )
 
 
