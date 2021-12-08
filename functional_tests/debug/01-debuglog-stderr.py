@@ -11,9 +11,11 @@ assert:
   - :wandb:runs[0][summary]:
       m1: 1
       m2: 2
-  - :op:contains_regex:
-    - :wandb:runs[0][output][stderr]
-    - "queue   MainThread       history"
+  # TODO: change this test to use logger and add func to yea
+  #       to pull in logger info.
+  # - :op:contains_regex:
+  #   - :wandb:runs[0][output][stderr]
+  #   - "queue   MainThread       history"
   - :wandb:runs[0][exitcode]: 0
 """
 

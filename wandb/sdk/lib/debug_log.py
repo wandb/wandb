@@ -130,6 +130,11 @@ def _log_message_assert(msg: "MessageType") -> None:
     _log_message(msg, "assert")
 
 
+#
+# Default functions when logging is disabled
+#
+
+
 def log_message_queue(msg: "MessageType", q: "QueueType") -> None:
     return None
 
