@@ -205,10 +205,7 @@ def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
         )
     else:
         process = subprocess.Popen(
-            ["bash", "-c", command],
-            close_fds=True,
-            cwd=work_dir,
-            env=env,
+            ["bash", "-c", command], close_fds=True, cwd=work_dir, env=env,
         )
 
     return LocalSubmittedRun(process)

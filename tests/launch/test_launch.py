@@ -1,5 +1,6 @@
 import json
 import os
+from tests.utils.utils import mock_sagemaker
 from wandb.apis import PublicApi
 from unittest.mock import MagicMock
 from wandb.sdk.launch.agent.agent import LaunchAgent
@@ -11,6 +12,7 @@ except ImportError:  # TODO: this is only for python2
     import mock
 import sys
 
+import boto3
 import wandb
 import wandb.util as util
 import wandb.sdk.launch.launch as launch
@@ -816,3 +818,68 @@ def test_bare_wandb_uri(
     mock_with_run_info = launch.run(**kwargs)
     kwargs["uri"] = live_mock_server.base_url + uri
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
+def test_launch_aws_sagemaker(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+):
+    mock_boto3 = MagicMock()
+
+    def mock_client(*args, **kwargs):
+        if args[0] == "sagemaker":
+            mock_sagemaker_client = MagicMock()
+            mock_sagemaker_client.create_trainingHobby_job.return_value = {
+                "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
+            }
+            mock_sagemaker_client.stop_training_job.return_value = {
+                "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
+            }
+            mock_sagemaker_client.describe_training_job.return_value = {
+                "TrainingJobStatus": "Completed",
+                "TrainingJobName": "test-job-1",
+            }
+            return mock_sagemaker_client
+        elif args[0] == "ecr":
+            ecr_client = MagicMock()
+            ecr_client.get_authorization_token.return_value = {
+                "authorizationData": [
+                    {
+                        "proxyEndpoint": "https://123456789012.dkr.ecr.us-east-1.amazonaws.com",
+                    }
+                ]
+            }
+            return MagicMock()
+
+    mock_boto3.client = mock_client
+
+    monkeypatch.setattr(boto3, "client", mock_client)
+    monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository {x}"
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: b"Login Succeeded\n"
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "ecr_name": "my-test-repo",
+            "role_arn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+        },
+    }
+    run = launch.run(**kwargs)
+    assert run.training_job_name == "test-job-1"

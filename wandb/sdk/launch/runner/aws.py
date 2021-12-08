@@ -3,25 +3,18 @@ import json
 import logging
 import os
 import re
-import signal
 import subprocess
 import time
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-from click.decorators import command
-
-import base64
-import boto3
-
-# import docker
 import wandb
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
+from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
     DEFAULT_LAUNCH_METADATA_PATH,
-    get_entry_point_command,
     LaunchProject,
 )
 from ..docker import (
@@ -30,14 +23,12 @@ from ..docker import (
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
-    get_docker_command,
     get_full_command,
     pull_docker_image,
     validate_docker_installation,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,
-    PROJECT_SYNCHRONOUS,
 )
 
 
@@ -47,14 +38,14 @@ _logger = logging.getLogger(__name__)
 class AWSSubmittedRun(AbstractRun):
     """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command locally."""
 
-    def __init__(self, training_job_name, client) -> None:
+    def __init__(self, training_job_name: str, client: "boto3.Client") -> None:
         super().__init__()
         self.client = client
         self.training_job_name = training_job_name
         self._status = Status("starting")
 
     @property
-    def id(self) -> int:
+    def id(self) -> str:
         return f"sagemaker-{self.training_job_name}"
 
     def wait(self) -> bool:
@@ -69,11 +60,11 @@ class AWSSubmittedRun(AbstractRun):
         # Interrupt child process if it hasn't already exited
         status = self.get_status()
         if status.state in ["running", "starting", "unknown"]:
-            self.client().stop_training_job(TrainingJobName=self.training_job_name)
+            self.client.stop_training_job(TrainingJobName=self.training_job_name)
             self.wait()
 
     def get_status(self) -> Status:
-        job_status = self.client().describe_training_job(
+        job_status = self.client.describe_training_job(
             TrainingJobName=self.training_job_name
         )["TrainingJobStatus"]
         if job_status == "Completed":
@@ -93,6 +84,7 @@ class AWSSagemakerRunner(AbstractRunner):
     """Runner class, uses a project to create a AWSSubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+        boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
         validate_docker_installation()
         assert (
             launch_project.resource_args.get("ecr_name") is not None
@@ -129,18 +121,12 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_secret_access_key=secret_key,
         )
         token = ecr_client.get_authorization_token()
-        username, password = (
-            base64.b64decode(token["authorizationData"][0]["authorizationToken"])
-            .decode()
-            .split(":")
-        )
 
         ecr_name = launch_project.resource_args.get("ecr_name")
         aws_registry = (
             token["authorizationData"][0]["proxyEndpoint"].lstrip("https://")
             + f"/{ecr_name}"
         )
-        print(aws_registry)
 
         if self.backend_config[PROJECT_DOCKER_ARGS]:
             wandb.termwarn(
@@ -217,27 +203,17 @@ class AWSSagemakerRunner(AbstractRunner):
             )
             image_uri = launch_project.docker_image
 
-        # docker_client = docker.from_env()
-        # login_resp = docker_client.login(
-        #     username, password, registry=token["authorizationData"][0]["proxyEndpoint"]
-        # )
-        # if login_resp.get("Status") != "Login Succeeded":
-        #     raise LaunchError("Unable to login to ECR")
-        # wandb.termlog(f"Pushing image {image} to ECR")
-        # push_resp = docker_client.images.push(
-        #     aws_tag,
-        #     auth_config=auth_config,
-        #     tag="latest",
-        # )
+        login_resp = aws_ecr_login(region, aws_registry)
+        if "Login Succeeded" not in login_resp:
+            raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
-        resp = aws_ecr_login(region, password, aws_registry)
-        print(resp)
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
         docker.tag(image, aws_tag)
-        print(aws_tag)
-        resp = docker.push(aws_registry, launch_project.run_id)
-        print(resp)
-        # TODO: handle push errors
+        push_resp = docker.push(aws_registry, launch_project.run_id)
+        if push_resp is None:
+            raise LaunchError("Failed to push image to repository.")
+        if f"The push refers to repository [{aws_registry}]" not in push_resp:
+            raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
         if self.backend_config.get("runQueueItemId"):
             try:
@@ -255,6 +231,9 @@ class AWSSagemakerRunner(AbstractRunner):
             "Launching run on sagemaker with entrypoint: {}".format(
                 " ".join(command_args)
             )
+        )
+        training_job_name = (
+            launch_project.resource_args.get("TrainingJobName") or launch_project.run_id
         )
         resp = sagemaker_client.create_training_job(
             AlgorithmSpecification={
@@ -277,8 +256,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 )
                 or 3600
             },
-            TrainingJobName=launch_project.resource_args.get("TrainingJobName")
-            or launch_project.run_id,
+            TrainingJobName=training_job_name,
             RoleArn=launch_project.resource_args.get("role_arn"),
             OutputDataConfig={
                 "S3OutputPath": launch_project.resource_args.get("OutputDataConfig")
@@ -289,12 +267,12 @@ class AWSSagemakerRunner(AbstractRunner):
         if resp.get("TrainingJobArn") is None:
             raise LaunchError("Unable to create training job")
 
-        run = AWSSubmittedRun(launch_project.run_id, sagemaker_client)
+        run = AWSSubmittedRun(training_job_name, sagemaker_client)
         print("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
         return run
 
 
-def aws_ecr_login(region, registry):
+def aws_ecr_login(region: str, registry: str) -> str:
     pw = subprocess.run(
         f"aws ecr get-login-password --region {region}".split(" "),
         capture_output=True,
@@ -306,4 +284,4 @@ def aws_ecr_login(region, registry):
         capture_output=True,
         check=True,
     )
-    return login_process.stdout
+    return login_process.stdout.decode("utf-8")
