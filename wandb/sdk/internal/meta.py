@@ -63,12 +63,12 @@ class Meta(object):
     def start(self):
         timeout = self.get_timeout()
         self.probe_process = multiprocessing.Process(
-            target=self.create_child_process, args=(timeout, self._interface),
+            target=self.create_child_process, args=(timeout),
         )
         self.probe_process.start()
         logger.debug("meta started parent process")
 
-    def create_child_process(self, timeout, interface):
+    def create_child_process(self, timeout):
         p = multiprocessing.Process(target=self.run, args=())
         p.start()
         logger.debug(f"meta started child process with timeout {timeout}")
@@ -85,7 +85,7 @@ class Meta(object):
         elif p.exitcode == 1:
             error = True
         # Put a MetaDoneRequest on the handler queue
-        interface.publish_meta_done(timed_out, error)
+        self._interface.publish_meta_done(timed_out, error)
         print("meta child process sent MetaDoneRequest")
 
         if p.is_alive():
