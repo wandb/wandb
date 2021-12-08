@@ -97,9 +97,11 @@ def construct_launch_spec(
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
+    resource: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
+    resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
@@ -118,6 +120,9 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
+
+    if "resource" not in launch_spec:
+        launch_spec["resource"] = resource or "local"
 
     if "git" not in launch_spec:
         launch_spec["git"] = {}
@@ -142,6 +147,10 @@ def construct_launch_spec(
         launch_spec["overrides"]["args"] = util._user_args_to_dict(
             launch_spec["overrides"].get("args")
         )
+
+    if resource_args:
+        launch_spec["resource_args"] = resource_args
+
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
 
