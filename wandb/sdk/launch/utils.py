@@ -15,7 +15,9 @@ from wandb.errors import CommError, ExecutionError, LaunchError
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
-_WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
+_VALID_IP_REGEX = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
+_VALID_WANDB_REGEX = r"^https?://(api.)?wandb"
+_WANDB_URI_REGEX = re.compile(r"|".join([_VALID_WANDB_REGEX, _VALID_IP_REGEX]))
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
@@ -95,9 +97,11 @@ def construct_launch_spec(
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
+    resource: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
+    resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
@@ -116,6 +120,9 @@ def construct_launch_spec(
         launch_spec["docker"] = {}
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
+
+    if "resource" not in launch_spec:
+        launch_spec["resource"] = resource or "local"
 
     if "git" not in launch_spec:
         launch_spec["git"] = {}
@@ -140,6 +147,10 @@ def construct_launch_spec(
         launch_spec["overrides"]["args"] = util._user_args_to_dict(
             launch_spec["overrides"].get("args")
         )
+
+    if resource_args:
+        launch_spec["resource_args"] = resource_args
+
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
 
@@ -163,9 +174,23 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     return entity, project, name
 
 
+def is_bare_wandb_uri(uri: str) -> bool:
+    """Checks if the uri is of the format /entity/project/runs/run_name"""
+    _logger.info(f"Checking if uri {uri} is bare...")
+    if not uri.startswith("/"):
+        return False
+    result = uri.split("/")[1:]
+    # a bare wandb uri will have 4 parts, with the last being the run name
+    # and the second last being "runs"
+    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
+        return True
+    return False
+
+
 def fetch_wandb_project_run_info(
     entity: str, project: str, run_name: str, api: Api
 ) -> Any:
+    _logger.info("Fetching run info...")
     try:
         result = api.get_run_info(entity, project, run_name)
     except CommError:
@@ -211,6 +236,7 @@ def download_wandb_python_deps(
         project, "requirements.txt", run=run_name, entity=entity
     )
     if metadata is not None:
+        _logger.info("Downloading python dependencies")
         _, response = api.download_file(metadata["url"])
 
         with util.fsync_open(
@@ -226,6 +252,7 @@ def fetch_project_diff(
     entity: str, project: str, run_name: str, api: Api
 ) -> Optional[str]:
     """Fetches project diff from wandb servers."""
+    _logger.info("Searching for diff.patch")
     patch = None
     try:
         (_, _, patch, _) = api.run_config(project, run_name, entity)
@@ -236,6 +263,7 @@ def fetch_project_diff(
 
 def apply_patch(patch_string: str, dst_dir: str) -> None:
     """Applies a patch file to a directory."""
+    _logger.info("Applying diff.patch")
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
@@ -264,6 +292,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     # executable is available on the PATH, so we only want to fail if we actually need it.
     import git  # type: ignore
 
+    _logger.info("Fetching git repo")
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
@@ -297,6 +326,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
         "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
     )
 
+    _logger.info("Converting notebook to script")
     new_name = fname.rstrip(".ipynb") + ".py"
     with open(os.path.join(project_dir, fname), "r") as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
@@ -312,6 +342,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
 def check_and_download_code_artifacts(
     entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
 ) -> bool:
+    _logger.info("Checking for code artifacts")
     public_api = wandb.PublicApi(
         overrides={"base_url": internal_api.settings("base_url")}
     )
