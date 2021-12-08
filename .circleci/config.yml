@@ -141,6 +141,10 @@ workflows:
          image: "python:3.7"
          toxenv: "func-s_service-py37,func-covercircle"
       - test:
+         name: "func-s_noml-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_noml-py37,func-covercircle"
+      - test:
          name: "func-s_grpc-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_grpc-py37,func-covercircle"
