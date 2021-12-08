@@ -7,6 +7,6 @@
 W&B callback for CatBoost
 """
 
-from .catboost import WandbCallback
+from .catboost import log_summary, WandbCallback
 
-__all__ = ["WandbCallback"]
+__all__ = ["log_summary", "WandbCallback"]
