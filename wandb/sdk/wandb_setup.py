@@ -22,7 +22,7 @@ import wandb
 
 from . import wandb_manager
 from . import wandb_settings
-from .lib import config_util, server
+from .lib import config_util, debug_log, server
 
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -101,6 +101,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         self._check()
         self._setup()
+
+        debug_log_mode = self._settings._debug_log
+        if debug_log_mode:
+            debug_log.enable(debug_log_mode)
 
     def _settings_setup(self, settings=None, early_logger=None):
         # TODO: Do a more formal merge of user settings from the backend.
