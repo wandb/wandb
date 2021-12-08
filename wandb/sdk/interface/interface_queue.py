@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from .interface_shared import InterfaceShared
 from .router_queue import MessageQueueRouter
+from ..lib import debug_log
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -45,4 +46,5 @@ class InterfaceQueue(InterfaceShared):
         if local:
             record.control.local = local
         if self.record_q:
+            debug_log.log_message_queue(record, self.record_q)
             self.record_q.put(record)
