@@ -5,6 +5,7 @@ Start up grpc or socket transport servers.
 
 from concurrent import futures
 import logging
+import os
 import sys
 from typing import Optional
 
@@ -15,6 +16,7 @@ from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 from . import port_file
 from .server_sock import SocketServer
 from .streams import StreamMux
+from ..lib import debug_log
 
 
 class WandbServer:
@@ -109,7 +111,15 @@ class WandbServer:
         if self._sock_server:
             self._sock_server.stop()
 
+    def _setup_debug_log(self) -> None:
+        # TODO: remove this temporary hack, need to find a better way to pass settings
+        # to the server.  for now lets just look at the environment variable we need
+        debug_log_mode = os.environ.get("WANDB_DEBUG_LOG")
+        if debug_log_mode:
+            debug_log.enable(debug_log_mode)
+
     def serve(self) -> None:
+        self._setup_debug_log()
         mux = StreamMux()
         grpc_port = self._start_grpc(mux=mux) if self._serve_grpc else None
         sock_port = self._start_sock(mux=mux) if self._serve_sock else None
