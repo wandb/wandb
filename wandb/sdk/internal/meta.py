@@ -63,7 +63,7 @@ class Meta(object):
     def start(self):
         timeout = self.get_timeout()
         self.probe_process = multiprocessing.Process(
-            target=self.create_child_process, args=(timeout),
+            target=self.create_child_process, args=(timeout,),
         )
         self.probe_process.start()
         logger.debug("meta started parent process")
