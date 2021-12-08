@@ -229,11 +229,13 @@ class AWSSagemakerRunner(AbstractRunner):
         #     auth_config=auth_config,
         #     tag="latest",
         # )
-        resp = docker.login(username=username, password=password, registry=aws_registry)
+
+        resp = aws_ecr_login(region, password, aws_registry)
         print(resp)
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
+        docker.tag(image, aws_tag)
         print(aws_tag)
-        resp = docker.push(image, aws_tag)
+        resp = docker.push(aws_registry, launch_project.run_id)
         print(resp)
         # TODO: handle push errors
 
@@ -288,5 +290,20 @@ class AWSSagemakerRunner(AbstractRunner):
             raise LaunchError("Unable to create training job")
 
         run = AWSSubmittedRun(launch_project.run_id, sagemaker_client)
-        print("Run job submitted with arn: {}".format(run["TrainingJobArn"]))
+        print("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
         return run
+
+
+def aws_ecr_login(region, registry):
+    pw = subprocess.run(
+        f"aws ecr get-login-password --region {region}".split(" "),
+        capture_output=True,
+        check=True,
+    )
+    login_process = subprocess.run(
+        f"docker login --username AWS --password-stdin {registry}".split(" "),
+        input=pw.stdout,
+        capture_output=True,
+        check=True,
+    )
+    return login_process.stdout

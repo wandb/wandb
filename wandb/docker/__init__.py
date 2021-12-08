@@ -27,7 +27,8 @@ def shell(cmd: List[str]) -> Optional[str]:
             .decode("utf8")
             .strip()
         )
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print(e)
         return None
 
 
@@ -211,9 +212,9 @@ def get_image_uid(image_name: str) -> int:
     return int(shell(["run", image_name, "id", "-u"]))
 
 
-def push(image_name: str, ecr_string: str) -> Optional[str]:
+def push(ecr_string: str, tag: str) -> Optional[str]:
     """Push an image to an ECR repository"""
-    return shell(["push", image_name, ecr_string])
+    return shell(["push", f"{ecr_string}:{tag}"])
 
 
 def login(username: str, password: str, registry: str) -> Optional[str]:
@@ -221,6 +222,11 @@ def login(username: str, password: str, registry: str) -> Optional[str]:
     return shell(
         ["login", "--username", username, "--password-stdin", password, registry]
     )
+
+
+def tag(image_name: str, tag: str) -> Optional[str]:
+    """Tag an image"""
+    return shell(["tag", image_name, tag])
 
 
 __all__ = [
@@ -235,4 +241,6 @@ __all__ = [
     "default_image",
     "get_image_uid",
     "push",
+    "login",
+    "tag",
 ]
