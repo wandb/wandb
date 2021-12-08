@@ -1,8 +1,8 @@
 import configparser
+import itertools
 import json
 import logging
 import os
-import re
 import subprocess
 import time
 from typing import List, Optional
@@ -16,6 +16,7 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
     DEFAULT_LAUNCH_METADATA_PATH,
     LaunchProject,
+    get_entry_point_command,
 )
 from ..docker import (
     build_docker_image_if_needed,
@@ -27,9 +28,7 @@ from ..docker import (
     pull_docker_image,
     validate_docker_installation,
 )
-from ..utils import (
-    PROJECT_DOCKER_ARGS,
-)
+from ..utils import PROJECT_DOCKER_ARGS
 
 
 _logger = logging.getLogger(__name__)
@@ -159,19 +158,14 @@ class AWSSagemakerRunner(AbstractRunner):
 
         if launch_project.docker_image is None or launch_project.build_image:
             image_uri = construct_local_image_uri(launch_project)
-            command_args = get_full_command(
-                image_uri,
-                launch_project,
-                self._api,
-                container_workdir,
-                {},
-                entry_point,
+            command_args += get_entry_point_command(
+                entry_point, launch_project.override_args
             )
-            command_str = command_separator.join(command_args)
-
-            sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            # create a flattened list of all the command inputs for the dockerfile
+            command_args = list(
+                itertools.chain(*[ca.split(" ") for ca in command_args])
             )
+            sanitized_command_str = command_separator.join(command_args)
             with open(
                 os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
                 "w",

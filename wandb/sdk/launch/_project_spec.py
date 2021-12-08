@@ -309,6 +309,7 @@ class EntryPoint(object):
         params, extra_params = self.compute_parameters(user_parameters)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
+        print(command_arr)
         command_arr.extend(
             [
                 "--%s %s" % (key, value) if value is not None else "--%s" % (key)
