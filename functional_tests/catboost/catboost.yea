@@ -14,6 +14,7 @@ assert:
   - :wandb:runs[0][config][eval_metric]: MultiClass
   - :wandb:runs[0][config][iterations]: 10
   - :wandb:runs[0][summary][iteration@metric-period-1]: 10
+  - :wandb:runs[0][summary][Feature Importance_table][_type]: table-file
   - :op:>:
     - :wandb:runs[0][summary][learn-MultiClass]
     - 0.0

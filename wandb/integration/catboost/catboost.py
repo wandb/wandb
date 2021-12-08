@@ -72,10 +72,29 @@ def _checkpoint_artifact(
     wandb.log_artifact(model_artifact, aliases=aliases)
 
 
+def _log_feature_importance(model):
+    """
+    Log feature importance with default settings.
+    """
+    feat_df = model.get_feature_importance(prettified=True)
+
+    fi_data = [[feat, feat_imp] for feat, feat_imp in zip(feat_df['Feature Id'], feat_df['Importances'])]
+    table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
+    wandb.log(
+        {
+            "Feature Importance": wandb.plot.bar(
+                table, "Feature", "Importance", title="Feature Importance"
+            )
+        },
+        commit=False,
+    )
+
+
 def log_summary(
     model: Union[CatBoostClassifier, CatBoostRegressor],
     log_all_params: bool = True,
     save_model_checkpoint: bool = False,
+    log_feature_importance: bool = True
 ):
     """`log_summary` logs useful metrics about catboost model after training is done
 
@@ -83,12 +102,14 @@ def log_summary(
         model: it can be CatBoostClassifier or CatBoostRegressor.
         log_all_params: (boolean) if True (default) log the model hyperparameters as W&B config.
         save_model_checkpoint: (boolean) if True saves the model upload as W&B artifacts.
+        log_feature_importance: (boolean) if True (default) logs feature importance as W&B bar chart using the default setting of `get_feature_importance`. 
 
     Using this along with `wandb_callback` will:
 
     - save the hyperparameters as W&B config,
     - log `best_iteration` and `best_score` as `wandb.summary`,
     - save and upload your trained model to Weights & Biases Artifacts (when `save_model_checkpoint = True`)
+    - log feature importance plot.
 
     Example:
         ```python
@@ -133,3 +154,7 @@ def log_summary(
             _checkpoint_artifact(model, aliases=["best"])
         else:
             _checkpoint_artifact(model, aliases=["last"])
+
+    # Feature importance
+    if log_feature_importance:
+        _log_feature_importance(model)
