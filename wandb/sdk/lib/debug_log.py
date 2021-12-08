@@ -60,13 +60,29 @@ def _log(
     relay = ""
     if data and data.control and data.control.relay_id:
         relay = data.control.relay_id
-    line = f"{arrow} {ts} {log_type:7} {tname:16} {msg_type:24} {uuid:32} {relay:32}"
+    line = f"{arrow} {ts} {log_type:7} {tname:16} {msg_type:28} {uuid:32} {relay:32}"
     if debug_log_mode == "stdout":
         print(line, file=sys.__stdout__)
     elif debug_log_mode == "stderr":
         print(line, file=sys.__stderr__)
     elif debug_log_mode == "logger":
         logger.info(line)
+
+
+def _record_msg_type(record: "pb.Record") -> str:
+    msg_type = str(record.WhichOneof("record_type"))
+    if msg_type == "request":
+        request = record.request
+        msg_type = str(request.WhichOneof("request_type"))
+    return msg_type
+
+
+def _result_msg_type(result: "pb.Result") -> str:
+    msg_type = str(result.WhichOneof("result_type"))
+    if msg_type == "response":
+        response = result.response
+        msg_type = str(response.WhichOneof("response_type"))
+    return msg_type
 
 
 def _log_message(msg: "MessageType", log_type: str) -> None:
@@ -78,18 +94,31 @@ def _log_message(msg: "MessageType", log_type: str) -> None:
     message_type_str = type(msg).__name__
     if message_type_str == "Record":
         record = cast("pb.Record", msg)
-        msg_type = str(record.WhichOneof("record_type"))
+        msg_type = _record_msg_type(record)
     elif message_type_str == "Result":
-        result = cast("pb.Result", msg)
-        msg_type = str(result.WhichOneof("result_type"))
         is_response = True
+        result = cast("pb.Result", msg)
+        msg_type = _result_msg_type(result)
     elif message_type_str == "ServerRequest":
         server_request = cast("spb.ServerRequest", msg)
         msg_type = str(server_request.WhichOneof("server_request_type"))
+        if msg_type == "record_publish":
+            record = server_request.record_publish
+            sub_msg_type = _record_msg_type(record)
+            msg_type = f"pub-{sub_msg_type}"
+        elif msg_type == "record_communicate":
+            record = server_request.record_communicate
+            sub_msg_type = _record_msg_type(record)
+            msg_type = f"comm-{sub_msg_type}"
+        # print("SRV", server_request)
     elif message_type_str == "ServerResponse":
+        is_response = True
         server_response = cast("spb.ServerResponse", msg)
         msg_type = str(server_response.WhichOneof("server_response_type"))
-        is_response = True
+        if msg_type == "result_communicate":
+            result = server_response.result_communicate
+            sub_msg_type = _result_msg_type(result)
+            msg_type = f"comm-{sub_msg_type}"
     else:
         raise AssertionError(f"Unknown message type {message_type_str}")
     _log(
