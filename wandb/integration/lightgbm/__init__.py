@@ -49,7 +49,7 @@ def _checkpoint_artifact(model, iteration, aliases):
     """
     # model = env.model
     model_name = f"model_{wandb.run.id}"
-    model_path = Path(wandb.run.dir) / "model_ckpt_{iteration}.txt"
+    model_path = Path(wandb.run.dir) / f"model_ckpt_{iteration}.txt"
 
     model.save_model(model_path, num_iteration=iteration)
 
@@ -152,7 +152,7 @@ def log_summary(
     Arguments:
         model: (Booster) is an instance of lightgbm.basic.Booster. 
         feature_importance: (boolean) if True (default), logs the feature importance plot.
-        save_model_checkpoint: (boolean) if True saves the best model upload as W&B artifacts.
+        save_model_checkpoint: (boolean) if True saves the best model and upload as W&B artifacts.
     
     Using this along with `wandb_callback` will:
     
