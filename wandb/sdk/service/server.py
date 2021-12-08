@@ -9,9 +9,7 @@ import os
 import sys
 from typing import Optional
 
-import grpc
 import wandb
-from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 
 from . import port_file
 from .server_sock import SocketServer
@@ -68,6 +66,8 @@ class WandbServer:
 
     def _start_grpc(self, mux: StreamMux) -> int:
         from .server_grpc import WandbServicer
+        import grpc
+        from wandb.proto import wandb_server_pb2_grpc as spb_grpc
 
         address: str = self._address or "127.0.0.1"
         port: int = self._grpc_port or 0
