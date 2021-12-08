@@ -2,11 +2,14 @@ import enum
 from typing import (
     Any,
     Callable,
+    cast,
     Dict,
     Optional,
     Sequence,
+    TYPE_CHECKING,
     Union,
 )
+from urllib.parse import urljoin
 
 
 def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
@@ -38,6 +41,8 @@ class Property:
         value: Optional[Any] = None,
         preprocessor: Union[Callable, Sequence[Callable], None] = None,
         validator: Union[Callable, Sequence[Callable], None] = None,
+        # runtime converter (hook?): properties can be e.g. tied to other properties
+        hook: Union[Callable, Sequence[Callable], None] = None,
         is_policy: bool = False,
         frozen: bool = False,
         source: int = Source.BASE,
@@ -46,19 +51,25 @@ class Property:
         self.name = name
         self._preprocessor = preprocessor
         self._validator = validator
+        self._hook = hook
         self._is_policy = is_policy
+        if TYPE_CHECKING:
+            source = cast(Optional[int], source)
         self._source = source
 
         # preprocess and validate value
-        # self.__dict__["value"] = self._validate(self._preprocess(value))
-        # object.__setattr__(self, "_value", self._validate(self._preprocess(value)))
         self._value = self._validate(self._preprocess(value))
 
         self.__frozen = frozen
 
     @property
     def value(self):
-        return self._value
+        _value = self._value
+        if self._hook is not None:
+            _hook = [self._hook] if callable(self._hook) else self._hook
+            for h in _hook:
+                _value = h(_value)
+        return _value
 
     def _preprocess(self, value):
         if self._preprocessor is not None:
@@ -82,6 +93,8 @@ class Property:
     ):
         if self.__frozen:
             raise TypeError("Property object is frozen")
+        if TYPE_CHECKING:
+            source = cast(Optional[int], source)
         # - always update value if source == Source.OVERRIDE
         # - if not previously overridden:
         #   - update value if source is lower than or equal to current source and property is policy
@@ -103,10 +116,10 @@ class Property:
         self.__dict__[key] = value
 
     def __repr__(self):
-        # return f"<Property {self.name}: value={self._value} source={self._source}>"
+        return f"<Property {self.name}: value={self.value} source={self._source}>"
         # return f"<Property {self.name}: value={self._value}>"
         # return self.__dict__.__repr__()
-        return f"{self._value}"
+        # return f"{self._value}"
 
 
 class Settings:
@@ -114,7 +127,15 @@ class Settings:
     Settings for the wandb client.
     """
 
-    def __init__(self):
+    __frozen: bool = False
+
+    def _join_with_base_url(self, url):
+        return urljoin(self.base_url, url)
+
+    def __init__(
+        self,
+        **kwargs,
+    ):
         settings = {
             "base_url": {
                 "value": "https://api.wandb.ai",
@@ -123,11 +144,22 @@ class Settings:
                 "is_policy": True,
                 "help": "The base url for the wandb api.",
             },
+            "run_id": {
+                "value": "abc123",
+                "preprocessor": lambda x: str(x),
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: self._join_with_base_url(x),
+            },
             "meaning_of_life": {
                 "value": "42",
                 "preprocessor": lambda x: int(x),
             }
         }
+        # update overridden defaults from kwargs
+        for k, v in kwargs.items():
+            if k in settings:
+                settings[k]["value"] = v
+        # init own attributes
         for key, specs in settings.items():
             object.__setattr__(
                 self,
@@ -135,12 +167,17 @@ class Settings:
                 Property(name=key, **specs, source=Source.SETTINGS),
             )
 
+        # freeze settings
+        # self.freeze()
+
     def __repr__(self):
-        # return f"<Settings {[{a: p.value} if isinstance(p, Property) else {a: p} for a, p in self.__dict__.items()]}>"
         return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
 
-    def __getattr__(self, item):
-        return self.__dict__[item].value
+    def __getattribute__(self, name: str):
+        item = object.__getattribute__(self, name)
+        if isinstance(item, Property):
+            return item.value
+        return item
 
     def __setattr__(self, key, value):
         raise TypeError("Use update() to update attribute values")
@@ -172,5 +209,15 @@ class Settings:
     #     return converted_path
 
     def update(self, settings: Dict[str, Any], source: int = Source.OVERRIDE):
+        if "_Settings__frozen" in self.__dict__ and self.__frozen:
+            raise TypeError(f"Settings object is frozen")
+        if TYPE_CHECKING:
+            _source = cast(Optional[int], source)
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
+
+    def freeze(self):
+        object.__setattr__(self, "_Settings__frozen", True)
+
+    def unfreeze(self):
+        object.__setattr__(self, "_Settings__frozen", False)
