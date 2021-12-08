@@ -1,14 +1,19 @@
-"""debug_log
+"""debug_log.
 
 Functions:
-    log_record
-    log_request
-    log_result
-    log_response
+    log_message_queue   - message put() to queue
+    log_message_dequeue - message get() from queue
+    log_message_send    - message sent to socket
+    log_message_recv    - message received from socket
+    log_message_process - message processed by thread
+    log_message_link    - message linked to another mesage
+    log_message_assert  - message encountered problem
 
 """
 
 import datetime
+import logging
+import sys
 import threading
 from typing import cast
 from typing import Optional
@@ -28,8 +33,18 @@ if TYPE_CHECKING:
     TransportType = Union[socket.socket, str]
 
 
+# Supported modes:
+#   logger - debug_log output goes to python logging (default)
+#   stdout - debug_log output goes to stdout
+#   stderr - debug_log output goes to stderr
+debug_log_mode: Optional[str] = "logger"
+
+logger = logging.getLogger(__name__)
+
+
 def _log(
     msg_type: str,
+    log_type: str,
     is_response: bool = False,
     record: "pb.Record" = None,
     result: "pb.Result" = None,
@@ -38,17 +53,23 @@ def _log(
     now = datetime.datetime.now()
     ts = now.strftime("%H%M%S.%f")
     arrow = "<-" if is_response else "->"
-    uuid = "-" * 32
+    uuid = ""
     data = record or result
     if data:
         uuid = data.uuid or uuid
-    relay = "-" * 32
+    relay = ""
     if data and data.control and data.control.relay_id:
         relay = data.control.relay_id
-    print(f"{arrow} {ts} {uuid} {relay} {tname} {msg_type}")
+    line = f"{arrow} {ts} {log_type:7} {tname:16} {msg_type:24} {uuid:32} {relay:32}"
+    if debug_log_mode == "stdout":
+        print(line, file=sys.__stdout__)
+    elif debug_log_mode == "stderr":
+        print(line, file=sys.__stderr__)
+    elif debug_log_mode == "logger":
+        logger.info(line)
 
 
-def _log_message(msg: "MessageType") -> None:
+def _log_message(msg: "MessageType", log_type: str) -> None:
     record: Optional["pb.Record"] = None
     result: Optional["pb.Result"] = None
     is_response = False
@@ -71,36 +92,42 @@ def _log_message(msg: "MessageType") -> None:
         is_response = True
     else:
         raise AssertionError(f"Unknown message type {message_type_str}")
-    _log(msg_type, is_response=is_response, record=record, result=result)
+    _log(
+        msg_type,
+        is_response=is_response,
+        record=record,
+        result=result,
+        log_type=log_type,
+    )
 
 
 def _log_message_queue(msg: "MessageType", q: "QueueType") -> None:
-    _log_message(msg)
+    _log_message(msg, "queue")
 
 
 def _log_message_dequeue(msg: "MessageType", q: "QueueType") -> None:
-    _log_message(msg)
+    _log_message(msg, "dequeue")
 
 
 def _log_message_send(msg: "MessageType", t: "TransportType") -> None:
-    _log_message(msg)
+    _log_message(msg, "send")
 
 
 def _log_message_recv(msg: "MessageType", t: "TransportType") -> None:
-    _log_message(msg)
+    _log_message(msg, "recv")
 
 
 def _log_message_process(msg: "MessageType") -> None:
-    _log_message(msg)
+    _log_message(msg, "process")
 
 
 def _log_message_link(src: "MessageType", dest: "MessageType") -> None:
-    _log_message(src)
-    _log_message(dest)
+    _log_message(src, "source")
+    _log_message(dest, "dest")
 
 
 def _log_message_assert(msg: "MessageType") -> None:
-    _log_message(msg)
+    _log_message(msg, "assert")
 
 
 def log_message_queue(msg: "MessageType", q: "QueueType") -> None:
@@ -131,7 +158,11 @@ def log_message_assert(msg: "MessageType") -> None:
     return None
 
 
-def enable() -> None:
+def enable(log_mode: str = None) -> None:
+    global debug_log_mode
+    if log_mode:
+        debug_log_mode = log_mode
+
     global log_message_queue
     global log_message_dequeue
     global log_message_send
@@ -146,7 +177,3 @@ def enable() -> None:
     log_message_process = _log_message_process
     log_message_link = _log_message_link
     log_message_assert = _log_message_assert
-
-
-# Uncomment to force enable
-# enable()
