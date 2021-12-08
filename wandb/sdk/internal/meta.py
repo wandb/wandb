@@ -87,7 +87,6 @@ class Meta(object):
         # Put a MetaDoneRequest on the handler queue
         interface.publish_meta_done(timed_out, error)
         print("meta child process sent MetaDoneRequest")
-        print("meta child process ", interface.record_q)
 
         if p.is_alive():
             p.terminate()
