@@ -299,7 +299,7 @@ def test_remove_invalid_entries(test_input, expected, wandb_init_run):
     assert torch.equal(torch_history._remove_invalid_entries(test_input), expected)
 
 
-def make_value_list(dtype: "torch.dtype") -> List[float]:
+def iter_hist_bounds(dtype: torch.dtype) -> List[Tuple[float]]:
     if dtype == torch.float32:
         high = HIGH32
         eps = EPS32
@@ -309,7 +309,7 @@ def make_value_list(dtype: "torch.dtype") -> List[float]:
         eps = EPS64
         tiny = TINY64
 
-    return sorted(
+    values = sorted(
         [
             # finite, reasonable values
             -2.0,
@@ -324,11 +324,11 @@ def make_value_list(dtype: "torch.dtype") -> List[float]:
             # low magnitude negatives
             -eps * tiny,  # lowest magnitude negative supported
             -2 * eps * tiny,  # almost lowest magnitude negative supported
-            -66 * eps * tiny,  # separate from lowest
+            -66 * eps * tiny,  # separate from lowest mangitude
             # low mangnitude positives
             eps * tiny,  # lowest magnitude positive supported
             2 * eps * tiny,  # almost lowest magnitude positive supported
-            66 * eps * tiny,  # separate from lowest
+            66 * eps * tiny,  # separate from lowest magnitude
             # large magnitude positives
             high,  # highest
             high * (1 - eps),  # very close to highest
@@ -336,52 +336,36 @@ def make_value_list(dtype: "torch.dtype") -> List[float]:
         ]
     )
 
-
-def make_bounds_list(dtype: torch.dtype) -> List[Tuple[float]]:
-    values = make_value_list(dtype)
-
-    return list(combinations_with_replacement(values, 2))
+    return combinations_with_replacement(values, 2)
 
 
-@pytest.mark.parametrize(
-    "tmin,tmax,dtype",
-    [
-        (bounds[0], bounds[1], torch.float32)
-        for bounds in make_bounds_list(torch.float32)
-    ]
-    + [
-        (bounds[0], bounds[1], torch.float64)
-        for bounds in make_bounds_list(torch.float64)
-    ],
-)
-def test_widen_min_max(
-    tmin: float, tmax: float, dtype: torch.dtype, wandb_init_run
-) -> None:
+def test_widen_min_max(wandb_init_run):
     torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+    for dtype in (torch.float32, torch.float64):
+        if dtype == torch.float32:
+            high = HIGH32
+            eps = EPS32
+            tiny = TINY32
+        else:  # dtype == torch.float64
+            high = HIGH64
+            eps = EPS64
+            tiny = TINY64
 
-    if dtype == torch.float32:
-        high = HIGH32
-        eps = EPS32
-        tiny = TINY32
-    else:  # dtype == torch.float64
-        high = HIGH64
-        eps = EPS64
-        tiny = TINY64
+        for tmin, tmax in iter_hist_bounds(dtype):
+            tmin2, tmax2 = torch_history._widen_min_max(tmin, tmax, dtype)
 
-    tmin2, tmax2 = torch_history._widen_min_max(tmin, tmax, dtype)
+            # The magnitude is still not extreme.
+            assert -high * (1 + 32 * eps) <= tmin2 < tmax2 <= high * (1 + 32 * eps)
 
-    # The magnitude is still not extreme.
-    assert -high * (1 + 32 * eps) <= tmin2 < tmax2 <= high * (1 + 32 * eps)
+            # The interval width hasn't decreased.
+            assert tmax2 - tmin2 >= tmax - tmin
 
-    # The interval width hasn't decreased.
-    assert tmax2 - tmin2 >= tmax - tmin
+            # Make sure the bounds don't change too much.
+            middle = (tmin + tmax) / 2
+            step_size = eps * max(abs(middle), tiny)
+            assert tmin - tmin2 <= 100 * step_size
+            assert tmax2 - tmax <= 100 * step_size
 
-    # Make sure the bounds don't change too much.
-    middle = (tmin + tmax) / 2
-    step_size = eps * max(abs(middle), tiny)
-    assert tmin - tmin2 <= 100 * step_size
-    assert tmax2 - tmax <= 100 * step_size
-
-    # Make sure there's enough space between tmin2 and tmax2 for 64
-    # distinct bins.
-    assert torch.linspace(tmin2, tmax2, 65, dtype=dtype).unique().shape[0] == 65
+            # Make sure there's enough space between tmin2 and tmax2 for 64
+            # distinct bins.
+            assert torch.linspace(tmin2, tmax2, 65, dtype=dtype).unique().shape[0] == 65
