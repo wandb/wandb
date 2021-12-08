@@ -21,4 +21,3 @@ assert:
     - :wandb:runs[0][summary][best_score][learn][MultiClass]
     - 0.0
   - :wandb:runs[0][exitcode]: 0
-  
