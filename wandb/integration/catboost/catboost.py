@@ -78,7 +78,10 @@ def _log_feature_importance(model):
     """
     feat_df = model.get_feature_importance(prettified=True)
 
-    fi_data = [[feat, feat_imp] for feat, feat_imp in zip(feat_df['Feature Id'], feat_df['Importances'])]
+    fi_data = [
+        [feat, feat_imp]
+        for feat, feat_imp in zip(feat_df["Feature Id"], feat_df["Importances"])
+    ]
     table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
     wandb.log(
         {
@@ -94,7 +97,7 @@ def log_summary(
     model: Union[CatBoostClassifier, CatBoostRegressor],
     log_all_params: bool = True,
     save_model_checkpoint: bool = False,
-    log_feature_importance: bool = True
+    log_feature_importance: bool = True,
 ):
     """`log_summary` logs useful metrics about catboost model after training is done
 
@@ -102,7 +105,7 @@ def log_summary(
         model: it can be CatBoostClassifier or CatBoostRegressor.
         log_all_params: (boolean) if True (default) log the model hyperparameters as W&B config.
         save_model_checkpoint: (boolean) if True saves the model upload as W&B artifacts.
-        log_feature_importance: (boolean) if True (default) logs feature importance as W&B bar chart using the default setting of `get_feature_importance`. 
+        log_feature_importance: (boolean) if True (default) logs feature importance as W&B bar chart using the default setting of `get_feature_importance`.
 
     Using this along with `wandb_callback` will:
 
