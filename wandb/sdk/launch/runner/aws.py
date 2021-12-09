@@ -321,7 +321,7 @@ def get_region(launch_project: LaunchProject) -> str:
         section = launch_project.resource_args.get("config_section") or "default"
         try:
             region = config.get(section, "region")
-        except configparser.NoSectionError or configparser.NoOptionError:
+        except (configparser.NoOptionError, configparser.NoSectionError):
             raise LaunchError(
                 "Unable to detemine default region from ~/.aws/config. "
                 "Please specify region in resource args or specify config "
