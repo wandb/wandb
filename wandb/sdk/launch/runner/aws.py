@@ -1,12 +1,13 @@
 import configparser
 import itertools
-import json
 import logging
 import os
 import subprocess
 import time
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
+if False:
+    import boto3  # type: ignore
 import wandb
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
@@ -14,9 +15,9 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
-    DEFAULT_LAUNCH_METADATA_PATH,
-    LaunchProject,
+    create_metadata_file,
     get_entry_point_command,
+    LaunchProject,
 )
 from ..docker import (
     build_docker_image_if_needed,
@@ -24,7 +25,6 @@ from ..docker import (
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
-    get_full_command,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -89,11 +89,11 @@ class AWSSagemakerRunner(AbstractRunner):
             launch_project.resource_args.get("ecr_name") is not None
         ), "AWS jobs require an ecr repository name, set this using `--resource_args ecr_name=<repo_name>`"
         assert (
-            launch_project.resource_args.get("role_arn") is not None
-        ), "AWS jobs require a role ARN, set this using `resource_args role_arn=<role_arn>` "
+            launch_project.resource_args.get("RoleArn") is not None
+        ), "AWS jobs require a role ARN, set this using `resource_args RoleArn=<role_arn>`"
 
-        region = None
-        if os.path.exists(os.path.expanduser("~/.aws/config")):
+        region = launch_project.resource_args.get("region")
+        if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
             config = configparser.ConfigParser()
             config.read(os.path.expanduser("~/.aws/config"))
             region = config.get("default", "region")
@@ -112,6 +112,25 @@ class AWSSagemakerRunner(AbstractRunner):
             secret_key = config.get("default", "aws_secret_access_key")
         if access_key is None or secret_key is None:
             raise LaunchError("AWS credentials not found.")
+        # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
+        if (
+            launch_project.resource_args.get("AlgorithmSpecification", {}).get(
+                "TrainingImage"
+            )
+            is not None
+        ):
+            wandb.termwarn(
+                "Using user provided ECR image, will not be able to swap artifacts."
+            )
+            sagemaker_client = boto3.client(
+                "sagemaker",
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            )
+            sagemaker_args = build_sagemaker_args(launch_project)
+            run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
+            return run
 
         ecr_client = boto3.client(
             "ecr",
@@ -123,7 +142,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         ecr_name = launch_project.resource_args.get("ecr_name")
         aws_registry = (
-            token["authorizationData"][0]["proxyEndpoint"].lstrip("https://")
+            token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
             + f"/{ecr_name}"
         )
 
@@ -166,18 +185,8 @@ class AWSSagemakerRunner(AbstractRunner):
                 itertools.chain(*[ca.split(" ") for ca in command_args])
             )
             sanitized_command_str = command_separator.join(command_args)
-            with open(
-                os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
-                "w",
-            ) as f:
-                json.dump(
-                    {
-                        **launch_project.launch_spec,
-                        "command": sanitized_command_str,
-                        "dockerfile_contents": launch_project._dockerfile_contents,
-                    },
-                    f,
-                )
+            create_metadata_file(launch_project, sanitized_command_str)
+
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
@@ -220,49 +229,20 @@ class AWSSagemakerRunner(AbstractRunner):
                 )
                 return None
 
-        sagemaker_client = boto3.client("sagemaker", region_name=region)
+        sagemaker_client = boto3.client(
+            "sagemaker",
+            region_name=region,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
         wandb.termlog(
             "Launching run on sagemaker with entrypoint: {}".format(
                 " ".join(command_args)
             )
         )
-        training_job_name = (
-            launch_project.resource_args.get("TrainingJobName") or launch_project.run_id
-        )
-        resp = sagemaker_client.create_training_job(
-            AlgorithmSpecification={
-                "TrainingImage": aws_tag,
-                "TrainingInputMode": launch_project.resource_args.get(
-                    "TrainingInputMode"
-                )
-                or "File",
-            },
-            ResourceConfig=launch_project.resource_args.get("ResourceConfig")
-            or {
-                "InstanceCount": 1,
-                "InstanceType": "ml.m4.xlarge",
-                "VolumeSizeInGB": 2,
-            },
-            StoppingCondition=launch_project.resource_args.get("StoppingCondition")
-            or {
-                "MaxRuntimeInSeconds": launch_project.resource_args.get(
-                    "MaxRuntimeInSeconds"
-                )
-                or 3600
-            },
-            TrainingJobName=training_job_name,
-            RoleArn=launch_project.resource_args.get("role_arn"),
-            OutputDataConfig={
-                "S3OutputPath": launch_project.resource_args.get("OutputDataConfig")
-                or f"s3://wandb-output/{launch_project.run_id}/output"
-            },
-        )
 
-        if resp.get("TrainingJobArn") is None:
-            raise LaunchError("Unable to create training job")
-
-        run = AWSSubmittedRun(training_job_name, sagemaker_client)
-        print("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
+        sagemaker_args = build_sagemaker_args(launch_project, aws_tag)
+        run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
         return run
 
 
@@ -279,3 +259,65 @@ def aws_ecr_login(region: str, registry: str) -> str:
         check=True,
     )
     return login_process.stdout.decode("utf-8")
+
+
+def merge_aws_tag_with_algorithm_specification(
+    algorithm_specification: Optional[Dict[str, Any]], aws_tag: Optional[str]
+) -> Dict[str, Any]:
+    if algorithm_specification is None:
+        return {
+            "TrainingImage": aws_tag,
+            "TrainingInputMode": "File",
+        }
+    elif algorithm_specification.get("TrainingImage") is not None:
+        algorithm_specification["TrainingImage"] = aws_tag
+    if algorithm_specification["TrainingImage"] is None:
+        raise LaunchError("Failed determine tag for training image")
+    return algorithm_specification
+
+
+def build_sagemaker_args(
+    launch_project: LaunchProject, aws_tag: Optional[str] = None
+) -> Dict[str, Any]:
+    sagemaker_args = {}
+    resource_args = launch_project.resource_args
+    sagemaker_args["TrainingJobName"] = (
+        resource_args.get("TrainingJobName") or launch_project.run_id
+    )
+    sagemaker_args[
+        "AlgorithmSpecification"
+    ] = merge_aws_tag_with_algorithm_specification(
+        resource_args.get("AlgorithmSpecification"), aws_tag,
+    )
+    sagemaker_args["ResourceConfig"] = resource_args.get("ResourceConfig") or {
+        "InstanceCount": 1,
+        "InstanceType": "ml.m4.xlarge",
+        "VolumeSizeInGB": 2,
+    }
+
+    sagemaker_args["StoppingCondition"] = resource_args.get("StoppingCondition") or {
+        "MaxRuntimeInSeconds": resource_args.get("MaxRuntimeInSeconds") or 3600
+    }
+    sagemaker_args["OutputDataConfig"] = resource_args.get("OutputDataConfig") or {
+        "S3OutputPath": f"s3://wandb-output/{launch_project.run_id}/output"
+    }
+    sagemaker_args["RoleArn"] = resource_args.get("RoleArn")
+    return sagemaker_args
+
+
+def launch_sagemaker_job(
+    launch_project: LaunchProject,
+    sagemaker_args: Dict[str, Any],
+    sagemaker_client: "boto3.Client",
+) -> AWSSubmittedRun:
+    training_job_name = (
+        launch_project.resource_args.get("TrainingJobName") or launch_project.run_id
+    )
+    resp = sagemaker_client.create_training_job(**sagemaker_args)
+
+    if resp.get("TrainingJobArn") is None:
+        raise LaunchError("Unable to create training job")
+
+    run = AWSSubmittedRun(training_job_name, sagemaker_client)
+    print("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
+    return run

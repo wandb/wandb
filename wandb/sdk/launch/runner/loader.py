@@ -5,8 +5,9 @@ from wandb.apis.internal import Api
 from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 
-from .local import LocalRunner
 from .aws import AWSSagemakerRunner
+from .local import LocalRunner
+
 
 __logger__ = logging.getLogger(__name__)
 

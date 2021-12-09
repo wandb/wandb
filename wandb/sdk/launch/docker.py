@@ -7,8 +7,6 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Sequence
 
-from click.decorators import command
-
 
 from dockerpycreds.utils import find_executable  # type: ignore
 import pkg_resources

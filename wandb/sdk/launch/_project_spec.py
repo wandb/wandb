@@ -4,6 +4,7 @@ into a runnable wandb launch script
 """
 
 import enum
+import json
 import logging
 import os
 from shlex import quote
@@ -45,7 +46,7 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
         resource: str,
-        resource_args: Dict[str, str],
+        resource_args: Dict[str, Any],
     ):
         if utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -309,7 +310,6 @@ class EntryPoint(object):
         params, extra_params = self.compute_parameters(user_parameters)
         command_with_params = self.command.format(**params)
         command_arr = [command_with_params]
-        print(command_arr)
         command_arr.extend(
             [
                 "--%s %s" % (key, value) if value is not None else "--%s" % (key)
@@ -399,3 +399,19 @@ def fetch_and_validate_project(
         launch_project.override_args
     )
     return launch_project
+
+
+def create_metadata_file(
+    launch_project: LaunchProject, sanitized_command_str: str
+) -> None:
+    with open(
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
+    ) as f:
+        json.dump(
+            {
+                **launch_project.launch_spec,
+                "command": sanitized_command_str,
+                "dockerfile_contents": launch_project._dockerfile_contents,
+            },
+            f,
+        )
