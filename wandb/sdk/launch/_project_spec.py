@@ -73,7 +73,6 @@ class LaunchProject(object):
         self.resource = resource
         self.resource_args = resource_args
         self._runtime: Optional[str] = None
-        self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
@@ -402,7 +401,9 @@ def fetch_and_validate_project(
 
 
 def create_metadata_file(
-    launch_project: LaunchProject, sanitized_command_str: str
+    launch_project: LaunchProject,
+    sanitized_command_str: str,
+    sanitized_dockerfile_contents: str,
 ) -> None:
     with open(
         os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
@@ -411,7 +412,7 @@ def create_metadata_file(
             {
                 **launch_project.launch_spec,
                 "command": sanitized_command_str,
-                "dockerfile_contents": launch_project._dockerfile_contents,
+                "dockerfile_contents": sanitized_dockerfile_contents,
             },
             f,
         )

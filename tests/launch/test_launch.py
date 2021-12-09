@@ -854,15 +854,24 @@ def test_launch_aws_sagemaker(
             }
             return MagicMock()
 
+    def mock_create_metadata_file(*args, **kwargs):
+        dockerfile_contents = args[2]
+        expected_entrypoint = 'ENTRYPOINT ["python", "train.py"]'
+        assert expected_entrypoint in dockerfile_contents, dockerfile_contents
+        _project_spec.create_metadata_file(*args, **kwargs)
+
     mock_boto3.client = mock_client
 
     monkeypatch.setattr(boto3, "client", mock_client)
+    monkeypatch.setattr(
+        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+    )
     monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
     monkeypatch.setattr(
-        wandb.docker, "push", lambda x, y: f"The push refers to repository {x}"
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
     monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: b"Login Succeeded\n"
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
     )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -876,7 +885,7 @@ def test_launch_aws_sagemaker(
         "project": "test",
         "resource_args": {
             "ecr_name": "my-test-repo",
-            "role_arn": "arn:aws:iam::123456789012:role/test-role",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
         },
     }

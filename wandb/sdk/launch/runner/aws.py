@@ -4,7 +4,7 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 if False:
     import boto3  # type: ignore
@@ -15,7 +15,6 @@ from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
-    create_metadata_file,
     get_entry_point_command,
     LaunchProject,
 )
@@ -92,26 +91,10 @@ class AWSSagemakerRunner(AbstractRunner):
             launch_project.resource_args.get("RoleArn") is not None
         ), "AWS jobs require a role ARN, set this using `resource_args RoleArn=<role_arn>`"
 
-        region = launch_project.resource_args.get("region")
-        if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
-            config = configparser.ConfigParser()
-            config.read(os.path.expanduser("~/.aws/config"))
-            region = config.get("default", "region")
-        assert region is not None, "AWS region not specified."
+        region = get_region(launch_project)
 
-        access_key = os.environ.get("AWS_ACCESS_KEY_ID")
-        secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
-        if (
-            access_key is None
-            or secret_key is None
-            and os.path.exists(os.path.expanduser("~/.aws/credentials"))
-        ):
-            config = configparser.ConfigParser()
-            config.read(os.path.expanduser("~/.aws/credentials"))
-            access_key = config.get("default", "aws_access_key_id")
-            secret_key = config.get("default", "aws_secret_access_key")
-        if access_key is None or secret_key is None:
-            raise LaunchError("AWS credentials not found.")
+        access_key, secret_key = get_aws_credentials()
+
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
             launch_project.resource_args.get("AlgorithmSpecification", {}).get(
@@ -168,7 +151,6 @@ class AWSSagemakerRunner(AbstractRunner):
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
 
-        command_separator = " "
         command_args = []
 
         container_inspect = docker_image_inspect(launch_project.base_image)
@@ -184,8 +166,6 @@ class AWSSagemakerRunner(AbstractRunner):
             command_args = list(
                 itertools.chain(*[ca.split(" ") for ca in command_args])
             )
-            sanitized_command_str = command_separator.join(command_args)
-            create_metadata_file(launch_project, sanitized_command_str)
 
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
@@ -321,3 +301,32 @@ def launch_sagemaker_job(
     run = AWSSubmittedRun(training_job_name, sagemaker_client)
     print("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
     return run
+
+
+def get_region(launch_project: LaunchProject) -> str:
+    region = launch_project.resource_args.get("region")
+    if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
+        config = configparser.ConfigParser()
+        config.read(os.path.expanduser("~/.aws/config"))
+        region = config.get("default", "region")
+    if region is None:
+        raise LaunchError("AWS region not specified.")
+    assert isinstance(region, str)
+    return region
+
+
+def get_aws_credentials() -> Tuple[str, str]:
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if (
+        access_key is None
+        or secret_key is None
+        and os.path.exists(os.path.expanduser("~/.aws/credentials"))
+    ):
+        config = configparser.ConfigParser()
+        config.read(os.path.expanduser("~/.aws/credentials"))
+        access_key = config.get("default", "aws_access_key_id")
+        secret_key = config.get("default", "aws_secret_access_key")
+    if access_key is None or secret_key is None:
+        raise LaunchError("AWS credentials not found.")
+    return access_key, secret_key

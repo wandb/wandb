@@ -9,10 +9,7 @@ import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import (
-    create_metadata_file,
-    LaunchProject,
-)
+from .._project_spec import LaunchProject
 from ..docker import (
     build_docker_image_if_needed,
     construct_local_image_uri,
@@ -123,7 +120,6 @@ class LocalRunner(AbstractRunner):
                 r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
             )
 
-            create_metadata_file(launch_project, sanitized_command_str)
             _logger.info("Building docker image...")
             build_docker_image_if_needed(
                 launch_project=launch_project,
@@ -133,6 +129,7 @@ class LocalRunner(AbstractRunner):
                 container_env=container_env,
                 runner_type="local",
                 image_uri=image_uri,
+                command_args=command_args,
             )
         else:
             # TODO: rewrite env vars and copy code in supplied docker image
