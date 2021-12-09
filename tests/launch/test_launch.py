@@ -1176,7 +1176,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             get_region(launch_project)
         assert (
             str(e_info.value)
-            == "AWS region not specified and ~/.aws/config not found. Configure AWS."
+            == "AWS region not specified and ~/.aws/config not found. Configure AWS"
         )
 
 
