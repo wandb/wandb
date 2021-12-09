@@ -998,7 +998,6 @@ def test_aws_submitted_run_cancel():
     run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     run.cancel()
     assert run._status.state == "finished"
-    assert False
 
 
 def test_aws_submitted_run_id():
