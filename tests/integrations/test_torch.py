@@ -266,16 +266,19 @@ def test_nested_shape():
 @pytest.mark.parametrize(
     "test_input,expected",
     [
-        (torch.Tensor([1.0, 2.0, 3.0]), False),
-        (torch.Tensor([0.0, 0.0, 0.0]), False),
-        (torch.Tensor([1.0]), False),
-        (torch.Tensor([]), True),
-        (torch.Tensor([1.0, float("nan"), float("nan")]), False),
-        (torch.Tensor([1.0, float("inf"), -float("inf")]), False),
-        (torch.Tensor([1.0, float("nan"), float("inf")]), False),
-        (torch.Tensor([float("nan"), float("nan"), float("nan")]), True),
-        (torch.Tensor([float("inf"), float("inf"), -float("inf")]), True),
-        (torch.Tensor([float("nan"), float("inf"), -float("inf")]), True),
+        (torch.tensor([1.0, 2.0, 3.0]), False),
+        (torch.tensor([0.0, 0.0, 0.0]), False),
+        (torch.tensor([1.0]), False),
+        (torch.tensor([]), True),
+        (torch.tensor([1.0, float("nan"), float("nan")]), False),
+        (torch.tensor([1.0, float("inf"), -float("inf")]), False),
+        (torch.tensor([1.0, float("nan"), float("inf")]), False),
+        (torch.tensor([float("nan"), float("nan"), float("nan")]), True),
+        (torch.tensor([float("inf"), float("inf"), -float("inf")]), True),
+        (torch.tensor([float("nan"), float("inf"), -float("inf")]), True),
+        (torch.tensor([1e31, -1e31], dtype=torch.float32), True),
+        (torch.tensor([1e31, -1e31], dtype=torch.float64), False),
+        (torch.tensor([1e301, -1e301], dtype=torch.float64), True),
     ],
 )
 def test_no_valid_values(test_input, expected, wandb_init_run):
@@ -287,10 +290,22 @@ def test_no_valid_values(test_input, expected, wandb_init_run):
 @pytest.mark.parametrize(
     "test_input,expected",
     [
-        (torch.Tensor([0.0, 1.0, 2.0]), torch.Tensor([0.0, 1.0, 2.0])),
-        (torch.Tensor([1.0]), torch.Tensor([1.0])),
-        (torch.Tensor([0.0, float("inf"), -float("inf")]), torch.Tensor([0.0])),
-        (torch.Tensor([0.0, float("nan"), float("inf")]), torch.Tensor([0.0])),
+        (torch.tensor([0.0, 1.0, 2.0]), torch.tensor([0.0, 1.0, 2.0])),
+        (torch.tensor([1.0]), torch.tensor([1.0])),
+        (torch.tensor([0.0, float("inf"), -float("inf")]), torch.tensor([0.0])),
+        (torch.tensor([0.0, float("nan"), float("inf")]), torch.tensor([0.0])),
+        (
+            torch.tensor([0.0, 1e31, -1e31], dtype=torch.float32),
+            torch.tensor([0.0], dtype=torch.float32),
+        ),
+        (
+            torch.tensor([0.0, 1e31, -1e31], dtype=torch.float64),
+            torch.tensor([0.0, 1e31, -1e31], dtype=torch.float64),
+        ),
+        (
+            torch.tensor([0.0, 1e301, -1e301], dtype=torch.float64),
+            torch.tensor([0.0], dtype=torch.float64),
+        ),
     ],
 )
 def test_remove_invalid_entries(test_input, expected, wandb_init_run):
