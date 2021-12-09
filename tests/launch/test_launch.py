@@ -892,6 +892,78 @@ def test_launch_aws_sagemaker(
     assert run.training_job_name == "test-job-1"
 
 
+def test_launch_aws_sagemaker_push_image_fail_none(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(boto3, "client", mock_client)
+    monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(wandb.docker, "push", lambda x, y: None)
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
+            "ecr_name": "my-test-repo",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+        },
+    }
+    with pytest.raises(wandb.errors.LaunchError) as e_info:
+        launch.run(**kwargs)
+    assert "Failed to push image to repository" in str(e_info.value)
+
+
+def test_launch_aws_sagemaker_push_image_fail_err_msg(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(boto3, "client", mock_client)
+    monkeypatch.setattr(wandb.docker, "tag", lambda x, y: "")
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: "I regret to inform you, that I have failed"
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
+            "ecr_name": "my-test-repo",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+        },
+    }
+    with pytest.raises(wandb.errors.LaunchError) as e_info:
+        launch.run(**kwargs)
+    assert "I regret to inform you, that I have failed" in str(e_info.value)
+
+
 @pytest.mark.skipif(
     sys.version_info < (3, 5),
     reason="wandb launch is not available for python versions < 3.5",

@@ -34,7 +34,7 @@ _logger = logging.getLogger(__name__)
 
 
 class AWSSubmittedRun(AbstractRun):
-    """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command locally."""
+    """Instance of ``AbstractRun`` corresponding to a subprocess launched to run an entry point command on aws sagemaker."""
 
     def __init__(self, training_job_name: str, client: "boto3.Client") -> None:
         super().__init__()
@@ -135,7 +135,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         if self.backend_config[PROJECT_DOCKER_ARGS]:
             wandb.termwarn(
-                "Docker args are not supported for AWS. Not using docker args."
+                "Docker args are not supported for AWS. Not using docker args"
             )
 
         entry_point = launch_project.get_single_entry_point()
@@ -199,7 +199,7 @@ class AWSSagemakerRunner(AbstractRunner):
         _logger.info(f"Pushing image {image} to registy {aws_registry}")
         push_resp = docker.push(aws_registry, launch_project.run_id)
         if push_resp is None:
-            raise LaunchError("Failed to push image to repository.")
+            raise LaunchError("Failed to push image to repository")
         if f"The push refers to repository [{aws_registry}]" not in push_resp:
             raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
@@ -240,7 +240,7 @@ def aws_ecr_login(region: str, registry: str) -> str:
         )
     except subprocess.CalledProcessError:
         raise LaunchError(
-            "Unable to get login password. Please ensure you have AWS credentials configured."
+            "Unable to get login password. Please ensure you have AWS credentials configured"
         )
 
     try:
@@ -252,7 +252,7 @@ def aws_ecr_login(region: str, registry: str) -> str:
             check=True,
         )
     except subprocess.CalledProcessError:
-        raise LaunchError("Failed to login to ECR.")
+        raise LaunchError("Failed to login to ECR")
     return login_process.stdout.decode("utf-8")
 
 
@@ -335,7 +335,7 @@ def get_region(launch_project: LaunchProject) -> str:
 
     if region is None:
         raise LaunchError(
-            "AWS region not specified and ~/.aws/config not found. Configure AWS."
+            "AWS region not specified and ~/.aws/config not found. Configure AWS"
         )
     assert isinstance(region, str)
     return region
@@ -354,5 +354,5 @@ def get_aws_credentials() -> Tuple[str, str]:
         access_key = config.get("default", "aws_access_key_id")
         secret_key = config.get("default", "aws_secret_access_key")
     if access_key is None or secret_key is None:
-        raise LaunchError("AWS credentials not found.")
+        raise LaunchError("AWS credentials not found")
     return access_key, secret_key
