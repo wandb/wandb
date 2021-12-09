@@ -848,10 +848,6 @@ def test_bare_wandb_uri(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5),
-    reason="wandb launch is not available for python versions < 3.5",
-)
 def test_launch_aws_sagemaker(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
 ):
@@ -1110,3 +1106,38 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             str(e_info.value)
             == "AWS region not specified and ~/.aws/config not found. Configure AWS."
         )
+
+
+def test_aws_fail_build(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(boto3, "client", mock_client)
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
+            "ecr_name": "my-test-repo",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+        },
+    }
+    with pytest.raises(wandb.errors.LaunchError) as e_info:
+        launch.run(**kwargs)
+    assert str(e_info.value) == "Unable to build base image"
