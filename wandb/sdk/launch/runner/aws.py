@@ -103,7 +103,7 @@ class AWSSagemakerRunner(AbstractRunner):
             is not None
         ):
             wandb.termwarn(
-                "Using user provided ECR image, will not be able to swap artifacts."
+                "Using user provided ECR image, this image will not be able to swap artifacts"
             )
             sagemaker_client = boto3.client(
                 "sagemaker",
@@ -258,7 +258,7 @@ def merge_aws_tag_with_algorithm_specification(
             "TrainingImage": aws_tag,
             "TrainingInputMode": "File",
         }
-    elif algorithm_specification.get("TrainingImage") is not None:
+    elif algorithm_specification.get("TrainingImage") is None:
         algorithm_specification["TrainingImage"] = aws_tag
     if algorithm_specification["TrainingImage"] is None:
         raise LaunchError("Failed determine tag for training image")

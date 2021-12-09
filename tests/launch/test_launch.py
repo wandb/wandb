@@ -95,6 +95,32 @@ def mock_load_backend_agent():
         yield mock_load_backend
 
 
+def mock_client(*args, **kwargs):
+    if args[0] == "sagemaker":
+        mock_sagemaker_client = MagicMock()
+        mock_sagemaker_client.create_trainingHobby_job.return_value = {
+            "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
+        }
+        mock_sagemaker_client.stop_training_job.return_value = {
+            "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
+        }
+        mock_sagemaker_client.describe_training_job.return_value = {
+            "TrainingJobStatus": "Completed",
+            "TrainingJobName": "test-job-1",
+        }
+        return mock_sagemaker_client
+    elif args[0] == "ecr":
+        ecr_client = MagicMock()
+        ecr_client.get_authorization_token.return_value = {
+            "authorizationData": [
+                {
+                    "proxyEndpoint": "https://123456789012.dkr.ecr.us-east-1.amazonaws.com",
+                }
+            ]
+        }
+        return MagicMock()
+
+
 def check_project_spec(
     project_spec,
     api,
@@ -828,40 +854,12 @@ def test_bare_wandb_uri(
 def test_launch_aws_sagemaker(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
 ):
-    mock_boto3 = MagicMock()
-
-    def mock_client(*args, **kwargs):
-        if args[0] == "sagemaker":
-            mock_sagemaker_client = MagicMock()
-            mock_sagemaker_client.create_trainingHobby_job.return_value = {
-                "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
-            }
-            mock_sagemaker_client.stop_training_job.return_value = {
-                "TrainingJobArn": "arn:aws:sagemaker:us-east-1:123456789012:TrainingJob/test-job-1"
-            }
-            mock_sagemaker_client.describe_training_job.return_value = {
-                "TrainingJobStatus": "Completed",
-                "TrainingJobName": "test-job-1",
-            }
-            return mock_sagemaker_client
-        elif args[0] == "ecr":
-            ecr_client = MagicMock()
-            ecr_client.get_authorization_token.return_value = {
-                "authorizationData": [
-                    {
-                        "proxyEndpoint": "https://123456789012.dkr.ecr.us-east-1.amazonaws.com",
-                    }
-                ]
-            }
-            return MagicMock()
-
     def mock_create_metadata_file(*args, **kwargs):
         dockerfile_contents = args[2]
         expected_entrypoint = 'ENTRYPOINT ["python", "train.py"]'
         assert expected_entrypoint in dockerfile_contents, dockerfile_contents
         _project_spec.create_metadata_file(*args, **kwargs)
 
-    mock_boto3.client = mock_client
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_client)
@@ -886,6 +884,7 @@ def test_launch_aws_sagemaker(
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
             "ecr_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
@@ -896,48 +895,84 @@ def test_launch_aws_sagemaker(
     assert run.training_job_name == "test-job-1"
 
 
+def test_sagemaker_specified_image(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
+):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(boto3, "client", mock_client)
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "AlgorithmSpecification": {
+                "TrainingImage": "my-test-image",
+                "TrainingInputMode": "File",
+            },
+            "ecr_name": "my-test-repo",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+        },
+    }
+    run = launch.run(**kwargs)
+    stderr = capsys.readouterr().err
+    assert (
+        "Using user provided ECR image, this image will not be able to swap artifacts"
+        in stderr
+    )
+    assert run.training_job_name == "test-job-1"
+
+
 def test_aws_submitted_run_status():
-    mock_client = MagicMock()
-    mock_client.describe_training_job.return_value = {
+    mock_sagemaker_client = MagicMock()
+    mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "InProgress",
     }
-    run = AWSSubmittedRun("test-job-1", mock_client)
+    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "running"
 
-    mock_client.describe_training_job.return_value = {
+    mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Completed",
     }
-    run = AWSSubmittedRun("test-job-1", mock_client)
+    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "finished"
 
-    mock_client.describe_training_job.return_value = {
+    mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Failed",
     }
-    run = AWSSubmittedRun("test-job-1", mock_client)
+    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "failed"
 
-    mock_client.describe_training_job.return_value = {
+    mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Stopped",
     }
-    run = AWSSubmittedRun("test-job-1", mock_client)
+    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "finished"
 
-    mock_client.describe_training_job.return_value = {
+    mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Stopping",
     }
-    run = AWSSubmittedRun("test-job-1", mock_client)
+    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "stopping"
 
 
 def test_aws_submitted_run_cancel():
-    mock_client = MagicMock()
-    mock_client.stop_training_job.return_value = {
+    mock_sagemaker_client = MagicMock()
+    mock_sagemaker_client.stop_training_job.return_value = {
         "TrainingJobStatus": "Stopping",
     }
-    mock_client.stopping = False
+    mock_sagemaker_client.stopping = False
 
     def mock_describe_training_job(TrainingJobName):
-        if mock_client.stopping:
+        if mock_sagemaker_client.stopping:
             return {
                 "TrainingJobStatus": "Stopped",
             }
@@ -947,14 +982,14 @@ def test_aws_submitted_run_cancel():
             }
 
     def mock_stop_training_job(TrainingJobName):
-        mock_client.stopping = True
+        mock_sagemaker_client.stopping = True
         return {
             "TrainingJobStatus": "Stopping",
         }
 
-    mock_client.describe_training_job = mock_describe_training_job
-    mock_client.stop_training_job = mock_stop_training_job
-    run = AWSSubmittedRun("test-job-1", mock_client)
+    mock_sagemaker_client.describe_training_job = mock_describe_training_job
+    mock_sagemaker_client.stop_training_job = mock_stop_training_job
+    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     run.cancel()
     assert run._status.state == "finished"
 
