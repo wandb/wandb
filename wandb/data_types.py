@@ -1721,12 +1721,10 @@ class _ImageFileType(_dtypes.Type):
 
         if isinstance(box_score_keys, _dtypes.ConstType):
             box_score_keys = box_score_keys
-        elif not isinstance(box_score_keys, list) and not isinstance(
-            box_score_keys, set
-        ):
-            raise TypeError("box_score_keys must be a list or a set")
+        elif not isinstance(box_score_keys, list):
+            raise TypeError("box_score_keys must be a list")
         else:
-            box_score_keys = _dtypes.ConstType(set(box_score_keys))
+            box_score_keys = _dtypes.ConstType(box_score_keys)
 
         if isinstance(class_map, _dtypes.ConstType):
             class_map = class_map
@@ -1758,7 +1756,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of box_layers
             box_layers = {
-                key: list(
+                str(key): list(
                     set(box_layers_self.get(key, []) + box_layers_other.get(key, []))
                 )
                 for key in set(
@@ -1768,7 +1766,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of mask_layers
             mask_layers = {
-                key: list(
+                str(key): list(
                     set(mask_layers_self.get(key, []) + mask_layers_other.get(key, []))
                 )
                 for key in set(
@@ -1777,11 +1775,11 @@ class _ImageFileType(_dtypes.Type):
             }
 
             # Merge the box score keys
-            box_score_keys = set(list(box_score_keys_self) + list(box_score_keys_other))
+            box_score_keys = list(set(box_score_keys_self + box_score_keys_other))
 
             # Merge the class_map
             class_map = {
-                key: class_map_self.get(key, class_map_other.get(key, None))
+                str(key): class_map_self.get(key, class_map_other.get(key, None))
                 for key in set(
                     list(class_map_self.keys()) + list(class_map_other.keys())
                 )
@@ -1798,25 +1796,27 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_layers = {
-                    key: list(py_obj._boxes[key]._class_labels.keys())
+                    str(key): list(py_obj._boxes[key]._class_labels.keys())
                     for key in py_obj._boxes.keys()
                 }
-                box_score_keys = set(
-                    [
-                        key
-                        for val in py_obj._boxes.values()
-                        for box in val._val
-                        for key in box.get("scores", {}).keys()
-                    ]
+                box_score_keys = list(
+                    set(
+                        [
+                            key
+                            for val in py_obj._boxes.values()
+                            for box in val._val
+                            for key in box.get("scores", {}).keys()
+                        ]
+                    )
                 )
 
             else:
                 box_layers = {}
-                box_score_keys = set([])
+                box_score_keys = []
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    key: list(
+                    str(key): list(
                         py_obj._masks[key]._val["class_labels"].keys()
                         if hasattr(py_obj._masks[key], "_val")
                         else []
