@@ -490,6 +490,9 @@ def magic_install(init_args=None):
     if _run_once:
         return
     _run_once = True
+    if get_optional_module("tensorflow") is None:
+        warnings.warn("Auto-instrumentation is disabled. Magic requires tensorflow.")
+        return
 
     global _magic_config
     global _import_hook
