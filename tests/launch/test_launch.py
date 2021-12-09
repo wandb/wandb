@@ -1037,6 +1037,7 @@ def test_failed_aws_cred_login(
 
 def test_aws_get_region_file_success(runner):
     with runner.isolated_filesystem():
+        os.makedirs(os.path.expanduser("~/.aws"), exist_ok=True)
         with open(os.path.expanduser("~/.aws/config"), "w+") as f:
             f.write("[default]\n" "region = us-east-1\n")
         launch_project = _project_spec.LaunchProject(
