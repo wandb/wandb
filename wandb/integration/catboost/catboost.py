@@ -153,7 +153,7 @@ def log_summary(
 
     # log model
     if save_model_checkpoint:
-        if params.get("use_best_model", False):
+        if params["use_best_model"]:
             _checkpoint_artifact(model, aliases=["best"])
         else:
             _checkpoint_artifact(model, aliases=["last"])
