@@ -22,7 +22,7 @@ import wandb
 
 from . import wandb_manager
 from . import wandb_settings
-from .lib import config_util, server
+from .lib import config_util, debug_log, server
 
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -78,13 +78,14 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
     _manager: Optional[wandb_manager._Manager]
 
-    def __init__(self, settings=None, environ=None):
+    def __init__(self, settings=None, environ=None, pid=None):
         self._settings = None
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
         self._server = None
         self._manager = None
+        self._pid = pid
 
         # keep track of multiple runs so we can unwind with join()s
         self._global_run_stack = []
@@ -101,6 +102,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         self._check()
         self._setup()
+
+        debug_log_mode = self._settings._debug_log
+        if debug_log_mode:
+            debug_log.enable(debug_log_mode)
 
     def _settings_setup(self, settings=None, early_logger=None):
         # TODO: Do a more formal merge of user settings from the backend.
@@ -248,15 +253,20 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
 
 class _WandbSetup(object):
-    """Wandb singleton class."""
+    """Wandb singleton class.
+
+    Note: This is a process local singleton.
+    (Forked processes will get a new copy of the object)
+    """
 
     _instance = None
 
     def __init__(self, settings=None):
-        if _WandbSetup._instance is not None:
+        pid = os.getpid()
+        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
-        else:
-            _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
+            return
+        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
