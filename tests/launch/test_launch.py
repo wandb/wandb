@@ -887,6 +887,7 @@ def test_launch_aws_sagemaker(
             "ecr_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
         },
     }
     run = launch.run(**kwargs)

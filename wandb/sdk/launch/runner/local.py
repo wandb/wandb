@@ -149,6 +149,9 @@ class LocalRunner(AbstractRunner):
                 entry_point,
             )
             command_str = command_separator.join(command_args)
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
 
         if self.backend_config.get("runQueueItemId"):
             try:
