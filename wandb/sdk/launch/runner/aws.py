@@ -82,7 +82,7 @@ class AWSSagemakerRunner(AbstractRunner):
     """Runner class, uses a project to create a AWSSubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
-        _logger.info("Launching sagemaker job")
+        _logger.info("using AWSSagemakerRunner")
         boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
         validate_docker_installation()
         assert (
@@ -113,9 +113,12 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_secret_access_key=secret_key,
             )
             sagemaker_args = build_sagemaker_args(launch_project)
+            _logger.info(
+                f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
+            )
             run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
             return run
-
+        _logger.info("Connecting to AWS ECR Client")
         ecr_client = boto3.client(
             "ecr",
             region_name=region,
@@ -167,7 +170,7 @@ class AWSSagemakerRunner(AbstractRunner):
             command_args = list(
                 itertools.chain(*[ca.split(" ") for ca in command_args])
             )
-
+            _logger.info("Building docker image")
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
@@ -186,13 +189,14 @@ class AWSSagemakerRunner(AbstractRunner):
                 )
             )
             image_uri = launch_project.docker_image
-
+        _logger.info("Logging in to AWS ECR")
         login_resp = aws_ecr_login(region, aws_registry)
         if "Login Succeeded" not in login_resp:
             raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
         docker.tag(image, aws_tag)
+        _logger.info(f"Pushing image {image} to registy {aws_registry}")
         push_resp = docker.push(aws_registry, launch_project.run_id)
         if push_resp is None:
             raise LaunchError("Failed to push image to repository.")
@@ -209,7 +213,7 @@ class AWSSagemakerRunner(AbstractRunner):
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
                 return None
-
+        _logger.info(f"Connecting to sagemaker client")
         sagemaker_client = boto3.client(
             "sagemaker",
             region_name=region,
@@ -223,6 +227,7 @@ class AWSSagemakerRunner(AbstractRunner):
         )
 
         sagemaker_args = build_sagemaker_args(launch_project, aws_tag)
+        _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
         return run
 
@@ -309,7 +314,7 @@ def launch_sagemaker_job(
         raise LaunchError("Unable to create training job")
 
     run = AWSSubmittedRun(training_job_name, sagemaker_client)
-    print("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
+    wandb.termlog("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
     return run
 
 
