@@ -4,6 +4,10 @@ We at Weights & Biases ❤️ open source and welcome contributions from the com
 This guide discusses the development workflow and the internals of the `wandb` client library.
 
 ### Table of Contents
+<!-- 
+ToC was generated with https://ecotrust-canada.github.io/markdown-toc/
+Please make sure to update the ToC when you update this page.
+-->
 * [Development workflow](#development-workflow)
 * [Setting up your development environment](#setting-up-your-development-environment)
 * [Building protocol buffers](#building-protocol-buffers)
