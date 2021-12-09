@@ -5,6 +5,7 @@ from wandb.apis import PublicApi
 from unittest.mock import MagicMock
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.docker import pull_docker_image
+from wandb.sdk.launch.runner.aws import AWSSubmittedRun
 
 try:
     from unittest import mock
@@ -893,3 +894,71 @@ def test_launch_aws_sagemaker(
     }
     run = launch.run(**kwargs)
     assert run.training_job_name == "test-job-1"
+
+
+def test_aws_submitted_run_status():
+    mock_client = MagicMock()
+    mock_client.describe_training_job.return_value = {
+        "TrainingJobStatus": "InProgress",
+    }
+    run = AWSSubmittedRun("test-job-1", mock_client)
+    assert run.get_status().state == "running"
+
+    mock_client.describe_training_job.return_value = {
+        "TrainingJobStatus": "Completed",
+    }
+    run = AWSSubmittedRun("test-job-1", mock_client)
+    assert run.get_status().state == "finished"
+
+    mock_client.describe_training_job.return_value = {
+        "TrainingJobStatus": "Failed",
+    }
+    run = AWSSubmittedRun("test-job-1", mock_client)
+    assert run.get_status().state == "failed"
+
+    mock_client.describe_training_job.return_value = {
+        "TrainingJobStatus": "Stopped",
+    }
+    run = AWSSubmittedRun("test-job-1", mock_client)
+    assert run.get_status().state == "finished"
+
+    mock_client.describe_training_job.return_value = {
+        "TrainingJobStatus": "Stopping",
+    }
+    run = AWSSubmittedRun("test-job-1", mock_client)
+    assert run.get_status().state == "stopping"
+
+
+def test_aws_submitted_run_cancel():
+    mock_client = MagicMock()
+    mock_client.stop_training_job.return_value = {
+        "TrainingJobStatus": "Stopping",
+    }
+    mock_client.stopping = False
+
+    def mock_describe_training_job(TrainingJobName):
+        if mock_client.stopping:
+            return {
+                "TrainingJobStatus": "Stopped",
+            }
+        else:
+            return {
+                "TrainingJobStatus": "InProgress",
+            }
+
+    def mock_stop_training_job(TrainingJobName):
+        mock_client.stopping = True
+        return {
+            "TrainingJobStatus": "Stopping",
+        }
+
+    mock_client.describe_training_job = mock_describe_training_job
+    mock_client.stop_training_job = mock_stop_training_job
+    run = AWSSubmittedRun("test-job-1", mock_client)
+    run.cancel()
+    assert run._status.state == "finished"
+
+
+def test_aws_submitted_run_id():
+    run = AWSSubmittedRun("test-job-1", None)
+    assert run.id == "sagemaker_test-job-1"

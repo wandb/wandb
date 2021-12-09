@@ -49,7 +49,7 @@ class AWSSubmittedRun(AbstractRun):
     def wait(self) -> bool:
         while True:
             status_state = self.get_status().state
-            if status_state not in ["running", "starting", "unknown"]:
+            if status_state in ["stopped", "failed", "finished"]:
                 break
             time.sleep(5)
         return status_state == "finished"
@@ -57,7 +57,7 @@ class AWSSubmittedRun(AbstractRun):
     def cancel(self) -> None:
         # Interrupt child process if it hasn't already exited
         status = self.get_status()
-        if status.state in ["running", "starting", "unknown"]:
+        if status.state == "running":
             self.client.stop_training_job(TrainingJobName=self.training_job_name)
             self.wait()
 
