@@ -229,7 +229,9 @@ class AWSSagemakerRunner(AbstractRunner):
 def aws_ecr_login(region: str, registry: str) -> str:
     pw_command = f"aws ecr get-login-password --region {region}".split(" ")
     try:
-        pw_process = subprocess.run(pw_command, capture_output=True, check=True,)
+        pw_process = subprocess.run(
+            pw_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
     except subprocess.CalledProcessError:
         raise LaunchError(
             "Unable to get login password. Please ensure you have AWS credentials configured."
@@ -239,7 +241,8 @@ def aws_ecr_login(region: str, registry: str) -> str:
         login_process = subprocess.run(
             f"docker login --username AWS --password-stdin {registry}".split(" "),
             input=pw_process.stdout,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             check=True,
         )
     except subprocess.CalledProcessError:
