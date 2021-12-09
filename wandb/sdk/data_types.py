@@ -25,6 +25,12 @@ from typing import (
     Union,
 )
 
+####
+
+import mlflow
+
+####
+
 from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
