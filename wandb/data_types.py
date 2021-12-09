@@ -1828,7 +1828,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
-                    item["id"]: item["name"] for item in py_obj._classes._class_set
+                    str(item["id"]): item["name"] for item in py_obj._classes._class_set
                 }
             else:
                 class_set = {}
