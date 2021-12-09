@@ -327,7 +327,7 @@ class TorchHistory(object):
     def _no_valid_values(self, tensor: "torch.Tensor") -> bool:
         return (
             tensor.shape == torch.Size([0])
-            or torch.logical_not(self._is_valid_mask(tensor)).all().item()
+            or (~self._is_valid_mask(tensor)).all().item()
         )
 
     def _remove_invalid_entries(self, tensor: "torch.Tensor") -> "torch.Tensor":
