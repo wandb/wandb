@@ -6,22 +6,6 @@ from typing import List, Tuple
 from collections import Counter
 from itertools import combinations_with_replacement
 
-# Numbers within a factor of roughly 1e8 of the maximum value supported
-# by 32 and 64 bit floats. torch.linspace and torch.histc are both prone
-# to crashing when they encounter numbers much beyond this magnitude.
-HIGH32 = 1e30
-HIGH64 = 1e300
-
-# The machine epsilon, or smallest relative difference between any two
-# numbers, for 32 and 64 bit floats. Equivalent to torch.finfo(dtype).eps
-# in pytorch v1.0.0 and later.
-EPS32 = float.fromhex("0x1p-23")
-EPS64 = float.fromhex("0x1p-52")
-
-# The smallest "normal number" for 32 and 64 bit floats. Equivalent to
-# torch.finfo(dtype).tiny in pytorch v1.0.0 and later.
-TINY32 = float.fromhex("0x1p-126")
-TINY64 = float.fromhex("0x1p-1022")
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("pytorch", reason="pytorch doesnt support py3.9 yet")
@@ -316,13 +300,13 @@ def test_remove_invalid_entries(test_input, expected, wandb_init_run):
 
 def iter_hist_bounds(dtype: torch.dtype) -> List[Tuple[float]]:
     if dtype == torch.float32:
-        high = HIGH32
-        eps = EPS32
-        tiny = TINY32
+        high = wandb.wandb_torch.HIGH32
+        eps = wandb.wandb_torch.EPS32
+        tiny = wandb.wandb_torch.TINY32
     else:  # dtype == torch.float64
-        high = HIGH64
-        eps = EPS64
-        tiny = TINY64
+        high = wandb.wandb_torch.HIGH64
+        eps = wandb.wandb_torch.EPS64
+        tiny = wandb.wandb_torch.TINY64
 
     values = sorted(
         [
@@ -358,13 +342,13 @@ def test_widen_min_max(wandb_init_run):
     torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
     for dtype in (torch.float32, torch.float64):
         if dtype == torch.float32:
-            high = HIGH32
-            eps = EPS32
-            tiny = TINY32
+            high = wandb.wandb_torch.HIGH32
+            eps = wandb.wandb_torch.EPS32
+            tiny = wandb.wandb_torch.TINY32
         else:  # dtype == torch.float64
-            high = HIGH64
-            eps = EPS64
-            tiny = TINY64
+            high = wandb.wandb_torch.HIGH64
+            eps = wandb.wandb_torch.EPS64
+            tiny = wandb.wandb_torch.TINY64
 
         for tmin, tmax in iter_hist_bounds(dtype):
             tmin2, tmax2 = torch_history._widen_min_max(tmin, tmax, dtype)
