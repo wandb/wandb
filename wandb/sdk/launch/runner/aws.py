@@ -40,7 +40,7 @@ class AWSSubmittedRun(AbstractRun):
         super().__init__()
         self.client = client
         self.training_job_name = training_job_name
-        self._status = Status("starting")
+        self._status = Status("running")
 
     @property
     def id(self) -> str:
@@ -82,6 +82,7 @@ class AWSSagemakerRunner(AbstractRunner):
     """Runner class, uses a project to create a AWSSubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+        _logger.info("Launching sagemaker job")
         boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
         validate_docker_installation()
         assert (

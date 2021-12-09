@@ -895,6 +895,10 @@ def test_launch_aws_sagemaker(
     assert run.training_job_name == "test-job-1"
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
 def test_sagemaker_specified_image(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch, capsys
 ):
@@ -966,13 +970,15 @@ def test_aws_submitted_run_status():
 
 def test_aws_submitted_run_cancel():
     mock_sagemaker_client = MagicMock()
-    mock_sagemaker_client.stop_training_job.return_value = {
-        "TrainingJobStatus": "Stopping",
-    }
-    mock_sagemaker_client.stopping = False
+    mock_sagemaker_client.stopping = 0
 
     def mock_describe_training_job(TrainingJobName):
-        if mock_sagemaker_client.stopping:
+        if mock_sagemaker_client.stopping == 1:
+            mock_sagemaker_client.stopping += 1
+            return {
+                "TrainingJobStatus": "Stopping",
+            }
+        elif mock_sagemaker_client.stopping == 2:
             return {
                 "TrainingJobStatus": "Stopped",
             }
@@ -982,7 +988,7 @@ def test_aws_submitted_run_cancel():
             }
 
     def mock_stop_training_job(TrainingJobName):
-        mock_sagemaker_client.stopping = True
+        mock_sagemaker_client.stopping += 1
         return {
             "TrainingJobStatus": "Stopping",
         }
@@ -992,8 +998,35 @@ def test_aws_submitted_run_cancel():
     run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
     run.cancel()
     assert run._status.state == "finished"
+    assert False
 
 
 def test_aws_submitted_run_id():
     run = AWSSubmittedRun("test-job-1", None)
     assert run.id == "sagemaker-test-job-1"
+
+
+def test_failed_aws_cred_login(
+    monkeypatch, test_settings, mocked_fetchable_git_repo, live_mock_server
+):
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Failed\n"
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    with pytest.raises(wandb.errors.LaunchError):
+        launch.run(
+            uri="https://wandb.ai/mock_server_entity/test/runs/1",
+            api=api,
+            resource="aws-sagemaker",
+            entity="mock_server_entity",
+            project="test",
+            resource_args={
+                "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                "ecr_name": "my-test-repo",
+                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+                "TrainingJobName": "test-job-1",
+                "region": "us-east-1",
+            },
+        )
