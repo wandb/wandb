@@ -961,4 +961,4 @@ def test_aws_submitted_run_cancel():
 
 def test_aws_submitted_run_id():
     run = AWSSubmittedRun("test-job-1", None)
-    assert run.id == "sagemaker_test-job-1"
+    assert run.id == "sagemaker-test-job-1"
