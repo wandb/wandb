@@ -4,6 +4,7 @@ into a runnable wandb launch script
 """
 
 import enum
+import json
 import logging
 import os
 from shlex import quote
@@ -396,3 +397,21 @@ def fetch_and_validate_project(
         launch_project.override_args
     )
     return launch_project
+
+
+def create_metadata_file(
+    launch_project: LaunchProject,
+    sanitized_command_str: str,
+    sanitized_dockerfile_contents: str,
+) -> None:
+    with open(
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
+    ) as f:
+        json.dump(
+            {
+                **launch_project.launch_spec,
+                "command": sanitized_command_str,
+                "dockerfile_contents": sanitized_dockerfile_contents,
+            },
+            f,
+        )

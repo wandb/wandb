@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -152,6 +153,7 @@ def build_docker_image_if_needed(
     container_env: List[str],
     runner_type: str,
     image_uri: str,
+    command_args: List[str],
 ) -> str:
     """
     Build a docker image containing the project in `work_dir`, using the base image.
@@ -232,7 +234,16 @@ def build_docker_image_if_needed(
     )
     dockerfile_contents += env_vars + "\n"
 
-    launch_project._dockerfile_contents = dockerfile_contents
+    sanitized_dockerfile_contents = re.sub(
+        r"WANDB_API_KEY=\w+", "WANDB_API_KEY", dockerfile_contents
+    )
+    command_string = " ".join(command_args)
+    sanitized_command_string = re.sub(
+        r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_string
+    )
+    _project_spec.create_metadata_file(
+        launch_project, sanitized_command_string, sanitized_dockerfile_contents
+    )
 
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
 
