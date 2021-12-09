@@ -59,6 +59,7 @@ def _launch_add(
     version: Optional[str],
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
+    resource_args: Optional[Dict[str, Any]] = None,
 ) -> "public.QueuedJob":
 
     resource = resource or "local"
@@ -81,9 +82,11 @@ def _launch_add(
         project,
         entity,
         docker_image,
+        resource,
         entry_point,
         version,
         params,
+        resource_args,
         launch_config,
     )
 
