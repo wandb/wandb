@@ -135,11 +135,14 @@ class RunStatusChecker(object):
         self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
+
         self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.name = "ChkStopThr"
         self._stop_thread.daemon = True
         self._stop_thread.start()
 
         self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.name = "NetStatThr"
         self._retry_thread.daemon = True
         self._retry_thread.start()
 
