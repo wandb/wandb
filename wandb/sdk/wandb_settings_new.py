@@ -1,4 +1,6 @@
+from datetime import datetime
 import enum
+import multiprocessing
 from typing import (
     Any,
     Callable,
@@ -6,10 +8,15 @@ from typing import (
     Dict,
     Optional,
     Sequence,
+    Set,
+    Tuple,
+    Type,
     TYPE_CHECKING,
     Union,
 )
 from urllib.parse import urljoin
+
+from wandb.errors import UsageError
 
 
 def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
@@ -32,6 +39,13 @@ class Source(enum.IntEnum):
     INIT: int = 11
     SETTINGS: int = 12
     ARGS: int = 13
+
+
+@enum.unique
+class SettingsConsole(enum.Enum):
+    OFF = 0
+    WRAP = 1
+    REDIRECT = 2
 
 
 class Property:
@@ -65,21 +79,21 @@ class Property:
     @property
     def value(self):
         _value = self._value
-        if self._hook is not None:
+        if _value is not None and self._hook is not None:
             _hook = [self._hook] if callable(self._hook) else self._hook
             for h in _hook:
                 _value = h(_value)
         return _value
 
     def _preprocess(self, value):
-        if self._preprocessor is not None:
+        if value is not None and self._preprocessor is not None:
             _preprocessor = [self._preprocessor] if callable(self._preprocessor) else self._preprocessor
             for p in _preprocessor:
                 value = p(value)
         return value
 
     def _validate(self, value):
-        if self._validator is not None:
+        if value is not None and self._validator is not None:
             _validator = [self._validator] if callable(self._validator) else self._validator
             for v in _validator:
                 if not v(value):
@@ -116,10 +130,10 @@ class Property:
         self.__dict__[key] = value
 
     def __repr__(self):
-        return f"<Property {self.name}: value={self.value} source={self._source}>"
+        # return f"<Property {self.name}: value={self.value} source={self._source}>"
         # return f"<Property {self.name}: value={self._value}>"
         # return self.__dict__.__repr__()
-        # return f"{self._value}"
+        return f"{self.value}"
 
 
 class Settings:
@@ -129,22 +143,301 @@ class Settings:
 
     __frozen: bool = False
 
-    def _join_with_base_url(self, url):
+    Console: Type[SettingsConsole] = SettingsConsole
+
+    # helper methods for pre-processing values
+    def _join_with_base_url(self, url: str) -> str:
         return urljoin(self.base_url, url)
+
+    # helper methods for validating values
+    @staticmethod
+    def _validate_mode(value: str) -> bool:
+        choices = {"dryrun", "run", "offline", "online", "disabled"}
+        if value not in choices:
+            raise UsageError(f"Settings field `mode`: '{value}' not in {choices}")
+        return True
+
+    @staticmethod
+    def _validate_project(value: Optional[str]) -> bool:
+        invalid_chars_list = list("/\\#?%:")
+        if value is not None:
+            if len(value) > 128:
+                raise UsageError(f'Invalid project name "{value}": exceeded 128 characters')
+            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            if invalid_chars:
+                raise UsageError(
+                    f'Invalid project name "{value}": '
+                    f"cannot contain characters \"{','.join(invalid_chars_list)}\", "
+                    f"found \"{','.join(invalid_chars)}\""
+                )
+        return True
+
+    @staticmethod
+    def _validate_start_method(value: str) -> bool:
+        available_methods = ["thread"]
+        if hasattr(multiprocessing, "get_all_start_methods"):
+            available_methods += multiprocessing.get_all_start_methods()
+        if value not in available_methods:
+            raise UsageError(f"Settings field `start_method`: '{value}' not in {available_methods}")
+        return True
+
+    @staticmethod
+    def _validate_console(value: str) -> bool:
+        # choices = {"auto", "redirect", "off", "file", "iowrap", "notebook"}
+        choices = {"auto", "redirect", "off", "wrap"}
+        if value not in choices:
+            raise UsageError(f"Settings field `console`: '{value}' not in {choices}")
+        return True
+
+    @staticmethod
+    def _validate_problem(value: str) -> bool:
+        choices = {"fatal", "warn", "silent"}
+        if value not in choices:
+            raise UsageError(f"Settings field `problem`: '{value}' not in {choices}")
+        return True
+
+    @staticmethod
+    def _validate_anonymous(value: str) -> bool:
+        choices = {"allow", "must", "never", "false", "true"}
+        if value not in choices:
+            raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
+        return True
 
     def __init__(
         self,
         **kwargs,
     ):
         settings = {
-            "base_url": {
-                "value": "https://api.wandb.ai",
-                "preprocessor": lambda x: str(x),
+            # former class attributes
+            "mode": {
+                "value": "online",
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_mode,
+                ],
+            },
+            "start_method": {
+                "value": None,
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_start_method,
+                ],
+            },
+            "_require_service": {
+                "value": None,
                 "validator": lambda x: isinstance(x, str),
-                "is_policy": True,
-                "help": "The base url for the wandb api.",
+            },
+            "_service_transport": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "console": {
+                "value": "auto",
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_console,
+                ],
+            },
+            "disabled": {
+                "value": False,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "force": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "run_tags": {
+                "value": None,
+                "validator": lambda x: isinstance(x, Tuple),
             },
             "run_id": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "sweep_id": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "launch": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "launch_config_path": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "resume_fname_spec": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "root_dir": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            # log_dir_spec: Optional[str] = None
+            # log_user_spec: Optional[str] = None
+            # log_internal_spec: Optional[str] = None
+            # sync_file_spec: Optional[str] = None
+            # sync_dir_spec: Optional[str] = None
+            # files_dir_spec: Optional[str] = None
+            # tmp_dir_spec: Optional[str] = None
+            # log_symlink_user_spec: Optional[str] = None
+            # log_symlink_internal_spec: Optional[str] = None
+            # sync_symlink_latest_spec: Optional[str] = None
+            # settings_system_spec: Optional[str] = None
+            # settings_workspace_spec: Optional[str] = None
+            "silent": {
+                "value": "False",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "quiet": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str) or isinstance(x, bool),
+            },
+            "show_info": {
+                "value": "True",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "show_warnings": {
+                "value": "True",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "show_errors": {
+                "value": "True",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "username": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "email": {
+                "value": "False",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "save_code": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "is_priority": True,
+            },
+            "disable_code": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "is_priority": True,
+            },
+            "disable_git": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "is_priority": True,
+            },
+            "git_remote": {
+                "value": "origin",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "code_dir": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "program_relpath": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "program": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "notebook_name": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "host": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "resume": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "strict": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "label_disable": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            # Public attributes
+            "entity": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "project": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_group": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_name": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_notes": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "sagemaker_disable": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            # TODO(jhr): Audit this
+            "run_job_type": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+
+            # Private attributes
+            "_start_time": {
+                "value": None,
+                "validator": lambda x: isinstance(x, float),
+            },
+            "_start_datetime": {
+                "value": None,
+                "validator": lambda x: isinstance(x, datetime),
+            },
+            "_unsaved_keys": {
+                "value": None,
+                "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
+            },
+            "_except_exit": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_runqueue_item_id": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+
+            # former init args
+            "base_url": {
+                "value": "https://api.wandb.ai",
+                "preprocessor": lambda x: str(x).rstrip("/"),
+                "validator": lambda x: isinstance(x, str),
+                "help": "The base url for the wandb api.",
+            },
+            "summary_warnings": {
+                "value": 5,
+                "preprocessor": lambda x: int(x),
+                "validator": lambda x: isinstance(x, int),
+                "is_policy": True,
+            },
+            "ignore_globs": {
+                "value": tuple(),
+                "validator": lambda x: isinstance(x, Sequence),
+            },
+
+            # debug args
+            "lol_id": {
                 "value": "abc123",
                 "preprocessor": lambda x: str(x),
                 "validator": lambda x: isinstance(x, str),
@@ -153,6 +446,7 @@ class Settings:
             "meaning_of_life": {
                 "value": "42",
                 "preprocessor": lambda x: int(x),
+                "is_policy": True,  # surely the big brother knows best
             }
         }
         # update overridden defaults from kwargs
@@ -171,7 +465,8 @@ class Settings:
         # self.freeze()
 
     def __repr__(self):
-        return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
+        # return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
+        return f"<Settings {self.__dict__}>"
 
     def __getattribute__(self, name: str):
         item = object.__getattribute__(self, name)
@@ -182,31 +477,11 @@ class Settings:
     def __setattr__(self, key, value):
         raise TypeError("Use update() to update attribute values")
 
-    # def _path_convert(self, *path: Any) -> Optional[str]:
-    #     """convert slashes, expand ~ and other macros."""
-    #
-    #     format_dict: Dict[str, Union[str, int]] = dict()
-    #     if self._start_time and self._start_datetime:
-    #         format_dict["timespec"] = datetime.strftime(
-    #             self._start_datetime, "%Y%m%d_%H%M%S"
-    #         )
-    #     if self.run_id:
-    #         format_dict["run_id"] = self.run_id
-    #     format_dict["run_mode"] = "offline-run" if self._offline else "run"
-    #     format_dict["proc"] = os.getpid()
-    #     # TODO(cling): hack to make sure we read from local settings
-    #     #              this is wrong if the run_dir changes later
-    #     format_dict["wandb_dir"] = self.wandb_dir or "wandb"
-    #
-    #     path_items: List[str] = []
-    #     for p in path:
-    #         part = self._path_convert_part(p, format_dict)
-    #         if part is None:
-    #             return None
-    #         path_items += part
-    #     converted_path = os.path.join(*path_items)
-    #     converted_path = os.path.expanduser(converted_path)
-    #     return converted_path
+    @property
+    def is_local(self) -> bool:
+        if self.base_url is not None:
+            return self.base_url != "https://api.wandb.ai"
+        return False
 
     def update(self, settings: Dict[str, Any], source: int = Source.OVERRIDE):
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
@@ -221,3 +496,6 @@ class Settings:
 
     def unfreeze(self):
         object.__setattr__(self, "_Settings__frozen", False)
+
+    def make_static(self):
+        return {k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)}
