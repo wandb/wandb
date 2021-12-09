@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import re
@@ -10,10 +9,7 @@ import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import (
-    DEFAULT_LAUNCH_METADATA_PATH,
-    LaunchProject,
-)
+from .._project_spec import LaunchProject
 from ..docker import (
     build_docker_image_if_needed,
     construct_local_image_uri,
