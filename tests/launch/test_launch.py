@@ -861,7 +861,8 @@ def test_launch_aws_sagemaker(
         _project_spec.create_metadata_file(*args, **kwargs)
 
     mock_boto3.client = mock_client
-
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(boto3, "client", mock_client)
     monkeypatch.setattr(
         wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
