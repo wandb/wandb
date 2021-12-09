@@ -1,5 +1,7 @@
-<div align="center">
-  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
+<div style="text-align: center;">
+  <img src="https://i.imgur.com/RUtiVzH.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
+  <img src="https://user-images.githubusercontent.com/7557205/145482442-da0c050e-e424-40f6-bd2f-30499d806413.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+  <br><br>
 </div>
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
