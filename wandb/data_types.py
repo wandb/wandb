@@ -1759,10 +1759,7 @@ class _ImageFileType(_dtypes.Type):
             # Merge the class_ids from each set of box_layers
             box_layers = {
                 key: list(
-                    set(
-                        list(box_layers_self.get(key, []))
-                        + list(box_layers_other.get(key, []))
-                    )
+                    set(box_layers_self.get(key, []) + box_layers_other.get(key, []))
                 )
                 for key in set(
                     list(box_layers_self.keys()) + list(box_layers_other.keys())
@@ -1772,10 +1769,7 @@ class _ImageFileType(_dtypes.Type):
             # Merge the class_ids from each set of mask_layers
             mask_layers = {
                 key: list(
-                    set(
-                        list(mask_layers_self.get(key, []))
-                        + list(mask_layers_other.get(key, []))
-                    )
+                    set(mask_layers_self.get(key, []) + mask_layers_other.get(key, []))
                 )
                 for key in set(
                     list(mask_layers_self.keys()) + list(mask_layers_other.keys())
