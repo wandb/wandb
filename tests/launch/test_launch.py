@@ -1,3 +1,4 @@
+import configparser
 import json
 import os
 from tests.utils.utils import mock_sagemaker
@@ -5,7 +6,7 @@ from wandb.apis import PublicApi
 from unittest.mock import MagicMock
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.docker import pull_docker_image
-from wandb.sdk.launch.runner.aws import AWSSubmittedRun
+from wandb.sdk.launch.runner.aws import AWSSubmittedRun, get_region
 
 try:
     from unittest import mock
@@ -1031,4 +1032,80 @@ def test_failed_aws_cred_login(
                 "TrainingJobName": "test-job-1",
                 "region": "us-east-1",
             },
+        )
+
+
+def test_aws_get_region_file_success(runner):
+    with runner.isolated_filesystem():
+        with open(os.path.expanduser("~/.aws/config"), "w+") as f:
+            f.write("[default]\n" "region = us-east-1\n")
+        launch_project = _project_spec.LaunchProject(
+            "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
+            {},
+            "test",
+            "test",
+            resource="aws-sagemaker",
+            name="test",
+            docker_config={},
+            git_info={},
+            overrides={},
+            resource_args={},
+        )
+        region = get_region(launch_project)
+        assert region == "us-east-1"
+
+
+def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
+    def mock_get(x, y, z):
+        raise configparser.NoSectionError("default")
+
+    monkeypatch.setattr("os.path.exists", lambda x: True)
+    monkeypatch.setattr(configparser.ConfigParser, "read", lambda x, y: {})
+    monkeypatch.setattr(configparser.ConfigParser, "get", mock_get)
+    with runner.isolated_filesystem():
+        launch_project = _project_spec.LaunchProject(
+            "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
+            {},
+            "test",
+            "test",
+            resource="aws-sagemaker",
+            name="test",
+            docker_config={},
+            git_info={},
+            overrides={},
+            resource_args={},
+        )
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            get_region(launch_project)
+        assert (
+            str(e_info.value)
+            == "Unable to detemine default region from ~/.aws/config. "
+            "Please specify region in resource args or specify config "
+            "section as 'aws_config_section'"
+        )
+
+
+def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
+    monkeypatch.setattr("os.path.exists", lambda x: False)
+    with runner.isolated_filesystem():
+        launch_project = _project_spec.LaunchProject(
+            "https://wandb.ai/mock_server_entity/test/runs/1",
+            None,
+            {},
+            "test",
+            "test",
+            resource="aws-sagemaker",
+            name="test",
+            docker_config={},
+            git_info={},
+            overrides={},
+            resource_args={},
+        )
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            get_region(launch_project)
+        assert (
+            str(e_info.value)
+            == "AWS region not specified and ~/.aws/config not found. Configure AWS."
         )

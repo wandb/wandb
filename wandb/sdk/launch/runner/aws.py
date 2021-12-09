@@ -213,7 +213,7 @@ class AWSSagemakerRunner(AbstractRunner):
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
                 return None
-        _logger.info(f"Connecting to sagemaker client")
+        _logger.info("Connecting to sagemaker client")
         sagemaker_client = boto3.client(
             "sagemaker",
             region_name=region,
