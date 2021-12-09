@@ -1798,7 +1798,7 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_layers = {
-                    key: set(py_obj._boxes[key]._class_labels.keys())
+                    key: list(py_obj._boxes[key]._class_labels.keys())
                     for key in py_obj._boxes.keys()
                 }
                 box_score_keys = set(
@@ -1816,7 +1816,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    key: set(
+                    key: list(
                         py_obj._masks[key]._val["class_labels"].keys()
                         if hasattr(py_obj._masks[key], "_val")
                         else []
