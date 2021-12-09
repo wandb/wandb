@@ -2,6 +2,7 @@
 Implementation of launch agent.
 """
 
+import logging
 import os
 import sys
 import time
@@ -26,6 +27,8 @@ AGENT_POLLING_INTERVAL = 10
 AGENT_POLLING = "POLLING"
 AGENT_RUNNING = "RUNNING"
 AGENT_KILLED = "KILLED"
+
+_logger = logging.getLogger(__name__)
 
 
 def _convert_access(access: str) -> str:
@@ -136,11 +139,13 @@ class LaunchAgent(object):
     def run_job(self, job: Dict[str, Any]) -> None:
         """Sets up project and runs the job."""
         # TODO: logger
-        wandb.termlog("agent: got job", job)
+        wandb.termlog(f"agent: got job f{job}")
+        _logger.info(f"Agent job: {job}")
         # update agent status
         self.update_status(AGENT_RUNNING)
 
         # parse job
+        _logger.info("Parsing launch spec")
         launch_spec = job["runSpec"]
         if launch_spec.get("overrides") and isinstance(
             launch_spec["overrides"].get("args"), list
@@ -151,14 +156,18 @@ class LaunchAgent(object):
         self._validate_and_fix_spec_project_entity(launch_spec)
 
         project = create_project_from_spec(launch_spec, self._api)
+        _logger.info("Fetching and validating project...")
         project = fetch_and_validate_project(project, self._api)
-
+        _logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local"
         backend_config: Dict[str, Any] = {
             PROJECT_DOCKER_ARGS: {},
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
         if _is_wandb_local_uri(self._base_url):
+            _logger.info(
+                "Noted a local URI. Setting local network arguments for docker"
+            )
             if sys.platform == "win32":
                 backend_config[PROJECT_DOCKER_ARGS]["net"] = "host"
             else:
@@ -169,9 +178,10 @@ class LaunchAgent(object):
                 ] = "host.docker.internal:host-gateway"
 
         backend_config["runQueueItemId"] = job["runQueueItemId"]
+        _logger.info("Loading backend")
         backend = load_backend(resource, self._api, backend_config)
         backend.verify()
-
+        _logger.info("Backend loaded...")
         run = backend.run(project)
         if run:
             self._jobs[run.id] = run

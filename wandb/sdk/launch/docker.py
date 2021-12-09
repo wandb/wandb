@@ -45,11 +45,13 @@ def generate_docker_base_image(
 
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
+    _logger.info("Importing repo2docker...")
     get_module(
         "repo2docker",
         required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
     )
     assert isinstance(path, str)
+    _logger.info("Running repo2docker...")
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
@@ -63,6 +65,7 @@ def generate_docker_base_image(
         "Generating docker base image from git repo or finding image if it already exists..."
     )
     build_log = os.path.join(launch_project.project_dir, "build.log")
+    _logger.info(f"Build log found at: {build_log}")
     with yaspin(
         text="Generating docker base image {}, this may take a few minutes...".format(
             launch_project.base_image
@@ -89,16 +92,21 @@ _inspected_images = {}
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,
     optionally raising an exception"""
+    _logger.info("Checking if base image exists...")
     try:
         data = docker.run(["docker", "image", "inspect", docker_image])
         # always true, since return stderr defaults to false
         assert isinstance(data, str)
         parsed = json.loads(data)[0]
         _inspected_images[docker_image] = parsed
+        _logger.info("Base image found. Won't generate new base image")
         return True
     except (DockerError, ValueError) as e:
         if should_raise:
             raise e
+        _logger.info(
+            "Base image not found. Generating new base image using repo2docker"
+        )
         return False
 
 
@@ -117,7 +125,7 @@ def pull_docker_image(docker_image: str) -> None:
         raise LaunchError("Docker server returned error: {}".format(e))
 
 
-def construct_local_image_uri(launch_project: _project_spec.LaunchProject):
+def construct_local_image_uri(launch_project: _project_spec.LaunchProject) -> str:
     image_uri = _get_docker_image_uri(
         name=launch_project.image_name,
         work_dir=launch_project.project_dir,
@@ -126,9 +134,14 @@ def construct_local_image_uri(launch_project: _project_spec.LaunchProject):
     return image_uri
 
 
-def construct_gcp_image_uri(launch_project: _project_spec.LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str):
+def construct_gcp_image_uri(
+    launch_project: _project_spec.LaunchProject,
+    gcp_repo: str,
+    gcp_project: str,
+    gcp_registry: str,
+) -> str:
     base_uri = construct_local_image_uri(launch_project)
-    return '/'.join([gcp_registry, gcp_project, gcp_repo, base_uri])
+    return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
 
 
 def build_docker_image_if_needed(
@@ -146,7 +159,6 @@ def build_docker_image_if_needed(
     :param api: instance of wandb.apis.internal Api
     :param copy_code: boolean indicating if code should be copied into the docker container
     """
-    
     launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
@@ -205,16 +217,18 @@ def build_docker_image_if_needed(
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    env_vars = '\n'.join([
-        f"ENV WANDB_BASE_URL={base_url}",
-        f"ENV WANDB_API_KEY={api.api_key}",
-        f"ENV WANDB_PROJECT={launch_project.target_project}",
-        f"ENV WANDB_ENTITY={launch_project.target_entity}",
-        f"ENV WANDB_LAUNCH={True}",
-        f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
-        f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
-        f"ENV WANDB_DOCKER={launch_project.docker_image}",
-    ])
+    env_vars = "\n".join(
+        [
+            f"ENV WANDB_BASE_URL={base_url}",
+            f"ENV WANDB_API_KEY={api.api_key}",
+            f"ENV WANDB_PROJECT={launch_project.target_project}",
+            f"ENV WANDB_ENTITY={launch_project.target_entity}",
+            f"ENV WANDB_LAUNCH={True}",
+            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
+            f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
+            f"ENV WANDB_DOCKER={launch_project.docker_image}",
+        ]
+    )
     dockerfile_contents += env_vars + "\n"
 
     if runner_type == 'gcp-vertex':
@@ -262,11 +276,6 @@ def get_docker_command(
     """
     docker_path = "docker"
     cmd: List[Any] = [docker_path, "run", "--rm"]
-
-    cmd += [
-        "-v",
-        f"{os.path.join(launch_project.aux_dir, _project_spec.DEFAULT_LAUNCH_METADATA_PATH)}:{os.path.join(workdir,_project_spec.DEFAULT_LAUNCH_METADATA_PATH)}",
-    ]
 
     if docker_args:
         for name, value in docker_args.items():
@@ -350,3 +359,35 @@ def _create_docker_build_ctx(
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory
+
+
+def get_full_command(
+    image_uri: str,
+    launch_project: _project_spec.LaunchProject,
+    api: Api,
+    container_workdir: str,
+    docker_args: Dict[str, Any],
+    entry_point: _project_spec.EntryPoint,
+) -> List[str]:
+    """Returns the full shell command to execute in order to run the specified entry point.
+
+    Arguments:
+    image_uri: image uri to run
+    launch_project: LaunchProject instance used to construct the command
+    api: Instance of wandb.apis.internal Api
+    container_workdir: The working directory to use inside the container
+    docker_args: Dictionary of docker args to pass to the container
+    entry_point: Entry point to run
+
+    Returns:
+        List of strings representing the shell command to be executed
+    """
+
+    commands = []
+    commands += get_docker_command(
+        image_uri, launch_project, api, container_workdir, docker_args
+    )
+    commands += _project_spec.get_entry_point_command(
+        entry_point, launch_project.override_args
+    )
+    return commands

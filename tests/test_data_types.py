@@ -842,6 +842,7 @@ def test_graph():
 
 def test_numpy_arrays_to_list():
     conv = data_types._numpy_arrays_to_lists
+    assert conv(np.array(1)) == [1]
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
     assert conv(np.array(({"a": [np.array((1, 2,))]}, 3,))) == [{"a": [[1, 2]]}, 3]

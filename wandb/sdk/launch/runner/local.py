@@ -12,7 +12,6 @@ from wandb.errors import CommError, LaunchError
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
     DEFAULT_LAUNCH_METADATA_PATH,
-    get_entry_point_command,
     LaunchProject,
 )
 from ..docker import (
@@ -21,7 +20,7 @@ from ..docker import (
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
-    get_docker_command,
+    get_full_command,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -80,15 +79,16 @@ class LocalRunner(AbstractRunner):
     """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+        _logger.info("Validating docker installation")
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-
         entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
         copy_code = True
         if launch_project.docker_image:
+            _logger.info("Pulling user provided docker image")
             pull_docker_image(launch_project.docker_image)
             copy_code = False
         else:
@@ -101,36 +101,76 @@ class LocalRunner(AbstractRunner):
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
 
-        command_args = []
         command_separator = " "
+        command_args = []
 
+        _logger.info("Inspecting base image for env, and working dir...")
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
-
         if launch_project.docker_image is None or launch_project.build_image:
             image_uri = construct_local_image_uri(launch_project)
-            image = build_docker_image_if_needed(
+            command_args = get_full_command(
+                image_uri,
+                launch_project,
+                self._api,
+                container_workdir,
+                docker_args,
+                entry_point,
+            )
+            command_str = command_separator.join(command_args)
+
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
+            with open(
+                os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH),
+                "w",
+            ) as f:
+                json.dump(
+                    {
+                        **launch_project.launch_spec,
+                        "command": sanitized_command_str,
+                        "dockerfile_contents": launch_project._dockerfile_contents,
+                    },
+                    f,
+                )
+            _logger.info("Building docker image...")
+            build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
-                runner_type='local',
+                runner_type="local",
                 image_uri=image_uri,
             )
         else:
-            image = launch_project.docker_image
-    
-        command_args += get_docker_command(
-            image=image,
-            launch_project=launch_project,
-            api=self._api,
-            workdir=container_workdir,
-            docker_args=docker_args,
-        )
+            # TODO: rewrite env vars and copy code in supplied docker image
+            wandb.termwarn(
+                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
+                    launch_project.docker_image
+                )
+            )
+            image_uri = launch_project.docker_image
+            _logger.info("Getting docker command...")
+            command_args = get_full_command(
+                image_uri,
+                launch_project,
+                self._api,
+                container_workdir,
+                docker_args,
+                entry_point,
+            )
+            command_str = command_separator.join(command_args)
+
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
+
         if self.backend_config.get("runQueueItemId"):
             try:
+                _logger.info("Acking run queue item...")
                 self._api.ack_run_queue_item(
                     self.backend_config["runQueueItemId"], launch_project.run_id
                 )
@@ -139,26 +179,6 @@ class LocalRunner(AbstractRunner):
                     "Error acking run queue item. Item lease may have ended or another process may have acked it."
                 )
                 return None
-
-        command_args += get_entry_point_command(
-            entry_point, launch_project.override_args
-        )
-
-        command_str = command_separator.join(command_args)
-        sanitized_command_str = re.sub(
-            r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-        )
-        with open(
-            os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
-        ) as fp:
-            json.dump(
-                {
-                    **launch_project.launch_spec,
-                    "command": sanitized_command_str,
-                    "dockerfile_contents": launch_project._dockerfile_contents,
-                },
-                fp,
-            )
 
         wandb.termlog(
             "Launching run in docker with command: {}".format(sanitized_command_str)
