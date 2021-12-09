@@ -1008,6 +1008,8 @@ def test_aws_submitted_run_id():
 def test_failed_aws_cred_login(
     monkeypatch, test_settings, mocked_fetchable_git_repo, live_mock_server
 ):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     monkeypatch.setattr(
         wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Failed\n"
     )

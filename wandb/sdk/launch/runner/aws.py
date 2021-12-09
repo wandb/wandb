@@ -318,9 +318,20 @@ def get_region(launch_project: LaunchProject) -> str:
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/config"))
-        region = config.get("default", "region")
+        section = launch_project.resource_args.get("config_section") or "default"
+        try:
+            region = config.get(section, "region")
+        except configparser.NoSectionError or configparser.NoOptionError:
+            raise LaunchError(
+                "Unable to detemine default region from ~/.aws/config. "
+                "Please specify region in resource args or specify config "
+                "section as 'aws_config_section'"
+            )
+
     if region is None:
-        raise LaunchError("AWS region not specified.")
+        raise LaunchError(
+            "AWS region not specified and ~/.aws/config not found. Configure AWS."
+        )
     assert isinstance(region, str)
     return region
 
