@@ -425,6 +425,13 @@ class Settings:
                 "validator": lambda x: isinstance(x, str),
                 "help": "The base url for the wandb api.",
             },
+            "api_key": {
+                "value": None,
+                # do not preprocess api_key: as @kptkin says, it's like changing the password
+                "validator": [
+                    lambda x: isinstance(x, str)
+                ],
+            },
             "summary_warnings": {
                 "value": 5,
                 "preprocessor": lambda x: int(x),
