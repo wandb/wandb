@@ -1,7 +1,10 @@
 from datetime import datetime
+from distutils.util import strtobool
 import enum
 import multiprocessing
 import os
+import re
+import tempfile
 from typing import (
     Any,
     Callable,
@@ -16,12 +19,45 @@ from typing import (
 )
 from urllib.parse import urljoin
 
+import wandb
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 
 
 def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
     return {v or prefix + k.upper(): k for k, v in d.items()}
+
+
+def get_wandb_dir(root_dir: str) -> str:
+    """
+        Get the full path to the wandb directory.
+
+        The setting exposed to users as `dir=` or `WANDB_DIR` is the `root_dir`.
+        We add the `__stage_dir__` to it to get the full `wandb_dir`
+    """
+    # We use the hidden version if it already exists, otherwise non-hidden.
+    if os.path.exists(os.path.join(root_dir, ".wandb")):
+        __stage_dir__ = ".wandb" + os.sep
+    else:
+        __stage_dir__ = "wandb" + os.sep
+
+    path = os.path.join(root_dir, __stage_dir__)
+    if not os.access(root_dir or ".", os.W_OK):
+        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory")
+        path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
+
+    return path
+
+
+def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
+    ret_val = None
+    if isinstance(val, bool):
+        return val
+    try:
+        ret_val = bool(strtobool(val))
+    except (AttributeError, ValueError):
+        pass
+    return ret_val
 
 
 @enum.unique
@@ -204,9 +240,19 @@ class Settings:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
         return True
 
+    @staticmethod
+    def _validate_base_url(value: Optional[str]) -> bool:
+        if value is not None:
+            if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
+                # user might guess app.wandb.ai or wandb.ai is the default cloud server
+                raise UsageError(f"{value} is not a valid server address, did you mean https://api.wandb.ai?")
+            elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
+                raise UsageError("http is not secure, please use https://api.wandb.ai")
+        return True
+
     def __init__(
         self,
-        **kwargs: Dict[str, Any],
+        **kwargs: Any,
     ):
         settings = {
             # former class attributes
@@ -277,29 +323,29 @@ class Settings:
                 "validator": lambda x: isinstance(x, str),
             },
             "silent": {
-                # fixme? elsewhere it is bool
                 "value": "False",
-                "validator": lambda x: isinstance(x, str),
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
             },
             "quiet": {
-                # fixme? elsewhere it is bool
                 "value": None,
-                "validator": lambda x: isinstance(x, str) or isinstance(x, bool),
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
             },
             "show_info": {
-                # fixme? elsewhere it is bool
                 "value": "True",
-                "validator": lambda x: isinstance(x, str),
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
             },
             "show_warnings": {
-                # fixme? elsewhere it is bool
                 "value": "True",
-                "validator": lambda x: isinstance(x, str),
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
             },
             "show_errors": {
-                # fixme? elsewhere it is bool
                 "value": "True",
-                "validator": lambda x: isinstance(x, str),
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
             },
             "username": {
                 "value": None,
@@ -354,7 +400,8 @@ class Settings:
             },
             "strict": {
                 "value": None,
-                "validator": lambda x: isinstance(x, str),
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
             },
             "label_disable": {
                 "value": None,
@@ -421,7 +468,10 @@ class Settings:
             "base_url": {
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).rstrip("/"),
-                "validator": lambda x: isinstance(x, str),
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_base_url,
+                ],
                 "help": "The base url for the wandb api.",
             },
             "api_key": {
@@ -462,7 +512,8 @@ class Settings:
             },
             "login_timeout": {
                 "value": None,
-                "validator": lambda x: isinstance(x, float) or isinstance(x, int),
+                "preprocessor": lambda x: float(x),
+                "validator": lambda x: isinstance(x, float),
             },
             # compatibility / error handling
             "problem": {
@@ -692,6 +743,7 @@ class Settings:
         # return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
         return f"<Settings {self.__dict__}>"
 
+    # access methods
     def __getattribute__(self, name: str):
         item = object.__getattribute__(self, name)
         if isinstance(item, Property):
@@ -699,13 +751,7 @@ class Settings:
         return item
 
     def __setattr__(self, key, value):
-        raise TypeError("Use update() to update attribute values")
-
-    @property
-    def is_local(self) -> bool:
-        if self.base_url is not None:
-            return self.base_url != "https://api.wandb.ai"
-        return False
+        raise TypeError("Please use update() to update attribute values")
 
     def update(self, settings: Dict[str, Any], source: int = Source.OVERRIDE):
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
@@ -723,3 +769,14 @@ class Settings:
 
     def make_static(self):
         return {k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)}
+
+    # properties
+    @property
+    def wandb_dir(self) -> str:
+        return get_wandb_dir(self.root_dir or "")
+
+    @property
+    def is_local(self) -> bool:
+        if self.base_url is not None:
+            return self.base_url != "https://api.wandb.ai"
+        return False
