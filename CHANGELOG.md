@@ -1,3 +1,67 @@
+## 0.12.7 (November 18, 2021)
+
+#### :bug: Bug Fix
+
+- Fix issue where console log streaming was causing excessive network traffic by @vwrj in https://github.com/wandb/client/pull/2786
+- Metaflow: Make optional dependencies actually optional by @andrewtruong in https://github.com/wandb/client/pull/2842
+- Fix docstrings for wandb.watch and ValidationDataLogger by @charlesfrye in https://github.com/wandb/client/pull/2849
+- Prevent launch agent from sending runs to a different project or entity by @KyleGoyette in https://github.com/wandb/client/pull/2872
+- Fix logging pr_curves through tensorboard by @KyleGoyette in https://github.com/wandb/client/pull/2876
+- Prevent TPU monitoring from reporting invalid metrics when not available by @kptkin in https://github.com/wandb/client/pull/2753
+- Make import order dependencies for WandbCallback more robust by @kptkin in https://github.com/wandb/client/pull/2807
+- Fix a bug in feature importance plotting to handle matrices of different shapes by @dannygoldstein in https://github.com/wandb/client/pull/2811
+- Fix base url handling to allow trailing / by @kptkin in https://github.com/wandb/client/pull/2910
+- Prevent wandb.agent() from sending too many heartbeats impacting rate limits by @dannygoldstein in https://github.com/wandb/client/pull/2923
+- Redact sensitive information from debug logs by @raubitsj in https://github.com/wandb/client/pull/2931
+
+#### :nail_care: Enhancement
+
+- Add wandb.Molecule support for rdkit supported formats by @dmitryduev in https://github.com/wandb/client/pull/2902
+- Add module-level docstrings for reference doc modules. by @charlesfrye in https://github.com/wandb/client/pull/2847
+- Store launch metadata in file by @KyleGoyette in https://github.com/wandb/client/pull/2582
+- Add Project.sweeps() public API call to view all sweeps in a project by @stephchen in https://github.com/wandb/client/pull/2729
+- Ensures API key prompt remains captive when user enters nothing by @dannygoldstein in https://github.com/wandb/client/pull/2721
+- Refactors wandb.sklearn into submodules by @charlesfrye in https://github.com/wandb/client/pull/2869
+- Support code artifacts in wandb launch by @KyleGoyette in https://github.com/wandb/client/pull/2860
+- Improve launch agent (async, stop, heartbeat updates) by @stephchen in https://github.com/wandb/client/pull/2871
+- Improve usage and error messages for anonymous mode by @kimjyhello in https://github.com/wandb/client/pull/2823
+- Add example on how to find runs with wandb.Api().runs(...) matching a regex by @dmitryduev in https://github.com/wandb/client/pull/2926
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.6...v0.12.7
+
+## 0.12.6 (October 27, 2021)
+
+#### :bug: Bug Fix
+
+- Fix sklearn `plot_calibration_curve()` issue breaking the provided model by @vwrj in https://github.com/wandb/client/pull/2791
+- Fix CondaEnvExportError by redirecting stderr by @charlesfrye in https://github.com/wandb/client/pull/2814
+- Fix `use_artifact()` when specifying an artifact from a different project by @KyleGoyette in https://github.com/wandb/client/pull/2832
+
+#### :nail_care: Enhancement
+
+- Add metric names to pr curve charts in tensorboard by @vanpelt in https://github.com/wandb/client/pull/2822
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.5...v0.12.6
+
+## 0.12.5 (October 19, 2021)
+
+#### :bug: Bug Fix
+
+- Report errors for invalid characters in logged media keys on windows
+- Handle errors when probing for TPUs in unsupported environments
+- Fixed bug where `%%wandb` followed by wandb.init() does not display run links
+- Fixed api.runs() to correctly return all runs for the current entity/project
+
+#### :nail_care: Enhancement
+
+- Add `wandb.require(experiment="service")` to improve multiprocessing support
+- Add support for swappable artifacts in launch context
+- Add `wandb.login(timeout=)` support for jupyter environments
+- Add ability to disable git ref saving with `WANDB_DISABLE_GIT`
+- Support newer versions of pytest-mock and PyYAML
+- Add ability to delete artifacts with aliases: `artifact.delete(delete_aliases=True)`
+- Add `unwatch()` method to the Run object
+
 ## 0.12.4 (October 5, 2021)
 
 #### :bug: Bug Fix

@@ -14,7 +14,7 @@ from wandb import util
 from wandb.vendor.pynvml import pynvml
 
 from . import tpu
-from ..interface.interface import BackendSender
+from ..interface.interface_queue import InterfaceQueue
 from ..lib import telemetry
 
 
@@ -66,13 +66,13 @@ def gpu_in_use_by_this_process(gpu_handle: GPUHandle) -> bool:
 class SystemStats(object):
 
     _pid: int
-    _interface: BackendSender
+    _interface: InterfaceQueue
     sampler: SamplerDict
     samples: int
     _thread: Optional[threading.Thread]
     gpu_count: int
 
-    def __init__(self, pid: int, interface: BackendSender) -> None:
+    def __init__(self, pid: int, interface: InterfaceQueue) -> None:
         try:
             pynvml.nvmlInit()
             self.gpu_count = pynvml.nvmlDeviceGetCount()
@@ -105,6 +105,7 @@ class SystemStats(object):
         if self._thread is None:
             self._shutdown = False
             self._thread = threading.Thread(target=self._thread_body)
+            self._thread.name = "StatsThr"
             self._thread.daemon = True
         if not self._thread.is_alive():
             self._thread.start()
@@ -270,5 +271,7 @@ class SystemStats(object):
             except psutil.NoSuchProcess:
                 pass
         if self._tpu_profiler:
-            stats["tpu"] = self._tpu_profiler.get_tpu_utilization()
+            tpu_utilization = self._tpu_profiler.get_tpu_utilization()
+            if tpu_utilization is not None:
+                stats["tpu"] = tpu_utilization
         return stats

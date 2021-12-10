@@ -41,6 +41,7 @@ MODE = "WANDB_MODE"
 START_METHOD = "WANDB_START_METHOD"
 RESUME = "WANDB_RESUME"
 RUN_ID = "WANDB_RUN_ID"
+RUNQUEUE_ITEM_ID = "WANDB_RUNQUEUE_ITEM_ID"
 RUN_STORAGE_ID = "WANDB_RUN_STORAGE_ID"
 RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
@@ -49,6 +50,7 @@ HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
+DISABLE_GIT = "WANDB_DISABLE_GIT"
 SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
@@ -82,6 +84,7 @@ def immutable_keys():
         API_KEY,
         IGNORE,
         DISABLE_CODE,
+        DISABLE_GIT,
         DOCKER,
         MODE,
         BASE_URL,
@@ -212,7 +215,7 @@ def get_base_url(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(BASE_URL, default)
+    return env.get(BASE_URL, default).rstrip("/")
 
 
 def get_app_url(default=None, env=None):
@@ -336,5 +339,13 @@ def set_project(value, env=None):
 def should_save_code():
     save_code = _env_as_bool(SAVE_CODE, default=False)
     code_disabled = _env_as_bool(DISABLE_CODE, default=False)
-    # SAVE_CODE takes precedence over DISABLE_CODE
     return save_code and not code_disabled
+
+
+def disable_git(env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(DISABLE_GIT, default=False)
+    if type(val) is str:
+        val = False if val.lower() == "false" else True
+    return val

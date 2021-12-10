@@ -1,3 +1,15 @@
+"""Use the Public API to export or update data that you have saved to W&B.
+
+Before using this API, you'll want to log data from your script — check the
+[Quickstart](https://docs.wandb.ai/quickstart) for more details.
+
+You might use the Public API to
+ - update metadata or metrics for an experiment after it has been completed,
+ - pull down your results as a dataframe for post-hoc analysis in a Jupyter notebook, or
+ - check your saved model artifacts for those tagged as `ready-to-deploy`.
+
+For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
+"""
 import datetime
 from functools import partial
 import json
@@ -27,7 +39,6 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
-import yaml
 
 
 logger = logging.getLogger(__name__)
@@ -160,6 +171,21 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
     }
 }"""
 
+SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
+    id
+    name
+    method
+    state
+    description
+    displayName
+    bestLoss
+    config
+    createdAt
+    updatedAt
+    runCount
+}
+"""
+
 
 class RetryingClient(object):
     def __init__(self, client):
@@ -270,6 +296,8 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+
         self._viewer = None
         self._projects = {}
         self._runs = {}
@@ -582,11 +610,11 @@ class Api(object):
         res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
         return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
 
-    def runs(self, path="", filters=None, order="-created_at", per_page=50):
+    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
         """
         Return a set of runs from a project that match the filters provided.
 
-        You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
+        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
             Find runs in my_project where config.experiment_name has been set to "foo"
@@ -596,14 +624,26 @@ class Api(object):
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+            )
             ```
 
             Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}}
+            )
+            ```
+
+            Find runs in my_project where the run name matches a regex (anchors are not supported)
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}}
+            )
             ```
 
             Find runs in my_project sorted by ascending loss
@@ -629,7 +669,7 @@ class Api(object):
         """
         entity, project = self._parse_project_path(path)
         filters = filters or {}
-        key = path + str(filters) + str(order)
+        key = (path or "") + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
                 self.client,
@@ -1200,6 +1240,53 @@ class Project(Attrs):
     @normalize_exceptions
     def artifacts_types(self, per_page=50):
         return ProjectArtifactTypes(self.client, self.entity, self.name)
+
+    @normalize_exceptions
+    def sweeps(self):
+        query = gql(
+            """
+            query GetSweeps($project: String!, $entity: String!) {
+                project(name: $project, entityName: $entity) {
+                    totalSweeps
+                    sweeps {
+                        edges {
+                            node {
+                                ...SweepFragment
+                            }
+                            cursor
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                    }
+                }
+            }
+            %s
+            """
+            % SWEEP_FRAGMENT
+        )
+        variable_values = {"project": self.name, "entity": self.entity}
+        ret = self.client.execute(query, variable_values)
+        if ret["project"]["totalSweeps"] < 1:
+            return []
+
+        return [
+            # match format of existing public sweep apis
+            Sweep(
+                self.client,
+                self.entity,
+                self.name,
+                e["node"]["name"],
+                attrs={
+                    "id": e["node"]["id"],
+                    "name": e["node"]["name"],
+                    "bestLoss": e["node"]["bestLoss"],
+                    "config": e["node"]["config"],
+                },
+            )
+            for e in ret["project"]["sweeps"]["edges"]
+        ]
 
 
 class Runs(Paginator):
@@ -2026,7 +2113,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return util.load_yaml(self._attrs["config"])
 
     def load(self, force=False):
         if force or not self._attrs:
@@ -2085,6 +2172,10 @@ class Sweep(Attrs):
         path = self.path
         path.insert(2, "sweeps")
         return self.client.app_url + "/".join(path)
+
+    @property
+    def name(self):
+        return self.config.get("name") or self.id
 
     @classmethod
     def get(
@@ -3516,12 +3607,31 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
-    def delete(self):
-        """Delete artifact and its files."""
+    def delete(self, delete_aliases=False):
+        """
+        Delete an artifact and its files.
+
+        Examples:
+            Delete all the "model" artifacts a run has logged:
+            ```
+            runs = api.runs(path="my_entity/my_project")
+            for run in runs:
+                for artifact in run.logged_artifacts():
+                    if artifact.type == "model":
+                        artifact.delete(delete_aliases=True)
+            ```
+
+        Arguments:
+            delete_aliases: (bool) If true, deletes all aliases associated with the artifact.
+                Otherwise, this raises an exception if the artifact has existing alaises.
+        """
         mutation = gql(
             """
-        mutation deleteArtifact($id: ID!) {
-            deleteArtifact(input: {artifactID: $id}) {
+        mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+            deleteArtifact(input: {
+                artifactID: $artifactID
+                deleteAliases: $deleteAliases
+            }) {
                 artifact {
                     id
                 }
@@ -3530,7 +3640,8 @@ class Artifact(artifacts.Artifact):
         """
         )
         self.client.execute(
-            mutation, variable_values={"id": self.id,},
+            mutation,
+            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
         )
         return True
 

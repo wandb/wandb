@@ -1069,7 +1069,12 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
         # timed_input doesnt handle enhanced prompts
         if platform.system() == "Windows":
             prompt = "wandb"
-    choice = input_fn(f"{prompt}: Enter your choice: ", jupyter=jupyter)
+
+    text = f"{prompt}: Enter your choice: "
+    if input_fn == input:
+        choice = input_fn(text)
+    else:
+        choice = input_fn(text, jupyter=jupyter)
     return choice
 
 
@@ -1461,15 +1466,14 @@ def artifact_to_json(artifact) -> Dict[str, Any]:
 
 
 def check_dict_contains_nested_artifact(d, nested=False):
-    if isinstance(d, dict):
-        for _, item in six.iteritems(d):
-            if isinstance(item, dict):
-                contains_artifacts = check_dict_contains_nested_artifact(item, True)
-                if contains_artifacts:
-                    return True
-            elif (
-                isinstance(item, wandb.Artifact)
-                or isinstance(item, wandb.apis.public.Artifact)
-            ) and nested:
+    for _, item in six.iteritems(d):
+        if isinstance(item, dict):
+            contains_artifacts = check_dict_contains_nested_artifact(item, True)
+            if contains_artifacts:
                 return True
+        elif (
+            isinstance(item, wandb.Artifact)
+            or isinstance(item, wandb.apis.public.Artifact)
+        ) and nested:
+            return True
     return False

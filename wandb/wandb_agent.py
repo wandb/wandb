@@ -356,6 +356,9 @@ class Agent(object):
         )
 
         os.environ[wandb.env.RUN_ID] = run_id
+        runqueue_item_id = command.get("runqueue_item_id")
+        if runqueue_item_id is not None:
+            os.environ[wandb.env.RUNQUEUE_ITEM_ID] = runqueue_item_id
 
         base_dir = os.environ.get(wandb.env.DIR, "")
         sweep_param_path = os.path.join(base_dir, config_file)
@@ -540,16 +543,31 @@ def agent(sweep_id, function=None, entity=None, project=None, count=None):
 
     Examples:
         Run a sample sweep over a function:
-        ```
-        def train():
-            with wandb.init() as run:
-                print("config:", dict(run.config))
-                for epoch in range(35):
-                    print("running", epoch)
-                    wandb.log({"metric": run.config.param1, "epoch": epoch})
-                    time.sleep(1)
+        <!--yeadoc-test:one-parameter-sweep-agent-->
+        ```python
+        import wandb
+        sweep_configuration = {
+            "name": "my-awesome-sweep",
+            "metric": {"name": "accuracy", "goal": "maximize"},
+            "method": "grid",
+            "parameters": {
+                "a": {
+                    "values": [1, 2, 3, 4]
+                }
+            }
+        }
 
-        wandb.agent(sweep_id, function=train)
+        def my_train_func():
+            # read the current value of parameter "a" from wandb.config
+            wandb.init()
+            a = wandb.config.a
+
+            wandb.log({"a": a, "accuracy": a + 1})
+
+        sweep_id = wandb.sweep(sweep_configuration)
+
+        # run the sweep
+        wandb.agent(sweep_id, function=my_train_func)
         ```
     """
     global _INSTANCES

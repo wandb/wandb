@@ -13,11 +13,13 @@ import os
 import sys
 import threading
 from typing import Any, Callable, Dict, Optional
+from typing import cast
 from typing import TYPE_CHECKING
 
 import wandb
 
-from ..interface import interface
+from ..interface.interface import InterfaceBase
+from ..interface.interface_queue import InterfaceQueue
 from ..internal.internal import wandb_internal
 from ..wandb_manager import _Manager
 from ..wandb_settings import Settings
@@ -26,6 +28,8 @@ from ..wandb_settings import Settings
 if TYPE_CHECKING:
     from ..wandb_run import Run
     from wandb.proto.wandb_internal_pb2 import Record, Result
+    from ..service.service_grpc import ServiceGrpcInterface
+    from ..service.service_sock import ServiceSockInterface
 
 logger = logging.getLogger("wandb")
 
@@ -35,6 +39,7 @@ class BackendThread(threading.Thread):
 
     def __init__(self, target: Callable, kwargs: Dict[str, Any]) -> None:
         threading.Thread.__init__(self)
+        self.name = "BackendThr"
         self._target = target
         self._kwargs = kwargs
         self.daemon = True
@@ -47,7 +52,7 @@ class BackendThread(threading.Thread):
 class Backend(object):
     # multiprocessing context or module
     _multiprocessing: multiprocessing.context.BaseContext
-    interface: Optional[interface.BackendSenderBase]
+    interface: Optional[InterfaceBase]
     _internal_pid: Optional[int]
     wandb_process: Optional[multiprocessing.process.BaseProcess]
     _settings: Optional[Settings]
@@ -129,8 +134,6 @@ class Backend(object):
             main_module.__file__ = self._save_mod_path
 
     def _ensure_launched_manager(self) -> None:
-        from ..interface import iface_grpc
-
         # grpc_port: Optional[int] = None
         # attach_id = self._settings._attach_id if self._settings else None
         # if attach_id:
@@ -139,13 +142,28 @@ class Backend(object):
         #     grpc_port = int(attach_id)
 
         assert self._manager
-        service = self._manager._get_service()
-        assert service
-        stub = service._get_stub()
-        assert stub
-        grpc_interface = iface_grpc.BackendGrpcSender()
-        grpc_interface._connect(stub=stub)
-        self.interface = grpc_interface
+        svc = self._manager._get_service()
+        assert svc
+        svc_iface = svc.service_interface
+
+        svc_transport = svc_iface.get_transport()
+        if svc_transport == "tcp":
+            from ..interface.interface_sock import InterfaceSock
+
+            svc_iface_sock = cast("ServiceSockInterface", svc_iface)
+            sock_client = svc_iface_sock._get_sock_client()
+            sock_interface = InterfaceSock(sock_client)
+            self.interface = sock_interface
+        elif svc_transport == "grpc":
+            from ..interface.interface_grpc import InterfaceGrpc
+
+            svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
+            stub = svc_iface_grpc._get_stub()
+            grpc_interface = InterfaceGrpc()
+            grpc_interface._connect(stub=stub)
+            self.interface = grpc_interface
+        else:
+            raise AssertionError(f"Unsupported service transport: {svc_transport}")
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
@@ -206,7 +224,7 @@ class Backend(object):
 
         self._module_main_uninstall()
 
-        self.interface = interface.BackendSender(
+        self.interface = InterfaceQueue(
             process=self.wandb_process, record_q=self.record_q, result_q=self.result_q,
         )
 

@@ -21,7 +21,7 @@ from . import utils
 
 _logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_PATH = "launch_override_config.json"
+DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
 
 class LaunchSource(enum.IntEnum):
@@ -36,6 +36,7 @@ class LaunchProject(object):
     def __init__(
         self,
         uri: str,
+        api: Api,
         launch_spec: Dict[str, Any],
         target_entity: str,
         target_project: str,
@@ -43,9 +44,14 @@ class LaunchProject(object):
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
+        resource: str,
+        resource_args: Dict[str, str],
     ):
-
+        if utils.is_bare_wandb_uri(uri):
+            uri = api.settings("base_url") + uri
+            _logger.info(f"Updating uri with base uri: {uri}")
         self.uri = uri
+        self.api = api
         self.launch_spec = launch_spec
         self.target_entity = target_entity
         self.target_project = target_project
@@ -57,26 +63,33 @@ class LaunchProject(object):
         uid = 1000
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
+            _logger.info(f"Retrieved base image uid {uid}")
         self.docker_user_id: int = docker_config.get("user_id", uid)
         self.git_version: Optional[str] = git_info.get("version")
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self.resource = resource
+        self.resource_args = resource_args
         self._runtime: Optional[str] = None
+        self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
         ] = {}  # todo: keep multiple entrypoint support?
         if "entry_point" in overrides:
+            _logger.info("Adding override entry point")
             self.add_entry_point(overrides["entry_point"])
-
         if utils._is_wandb_uri(self.uri):
+            _logger.info(f"URI {self.uri} indicates a wandb uri")
             self.source = LaunchSource.WANDB
             self.project_dir = tempfile.mkdtemp()
         elif utils._is_git_uri(self.uri):
+            _logger.info(f"URI {self.uri} indicates a git uri")
             self.source = LaunchSource.GIT
             self.project_dir = tempfile.mkdtemp()
         else:
+            _logger.info(f"URI {self.uri} indicates a local uri")
             # assume local
             if not os.path.exists(self.uri):
                 raise LaunchError(
@@ -86,7 +99,6 @@ class LaunchProject(object):
             self.project_dir = self.uri
 
         self.aux_dir = tempfile.mkdtemp()
-
         self.clear_parameter_run_config_collisions()
 
     @property
@@ -94,7 +106,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
         generated_name = "{}_base:{}".format(
-            self.target_project, self.python_version or "3"
+            self.target_project.replace(" ", "-"), self.python_version or "3"
         )
         return self._base_image or generated_name
 
@@ -145,35 +157,61 @@ class LaunchProject(object):
             return self._entry_points[entry_point]
         return self.add_entry_point(entry_point)
 
-    def _fetch_project_local(self, api: Api) -> None:
+    def _fetch_project_local(self, internal_api: Api) -> None:
         """Fetch a project into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
-        parsed_uri = self.uri
+        _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
-            run_info = utils.fetch_wandb_project_run_info(self.uri, api)
-            if not run_info["git"]:
-                raise ExecutionError("Run must have git repo associated")
-            utils._fetch_git_repo(
-                self.project_dir, run_info["git"]["remote"], run_info["git"]["commit"]
+            source_entity, source_project, source_run_name = utils.parse_wandb_uri(
+                self.uri
             )
-            patch = utils.fetch_project_diff(self.uri, api)
-
-            if patch:
-                utils.apply_patch(patch, self.project_dir)
+            run_info = utils.fetch_wandb_project_run_info(
+                source_entity, source_project, source_run_name, internal_api
+            )
             entry_point = run_info.get("codePath", run_info["program"])
-            # For cases where the entry point wasn't checked into git
-            if not os.path.exists(os.path.join(self.project_dir, entry_point)):
-                downloaded_entrypoint = utils.download_entry_point(
-                    self.uri, api, entry_point, self.project_dir
-                )
-                if not downloaded_entrypoint:
-                    raise LaunchError(
-                        f"Entrypoint: {entry_point} does not exist, "
-                        "and could not be downloaded. Please specify the entrypoint for this run."
-                    )
-                # if the entrypoint is downloaded and inserted into the project dir
-                # need to rebuild image with new code
+
+            downloaded_code_artifact = utils.check_and_download_code_artifacts(
+                source_entity,
+                source_project,
+                source_run_name,
+                internal_api,
+                self.project_dir,
+            )
+
+            if downloaded_code_artifact:
                 self.build_image = True
+            elif not downloaded_code_artifact:
+                if not run_info["git"]:
+                    raise ExecutionError("Run must have git repo associated")
+                utils._fetch_git_repo(
+                    self.project_dir,
+                    run_info["git"]["remote"],
+                    run_info["git"]["commit"],
+                )
+                patch = utils.fetch_project_diff(
+                    source_entity, source_project, source_run_name, internal_api
+                )
+
+                if patch:
+                    utils.apply_patch(patch, self.project_dir)
+                # For cases where the entry point wasn't checked into git
+                if not os.path.exists(os.path.join(self.project_dir, entry_point)):
+                    downloaded_entrypoint = utils.download_entry_point(
+                        source_entity,
+                        source_project,
+                        source_run_name,
+                        internal_api,
+                        entry_point,
+                        self.project_dir,
+                    )
+                    if not downloaded_entrypoint:
+                        raise LaunchError(
+                            f"Entrypoint: {entry_point} does not exist, "
+                            "and could not be downloaded. Please specify the entrypoint for this run."
+                        )
+                    # if the entrypoint is downloaded and inserted into the project dir
+                    # need to rebuild image with new code
+                    self.build_image = True
 
             if entry_point.endswith("ipynb"):
                 entry_point = utils.convert_jupyter_notebook_to_script(
@@ -181,19 +219,24 @@ class LaunchProject(object):
                 )
 
             # Download any frozen requirements
-            utils.download_wandb_python_deps(self.uri, api, self.project_dir)
+            utils.download_wandb_python_deps(
+                source_entity,
+                source_project,
+                source_run_name,
+                internal_api,
+                self.project_dir,
+            )
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
 
             if not self._entry_points:
                 self.add_entry_point(entry_point)
-
             self.override_args = utils.merge_parameters(
                 self.override_args, run_info["args"]
             )
         else:
-            assert utils._GIT_URI_REGEX.match(parsed_uri), (
-                "Non-wandb URI %s should be a Git URI" % parsed_uri
+            assert utils._GIT_URI_REGEX.match(self.uri), (
+                "Non-wandb URI %s should be a Git URI" % self.uri
             )
 
             if not self._entry_points:
@@ -201,8 +244,7 @@ class LaunchProject(object):
                     "Entry point for repo not specified, defaulting to main.py"
                 )
                 self.add_entry_point("main.py")
-
-            utils._fetch_git_repo(self.project_dir, parsed_uri, self.git_version)
+            utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
 class EntryPoint(object):
@@ -314,9 +356,9 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
     name: Optional[str] = None
     if launch_spec.get("name"):
         name = launch_spec["name"]
-
     return LaunchProject(
         uri,
+        api,
         launch_spec,
         launch_spec["entity"],
         launch_spec["project"],
@@ -324,6 +366,8 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),
+        launch_spec.get("resource", "local"),
+        launch_spec.get("resource_args", {}),
     )
 
 
@@ -345,8 +389,9 @@ def fetch_and_validate_project(
             wandb.termlog("Entry point for repo not specified, defaulting to main.py")
             launch_project.add_entry_point("main.py")
     else:
-        launch_project._fetch_project_local(api=api)
+        launch_project._fetch_project_local(internal_api=api)
     first_entry_point = list(launch_project._entry_points.keys())[0]
+    _logger.info("validating entrypoint parameters")
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
         launch_project.override_args
     )

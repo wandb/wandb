@@ -149,5 +149,17 @@ class Api(object):
     def ack_run_queue_item(self, *args, **kwargs):
         return self.api.ack_run_queue_item(*args, **kwargs)
 
+    def create_launch_agent(self, *args, **kwargs):
+        return self.api.create_launch_agent(*args, **kwargs)
+
+    def update_launch_agent_status(self, *args, **kwargs):
+        return self.api.update_launch_agent_status(*args, **kwargs)
+
+    def launch_agent_introspection(self, *args, **kwargs):
+        return self.api.launch_agent_introspection(*args, **kwargs)
+
+    def get_launch_agent(self, *args, **kwargs):
+        return self.api.get_launch_agent(*args, **kwargs)
+
 
 __all__ = ["Api"]

@@ -1,0 +1,28 @@
+id: 0.magic.01-mnist-convnet
+plugin:
+  - wandb
+var:
+  - runs_len:
+      :fn:len: :wandb:runs
+assert:
+  - :runs_len: 1
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 8  # keras
+  - :wandb:runs[0][summary][epoch]: 1
+  - :op:<=:
+    - :wandb:runs[0][summary][best_epoch]
+    - 1
+  - :op:<=:
+    - :wandb:runs[0][summary][accuracy]
+    - 1.0
+  - :op:>=:
+    - :wandb:runs[0][summary][accuracy]
+    - 0.0
+  - :op:<=:
+    - :wandb:runs[0][summary][loss]
+    - 10.0
+  - :op:>=:
+    - :wandb:runs[0][summary][loss]
+    - 0.0
+  - :wandb:runs[0][exitcode]: 0

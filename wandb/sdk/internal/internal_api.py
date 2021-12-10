@@ -12,6 +12,7 @@ import re
 import click
 import logging
 import requests
+import socket
 import sys
 
 if os.name == "posix" and sys.version_info[0] < 3:
@@ -290,7 +291,6 @@ class Api(object):
 
     @normalize_exceptions
     def server_info_introspection(self):
-
         query_string = """
            query ProbeServerCapabilities {
                QueryType: __type(name: "Query") {
@@ -344,6 +344,21 @@ class Api(object):
                 )
             ]
         return self.server_use_artifact_input_info
+
+    @normalize_exceptions
+    def launch_agent_introspection(self):
+        query = gql(
+            """
+            query LaunchAgentIntrospection {
+                LaunchAgentType: __type(name: "LaunchAgent") {
+                    name
+                }
+            }
+        """
+        )
+
+        res = self.gql(query)
+        return res.get("LaunchAgentType") or None
 
     @normalize_exceptions
     def viewer(self):
@@ -410,7 +425,6 @@ class Api(object):
             "serverInfo" in query_types
             and "latestLocalVersionInfo" in server_info_types
         )
-
         cli_query_string = "" if not cli_version_exists else cli_query
         local_query_string = "" if not local_version_exists else local_query
 
@@ -984,11 +998,16 @@ class Api(object):
         return response["pushToRunQueue"]
 
     @normalize_exceptions
-    def pop_from_run_queue(self, queue_name, entity=None, project=None):
+    def pop_from_run_queue(self, queue_name, entity=None, project=None, agent_id=None):
         mutation = gql(
             """
-        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!)  {
-            popFromRunQueue(input: { entityName: $entity, projectName: $project, queueName: $queueName }) {
+        mutation popFromRunQueue($entity: String!, $project: String!, $queueName: String!, $launchAgentId: ID)  {
+            popFromRunQueue(input: {
+                entityName: $entity,
+                projectName: $project,
+                queueName: $queueName,
+                launchAgentId: $launchAgentId
+            }) {
                 runQueueItemId
                 runSpec
             }
@@ -1001,6 +1020,7 @@ class Api(object):
                 "entity": entity,
                 "project": project,
                 "queueName": queue_name,
+                "launchAgentId": agent_id,
             },
         )
         return response["popFromRunQueue"]
@@ -1026,6 +1046,119 @@ class Api(object):
         return response["ackRunQueueItem"]["success"]
 
     @normalize_exceptions
+    def create_launch_agent(self, entity, project, queues, gorilla_agent_support):
+        project_queues = self.get_project_run_queues(entity, project)
+        if not project_queues:
+            # create default queue if it doesn't already exist
+            default = self.create_run_queue(
+                entity, project, "default", access="PROJECT"
+            )
+            if default is None or default.get("queueID") is None:
+                raise CommError(
+                    "Unable to create default queue for {}/{}. No queues for agent to poll".format(
+                        entity, project
+                    )
+                )
+            project_queues = [{"id": default["queueID"], "name": "default"}]
+        polling_queue_ids = [
+            q["id"] for q in project_queues if q["name"] in queues
+        ]  # filter to poll specified queues
+        if len(polling_queue_ids) != len(queues):
+            raise CommError(
+                "Could not start launch agent: Not all of requested queues ({}) found. Available queues for this project: {}".format(
+                    ", ".join(queues), ",".join([q["name"] for q in project_queues])
+                )
+            )
+
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, return a client-generated id
+            return {
+                "success": True,
+                "launchAgentId": None,
+            }
+
+        hostname = socket.gethostname()
+        mutation = gql(
+            """
+            mutation createLaunchAgent($entity: String!, $project: String!, $queues: [ID!]!, $hostname: String!){
+                createLaunchAgent(
+                    input: {
+                        entityName: $entity,
+                        projectName: $project,
+                        runQueues: $queues,
+                        hostname: $hostname
+                    }
+                ) {
+                    launchAgentId
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entity": entity,
+            "project": project,
+            "queues": polling_queue_ids,
+            "hostname": hostname,
+        }
+        return self.gql(mutation, variable_values)["createLaunchAgent"]
+
+    @normalize_exceptions
+    def update_launch_agent_status(self, agent_id, status, gorilla_agent_support):
+        if not gorilla_agent_support:
+            # if gorilla doesn't support launch agents, this is a no-op
+            return {
+                "success": True,
+            }
+
+        mutation = gql(
+            """
+            mutation updateLaunchAgent($agentId: ID!, $agentStatus: String){
+                updateLaunchAgent(
+                    input: {
+                        launchAgentId: $agentId
+                        agentStatus: $agentStatus
+                    }
+                ) {
+                    success
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+            "agentStatus": status,
+        }
+        return self.gql(mutation, variable_values)["updateLaunchAgent"]
+
+    @normalize_exceptions
+    def get_launch_agent(self, agent_id, gorilla_agent_support):
+        if not gorilla_agent_support:
+            return {
+                "id": None,
+                "name": "",
+                "stopPolling": False,
+            }
+        query = gql(
+            """
+            query LaunchAgent($agentId: ID!) {
+                launchAgent(id: $agentId) {
+                    id
+                    name
+                    runQueues
+                    hostname
+                    agentStatus
+                    stopPolling
+                    heartbeatAt
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+        }
+        return self.gql(query, variable_values)["launchAgent"]
+
+    @normalize_exceptions
     def upsert_run(
         self,
         id=None,
@@ -1047,6 +1180,7 @@ class Api(object):
         sweep_name=None,
         summary_metrics=None,
         num_retries=None,
+        runqueue_item_id=None,
     ):
         """Update a run
 
@@ -1064,9 +1198,9 @@ class Api(object):
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
+            runqueue_item_id (str, optional): The graphql id of the run queue item to acknowledge
         """
-        mutation = gql(
-            """
+        mutation_str = """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -1087,6 +1221,7 @@ class Api(object):
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
+            __RUNQUEUE_ITEM_ID_ARG_STRING__
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -1108,6 +1243,7 @@ class Api(object):
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
+                __RUNQUEUE_ITEM_ID_BIND_STRING__
             }) {
                 bucket {
                     id
@@ -1129,7 +1265,21 @@ class Api(object):
             }
         }
         """
+
+        _, server_info_types = self.server_info_introspection()
+        use_run_queue_item_id = (
+            "exposesExplicitRunQueueAckPath" in server_info_types
+            and runqueue_item_id is not None
         )
+
+        mutation_str = mutation_str.replace(
+            "__RUNQUEUE_ITEM_ID_ARG_STRING__",
+            "$runQueueItemId: ID" if use_run_queue_item_id else "",
+        ).replace(
+            "__RUNQUEUE_ITEM_ID_BIND_STRING__",
+            "runQueueItemId: $runQueueItemId" if use_run_queue_item_id else "",
+        )
+
         if config is not None:
             config = json.dumps(config)
         if not description or description.isspace():
@@ -1161,6 +1311,10 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
+        if use_run_queue_item_id:
+            variable_values["runQueueItemId"] = runqueue_item_id
+
+        mutation = gql(mutation_str)
         response = self.gql(mutation, variable_values=variable_values, **kwargs)
 
         run = response["upsertBucket"]["bucket"]
@@ -1171,7 +1325,10 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
+        return (
+            response["upsertBucket"]["bucket"],
+            response["upsertBucket"]["inserted"],
+        )
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):
@@ -1437,7 +1594,9 @@ class Api(object):
             response = requests.put(url, data=progress, headers=extra_headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error("upload_file exception {} {}".format(url, e))
+            logger.error("upload_file exception {}: {}".format(url, e))
+            logger.error("upload_file request headers: {}".format(e.request.headers))
+            logger.error("upload_file response body: {}".format(e.response.content))
             status_code = e.response.status_code if e.response != None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()

@@ -81,7 +81,9 @@ class Meta(object):
             with open(
                 os.path.join(self._settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
             ) as f:
-                subprocess.call(["conda", "env", "export"], stdout=f)
+                subprocess.call(
+                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                )
         except Exception:
             logger.exception("Error saving conda packages")
         logger.debug("save conda done")
@@ -197,15 +199,16 @@ class Meta(object):
         self.data["state"] = "running"
 
     def _setup_git(self):
-        if self._git.enabled:
-            logger.debug("setup git")
-            self.data["git"] = {
-                "remote": self._git.remote_url,
-                "commit": self._git.last_commit,
-            }
-            self.data["email"] = self._git.email
-            self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
-            logger.debug("setup git done")
+        if self._settings.disable_git or not self._git.enabled:
+            return
+        logger.debug("setup git")
+        self.data["git"] = {
+            "remote": self._git.remote_url,
+            "commit": self._git.last_commit,
+        }
+        self.data["email"] = self._git.email
+        self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
+        logger.debug("setup git done")
 
     def probe(self):
         logger.debug("probe")

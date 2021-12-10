@@ -35,13 +35,12 @@ from . import internal_util
 from . import sender
 from . import settings_static
 from . import writer
-from ..interface import interface
+from ..interface.interface_queue import InterfaceQueue
 
 
 if TYPE_CHECKING:
-    from ..interface.interface import BackendSender
-    from .settings_static import SettingsStatic
-    from typing import Any, Dict, List, Optional, Union
+    from .settings_static import SettingsDict, SettingsStatic
+    from typing import Any, List, Optional
     from six.moves.queue import Queue
     from .internal_util import RecordLoopThread
     from wandb.proto.wandb_internal_pb2 import Record, Result
@@ -52,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 def wandb_internal(
-    settings: "Dict[str, Union[str, float]]",
+    settings: "SettingsDict",
     record_q: "Queue[Record]",
     result_q: "Queue[Result]",
     port: int = None,
@@ -91,7 +90,7 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    publish_interface = interface.BackendSender(record_q=record_q)
+    publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
     threads: "List[RecordLoopThread]" = []
@@ -214,7 +213,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         stopped: "Event",
         sender_q: "Queue[Record]",
         writer_q: "Queue[Record]",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
         super(HandlerThread, self).__init__(
@@ -265,7 +264,7 @@ class SenderThread(internal_util.RecordLoopThread):
         record_q: "Queue[Record]",
         result_q: "Queue[Result]",
         stopped: "Event",
-        interface: "BackendSender",
+        interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 5000,
     ) -> None:
         super(SenderThread, self).__init__(

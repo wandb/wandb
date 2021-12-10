@@ -61,6 +61,20 @@ def _huggingface_version():
     return None
 
 
+def _maybe_mp_process(backend: Backend) -> bool:
+    parent_process = getattr(
+        backend._multiprocessing, "parent_process", None
+    )  # New in version 3.8.
+    if parent_process:
+        return parent_process() is not None
+    process = backend._multiprocessing.current_process()
+    if process.name == "MainProcess":
+        return False
+    if process.name.startswith("Process-"):
+        return True
+    return False
+
+
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
@@ -432,8 +446,19 @@ class _WandbInit(object):
                         )
                     )
         elif isinstance(wandb.run, Run):
-            logger.info("wandb.init() called when a run is still active")
-            return wandb.run
+            allow_return_run = True
+            manager = self._wl._get_manager()
+            if manager:
+                current_pid = os.getpid()
+                if current_pid != wandb.run._init_pid:
+                    # We shouldnt return a stale global run if we are in a new pid
+                    allow_return_run = False
+
+            if allow_return_run:
+                logger.info("wandb.init() called when a run is still active")
+                with telemetry.context() as tel:
+                    tel.feature.init_return_run = True
+                return wandb.run
 
         logger.info("starting backend")
 
@@ -497,6 +522,11 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
+            if manager:
+                tel.feature.service = True
+
+            tel.env.maybe_mp = _maybe_mp_process(backend)
+
         if not s.label_disable:
             if self.notebook:
                 run._label_probe_notebook(self.notebook)
@@ -515,6 +545,12 @@ class _WandbInit(object):
         backend._hack_set_run(run)
         assert backend.interface
         backend.interface.publish_header()
+
+        # Using GitRepo() blocks & can be slow, depending on user's current git setup.
+        # We don't want to block run initialization/start request, so populate run's git
+        # info beforehand.
+        if not s.disable_git:
+            run._populate_git_info()
 
         if s._offline:
             with telemetry.context(run=run) as tel:
@@ -540,6 +576,7 @@ class _WandbInit(object):
                 if check.yank_message:
                     run._set_yanked_version_message(check.yank_message)
             run._on_init()
+
         if not s._offline:
             logger.info("communicating run to backend with 30 second timeout")
             ret = backend.interface.communicate_run(run, timeout=30)
@@ -699,17 +736,34 @@ def init(
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default so you can see live visualizations.
-    Call `wandb.init()` to start a run before logging data with `wandb.log()`.
+
+    Call `wandb.init()` to start a run before logging data with `wandb.log()`:
+    <!--yeadoc-test:init-method-log-->
+    ```python
+    import wandb
+
+    wandb.init()
+    # ... calculate metrics, generate media
+    wandb.log({"accuracy": 0.9})
+    ```
 
     `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`.
+    via `wandb.run`:
+    <!--yeadoc-test:init-and-assert-global-->
+    ```python
+    import wandb
+
+    run = wandb.init()
+
+    assert run is wandb.run
+    ```
 
     At the end of your script, we will automatically call `wandb.finish` to
     finalize and cleanup the run. However, if you call `wandb.init` from a
     child process, you must explicitly call `wandb.finish` at the end of the
     child process.
 
-    For more on using `wandb.init()`, including code snippets, check out our
+    For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
     Arguments:
@@ -831,18 +885,32 @@ def init(
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
     Examples:
-        Basic usage
-        ```
-        wandb.init()
-        ```
+    ### Set where the run is logged
 
-        Launch multiple runs from the same script
-        ```
-        for x in range(10):
-            with wandb.init(project="my-projo") as run:
-                for y in range(100):
-                    run.log({"metric": x+y})
-        ```
+    You can change where the run is logged, just like changing
+    the organization, repository, and branch in git:
+    ```python
+    import wandb
+
+    user = "geoff"
+    project = "capsules"
+    display_name = "experiment-2021-10-31"
+
+    wandb.init(entity=user, project=project, name=display_name)
+    ```
+
+    ### Add metadata about the run to the config
+
+    Pass a dictionary-style object as the `config` keyword argument to add
+    metadata, like hyperparameters, to your run.
+    <!--yeadoc-test:init-set-config--->
+    ```python
+    import wandb
+
+    config = {"lr": 3e-4, "batch_size": 32}
+    config.update({"architecture": "resnet", "depth": 34})
+    wandb.init(config=config)
+    ```
 
     Raises:
         Exception: if problem.

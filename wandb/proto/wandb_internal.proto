@@ -48,11 +48,13 @@ message Record {
   }
   Control          control = 16;
   string           uuid = 19;
+  _RecordInfo _info = 200;
 }
 
 message Control {
   bool req_resp = 1;  // record is expecting a result
   bool local = 2;     // should not be persisted or synchronized
+  string relay_id = 3;  // used by service transport to identify correct stream
 }
 
 /*
@@ -69,6 +71,7 @@ message Result {
     /* response field does not belong here longterm */
     Response          response = 100;
   }
+  Control             control = 16;
   string              uuid = 24;
 }
 
@@ -117,7 +120,14 @@ message RunRecord {
   bool                      resumed = 18;
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
+  GitRepoRecord             git = 21;
+  string                    runqueue_item_id = 22;
   _RecordInfo               _info = 200;
+}
+
+message GitRepoRecord {
+  string remote_url = 1;
+  string last_commit = 2;
 }
 
 message RunUpdateResult {
@@ -388,6 +398,9 @@ message StoragePolicyConfigItem {
   string            value_json = 2;
 }
 
+message ArtifactResult {
+}
+
 /*
  * TBRecord: store tb locations
  */
@@ -436,6 +449,9 @@ message Request {
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
     LogArtifactRequest    log_artifact = 13;
+    ArtifactSendRequest   artifact_send = 14;
+    ArtifactPollRequest   artifact_poll = 15;
+    ArtifactDoneRequest   artifact_done = 16;
     ShutdownRequest       shutdown = 64;
     AttachRequest         attach = 65;
     StatusRequest         status = 66;
@@ -457,6 +473,8 @@ message Response {
     RunStartResponse       run_start_response = 28;
     CheckVersionResponse   check_version_response = 29;
     LogArtifactResponse    log_artifact_response = 30;
+    ArtifactSendResponse   artifact_send_response = 31;
+    ArtifactPollResponse   artifact_poll_response = 32;
     ShutdownResponse       shutdown_response = 64;
     AttachResponse         attach_response = 65;
     StatusResponse         status_response = 66;
@@ -481,7 +499,7 @@ message DeferRequest {
     END = 9;
   }
   DeferState state = 1;
-  _RequestInfo _info = 200;
+  // Internal message, no _info field needed
 }
 
 /*
@@ -685,12 +703,49 @@ message CheckVersionResponse {
 /*
  * LogArtifact:
  */
- message LogArtifactRequest {
-    ArtifactRecord artifact = 1;
-    _RequestInfo _info = 200;
- }
+message LogArtifactRequest {
+  ArtifactRecord artifact = 1;
+  _RequestInfo _info = 200;
+}
 
- message LogArtifactResponse {
-    string artifact_id = 1;
-    string error_message = 2;
- }
+message LogArtifactResponse {
+  string artifact_id = 1;
+  string error_message = 2;
+}
+
+/*
+ * ArtifactSend:
+ */
+message ArtifactSendRequest {
+  ArtifactRecord artifact = 1;
+  _RequestInfo _info = 200;
+}
+
+message ArtifactSendResponse {
+  string xid = 1;
+}
+
+/*
+ * ArtifactPoll:
+ */
+message ArtifactPollRequest {
+  string xid = 1;
+  _RequestInfo _info = 200;
+}
+
+message ArtifactPollResponse {
+  string artifact_id = 1;
+  string error_message = 2;
+  bool   ready = 16;
+}
+
+/*
+ * ArtifactDone:
+ */
+message ArtifactDoneRequest {
+  string artifact_id = 1;
+  string error_message = 2;
+  string xid = 16;
+
+  // Internal message, no _info field needed
+}

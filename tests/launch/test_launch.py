@@ -2,6 +2,7 @@ import json
 import os
 from wandb.apis import PublicApi
 from unittest.mock import MagicMock
+from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.docker import pull_docker_image
 
 try:
@@ -76,8 +77,30 @@ def mock_load_backend():
         yield mock_load_backend
 
 
+@pytest.fixture
+def mock_load_backend_agent():
+    def side_effect(*args, **kwargs):
+        mock_props = mock.Mock()
+        mock_props.args = args
+        mock_props.kwargs = kwargs
+        return mock_props
+
+    with mock.patch("wandb.sdk.launch.agent.agent.load_backend") as mock_load_backend:
+        m = mock.Mock(side_effect=side_effect)
+        m.run = mock.Mock(side_effect=side_effect)
+        mock_load_backend.return_value = m
+        yield mock_load_backend
+
+
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
+    project_spec,
+    api,
+    uri,
+    project=None,
+    entity=None,
+    config=None,
+    resource="local",
+    resource_args=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -92,6 +115,11 @@ def check_project_spec(
     ):
         assert (
             project_spec.override_config == config["config"]["overrides"]["run_config"]
+        )
+    assert project_spec.resource == resource
+    if resource_args:
+        assert set([(k, v) for k, v in resource_args.items()]) == set(
+            [(k, v) for k, v in project_spec.resource_args.items()]
         )
 
     with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
@@ -136,6 +164,31 @@ def test_launch_base_case(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
+    }
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
+def test_launch_resource_args(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource": "local",
+        "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
@@ -235,7 +288,7 @@ def test_launch_args_supersede_config_vals(
 
 def test_run_in_launch_context_with_config(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
         test_settings.launch = True
@@ -262,7 +315,7 @@ def test_run_in_launch_context_with_artifact_string_no_used_as(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -296,7 +349,7 @@ def test_run_in_launch_context_with_artifact_unique(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -327,7 +380,7 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"old_name:v0": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -340,6 +393,42 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         assert arti_inst.name == "test:v0"
         arti_info = live_mock_server.get_ctx()["used_artifact_info"]
         assert arti_info["used_name"] == "test/test/old_name:v0"
+
+
+def test_launch_code_artifact(
+    runner, live_mock_server, test_settings, monkeypatch, mock_load_backend
+):
+    def download_func(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
+            f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("testing")
+
+    run_with_artifacts = mock.MagicMock()
+    code_artifact = mock.MagicMock()
+    code_artifact.type = "code"
+    code_artifact.download = download_func
+
+    run_with_artifacts.logged_artifacts.return_value = [code_artifact]
+    monkeypatch.setattr(
+        wandb.PublicApi, "run", lambda *arg, **kwargs: run_with_artifacts
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
 def test_run_in_launch_context_with_artifact_string_used_as_config(
@@ -358,7 +447,7 @@ def test_run_in_launch_context_with_artifact_string_used_as_config(
         "overrides": {"run_config": {"epochs": 10}, "artifacts": {"dataset": arti}},
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -393,7 +482,7 @@ def test_run_in_launch_context_with_artifacts_api(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -432,7 +521,7 @@ def test_run_in_launch_context_with_artifacts_no_match(
         },
     }
     with runner.isolated_filesystem():
-        path = _project_spec.DEFAULT_CONFIG_PATH
+        path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
         test_settings.launch = True
@@ -495,17 +584,97 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
 @pytest.mark.timeout(320)
-def test_launch_agent(
+def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(
         "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
         lambda c, queue: patched_pop_from_queue(c, queue),
     )
-    launch.run_agent("mock_server_entity", "test_project")
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
     ctx = live_mock_server.get_ctx()
     assert ctx["num_popped"] == 1
     assert ctx["num_acked"] == 1
+    assert len(ctx["launch_agents"].keys()) == 1
+
+
+def test_launch_agent_instance(test_settings, live_mock_server):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["launch_agents"]) == 1
+    assert agent._id == int(list(ctx["launch_agents"].keys())[0])
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == "test_agent"
+
+
+def test_launch_agent_different_project_in_spec(
+    test_settings,
+    live_mock_server,
+    mocked_fetchable_git_repo,
+    monkeypatch,
+    # mock_load_backend_agent,
+    capsys,
+):
+    live_mock_server.set_ctx({"invalid_launch_spec_project": True})
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: patched_pop_from_queue(c, queue),
+    )
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    launch.create_and_run_agent(api, "mock_server_entity", "test_project")
+    _, err = capsys.readouterr()
+
+    ctx = live_mock_server.get_ctx()
+    assert (
+        "Launch agents only support sending runs to their own project and entity. This run will be sent to mock_server_entity/test_project"
+        in err
+    )
+
+
+def test_agent_queues_notfound(test_settings, live_mock_server):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    try:
+        launch.create_and_run_agent(
+            api, "mock_server_entity", "test_project", ["nonexistent_queue"],
+        )
+    except Exception as e:
+        assert (
+            "Could not start launch agent: Not all of requested queues (nonexistent_queue) found"
+            in str(e)
+        )
+
+
+def test_agent_no_introspection(test_settings, live_mock_server):
+    live_mock_server.set_ctx({"gorilla_supports_launch_agents": False})
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    ctx = live_mock_server.get_ctx()
+    assert ctx["launch_agents"] == {}
+    assert len(ctx["launch_agents"].keys()) == 0
+    assert agent._id is None
+    assert agent._name == ""
+
+    update_response = api.update_launch_agent_status(
+        agent._id, "POLLING", agent.gorilla_supports_agents
+    )
+    assert update_response["success"]
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == ""
+    assert get_agent_response["stopPolling"] == False
 
 
 @pytest.mark.timeout(320)
@@ -562,7 +731,7 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -612,7 +781,7 @@ def patched_pop_from_queue(self, queue):
     ups = self._api.pop_from_run_queue(
         queue, entity=self._entity, project=self._project
     )
-    if ups is None:
+    if not ups:
         raise KeyboardInterrupt
     return ups
 
@@ -622,3 +791,28 @@ def test_fail_pull_docker_image():
         pull_docker_image("not an image")
     except wandb.errors.LaunchError as e:
         assert "Docker server returned error" in str(e)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
+def test_bare_wandb_uri(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "/mock_server_entity/test/runs/12345678"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+
+    mock_with_run_info = launch.run(**kwargs)
+    kwargs["uri"] = live_mock_server.base_url + uri
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)

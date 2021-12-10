@@ -42,6 +42,7 @@ from typing import (
     Callable,
     cast,
     Dict,
+    FrozenSet,
     Generator,
     Iterable,
     Iterator,
@@ -98,6 +99,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     host=None,
     username=None,
     disable_code=None,
+    disable_git=None,
     code_dir=None,
     anonymous=None,
     ignore_globs=None,
@@ -108,13 +110,16 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    _debug_log="WANDB_DEBUG_LOG",
     _require_service="WANDB_REQUIRE_SERVICE",
+    _service_transport="WANDB_SERVICE_TRANSPORT",
     login_timeout=None,
     root_dir="WANDB_DIR",
     run_name="WANDB_NAME",
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
+    _runqueue_item_id="WANDB_RUNQUEUE_ITEM_ID",
 )
 
 
@@ -200,6 +205,19 @@ def _str_as_bool(val: Union[str, bool]) -> Optional[bool]:
     return ret_val
 
 
+def _redact_dict(
+    d: Dict[str, Any],
+    unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
+    redact_str: str = "***REDACTED***",
+) -> Dict[str, Any]:
+    """Redact a dict of unsafe values specified by their key."""
+    if not d or unsafe_keys.isdisjoint(d):
+        return d
+    safe_dict = d.copy()
+    safe_dict.update({k: redact_str for k in unsafe_keys.intersection(d)})
+    return safe_dict
+
+
 @enum.unique
 class SettingsConsole(enum.Enum):
     OFF = 0
@@ -220,7 +238,9 @@ class Settings(object):
 
     mode: str = "online"
     start_method: Optional[str] = None
+    _debug_log: Optional[str] = None
     _require_service: Optional[str] = None
+    _service_transport: Optional[str] = None
     console: str = "auto"
     disabled: bool = False
     force: Optional[bool] = None
@@ -251,6 +271,9 @@ class Settings(object):
     username: Optional[str]
     email: Optional[str] = None
     save_code: Optional[bool] = None
+    disable_code: Optional[bool] = None
+    disable_git: Optional[bool] = None
+    git_remote: Optional[str] = None
     code_dir: Optional[str] = None
     program_relpath: Optional[str] = None
     program: Optional[str]
@@ -277,6 +300,7 @@ class Settings(object):
     _start_datetime: Optional[datetime]
     _unsaved_keys: List[str]
     _except_exit: Optional[bool]
+    _runqueue_item_id: Optional[str] = None
 
     # Internal attributes
     __frozen: bool
@@ -310,7 +334,9 @@ class Settings(object):
         anonymous: str = None,
         mode: str = None,
         start_method: str = None,
+        _debug_log: str = None,
         _require_service: str = None,
+        _service_transport: str = None,
         entity: str = None,
         project: str = None,
         run_group: str = None,
@@ -368,6 +394,7 @@ class Settings(object):
         program: str = None,
         notebook_name: str = None,
         disable_code: bool = None,
+        disable_git: bool = None,
         ignore_globs: bool = None,
         save_code: bool = None,
         code_dir: str = None,
@@ -412,6 +439,7 @@ class Settings(object):
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
+        _runqueue_item_id: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
@@ -605,7 +633,9 @@ class Settings(object):
 
     @property
     def is_local(self) -> bool:
-        return self.base_url != "https://api.wandb.ai/"
+        if self.base_url is not None:
+            return self.base_url.rstrip("/") != "https://api.wandb.ai"
+        return False
 
     def _validate_project(self, value: Optional[str]) -> Optional[str]:
         invalid_chars_list = list("/\\#?%:")
@@ -758,21 +788,25 @@ class Settings(object):
                     _logger.info("Unhandled environment var: {}".format(k))
 
         if _logger:
-            _logger.info("setting env: {}".format(env_dict))
+            _logger.info("setting env: {}".format(_redact_dict(env_dict)))
         self._update(env_dict, _source=self.Source.ENV)
 
     def _apply_user(
         self, user_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info("setting user settings: {}".format(user_settings))
+            _logger.info(
+                "setting user settings: {}".format(_redact_dict(user_settings))
+            )
         self._update(user_settings, _source=self.Source.USER)
 
     def _apply_source_login(
         self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info("setting login settings: {}".format(login_settings))
+            _logger.info(
+                "setting login settings: {}".format(_redact_dict(login_settings))
+            )
         self._update(login_settings, _source=self.Source.LOGIN)
 
     def _apply_setup(
@@ -937,6 +971,8 @@ class Settings(object):
             or os.getenv(wandb.env.DISABLE_CODE) is not None
         ):
             u["save_code"] = wandb.env.should_save_code()
+
+        u["disable_git"] = wandb.env.disable_git()
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
