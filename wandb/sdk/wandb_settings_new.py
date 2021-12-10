@@ -775,7 +775,7 @@ class Settings:
         # return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
         return f"<Settings {self.__dict__}>"
 
-    # access methods
+    # attribute access methods
     def __getattribute__(self, name: str):
         """Expose attribute.value if attribute is a Property."""
         item = object.__getattribute__(self, name)
