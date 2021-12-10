@@ -25,12 +25,6 @@ from typing import (
     Union,
 )
 
-####
-
-import mlflow
-
-####
-
 from pkg_resources import parse_version
 import six
 from six.moves.collections_abc import Sequence as SixSequence
@@ -432,6 +426,10 @@ class Model(WBValue):
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
 
         return {"a": 1, "b": 2, "c": 3}
+
+    def get_model(self, flavor):
+        pass
+        # return model in appropriate flavor
 
 
 class Media(WBValue):
