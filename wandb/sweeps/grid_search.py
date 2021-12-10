@@ -79,16 +79,14 @@ def grid_search_next_runs(
     if randomize_order:
         random.shuffle(all_param_hashes)
 
-    param_hashes_seen = set(
-        [
+    param_hashes_seen = {
             tuple(
                 yaml_hash(run.config[name]["value"])
                 for name in param_names
                 if name in run.config
             )
             for run in runs
-        ]
-    )
+    }
 
     hash_gen = (
         hash_val for hash_val in all_param_hashes if hash_val not in param_hashes_seen

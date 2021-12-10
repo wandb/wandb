@@ -62,7 +62,7 @@ def file_enum_to_policy(enum: "pb.FilesItem.PolicyType.V") -> str:
     return policy
 
 
-class InterfaceBase(object):
+class InterfaceBase:
     _run: Optional["Run"]
     _drop: bool
 
@@ -140,7 +140,7 @@ class InterfaceBase(object):
     ) -> pb.ConfigRecord:
         config = obj or pb.ConfigRecord()
         if data:
-            for k, v in six.iteritems(data):
+            for k, v in data.items():
                 update = config.update.add()
                 update.key = k
                 update.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
@@ -229,7 +229,7 @@ class InterfaceBase(object):
 
     def _make_summary_from_dict(self, summary_dict: dict) -> pb.SummaryRecord:
         summary = pb.SummaryRecord()
-        for k, v in six.iteritems(summary_dict):
+        for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
@@ -252,7 +252,7 @@ class InterfaceBase(object):
 
         if isinstance(value, dict):
             json_value = {}
-            for key, value in six.iteritems(value):
+            for key, value in value.items():
                 json_value[key] = self._summary_encode(
                     value, path_from_root + "." + key
                 )
@@ -499,7 +499,7 @@ class InterfaceBase(object):
             assert step is not None
             history.step.num = step
         data.pop("_step", None)
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)  # type: ignore

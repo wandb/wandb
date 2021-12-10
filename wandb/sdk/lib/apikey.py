@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """
 apikey util.
 """
@@ -108,7 +107,7 @@ def prompt_api_key(  # noqa: C901
 
         if not key:
             wandb.termlog(
-                "Create an account here: {}/authorize?signup=true".format(app_url)
+                f"Create an account here: {app_url}/authorize?signup=true"
             )
             key = input_callback(api_ask).strip()
 
@@ -172,7 +171,7 @@ def write_netrc(host, entity, key):
         try:
             with open(path) as f:
                 orig_lines = f.read().strip().split("\n")
-        except IOError:
+        except OSError:
             pass
         with open(path, "w") as f:
             if orig_lines:
@@ -198,7 +197,7 @@ def write_netrc(host, entity, key):
             )
         os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)
         return True
-    except IOError:
+    except OSError:
         wandb.termerror("Unable to read ~/.netrc")
         return None
 

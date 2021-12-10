@@ -11,7 +11,7 @@ def main(argv):
     line_plot = wandb.plot.line(table, x='step', y='height', title='what a great line plot')
     xs = []
     ys = []
-    keys = ["y_{}".format(i) for i in range(4)]
+    keys = [f"y_{i}" for i in range(4)]
     xs.append([j for j in range(100)])
     xs.append([j for j in range(100)])
     xs.append([2 * j for j in range(50)])

@@ -1,4 +1,3 @@
-
 """
 pip uninstall wandb > /dev/null -y && \
 pip install wandb > /dev/null && \

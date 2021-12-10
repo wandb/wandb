@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """Internal process.
 
 This module implements the entrypoint for the internal process. The internal process
@@ -13,7 +12,6 @@ Threads:
 
 """
 
-from __future__ import print_function
 
 import atexit
 from datetime import datetime
@@ -143,7 +141,7 @@ def wandb_internal(
                     stopped.set()
         except KeyboardInterrupt:
             interrupt_count += 1
-            logger.warning("Internal process interrupt: {}".format(interrupt_count))
+            logger.warning(f"Internal process interrupt: {interrupt_count}")
         finally:
             if interrupt_count >= 2:
                 logger.error("Internal process interrupted.")
@@ -155,8 +153,8 @@ def wandb_internal(
     for thread in threads:
         exc_info = thread.get_exception()
         if exc_info:
-            logger.error("Thread {}:".format(thread.name), exc_info=exc_info)
-            print("Thread {}:".format(thread.name), file=sys.stderr)
+            logger.error(f"Thread {thread.name}:", exc_info=exc_info)
+            print(f"Thread {thread.name}:", file=sys.stderr)
             traceback.print_exception(*exc_info)
             sentry_exc(exc_info, delay=True)
             wandb.termerror("Internal wandb error: file data was not synced")
@@ -216,7 +214,7 @@ class HandlerThread(internal_util.RecordLoopThread):
         interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
-        super(HandlerThread, self).__init__(
+        super().__init__(
             input_record_q=record_q,
             result_q=result_q,
             stopped=stopped,
@@ -267,7 +265,7 @@ class SenderThread(internal_util.RecordLoopThread):
         interface: "InterfaceQueue",
         debounce_interval_ms: "float" = 5000,
     ) -> None:
-        super(SenderThread, self).__init__(
+        super().__init__(
             input_record_q=record_q,
             result_q=result_q,
             stopped=stopped,
@@ -312,7 +310,7 @@ class WriterThread(internal_util.RecordLoopThread):
         writer_q: "Queue[Record]",
         debounce_interval_ms: "float" = 1000,
     ) -> None:
-        super(WriterThread, self).__init__(
+        super().__init__(
             input_record_q=writer_q,
             result_q=result_q,
             stopped=stopped,
@@ -338,7 +336,7 @@ class WriterThread(internal_util.RecordLoopThread):
         self._wm.debounce()
 
 
-class ProcessCheck(object):
+class ProcessCheck:
     """Class to help watch a process id to detect when it is dead."""
 
     check_process_last: "Optional[float]"
@@ -364,7 +362,7 @@ class ProcessCheck(object):
         exists = psutil.pid_exists(self.pid)
         if not exists:
             logger.warning(
-                "Internal process exiting, parent pid {} disappeared".format(self.pid)
+                f"Internal process exiting, parent pid {self.pid} disappeared"
             )
             return True
         return False

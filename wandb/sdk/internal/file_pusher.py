@@ -40,7 +40,7 @@ TMP_DIR = tempfile.TemporaryDirectory("wandb")
 logger = logging.getLogger(__name__)
 
 
-class FilePusher(object):
+class FilePusher:
     """Parallel file upload class.
     This manages uploading multiple files in parallel. It will restart a given file's
     upload job if it receives a notification that that file has been modified.
@@ -97,7 +97,7 @@ class FilePusher(object):
             if not self.is_alive():
                 stop = True
             summary = self._stats.summary()
-            line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
+            line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
                 summary["uploaded_bytes"] / 1048576.0,
                 summary["total_bytes"] / 1048576.0,
                 summary["deduped_bytes"] / 1048576.0,

@@ -15,7 +15,7 @@ run.log({"cuda_tensor": t_gpu})
 
 run.finish()
 
-public_run = wandb.Api().run("%s/%s" % (run.project, run.id))
+public_run = wandb.Api().run(f"{run.project}/{run.id}")
 cpu_hist = dict(public_run.summary["host_tensor"])
 gpu_hist = dict(public_run.summary["cuda_tensor"])
 

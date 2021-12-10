@@ -17,7 +17,7 @@ ResponsePrepare = collections.namedtuple(
 )
 
 
-class StepPrepare(object):
+class StepPrepare:
     """A thread that batches requests to our file prepare API.
 
     Any number of threads may call prepare_async() in parallel. The PrepareBatcher thread

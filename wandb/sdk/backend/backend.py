@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """Backend - Send to internal process
 
 Manage backend.
@@ -49,7 +48,7 @@ class BackendThread(threading.Thread):
         self._target(**self._kwargs)
 
 
-class Backend(object):
+class Backend:
     # multiprocessing context or module
     _multiprocessing: multiprocessing.context.BaseContext
     interface: Optional[InterfaceBase]
@@ -218,7 +217,7 @@ class Backend(object):
         self.wandb_process.start()
         self._internal_pid = self.wandb_process.pid
         logger.info(
-            "started backend process with pid: {}".format(self.wandb_process.pid)
+            f"started backend process with pid: {self.wandb_process.pid}"
         )
 
         self._module_main_uninstall()

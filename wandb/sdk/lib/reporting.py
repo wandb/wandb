@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger("wandb")
 
 
-class _Reporter(object):
+class _Reporter:
     def __init__(self, settings):
         self._settings = settings
         self._errors = []
@@ -74,7 +74,7 @@ class _Reporter(object):
         return self._errors
 
 
-class Reporter(object):
+class Reporter:
     _instance = None
 
     def __init__(self, settings=None):

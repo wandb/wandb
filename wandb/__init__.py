@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Use wandb to track machine learning work.
 
 The most commonly used functions/objects are:
@@ -12,10 +11,6 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 __version__ = "0.12.8.dev1"
 

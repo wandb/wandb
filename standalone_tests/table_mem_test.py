@@ -13,6 +13,6 @@ if __name__ == "__main__":
     for c in range(6):
         count = 2 * (10**c)
         start = time.time()
-        print("Starting count {}".format(count))
+        print(f"Starting count {count}")
         main(10**c, (32, 32, 3))
-        print("Completed count {} in {} seconds".format(count, time.time() - start))
+        print(f"Completed count {count} in {time.time() - start} seconds")

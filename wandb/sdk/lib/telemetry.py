@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 _LABEL_TOKEN: str = "@wandbcode{"
 
 
-class _TelemetryObject(object):
+class _TelemetryObject:
     _run: Optional["wandb_run.Run"]
 
     def __init__(self, run: "wandb_run.Run" = None) -> None:

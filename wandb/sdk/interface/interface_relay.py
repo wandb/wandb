@@ -33,7 +33,7 @@ class InterfaceRelay(InterfaceQueue):
         process_check: bool = True,
     ) -> None:
         self.relay_q = relay_q
-        super(InterfaceRelay, self).__init__(
+        super().__init__(
             record_q=record_q,
             result_q=result_q,
             process=process,

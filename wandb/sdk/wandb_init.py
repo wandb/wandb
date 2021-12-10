@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """Defines wandb.init() and associated classes and methods.
 
 `wandb.init()` indicates the beginning of a new run. In an ML training pipeline,
@@ -10,7 +9,6 @@ For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
 
-from __future__ import print_function
 
 import datetime
 import logging
@@ -75,7 +73,7 @@ def _maybe_mp_process(backend: Backend) -> bool:
     return False
 
 
-class _WandbInit(object):
+class _WandbInit:
     def __init__(self):
         self.kwargs = None
         self.settings = None
@@ -368,8 +366,8 @@ class _WandbInit(object):
         self._enable_logging(settings.log_user)
 
         self._wl._early_logger_flush(logger)
-        logger.info("Logging user logs to {}".format(settings.log_user))
-        logger.info("Logging internal logs to {}".format(settings.log_internal))
+        logger.info(f"Logging user logs to {settings.log_user}")
+        logger.info(f"Logging internal logs to {settings.log_internal}")
 
     def _make_run_disabled(self) -> RunDisabled:
         drun = RunDisabled()
@@ -565,7 +563,7 @@ class _WandbInit(object):
                 current_version=wandb.__version__
             )
             if check:
-                logger.info("got version response {}".format(check))
+                logger.info(f"got version response {check}")
                 if check.upgrade_message:
                     run._set_upgraded_version_message(check.upgrade_message)
                 if check.delete_message:
@@ -589,7 +587,7 @@ class _WandbInit(object):
             if ret and ret.error:
                 error_message = ret.error.message
             if error_message:
-                logger.error("encountered error: {}".format(error_message))
+                logger.error(f"encountered error: {error_message}")
 
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
@@ -694,7 +692,7 @@ def _attach(
     if not resp:
         raise UsageError("problem")
     if resp and resp.error and resp.error.message:
-        raise UsageError("bad: {}".format(resp.error.message))
+        raise UsageError(f"bad: {resp.error.message}")
     run._set_run_obj(resp.run)
     return run
 
@@ -966,5 +964,5 @@ def init(
             wandb.termerror("Abnormal program exit")
             if except_exit:
                 os._exit(-1)
-            six.raise_from(Exception("problem"), error_seen)
+            raise Exception("problem") from error_seen
     return run

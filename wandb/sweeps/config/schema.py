@@ -8,7 +8,7 @@ from typing import Dict, Optional, Tuple
 from copy import deepcopy
 
 sweep_config_jsonschema_fname = Path(__file__).parent / "schema.json"
-with open(sweep_config_jsonschema_fname, "r") as f:
+with open(sweep_config_jsonschema_fname) as f:
     sweep_config_jsonschema = json.load(f)
 
 

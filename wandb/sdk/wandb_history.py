@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """
 History tracks logged data over time. To use history from your script, call
 wandb.log({"key": value}) at a single time step or multiple times in your
@@ -20,7 +19,7 @@ import time
 from wandb.wandb_torch import TorchHistory
 
 
-class History(object):
+class History:
     """Time series data for Runs. This is essentially a list of dicts where each
         dict is a set of summary statistics logged.
     """

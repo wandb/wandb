@@ -1,12 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 keras init
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
 
 import logging
 import numpy as np
@@ -196,14 +191,14 @@ patch_tf_keras()
 
 class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
-        super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
+        super().__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
 
     def get_config(self):
-        return super(_CustomOptimizer, self).get_config()
+        return super().get_config()
 
 
 class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
@@ -213,7 +208,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
     """
 
     def set_model(self, model):
-        super(_GradAccumulatorCallback, self).set_model(model)
+        super().set_model(model)
         self.og_weights = model.get_weights()
         self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
 
@@ -428,7 +423,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 self.best = float("inf")
         # Get the previous best metric for resumed runs
         previous_best = wandb.run.summary.get(
-            "%s%s" % (self.log_best_prefix, self.monitor)
+            f"{self.log_best_prefix}{self.monitor}"
         )
         if previous_best is not None:
             self.best = previous_best
@@ -529,9 +524,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
                 wandb.run.summary[
-                    "%s%s" % (self.log_best_prefix, self.monitor)
+                    f"{self.log_best_prefix}{self.monitor}"
                 ] = self.current
-                wandb.run.summary["%s%s" % (self.log_best_prefix, "epoch")] = epoch
+                wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
                         "Epoch %05d: %s improved from %0.5f to %0.5f"

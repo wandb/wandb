@@ -149,7 +149,7 @@ def proc_version_writer_distributed(stop_queue, stats_queue, project_name, fname
             _train(chunks[i], artifact_name, project_name, group_name)
 
         with wandb.init(reinit=True, project=project_name, group=group_name, job_type='writer') as run:
-            print('Committing {}'.format(group_name))
+            print(f'Committing {group_name}')
             art = wandb.Artifact(artifact_name, type='dataset')
             run.finish_artifact(art)
             stats_queue.put({'write_artifact_count': 1, 'write_total_files': files_in_version})
@@ -446,7 +446,7 @@ def main(argv):
     data_api = wandb.Api()
     # we need list artifacts by walking runs, accessing via
     # project.artifactType.artifacts only returns committed artifacts
-    for run in data_api.runs('%s/%s' % (api.settings('entity'), project_name)):
+    for run in data_api.runs('{}/{}'.format(api.settings('entity'), project_name)):
         for v in run.logged_artifacts():
             # TODO: allow deleted once we build deletion support
             if v.state != 'COMMITTED' and v.state != 'DELETED':

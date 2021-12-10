@@ -12,8 +12,8 @@ S3_BUCKET = "s3://kubeml"
 PREFIX = wandb.util.generate_id()
 GCS_NAME = "gcs-artifact-%s" % PREFIX
 S3_NAME = "s3-artifact-%s" % PREFIX
-GCS_REMOTE = '%s/artifact-versions/%s' % (GCS_BUCKET, PREFIX)
-S3_REMOTE = '%s/artifact-versions/%s' % (S3_BUCKET, PREFIX)
+GCS_REMOTE = f'{GCS_BUCKET}/artifact-versions/{PREFIX}'
+S3_REMOTE = f'{S3_BUCKET}/artifact-versions/{PREFIX}'
 ENTITY = "wandb"
 
 def update_versions(version=1):

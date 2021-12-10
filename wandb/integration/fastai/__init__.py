@@ -148,7 +148,7 @@ class WandbCallback(TrackerCallback):
                 wandb.termwarn(e.message)
                 self.validation_data = None  # prevent from trying again on next loop
             except Exception as e:
-                wandb.termwarn("Unable to log prediction samples.\n{}".format(e))
+                wandb.termwarn(f"Unable to log prediction samples.\n{e}")
                 self.validation_data = None  # prevent from trying again on next loop
 
         # Log losses & metrics
@@ -169,7 +169,7 @@ class WandbCallback(TrackerCallback):
             if self.model_path.is_file():
                 with self.model_path.open("rb") as model_file:
                     self.learn.load(model_file, purge=False)
-                    print("Loaded best saved model from {}".format(self.model_path))
+                    print(f"Loaded best saved model from {self.model_path}")
 
     def _wandb_log_predictions(self):
         "Log prediction samples"
@@ -190,7 +190,7 @@ class WandbCallback(TrackerCallback):
                 pred_log.append(
                     wandb.Image(
                         x.data,
-                        caption="Ground Truth: {}\nPrediction: {}".format(y, pred[0]),
+                        caption=f"Ground Truth: {y}\nPrediction: {pred[0]}",
                     )
                 )
 

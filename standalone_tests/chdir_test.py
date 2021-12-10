@@ -13,7 +13,7 @@ def main(argv):
     run = wandb.init()
     run_project = run.project
     run_id = run.id
-    print("Started run {}/{}".format(run_project, run_id))
+    print(f"Started run {run_project}/{run_id}")
 
     try:
         os.makedirs('./chdir_test')
@@ -41,7 +41,7 @@ def main(argv):
 
     # Check results
     api = wandb.Api()
-    last_run = api.run("%s/%s" % (run_project, run_id))
+    last_run = api.run(f"{run_project}/{run_id}")
     media_path = last_run.summary_metrics["pr_table"]["path"]
     media_file = last_run.file(media_path)
     assert media_file.size > 0

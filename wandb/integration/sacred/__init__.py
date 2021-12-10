@@ -76,15 +76,15 @@ class WandbObserver(RunObserver):
 
             for i, r in enumerate(result):
                 if isinstance(r, float) or isinstance(r, int):
-                    wandb.log({"result_{}".format(i): float(r)})
+                    wandb.log({f"result_{i}": float(r)})
                 elif isinstance(r, dict):
                     wandb.log(r)
                 elif isinstance(r, object):
-                    artifact = wandb.Artifact("result_{}.pkl".format(i), type="result")
+                    artifact = wandb.Artifact(f"result_{i}.pkl", type="result")
                     artifact.add_file(r)
                     self.run.log_artifact(artifact)
                 elif isinstance(r, numpy.ndarray):
-                    wandb.log({"result_{}".format(i): wandb.Image(r)})
+                    wandb.log({f"result_{i}": wandb.Image(r)})
                 else:
                     warnings.warn(
                         "logging results does not support type '{}' results. Ignoring this result".format(

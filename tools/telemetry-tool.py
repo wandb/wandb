@@ -32,7 +32,7 @@ args = parser.parse_args()
 
 
 def write_csv(record: str, fields: List[Any]):
-    record_arg = "output_{}s".format(record)
+    record_arg = f"output_{record}s"
     fname = os.path.join(args.output_dir, getattr(args, record_arg))
     print("Writing:", fname)
     with open(fname, "w") as fp:

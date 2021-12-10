@@ -30,7 +30,7 @@ class LaunchSource(enum.IntEnum):
     LOCAL: int = 3
 
 
-class LaunchProject(object):
+class LaunchProject:
     """A launch project specification."""
 
     def __init__(
@@ -115,7 +115,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_launch the ultimate version will
         be tagged with a sha of the git repo"""
         # TODO: this should likely be source_project when we have it...
-        return "{}_launch".format(self.target_project)
+        return f"{self.target_project}_launch"
 
     def clear_parameter_run_config_collisions(self) -> None:
         """Clear values from the overide run config values if a matching key exists in the override arguments."""
@@ -139,7 +139,7 @@ class LaunchProject(object):
         _, file_extension = os.path.splitext(entry_point)
         ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
         if file_extension in ext_to_cmd:
-            command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
+            command = f"{ext_to_cmd[file_extension]} {quote(entry_point)}"
             new_entrypoint = EntryPoint(name=entry_point, command=command)
             self._entry_points[entry_point] = new_entrypoint
             return new_entrypoint
@@ -247,7 +247,7 @@ class LaunchProject(object):
             utils._fetch_git_repo(self.project_dir, self.uri, self.git_version)
 
 
-class EntryPoint(object):
+class EntryPoint:
     """An entry point into a wandb launch specification."""
 
     def __init__(self, name: str, command: str):
@@ -309,7 +309,7 @@ class EntryPoint(object):
         command_arr = [command_with_params]
         command_arr.extend(
             [
-                "--%s %s" % (key, value) if value is not None else "--%s" % (key)
+                f"--{key} {value}" if value is not None else "--%s" % (key)
                 for key, value in extra_params.items()
             ]
         )

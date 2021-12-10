@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from __future__ import print_function
 
 import wandb
 import time
@@ -72,7 +71,7 @@ def train_and_check_chdir(**kwargs):
         files = os.listdir(run.dir)
         # TODO: Add a check to restoring from another run in this case, WB-3715. Should restore to run.dir
         # check files were saved to the right place
-        assert set(files) == set(['requirements.txt', 'output.log', 'config.yaml', 'wandb-summary.json', 'wandb-metadata.json']), print(files)
+        assert set(files) == {'requirements.txt', 'output.log', 'config.yaml', 'wandb-summary.json', 'wandb-metadata.json'}, print(files)
         # ensure run dir does not contain test_chdir, and no files were saved there
         assert 'test_chdir' not in run.dir
         for root, dir, files in os.walk("."):
@@ -82,10 +81,10 @@ def train_and_check_chdir(**kwargs):
 def check(sweep_id, num=None, result=None, stopped=None):
     settings = wandb.InternalApi().settings()
     api = wandb.Api(overrides=settings)
-    sweep = api.sweep("%s/%s" % (PROJECT, sweep_id))
+    sweep = api.sweep(f"{PROJECT}/{sweep_id}")
     runs = sorted(sweep.runs, key=lambda run: run.summary.get("val_acc", 0), reverse=True)
     if num is not None:
-        print("CHECKING: runs, saw: {}, expecting: {}".format(len(runs), num))
+        print(f"CHECKING: runs, saw: {len(runs)}, expecting: {num}")
         assert len(runs) == num
     val_acc = None
     cnt_stopped = 0
@@ -97,10 +96,10 @@ def check(sweep_id, num=None, result=None, stopped=None):
         assert tmp is not None
         val_acc = tmp if val_acc is None or tmp > val_acc else val_acc
     if stopped is not None:
-        print("NOT CHECKING: stopped, saw: {}, expecting: {}".format(cnt_stopped, stopped))
+        print(f"NOT CHECKING: stopped, saw: {cnt_stopped}, expecting: {stopped}")
         # FIXME: turn on stopped run state
     if result is not None:
-        print("CHECKING: metric, saw: {}, expecting: {}".format(val_acc, result))
+        print(f"CHECKING: metric, saw: {val_acc}, expecting: {result}")
         assert val_acc == result
     print("ALL GOOD")
 
@@ -239,7 +238,7 @@ def main():
         POKE_LOCAL = False
         if t in exclude_list:
             continue
-        print("Testing: {}".format(t))
+        print(f"Testing: {t}")
         f = all_tests.get(t)
         if f is None:
             raise Exception("Unknown test: %s" % t)

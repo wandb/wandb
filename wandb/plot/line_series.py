@@ -41,7 +41,7 @@ def line_series(xs, ys, keys=None, title=None, xname=None):
     for i, series in enumerate([list(zip(xs[i], ys[i])) for i in range(len(xs))]):
         for x, y in series:
             if keys is None:
-                key = "key_{}".format(i)
+                key = f"key_{i}"
             else:
                 key = keys[i]
             data.append([x, key, y])

@@ -201,7 +201,7 @@ def hyperband_stop_runs(
         % (
             ", ".join(
                 [
-                    "%s = %s" % (band, threshold)
+                    f"{band} = {threshold}"
                     for band, threshold in zip(bands, thresholds)
                 ]
             )

@@ -15,7 +15,7 @@ args = parser.parse_args()
 print("Calling init with args: {}", format(args))
 print("Environ: {}".format({k: v for k, v in os.environ.items() if k.startswith("WANDB")}))
 wandb.init(config=args, project="test")
-print("Init called with config {}".format(wandb.config))
+print(f"Init called with config {wandb.config}")
 
 # raise ValueError()
 # os.kill(os.getpid(), signal.SIGINT)
@@ -27,7 +27,7 @@ for i in range(0, wandb.config.epochs):
         for x in range(50):
             wandb.log(
                 {
-                    "hist_{}".format(x): wandb.Histogram(
+                    f"hist_{x}": wandb.Histogram(
                         np.random.randint(255, size=(1000))
                     )
                 },

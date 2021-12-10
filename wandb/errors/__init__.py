@@ -5,7 +5,7 @@ class Error(Exception):
     """Base W&B Error"""
 
     def __init__(self, message):
-        super(Error, self).__init__(message)
+        super().__init__(message)
         self.message = message
 
     # For python 2 support
@@ -17,7 +17,7 @@ class CommError(Error):
     """Error communicating with W&B"""
 
     def __init__(self, msg, exc=None):
-        super(CommError, self).__init__(msg)
+        super().__init__(msg)
         self.message = msg
         self.exc = exc
 

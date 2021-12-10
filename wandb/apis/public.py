@@ -187,7 +187,7 @@ SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
 """
 
 
-class RetryingClient(object):
+class RetryingClient:
     def __init__(self, client):
         self._client = client
 
@@ -214,7 +214,7 @@ class RetryingClient(object):
             raise
 
 
-class Api(object):
+class Api:
     """
     Used for querying the wandb server.
 
@@ -766,7 +766,7 @@ class Api(object):
         return artifact
 
 
-class Attrs(object):
+class Attrs:
     def __init__(self, attrs):
         self._attrs = attrs
 
@@ -800,11 +800,11 @@ class Attrs(object):
             return self._attrs[name]
         else:
             raise AttributeError(
-                "'{}' object has no attribute '{}'".format(repr(self), name)
+                f"'{repr(self)}' object has no attribute '{name}'"
             )
 
 
-class Paginator(object):
+class Paginator:
     QUERY = None
 
     def __init__(self, client, variables, per_page=None):
@@ -899,7 +899,7 @@ class User(Attrs):
     )
 
     def __init__(self, client, attrs):
-        super(User, self).__init__(attrs)
+        super().__init__(attrs)
         self._client = client
 
     @property
@@ -947,7 +947,7 @@ class User(Attrs):
             return None
 
     def __repr__(self):
-        return "<User {}>".format(self.email)
+        return f"<User {self.email}>"
 
 
 class Member(Attrs):
@@ -962,7 +962,7 @@ class Member(Attrs):
     )
 
     def __init__(self, client, team, attrs):
-        super(Member, self).__init__(attrs)
+        super().__init__(attrs)
         self._client = client
         self.team = team
 
@@ -980,7 +980,7 @@ class Member(Attrs):
             return False
 
     def __repr__(self):
-        return "<Member {} ({})>".format(self.name, self.account_type)
+        return f"<Member {self.name} ({self.account_type})>"
 
 
 class Team(Attrs):
@@ -1062,7 +1062,7 @@ class Team(Attrs):
     )
 
     def __init__(self, client, name, attrs=None):
-        super(Team, self).__init__(attrs or {})
+        super().__init__(attrs or {})
         self._client = client
         self.name = name
         self.load()
@@ -1139,7 +1139,7 @@ class Team(Attrs):
         return self._attrs
 
     def __repr__(self):
-        return "<Team {}>".format(self.name)
+        return f"<Team {self.name}>"
 
 
 class Projects(Paginator):
@@ -1174,7 +1174,7 @@ class Projects(Paginator):
         variables = {
             "entity": self.entity,
         }
-        super(Projects, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -1201,14 +1201,14 @@ class Projects(Paginator):
         ]
 
     def __repr__(self):
-        return "<Projects {}>".format(self.entity)
+        return f"<Projects {self.entity}>"
 
 
 class Project(Attrs):
     """A project is a namespace for runs."""
 
     def __init__(self, client, entity, project, attrs):
-        super(Project, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self.client = client
         self.name = project
         self.entity = entity
@@ -1331,7 +1331,7 @@ class Runs(Paginator):
             "order": self.order,
             "filters": json.dumps(self.filters),
         }
-        super(Runs, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -1388,12 +1388,12 @@ class Runs(Paginator):
         return objs
 
     def __repr__(self):
-        return "<Runs {}/{}>".format(self.entity, self.project)
+        return f"<Runs {self.entity}/{self.project}>"
 
 
 class QueuedJob(Attrs):
     def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
-        super(QueuedJob, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1485,7 +1485,7 @@ class Run(Attrs):
         """
         Run is always initialized by calling api.runs() where api is an instance of wandb.Api
         """
-        super(Run, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -1633,7 +1633,7 @@ class Run(Attrs):
         if self._attrs.get("user"):
             self.user = User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
-        for key, value in six.iteritems(json.loads(self._attrs.get("config") or "{}")):
+        for key, value in json.loads(self._attrs.get("config") or "{}").items():
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
             if isinstance(value, dict) and "value" in value:
                 config[key] = value["value"]
@@ -1661,7 +1661,7 @@ class Run(Attrs):
             res = self._exec(query)
             state = res["project"]["run"]["state"]
             if state in ["finished", "crashed", "failed"]:
-                print("Run finished with status: {}".format(state))
+                print(f"Run finished with status: {state}")
                 self._attrs["state"] = state
                 self._state = state
                 return
@@ -1739,7 +1739,7 @@ class Run(Attrs):
     @property
     def json_config(self):
         config = {}
-        for k, v in six.iteritems(self.config):
+        for k, v in self.config.items():
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)
 
@@ -2093,7 +2093,7 @@ class Sweep(Attrs):
 
     def __init__(self, client, entity, project, sweep_id, attrs={}):
         # TODO: Add agents / flesh this out.
-        super(Sweep, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self.client = client
         self._entity = entity
         self.project = project
@@ -2263,7 +2263,7 @@ class Files(Paginator):
             "fileNames": names,
             "upload": upload,
         }
-        super(Files, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -2301,7 +2301,7 @@ class Files(Paginator):
         return "<Files {} ({})>".format("/".join(self.run.path), len(self))
 
 
-class File(object):
+class File:
     """File is a class associated with a file saved by wandb.
 
     Attributes:
@@ -2382,7 +2382,7 @@ class File(object):
         if os.path.exists(path) and not replace:
             raise ValueError("File already exists, pass replace=True to overwrite")
         util.download_file_from_url(path, self.url, Api().api_key)
-        return open(path, "r")
+        return open(path)
 
     @normalize_exceptions
     def delete(self):
@@ -2451,7 +2451,7 @@ class Reports(Paginator):
             "entity": project.entity,
             "viewName": self.name,
         }
-        super(Reports, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -2499,7 +2499,7 @@ class Reports(Paginator):
         return "<Reports {}>".format("/".join(self.project.path))
 
 
-class QueryGenerator(object):
+class QueryGenerator:
     """QueryGenerator is a helper object to write filters for runs"""
 
     INDIVIDUAL_OP_TO_MONGO = {
@@ -2614,7 +2614,7 @@ class BetaReport(Attrs):
         self.project = project
         self.entity = entity
         self.query_generator = QueryGenerator()
-        super(BetaReport, self).__init__(dict(attrs))
+        super().__init__(dict(attrs))
         self._attrs["spec"] = json.loads(self._attrs["spec"])
 
     @property
@@ -2678,7 +2678,7 @@ class BetaReport(Attrs):
         return self.to_html()
 
 
-class HistoryScan(object):
+class HistoryScan:
     QUERY = gql(
         """
         query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
@@ -2744,7 +2744,7 @@ class HistoryScan(object):
         self.scan_offset = 0
 
 
-class SampledHistoryScan(object):
+class SampledHistoryScan:
     QUERY = gql(
         """
         query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
@@ -2844,7 +2844,7 @@ class ProjectArtifactTypes(Paginator):
             "projectName": project,
         }
 
-        super(ProjectArtifactTypes, self).__init__(client, variable_values, per_page)
+        super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -2924,7 +2924,7 @@ class ProjectArtifactCollections(Paginator):
             "artifactTypeName": type_name,
         }
 
-        super(ProjectArtifactCollections, self).__init__(
+        super().__init__(
             client, variable_values, per_page
         )
 
@@ -3048,7 +3048,7 @@ class RunArtifacts(Paginator):
             "runName": run.id,
         }
 
-        super(RunArtifacts, self).__init__(client, variable_values, per_page)
+        super().__init__(client, variable_values, per_page)
 
     @property
     def length(self):
@@ -3090,7 +3090,7 @@ class RunArtifacts(Paginator):
         ]
 
 
-class ArtifactType(object):
+class ArtifactType:
     def __init__(self, client, entity, project, type_name, attrs=None):
         self.client = client
         self.entity = entity
@@ -3157,10 +3157,10 @@ class ArtifactType(object):
         )
 
     def __repr__(self):
-        return "<ArtifactType {}>".format(self.type)
+        return f"<ArtifactType {self.type}>"
 
 
-class ArtifactCollection(object):
+class ArtifactCollection:
     def __init__(self, client, entity, project, name, type, attrs=None):
         self.client = client
         self.entity = entity
@@ -3229,7 +3229,7 @@ class ArtifactCollection(object):
         return self._attrs
 
     def __repr__(self):
-        return "<ArtifactCollection {} ({})>".format(self.name, self.type)
+        return f"<ArtifactCollection {self.name} ({self.type})>"
 
 
 class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
@@ -3533,7 +3533,7 @@ class Artifact(artifacts.Artifact):
     def name(self):
         if self._version_index is None:
             return self.digest
-        return "%s:v%s" % (self._sequence_name, self._version_index)
+        return f"{self._sequence_name}:v{self._version_index}"
 
     @property
     def aliases(self):
@@ -3734,7 +3734,7 @@ class Artifact(artifacts.Artifact):
             # Load the object from the JSON blob
             result = None
             json_obj = {}
-            with open(item_path, "r") as file:
+            with open(item_path) as file:
                 json_obj = json.load(file)
             result = wb_class.from_json(json_obj, self)
             result._set_artifact_source(self, name)
@@ -3772,7 +3772,7 @@ class Artifact(artifacts.Artifact):
         if log:
             delta = relativedelta(datetime.datetime.now() - start_time)
             termlog(
-                "Done. %s:%s:%s" % (delta.hours, delta.minutes, delta.seconds),
+                f"Done. {delta.hours}:{delta.minutes}:{delta.seconds}",
                 prefix=False,
             )
         return dirpath
@@ -3916,7 +3916,7 @@ class Artifact(artifacts.Artifact):
         return manifest.entries.keys()
 
     def __repr__(self):
-        return "<Artifact {}>".format(self.id)
+        return f"<Artifact {self.id}>"
 
     def _load(self):
         query = gql(
@@ -4184,7 +4184,7 @@ class ArtifactVersions(Paginator):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
-        super(ArtifactVersions, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):
@@ -4264,7 +4264,7 @@ class ArtifactFiles(Paginator):
             "artifactName": artifact.artifact_name,
             "fileNames": names,
         }
-        super(ArtifactFiles, self).__init__(client, variables, per_page)
+        super().__init__(client, variables, per_page)
 
     @property
     def length(self):

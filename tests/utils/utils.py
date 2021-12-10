@@ -22,7 +22,7 @@ def get_mock_module(config):
         except ValueError:
             use_standalone_module = False
         if use_standalone_module:
-            import mock
+            from unittest import mock
 
             _mock_module = mock
         else:

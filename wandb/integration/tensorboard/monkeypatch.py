@@ -19,7 +19,7 @@ TENSORBOARD_PYTORCH_MODULE = "torch.utils.tensorboard.writer"
 def unpatch():
     for module, method in wandb.patched["tensorboard"]:
         writer = wandb.util.get_module(module)
-        setattr(writer, method, getattr(writer, "orig_{}".format(method)))
+        setattr(writer, method, getattr(writer, f"orig_{method}"))
     wandb.patched["tensorboard"] = []
 
 
@@ -101,7 +101,7 @@ def _patch_tensorflow2(
         # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
         # is genetered and ends with the hostname, update the root_logdir to match.
         hostname = socket.gethostname()
-        search = re.search(r"-\d+_{}".format(hostname), logdir)
+        search = re.search(fr"-\d+_{hostname}", logdir)
         if search:
             root_logdir_arg = logdir[: search.span()[1]]
         elif root_logdir is not None and not os.path.abspath(logdir).startswith(
@@ -140,7 +140,7 @@ def _patch_file_writer(writer, module, save=None, root_logdir=None):
             # if the logdir containts the hostname, the writer was not given a logdir. In this case, the generated logdir
             # is genetered and ends with the hostname, update the root_logdir to match.
             hostname = socket.gethostname()
-            search = re.search(r"-\d+_{}".format(hostname), logdir)
+            search = re.search(fr"-\d+_{hostname}", logdir)
             if search:
                 root_logdir_arg = logdir[: search.span()[1]]
 
@@ -156,7 +156,7 @@ def _patch_file_writer(writer, module, save=None, root_logdir=None):
 
             _notify_tensorboard_logdir(logdir, save=save, root_logdir=root_logdir_arg)
 
-            super(TBXEventFileWriter, self).__init__(logdir, *args, **kwargs)
+            super().__init__(logdir, *args, **kwargs)
 
     writer.orig_EventFileWriter = old_efw_class
     writer.EventFileWriter = TBXEventFileWriter

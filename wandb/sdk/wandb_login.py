@@ -1,10 +1,8 @@
 #
-# -*- coding: utf-8 -*-
 """
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
 """
-from __future__ import print_function
 
 import enum
 import os
@@ -73,7 +71,7 @@ class ApiKeyStatus(enum.Enum):
     DISABLED = 4
 
 
-class _WandbLogin(object):
+class _WandbLogin:
     def __init__(self):
         self.kwargs: Optional[Dict] = None
         self._settings: Optional[Settings] = None
@@ -138,18 +136,16 @@ class _WandbLogin(object):
         else:
             login_state_str = "W&B API key is configured"
             wandb.termlog(
-                "{} {}".format(login_state_str, login_info_str,), repeat=False,
+                f"{login_state_str} {login_info_str}", repeat=False,
             )
 
     def configure_api_key(self, key):
         if self._settings._jupyter and not self._settings._silent:
             wandb.termwarn(
-                (
                     "If you're specifying your api key in code, ensure this "
                     "code is not shared publically.\nConsider setting the "
                     "WANDB_API_KEY environment variable, or running "
                     "`wandb login` from the command line."
-                )
             )
         apikey.write_key(self._settings, key)
         self.update_session(key)

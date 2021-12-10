@@ -1,7 +1,3 @@
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
 import base64
 import binascii
 import colorsys
@@ -38,7 +34,7 @@ from typing import Any, Dict
 
 import requests
 import six
-from six.moves import queue, input
+from six.moves import queue
 from sys import getsizeof
 from six.moves.collections_abc import Mapping, Sequence
 from importlib import import_module
@@ -56,7 +52,7 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile('[<>:"/\?*]')
+RE_WINFNAMES = re.compile(r'[<>:"/\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -100,7 +96,7 @@ def sentry_message(message):
 
 def sentry_exc(exc, delay=False):
     if error_reporting_enabled():
-        if isinstance(exc, six.string_types):
+        if isinstance(exc, str):
             capture_exception(Exception(exc))
         else:
             capture_exception(exc)
@@ -118,7 +114,7 @@ def sentry_reraise(exc):
     sentry_exc(exc)
     # this will messily add this "reraise" function to the stack trace
     # but hopefully it's not too bad
-    six.reraise(type(exc), exc, sys.exc_info()[2])
+    raise exc.with_traceback(sys.exc_info()[2])
 
 
 def sentry_set_scope(process_context, entity, project, email=None, url=None):
@@ -182,7 +178,7 @@ def get_module(name, required=None):
             return import_module(name)
         except Exception as e:
             _not_importable.add(name)
-            msg = "Error importing optional module {}".format(name)
+            msg = f"Error importing optional module {name}"
             if required:
                 logger.exception(msg)
     if required and name in _not_importable:
@@ -206,7 +202,7 @@ class LazyLoader(types.ModuleType):
         self._parent_module_globals = parent_module_globals
         self._warning = warning
 
-        super(LazyLoader, self).__init__(name)
+        super().__init__(name)
 
     def _load(self):
         """Load the module and insert it into the parent's globals."""
@@ -236,24 +232,24 @@ class LazyLoader(types.ModuleType):
         return dir(module)
 
 
-class PreInitObject(object):
+class PreInitObject:
     def __init__(self, name):
         self._name = name
 
     def __getitem__(self, key):
         raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
+            f'You must call wandb.init() before {self._name}["{key}"]'
         )
 
     def __setitem__(self, key, value):
         raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
+            f'You must call wandb.init() before {self._name}["{key}"]'
         )
 
     def __setattr__(self, key, value):
         if not key.startswith("_"):
             raise wandb.Error(
-                "You must call wandb.init() before {}.{}".format(self._name, key)
+                f"You must call wandb.init() before {self._name}.{key}"
             )
         else:
             return object.__setattr__(self, key, value)
@@ -261,7 +257,7 @@ class PreInitObject(object):
     def __getattr__(self, key):
         if not key.startswith("_"):
             raise wandb.Error(
-                "You must call wandb.init() before {}.{}".format(self._name, key)
+                f"You must call wandb.init() before {self._name}.{key}"
             )
         else:
             raise AttributeError()
@@ -568,7 +564,7 @@ def json_friendly(obj):
         obj = obj.isoformat()
     elif callable(obj):
         obj = (
-            "{}.{}".format(obj.__module__, obj.__qualname__)
+            f"{obj.__module__}.{obj.__qualname__}"
             if hasattr(obj, "__qualname__") and hasattr(obj, "__module__")
             else str(obj)
         )
@@ -589,7 +585,7 @@ def json_friendly_val(val):
     """Make any value (including dict, slice, sequence, etc) JSON friendly"""
     if isinstance(val, dict):
         converted = {}
-        for key, value in six.iteritems(val):
+        for key, value in val.items():
             converted[key] = json_friendly_val(value)
         return converted
     if isinstance(val, slice):
@@ -598,7 +594,7 @@ def json_friendly_val(val):
         )
         return converted
     val, _ = json_friendly(val)
-    if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+    if isinstance(val, Sequence) and not isinstance(val, str):
         converted = []
         for value in val:
             converted.append(json_friendly_val(value))
@@ -816,7 +812,7 @@ def no_retry_auth(e):
     if e.response.status_code == 401:
         raise CommError("Invalid or missing api_key.  Run wandb login")
     elif wandb.run:
-        raise CommError("Permission denied to access {}".format(wandb.run.path))
+        raise CommError(f"Permission denied to access {wandb.run.path}")
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
@@ -833,7 +829,7 @@ def find_runner(program):
         # program is a path to a non-executable file
         try:
             opened = open(program)
-        except IOError:  # PermissionError doesn't exist in 2.7
+        except OSError:  # PermissionError doesn't exist in 2.7
             return None
         first_line = opened.readline().strip()
         if first_line.startswith("#!"):
@@ -976,7 +972,7 @@ def image_id_from_k8s():
                 k8s_server,
                 verify="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
                 timeout=3,
-                headers={"Authorization": "Bearer {}".format(open(token_path).read())},
+                headers={"Authorization": f"Bearer {open(token_path).read()}"},
             )
             res.raise_for_status()
         except requests.RequestException:
@@ -1015,7 +1011,7 @@ def async_call(target, timeout=None):
         try:
             result = q.get(True, timeout)
             if isinstance(result, Exception):
-                six.reraise(type(result), result, sys.exc_info()[2])
+                raise result.with_traceback(sys.exc_info()[2])
             return result, thread
         except queue.Empty:
             return None, thread
@@ -1043,10 +1039,7 @@ def stopwatch_now():
 
     When possible it is a monotonic clock to prevent backwards time issues.
     """
-    if six.PY2:
-        now = time.time()
-    else:
-        now = time.monotonic()
+    now = time.monotonic()
     return now
 
 
@@ -1145,7 +1138,7 @@ def to_human_size(bytes, units=None):
     unit, value = units[0]
     factor = round(float(bytes) / value, 1)
     return (
-        "{}{}".format(factor, unit)
+        f"{factor}{unit}"
         if factor < 1024 or len(units) == 1
         else to_human_size(bytes, units[1:])
     )
@@ -1202,7 +1195,7 @@ def parse_sweep_id(parts_dict):
     entity = None
     project = None
     sweep_id = parts_dict.get("name")
-    if not isinstance(sweep_id, six.string_types):
+    if not isinstance(sweep_id, str):
         return "Expected string sweep_id"
 
     sweep_split = sweep_id.split("/")
@@ -1404,7 +1397,7 @@ def sweep_config_err_text_from_jsonschema_violations(violations):
     )
 
     for i, warning in enumerate(violations):
-        violations[i] = "  Violation {}. {}".format(i + 1, warning)
+        violations[i] = f"  Violation {i + 1}. {warning}"
     violation = "\n".join([violation_base] + violations)
 
     return violation
@@ -1428,7 +1421,7 @@ def handle_sweep_config_violations(warnings):
 def _log_thread_stacks():
     """Log all threads, useful for debugging."""
 
-    thread_map = dict((t.ident, t.name) for t in threading.enumerate())
+    thread_map = {t.ident: t.name for t in threading.enumerate()}
 
     for thread_id, frame in sys._current_frames().items():
         logger.info(
@@ -1466,7 +1459,7 @@ def artifact_to_json(artifact) -> Dict[str, Any]:
 
 
 def check_dict_contains_nested_artifact(d, nested=False):
-    for _, item in six.iteritems(d):
+    for _, item in d.items():
         if isinstance(item, dict):
             contains_artifacts = check_dict_contains_nested_artifact(item, True)
             if contains_artifacts:

@@ -8,7 +8,7 @@ to a protocol buffer.
 import typing as t
 
 
-class SummaryRecord(object):
+class SummaryRecord:
     """Encodes a diff -- analogous to the SummaryRecord protobuf message"""
 
     update: t.List["SummaryItem"]

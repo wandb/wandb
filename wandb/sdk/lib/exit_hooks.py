@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from typing import NoReturn
 
 
-class ExitHooks(object):
+class ExitHooks:
 
     exception: Optional[BaseException] = None
 

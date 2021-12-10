@@ -4,7 +4,6 @@ Partial backport of Python 3.6's weakref module:
 Backport modifications are marked with "XXX backport".
 Taken from: https://github.com/PiDelport/backports.weakref
 """
-from __future__ import absolute_import
 
 import itertools
 import sys
@@ -13,7 +12,7 @@ from weakref import ref
 __all__ = ["finalize"]
 
 
-class finalize(object):
+class finalize:
     """Class for finalization of weakrefable objects
     finalize(obj, func, *args, **kwargs) returns a callable finalizer
     object which will be called when obj is garbage collected. The
@@ -36,7 +35,7 @@ class finalize(object):
     _dirty = False
     _registered_with_atexit = False
 
-    class _Info(object):
+    class _Info:
         __slots__ = ("weakref", "func", "args", "kwargs", "atexit", "index")
 
     def __init__(self, obj, func, *args, **kwargs):
@@ -101,9 +100,9 @@ class finalize(object):
         info = self._registry.get(self)
         obj = info and info.weakref()
         if obj is None:
-            return "<%s object at %#x; dead>" % (type(self).__name__, id(self))
+            return f"<{type(self).__name__} object at {id(self):#x}; dead>"
         else:
-            return "<%s object at %#x; for %r at %#x>" % (
+            return "<{} object at {:#x}; for {!r} at {:#x}>".format(
                 type(self).__name__,
                 id(self),
                 type(obj).__name__,

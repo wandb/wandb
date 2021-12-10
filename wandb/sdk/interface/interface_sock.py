@@ -38,7 +38,7 @@ class InterfaceSock(InterfaceShared):
         self._router = MessageSockRouter(self._sock_client)
 
     def _hack_set_run(self, run: "Run") -> None:
-        super(InterfaceSock, self)._hack_set_run(run)
+        super()._hack_set_run(run)
         assert run.id
         self._stream_id = run.id
 

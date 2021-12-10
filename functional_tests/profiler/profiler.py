@@ -21,7 +21,7 @@ def test_profiler():
 
     class Net(torch.nn.Module):
         def __init__(self):
-            super(Net, self).__init__()
+            super().__init__()
             self.conv1 = torch.nn.Conv2d(1, 32, 3, 1)
             self.conv2 = torch.nn.Conv2d(32, 64, 3, 1)
             self.fc1 = torch.nn.Linear(9216, 128)

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import copy
 import datetime
@@ -58,7 +57,7 @@ CONTEXT = dict(default_map={})
 
 
 def cli_unsupported(argument):
-    wandb.termerror("Unsupported argument `{}`".format(argument))
+    wandb.termerror(f"Unsupported argument `{argument}`")
     sys.exit(1)
 
 
@@ -66,7 +65,7 @@ class ClickWandbException(ClickException):
     def format_message(self):
         # log_file = util.get_log_file_path()
         log_file = ""
-        orig_type = "{}.{}".format(self.orig_type.__module__, self.orig_type.__name__)
+        orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"
         if issubclass(self.orig_type, Error):
             return click.style(str(self.message), fg="red")
         else:
@@ -95,7 +94,7 @@ def display_error(func):
             )
             click_exc = ClickWandbException(e)
             click_exc.orig_type = exc_type
-            six.reraise(ClickWandbException, click_exc, sys.exc_info()[2])
+            raise click_exc.with_traceback(sys.exc_info()[2])
 
     return wrapper
 
@@ -526,11 +525,11 @@ def sync(
         for item in all_items:
             (synced if item.synced else unsynced).append(item)
         if sync_items:
-            wandb.termlog("Number of runs to be synced: {}".format(len(sync_items)))
+            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
             if show and show < len(sync_items):
-                wandb.termlog("Showing {} runs to be synced:".format(show))
+                wandb.termlog(f"Showing {show} runs to be synced:")
             for item in sync_items[: (show or len(sync_items))]:
-                wandb.termlog("  {}".format(item))
+                wandb.termlog(f"  {item}")
         else:
             wandb.termlog("No runs to be synced.")
         if synced:
@@ -703,7 +702,7 @@ def sweep(
 ):  # noqa: C901
     state_args = "stop", "cancel", "pause", "resume"
     lcls = locals()
-    is_state_change_command = sum((lcls[k] for k in state_args))
+    is_state_change_command = sum(lcls[k] for k in state_args)
     if is_state_change_command > 1:
         raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
     elif is_state_change_command == 1:
@@ -729,7 +728,7 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(
-            "%s sweep %s." % (ings[state], "%s/%s/%s" % (entity, project, sweep_id))
+            "{} sweep {}.".format(ings[state], f"{entity}/{project}/{sweep_id}")
         )
         getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
         wandb.termlog("Done.")
@@ -791,7 +790,7 @@ def sweep(
         found = api.sweep(sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(
-                "Could not find sweep {}/{}/{}".format(entity, project, sweep_id)
+                f"Could not find sweep {entity}/{project}/{sweep_id}"
             )
             return
         sweep_obj_id = found["id"]
@@ -877,14 +876,14 @@ def sweep(
     project = project or env.get("WANDB_PROJECT")
 
     if entity and project:
-        sweep_path = "{}/{}/{}".format(entity, project, sweep_id)
+        sweep_path = f"{entity}/{project}/{sweep_id}"
     elif project:
-        sweep_path = "{}/{}".format(project, sweep_id)
+        sweep_path = f"{project}/{sweep_id}"
     else:
         sweep_path = sweep_id
 
     if sweep_path.find(" ") >= 0:
-        sweep_path = '"{}"'.format(sweep_path)
+        sweep_path = f'"{sweep_path}"'
 
     wandb.termlog(
         "Run sweep agent with: {}".format(
@@ -1066,7 +1065,7 @@ def launch(
     resource_args_dict = util._user_args_to_dict(resource_args)
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
-            with open(config, "r") as f:
+            with open(config) as f:
                 config = json.load(f)
         else:
             # assume a json string
@@ -1551,7 +1550,7 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        f'    artifact = run.use_artifact("{artifact_path}")\n',
         prefix=False,
     )
 
@@ -1635,7 +1634,7 @@ def cleanup(target_size):
     target_size = util.from_human_size(target_size)
     cache = wandb_sdk.wandb_artifacts.get_artifacts_cache()
     reclaimed_bytes = cache.cleanup(target_size)
-    print("Reclaimed {} of space".format(util.to_human_size(reclaimed_bytes)))
+    print(f"Reclaimed {util.to_human_size(reclaimed_bytes)} of space")
 
 
 @cli.command(context_settings=CONTEXT, help="Pull files from Weights & Biases")
@@ -1737,12 +1736,12 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             )
 
     if commit and api.git.enabled:
-        wandb.termlog("Fetching origin and finding commit: {}".format(commit))
+        wandb.termlog(f"Fetching origin and finding commit: {commit}")
         subprocess.check_call(["git", "fetch", "--all"])
         try:
             api.git.repo.commit(commit)
         except ValueError:
-            wandb.termlog("Couldn't find original commit: {}".format(commit))
+            wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
             for filename in files:
@@ -1758,7 +1757,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
                         break
 
             if commit:
-                wandb.termlog("Falling back to upstream commit: {}".format(commit))
+                wandb.termlog(f"Falling back to upstream commit: {commit}")
                 patch_path, _ = api.download_write_file(files[filename])
             else:
                 raise ClickException(restore_message)
@@ -1853,7 +1852,7 @@ def magic(ctx, program, args):
     try:
         with open(program, "rb") as fp:
             code = compile(fp.read(), program, "exec")
-    except IOError:
+    except OSError:
         click.echo(click.style("Could not launch program: %s" % program, fg="red"))
         sys.exit(1)
     globs = {
@@ -1974,7 +1973,7 @@ def verify(host):
     reinit = False
     if host is None:
         host = api.settings("base_url")
-        print("Default host selected: {}".format(host))
+        print(f"Default host selected: {host}")
     # if the given host does not match the default host, re run init
     elif host != api.settings("base_url"):
         reinit = True

@@ -1,12 +1,10 @@
 #
-# -*- coding: utf-8 -*-
 """Internal utility routines.
 
 Collection of classes to support the internal process.
 
 """
 
-from __future__ import print_function
 
 import logging
 import sys

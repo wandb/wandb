@@ -19,7 +19,7 @@ class MessageSockRouter(MessageRouter):
 
     def __init__(self, sock_client: SockClient) -> None:
         self._sock_client = sock_client
-        super(MessageSockRouter, self).__init__()
+        super().__init__()
 
     def _read_message(self) -> "Optional[pb.Result]":
         resp = self._sock_client.read_server_response(timeout=1)

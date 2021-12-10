@@ -35,7 +35,7 @@ def _set_logger(log_object):
     logger = log_object
 
 
-class _EarlyLogger(object):
+class _EarlyLogger:
     """Early logger which captures logs in memory until logging can be configured."""
 
     def __init__(self):
@@ -73,7 +73,7 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
-class _WandbSetup__WandbSetup(object):  # noqa: N801
+class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
     _manager: Optional[wandb_manager._Manager]
@@ -251,7 +251,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         return self._manager
 
 
-class _WandbSetup(object):
+class _WandbSetup:
     """Wandb singleton class."""
 
     _instance = None

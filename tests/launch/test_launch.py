@@ -8,7 +8,7 @@ from wandb.sdk.launch.docker import pull_docker_image
 try:
     from unittest import mock
 except ImportError:  # TODO: this is only for python2
-    import mock
+    from unittest import mock
 import sys
 
 import wandb
@@ -50,7 +50,7 @@ def mocked_fetchable_git_repo_ipython():
 
     def populate_dst_dir(dst_dir):
         with open(os.path.join(dst_dir, "one_cell.ipynb"), "w") as f:
-            f.write(open(notebook_path("one_cell.ipynb"), "r").read())
+            f.write(open(notebook_path("one_cell.ipynb")).read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
@@ -118,11 +118,11 @@ def check_project_spec(
         )
     assert project_spec.resource == resource
     if resource_args:
-        assert set([(k, v) for k, v in resource_args.items()]) == set(
-            [(k, v) for k, v in project_spec.resource_args.items()]
-        )
+        assert {(k, v) for k, v in resource_args.items()} == {
+            (k, v) for k, v in project_spec.resource_args.items()
+        }
 
-    with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
+    with open(os.path.join(project_spec.project_dir, "patch.txt")) as fp:
         contents = fp.read()
         assert contents == "testing"
 

@@ -30,7 +30,7 @@ RequestCommitArtifact = collections.namedtuple(
 RequestFinish = collections.namedtuple("RequestFinish", ("callback"))
 
 
-class StepChecksum(object):
+class StepChecksum:
     def __init__(self, api, tempdir, request_queue, output_queue, stats):
         self._api = api
         self._tempdir = tempdir
@@ -50,7 +50,7 @@ class StepChecksum(object):
                 if req.copy:
                     path = os.path.join(
                         self._tempdir.name,
-                        "%s-%s" % (wandb.util.generate_id(), req.save_name),
+                        f"{wandb.util.generate_id()}-{req.save_name}",
                     )
                     wandb.util.mkdir_exists_ok(os.path.dirname(path))
                     try:

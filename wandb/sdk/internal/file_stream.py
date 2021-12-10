@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from typing import Any, List, Dict
 
 
-class DefaultFilePolicy(object):
+class DefaultFilePolicy:
     def __init__(self, start_chunk_id=0):
         self._chunk_id = start_chunk_id
 
@@ -110,7 +110,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
     """
 
     def __init__(self, start_chunk_id=0):
-        super(CRDedupeFilePolicy, self).__init__(start_chunk_id=start_chunk_id)
+        super().__init__(start_chunk_id=start_chunk_id)
         self._prev_chunk = None
 
         self.global_offset = 0
@@ -247,7 +247,7 @@ class BinaryFilePolicy(DefaultFilePolicy):
         return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
 
-class FileStreamApi(object):
+class FileStreamApi:
     """Pushes chunks of files to our streaming endpoint.
 
     This class is used as a singleton. It has a thread that serializes access to
@@ -579,7 +579,7 @@ def request_with_retry(func, *args, **kwargs):
                 error_message = response.json()["error"]  # XXX clean this up
             except Exception:
                 pass
-            logger.error("requests_with_retry error: {}".format(error_message))
+            logger.error(f"requests_with_retry error: {error_message}")
             logger.exception(
                 "requests_with_retry encountered unretryable exception: %s", e
             )

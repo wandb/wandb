@@ -130,7 +130,7 @@ env_convert: Dict[str, Callable[[str], List[str]]] = dict(
 
 def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
     inv_map = dict()
-    for k, v in six.iteritems(d):
+    for k, v in d.items():
         v = v or prefix + k.upper()
         inv_map[v] = k
     return inv_map
@@ -225,7 +225,7 @@ class SettingsConsole(enum.Enum):
     REDIRECT = 2
 
 
-class Settings(object):
+class Settings:
     """Settings Constructor
 
     Arguments:
@@ -642,7 +642,7 @@ class Settings(object):
         if value is not None:
             if len(value) > 128:
                 return f'Invalid project name "{value}", exceeded 128 characters'
-            invalid_chars = set([char for char in invalid_chars_list if char in value])
+            invalid_chars = {char for char in invalid_chars_list if char in value}
             if invalid_chars:
                 return f"Invalid project name \"{value}\", cannot contain characters \"{','.join(invalid_chars_list)}\", found \"{','.join(invalid_chars)}\""
         return None
@@ -683,31 +683,31 @@ class Settings(object):
     def _validate_strict(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
-            return "{} is not a boolean".format(value)
+            return f"{value} is not a boolean"
         return None
 
     def _validate_silent(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
-            return "{} is not a boolean".format(value)
+            return f"{value} is not a boolean"
         return None
 
     def _validate_show_info(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
-            return "{} is not a boolean".format(value)
+            return f"{value} is not a boolean"
         return None
 
     def _validate_show_warnings(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
-            return "{} is not a boolean".format(value)
+            return f"{value} is not a boolean"
         return None
 
     def _validate_show_errors(self, value: str) -> Optional[str]:
         val = _str_as_bool(value)
         if val is None:
-            return "{} is not a boolean".format(value)
+            return f"{value} is not a boolean"
         return None
 
     def _validate_base_url(self, value: Optional[str]) -> Optional[str]:
@@ -725,7 +725,7 @@ class Settings(object):
         try:
             _ = float(value)
         except ValueError:
-            return "{} is not a float".format(value)
+            return f"{value} is not a float"
         return None
 
     def _preprocess_login_timeout(self, s: Optional[str]) -> Union[None, float, str]:
@@ -774,7 +774,7 @@ class Settings(object):
     ) -> None:
         inv_map = _build_inverse_map(env_prefix, env_settings)
         env_dict = dict()
-        for k, v in six.iteritems(environ):
+        for k, v in environ.items():
             if not k.startswith(env_prefix):
                 continue
             setting_key = inv_map.get(k)
@@ -785,10 +785,10 @@ class Settings(object):
                 env_dict[setting_key] = v
             else:
                 if _logger:
-                    _logger.info("Unhandled environment var: {}".format(k))
+                    _logger.info(f"Unhandled environment var: {k}")
 
         if _logger:
-            _logger.info("setting env: {}".format(_redact_dict(env_dict)))
+            _logger.info(f"setting env: {_redact_dict(env_dict)}")
         self._update(env_dict, _source=self.Source.ENV)
 
     def _apply_user(
@@ -796,7 +796,7 @@ class Settings(object):
     ) -> None:
         if _logger:
             _logger.info(
-                "setting user settings: {}".format(_redact_dict(user_settings))
+                f"setting user settings: {_redact_dict(user_settings)}"
             )
         self._update(user_settings, _source=self.Source.USER)
 
@@ -805,7 +805,7 @@ class Settings(object):
     ) -> None:
         if _logger:
             _logger.info(
-                "setting login settings: {}".format(_redact_dict(login_settings))
+                f"setting login settings: {_redact_dict(login_settings)}"
             )
         self._update(login_settings, _source=self.Source.LOGIN)
 
@@ -861,7 +861,7 @@ class Settings(object):
     #     object.__setattr__(self, "_Settings__early_logger", None)
 
     def _setup(self, kwargs: Any) -> None:
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             if k not in self._unsaved_keys:
                 object.__setattr__(self, k, v)
 
@@ -882,7 +882,7 @@ class Settings(object):
             return
         invalid = f(v)
         if invalid:
-            raise UsageError("Settings field `{}`: {}".format(k, invalid))
+            raise UsageError(f"Settings field `{k}`: {invalid}")
 
     def _perform_preprocess(self, k: str, v: Any) -> Optional[Any]:
         f = getattr(self, "_preprocess_" + k, None)
@@ -903,13 +903,13 @@ class Settings(object):
         d = __d or dict()
         data = {}
         for check in d, kwargs:
-            for k in six.viewkeys(check):
+            for k in check.keys():
                 if k not in self.__dict__:
                     raise KeyError(k)
                 v = self._perform_preprocess(k, check[k])
                 self._check_invalid(k, v)
                 data[k] = v
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             if v is None:
                 continue
             if self._priority_failed(k, source=_source, override=_override):
@@ -1079,9 +1079,9 @@ class Settings(object):
     @classmethod
     def _get_class_defaults(cls) -> dict:
         class_keys = set(cls._class_keys())
-        return dict(
-            (k, v) for k, v in vars(cls).items() if k in class_keys and v is not None
-        )
+        return {
+            k: v for k, v in vars(cls).items() if k in class_keys and v is not None
+        }
 
     def _public_keys(self) -> Iterator[str]:
         return filter(lambda x: not x.startswith("_Settings__"), self.__dict__)
@@ -1119,13 +1119,13 @@ class Settings(object):
         self, args: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
-        args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
+        args = {param_map.get(k, k): v for k, v in args.items() if v is not None}
         self._apply_source_login(args, _logger=_logger)
 
     def _apply_init_login(self, args: Dict[str, Any]) -> None:
         # apply some init parameters dealing with login
         keys = {"mode"}
-        args = {k: v for k, v in six.iteritems(args) if k in keys and v is not None}
+        args = {k: v for k, v in args.items() if k in keys and v is not None}
         self._update(args, _source=self.Source.INIT)
 
     def _apply_init(self, args: Dict[str, Union[str, int, None]]) -> None:
@@ -1157,10 +1157,10 @@ class Settings(object):
             notes="run_notes",
             dir="root_dir",
         )
-        args = {param_map.get(k, k): v for k, v in six.iteritems(args) if v is not None}
+        args = {param_map.get(k, k): v for k, v in args.items() if v is not None}
         # fun logic to convert the resume init arg
         if args.get("resume"):
-            if isinstance(args["resume"], six.string_types):
+            if isinstance(args["resume"], str):
                 if args["resume"] not in ("allow", "must", "never", "auto"):
                     if args.get("run_id") is None:
                         #  TODO: deprecate or don't support
@@ -1197,7 +1197,7 @@ class Settings(object):
     ) -> "Settings._Setter":
         return Settings._Setter(settings=self, source=source, override=override)
 
-    class _Setter(object):
+    class _Setter:
         _settings: "Settings"
         _source: int
         _override: int

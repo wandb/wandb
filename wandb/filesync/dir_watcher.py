@@ -14,7 +14,7 @@ wd_events = util.vendor_import("watchdog.events")
 logger = logging.getLogger(__name__)
 
 
-class FileEventHandler(object):
+class FileEventHandler:
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
         self.file_path = file_path
         # Convert windows paths to unix paths
@@ -94,7 +94,7 @@ class PolicyLive(FileEventHandler):
     RATE_LIMIT_SIZE_INCREASE = 1.2
 
     def __init__(self, file_path, save_name, api, file_pusher, *args, **kwargs):
-        super(PolicyLive, self).__init__(
+        super().__init__(
             file_path, save_name, api, file_pusher, *args, **kwargs
         )
         self._last_uploaded_time = None
@@ -152,7 +152,7 @@ class PolicyLive(FileEventHandler):
         return "live"
 
 
-class DirWatcher(object):
+class DirWatcher:
     def __init__(self, settings, api, file_pusher, file_dir=None):
         self._api = api
         self._file_count = 0
@@ -262,7 +262,7 @@ class DirWatcher(object):
                 )
             else:
                 Handler = PolicyEnd
-                for policy, globs in six.iteritems(self._user_file_policies):
+                for policy, globs in self._user_file_policies.items():
                     if policy == "end":
                         continue
                     # Convert set to list to avoid RuntimeError's

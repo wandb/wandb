@@ -5,7 +5,6 @@ This is a very internal test client, it is only for testing to verify base funct
 
 """
 
-from __future__ import print_function
 
 import datetime
 import enum
@@ -45,7 +44,7 @@ def make_log_data(data):
 
 def make_config(config_dict, obj=None):
     config = obj or wandb_internal_pb2.ConfigRecord()
-    for k, v in six.iteritems(config_dict):
+    for k, v in config_dict.items():
         update = config.update.add()
         update.key = k
         update.value_json = json.dumps(v)
@@ -106,7 +105,7 @@ def make_run_data(data):
 
 def make_summary(summary_dict, obj=None):
     summary = obj or wandb_internal_pb2.SummaryRecord()
-    for k, v in six.iteritems(summary_dict):
+    for k, v in summary_dict.items():
         update = summary.update.add()
         update.key = k
         update.value_json = json.dumps(v)
@@ -126,7 +125,7 @@ def make_output(name, data):
     return outdata
 
 
-class WandbInternalClient(object):
+class WandbInternalClient:
     def __init__(self):
         self._channel = None
         self._stub = None

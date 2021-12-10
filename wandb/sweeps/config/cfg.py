@@ -50,7 +50,7 @@ class SweepConfig(dict):
 
         copied_config = deepcopy(d)
         filled_config = fill_validate_schema(copied_config)
-        super(SweepConfig, self).__init__(filled_config)
+        super().__init__(filled_config)
 
     def __str__(self) -> str:
         return yaml.safe_dump(self)

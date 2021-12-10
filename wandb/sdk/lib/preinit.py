@@ -2,24 +2,24 @@
 import wandb
 
 
-class PreInitObject(object):
+class PreInitObject:
     def __init__(self, name):
         self._name = name
 
     def __getitem__(self, key):
         raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
+            f'You must call wandb.init() before {self._name}["{key}"]'
         )
 
     def __setitem__(self, key, value):
         raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
+            f'You must call wandb.init() before {self._name}["{key}"]'
         )
 
     def __setattr__(self, key, value):
         if not key.startswith("_"):
             raise wandb.Error(
-                "You must call wandb.init() before {}.{}".format(self._name, key)
+                f"You must call wandb.init() before {self._name}.{key}"
             )
         else:
             return object.__setattr__(self, key, value)
@@ -27,7 +27,7 @@ class PreInitObject(object):
     def __getattr__(self, key):
         if not key.startswith("_"):
             raise wandb.Error(
-                "You must call wandb.init() before {}.{}".format(self._name, key)
+                f"You must call wandb.init() before {self._name}.{key}"
             )
         else:
             raise AttributeError()
@@ -35,7 +35,7 @@ class PreInitObject(object):
 
 def PreInitCallable(name, destination=None):  # noqa: N802
     def preinit_wrapper(*args, **kwargs):
-        raise wandb.Error("You must call wandb.init() before {}()".format(name))
+        raise wandb.Error(f"You must call wandb.init() before {name}()")
 
     preinit_wrapper.__name__ = str(name)
     if destination:

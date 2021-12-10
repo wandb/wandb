@@ -1,5 +1,4 @@
 #
-# -*- coding: utf-8 -*-
 """
 meta.
 """
@@ -33,7 +32,7 @@ else:
 logger = logging.getLogger(__name__)
 
 
-class Meta(object):
+class Meta:
     """Used to store metadata during and after a run."""
 
     def __init__(self, settings=None, interface=None):
@@ -61,7 +60,7 @@ class Meta(object):
 
             installed_packages = [d for d in iter(pkg_resources.working_set)]
             installed_packages_list = sorted(
-                ["%s==%s" % (i.key, i.version) for i in installed_packages]
+                f"{i.key}=={i.version}" for i in installed_packages
             )
             with open(
                 os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w"
@@ -149,7 +148,7 @@ class Meta(object):
             if upstream_commit and upstream_commit != self._git.repo.head.commit:
                 sha = upstream_commit.hexsha
                 upstream_patch_path = os.path.join(
-                    self._settings.files_dir, "upstream_diff_{}.patch".format(sha)
+                    self._settings.files_dir, f"upstream_diff_{sha}.patch"
                 )
                 with open(upstream_patch_path, "wb") as upstream_patch:
                     subprocess.check_call(

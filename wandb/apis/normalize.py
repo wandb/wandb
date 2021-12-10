@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 normalize.
 """
@@ -9,7 +8,6 @@ import sys
 
 from gql.client import RetryError
 import requests
-import six
 from wandb import env
 from wandb.errors import CommError
 
@@ -39,12 +37,10 @@ def normalize_exceptions(func):
                 message = err.last_exception
 
             if env.is_debug():
-                six.reraise(
-                    type(err.last_exception), err.last_exception, sys.exc_info()[2]
-                )
+                raise err.last_exception.with_traceback(sys.exc_info()[2])
             else:
-                six.reraise(
-                    CommError, CommError(message, err.last_exception), sys.exc_info()[2]
+                raise CommError(message, err.last_exception).with_traceback(
+                    sys.exc_info()[2]
                 )
         except Exception as err:
             # gql raises server errors with dict's as strings...
@@ -57,8 +53,8 @@ def normalize_exceptions(func):
             else:
                 message = str(err)
             if env.is_debug():
-                six.reraise(*sys.exc_info())
+                raise
             else:
-                six.reraise(CommError, CommError(message, err), sys.exc_info()[2])
+                raise CommError(message, err).with_traceback(sys.exc_info()[2])
 
     return wrapper

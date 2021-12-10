@@ -55,10 +55,10 @@ def generate_docker_base_image(
     cmd: Sequence[str] = [
         "jupyter-repo2docker",
         "--no-run",
-        "--image-name={}".format(launch_project.base_image),
-        "--user-id={}".format(launch_project.docker_user_id),
+        f"--image-name={launch_project.base_image}",
+        f"--user-id={launch_project.docker_user_id}",
         path,
-        '"{}"'.format(entry_cmd),
+        f'"{entry_cmd}"',
     ]
 
     _logger.info(
@@ -80,7 +80,7 @@ def generate_docker_base_image(
                 )
                 spinner.ok("✅ ")
             else:
-                spinner.text = "Detailed error logs: {}".format(build_log)
+                spinner.text = f"Detailed error logs: {build_log}"
                 spinner.fail("💥 ")
                 return None
     return launch_project.base_image
@@ -122,7 +122,7 @@ def pull_docker_image(docker_image: str) -> None:
     try:
         docker.run(["docker", "pull", docker_image])
     except DockerError as e:
-        raise LaunchError("Docker server returned error: {}".format(e))
+        raise LaunchError(f"Docker server returned error: {e}")
 
 
 def construct_local_image_uri(launch_project: _project_spec.LaunchProject) -> str:
@@ -162,7 +162,7 @@ def build_docker_image_if_needed(
 
     launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:
-        wandb.termlog("Using existing image: {}".format(image_uri))
+        wandb.termlog(f"Using existing image: {image_uri}")
         return image_uri
     copy_code_line = ""
     requirements_line = ""
@@ -173,7 +173,7 @@ def build_docker_image_if_needed(
         if env.startswith("HOME="):
             homedir = env.split("=", 1)[1]
     if copy_code:
-        copy_code_line = "COPY ./src/ {}\n".format(workdir)
+        copy_code_line = f"COPY ./src/ {workdir}\n"
         if docker.is_buildx_installed():
             requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
                 homedir, launch_project.docker_user_id
@@ -213,7 +213,7 @@ def build_docker_image_if_needed(
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
         _, _, port = _, _, port = api.settings("base_url").split(":")
-        base_url = "http://host.docker.internal:{}".format(port)
+        base_url = f"http://host.docker.internal:{port}"
     elif _is_wandb_dev_uri(api.settings("base_url")):
         base_url = "http://host.docker.internal:9002"
     else:
@@ -239,13 +239,13 @@ def build_docker_image_if_needed(
     _logger.info("=== Building docker image %s ===", image_uri)
 
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
-    wandb.termlog("Generating launch image {}".format(image_uri))
+    wandb.termlog(f"Generating launch image {image_uri}")
     try:
         image = docker.build(
             tags=[image_uri], file=dockerfile, context_path=build_ctx_path
         )
     except DockerError as e:
-        raise LaunchError("Error communicating with docker client: {}".format(e))
+        raise LaunchError(f"Error communicating with docker client: {e}")
 
     try:
         os.remove(build_ctx_path)

@@ -20,7 +20,7 @@ class MessageFuturePoll(MessageFuture):
     _xid: str
 
     def __init__(self, fn: Any, xid: str) -> None:
-        super(MessageFuturePoll, self).__init__()
+        super().__init__()
         self._fn = fn
         self._xid = xid
 

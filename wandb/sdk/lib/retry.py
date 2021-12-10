@@ -25,12 +25,12 @@ class TransientError(Exception):
     """
 
     def __init__(self, msg=None, exc=None):
-        super(TransientError, self).__init__(msg)
+        super().__init__(msg)
         self.message = msg
         self.exception = exc
 
 
-class Retry(object):
+class Retry:
     """Creates a retryable version of a function.
 
     Calling this will call the passed function, retrying if any exceptions in
