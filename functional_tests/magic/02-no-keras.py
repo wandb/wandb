@@ -18,18 +18,20 @@ assert:
 """
 
 import argparse
+import sys
 
 from wandb import magic  # noqa: F401
 
 
 def train(layers, epochs):
-    for n in range(layers):
+    for n in range(layers or 10):
         print(f"Layer: {n}")
-    for n in range(epochs):
+    for n in range(epochs or 10):
         print(f"Epoch: {n}")
 
 
 def main():
+    assert "tensorflow" not in sys.modules
     parser = argparse.ArgumentParser()
     parser.add_argument("--layers", type=int, help="num layers")
     parser.add_argument("--epochs", type=int, default=4, help="num epochs")
