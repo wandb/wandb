@@ -372,7 +372,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         training_data=None,
         validation_data=None,
         labels=[],
-        data_type=None,
         predictions=36,
         generator=None,
         input_type=None,
@@ -418,7 +417,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.generator = generator
         self._graph_rendered = False
 
-        self.input_type = input_type or data_type
+        self.input_type = input_type
         self.output_type = output_type
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
