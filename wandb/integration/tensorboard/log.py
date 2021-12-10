@@ -149,6 +149,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     bins = ndarray[0][:2]
                 if len(counts) > 0:
                     try:
+                        # TODO: we should just re-bin if there are too many buckets
                         values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
                             np_histogram=(counts, bins)
                         )
