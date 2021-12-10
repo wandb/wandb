@@ -42,6 +42,8 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch

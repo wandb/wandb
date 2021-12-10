@@ -600,6 +600,8 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
@@ -631,6 +633,8 @@ def test_launch_agent_instance(test_settings, live_mock_server):
     assert get_agent_response["name"] == "test_agent"
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 def test_launch_agent_different_project_in_spec(
     test_settings,
     live_mock_server,
@@ -694,6 +698,8 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     assert get_agent_response["stopPolling"] == False
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython
@@ -748,6 +754,8 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
