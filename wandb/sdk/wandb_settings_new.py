@@ -206,7 +206,7 @@ class Settings:
 
     def __init__(
         self,
-        **kwargs,
+        **kwargs: Dict[str, Any],
     ):
         settings = {
             # former class attributes
@@ -246,6 +246,7 @@ class Settings:
             "disabled": {
                 "value": False,
                 "validator": lambda x: isinstance(x, bool),
+                "help": "Alias for mode=dryrun, not supported yet",
             },
             "force": {
                 "value": None,
@@ -276,22 +277,27 @@ class Settings:
                 "validator": lambda x: isinstance(x, str),
             },
             "silent": {
+                # fixme? elsewhere it is bool
                 "value": "False",
                 "validator": lambda x: isinstance(x, str),
             },
             "quiet": {
+                # fixme? elsewhere it is bool
                 "value": None,
                 "validator": lambda x: isinstance(x, str) or isinstance(x, bool),
             },
             "show_info": {
+                # fixme? elsewhere it is bool
                 "value": "True",
                 "validator": lambda x: isinstance(x, str),
             },
             "show_warnings": {
+                # fixme? elsewhere it is bool
                 "value": "True",
                 "validator": lambda x: isinstance(x, str),
             },
             "show_errors": {
+                # fixme? elsewhere it is bool
                 "value": "True",
                 "validator": lambda x: isinstance(x, str),
             },
@@ -361,7 +367,10 @@ class Settings:
             },
             "project": {
                 "value": None,
-                "validator": lambda x: isinstance(x, str),
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_project,
+                ],
             },
             "run_group": {
                 "value": None,
@@ -399,6 +408,7 @@ class Settings:
                 "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
             },
             "_except_exit": {
+                # fixme? elsewhere it is str
                 "value": None,
                 "validator": lambda x: isinstance(x, bool),
             },
@@ -555,6 +565,93 @@ class Settings:
             "symlink": {
                 "value": None,
                 "validator": lambda x: isinstance(x, bool),  # probed
+            },
+            "docker": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_cli_only_mode": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "help": "Avoid running any code specific for runs",
+            },
+            "_disable_viewer": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "help": "Prevent early viewer query",
+            },
+            "reinit": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_save_requirements": {
+                "value": True,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            # compute environment
+            "show_colors": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "show_emoji": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "summary_errors": {
+                "value": None,
+                "validator": lambda x: isinstance(x, int),
+            },
+            "_internal_queue_timeout": {
+                "value": 2,
+                "validator": lambda x: isinstance(x, int) or isinstance(x, float),
+            },
+            "_internal_check_process": {
+                "value": 8,
+                "validator": lambda x: isinstance(x, int) or isinstance(x, float),
+            },
+            "_disable_meta": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_disable_stats": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_jupyter_path": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_jupyter_name": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_jupyter_root": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_executable": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_cuda": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_args": {
+                "value": None,
+                "validator": lambda x: isinstance(x, list),
+            },
+            "_os": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_python": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_kaggle": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
             },
 
             # debug args
