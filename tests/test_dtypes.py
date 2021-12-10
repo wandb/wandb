@@ -318,7 +318,7 @@ def test_image_type():
         image_annotated_differently
     ) == data_types._ImageFileType(
         box_layers={"box_predictions": [1, 2, 3], "box_ground_truth": [1, 2, 3]},
-        box_score_keys={"loss", "acc"},
+        box_score_keys=["loss", "acc"],
         mask_layers={
             "mask_ground_truth_2": [],
             "mask_ground_truth": [],
