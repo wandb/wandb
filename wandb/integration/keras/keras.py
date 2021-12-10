@@ -387,6 +387,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        **kwargs,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -417,6 +418,14 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.generator = generator
         self._graph_rendered = False
 
+        data_type = kwargs.get("data_type", None)
+        if data_type is not None:
+            wandb.termwarn(
+                "The data_type argument of wandb.keras.WandbCallback is deprecated "
+                "and will be removed in a future release. Please use input_type instead.\n"
+                "Setting input_type = data_type.",
+            )
+            input_type = data_type
         self.input_type = input_type
         self.output_type = output_type
         self.log_evaluation = log_evaluation
@@ -446,9 +455,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
-            print(
-                "WandbCallback mode %s is unknown, " "fallback to auto mode." % (mode)
-            )
+            print(f"WandbCallback mode {mode} is unknown, fallback to auto mode.")
             mode = "auto"
 
         if mode == "min":
