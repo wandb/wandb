@@ -151,11 +151,28 @@ def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
     reason="wandb launch is not available for python versions < 3.5",
 )
 def test_launch_base_case(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
+    monkeypatch,
 ):
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
+    )
+
+    def mock_create_metadata_file(*args, **kwargs):
+        dockerfile_contents = args[2]
+        assert "ENV WANDB_BASE_URL=https://api.wandb.ai" in dockerfile_contents
+        assert f"ENV WANDB_API_KEY={api.api_key}" in dockerfile_contents
+        assert "ENV WANDB_PROJECT=test" in dockerfile_contents
+        assert "ENV WANDB_ENTITY=mock_server_entity" in dockerfile_contents
+
+        _project_spec.create_metadata_file(*args, **kwargs)
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
     )
     expected_config = {}
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
