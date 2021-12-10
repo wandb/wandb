@@ -1,6 +1,7 @@
 from datetime import datetime
 import enum
 import multiprocessing
+import os
 from typing import (
     Any,
     Callable,
@@ -8,7 +9,6 @@ from typing import (
     Dict,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Type,
     TYPE_CHECKING,
@@ -17,6 +17,7 @@ from typing import (
 from urllib.parse import urljoin
 
 from wandb.errors import UsageError
+from wandb.sdk.wandb_config import Config
 
 
 def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
@@ -223,6 +224,10 @@ class Settings:
                     self._validate_start_method,
                 ],
             },
+            "_debug_log": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
             "_require_service": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
@@ -266,26 +271,10 @@ class Settings:
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
-            "resume_fname_spec": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
             "root_dir": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
-            # log_dir_spec: Optional[str] = None
-            # log_user_spec: Optional[str] = None
-            # log_internal_spec: Optional[str] = None
-            # sync_file_spec: Optional[str] = None
-            # sync_dir_spec: Optional[str] = None
-            # files_dir_spec: Optional[str] = None
-            # tmp_dir_spec: Optional[str] = None
-            # log_symlink_user_spec: Optional[str] = None
-            # log_symlink_internal_spec: Optional[str] = None
-            # sync_symlink_latest_spec: Optional[str] = None
-            # settings_system_spec: Optional[str] = None
-            # settings_workspace_spec: Optional[str] = None
             "silent": {
                 "value": "False",
                 "validator": lambda x: isinstance(x, str),
@@ -382,6 +371,11 @@ class Settings:
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
+            # TODO(jhr): Audit this
+            "run_job_type": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
             "run_notes": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
@@ -389,11 +383,6 @@ class Settings:
             "sagemaker_disable": {
                 "value": None,
                 "validator": lambda x: isinstance(x, bool),
-            },
-            # TODO(jhr): Audit this
-            "run_job_type": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
             },
 
             # Private attributes
@@ -432,6 +421,13 @@ class Settings:
                     lambda x: isinstance(x, str)
                 ],
             },
+            "anonymous": {
+                "value": None,
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_anonymous
+                ],
+            },
             "summary_warnings": {
                 "value": 5,
                 "preprocessor": lambda x: int(x),
@@ -441,6 +437,124 @@ class Settings:
             "ignore_globs": {
                 "value": tuple(),
                 "validator": lambda x: isinstance(x, Sequence),
+            },
+            "magic": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str) or isinstance(x, bool) or isinstance(x, Dict),
+            },
+            "allow_val_change": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "relogin": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "login_timeout": {
+                "value": None,
+                "validator": lambda x: isinstance(x, float) or isinstance(x, int),
+            },
+            # compatibility / error handling
+            "problem": {
+                "value": "fatal",
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_problem
+                ],
+            },
+            # dynamic settings
+            "system_sample_seconds": {
+                "value": 2,
+                "validator": lambda x: isinstance(x, int),
+            },
+            "system_sample": {
+                "value": 15,
+                "validator": lambda x: isinstance(x, int),
+            },
+            "heartbeat_seconds": {
+                "value": 30,
+                "validator": lambda x: isinstance(x, int),
+            },
+            "config_paths": {
+                "value": None,
+                "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
+            },
+            "sweep_param_path": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_config_dict": {
+                "value": None,
+                "validator": lambda x: isinstance(x, Config),
+            },
+            # directories and files
+            "settings_system_spec": {
+                "value": "~/.config/wandb/settings",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "settings_workspace_spec": {
+                "value": "settings",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "sync_dir_spec": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+                "hook": [
+                    lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}")
+                ],
+            },
+            "sync_file_spec": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: f"run-{self.run_id}.wandb",
+            },
+            "sync_symlink_latest_spec": {
+                "value": "latest-run",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "log_dir_spec": {
+                "value": "logs",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            },
+            "log_user_spec": {
+                "value": "debug.log",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "log_internal_spec": {
+                "value": "debug-internal.log",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "log_symlink_user_spec": {
+                "value": "debug.log",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "log_symlink_internal_spec": {
+                "value": "debug-internal.log",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "resume_fname_spec": {
+                "value": "wandb-resume.json",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "files_dir_spec": {
+                "value": "files",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            },
+            "tmp_dir_spec": {
+                "value": "tmp",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            },
+            "symlink": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),  # probed
             },
 
             # debug args
@@ -457,9 +571,15 @@ class Settings:
             }
         }
         # update overridden defaults from kwargs
+        unxpected_arguments = []
         for k, v in kwargs.items():
             if k in settings:
                 settings[k]["value"] = v
+            else:
+                unxpected_arguments.append(k)
+        # allow only expected arguments
+        if unxpected_arguments:
+            raise TypeError(f"Got unexpected arguments: {unxpected_arguments}")
         # init own attributes
         for key, specs in settings.items():
             object.__setattr__(
