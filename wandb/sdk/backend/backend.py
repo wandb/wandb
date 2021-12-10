@@ -133,9 +133,6 @@ class Backend:
             main_module.__file__ = self._save_mod_path
 
     def _ensure_launched_manager(self) -> None:
-        from ..interface.interface_grpc import InterfaceGrpc
-        from ..interface.interface_sock import InterfaceSock
-
         # grpc_port: Optional[int] = None
         # attach_id = self._settings._attach_id if self._settings else None
         # if attach_id:
@@ -150,11 +147,15 @@ class Backend:
 
         svc_transport = svc_iface.get_transport()
         if svc_transport == "tcp":
+            from ..interface.interface_sock import InterfaceSock
+
             svc_iface_sock = cast("ServiceSockInterface", svc_iface)
             sock_client = svc_iface_sock._get_sock_client()
             sock_interface = InterfaceSock(sock_client)
             self.interface = sock_interface
         elif svc_transport == "grpc":
+            from ..interface.interface_grpc import InterfaceGrpc
+
             svc_iface_grpc = cast("ServiceGrpcInterface", svc_iface)
             stub = svc_iface_grpc._get_stub()
             grpc_interface = InterfaceGrpc()

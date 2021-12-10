@@ -57,4 +57,7 @@ class Progress:
             raise StopIteration
         return bites
 
+    def __len__(self):
+        return self.len
+
     next = __next__

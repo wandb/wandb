@@ -78,13 +78,14 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     _manager: Optional[wandb_manager._Manager]
 
-    def __init__(self, settings=None, environ=None):
+    def __init__(self, settings=None, environ=None, pid=None):
         self._settings = None
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
         self._server = None
         self._manager = None
+        self._pid = pid
 
         # keep track of multiple runs so we can unwind with join()s
         self._global_run_stack = []
@@ -252,15 +253,20 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
 
 class _WandbSetup:
-    """Wandb singleton class."""
+    """Wandb singleton class.
+
+    Note: This is a process local singleton.
+    (Forked processes will get a new copy of the object)
+    """
 
     _instance = None
 
     def __init__(self, settings=None):
-        if _WandbSetup._instance is not None:
+        pid = os.getpid()
+        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
-        else:
-            _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
+            return
+        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
