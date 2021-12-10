@@ -1706,8 +1706,8 @@ class _ImageFileType(_dtypes.Type):
         class_map = class_map or {}
 
         if isinstance(box_layers, _dtypes.ConstType):
-            box_layers = box_layers
-        elif not isinstance(box_layers, dict):
+            box_layers = box_layers._params["val"]
+        if not isinstance(box_layers, dict):
             raise TypeError("box_layers must be a dict")
         else:
             box_layers = _dtypes.ConstType(
@@ -1715,8 +1715,8 @@ class _ImageFileType(_dtypes.Type):
             )
 
         if isinstance(mask_layers, _dtypes.ConstType):
-            mask_layers = mask_layers
-        elif not isinstance(mask_layers, dict):
+            mask_layers = mask_layers._params["val"]
+        if not isinstance(mask_layers, dict):
             raise TypeError("mask_layers must be a dict")
         else:
             mask_layers = _dtypes.ConstType(
@@ -1724,17 +1724,15 @@ class _ImageFileType(_dtypes.Type):
             )
 
         if isinstance(box_score_keys, _dtypes.ConstType):
-            box_score_keys = box_score_keys
-        elif not isinstance(box_score_keys, list) and not isinstance(
-            box_score_keys, set
-        ):
+            box_score_keys = box_score_keys._params["val"]
+        if not isinstance(box_score_keys, list) and not isinstance(box_score_keys, set):
             raise TypeError("box_score_keys must be a list or a set")
         else:
             box_score_keys = _dtypes.ConstType(set(box_score_keys))
 
         if isinstance(class_map, _dtypes.ConstType):
-            class_map = class_map
-        elif not isinstance(class_map, dict):
+            class_map = class_map._params["val"]
+        if not isinstance(class_map, dict):
             raise TypeError("class_map must be a dict")
         else:
             class_map = _dtypes.ConstType(class_map)
