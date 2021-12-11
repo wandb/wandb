@@ -18,7 +18,7 @@ from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, deprecate
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
 
 import tensorflow as tf
@@ -420,10 +420,13 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         data_type = kwargs.get("data_type", None)
         if data_type is not None:
-            wandb.termwarn(
-                "The data_type argument of wandb.keras.WandbCallback is deprecated "
-                "and will be removed in a future release. Please use input_type instead.\n"
-                "Setting input_type = data_type.",
+            deprecate(
+                field_name="keras_callback__data_type",
+                warning_message=(
+                    "The data_type argument of wandb.keras.WandbCallback is deprecated "
+                    "and will be removed in a future release. Please use input_type instead.\n"
+                    "Setting input_type = data_type."
+                ),
             )
             input_type = data_type
         self.input_type = input_type
