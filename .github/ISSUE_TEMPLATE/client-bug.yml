@@ -1,14 +1,14 @@
 ---
-name: 🐛 Client Bug - in the Python library.
-description: Help us track down edge cases and reproduce issues
-title: "[CLI]: <title>"
+name: 🐛 Client Bug - in the Python library
+description: Create a report to help us improve WandB
+title: "[CLI]: "
 labels: "cli"
 
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks :heart: for taking the time to fill out this bug report!
+        **Thanks :heart: for taking the time to fill out this bug report!**
 
   - type: checkboxes
     attributes:
@@ -29,7 +29,7 @@ body:
 
   - type: textarea
     attributes:
-      label: Expected behavior
+      label: Expected Behavior
       description: |
         A clear and concise description of what you expected to happen.
     validations:
@@ -95,7 +95,7 @@ body:
 
   - type: textarea
     attributes:
-      label: Additional context
+      label: Additional Context
       description: |
         Add any other context about the problem here.
     validations:
