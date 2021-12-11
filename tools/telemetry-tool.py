@@ -28,7 +28,9 @@ parser.add_argument("--output-imports", default="map_run_cli_imports.csv")
 parser.add_argument("--output-features", default="map_run_cli_features.csv")
 parser.add_argument("--output-environments", default="map_run_cli_environments.csv")
 parser.add_argument("--output-labels", default="map_run_cli_labels.csv")
-parser.add_argument("--output-deprecated-features", default="map_run_cli_deprecated.csv")
+parser.add_argument(
+    "--output-deprecated-features", default="map_run_cli_deprecated.csv"
+)
 args = parser.parse_args()
 
 
