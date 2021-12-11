@@ -2,7 +2,6 @@ from typing import Optional, TYPE_CHECKING
 
 import wandb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated as TelemetryDeprecated
-# from wandb.proto.wandb_telemetry_pb2 import TelemetryRecord
 
 
 # avoid cycle, use string type reference
@@ -25,6 +24,11 @@ def deprecate(
         warning_message: The message to display to the user.
         run: The run to whose telemetry the event will be added.
     """
+    known_fields = TelemetryDeprecated.DESCRIPTOR.fields_by_name.keys()
+    if field_name not in known_fields:
+        raise ValueError(
+            f"Unknown field name: {field_name}. Known fields: {known_fields}"
+        )
     _run = run or wandb.run
     with wandb.wandb_lib.telemetry.context(run=_run) as tel:
         setattr(tel.deprecated, field_name, True)
