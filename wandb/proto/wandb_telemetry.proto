@@ -78,13 +78,6 @@ message Feature {
   bool init_return_run = 24; // wandb.init() called in the same process returning previous run
 }
 
-message Deprecated {
-  bool keras_callback__data_type = 1; // wandb.keras.WandbCallback(data_type=...) called
-  bool run__mode = 2; // wandb.run.mode called
-  bool run__save_no_args = 3; // wandb.run.save() called without arguments
-  bool run__join = 4; // wandb.run.join() called
-}
-
 message Env {
   bool jupyter = 1;  // jupyter env detected
   bool kaggle = 2;   // kaggle env detected
@@ -101,4 +94,11 @@ message Labels {
   string code_string = 1;   // code identification
   string repo_string = 2;   // repo identification
   string code_version = 3;  // code version
+}
+
+message Deprecated {
+  bool keras_callback__data_type = 1; // wandb.keras.WandbCallback(data_type=...) called
+  bool run__mode = 2; // wandb.run.mode called
+  bool run__save_no_args = 3; // wandb.run.save() called without arguments
+  bool run__join = 4; // wandb.run.join() called
 }
