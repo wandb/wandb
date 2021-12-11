@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 def deprecate(
     field_name: str, warning_message: str, run: Optional["wandb_run.Run"] = None,
-):
+) -> None:
     """
     Warn the user that a feature has been deprecated
     and store the information about the event in telemetry.
@@ -28,6 +28,6 @@ def deprecate(
             f"Unknown field name: {field_name}. Known fields: {known_fields}"
         )
     _run = run or wandb.run
-    with wandb.wandb_lib.telemetry.context(run=_run) as tel:
+    with wandb.wandb_lib.telemetry.context(run=_run) as tel:  # type: ignore[attr-defined]
         setattr(tel.deprecated, field_name, True)
-    wandb.termwarn(warning_message, repeat=False)
+    wandb.termwarn(warning_message, repeat=False)  # type: ignore[no-untyped-call]
