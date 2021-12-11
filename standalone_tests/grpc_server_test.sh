@@ -8,7 +8,7 @@ set -e
 echo "Wait for servers to be gone..."
 sleep 1
 echo "Running wandb service in the background..."
-pyenv exec wandb service --port 50051 &
+pyenv exec wandb service --grpc-port 50051 --serve-grpc &
 echo "Wait for server to be up..."
 sleep 1
 echo "Starting grpc client..."
