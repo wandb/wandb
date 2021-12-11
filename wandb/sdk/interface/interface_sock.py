@@ -59,8 +59,8 @@ class InterfaceSock(InterfaceShared):
         return future
 
     def _communicate_stop_status(
-        self, status: pb.StopStatusRequest
-    ) -> Optional[pb.StopStatusResponse]:
+        self, status: "pb.StopStatusRequest"
+    ) -> Optional["pb.StopStatusResponse"]:
         # Message stop_status is called from a daemon thread started by wandb_run
         # The underlying socket might go away while the thread is still running.
         # Handle this like a timedout message as the daemon thread will eventually
@@ -72,8 +72,8 @@ class InterfaceSock(InterfaceShared):
         return data
 
     def _communicate_network_status(
-        self, status: pb.NetworkStatusRequest
-    ) -> Optional[pb.NetworkStatusResponse]:
+        self, status: "pb.NetworkStatusRequest"
+    ) -> Optional["pb.NetworkStatusResponse"]:
         # Message network_status is called from a daemon thread started by wandb_run
         # The underlying socket might go away while the thread is still running.
         # Handle this like a timedout message as the daemon thread will eventually
