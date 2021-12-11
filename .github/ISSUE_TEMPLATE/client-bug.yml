@@ -1,6 +1,6 @@
 ---
 name: 🐛 Client Bug - in the Python library
-description: Create a report to help us improve WandB
+description: Create a report to help us improve WandB by reproducing and fixing bugs
 title: "[CLI]: "
 labels: "cli"
 
@@ -9,43 +9,31 @@ body:
     attributes:
       value: |
         **Thanks :heart: for taking the time to fill out this bug report!**
-
-  - type: checkboxes
-    attributes:
-      label: Is there an existing issue for this?
-      description: |
-        We kindly ask that you search to see if an issue [already exists](https://github.com/wandb/client/issues) for the bug you encountered.
-      options:
-        - label: I have searched the existing issues
-          required: true
+        We kindly ask that you search to see if an issue [already exists](https://github.com/wandb/client/issues?q=is%3Aissue+sort%3Acreated-desc+) for the bug you encountered.
 
   - type: textarea
     attributes:
-      label: Current Behavior
+      label: Describe the bug
       description: |
         A clear and concise description of the issue you're experiencing.
-    validations:
-      required: false
+        If relevant, add a minimal example to reproduce the error by running the code.
+        If you observe an error, please paste the error message including the **full** traceback of the exception.
 
-  - type: textarea
-    attributes:
-      label: Expected Behavior
-      description: |
-        A clear and concise description of what you expected to happen.
-    validations:
-      required: false
+        Tip: For longer code you can also paste a link to a [GitHub Gist](https://gist.github.com).
+      value: |
+        <!--- Description of the issue below  -->
 
-  - type: textarea
-    attributes:
-      label: Steps To Reproduce
-      description: |
-        - Describe the steps to reproduce the issue.
-        - A code snippet would be helpful to reproduce the issue faster.
-        - For interactive environments (like Google Colab) a link to the notebook would be very helpful.
+        <!--- A minimal code snippet between the quotes below  -->
+        ```python 
 
-        Tip: For longer code you can also paste [GitHub Gist](https://gist.github.com).
+        ```
+
+        <!--- A full traceback of the exception in the quotes below -->
+        ```shell
+
+        ```
     validations:
-      required: false
+      required: true
 
   - type: textarea
     attributes:
@@ -57,41 +45,23 @@ body:
     validations:
       required: false
 
-  - type: input
+  - type: textarea
     attributes:
-      label: WandB Version
+      label: Environment
       description: |
-        Information about your WandB version. 
+        Information about your environment where you see the bug.
 
-        Tip: For example on linux you can use `python -c "import wandb; print(wandb.__version__)"`.
-      placeholder: |
-        e.g. 0.12.8
+      value: |
+        WandB version:
+
+        OS:
+
+        Python version:
+
+        Versions of relevant libraries:
+
     validations:
-      required: false
-
-  - type: input
-    attributes:
-      label: Python Version
-      description: |
-        Information about your python version. 
-
-        Tip: For example on linux you can use `python -V`.
-      placeholder: |
-        e.g. Python 3.7.12
-    validations:
-      required: false
-
-  - type: input
-    attributes:
-      label: Operating Systems
-      description: |
-        Information about your operating system. 
-
-        Tip: For example on linux you can use `lsb_release -a` on Linux, or `system_profiler SPSoftwareDataType` on macOS.
-      placeholder: |
-        e.g. macOS 11.4
-    validations:
-      required: false
+      required: true
 
   - type: textarea
     attributes:
