@@ -625,7 +625,7 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        self._dispatch_record(record)
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
