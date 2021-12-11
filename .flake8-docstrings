@@ -11,3 +11,4 @@ filename =
     ./wandb/sdk/lib/timed_input.py
     ./wandb/integration/metaflow/metaflow.py
     ./wandb/sdk/internal/profiler.py
+    ./wandb/integration/xgboost/xgboost.py
