@@ -54,7 +54,6 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.util import (
     add_import_hook,
-    deprecate,
     is_unicode_safe,
     sentry_set_scope,
     to_forward_slash_path,
@@ -77,6 +76,7 @@ from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
+    deprecate,
     filenames,
     filesystem,
     ipython,
@@ -711,7 +711,7 @@ class Run(object):
     @property
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate(
+        deprecate.deprecate(
             field_name="run__mode",
             warning_message=(
                 "The mode property of wandb.run is deprecated "
@@ -1370,7 +1370,7 @@ class Run(object):
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
-            deprecate(
+            deprecate.deprecate(
                 field_name="run__save_no_args",
                 warning_message=(
                     "Calling wandb.run.save without any arguments is deprecated."
@@ -1489,7 +1489,7 @@ class Run(object):
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
-        deprecate(
+        deprecate.deprecate(
             field_name="run__join",
             warning_message=(
                 "wandb.run.join() is deprecated, please use wandb.run.finish()."
