@@ -419,17 +419,48 @@ class Histogram(WBValue):
         return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)
 
 
+"""
+artifact.add_model(model)
+
+--> artifact.add(wandb.Model(model))
+"""
+
+
 class Model(WBValue):
-    def __init__(self, model):
+    def __init__(self, model, name):
         super(Model, self).__init__()
 
+        self.model = model
+        self.download_dir = "downloaded_model_test"
+        self.dir_name = "models/" + name
+
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
+        # We assume that wandb has a tmp dir that we can use.
+        tmp_dir = "./models/model_1/"
 
-        return {"a": 1, "b": 2, "c": 3}
+        self.serialize(self.model, tmp_dir)
+        artifact = run_or_artifact
+        artifact.add_dir(tmp_dir, self.dir_name)
+        # delete tmp_dir
 
-    def get_model(self, flavor):
-        pass
-        # return model in appropriate flavor
+        return {"dir_path": self.dir_name}
+
+    @classmethod
+    def from_json(
+        cls: Type["Model"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "Model":
+        artifact = source_artifact
+        local_dir = "downloaded_model_test"
+        artifact.download(local_dir)
+        mlflow.pytorch.load_model()
+
+    def serialize(self, model):
+        mlflow.pytorch.save_model(model, self.model_dir)
+
+    def load_model(self, flavor):
+        flavor_dict = {"pytorch": mlflow.pytorch}
+
+        return flavor_dict[flavor].load_model(self.model_dir)
 
 
 class Media(WBValue):
