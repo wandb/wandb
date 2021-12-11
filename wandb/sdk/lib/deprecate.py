@@ -10,9 +10,7 @@ if TYPE_CHECKING:
 
 
 def deprecate(
-    field_name: str,
-    warning_message: str,
-    run: Optional["wandb_run.Run"] = None,
+    field_name: str, warning_message: str, run: Optional["wandb_run.Run"] = None,
 ):
     """
     Warn the user that a feature has been deprecated
