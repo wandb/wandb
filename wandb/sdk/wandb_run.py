@@ -91,6 +91,7 @@ from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
+import psutil
 
 if TYPE_CHECKING:
     from .data_types import WBValue
@@ -2394,6 +2395,11 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"in use_artifact() before first line,{mem_used}\n")
+
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
         if use_as:
@@ -2437,6 +2443,7 @@ class Run(object):
                     wandb.termwarn(
                         "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
                     )
+
                 self._log_artifact(
                     artifact, aliases, is_user_created=True, use_after_commit=True
                 )
@@ -2882,10 +2889,20 @@ class _LazyArtifact(ArtifactInterface):
 
     def wait(self) -> ArtifactInterface:
         if not self._instance:
+
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"in wait() before _future.get().response,{mem_used}\n")
+
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
             self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"in wait() after _future.get().response,{mem_used}\n")
+
         assert isinstance(
             self._instance, ArtifactInterface
         ), "Insufficient permissions to fetch Artifact with id {} from {}".format(

@@ -33,6 +33,7 @@ from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
+import psutil
 
 
 if TYPE_CHECKING:
@@ -962,11 +963,18 @@ class SendManager(object):
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
 
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"in sender before _send_artifact,{mem_used}\n")
         try:
             res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
             logger.info("logged artifact {} - {}".format(artifact.name, res))
+
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"in sender after _send_artifact,{mem_used}\n")
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
