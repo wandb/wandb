@@ -965,7 +965,8 @@ class SendManager(object):
 
         with open("memory-use-artifact-wait.txt", "a") as f:
             mem_used = psutil.virtual_memory()[3]
-            f.write(f"in sender before _send_artifact,{mem_used}\n")
+            timestamp = time.time()
+            f.write(f"{timestamp}, in sender before _send_artifact,{mem_used}\n")
         try:
             res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
@@ -974,14 +975,16 @@ class SendManager(object):
 
             with open("memory-use-artifact-wait.txt", "a") as f:
                 mem_used = psutil.virtual_memory()[3]
-                f.write(f"in sender after _send_artifact,{mem_used}\n")
+                timestamp = time.time()
+                f.write(f"{timestamp}, in sender after _send_artifact,{mem_used}\n")
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
             )
             with open("memory-use-artifact-wait.txt", "a") as f:
                 mem_used = psutil.virtual_memory()[3]
-                f.write(f"in sender - error logging artifact,{mem_used}\n")
+                timestamp = time.time()
+                f.write(f"{timestamp}, in sender - error logging artifact,{mem_used}\n")
 
         self._result_q.put(result)
 

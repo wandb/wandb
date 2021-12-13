@@ -2398,7 +2398,8 @@ class Run(object):
 
         with open("memory-use-artifact-wait.txt", "a") as f:
             mem_used = psutil.virtual_memory()[3]
-            f.write(f"in use_artifact() before first line,{mem_used}\n")
+            timestamp = time.time()
+            f.write(f"{timestamp}, in use_artifact() before first line,{mem_used}\n")
 
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
@@ -2892,7 +2893,10 @@ class _LazyArtifact(ArtifactInterface):
 
             with open("memory-use-artifact-wait.txt", "a") as f:
                 mem_used = psutil.virtual_memory()[3]
-                f.write(f"in wait() before _future.get().response,{mem_used}\n")
+                timestamp = time.time()
+                f.write(
+                    f"{timestamp}, in wait() before _future.get().response,{mem_used}\n"
+                )
 
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
@@ -2901,7 +2905,8 @@ class _LazyArtifact(ArtifactInterface):
 
         with open("memory-use-artifact-wait.txt", "a") as f:
             mem_used = psutil.virtual_memory()[3]
-            f.write(f"in wait() after _future.get().response,{mem_used}\n")
+            timestamp = time.time()
+            f.write(f"{timestamp}, in wait() after _future.get().response,{mem_used}\n")
 
         assert isinstance(
             self._instance, ArtifactInterface
