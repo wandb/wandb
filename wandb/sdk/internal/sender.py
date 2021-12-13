@@ -1028,7 +1028,7 @@ class SendManager(object):
             mem_used = psutil.virtual_memory()[3]
             timestamp = time.time()
             f.write(
-                f"{timestamp}, in sender._send_artifact() before ArtifactSaver,{mem_used}"
+                f"{timestamp}, in sender._send_artifact() before ArtifactSaver,{mem_used}\n"
             )
         saver = artifacts.ArtifactSaver(
             api=self._api,
@@ -1042,7 +1042,7 @@ class SendManager(object):
             mem_used = psutil.virtual_memory()[3]
             timestamp = time.time()
             f.write(
-                f"{timestamp}, in sender._send_artifact() after ArtifactSaver,{mem_used}"
+                f"{timestamp}, in sender._send_artifact() after ArtifactSaver,{mem_used}\n"
             )
 
         if artifact.distributed_id:
