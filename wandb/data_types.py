@@ -1706,31 +1706,33 @@ class _ImageFileType(_dtypes.Type):
         class_map = class_map or {}
 
         if isinstance(box_layers, _dtypes.ConstType):
-            box_layers = box_layers
-        elif not isinstance(box_layers, dict):
+            box_layers = box_layers._params["val"]
+        if not isinstance(box_layers, dict):
             raise TypeError("box_layers must be a dict")
         else:
-            box_layers = _dtypes.ConstType(box_layers)
+            box_layers = _dtypes.ConstType(
+                {layer_key: set(box_layers[layer_key]) for layer_key in box_layers}
+            )
 
         if isinstance(mask_layers, _dtypes.ConstType):
-            mask_layers = mask_layers
-        elif not isinstance(mask_layers, dict):
+            mask_layers = mask_layers._params["val"]
+        if not isinstance(mask_layers, dict):
             raise TypeError("mask_layers must be a dict")
         else:
-            mask_layers = _dtypes.ConstType(mask_layers)
+            mask_layers = _dtypes.ConstType(
+                {layer_key: set(mask_layers[layer_key]) for layer_key in mask_layers}
+            )
 
         if isinstance(box_score_keys, _dtypes.ConstType):
-            box_score_keys = box_score_keys
-        elif not isinstance(box_score_keys, list) and not isinstance(
-            box_score_keys, set
-        ):
+            box_score_keys = box_score_keys._params["val"]
+        if not isinstance(box_score_keys, list) and not isinstance(box_score_keys, set):
             raise TypeError("box_score_keys must be a list or a set")
         else:
             box_score_keys = _dtypes.ConstType(set(box_score_keys))
 
         if isinstance(class_map, _dtypes.ConstType):
-            class_map = class_map
-        elif not isinstance(class_map, dict):
+            class_map = class_map._params["val"]
+        if not isinstance(class_map, dict):
             raise TypeError("class_map must be a dict")
         else:
             class_map = _dtypes.ConstType(class_map)
@@ -1758,7 +1760,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of box_layers
             box_layers = {
-                key: set(
+                str(key): set(
                     list(box_layers_self.get(key, []))
                     + list(box_layers_other.get(key, []))
                 )
@@ -1769,7 +1771,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of mask_layers
             mask_layers = {
-                key: set(
+                str(key): set(
                     list(mask_layers_self.get(key, []))
                     + list(mask_layers_other.get(key, []))
                 )
@@ -1783,7 +1785,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_map
             class_map = {
-                key: class_map_self.get(key, class_map_other.get(key, None))
+                str(key): class_map_self.get(key, class_map_other.get(key, None))
                 for key in set(
                     list(class_map_self.keys()) + list(class_map_other.keys())
                 )
@@ -1800,7 +1802,7 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_layers = {
-                    key: set(py_obj._boxes[key]._class_labels.keys())
+                    str(key): set(py_obj._boxes[key]._class_labels.keys())
                     for key in py_obj._boxes.keys()
                 }
                 box_score_keys = set(
@@ -1818,7 +1820,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    key: set(
+                    str(key): set(
                         py_obj._masks[key]._val["class_labels"].keys()
                         if hasattr(py_obj._masks[key], "_val")
                         else []
@@ -1830,7 +1832,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
-                    item["id"]: item["name"] for item in py_obj._classes._class_set
+                    str(item["id"]): item["name"] for item in py_obj._classes._class_set
                 }
             else:
                 class_set = {}

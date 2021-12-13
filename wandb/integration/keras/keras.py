@@ -19,7 +19,6 @@ from pkg_resources import parse_version
 
 import wandb
 from wandb.util import add_import_hook
-
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
 
 import tensorflow as tf
@@ -186,6 +185,40 @@ def patch_tf_keras():
         wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
+def _array_has_dtype(array):
+    return hasattr(array, "dtype")
+
+
+def _update_if_numeric(metrics, key, values):
+    if not _array_has_dtype(values):
+        _warn_not_logging(key)
+        return
+
+    if not is_numeric_array(values):
+        _warn_not_logging_non_numeric(key)
+        return
+
+    metrics[key] = wandb.Histogram(values)
+
+
+def is_numeric_array(array):
+    return np.issubdtype(array.dtype, np.number)
+
+
+def _warn_not_logging_non_numeric(name):
+    wandb.termwarn(
+        "Non-numeric values found in layer: {}, not logging this layer".format(name),
+        repeat=False,
+    )
+
+
+def _warn_not_logging(name):
+    wandb.termwarn(
+        "Layer {} has undetermined datatype not logging this layer".format(name),
+        repeat=False,
+    )
+
+
 tf_logger = tf.get_logger()
 
 patch_tf_keras()
@@ -198,9 +231,15 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
+        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
+
+    # this needs to be implemented to prevent a NotImplementedError when
+    # using Lookup layers.
+    def _resource_apply_sparse(self, grad, var, indices):
+        pass
 
     def get_config(self):
         return super(_CustomOptimizer, self).get_config()
@@ -818,15 +857,15 @@ class WandbCallback(tf.keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
                 )
             elif len(weights) == 2:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
                 )
-                metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
-                    weights[1]
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".bias", weights[1]
                 )
         return metrics
 
