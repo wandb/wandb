@@ -979,6 +979,9 @@ class SendManager(object):
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
             )
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"in sender - error logging artifact,{mem_used}\n")
 
         self._result_q.put(result)
 
