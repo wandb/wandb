@@ -46,7 +46,6 @@ from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
-from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_internal_pb2 import (
     FilePusherStats,
     MetricRecord,
@@ -713,7 +712,7 @@ class Run(object):
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
-            field_name=Deprecated.run__mode,
+            field_name=deprecate.Deprecated.run__mode,
             warning_message=(
                 "The mode property of wandb.run is deprecated "
                 "and will be removed in a future release."
@@ -1372,7 +1371,7 @@ class Run(object):
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
             deprecate.deprecate(
-                field_name=Deprecated.run__save_no_args,
+                field_name=deprecate.Deprecated.run__save_no_args,
                 warning_message=(
                     "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
@@ -1491,7 +1490,7 @@ class Run(object):
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
-            field_name=Deprecated.run__join,
+            field_name=deprecate.Deprecated.run__join,
             warning_message=(
                 "wandb.run.join() is deprecated, please use wandb.run.finish()."
             ),

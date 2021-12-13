@@ -18,9 +18,8 @@ from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
-from wandb.proto.wandb_deprecated import Deprecated
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
-from wandb.sdk.lib.deprecate import deprecate
+from wandb.sdk.lib.deprecate import deprecate, Deprecated
 from wandb.util import add_import_hook
 
 import tensorflow as tf

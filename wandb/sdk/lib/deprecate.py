@@ -1,6 +1,12 @@
+__all__ = [
+    "deprecate",
+    "Deprecated"
+]
+
 from typing import Optional, TYPE_CHECKING
 
 import wandb
+from wandb.proto.wandb_deprecated import Deprecated
 from wandb.proto.wandb_telemetry_pb2 import Deprecated as TelemetryDeprecated
 
 
