@@ -1024,6 +1024,12 @@ class SendManager(object):
 
     def _send_artifact(self, artifact: "ArtifactRecord") -> Optional[Dict]:
         assert self._pusher
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            timestamp = time.time()
+            f.write(
+                f"{timestamp}, in sender._send_artifact(), before ArtifactSaver,{mem_used}"
+            )
         saver = artifacts.ArtifactSaver(
             api=self._api,
             digest=artifact.digest,
@@ -1031,6 +1037,13 @@ class SendManager(object):
             file_pusher=self._pusher,
             is_user_created=artifact.user_created,
         )
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            timestamp = time.time()
+            f.write(
+                f"{timestamp}, in sender._send_artifact(), after ArtifactSaver,{mem_used}"
+            )
 
         if artifact.distributed_id:
             max_cli_version = self._max_cli_version()
