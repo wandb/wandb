@@ -3,10 +3,14 @@ import json
 import subprocess
 from typing import Any, Dict, List, Optional
 import datetime
+import yaml
+
+from six.moves import shlex_quote
 
 import wandb
 from wandb.sdk.launch.docker import validate_docker_installation
 from wandb.errors import CommError, LaunchError
+from wandb.apis.internal import Api
 
 from google.cloud import aiplatform
 
@@ -30,12 +34,6 @@ from ..utils import (
     PROJECT_SYNCHRONOUS,
 )
 
-# @@@ hack
-PROJECT_ID = "playground-111"
-BUCKET_NAME = "gs://stephanie-vertex-test"
-REGION = "us-east1"
-
-aiplatform.init(project=PROJECT_ID, location=REGION, staging_bucket=BUCKET_NAME)    # move to init
 
 class VertexSubmittedRun(AbstractRun):
     def __init__(self, model) -> None:
@@ -57,8 +55,29 @@ class VertexSubmittedRun(AbstractRun):
 
 
 class VertexRunner(AbstractRunner):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
-        ################ shitty copy paste
+        resource_args = launch_project.resource_args
+        gcp_config = get_gcp_config(resource_args.get("gcp_config") or "default")
+        gcp_project = resource_args.get("gcp_project") or gcp_config['properties']['core']['project']
+        gcp_zone = resource_args.get("gcp_region") or gcp_config['properties'].get('compute', {}).get('zone')
+        gcp_region = '-'.join(gcp_zone.split('-')[:2])
+        if not gcp_region:
+            raise LaunchError("GCP region not set. You can specify a region with --resource-arg gcp-region=<region> or a config with --resource-arg gcp-config=<config name>, otherwise uses region from GCP default config.")
+        gcp_staging_bucket = resource_args.get("gcp_staging_bucket")
+        if not gcp_staging_bucket:
+            raise LaunchError("Vertex requires a staging bucket for training and dependency packages in the same region as compute. You can specify a bucket with --resource-arg gcp-staging-bucket=<bucket>.")
+        gcp_artifact_repo = resource_args.get("gcp_artifact_repo")
+        if not gcp_artifact_repo:
+            raise LaunchError("Vertex requires an Artifact Registry repository for the Docker image. You can specify a repo with --resource-arg gcp-artifact-repo=<repo>.")
+        gcp_docker_host = resource_args.get("gcp_docker_host") or "{region}-docker.pkg.dev".format(gcp_region)
+
+
+        aiplatform.init(project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket)
+
 
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
@@ -90,9 +109,9 @@ class VertexRunner(AbstractRunner):
         if launch_project.docker_image is None or launch_project.build_image:
             image_uri = construct_gcp_image_uri(
                 launch_project,
-                'launch-vertex-test',   # @@@
-                get_gcp_project(),  # @@@
-                'us-docker.pkg.dev'     # @@@
+                gcp_artifact_repo,
+                gcp_project,
+                gcp_docker_host,
             )
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
@@ -107,7 +126,7 @@ class VertexRunner(AbstractRunner):
             image = launch_project.docker_image
 
         # push to artifact registry
-        subprocess.run(['docker', 'push', image])     # @@@
+        subprocess.run(['docker', 'push', image])     # todo: when aws pr is merged, use docker python tooling
 
         if self.backend_config.get("runQueueItemId"):
             try:
@@ -170,7 +189,11 @@ class VertexRunner(AbstractRunner):
         # need to figure out what a managed model is
         # todo: this runs sync only
         return VertexSubmittedRun(model)
-        
 
-def get_gcp_project():
-    return subprocess.run(['gcloud', 'config', 'list', 'project', '--format', 'value(core.project)'], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+
+def run_shell(args):
+    return subprocess.run(args, capture_output=True).stdout.decode('utf-8').strip()
+
+
+def get_gcp_config(config='default'):
+    return yaml.safe_load(run_shell(['gcloud', 'config', 'configurations', 'describe', shlex_quote(config)]))
