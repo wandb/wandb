@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import lightgbm  # type: ignore
 from lightgbm import Booster
 import wandb
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 MINIMIZE_METRICS = [
     "l1",
@@ -126,6 +127,9 @@ def wandb_callback(log_params: bool = True, define_metric: bool = True) -> Calla
     define_metric_list: "List[bool]" = [define_metric]
 
     def _init(env: "CallbackEnv") -> None:
+        with wb_telemetry.context() as tel:
+            tel.feature.lightgbm_wandb_callback = True
+
         wandb.config.update(env.params)
         log_params_list[0] = False
 
@@ -204,3 +208,6 @@ def log_summary(
 
     if save_model_checkpoint:
         _checkpoint_artifact(model, model.best_iteration, aliases=["best"])
+
+    with wb_telemetry.context() as tel:
+        tel.feature.lightgbm_log_summary = True

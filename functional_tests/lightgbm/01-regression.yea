@@ -1,4 +1,4 @@
-id: 0.lightgbm.lightgbm
+id: 0.lightgbm.01-regression
 plugin:
   - wandb
 depend:
@@ -43,3 +43,9 @@ assert:
     - :wandb:runs[0][summary][best_score][validation][rmse]
     - 0.0
   - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 25  # lightgbm_wandb_callback
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 26  # lightgbm_log_summary
