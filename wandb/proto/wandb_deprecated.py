@@ -14,7 +14,8 @@ DEPRECATED_FEATURES = Literal[
     "keras_callback__data_type",
     "run__mode",
     "run__save_no_args",
-    "run__join"
+    "run__join",
+    "plots"
 ]
 
 
@@ -23,3 +24,4 @@ class Deprecated:
     run__mode: DEPRECATED_FEATURES = "run__mode"
     run__save_no_args: DEPRECATED_FEATURES = "run__save_no_args"
     run__join: DEPRECATED_FEATURES = "run__join"
+    plots: DEPRECATED_FEATURES = "plots"

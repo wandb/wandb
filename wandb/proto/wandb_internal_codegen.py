@@ -13,7 +13,7 @@ def generate_deprecated_class_definition() -> None:
     Generate a class definition listing the deprecated features.
     This is to allow static checks to ensure that proper field names are used.
     """
-    from wandb_telemetry_pb2 import Deprecated  # type: ignore[import]
+    from wandb.proto.wandb_telemetry_pb2 import Deprecated  # type: ignore[import]
     deprecated_features = Deprecated.DESCRIPTOR.fields_by_name.keys()
 
     code: str = (
