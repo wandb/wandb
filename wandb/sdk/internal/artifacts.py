@@ -11,6 +11,9 @@ import wandb.filesync.step_prepare
 
 from ..interface.artifacts import ArtifactManifest
 
+import psutil
+import time
+
 
 if TYPE_CHECKING:
     from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -84,6 +87,11 @@ class ArtifactSaver(object):
         use_after_commit: bool = False,
         incremental: bool = False,
     ) -> Optional[Dict]:
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"{time.time()}, ArtifactSaver.save,{mem_used}\n")
+
         aliases = aliases or []
         alias_specs = []
         for alias in aliases:
@@ -100,6 +108,10 @@ class ArtifactSaver(object):
             alias_specs.append(
                 {"artifactCollectionName": artifact_collection_name, "alias": tag,}
             )
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"{time.time()}, api.create_artifact,{mem_used}\n")
 
         """Returns the server artifact."""
         self._server_artifact, latest = self._api.create_artifact(
@@ -139,6 +151,10 @@ class ArtifactSaver(object):
                 'Unknown artifact state "{}"'.format(self._server_artifact["state"])
             )
 
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"{time.time()}, api.create_artifact_manifest,{mem_used}\n")
+
         manifest_type = "FULL"
         manifest_filename = "wandb_manifest.json"
         if incremental:
@@ -160,6 +176,10 @@ class ArtifactSaver(object):
             self._api, 0.1, 0.01, 1000
         )  # TODO: params
         step_prepare.start()
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"{time.time()}, file_pusher.store_manifest_files,{mem_used}\n")
 
         # Upload Artifact "L1" files, the actual artifact contents
         self._file_pusher.store_manifest_files(
@@ -229,6 +249,10 @@ class ArtifactSaver(object):
         # artifact is committed.
         while not commit_event.is_set():
             commit_event.wait()
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"{time.time()}, ~~ end of ArtifactSaver.save ~~,{mem_used}\n")
 
         return self._server_artifact
 
