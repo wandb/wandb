@@ -194,6 +194,12 @@ class ArtifactSaver(object):
             ),
         )
 
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(
+                f"{time.time()}, ~~ file_pusher.store_manifest_files ~~,{mem_used}\n"
+            )
+
         commit_event = threading.Event()
 
         def before_commit() -> None:
@@ -236,6 +242,10 @@ class ArtifactSaver(object):
                 self._api.use_artifact(artifact_id)
             step_prepare.shutdown()
             commit_event.set()
+
+        with open("memory-use-artifact-wait.txt", "a") as f:
+            mem_used = psutil.virtual_memory()[3]
+            f.write(f"{time.time()}, file_pusher.commit_artifact,{mem_used}\n")
 
         # This will queue the commit. It will only happen after all the file uploads are done
         self._file_pusher.commit_artifact(
