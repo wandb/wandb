@@ -1,12 +1,9 @@
 id: 0.lightgbm.lightgbm
 plugin:
   - wandb
-command:
-    program: test_lightgbm.py
 depend:
-    requirements:
-        - lightgbm
-
+  requirements:
+    - lightgbm
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][bagging_fraction]: 0.8
@@ -46,4 +43,3 @@ assert:
     - :wandb:runs[0][summary][best_score][validation][rmse]
     - 0.0
   - :wandb:runs[0][exitcode]: 0
-  
