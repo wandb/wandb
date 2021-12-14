@@ -23,6 +23,6 @@ assert:
           - random field 1
           - random field 2
         filenames:
-          - examples_0_0
-          - examples_0_1
-          - examples_0_2
+          - media/images/examples_0_0.png
+          - media/images/examples_0_1.png
+          - media/images/examples_0_2.png
