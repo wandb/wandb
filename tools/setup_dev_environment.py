@@ -13,6 +13,11 @@ PYTHON_VERSIONS = ["3.6", "3.7", "3.8", "3.9", "3.10"]
 TOX_VERSION = "3.24.0"
 
 
+# Python 3.6 is not installable on Macs with Apple silicon
+if platform.system() == "Darwin" and platform.processor() == "arm":
+    PYTHON_VERSIONS.pop(0)
+
+
 class Console:
     BOLD = "\033[1m"
     CODE = "\033[2m"
