@@ -107,12 +107,7 @@ class LocalRunner(AbstractRunner):
         if launch_project.docker_image is None or launch_project.build_image:
             image_uri = construct_local_image_uri(launch_project)
             command_args = get_full_command(
-                image_uri,
-                launch_project,
-                self._api,
-                container_workdir,
-                docker_args,
-                entry_point,
+                image_uri, launch_project, docker_args, entry_point,
             )
             command_str = command_separator.join(command_args)
 
@@ -141,12 +136,7 @@ class LocalRunner(AbstractRunner):
             image_uri = launch_project.docker_image
             _logger.info("Getting docker command...")
             command_args = get_full_command(
-                image_uri,
-                launch_project,
-                self._api,
-                container_workdir,
-                docker_args,
-                entry_point,
+                image_uri, launch_project, docker_args, entry_point,
             )
             command_str = command_separator.join(command_args)
 

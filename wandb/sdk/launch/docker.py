@@ -157,7 +157,7 @@ def build_docker_image_if_needed(
     container_env: List[str],
     runner_type: str,
     image_uri: str,
-    command_args: List[str],
+    command_args: Optional[List[str]],
 ) -> str:
     """
     Build a docker image containing the project in `work_dir`, using the base image.
@@ -239,13 +239,16 @@ def build_docker_image_if_needed(
     )
     dockerfile_contents += env_vars + "\n"
 
-    if runner_type == 'gcp-vertex':
+    if runner_type == "gcp-vertex":
         # supply the entrypoint via the dockerfile since we don't `docker run`
-        dockerfile_contents += 'ENTRYPOINT ["python", "{entrypoint}"]\n'.format(entrypoint=launch_project.get_single_entry_point().name)
+        dockerfile_contents += 'ENTRYPOINT ["python", "{entrypoint}"]\n'.format(
+            entrypoint=launch_project.get_single_entry_point().name
+        )
 
     sanitized_dockerfile_contents = re.sub(
         API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents
     )
+
     command_string = " ".join(command_args)
     sanitized_command_string = re.sub(API_KEY_REGEX, "WANDB_API_KEY", command_string)
     create_metadata_file(
@@ -274,13 +277,7 @@ def build_docker_image_if_needed(
     return image
 
 
-def get_docker_command(
-    image: str,
-    launch_project: LaunchProject,
-    api: Api,
-    workdir: str,
-    docker_args: Dict[str, Any] = None,
-) -> List[str]:
+def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
@@ -379,8 +376,6 @@ def _create_docker_build_ctx(
 def get_full_command(
     image_uri: str,
     launch_project: LaunchProject,
-    api: Api,
-    container_workdir: str,
     docker_args: Dict[str, Any],
     entry_point: EntryPoint,
 ) -> List[str]:
@@ -399,8 +394,6 @@ def get_full_command(
     """
 
     commands = []
-    commands += get_docker_command(
-        image_uri, launch_project, api, container_workdir, docker_args
-    )
+    commands += get_docker_command(image_uri, docker_args)
     commands += get_entry_point_command(entry_point, launch_project.override_args)
     return commands

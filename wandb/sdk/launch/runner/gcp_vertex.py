@@ -58,30 +58,49 @@ class VertexRunner(AbstractRunner):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         resource_args = launch_project.resource_args
         gcp_config = get_gcp_config(resource_args.get("gcp_config") or "default")
-        gcp_project = resource_args.get("gcp_project") or gcp_config['properties']['core']['project']
-        gcp_zone = resource_args.get("gcp_region") or gcp_config['properties'].get('compute', {}).get('zone')
-        gcp_region = '-'.join(gcp_zone.split('-')[:2])
+        gcp_project = (
+            resource_args.get("gcp_project")
+            or gcp_config["properties"]["core"]["project"]
+        )
+        gcp_zone = resource_args.get("gcp_region") or gcp_config["properties"].get(
+            "compute", {}
+        ).get("zone")
+        gcp_region = "-".join(gcp_zone.split("-")[:2])
         if not gcp_region:
-            raise LaunchError("GCP region not set. You can specify a region with --resource-arg gcp-region=<region> or a config with --resource-arg gcp-config=<config name>, otherwise uses region from GCP default config.")
+            raise LaunchError(
+                "GCP region not set. You can specify a region with --resource-arg gcp_region=<region> or a config with --resource-arg gcp_config=<config name>, otherwise uses region from GCP default config."
+            )
         gcp_staging_bucket = resource_args.get("gcp_staging_bucket")
         if not gcp_staging_bucket:
-            raise LaunchError("Vertex requires a staging bucket for training and dependency packages in the same region as compute. You can specify a bucket with --resource-arg gcp-staging-bucket=<bucket>.")
+            raise LaunchError(
+                "Vertex requires a staging bucket for training and dependency packages in the same region as compute. You can specify a bucket with --resource-arg gcp_staging_bucket=<bucket>."
+            )
         gcp_artifact_repo = resource_args.get("gcp_artifact_repo")
         if not gcp_artifact_repo:
-            raise LaunchError("Vertex requires an Artifact Registry repository for the Docker image. You can specify a repo with --resource-arg gcp-artifact-repo=<repo>.")
-        gcp_docker_host = resource_args.get("gcp_docker_host") or "{region}-docker.pkg.dev".format(gcp_region)
+            raise LaunchError(
+                "Vertex requires an Artifact Registry repository for the Docker image. You can specify a repo with --resource-arg gcp_artifact_repo=<repo>."
+            )
+        gcp_docker_host = resource_args.get(
+            "gcp_docker_host"
+        ) or "{region}-docker.pkg.dev".format(region=gcp_region)
+        gcp_machine_type = resource_args.get("gcp_machine_type") or "n1-standard-4"
 
-
-        aiplatform.init(project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket)
-
+        aiplatform.init(
+            project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
+        )
 
         validate_docker_installation()
-        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
+        synchronous: bool = self.backend_config[
+            PROJECT_SYNCHRONOUS
+        ]  # todo: support this
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        if docker_args:
+            wandb.termwarn(
+                "Docker args are not supported for GCP. Not using docker args"
+            )
 
         entry_point = launch_project.get_single_entry_point()
 
@@ -101,6 +120,9 @@ class VertexRunner(AbstractRunner):
                 )
 
         command_args = []
+        command_args += get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
 
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
@@ -108,10 +130,7 @@ class VertexRunner(AbstractRunner):
 
         if launch_project.docker_image is None or launch_project.build_image:
             image_uri = construct_gcp_image_uri(
-                launch_project,
-                gcp_artifact_repo,
-                gcp_project,
-                gcp_docker_host,
+                launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
             )
             image = build_docker_image_if_needed(
                 launch_project=launch_project,
@@ -119,14 +138,17 @@ class VertexRunner(AbstractRunner):
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
-                runner_type='gcp-vertex',
-                image_uri=image_uri
+                runner_type="gcp-vertex",
+                image_uri=image_uri,
+                command_args=command_args,
             )
         else:
             image = launch_project.docker_image
 
         # push to artifact registry
-        subprocess.run(['docker', 'push', image])     # todo: when aws pr is merged, use docker python tooling
+        subprocess.run(
+            ["docker", "push", image]
+        )  # todo: when aws pr is merged, use docker python tooling
 
         if self.backend_config.get("runQueueItemId"):
             try:
@@ -139,51 +161,15 @@ class VertexRunner(AbstractRunner):
                 )
                 return None
 
-        with open(
-            os.path.join(launch_project.aux_dir, DEFAULT_LAUNCH_METADATA_PATH), "w"
-        ) as fp:
-            json.dump(
-                {
-                    **launch_project.launch_spec,
-                    "dockerfile_contents": launch_project._dockerfile_contents,
-                },
-                fp,
-            )
-
-        command_args += get_entry_point_command(
-            entry_point, launch_project.override_args
-        )
-
-        args = [i for p in [["--" + k, str(v)] for k, v in launch_project.override_args.items()] for i in p]
-
         TIMESTAMP = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         job = aiplatform.CustomContainerTrainingJob(
-            display_name='test_job' + TIMESTAMP,
-            container_uri=image,
-            # model_serving_container_image_uri=image,
+            display_name="test_job" + TIMESTAMP, container_uri=image,
         )
 
-        # can support gcp dataset here
-        # Usage with Dataset:
-
-        # ds = aiplatform.TabularDataset(
-        # ‘projects/my-project/locations/us-central1/datasets/12345’)
-
-        # job.run(
-        # ds, replica_count=1, model_display_name=’my-trained-model’, model_labels={‘key’: ‘value’},
-
-        # )
-
-        # Usage without Dataset:
-
-        # job.run(replica_count=1, model_display_name=’my-trained-model)
+        # todo: support gcp dataset?
 
         model = job.run(
-            # model_display_name='test_model',
-            machine_type='n1-standard-4',
-            accelerator_count=0,
-            replica_count=1,
-            args=args,
+            machine_type=gcp_machine_type, accelerator_count=0, replica_count=1,
         )
 
         # need to figure out what a managed model is
@@ -192,8 +178,12 @@ class VertexRunner(AbstractRunner):
 
 
 def run_shell(args):
-    return subprocess.run(args, capture_output=True).stdout.decode('utf-8').strip()
+    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
 
 
-def get_gcp_config(config='default'):
-    return yaml.safe_load(run_shell(['gcloud', 'config', 'configurations', 'describe', shlex_quote(config)]))
+def get_gcp_config(config="default"):
+    return yaml.safe_load(
+        run_shell(
+            ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
+        )
+    )

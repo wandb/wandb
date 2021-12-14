@@ -1013,7 +1013,7 @@ def _check_launch_imports():
     "set on wandb launch-agent.",
 )
 @click.option(
-    "--resource-args",
+    "--resource-arg",
     "-R",
     metavar="NAME=VALUE",
     multiple=True,
@@ -1034,7 +1034,7 @@ def launch(
     config,
     queue,
     run_async,
-    resource_args,
+    resource_arg,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1063,7 +1063,8 @@ def launch(
 
     args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
-    resource_args_dict = util._user_args_to_dict(resource_args)
+
+    resource_args_dict = util._user_args_to_dict(resource_arg)
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
             with open(config, "r") as f:
