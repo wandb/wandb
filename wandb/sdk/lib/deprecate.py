@@ -1,7 +1,4 @@
-__all__ = [
-    "deprecate",
-    "Deprecated"
-]
+__all__ = ["deprecate", "Deprecated"]
 
 from typing import Optional, Tuple, TYPE_CHECKING
 
@@ -15,7 +12,7 @@ if TYPE_CHECKING:
     from .. import wandb_run
 
 
-deprecated_field_names: Tuple[str] = tuple(
+deprecated_field_names: Tuple[str, ...] = tuple(
     str(v) for k, v in Deprecated.__dict__.items() if not k.startswith("_")
 )
 
