@@ -203,6 +203,9 @@ class ArtifactSaver(object):
         commit_event = threading.Event()
 
         def before_commit() -> None:
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"{time.time()}, before_commit,{mem_used}\n")
             self._resolve_client_id_manifest_references()
             with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as fp:
                 path = os.path.abspath(fp.name)
@@ -236,6 +239,10 @@ class ArtifactSaver(object):
                 extra_headers[key] = val
             with open(path, "rb") as fp:  # type: ignore
                 self._api.upload_file_retry(upload_url, fp, extra_headers=extra_headers)
+
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"{time.time()}, ~~ before_commit ~~,{mem_used}\n")
 
         def on_commit() -> None:
             if finalize and use_after_commit:
