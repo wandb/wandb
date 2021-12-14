@@ -71,6 +71,11 @@ class StepUpload(object):
 
     def _handle_event(self, event):
         if isinstance(event, upload_job.EventJobDone):
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(
+                    f"{time.time()}, step_upload.handle_event EventJobDone,{mem_used}\n"
+                )
             job = event.job
             job.join()
             if job.artifact_id:
@@ -87,6 +92,11 @@ class StepUpload(object):
                 event = self._pending_jobs.pop(0)
                 self._start_upload_job(event)
         elif isinstance(event, RequestCommitArtifact):
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(
+                    f"{time.time()}, step_upload.handle_event RequestCommitArtifact,{mem_used}\n"
+                )
             if event.artifact_id not in self._artifacts:
                 self._init_artifact(event.artifact_id)
             self._artifacts[event.artifact_id]["commit_requested"] = True
@@ -101,6 +111,11 @@ class StepUpload(object):
                 )
             self._maybe_commit_artifact(event.artifact_id)
         elif isinstance(event, RequestUpload):
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(
+                    f"{time.time()}, step_upload.handle_event RequestUpload,{mem_used}\n"
+                )
             if event.artifact_id is not None:
                 if event.artifact_id not in self._artifacts:
                     self._init_artifact(event.artifact_id)
