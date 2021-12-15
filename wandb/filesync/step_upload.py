@@ -102,6 +102,11 @@ class StepUpload(object):
                 )
             if event.artifact_id not in self._artifacts:
                 self._init_artifact(event.artifact_id)
+
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"{time.time()}, after self._init_artifact(),{mem_used}\n")
+
             self._artifacts[event.artifact_id]["commit_requested"] = True
             self._artifacts[event.artifact_id]["finalize"] = event.finalize
             if event.before_commit:
