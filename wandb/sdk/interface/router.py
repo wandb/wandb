@@ -23,6 +23,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
+class MessageRouterClosedError(Exception):
+    """Router has been closed."""
+
+    pass
+
+
 class MessageFutureObject(MessageFuture):
     def __init__(self) -> None:
         super(MessageFutureObject, self).__init__()
@@ -59,7 +65,16 @@ class MessageRouter(object):
 
     def message_loop(self) -> None:
         while not self._join_event.is_set():
-            msg = self._read_message()
+            try:
+                msg = self._read_message()
+            except EOFError:
+                # On abnormal shutdown the queue will be destroyed underneath
+                # resulting in EOFError.  message_loop needs to exit..
+                logger.warning("EOFError seen in message_loop")
+                break
+            except MessageRouterClosedError:
+                logger.warning("message_loop has been closed")
+                break
             if not msg:
                 continue
             self._handle_msg_rcv(msg)
