@@ -298,7 +298,7 @@ def test_remove_invalid_entries(test_input, expected, wandb_init_run):
     assert torch.equal(torch_history._remove_invalid_entries(test_input), expected)
 
 
-def iter_hist_bounds(dtype: torch.dtype) -> List[Tuple[float]]:
+def _get_dtype_values(dtype: torch.dtype) -> Tuple[float]:
     if dtype == torch.float32:
         high = wandb.wandb_torch.HIGH32
         eps = wandb.wandb_torch.EPS32
@@ -308,6 +308,11 @@ def iter_hist_bounds(dtype: torch.dtype) -> List[Tuple[float]]:
         eps = wandb.wandb_torch.EPS64
         tiny = wandb.wandb_torch.TINY64
 
+    return high, eps, tiny
+
+
+def _iter_hist_bounds(dtype: torch.dtype) -> List[Tuple[float]]:
+    high, eps, tiny = _get_dtype_values(dtype)
     values = sorted(
         [
             # finite, reasonable values
@@ -341,16 +346,8 @@ def iter_hist_bounds(dtype: torch.dtype) -> List[Tuple[float]]:
 def test_widen_min_max(wandb_init_run):
     torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
     for dtype in (torch.float32, torch.float64):
-        if dtype == torch.float32:
-            high = wandb.wandb_torch.HIGH32
-            eps = wandb.wandb_torch.EPS32
-            tiny = wandb.wandb_torch.TINY32
-        else:  # dtype == torch.float64
-            high = wandb.wandb_torch.HIGH64
-            eps = wandb.wandb_torch.EPS64
-            tiny = wandb.wandb_torch.TINY64
-
-        for tmin, tmax in iter_hist_bounds(dtype):
+        high, eps, tiny = _get_dtype_values(dtype)
+        for tmin, tmax in _iter_hist_bounds(dtype):
             tmin2, tmax2 = torch_history._widen_min_max(tmin, tmax, dtype)
 
             # The magnitude is still not extreme.
