@@ -85,6 +85,12 @@ class StepUpload(object):
                 if event.success:
                     self._artifacts[job.artifact_id]["pending_count"] -= 1
                     self._maybe_commit_artifact(job.artifact_id)
+
+                    with open("memory-use-artifact-wait.txt", "a") as f:
+                        mem_used = psutil.virtual_memory()[3]
+                        f.write(
+                            f"{time.time()}, step_upload.handle_event EventJobDone after _maybe_commit_artifact,{mem_used}\n"
+                        )
                 else:
                     termerror(
                         "Uploading artifact file failed. Artifact won't be committed."
