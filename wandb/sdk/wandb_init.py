@@ -29,7 +29,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import sentry_exc
+from wandb.util import sentry_exc, get_module_version, _maybe_mp_process
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -51,28 +51,6 @@ def _set_logger(log_object):
 
 def online_status(*args, **kwargs):
     pass
-
-
-def _huggingface_version():
-    if "transformers" in sys.modules:
-        trans = wandb.util.get_module("transformers")
-        if hasattr(trans, "__version__"):
-            return trans.__version__
-    return None
-
-
-def _maybe_mp_process(backend: Backend) -> bool:
-    parent_process = getattr(
-        backend._multiprocessing, "parent_process", None
-    )  # New in version 3.8.
-    if parent_process:
-        return parent_process() is not None
-    process = backend._multiprocessing.current_process()
-    if process.name == "MainProcess":
-        return False
-    if process.name.startswith("Process-"):
-        return True
-    return False
 
 
 class _WandbInit(object):
@@ -486,7 +464,7 @@ class _WandbInit(object):
         with telemetry.context(run=run) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
-            hf_version = _huggingface_version()
+            hf_version = get_module_version("transformers")
             if hf_version:
                 tel.huggingface_version = hf_version
             if s._jupyter:
@@ -495,7 +473,10 @@ class _WandbInit(object):
                 tel.env.kaggle = True
             if s._windows:
                 tel.env.windows = True
-            run._telemetry_imports(tel.imports_init)
+            telemetry._telemetry_imports(
+                tel.imports_init,
+                dict(pytorch_ignite="ignite", transformers_huggingface="transformers",),
+            )
             if self._use_sagemaker:
                 tel.feature.sagemaker = True
             if self._set_init_config:
@@ -522,7 +503,7 @@ class _WandbInit(object):
             if manager:
                 tel.feature.service = True
 
-            tel.env.maybe_mp = _maybe_mp_process(backend)
+            tel.env.maybe_mp = _maybe_mp_process(backend._multiprocessing)
 
         if not s.label_disable:
             if self.notebook:

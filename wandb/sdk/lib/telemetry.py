@@ -1,6 +1,7 @@
 #
 
 import re
+import sys
 from types import TracebackType
 from typing import ContextManager, Dict, List, Optional, Type
 from typing import TYPE_CHECKING
@@ -19,7 +20,25 @@ if TYPE_CHECKING:
 _LABEL_TOKEN: str = "@wandbcode{"
 
 
-class _TelemetryObject(object):
+def _telemetry_imports(
+    imports: TelemetryImports, remap_imports: Dict[str, str] = dict()
+) -> None:
+    # Create a mapping between module name to telemetry name
+    modules_map = dict()
+    for desc in imports.DESCRIPTOR.fields:
+        if desc.type != desc.TYPE_BOOL:
+            continue
+        telemtry_name = desc.name
+        module_name = remap_imports.get(telemtry_name, telemtry_name)
+        modules_map[module_name] = telemtry_name
+
+    # Mark as imported every loaded module that is tracked by the telemetry
+    modules_set = set(sys.modules)
+    for module in modules_set.intersection(modules_map):
+        setattr(imports, modules_map[module], True)
+
+
+class _TelemetryObject:
     _run: Optional["wandb_run.Run"]
 
     def __init__(self, run: "wandb_run.Run" = None) -> None:
@@ -78,6 +97,7 @@ def _parse_label_lines(lines: List[str]) -> Dict[str, str]:
 
 __all__ = [
     "TelemetryImports",
+    "_telemetry_imports",
     "TelemetryRecord",
     "context",
 ]

@@ -1,8 +1,3 @@
-#
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 import atexit
 from datetime import timedelta
 from enum import IntEnum
@@ -469,6 +464,8 @@ class Run(object):
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
+        if self._backend and self._backend.interface:
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _freeze(self) -> None:
         self._frozen = True
@@ -477,25 +474,6 @@ class Run(object):
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
             raise Exception("Attribute {} is not supported on Run object.".format(attr))
         super(Run, self).__setattr__(attr, value)
-
-    def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
-        telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
-        )
-
-        # calculate mod_map, a mapping from module_name to telem_name
-        mod_map = dict()
-        for desc in imp.DESCRIPTOR.fields:
-            if desc.type != desc.TYPE_BOOL:
-                continue
-            telem_name = desc.name
-            mod_name = telem_map.get(telem_name, telem_name)
-            mod_map[mod_name] = telem_name
-
-        # set telemetry field for every module loaded that we track
-        mods_set = set(sys.modules)
-        for mod in mods_set.intersection(mod_map):
-            setattr(imp, mod_map[mod], True)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -875,10 +853,6 @@ class Run(object):
             )
 
         self._label_internal(code=code, repo=repo, code_version=code_version)
-
-        # update telemetry in the backend immediately for _label() callers
-        if self._backend and self._backend.interface:
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _label_probe_lines(self, lines: List[str]) -> None:
         if not lines:
@@ -1928,7 +1902,10 @@ class Run(object):
 
         # populate final import telemetry
         with telemetry.context(run=self) as tel:
-            self._telemetry_imports(tel.imports_finish)
+            telemetry._telemetry_imports(
+                tel.imports_finish,
+                dict(pytorch_ignite="ignite", transformers_huggingface="transformers",),
+            )
 
         if self._run_status_checker:
             self._run_status_checker.stop()
@@ -1960,10 +1937,6 @@ class Run(object):
             else:
                 print("")
                 wandb.termlog(status_str)
-
-        # telemetry could have changed, publish final data
-        if self._backend and self._backend.interface:
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
         # TODO: we need to handle catastrophic failure better
         # some tests were timing out on sending exit for reasons not clear to me
@@ -2830,11 +2803,7 @@ def restore(
 
 
 # propigate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
+Run.restore.__doc__ = restore.__doc__
 
 
 def finish(exit_code: int = None, quiet: bool = None) -> None:
@@ -2849,14 +2818,6 @@ def finish(exit_code: int = None, quiet: bool = None) -> None:
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
-
-
-# propagate our doc string to the runs restore method
-try:
-    Run.restore.__doc__ = restore.__doc__
-# py2 doesn't let us set a doc string, just pass
-except AttributeError:
-    pass
 
 
 class _LazyArtifact(ArtifactInterface):

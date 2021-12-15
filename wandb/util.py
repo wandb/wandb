@@ -34,7 +34,7 @@ import yaml
 from datetime import date, datetime
 import platform
 from six.moves import urllib
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 
 import requests
 import six
@@ -50,6 +50,9 @@ from wandb.env import error_reporting_enabled, get_app_url
 import wandb
 from wandb import env
 from wandb.errors import CommError, term
+
+if TYPE_CHECKING:
+    import multiprocessing
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
@@ -170,6 +173,20 @@ def vendor_import(name):
     return module
 
 
+def _maybe_mp_process(multiprocessing: "multiprocessing") -> bool:
+    parent_process = getattr(
+        multiprocessing, "parent_process", None
+    )  # New in version 3.8.
+    if parent_process:
+        return parent_process() is not None
+    process = multiprocessing.current_process()
+    if process.name == "MainProcess":
+        return False
+    if process.name.startswith("Process-"):
+        return True
+    return False
+
+
 def get_module(name, required=None):
     """
     Return module or None. Absolute import is required.
@@ -191,6 +208,11 @@ def get_module(name, required=None):
 
 def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
     return get_module(name)
+
+
+def get_module_version(name: str) -> Optional[str]:
+    if name in sys.modules:
+        return getattr(get_module(name), "__version__", None)
 
 
 class LazyLoader(types.ModuleType):
