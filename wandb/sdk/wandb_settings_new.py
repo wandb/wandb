@@ -277,22 +277,78 @@ class Settings:
         **kwargs: Any,
     ):
         settings = {
-            # former class attributes
-            "mode": {
-                "value": "online",
-                "validator": [
-                    lambda x: isinstance(x, str),
-                    self._validate_mode,
-                ],
-            },
-            "start_method": {
+            "_args": {
                 "value": None,
-                "validator": [
-                    lambda x: isinstance(x, str),
-                    self._validate_start_method,
-                ],
+                "validator": lambda x: isinstance(x, list),
+            },
+            "_cli_only_mode": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "help": "Avoid running any code specific for runs",
+            },
+            "_config_dict": {
+                "value": None,
+                "validator": lambda x: isinstance(x, Config),
+            },
+            "_cuda": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
             },
             "_debug_log": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_disable_meta": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_disable_stats": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_disable_viewer": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "help": "Prevent early viewer query",
+            },
+            "_except_exit": {
+                # fixme? elsewhere it is str
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "_executable": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_internal_check_process": {
+                "value": 8,
+                "validator": lambda x: isinstance(x, int) or isinstance(x, float),
+            },
+            "_internal_queue_timeout": {
+                "value": 2,
+                "validator": lambda x: isinstance(x, int) or isinstance(x, float),
+            },
+            "_jupyter_name": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_jupyter_path": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_jupyter_root": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_kaggle": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_os": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_python": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
@@ -300,9 +356,65 @@ class Settings:
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
+            "_runqueue_item_id": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "_save_requirements": {
+                "value": True,
+                "validator": lambda x: isinstance(x, bool),
+            },
             "_service_transport": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
+            },
+            "_start_datetime": {
+                "value": None,
+                "validator": lambda x: isinstance(x, datetime),
+            },
+            "_start_time": {
+                "value": None,
+                "validator": lambda x: isinstance(x, float),
+            },
+            "_unsaved_keys": {
+                "value": None,
+                "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
+            },
+
+            "allow_val_change": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "anonymous": {
+                "value": None,
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_anonymous
+                ],
+            },
+            "api_key": {
+                "value": None,
+                # do not preprocess api_key: as @kptkin says, it's like changing the password
+                "validator": [
+                    lambda x: isinstance(x, str)
+                ],
+            },
+            "base_url": {
+                "value": "https://api.wandb.ai",
+                "preprocessor": lambda x: str(x).rstrip("/"),
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_base_url,
+                ],
+                "help": "The base url for the wandb api.",
+            },
+            "code_dir": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "config_paths": {
+                "value": None,
+                "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
             },
             "console": {
                 "value": "auto",
@@ -311,26 +423,61 @@ class Settings:
                     self._validate_console,
                 ],
             },
+            "disable_code": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "is_priority": True,
+            },
+            "disable_git": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "is_priority": True,
+            },
             "disabled": {
                 "value": False,
                 "validator": lambda x: isinstance(x, bool),
                 "help": "Alias for mode=dryrun, not supported yet",
             },
+            "docker": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "email": {
+                "value": "False",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "entity": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "files_dir_spec": {
+                "value": "files",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            },
             "force": {
                 "value": None,
                 "validator": lambda x: isinstance(x, bool),
             },
-            "run_tags": {
-                "value": None,
-                "validator": lambda x: isinstance(x, Tuple),
+            "git_remote": {
+                "value": "origin",
+                "validator": lambda x: isinstance(x, str),
             },
-            "run_id": {
+            "heartbeat_seconds": {
+                "value": 30,
+                "validator": lambda x: isinstance(x, int),
+            },
+            "host": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
-            "sweep_id": {
+            "ignore_globs": {
+                "value": tuple(),
+                "validator": lambda x: isinstance(x, Sequence),
+            },
+            "label_disable": {
                 "value": None,
-                "validator": lambda x: isinstance(x, str),
+                "validator": lambda x: isinstance(x, bool),
             },
             "launch": {
                 "value": None,
@@ -340,17 +487,149 @@ class Settings:
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
+            "log_dir_spec": {
+                "value": "logs",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            },
+            "log_internal_spec": {
+                "value": "debug-internal.log",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "log_symlink_internal_spec": {
+                "value": "debug-internal.log",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "log_symlink_user_spec": {
+                "value": "debug.log",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "log_user_spec": {
+                "value": "debug.log",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "login_timeout": {
+                "value": None,
+                "preprocessor": lambda x: float(x),
+                "validator": lambda x: isinstance(x, float),
+            },
+            "magic": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str) or isinstance(x, bool) or isinstance(x, Dict),
+            },
+            "mode": {
+                "value": "online",
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_mode,
+                ],
+            },
+            "notebook_name": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "problem": {
+                "value": "fatal",
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_problem
+                ],
+            },
+            "program": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "program_relpath": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "project": {
+                "value": None,
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_project,
+                ],
+            },
+            "quiet": {
+                "value": None,
+                "preprocessor": _str_as_bool,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "reinit": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "relogin": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "resume": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "resume_fname_spec": {
+                "value": "wandb-resume.json",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
             "root_dir": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
-            "silent": {
-                "value": "False",
-                "preprocessor": _str_as_bool,
+            "run_group": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_id": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_job_type": {  # TODO(jhr): Audit this
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_name": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_notes": {
+                "value": None,
+                "validator": lambda x: isinstance(x, str),
+            },
+            "run_tags": {
+                "value": None,
+                "validator": lambda x: isinstance(x, Tuple),
+            },
+            "sagemaker_disable": {
+                "value": None,
                 "validator": lambda x: isinstance(x, bool),
             },
-            "quiet": {
+            "save_code": {
                 "value": None,
+                "validator": lambda x: isinstance(x, bool),
+                "is_priority": True,
+            },
+            "settings_system_spec": {
+                "value": "~/.config/wandb/settings",
+                "validator": lambda x: isinstance(x, str),
+            },
+            "settings_workspace_spec": {
+                "value": "settings",
+                "validator": lambda x: isinstance(x, str),
+                "hook": lambda x: os.path.join(self.wandb_dir, x),
+            },
+            "show_colors": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "show_emoji": {
+                "value": None,
+                "validator": lambda x: isinstance(x, bool),
+            },
+            "show_errors": {
+                "value": "True",
                 "preprocessor": _str_as_bool,
                 "validator": lambda x: isinstance(x, bool),
             },
@@ -364,151 +643,26 @@ class Settings:
                 "preprocessor": _str_as_bool,
                 "validator": lambda x: isinstance(x, bool),
             },
-            "show_errors": {
-                "value": "True",
+            "silent": {
+                "value": "False",
                 "preprocessor": _str_as_bool,
                 "validator": lambda x: isinstance(x, bool),
             },
-            "username": {
+            "start_method": {
                 "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "email": {
-                "value": "False",
-                "validator": lambda x: isinstance(x, str),
-            },
-            "save_code": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-                "is_priority": True,
-            },
-            "disable_code": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-                "is_priority": True,
-            },
-            "disable_git": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-                "is_priority": True,
-            },
-            "git_remote": {
-                "value": "origin",
-                "validator": lambda x: isinstance(x, str),
-            },
-            "code_dir": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "program_relpath": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "program": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "notebook_name": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "host": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "resume": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
+                "validator": [
+                    lambda x: isinstance(x, str),
+                    self._validate_start_method,
+                ],
             },
             "strict": {
                 "value": None,
                 "preprocessor": _str_as_bool,
                 "validator": lambda x: isinstance(x, bool),
             },
-            "label_disable": {
+            "summary_errors": {
                 "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            # Public attributes
-            "entity": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "project": {
-                "value": None,
-                "validator": [
-                    lambda x: isinstance(x, str),
-                    self._validate_project,
-                ],
-            },
-            "run_group": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "run_name": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            # TODO(jhr): Audit this
-            "run_job_type": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "run_notes": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "sagemaker_disable": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-
-            # Private attributes
-            "_start_time": {
-                "value": None,
-                "validator": lambda x: isinstance(x, float),
-            },
-            "_start_datetime": {
-                "value": None,
-                "validator": lambda x: isinstance(x, datetime),
-            },
-            "_unsaved_keys": {
-                "value": None,
-                "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
-            },
-            "_except_exit": {
-                # fixme? elsewhere it is str
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "_runqueue_item_id": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-
-            # former init args
-            "base_url": {
-                "value": "https://api.wandb.ai",
-                "preprocessor": lambda x: str(x).rstrip("/"),
-                "validator": [
-                    lambda x: isinstance(x, str),
-                    self._validate_base_url,
-                ],
-                "help": "The base url for the wandb api.",
-            },
-            "api_key": {
-                "value": None,
-                # do not preprocess api_key: as @kptkin says, it's like changing the password
-                "validator": [
-                    lambda x: isinstance(x, str)
-                ],
-            },
-            "anonymous": {
-                "value": None,
-                "validator": [
-                    lambda x: isinstance(x, str),
-                    self._validate_anonymous
-                ],
+                "validator": lambda x: isinstance(x, int),
             },
             "summary_warnings": {
                 "value": 5,
@@ -516,69 +670,17 @@ class Settings:
                 "validator": lambda x: isinstance(x, int),
                 "is_policy": True,
             },
-            "ignore_globs": {
-                "value": tuple(),
-                "validator": lambda x: isinstance(x, Sequence),
-            },
-            "magic": {
+            "sweep_id": {
                 "value": None,
-                "validator": lambda x: isinstance(x, str) or isinstance(x, bool) or isinstance(x, Dict),
-            },
-            "allow_val_change": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "relogin": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "login_timeout": {
-                "value": None,
-                "preprocessor": lambda x: float(x),
-                "validator": lambda x: isinstance(x, float),
-            },
-            # compatibility / error handling
-            "problem": {
-                "value": "fatal",
-                "validator": [
-                    lambda x: isinstance(x, str),
-                    self._validate_problem
-                ],
-            },
-            # dynamic settings
-            "system_sample_seconds": {
-                "value": 2,
-                "validator": lambda x: isinstance(x, int),
-            },
-            "system_sample": {
-                "value": 15,
-                "validator": lambda x: isinstance(x, int),
-            },
-            "heartbeat_seconds": {
-                "value": 30,
-                "validator": lambda x: isinstance(x, int),
-            },
-            "config_paths": {
-                "value": None,
-                "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
+                "validator": lambda x: isinstance(x, str),
             },
             "sweep_param_path": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
-            "_config_dict": {
+            "symlink": {
                 "value": None,
-                "validator": lambda x: isinstance(x, Config),
-            },
-            # directories and files
-            "settings_system_spec": {
-                "value": "~/.config/wandb/settings",
-                "validator": lambda x: isinstance(x, str),
-            },
-            "settings_workspace_spec": {
-                "value": "settings",
-                "validator": lambda x: isinstance(x, str),
-                "hook": lambda x: os.path.join(self.wandb_dir, x),
+                "validator": lambda x: isinstance(x, bool),  # probed
             },
             "sync_dir_spec": {
                 "value": None,
@@ -597,132 +699,20 @@ class Settings:
                 "validator": lambda x: isinstance(x, str),
                 "hook": lambda x: os.path.join(self.wandb_dir, x),
             },
-            "log_dir_spec": {
-                "value": "logs",
-                "validator": lambda x: isinstance(x, str),
-                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "system_sample": {
+                "value": 15,
+                "validator": lambda x: isinstance(x, int),
             },
-            "log_user_spec": {
-                "value": "debug.log",
-                "validator": lambda x: isinstance(x, str),
-            },
-            "log_internal_spec": {
-                "value": "debug-internal.log",
-                "validator": lambda x: isinstance(x, str),
-            },
-            "log_symlink_user_spec": {
-                "value": "debug.log",
-                "validator": lambda x: isinstance(x, str),
-                "hook": lambda x: os.path.join(self.wandb_dir, x),
-            },
-            "log_symlink_internal_spec": {
-                "value": "debug-internal.log",
-                "validator": lambda x: isinstance(x, str),
-                "hook": lambda x: os.path.join(self.wandb_dir, x),
-            },
-            "resume_fname_spec": {
-                "value": "wandb-resume.json",
-                "validator": lambda x: isinstance(x, str),
-                "hook": lambda x: os.path.join(self.wandb_dir, x),
-            },
-            "files_dir_spec": {
-                "value": "files",
-                "validator": lambda x: isinstance(x, str),
-                "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "system_sample_seconds": {
+                "value": 2,
+                "validator": lambda x: isinstance(x, int),
             },
             "tmp_dir_spec": {
                 "value": "tmp",
                 "validator": lambda x: isinstance(x, str),
                 "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
             },
-            "symlink": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),  # probed
-            },
-            "docker": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_cli_only_mode": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-                "help": "Avoid running any code specific for runs",
-            },
-            "_disable_viewer": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-                "help": "Prevent early viewer query",
-            },
-            "reinit": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "_save_requirements": {
-                "value": True,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            # compute environment
-            "show_colors": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "show_emoji": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "summary_errors": {
-                "value": None,
-                "validator": lambda x: isinstance(x, int),
-            },
-            "_internal_queue_timeout": {
-                "value": 2,
-                "validator": lambda x: isinstance(x, int) or isinstance(x, float),
-            },
-            "_internal_check_process": {
-                "value": 8,
-                "validator": lambda x: isinstance(x, int) or isinstance(x, float),
-            },
-            "_disable_meta": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "_disable_stats": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "_jupyter_path": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_jupyter_name": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_jupyter_root": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_executable": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_cuda": {
-                "value": None,
-                "validator": lambda x: isinstance(x, bool),
-            },
-            "_args": {
-                "value": None,
-                "validator": lambda x: isinstance(x, list),
-            },
-            "_os": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_python": {
-                "value": None,
-                "validator": lambda x: isinstance(x, str),
-            },
-            "_kaggle": {
+            "username": {
                 "value": None,
                 "validator": lambda x: isinstance(x, str),
             },
