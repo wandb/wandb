@@ -322,7 +322,7 @@ class TorchHistory(object):
         else:  # dtype == torch.float64
             high = HIGH64
 
-        return torch.logical_and((tensor <= high), (tensor >= -high))
+        return (tensor <= high) & (tensor >= -high)
 
     def _no_valid_values(self, tensor: "torch.Tensor") -> bool:
         return (
@@ -331,11 +331,6 @@ class TorchHistory(object):
         )
 
     def _remove_invalid_entries(self, tensor: "torch.Tensor") -> "torch.Tensor":
-        if tensor.dtype == torch.float32:
-            high = HIGH32
-        else:  # dtype == torch.float64
-            high = HIGH64
-
         if not self._is_valid_mask(tensor).all().item():
             tensor = tensor[self._is_valid_mask(tensor)]
 
