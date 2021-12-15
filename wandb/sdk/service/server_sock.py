@@ -10,7 +10,7 @@ from wandb.proto import wandb_server_pb2 as spb
 from .streams import StreamMux
 from ..lib import debug_log
 from ..lib.proto_util import settings_dict_from_pbmap
-from ..lib.sock_client import SockClient
+from ..lib.sock_client import SockClient, SockClientClosedError
 
 
 if TYPE_CHECKING:
@@ -94,9 +94,13 @@ class SockServerReadThread(threading.Thread):
 
     def run(self) -> None:
         while not self._stopped.is_set():
-            sreq = self._sock_client.read_server_request()
-            if not sreq:
+            try:
+                sreq = self._sock_client.read_server_request()
+            except SockClientClosedError:
+                # socket has been closed
+                # TODO: shut down other threads serving this socket?
                 break
+            assert sreq, "read_server_request should never timeout"
             sreq_type = sreq.WhichOneof("server_request_type")
             shandler_str = "server_" + sreq_type
             shandler: "Callable[[spb.ServerRequest], None]" = getattr(
