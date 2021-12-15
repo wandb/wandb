@@ -118,6 +118,9 @@ class StepUpload(object):
                     event.on_commit
                 )
             self._maybe_commit_artifact(event.artifact_id)
+            with open("memory-use-artifact-wait.txt", "a") as f:
+                mem_used = psutil.virtual_memory()[3]
+                f.write(f"{time.time()}, after _maybe_commit_artifact,{mem_used}\n")
         elif isinstance(event, RequestUpload):
             with open("memory-use-artifact-wait.txt", "a") as f:
                 mem_used = psutil.virtual_memory()[3]
