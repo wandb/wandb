@@ -7,8 +7,8 @@ Router to manage responses from a socket client.
 from typing import Optional
 from typing import TYPE_CHECKING
 
-from .router import MessageRouter
-from ..lib.sock_client import SockClient
+from .router import MessageRouter, MessageRouterClosedError
+from ..lib.sock_client import SockClient, SockClientClosedError
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
@@ -22,7 +22,10 @@ class MessageSockRouter(MessageRouter):
         super(MessageSockRouter, self).__init__()
 
     def _read_message(self) -> "Optional[pb.Result]":
-        resp = self._sock_client.read_server_response(timeout=1)
+        try:
+            resp = self._sock_client.read_server_response(timeout=1)
+        except SockClientClosedError:
+            raise MessageRouterClosedError
         if not resp:
             return None
         msg = resp.result_communicate
