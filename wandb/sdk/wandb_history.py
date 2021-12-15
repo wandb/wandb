@@ -38,6 +38,9 @@ class History(object):
 
     def _row_update(self, row):
         self._data.update(row)
+	self._not_committed = True
+        self._flush()
+	
 
     def _row_add(self, row):
         self._data.update(row)

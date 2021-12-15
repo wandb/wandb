@@ -441,6 +441,12 @@ class HandleManager(object):
                 item.value_json = json.dumps(v)
 
     def handle_history(self, record: Record) -> None:
+        self._uncommited_history = {}
+	self._upcommitted_history.update(data)
+
+	# do i need to commmit
+        # commit==True or if step > previous_step (take this logic from wandb.log())
+
         history_dict = proto_util.dict_from_proto_list(record.history.item)
 
         # Inject _runtime if it is not present
@@ -449,6 +455,11 @@ class HandleManager(object):
                 self._history_assign_runtime(record, history_dict)
 
         self._history_update(record, history_dict)
+	# check to see if we need to commit
+	commit=True -> save
+        
+	return
+
         self._dispatch_record(record)
         self._save_history(record)
 

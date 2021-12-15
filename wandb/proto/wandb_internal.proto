@@ -192,6 +192,8 @@ message HistoryStep {
 message HistoryRecord {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
+  HistoryStep step_from_user = 3;
+  bool        commit = 4;
   _RecordInfo _info = 200;
 }
 

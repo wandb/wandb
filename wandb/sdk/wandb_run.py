@@ -469,6 +469,8 @@ class Run(object):
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
+        if self._backend and self._backend.interface:
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
 
     def _freeze(self) -> None:
         self._frozen = True
@@ -990,30 +992,6 @@ class Run(object):
     def _history_callback(self, row: Dict[str, Any], step: int) -> None:
 
         # TODO(jhr): move visualize hack somewhere else
-        custom_charts = {}
-        for k in row:
-            if isinstance(row[k], Visualize):
-                config = {
-                    "id": row[k].viz_id,
-                    "historyFieldSettings": {"key": k, "x-axis": "_step"},
-                }
-                row[k] = row[k].value
-                self._config_callback(val=config, key=("_wandb", "viz", k))
-            elif isinstance(row[k], CustomChart):
-                custom_charts[k] = row[k]
-                custom_chart = row[k]
-
-        for k, custom_chart in custom_charts.items():
-            # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            row.pop(k)
-            # add the table under a different key
-            table_key = k + "_table"
-            row[table_key] = custom_chart.table
-            # add the panel
-            panel_config = custom_chart_panel_config(custom_chart, k, table_key)
-            self._add_panel(k, "Vega2", panel_config)
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
