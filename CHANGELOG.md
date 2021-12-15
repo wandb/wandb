@@ -1,43 +1,28 @@
 ## 0.12.8 (December 15, 2021)
 
 #### :nail_care: Enhancement
-* Add Import telemetry by @raubitsj in https://github.com/wandb/client/pull/2933
+
+- Update contributing guide and dev env setup tool by @dmitryduev in https://github.com/wandb/client/pull/2968
+- Improve `wandb_callback` for LightGBM (#2945) by @ayulockin in https://github.com/wandb/client/pull/3024
 
 #### :bug: Bug Fix
-* reduce GPU memory usage when generating histogram of model weights by @TOsborn in https://github.com/wandb/client/pull/2927
-* fix log flushing issue by @stephchen in https://github.com/wandb/client/pull/2906
-* Acknowledge leased run queue items during upsert run by @dannygoldstein in https://github.com/wandb/client/pull/2804
-* Added class details to image type by @tssweeney in https://github.com/wandb/client/pull/2914
-* Drop release notes section in PR template in favor of better PR titles by @raubitsj in https://github.com/wandb/client/pull/2951
-* add max-jobs and launch async args by @stephchen in https://github.com/wandb/client/pull/2925
-* Make wandb.tensorboard.log accept a list of summaries encoded as strings by @dmitryduev in https://github.com/wandb/client/pull/2934
-* fix: traceback in _numpy_arrays_to_lists when 0 dim np array is provided by @rpitonak in https://github.com/wandb/client/pull/2954
-* exception thrown when empty default config file is present by @vwrj in https://github.com/wandb/client/pull/2957
-* add keras gradients test by @KyleGoyette in https://github.com/wandb/client/pull/2901
-* Add service backend using sockets (support fork) by @raubitsj in https://github.com/wandb/client/pull/2892
-* Fix bad check in bootstrap for wandb dev branches by @KyleGoyette in https://github.com/wandb/client/pull/2989
-* Add yea tests checking logged parameter and gradient names by @KyleGoyette in https://github.com/wandb/client/pull/2982
-* Send git port along with url when sending git repo by @KyleGoyette in https://github.com/wandb/client/pull/2959
-* Add support raw ip addresses for launch by @KyleGoyette in https://github.com/wandb/client/pull/2950
-* shared docker/util changes for launch integrations by @stephchen in https://github.com/wandb/client/pull/2979
-* Tables no longer serialize and hide 1d NDArrays by @tssweeney in https://github.com/wandb/client/pull/2976
-* Improve debug_log and name a couple threads by @raubitsj in https://github.com/wandb/client/pull/3000
-* Add noml shard to circleci by @raubitsj in https://github.com/wandb/client/pull/3003
-* Fix artifact file uploads to S3 stores by @annirudh in https://github.com/wandb/client/pull/2999
-* Fix Imports in some `keras` tests and bump circle ci cache version by @kptkin in https://github.com/wandb/client/pull/3001
-* Send uploaded file list on file stream heartbeats by @annirudh in https://github.com/wandb/client/pull/2978
-* Fix support in wandb-service for forked processes. by @raubitsj in https://github.com/wandb/client/pull/3006
-* Update contributing guide and dev env setup tool + [WB-5647] by @dmitryduev in https://github.com/wandb/client/pull/2968
-* Use properly-colored logo in readme.md in dark mode on GitHub by @dmitryduev in https://github.com/wandb/client/pull/3014
-* Fix issue where metadata file contents isn't saved by @KyleGoyette in https://github.com/wandb/client/pull/3012
-* Image Set <> List Mismatch  by @tssweeney in https://github.com/wandb/client/pull/3017
-* Add flaky decorators for known flaky launch tests by @KyleGoyette in https://github.com/wandb/client/pull/2986
-* Add support for keras experimental layers by @KyleGoyette in https://github.com/wandb/client/pull/2776
-* Fix `from wandb import magic` to not require tensorflow by @raubitsj in https://github.com/wandb/client/pull/3021
-* replace use of torch.logical_not to preserve compatibility with PyTor… by @TOsborn in https://github.com/wandb/client/pull/3026
-* Fix launch permission error by @KyleGoyette in https://github.com/wandb/client/pull/3038
-* Update setup_dev_environment.py by @dmitryduev in https://github.com/wandb/client/pull/3039
-* Improving wandb_callback for LightGBM (#2945) by @raubitsj in https://github.com/wandb/client/pull/3024
+
+- Reduce GPU memory usage when generating histogram of model weights by @TOsborn in https://github.com/wandb/client/pull/2927
+- Add explicit ack path for run queue items by @dannygoldstein in https://github.com/wandb/client/pull/2804
+- Support mixed classes in bounding box and image mask annotation layers by @tssweeney in https://github.com/wandb/client/pull/2914
+- Add max-jobs and launch async args by @stephchen in https://github.com/wandb/client/pull/2925
+- Support lists of Summary objects encoded as strings to wandb.tensorboard.log by @dmitryduev in https://github.com/wandb/client/pull/2934
+- Fix handling of 0 dim np arrays by @rpitonak in https://github.com/wandb/client/pull/2954
+- Fix handling of empty default config file by @vwrj in https://github.com/wandb/client/pull/2957
+- Add service backend using sockets (support fork) by @raubitsj in https://github.com/wandb/client/pull/2892
+- Send git port along with url when sending git repo by @KyleGoyette in https://github.com/wandb/client/pull/2959
+- Add support raw ip addresses for launch by @KyleGoyette in https://github.com/wandb/client/pull/2950
+- Tables no longer serialize and hide 1d NDArrays by @tssweeney in https://github.com/wandb/client/pull/2976
+- Fix artifact file uploads to S3 stores by @annirudh in https://github.com/wandb/client/pull/2999
+- Send uploaded file list on file stream heartbeats by @annirudh in https://github.com/wandb/client/pull/2978
+- Add support for keras experimental layers by @KyleGoyette in https://github.com/wandb/client/pull/2776
+- Fix `from wandb import magic` to not require tensorflow by @raubitsj in https://github.com/wandb/client/pull/3021
+- Fix launch permission error by @KyleGoyette in https://github.com/wandb/client/pull/3038
 
 **Full Changelog**: https://github.com/wandb/client/compare/v0.12.7...v0.12.8
 
