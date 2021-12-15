@@ -987,7 +987,7 @@ class Run(object):
         self._backend.interface.publish_files(files)
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
+    def _history_callback(self, row: Dict[str, Any], step: int = None, commit: bool = None) -> None:
 
         # TODO(jhr): move visualize hack somewhere else
         custom_charts = {}
@@ -1313,35 +1313,7 @@ class Run(object):
         if any(not isinstance(key, string_types) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
-        if step is not None:
-            # if step is passed in when tensorboard_sync is used we honor the step passed
-            # to make decisions about how to close out the history record, but will strip
-            # this history later on in publish_history()
-            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
-            if using_tensorboard:
-                wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
-                    repeat=False,
-                )
-            if self.history._step > step:
-                wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history._step, data
-                        )
-                    )
-                )
-                return
-            elif step > self.history._step:
-                self.history._flush()
-                self.history._step = step
-        elif commit is None:
-            commit = True
-        if commit:
-            self.history._row_add(data)
-        else:
-            self.history._row_update(data)
+        self._history_callback(row=data, step=step, commit=commit)
 
     def save(
         self,
