@@ -249,7 +249,7 @@ class StreamMux:
         raise AssertionError(f"Unsupported action: {action._action}")
 
     def _check_orphaned(self) -> bool:
-        if self._pid is None:
+        if not self._pid:
             return False
         time_now = time.time()
         # if we have checked already and it was less than 2 seconds ago
