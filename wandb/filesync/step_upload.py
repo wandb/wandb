@@ -7,6 +7,9 @@ from six.moves import queue
 from wandb.filesync import upload_job
 from wandb.errors.term import termerror
 
+import psutil
+import time
+
 
 RequestUpload = collections.namedtuple(
     "EventStartUploadJob",
