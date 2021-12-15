@@ -121,7 +121,6 @@ message RunRecord {
   TelemetryRecord           telemetry = 19;
   int32                     runtime = 20;
   GitRepoRecord             git = 21;
-  string                    runqueue_item_id = 22;
   _RecordInfo               _info = 200;
 }
 
