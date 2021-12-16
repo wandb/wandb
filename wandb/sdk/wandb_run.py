@@ -993,7 +993,7 @@ class Run(object):
     def _history_callback(self, row: Dict[str, Any], commit: bool, step: int) -> None:
 
         row = self._custom_charts_hack(row)
-
+        row["_timestamp"] = time.time()
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
@@ -1314,15 +1314,22 @@ class Run(object):
                 )
                 return
 
+        # If the user provided step that is larger than the current latest step
+        # it means the the current latest step needs to be updated to the user provided step
         if step is not None and step > self._history_step:
             self._history_step = step
 
+        # If `commit` and `step` are `None` it means all the uncommitted entries up to this point need to be committed
         if commit is None:
             commit = step is None
 
+        # The step strategy is a sticky step strategy, which means that if the user didn't provide a step
+        # step would be the current latest step
         if step is None:
             step = self._history_step
 
+        # If the entries up to this point need to be committed, the current latest step needs to be
+        # incremented for the future entry.
         if commit:
             self._history_step += 1
 

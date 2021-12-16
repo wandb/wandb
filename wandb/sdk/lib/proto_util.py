@@ -12,11 +12,13 @@ if TYPE_CHECKING:  # pragma: no cover
     from google.protobuf.internal.containers import RepeatedCompositeFieldContainer
 
 
-def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
-    d = dict()
-    for item in obj_list:
-        d[item.key] = json.loads(item.value_json)
-    return d
+def dict_from_proto_list(
+    object_list: "RepeatedCompositeFieldContainer",
+) -> Dict[str, Any]:
+    """
+    Utility method that converts a protobuf list into a dictionary
+    """
+    return {item.key: json.loads(item.value_json) for item in object_list}
 
 
 def _result_from_record(record: "pb.Record") -> "pb.Result":
