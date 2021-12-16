@@ -3,6 +3,7 @@
 import collections
 import threading
 from six.moves import queue
+import gc
 
 from wandb.filesync import upload_job
 from wandb.errors.term import termerror
@@ -26,7 +27,9 @@ class StepUpload(object):
         self._max_jobs = max_jobs
         self._file_stream = file_stream
 
+        num = 10
         self._thread = threading.Thread(target=self._thread_body)
+        self._thread.name = f"upld-{num}"
         self._thread.daemon = True
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
@@ -43,6 +46,11 @@ class StepUpload(object):
         # finish event is received
         finish_callback = None
         while True:
+            print("DEBUG", len(self._pending_jobs))
+            gc.collect()
+            for item in gc.garbage:
+                print(item)
+
             event = self._event_queue.get()
             if isinstance(event, RequestFinish):
                 finish_callback = event.callback

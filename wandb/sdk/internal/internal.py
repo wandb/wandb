@@ -15,6 +15,7 @@ Threads:
 
 from __future__ import print_function
 
+import gc
 import atexit
 from datetime import datetime
 import logging
@@ -68,6 +69,8 @@ def wandb_internal(
 
     """
     # mark this process as internal
+    gc.set_debug(gc.DEBUG_SAVEALL)
+
     wandb._set_internal_process()
     started = time.time()
 

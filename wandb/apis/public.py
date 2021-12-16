@@ -3396,6 +3396,7 @@ class Artifact(artifacts.Artifact):
         artifact = artifacts.get_artifacts_cache().get_artifact(artifact_id)
         if artifact is not None:
             return artifact
+        print(f"DEBUG: not in cache {artifact_id}")
         response = client.execute(Artifact.QUERY, variable_values={"id": artifact_id},)
 
         name = None
