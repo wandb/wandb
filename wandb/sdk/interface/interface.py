@@ -292,8 +292,7 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value,
-                cls=WandBJSONEncoderOld,
+                json_value, cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -511,7 +510,6 @@ class InterfaceBase(object):
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)  # type: ignore
-        logger.info(history)
         self._publish_history(history)
 
     @abstractmethod
