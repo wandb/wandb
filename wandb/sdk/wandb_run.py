@@ -314,8 +314,6 @@ class Run(object):
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history = wandb_history.History(self)
-        self.history._set_callback(self._history_callback)
 
         _datatypes_set_callback(self._datatypes_callback)
 
@@ -331,6 +329,7 @@ class Run(object):
         self._runqueue_item_id = settings._runqueue_item_id
         self._start_time = time.time()
         self._starting_step = 0
+        self._history_step = 0
         self._name = None
         self._notes = None
         self._tags = None
@@ -679,7 +678,8 @@ class Run(object):
 
         This counter is incremented by `wandb.log`.
         """
-        return self.history._step
+        # return self.history._step
+        return self._history_step
 
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
@@ -960,9 +960,7 @@ class Run(object):
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
 
-    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
-
+    def _custom_charts_hack(self, row):
         # TODO(jhr): move visualize hack somewhere else
         custom_charts = {}
         for k in row:
@@ -989,10 +987,17 @@ class Run(object):
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
 
+        return row
+
+    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
+    def _history_callback(self, row: Dict[str, Any], commit: bool, step: int) -> None:
+
+        row = self._custom_charts_hack(row)
+
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
-                row, step, publish_step=not_using_tensorboard
+                row, commit, step, publish_step=not_using_tensorboard
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1047,7 +1052,7 @@ class Run(object):
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self.history._update_step()
+        # self.history._update_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             "user",
@@ -1297,25 +1302,28 @@ class Run(object):
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
-            if self.history._step > step:
+            if self._history_step > step:
                 wandb.termwarn(
                     (
                         "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history._step, data
-                        )
+                        f"Step {step} < {self.history._step}; dropping {data}."
                     )
                 )
                 return
-            elif step > self.history._step:
-                self.history._flush()
-                self.history._step = step
-        elif commit is None:
-            commit = True
+
+        if step is not None and step > self._history_step:
+            self._history_step = step
+
+        if commit is None:
+            commit = step is None
+
+        if step is None:
+            step = self._history_step
+
         if commit:
-            self.history._row_add(data)
-        else:
-            self.history._row_update(data)
+            self._history_step += 1
+
+        self._history_callback(data, commit, step)
 
     def save(
         self,
@@ -1904,14 +1912,17 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             telemetry._telemetry_imports(
                 tel.imports_finish,
-                dict(pytorch_ignite="ignite", transformers_huggingface="transformers",),
+                dict(
+                    pytorch_ignite="ignite",
+                    transformers_huggingface="transformers",
+                ),
             )
 
         if self._run_status_checker:
             self._run_status_checker.stop()
 
         # make sure all uncommitted history is flushed
-        self.history._flush()
+        # self.history._flush()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
         if not self._settings._silent:
@@ -2100,7 +2111,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return logs
 
         logger.info("rendering history")
@@ -2169,10 +2183,15 @@ class Run(object):
         return logs
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2181,8 +2200,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2319,8 +2343,8 @@ class Run(object):
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2396,7 +2420,8 @@ class Run(object):
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:

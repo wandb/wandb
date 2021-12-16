@@ -292,7 +292,8 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -490,19 +491,25 @@ class InterfaceBase(object):
         raise NotImplementedError
 
     def publish_history(
-        self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
+        self,
+        data: dict,
+        commit: bool,
+        step: int = None,
+        run: "Run" = None,
+        publish_step: bool = True,
     ) -> None:
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
+        history.commit = commit
         if publish_step:
-            assert step is not None
             history.step.num = step
         data.pop("_step", None)
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             item = history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)  # type: ignore
+        logger.info(history)
         self._publish_history(history)
 
     @abstractmethod
