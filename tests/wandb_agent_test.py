@@ -74,19 +74,3 @@ def test_agent_ignore_runid(live_mock_server):
 
     assert len(sweep_run_ids) == 1
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
-
-
-def test_agent_ack_run_id(live_mock_server, parse_ctx):
-    sweep_run_ids = []
-
-    def train():
-        run = wandb.init(id="ignored")
-        sweep_run_ids.append(run.id)
-
-    wandb.agent("test-sweep-id-3", function=train, count=1)
-
-    assert len(sweep_run_ids) == 1
-    assert sweep_run_ids[0] == "mocker-sweep-run-x91"
-
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
-    assert ctx_util.item_acked
