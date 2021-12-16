@@ -115,6 +115,8 @@ class VertexRunner(AbstractRunner):
             "gcp_docker_host"
         ) or "{region}-docker.pkg.dev".format(region=gcp_region)
         gcp_machine_type = resource_args.get("gcp_machine_type") or "n1-standard-4"
+        gcp_accelerator_type = resource_args.get("gcp_accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
+        gcp_accelerator_count = int(resource_args.get("gcp_accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         gcp_training_job_name = resource_args.get("gcp_job_name") or "{project}_{time}".format(project=launch_project.target_project, time=timestamp)
 
@@ -204,7 +206,7 @@ class VertexRunner(AbstractRunner):
         # on this thread but continues to block the process on another thread. always set sync=False so we can get
         # the job info (dependent on job._gca_resource)
         model = job.run(
-            machine_type=gcp_machine_type, accelerator_count=0, replica_count=1, sync=False   # @@@ accelerator
+            machine_type=gcp_machine_type, accelerator_type=gcp_accelerator_type, accelerator_count=gcp_accelerator_count, replica_count=1, sync=False
         )
         while job._gca_resource is None:
             # give time for the gcp job object to be created, this should only loop a couple times max
