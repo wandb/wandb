@@ -960,7 +960,7 @@ class Run(object):
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
 
-    def _custom_charts_hack(self, row):
+    def _custom_charts_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         custom_charts = {}
         for k in row:
@@ -1097,9 +1097,9 @@ class Run(object):
     def log(
         self,
         data: Dict[str, Any],
-        step: int = None,
-        commit: bool = None,
-        sync: bool = None,
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> None:
         """Logs a dictonary of data to the current run's history.
 
@@ -1272,6 +1272,9 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
+
+        # TODO add deprection message for sync
+
         if not self._settings._require_service:
             current_pid = os.getpid()
             if current_pid != self._init_pid:
@@ -1306,7 +1309,7 @@ class Run(object):
                 wandb.termwarn(
                     (
                         "Step must only increase in log calls.  "
-                        f"Step {step} < {self.history._step}; dropping {data}."
+                        f"Step {step} < {self._history_step}; dropping {data}."
                     )
                 )
                 return

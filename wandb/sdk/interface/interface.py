@@ -492,7 +492,7 @@ class InterfaceBase(object):
     def publish_history(
         self,
         data: dict,
-        commit: bool,
+        commit: bool = False,
         step: int = None,
         run: "Run" = None,
         publish_step: bool = True,

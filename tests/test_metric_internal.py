@@ -11,9 +11,11 @@ from wandb.proto import wandb_internal_pb2 as pb
 
 def _gen_history():
     history = []
-    history.append(dict(step=0, data=dict(v1=1, v2=2, v3="dog", mystep=1)))
-    history.append(dict(step=1, data=dict(v1=3, v2=8, v3="cat", mystep=2)))
-    history.append(dict(step=2, data=dict(v1=2, v2=3, v3="pizza", mystep=3)))
+    history.append(dict(step=0, data=dict(v1=1, v2=2, v3="dog", mystep=1), commit=True))
+    history.append(dict(step=1, data=dict(v1=3, v2=8, v3="cat", mystep=2), commit=True))
+    history.append(
+        dict(step=2, data=dict(v1=2, v2=3, v3="pizza", mystep=3), commit=True)
+    )
     return history
 
 
@@ -189,13 +191,13 @@ def test_metric_mean(publish_util):
 
 def test_metric_stepsync(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(a1=1,)))
-    history.append(dict(step=1, data=dict(s1=2)))
-    history.append(dict(step=2, data=dict(a1=3,)))
-    history.append(dict(step=3, data=dict(a1=5, s1=4)))
-    history.append(dict(step=3, data=dict(s1=6)))
-    history.append(dict(step=4, data=dict(a1=7,)))
-    history.append(dict(step=5, data=dict(a1=9, s1=8)))
+    history.append(dict(step=0, data=dict(a1=1,), commit=True,))
+    history.append(dict(step=1, data=dict(s1=2), commit=True,))
+    history.append(dict(step=2, data=dict(a1=3,), commit=True,))
+    history.append(dict(step=3, data=dict(a1=5, s1=4), commit=False,))
+    history.append(dict(step=3, data=dict(s1=6), commit=True,))
+    history.append(dict(step=4, data=dict(a1=7,), commit=True,))
+    history.append(dict(step=5, data=dict(a1=9, s1=8), commit=True,))
 
     m0 = pb.MetricRecord(name="s1")
     m1 = pb.MetricRecord(name="a1", step_metric="s1")
@@ -252,7 +254,7 @@ def test_metric_twice_over(publish_util):
 
 def test_metric_glob_twice_norm(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(metric=1,)))
+    history.append(dict(step=0, data=dict(metric=1,), commit=True,))
 
     m1a = pb.MetricRecord(glob_name="*")
     m1a.summary.best = True
@@ -279,7 +281,7 @@ def test_metric_glob_twice_norm(publish_util):
 
 def test_metric_glob_twice_over(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(metric=1,)))
+    history.append(dict(step=0, data=dict(metric=1,), commit=True,))
 
     m1a = pb.MetricRecord(glob_name="*")
     m1a.summary.best = True
@@ -302,9 +304,9 @@ def test_metric_glob_twice_over(publish_util):
 
 def test_metric_nan_max(publish_util):
     history = []
-    history.append(dict(step=0, data=dict(v2=2)))
-    history.append(dict(step=1, data=dict(v2=8)))
-    history.append(dict(step=2, data=dict(v2=float("nan"))))
+    history.append(dict(step=0, data=dict(v2=2), commit=True,))
+    history.append(dict(step=1, data=dict(v2=8), commit=True,))
+    history.append(dict(step=2, data=dict(v2=float("nan")), commit=True,))
 
     m1 = pb.MetricRecord(name="v2")
     m1.summary.max = True
@@ -319,10 +321,10 @@ def test_metric_nan_max(publish_util):
 def test_metric_dot_flat_escaped(publish_util):
     """match works if metric is escaped."""
     history = []
-    history.append(dict(step=0, data={"this.has.dots": 2}))
-    history.append(dict(step=1, data={"this.also": 2}))
-    history.append(dict(step=2, data={"nodots": 2}))
-    history.append(dict(step=3, data={"this.also": 1}))
+    history.append(dict(step=0, data={"this.has.dots": 2}, commit=True,))
+    history.append(dict(step=1, data={"this.also": 2}, commit=True,))
+    history.append(dict(step=2, data={"nodots": 2}, commit=True,))
+    history.append(dict(step=3, data={"this.also": 1}, commit=True,))
 
     m1 = pb.MetricRecord(name="this\.also")
     m1.summary.max = True
@@ -345,10 +347,10 @@ def test_metric_dot_flat_escaped(publish_util):
 def test_metric_dot_flat_notescaped(publish_util):
     """match doesnt work if metric is not escaped."""
     history = []
-    history.append(dict(step=0, data={"this.has.dots": 2}))
-    history.append(dict(step=1, data={"this.also": 2}))
-    history.append(dict(step=2, data={"nodots": 2}))
-    history.append(dict(step=3, data={"this.also": 1}))
+    history.append(dict(step=0, data={"this.has.dots": 2}, commit=True,))
+    history.append(dict(step=1, data={"this.also": 2}, commit=True,))
+    history.append(dict(step=2, data={"nodots": 2}, commit=True,))
+    history.append(dict(step=3, data={"this.also": 1}, commit=True,))
 
     m1 = pb.MetricRecord(name="this.also")
     m1.summary.max = True
@@ -381,10 +383,10 @@ def test_metric_dot_flat_notescaped(publish_util):
 def test_metric_dot_glob(publish_util):
     """glob should escape the defined metric name."""
     history = []
-    history.append(dict(step=0, data={"this.has.dots": 2}))
-    history.append(dict(step=1, data={"this.also": 2}))
-    history.append(dict(step=2, data={"nodots": 3}))
-    history.append(dict(step=3, data={"this.also": 1}))
+    history.append(dict(step=0, data={"this.has.dots": 2}, commit=True,))
+    history.append(dict(step=1, data={"this.also": 2}, commit=True,))
+    history.append(dict(step=2, data={"nodots": 3}, commit=True,))
+    history.append(dict(step=3, data={"this.also": 1}, commit=True,))
 
     m1 = pb.MetricRecord(name="this\\.also")
     m1.options.defined = True
