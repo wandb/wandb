@@ -1,4 +1,4 @@
-## 0.12.8 (December 15, 2021)
+## 0.12.8 (December 16, 2021)
 
 #### :nail_care: Enhancement
 
@@ -8,7 +8,6 @@
 #### :bug: Bug Fix
 
 - Reduce GPU memory usage when generating histogram of model weights by @TOsborn in https://github.com/wandb/client/pull/2927
-- Add explicit ack path for run queue items by @dannygoldstein in https://github.com/wandb/client/pull/2804
 - Support mixed classes in bounding box and image mask annotation layers by @tssweeney in https://github.com/wandb/client/pull/2914
 - Add max-jobs and launch async args by @stephchen in https://github.com/wandb/client/pull/2925
 - Support lists of Summary objects encoded as strings to wandb.tensorboard.log by @dmitryduev in https://github.com/wandb/client/pull/2934
