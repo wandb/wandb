@@ -292,7 +292,8 @@ class InterfaceBase(object):
             json_value, _ = json_friendly(json_value)  # type: ignore
 
             pb_summary_item.value_json = json.dumps(
-                json_value, cls=WandBJSONEncoderOld,
+                json_value,
+                cls=WandBJSONEncoderOld,
             )
 
         for item in summary_record.remove:
@@ -493,6 +494,7 @@ class InterfaceBase(object):
         self,
         data: dict,
         commit: bool = False,
+        precommit: bool = False,
         step: int = None,
         run: "Run" = None,
         publish_step: bool = True,
@@ -500,7 +502,8 @@ class InterfaceBase(object):
         run = run or self._run
         data = data_types.history_dict_to_json(run, data, step=step)
         history = pb.HistoryRecord()
-        history.commit = commit
+        history.action.commit = commit
+        history.action.precommit = precommit
         if publish_step:
             history.step.num = step
         data.pop("_step", None)

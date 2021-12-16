@@ -189,10 +189,15 @@ message HistoryStep {
   int64 num = 1;
 }
 
+message HistoryAction{
+  bool precommit = 1;
+  bool commit = 2;
+}
+
 message HistoryRecord {
   repeated HistoryItem item = 1;
   HistoryStep step = 2;
-  bool commit = 3;
+  HistoryAction action = 3;
   _RecordInfo _info = 200;
 }
 

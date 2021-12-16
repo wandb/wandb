@@ -992,12 +992,35 @@ class Run(object):
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
     def _history_callback(self, row: Dict[str, Any], commit: bool, step: int) -> None:
 
+        # If the user provided step that is larger than the current latest step
+        # it means the the current latest step needs to be updated to the user provided step
+        if step is not None and step > self._history_step:
+            precommit = True
+            self._history_step = step
+        else:
+            precommit = False
+
+        # If `commit` and `step` are `None` it means all the uncommitted entries up to this point need to be committed
+        if commit is None:
+            commit = step is None
+
+        # The step strategy is a sticky step strategy, which means that if the user didn't provide a step
+        # step would be the current latest step
+        if step is None:
+            step = self._history_step
+
+        # If the entries up to this point need to be committed, the current latest step needs to be
+        # incremented for the future entry.
+        if commit:
+            self._history_step += 1
+
         row = self._custom_charts_hack(row)
         row["_timestamp"] = time.time()
+
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
             self._backend.interface.publish_history(
-                row, commit, step, publish_step=not_using_tensorboard
+                row, commit, precommit, step, publish_step=not_using_tensorboard
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1313,25 +1336,6 @@ class Run(object):
                     )
                 )
                 return
-
-        # If the user provided step that is larger than the current latest step
-        # it means the the current latest step needs to be updated to the user provided step
-        if step is not None and step > self._history_step:
-            self._history_step = step
-
-        # If `commit` and `step` are `None` it means all the uncommitted entries up to this point need to be committed
-        if commit is None:
-            commit = step is None
-
-        # The step strategy is a sticky step strategy, which means that if the user didn't provide a step
-        # step would be the current latest step
-        if step is None:
-            step = self._history_step
-
-        # If the entries up to this point need to be committed, the current latest step needs to be
-        # incremented for the future entry.
-        if commit:
-            self._history_step += 1
 
         self._history_callback(data, commit, step)
 
@@ -1922,7 +1926,10 @@ class Run(object):
         with telemetry.context(run=self) as tel:
             telemetry._telemetry_imports(
                 tel.imports_finish,
-                dict(pytorch_ignite="ignite", transformers_huggingface="transformers",),
+                dict(
+                    pytorch_ignite="ignite",
+                    transformers_huggingface="transformers",
+                ),
             )
 
         if self._run_status_checker:
@@ -2118,7 +2125,10 @@ class Run(object):
         # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
         #   which doesn't have the attribute 'encoding'
         encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not encoding or encoding.upper() not in (
+            "UTF_8",
+            "UTF-8",
+        ):
             return logs
 
         logger.info("rendering history")
@@ -2187,10 +2197,15 @@ class Run(object):
         return logs
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -2199,8 +2214,13 @@ class Run(object):
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -2337,8 +2357,8 @@ class Run(object):
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -2414,7 +2434,8 @@ class Run(object):
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:

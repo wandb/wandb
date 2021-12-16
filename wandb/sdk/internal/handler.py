@@ -22,11 +22,9 @@ from typing import (
     TYPE_CHECKING,
 )
 
-import six
-from six.moves.queue import Queue
+from queue import Queue
 from wandb.proto import wandb_internal_pb2
-from wandb.proto.wandb_internal_pb2 import Record, Result, HistoryRecord
-
+from wandb.proto.wandb_internal_pb2 import Record, Result
 from . import meta, sample, stats
 from . import tb_watcher
 from .settings_static import SettingsStatic
@@ -157,6 +155,7 @@ class HandleManager:
                 self._tb_watcher.finish()
                 self._tb_watcher = None
         elif state == defer.FLUSH_SUM:
+            self._commit_uncommitted_history()
             self._save_summary(self._consolidated_summary, flush=True)
 
         # defer is used to drive the sender finish state machine
@@ -353,20 +352,6 @@ class HandleManager:
                 updated = True
         return updated
 
-    def _history_assign_step(self, record: Record, history_dict: Dict) -> None:
-        has_step = record.history.HasField("step")
-        item = record.history.item.add()
-        item.key = "_step"
-        if has_step:
-            step = record.history.step.num
-            history_dict["_step"] = step
-            item.value_json = json.dumps(step)
-            self._step = step + 1
-        else:
-            history_dict["_step"] = self._step
-            item.value_json = json.dumps(self._step)
-            self._step += 1
-
     def _history_define_metric(
         self, hkey: str
     ) -> Optional[wandb_internal_pb2.MetricRecord]:
@@ -422,40 +407,48 @@ class HandleManager:
             kl=kl, v=v, history_dict=history_dict, update_history=update_history
         )
 
-    def _history_update(self, record: Record, history_dict: Dict) -> None:
+    def _update_uncommitted_history(self, record: Record):
+        history_entry = proto_util.dict_from_proto_list(record.history.item)
+        self._uncommitted_history.update(history_entry)
+
         # if syncing an old run, we can skip this logic
-        if history_dict.get("_step") is None:
-            self._history_assign_step(record, history_dict)
+        if history_entry.get("_step") is None:
+            has_step = record.history.HasField("step")
+            step = record.history.step.num if has_step else self._step
+            self._uncommitted_history["_step"] = step
+            self._step = step + 1
+
+        # Inject _runtime if it is not present
+        if (
+            "_runtime" not in self._uncommitted_history
+            and "_timestamp" in self._uncommitted_history
+        ):
+            # if it is offline sync, self._run_start_time is 0
+            # in that case set it to the first tfevent timestamp
+            if self._run_start_time == 0:
+                self._run_start_time = self._uncommitted_history["_timestamp"]
+            self._uncommitted_history["_runtime"] = int(
+                self._uncommitted_history["_timestamp"] - self._run_start_time
+            )
 
         update_history: Dict[str, Any] = {}
         # Look for metric matches
         if self._metric_defines or self._metric_globs:
-            for hkey, hval in history_dict.items():
-                self._history_update_list([hkey], hval, history_dict, update_history)
+            for hkey, hval in history_entry.items():
+                self._history_update_list([hkey], hval, history_entry, update_history)
 
         if update_history:
-            history_dict.update(update_history)
-            for key, value in update_history.items():
-                item = record.history.item.add()
-                item.key = key
-                item.value_json = json.dumps(value)
+            self._uncommitted_history.update(update_history)
 
-    def handle_history(self, record: Record) -> None:
-        history_dict = proto_util.dict_from_proto_list(record.history.item)
-        self._uncommitted_history.update(history_dict)
-
-        if record.history.commit:
-            # Inject _runtime if it is not present
-            if "_runtime" not in self._uncommitted_history:
-                self._history_assign_runtime(self._uncommitted_history)
-
-            record.history.ClearField("item")
+    def _commit_uncommitted_history(self) -> None:
+        if self._uncommitted_history:
+            logger.info(self._uncommitted_history)
+            history = wandb_internal_pb2.HistoryRecord()
             for key, value in self._uncommitted_history.items():
-                item = record.history.item.add()
+                item = history.item.add()
                 item.key = key
                 item.value_json = json.dumps(value)
-
-            self._history_update(record, self._uncommitted_history)
+            record = wandb_internal_pb2.Record(history=history)
             self._dispatch_record(record)
             self._save_history(record)
 
@@ -463,7 +456,17 @@ class HandleManager:
             if updated:
                 self._save_summary(self._consolidated_summary)
 
+            # Flush all history entries once committed
             self._uncommitted_history = dict()
+
+    def handle_history(self, record: Record) -> None:
+        if record.history.action.precommit:
+            self._commit_uncommitted_history()
+
+        self._update_uncommitted_history(record)
+
+        if record.history.action.commit:
+            self._commit_uncommitted_history()
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary
@@ -746,14 +749,20 @@ class HandleManager:
 
     next = __next__
 
-    def _history_assign_runtime(self, history_dict: Dict) -> None:
+    def _history_assign_runtime(self) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
-        if "_timestamp" not in history_dict:
+        if "_timestamp" not in self._uncommitted_history:
             return
         # if it is offline sync, self._run_start_time is 0
         # in that case set it to the first tfevent timestamp
         if self._run_start_time == 0:
-            self._run_start_time = history_dict["_timestamp"]
-        history_dict["_runtime"] = int(
-            history_dict["_timestamp"] - self._run_start_time
+            self._run_start_time = self._uncommitted_history["_timestamp"]
+        self._uncommitted_history["_runtime"] = int(
+            self._uncommitted_history["_timestamp"] - self._run_start_time
         )
+
+    # def _history_assign_step(self, record: Record, history_dict: Dict) -> None:
+    #     has_step = record.history.HasField("step")
+    #     step = record.history.step.num if has_step else self._step
+    #     history_dict["_step"] = step
+    #     self._step = step + 1
