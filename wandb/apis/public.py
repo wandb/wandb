@@ -4006,11 +4006,20 @@ class Artifact(artifacts.Artifact):
             ]
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
-                self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(six.ensure_text(req.content))
-                )
 
+                start = time.time()
+                manifest_json = json.loads(six.ensure_text(req.content))
+                print(f"time elapsed for json.loads: {time.time() - start}")
+
+                start = time.time()
+                self._manifest = artifacts.ArtifactManifest.from_manifest_json(
+                    self, manifest_json
+                )
+                print(f"time elapsed for from_manifest_json: {time.time() - start}")
+
+            start = time.time()
             self._load_dependent_manifests()
+            print(f"time elapsed for load_dependent_manifests: {time.time() - start}")
 
         return self._manifest
 
