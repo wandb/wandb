@@ -334,7 +334,6 @@ class Run(object):
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
-        self._runqueue_item_id = settings._runqueue_item_id
         self._start_time = time.time()
         self._starting_step = 0
         self._name = None
@@ -539,8 +538,6 @@ class Run(object):
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:
             run.git.last_commit = self._last_commit
-        if self._runqueue_item_id is not None:
-            run.runqueue_item_id = self._runqueue_item_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
