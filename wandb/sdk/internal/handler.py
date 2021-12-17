@@ -1,12 +1,11 @@
-#
 """Handle Manager."""
-
 
 import json
 import logging
 import math
 import numbers
 import os
+from queue import Queue
 from threading import Event
 import time
 from typing import (
@@ -22,11 +21,10 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from queue import Queue
 from wandb.proto import wandb_internal_pb2
 from wandb.proto.wandb_internal_pb2 import Record, Result
-from . import meta, sample, stats
-from . import tb_watcher
+
+from . import meta, sample, stats, tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
@@ -96,17 +94,17 @@ class HandleManager:
         self._run_start_time = 0
 
         # keep track of summary from key/val updates
-        self._consolidated_summary = dict()
-        self._sampled_history = dict()
-        self._metric_defines = dict()
-        self._metric_globs = dict()
-        self._metric_track = dict()
-        self._metric_copy = dict()
+        self._consolidated_summary = {}
+        self._sampled_history = {}
+        self._metric_defines = {}
+        self._metric_globs = {}
+        self._metric_track = {}
+        self._metric_copy = {}
 
-        self._uncommitted_history = dict()
+        self._uncommitted_history: Dict[str, Any] = {}
 
         # TODO: implement release protocol to clean this up
-        self._artifact_xid_done = dict()
+        self._artifact_xid_done = {}
 
     def __len__(self) -> int:
         return self._record_q.qsize()
@@ -407,7 +405,7 @@ class HandleManager:
             kl=kl, v=v, history_dict=history_dict, update_history=update_history
         )
 
-    def _update_uncommitted_history(self, record: Record):
+    def _update_uncommitted_history(self, record: Record) -> None:
         history_entry = proto_util.dict_from_proto_list(record.history.item)
         self._uncommitted_history.update(history_entry)
 
@@ -457,7 +455,7 @@ class HandleManager:
                 self._save_summary(self._consolidated_summary)
 
             # Flush all history entries once committed
-            self._uncommitted_history = dict()
+            self._uncommitted_history = {}
 
     def handle_history(self, record: Record) -> None:
         if record.history.action.precommit:

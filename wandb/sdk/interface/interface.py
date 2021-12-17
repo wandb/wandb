@@ -494,7 +494,7 @@ class InterfaceBase(object):
         data: dict,
         commit: bool = False,
         precommit: bool = False,
-        step: int = None,
+        step: Optional[int] = None,
         run: "Run" = None,
         publish_step: bool = True,
     ) -> None:
@@ -504,6 +504,7 @@ class InterfaceBase(object):
         history.action.commit = commit
         history.action.precommit = precommit
         if publish_step:
+            assert step is not None
             history.step.num = step
         data.pop("_step", None)
         for k, v in data.items():

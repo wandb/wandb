@@ -16,7 +16,6 @@ import datetime
 import logging
 import os
 import platform
-import sys
 import tempfile
 import time
 import traceback
@@ -29,7 +28,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import sentry_exc, get_module_version, _maybe_mp_process
+from wandb.util import _maybe_mp_process, get_module_version, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend

@@ -21,10 +21,11 @@ _LABEL_TOKEN: str = "@wandbcode{"
 
 
 def _telemetry_imports(
-    imports: TelemetryImports, remap_imports: Dict[str, str] = dict()
+    imports: TelemetryImports, remap_imports: Optional[Dict[str, str]] = None
 ) -> None:
     # Create a mapping between module name to telemetry name
-    modules_map = dict()
+    modules_map = {}
+    remap_imports = remap_imports or {}
     for desc in imports.DESCRIPTOR.fields:
         if desc.type != desc.TYPE_BOOL:
             continue

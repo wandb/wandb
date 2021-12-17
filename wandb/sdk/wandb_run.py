@@ -1,3 +1,4 @@
+import _thread as thread
 import atexit
 from datetime import timedelta
 from enum import IntEnum
@@ -18,6 +19,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     NamedTuple,
     Optional,
     Sequence,
@@ -27,17 +29,12 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
+from urllib.parse import quote as url_quote, urlencode
 
 import click
 import requests
-from six import iteritems, string_types
-from six.moves import _thread as thread
-from six.moves.collections_abc import Mapping
-from six.moves.urllib.parse import quote as url_quote
-from six.moves.urllib.parse import urlencode
 import wandb
-from wandb import errors
-from wandb import trigger
+from wandb import errors, trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
@@ -62,7 +59,6 @@ from wandb.viz import (
 
 from . import wandb_artifacts
 from . import wandb_config
-from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
@@ -113,7 +109,7 @@ class TeardownHook(NamedTuple):
     stage: TeardownStage
 
 
-class RunStatusChecker(object):
+class RunStatusChecker:
     """Periodically polls the background process for relevant updates.
 
     For now, we just use this to figure out if the user has requested a stop.
@@ -150,7 +146,7 @@ class RunStatusChecker(object):
                     if (
                         hr.http_status_code == 200 or hr.http_status_code == 0
                     ):  # we use 0 for non-http errors (eg wandb errors)
-                        wandb.termlog("{}".format(hr.http_response_text))
+                        wandb.termlog(f"{hr.http_response_text}")
                     else:
                         wandb.termlog(
                             "{} encountered ({}), retrying request".format(
@@ -180,7 +176,7 @@ class RunStatusChecker(object):
         self._retry_thread.join()
 
 
-class Run(object):
+class Run:
     """A unit of computation logged by wandb. Typically this is an ML experiment.
 
     Create a run with `wandb.init()`:
@@ -470,8 +466,8 @@ class Run(object):
 
     def __setattr__(self, attr: str, value: object) -> None:
         if getattr(self, "_frozen", None) and not hasattr(self, attr):
-            raise Exception("Attribute {} is not supported on Run object.".format(attr))
-        super(Run, self).__setattr__(attr, value)
+            raise Exception(f"Attribute {attr} is not supported on Run object.")
+        super().__setattr__(attr, value)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -845,8 +841,7 @@ class Run(object):
                 )
         for v in kwargs:
             wandb.termwarn(
-                "Label added for unsupported key '{}' (ignored).".format(v),
-                repeat=False,
+                f"Label added for unsupported key '{v}' (ignored).", repeat=False,
             )
 
         self._label_internal(code=code, repo=repo, code_version=code_version)
@@ -892,7 +887,7 @@ class Run(object):
             if isinstance(lines, str):
                 lines = lines.split()
         except Exception as e:
-            logger.info("Unable to probe notebook: {}".format(e))
+            logger.info(f"Unable to probe notebook: {e}")
             return
         if lines:
             self._label_probe_lines(lines)
@@ -987,26 +982,30 @@ class Run(object):
         return row
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], commit: bool, step: int) -> None:
+    def _history_callback(
+        self, row: Dict[str, Any], commit: Optional[bool], step: Optional[int]
+    ) -> None:
 
-        # If the user provided step that is larger than the current latest step
-        # it means the the current latest step needs to be updated to the user provided step
+        # If the user provided step is larger than the "current latest step"
+        # it means the the "current latest step" needs to be updated to the user provided step
+        # and all the uncommitted entries (not including this one) need to be commited
         if step is not None and step > self._history_step:
             precommit = True
             self._history_step = step
         else:
             precommit = False
 
-        # If `commit` and `step` are `None` it means all the uncommitted entries up to this point need to be committed
+        # If `commit` and `step` are `None` it means all the uncommitted entries (including the current one) need to be committed
+        # If `step` is not `None` the current entry will be added to the uncommited history
         if commit is None:
             commit = step is None
 
-        # The step strategy is a sticky step strategy, which means that if the user didn't provide a step
-        # step would be the current latest step
+        # The step strategy is a "sticky step strategy", which means that if `step` is `None`
+        # `step` would be the "current latest step"
         if step is None:
             step = self._history_step
 
-        # If the entries up to this point need to be committed, the current latest step needs to be
+        # If the entries up to this point need to be committed, the "current latest step" needs to be
         # incremented for the future entry.
         if commit:
             self._history_step += 1
@@ -1292,7 +1291,6 @@ class Run(object):
             ValueError: if invalid data is passed
 
         """
-
         # TODO add deprection message for sync
 
         if not self._settings._require_service:
@@ -1312,7 +1310,7 @@ class Run(object):
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
-        if any(not isinstance(key, string_types) for key in data.keys()):
+        if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
@@ -1327,10 +1325,8 @@ class Run(object):
                 )
             if self._history_step > step:
                 wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        f"Step {step} < {self._history_step}; dropping {data}."
-                    )
+                    "Step must only increase in log calls.  "
+                    f"Step {step} < {self._history_step}; dropping {data}."
                 )
                 return
 
@@ -1356,10 +1352,8 @@ class Run(object):
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
             wandb.termwarn(
-                (
-                    "Calling run.save without any arguments is deprecated."
-                    "Changes to attributes are automatically persisted."
-                )
+                "Calling run.save without any arguments is deprecated."
+                "Changes to attributes are automatically persisted."
             )
             return True
         if policy not in ("live", "end", "now"):
@@ -1368,18 +1362,16 @@ class Run(object):
             )
         if isinstance(glob_str, bytes):
             glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, string_types):
+        if not isinstance(glob_str, str):
             raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
 
         if base_path is None:
             if os.path.isabs(glob_str):
                 base_path = os.path.dirname(glob_str)
                 wandb.termwarn(
-                    (
-                        "Saving files without folders. If you want to preserve "
-                        "sub directories pass base_path to wandb.save, i.e. "
-                        'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
-                    )
+                    "Saving files without folders. If you want to preserve "
+                    "sub directories pass base_path to wandb.save, i.e. "
+                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")'
                 )
             else:
                 base_path = "."
@@ -1582,7 +1574,7 @@ class Run(object):
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
-        version_str = "Tracking run with wandb version {}".format(wandb.__version__)
+        version_str = f"Tracking run with wandb version {wandb.__version__}"
         if self.resumed:
             run_state_str = "Resuming run"
         else:
@@ -1591,8 +1583,8 @@ class Run(object):
 
         sync_dir = self._settings._sync_dir
         if self._settings._jupyter:
-            sync_dir = "<code>{}</code>".format(sync_dir)
-        dir_str = "Run data is saved locally in {}".format(sync_dir)
+            sync_dir = f"<code>{sync_dir}</code>"
+        dir_str = f"Run data is saved locally in {sync_dir}"
         if self._settings._jupyter and ipython.in_jupyter():
             if not wandb.jupyter.maybe_display():
                 # TODO: make settings the source of truth
@@ -1861,7 +1853,7 @@ class Run(object):
         if self._settings._offline:
             return
 
-        line = " %.2fMB of %.2fMB uploaded (%.2fMB deduped)\r" % (
+        line = " {:.2f}MB of {:.2f}MB uploaded ({:.2f}MB deduped)\r".format(
             progress.uploaded_bytes / 1048576.0,
             progress.total_bytes / 1048576.0,
             progress.deduped_bytes / 1048576.0,
@@ -1937,14 +1929,14 @@ class Run(object):
             as_html = self._settings._jupyter and ipython.in_jupyter()
             if self._backend:
                 pid = self._backend._internal_pid
-                status_str = "Waiting for W&B process to finish, PID {}... ".format(pid)
+                status_str = f"Waiting for W&B process to finish, PID {pid}... "
             if not self._exit_code:
                 status = "(success)."
                 if as_html:
                     status = f'<strong style="color:green">{status}</strong>'
                 status_str += status
             else:
-                status = "(failed {}).".format(self._exit_code)
+                status = f"(failed {self._exit_code})."
                 if as_html:
                     status = f'<strong style="color:red">{status}</strong>'
                 status_str += status
@@ -2037,8 +2029,8 @@ class Run(object):
             log_dir = self._settings.log_user or self._settings.log_internal or "."
             log_dir = log_dir.replace(os.getcwd(), ".")
             if as_html:
-                log_dir = "<code>{}</code>".format(os.path.dirname(log_dir))
-            final_logs += "Find logs at: {}{}".format(log_dir, lb)
+                log_dir = f"<code>{os.path.dirname(log_dir)}</code>"
+            final_logs += f"Find logs at: {log_dir}{lb}"
 
         if as_html:
             ipython.display_html(final_logs)
@@ -2080,11 +2072,11 @@ class Run(object):
             logger.info("rendering summary")
             max_len = 0
             summary_rows = []
-            for k, v in sorted(iteritems(self._final_summary)):
+            for k, v in sorted(self._final_summary.items()):
                 # arrays etc. might be too large. for now we just don't print them
                 if k.startswith("_"):
                     continue
-                if isinstance(v, string_types):
+                if isinstance(v, str):
                     if len(v) >= 20:
                         v = v[:20] + "..."
                     summary_rows.append((k, v))
@@ -2129,7 +2121,7 @@ class Run(object):
             if key.startswith("_"):
                 continue
             vals = wandb.util.downsample(self._sampled_history[key], 40)
-            if any((not isinstance(v, numbers.Number) for v in vals)):
+            if any(not isinstance(v, numbers.Number) for v in vals):
                 continue
             line = sparkline.sparkify(vals)
             history_rows.append((key, line))
@@ -2250,16 +2242,16 @@ class Run(object):
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
         for k in kwargs:
-            wandb.termwarn("Unhandled define_metric() arg: {}".format(k))
+            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
-            ("name", name, string_types),
-            ("step_metric", step_metric, string_types),
+            ("name", name, (str,)),
+            ("step_metric", step_metric, (str,)),
             ("step_sync", step_sync, bool),
             ("hidden", hidden, bool),
-            ("summary", summary, string_types),
-            ("goal", goal, string_types),
+            ("summary", summary, (str,)),
+            ("goal", goal, (str,)),
             ("overwrite", overwrite, bool),
         ):
             # NOTE: type checking is broken for isinstance and string_types
@@ -2284,18 +2276,14 @@ class Run(object):
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
             for i in summary_items:
                 if i not in valid:
-                    raise wandb.Error(
-                        "Unhandled define_metric() arg: summary op: {}".format(i)
-                    )
+                    raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
-                raise wandb.Error(
-                    "Unhandled define_metric() arg: goal: {}".format(goal)
-                )
+                raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2684,7 +2672,7 @@ class Run(object):
         aliases = aliases or ["latest"]
         if isinstance(artifact_or_path, str):
             if name is None:
-                name = "run-%s-%s" % (self.id, os.path.basename(artifact_or_path))
+                name = f"run-{self.id}-{os.path.basename(artifact_or_path)}"
             artifact = wandb.Artifact(name, type)
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(artifact_or_path)
@@ -2809,7 +2797,7 @@ def restore(
         root = os.getcwd()
     path = os.path.join(root, name)
     if os.path.exists(path) and replace is False:
-        return open(path, "r")
+        return open(path)
     if is_disabled:
         return None
     files = api_run.files([name])
@@ -2817,7 +2805,7 @@ def restore(
         return None
     # if the file does not exist, the file has an md5 of 0
     if files[0].md5 == "0":
-        raise ValueError("File {} not found in {}.".format(name, run_path or root))
+        raise ValueError(f"File {name} not found in {run_path or root}.")
     return files[0].download(root=root, replace=True)
 
 
