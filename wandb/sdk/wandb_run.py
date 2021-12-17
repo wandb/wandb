@@ -1071,7 +1071,7 @@ class Run:
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        # self.history._update_step()
+        self._history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             "user",

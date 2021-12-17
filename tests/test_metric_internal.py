@@ -194,7 +194,7 @@ def test_metric_stepsync(publish_util):
     history.append(dict(step=0, data=dict(a1=1,), commit=True,))
     history.append(dict(step=1, data=dict(s1=2), commit=True,))
     history.append(dict(step=2, data=dict(a1=3,), commit=True,))
-    history.append(dict(step=3, data=dict(a1=5, s1=4), commit=False,))
+    history.append(dict(step=3, data=dict(a1=5, s1=4), commit=True,))
     history.append(dict(step=3, data=dict(s1=6), commit=True,))
     history.append(dict(step=4, data=dict(a1=7,), commit=True,))
     history.append(dict(step=5, data=dict(a1=9, s1=8), commit=True,))
@@ -208,7 +208,6 @@ def test_metric_stepsync(publish_util):
 
     summary = ctx_util.summary
     history = ctx_util.history
-
     assert {"a1": 9, "s1": 8, "_step": 5,} == summary
 
     history_val = [(h.get("a1"), h.get("s1")) for h in history if "a1" in h]

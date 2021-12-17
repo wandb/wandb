@@ -16,8 +16,8 @@ from wandb import util
 
 def generate_history():
     history = []
-    history.append(dict(step=0, data=dict(v1=1, v2=2, v3="dog", mystep=1)))
-    history.append(dict(step=1, data=dict(v1=3, v2=8, v3="cat", mystep=2)))
+    history.append(dict(step=0, data=dict(v1=1, v2=2, v3="dog", mystep=1), commit=True))
+    history.append(dict(step=1, data=dict(v1=3, v2=8, v3="cat", mystep=2), commit=True))
     return history
 
 
