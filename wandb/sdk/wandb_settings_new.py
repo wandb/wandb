@@ -3,6 +3,7 @@ from distutils.util import strtobool
 import enum
 import multiprocessing
 import os
+import platform
 import re
 import tempfile
 import time
@@ -23,8 +24,11 @@ from typing import (
 from urllib.parse import urljoin
 
 import wandb
+from wandb import util
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
+
+from .lib.ipython import _get_python_type
 
 
 def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
@@ -66,7 +70,7 @@ def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
 @enum.unique
 class Source(enum.IntEnum):
     OVERRIDE: int = 0
-    BASE: int = 1
+    BASE: int = 1  # fixme: audit this
     ORG: int = 2
     ENTITY: int = 3
     PROJECT: int = 4
@@ -278,7 +282,7 @@ class Settings:
         self.__frozen: bool = False
         self.__initialized: bool = False
 
-        # at init, explicitly assign attributes for static type checking
+        # at init, explicitly assign attributes for static type checking purposes
         # once initialized, attributes are to be updated using the update method
         self._args = {
             "value": None,
@@ -717,7 +721,7 @@ class Settings:
         self.username = {
             "value": None,
             "validator": lambda x: isinstance(x, str),
-        },
+        }
 
         # fixme: debug
         self.lol_id = {
@@ -725,36 +729,39 @@ class Settings:
             "preprocessor": lambda x: str(x),
             "validator": lambda x: isinstance(x, str),
             "hook": lambda x: self._join_with_base_url(x),
+            "is_policy": True,
         }
 
-        # update overridden defaults from kwargs
-        unexpected_arguments = []
-        for k, v in kwargs.items():
-            if k in self.__dict__:
-                self.__dict__[k]["value"] = v
-            else:
-                unexpected_arguments.append(k)
-        # allow only expected arguments
-        if unexpected_arguments:
-            raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
-        # re-init attributes as Property objects
+        # re-init attributes as Property objects. These are defaults, using Source.BASE
         for key, specs in self.__dict__.items():
             if isinstance(specs, dict):
                 object.__setattr__(
                     self,
                     key,
-                    Property(name=key, **specs, source=Source.SETTINGS),
+                    Property(
+                        name=key,
+                        **specs,
+                        # todo: double-check this logic:
+                        source=Source.ARGS if specs.get("is_policy", False) else Source.BASE
+                    ),
                 )
+
+        # update overridden defaults from kwargs
+        unexpected_arguments = []
+        for k, v in kwargs.items():
+            if k in self.__dict__:
+                self.update({k: v}, source=Source.SETTINGS)
+            else:
+                unexpected_arguments.append(k)
+        # allow only explicitly defined arguments
+        if unexpected_arguments:
+            raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
         # setup private attributes
         object.__setattr__(self, "_Settings_start_datetime", None)
         object.__setattr__(self, "_Settings_start_time", None)
-        # class_defaults = self._get_class_defaults()
-        # self._apply_defaults(class_defaults)
-        # self._apply_defaults(defaults)
-        # self._update(kwargs, _source=self.Source.SETTINGS)
-        # if os.environ.get(wandb.env.DIR) is None:
-        #     self.root_dir = os.path.abspath(os.getcwd())
+        if os.environ.get(wandb.env.DIR) is None:
+            self.root_dir = os.path.abspath(os.getcwd())
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
@@ -813,6 +820,47 @@ class Settings:
         if self.disabled or (self.mode in ("dryrun", "offline")):
             return True
         return False
+
+    @property
+    def _noop(self) -> bool:
+        return self.mode == "disabled"
+
+    @property
+    def _jupyter(self) -> bool:
+        return str(_get_python_type()) != "python"
+
+    @property
+    def _kaggle(self) -> bool:
+        is_kaggle = util._is_likely_kaggle()
+        if TYPE_CHECKING:
+            assert isinstance(is_kaggle, bool)
+        return is_kaggle
+
+    @property
+    def _windows(self) -> bool:
+        return platform.system() == "Windows"
+
+    @property
+    def _console(self) -> SettingsConsole:
+        convert_dict: Dict[str, SettingsConsole] = dict(
+            off=SettingsConsole.OFF,
+            wrap=SettingsConsole.WRAP,
+            redirect=SettingsConsole.REDIRECT,
+        )
+        console: str = str(self.console)
+        if console == "auto":
+            if self._jupyter:
+                console = "wrap"
+            elif self.start_method == "thread":
+                console = "wrap"
+            elif self._require_service:
+                console = "wrap"
+            elif self._windows:
+                console = "wrap"
+            else:
+                console = "redirect"
+        convert: SettingsConsole = convert_dict[console]
+        return convert
 
     @property
     def is_local(self) -> bool:
