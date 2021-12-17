@@ -53,6 +53,7 @@ def generate_docker_base_image(
 
     # this check will always pass since the dir attribute will always be populated
     # by _fetch_project_local
+    import pdb; pdb.set_trace()
     _logger.info("Importing repo2docker...")
     get_module(
         "repo2docker",
@@ -198,6 +199,8 @@ def build_docker_image_if_needed(
         requirements_line += _parse_existing_requirements(launch_project)
         requirements_line += "python _wandb_bootstrap.py\n"
 
+    import pdb; pdb.set_trace()
+
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
@@ -216,6 +219,13 @@ def build_docker_image_if_needed(
         requirements_line=requirements_line,
         name_line=name_line,
     )
+
+    # # cuda
+    # if shutil.which('nvidia-smi') is not None:
+
+
+
+
 
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
@@ -249,7 +259,7 @@ def build_docker_image_if_needed(
         API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents
     )
 
-    command_string = " ".join(command_args)
+    command_string = " ".join(command_args)      # @@@ args not working in gcp
     sanitized_command_string = re.sub(API_KEY_REGEX, "WANDB_API_KEY", command_string)
     create_metadata_file(
         launch_project, sanitized_command_string, sanitized_dockerfile_contents
