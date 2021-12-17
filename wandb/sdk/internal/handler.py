@@ -748,21 +748,3 @@ class HandleManager:
         return self._record_q.get(block=True)
 
     next = __next__
-
-    def _history_assign_runtime(self) -> None:
-        # _runtime calculation is meaningless if there is no _timestamp
-        if "_timestamp" not in self._uncommitted_history:
-            return
-        # if it is offline sync, self._run_start_time is 0
-        # in that case set it to the first tfevent timestamp
-        if self._run_start_time == 0:
-            self._run_start_time = self._uncommitted_history["_timestamp"]
-        self._uncommitted_history["_runtime"] = int(
-            self._uncommitted_history["_timestamp"] - self._run_start_time
-        )
-
-    # def _history_assign_step(self, record: Record, history_dict: Dict) -> None:
-    #     has_step = record.history.HasField("step")
-    #     step = record.history.step.num if has_step else self._step
-    #     history_dict["_step"] = step
-    #     self._step = step + 1

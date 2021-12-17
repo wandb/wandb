@@ -59,6 +59,7 @@ from wandb.viz import (
 
 from . import wandb_artifacts
 from . import wandb_config
+from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
@@ -310,6 +311,7 @@ class Run:
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
+        self.history = wandb_history.History(self)
 
         _datatypes_set_callback(self._datatypes_callback)
 
