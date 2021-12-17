@@ -4,7 +4,7 @@ tox==3.24.0
 pip
 Pillow
 pandas; python_version < '3.10'
-matplotlib<3.3.3
+matplotlib
 soundfile
 boto3
 google-cloud-storage
@@ -16,11 +16,11 @@ ipykernel
 nbclient; python_version >= '3.5'
 sklearn; python_version < '3.10'
 tensorflow>=1.15.2; python_version < '3.9'
-torch; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
-torchvision; python_version >= '3.5' and python_version < '3.9' and sys_platform == 'darwin'
-torch==1.9.0+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
-torchvision==0.10.0+cpu; python_version >= '3.5' and python_version < '3.9' and sys_platform != 'darwin'
-plotly; python_version < '3.9'
+torch; python_version >= '3.5' and python_version < '3.10' and sys_platform == 'darwin'
+torchvision; python_version >= '3.5' and python_version < '3.10' and sys_platform == 'darwin'
+torch==1.9.0+cpu; python_version >= '3.5' and python_version < '3.10' and sys_platform != 'darwin'
+torchvision==0.10.0+cpu; python_version >= '3.5' and python_version < '3.10' and sys_platform != 'darwin'
+plotly; python_version < '3.10'
 bokeh
 tqdm
 docker

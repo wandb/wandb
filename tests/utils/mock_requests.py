@@ -151,11 +151,11 @@ class RequestsMock(object):
 
     def request(self, method, url, **kwargs):
         if method.lower() == "get":
-            self.get(url, **kwargs)
+            return self.get(url, **kwargs)
         elif method.lower() == "post":
-            self.post(url, **kwargs)
+            return self.post(url, **kwargs)
         elif method.lower() == "put":
-            self.put(url, **kwargs)
+            return self.put(url, **kwargs)
         else:
             message = "Request method not implemented: %s" % method
             raise requests.RequestException(message)

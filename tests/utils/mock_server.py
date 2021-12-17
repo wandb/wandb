@@ -93,11 +93,11 @@ def mock_server(mocker):
     mock = RequestsMock(app, ctx)
     # We mock out all requests libraries, couldn't find a way to mock the core lib
     sdk_path = "wandb.sdk"
-    mocker.patch("gql.transport.requests.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.file_stream.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.internal_api.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.update.requests", mock)
     mocker.patch("wandb.wandb_sdk.internal.sender.requests", mock)
+    mocker.patch("wandb.apis.transport.requests", mock)
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
@@ -402,6 +402,8 @@ def create_app(user_ctx=None):
             ART_EMU = None
 
         body = request.get_json()
+        if body.get("variables") is None:
+            body["variables"] = {}
         app.logger.info("graphql post body: %s", body)
 
         if body["variables"].get("run"):
