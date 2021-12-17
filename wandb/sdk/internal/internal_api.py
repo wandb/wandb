@@ -1572,8 +1572,10 @@ class Api(object):
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error("upload_file exception {}: {}".format(url, e))
-            logger.error("upload_file request headers: {}".format(e.request.headers))
-            logger.error("upload_file response body: {}".format(e.response.content))
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error("upload_file request headers: {}".format(request_headers))
+            response_content = e.response.content if e.response is not None else ""
+            logger.error("upload_file response body: {}".format(response_content))
             status_code = e.response.status_code if e.response != None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
