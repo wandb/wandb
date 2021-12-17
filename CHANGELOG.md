@@ -2,7 +2,7 @@
 
 #### :bug: Bug Fix
 
-- Fix regression in `upload_file()` exception handler  by @raubitsj in https://github.com/wandb/client/pull/3059
+- Fix regression in `upload_file()` exception handler by @raubitsj in https://github.com/wandb/client/pull/3059
 
 **Full Changelog**: https://github.com/wandb/client/compare/v0.12.8...v0.12.9
 
