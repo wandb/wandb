@@ -1,3 +1,11 @@
+## 0.12.9 (December 16, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression in `upload_file()` exception handler  by @raubitsj in https://github.com/wandb/client/pull/3059
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.8...v0.12.9
+
 ## 0.12.8 (December 16, 2021)
 
 #### :nail_care: Enhancement
