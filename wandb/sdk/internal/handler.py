@@ -153,8 +153,10 @@ class HandleManager:
                 self._tb_watcher.finish()
                 self._tb_watcher = None
         elif state == defer.FLUSH_SUM:
-            self._commit_uncommitted_history()
             self._save_summary(self._consolidated_summary, flush=True)
+            self._commit_uncommitted_history()
+        elif state == defer.FLUSH_HIST:
+            self._commit_uncommitted_history()
 
         # defer is used to drive the sender finish state machine
         self._dispatch_record(record, always_send=True)

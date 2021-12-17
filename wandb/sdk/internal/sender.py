@@ -1,10 +1,8 @@
 #
-# -*- coding: utf-8 -*-
 """
 sender.
 """
 
-from __future__ import print_function
 
 from collections import defaultdict
 from datetime import datetime
@@ -98,7 +96,7 @@ class ResumeState:
         return f"ResumeState({obj})"
 
 
-class SendManager(object):
+class SendManager:
 
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
@@ -231,8 +229,8 @@ class SendManager(object):
         send_handler = getattr(self, handler_str, None)
         # Don't log output to reduce log noise
         if record_type not in {"output", "request"}:
-            logger.debug("send: {}".format(record_type))
-        assert send_handler, "unknown send handler: {}".format(handler_str)
+            logger.debug(f"send: {record_type}")
+        assert send_handler, f"unknown send handler: {handler_str}"
         send_handler(record)
 
     def send_preempting(self, record: "Record") -> None:
@@ -245,8 +243,8 @@ class SendManager(object):
         handler_str = "send_request_" + request_type
         send_handler = getattr(self, handler_str, None)
         if request_type != "network_status":
-            logger.debug("send_request: {}".format(request_type))
-        assert send_handler, "unknown handle: {}".format(handler_str)
+            logger.debug(f"send_request: {request_type}")
+        assert send_handler, f"unknown handle: {handler_str}"
         send_handler(record)
 
     def _flatten(self, dictionary: Dict) -> None:
@@ -340,7 +338,7 @@ class SendManager(object):
             except queue.Empty:
                 break
             except Exception as e:
-                logger.warning("Error emptying retry queue: {}".format(e))
+                logger.warning(f"Error emptying retry queue: {e}")
         self._result_q.put(result)
 
     def send_request_login(self, record: "Record") -> None:
@@ -352,7 +350,7 @@ class SendManager(object):
         # self._login_flags = json.loads(viewer.get("flags", "{}"))
         # self._login_entity = viewer.get("entity")
         if server_info:
-            logger.info("Login server info: {}".format(server_info))
+            logger.info(f"Login server info: {server_info}")
         self._entity = viewer.get("entity")
         if record.control.req_resp:
             result = proto_util._result_from_record(record)
@@ -380,11 +378,11 @@ class SendManager(object):
     def send_request_defer(self, record: "Record") -> None:
         defer = record.request.defer
         state = defer.state
-        logger.info("handle sender defer: {}".format(state))
+        logger.info(f"handle sender defer: {state}")
 
         def transition_state() -> None:
             state = defer.state + 1
-            logger.info("send defer: {}".format(state))
+            logger.info(f"send defer: {state}")
             self._interface.publish_defer(state)
 
         done = False
@@ -397,6 +395,9 @@ class SendManager(object):
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
         elif state == defer.FLUSH_SUM:
+            # NOTE: this is handled in handler.py:handle_request_defer()
+            transition_state()
+        elif state == defer.FLUSH_HIST:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
         elif state == defer.FLUSH_DEBOUNCER:
@@ -879,7 +880,7 @@ class SendManager(object):
             cur_time = time.time()
             timestamp = datetime.utcfromtimestamp(cur_time).isoformat() + " "
             prev_str = self._partial_output.get(stream, "")
-            line = "{}{}{}{}".format(prepend, timestamp, prev_str, line)
+            line = f"{prepend}{timestamp}{prev_str}{line}"
             self._fs.push(filenames.OUTPUT_FNAME, line)
             self._partial_output[stream] = ""
 
@@ -965,7 +966,7 @@ class SendManager(object):
             res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
             result.response.log_artifact_response.artifact_id = res["id"]
-            logger.info("logged artifact {} - {}".format(artifact.name, res))
+            logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -986,7 +987,7 @@ class SendManager(object):
             res = self._send_artifact(artifact)
             assert res, "Unable to send artifact"
             done_msg.artifact_id = res["id"]
-            logger.info("logged artifact {} - {}".format(artifact.name, res))
+            logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             done_msg.error_message = 'error logging artifact "{}/{}": {}'.format(
                 artifact.type, artifact.name, e
@@ -999,7 +1000,7 @@ class SendManager(object):
         artifact = record.artifact
         try:
             res = self._send_artifact(artifact)
-            logger.info("sent artifact {} - {}".format(artifact.name, res))
+            logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
                 'send_artifact: failed for artifact "{}/{}": {}'.format(
@@ -1062,9 +1063,7 @@ class SendManager(object):
                     wait_duration=alert.wait_duration,
                 )
             except Exception as e:
-                logger.error(
-                    'send_alert: failed for alert "{}": {}'.format(alert.title, e)
-                )
+                logger.error(f'send_alert: failed for alert "{alert.title}": {e}')
 
     def finish(self) -> None:
         logger.info("shutting down sender")
