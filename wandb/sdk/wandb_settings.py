@@ -119,7 +119,6 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
-    _runqueue_item_id="WANDB_RUNQUEUE_ITEM_ID",
 )
 
 
@@ -300,7 +299,6 @@ class Settings:
     _start_datetime: Optional[datetime]
     _unsaved_keys: List[str]
     _except_exit: Optional[bool]
-    _runqueue_item_id: Optional[str] = None
 
     # Internal attributes
     __frozen: bool
@@ -439,7 +437,6 @@ class Settings:
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
-        _runqueue_item_id: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
