@@ -744,6 +744,8 @@ class ArtifactManifestV1(ArtifactManifest):
             for name, val in manifest_json["contents"].items()
         }
 
+        print(f"Number of entries in manifest_json: {len(manifest_json)}")
+
         return cls(
             artifact, storage_policy_cls.from_config(storage_policy_config), entries
         )
