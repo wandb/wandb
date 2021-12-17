@@ -16,7 +16,6 @@ from typing import (
     Optional,
     Set,
     Sequence,
-    Tuple,
     Type,
     TYPE_CHECKING,
     Union,
@@ -53,7 +52,7 @@ def get_wandb_dir(root_dir: str) -> str:
         wandb.termwarn(f"Path {path} wasn't writable, using system temp directory")
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
-    return path
+    return os.path.expanduser(path)
 
 
 def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
@@ -65,6 +64,14 @@ def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
     except (AttributeError, ValueError):
         pass
     return ret_val
+
+
+# def
+#     os.path.expanduser(os.path.join()
+
+# join path and apply os.path.expanduser to it
+def _path_convert(*args) -> str:
+    return os.path.expanduser(os.path.join(*args))
 
 
 @enum.unique
@@ -284,128 +291,106 @@ class Settings:
 
         # at init, explicitly assign attributes for static type checking purposes
         # once initialized, attributes are to be updated using the update method
-        self._args = {
-            "value": None,
+        self._args: Any = {
             "validator": lambda x: isinstance(x, list),
         }
-        self._cli_only_mode = {
-            "value": None,
+        self._cli_only_mode: Any = {
             "validator": lambda x: isinstance(x, bool),
             "help": "Avoid running any code specific for runs",
         }
-        self._config_dict = {
-            "value": None,
+        self._config_dict: Any = {
             "validator": lambda x: isinstance(x, Config),
         }
-        self._cuda = {
-            "value": None,
+        self._cuda: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self._debug_log = {
-            "value": None,
+        self._debug_log: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._disable_meta = {
-            "value": None,
+        self._disable_meta: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self._disable_stats = {
-            "value": None,
+        self._disable_stats: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self._disable_viewer = {
-            "value": None,
+        self._disable_viewer: Any = {
             "validator": lambda x: isinstance(x, bool),
             "help": "Prevent early viewer query",
         }
-        self._except_exit = {
+        self._except_exit: Any = {
             # fixme? elsewhere it is str
-            "value": None,
             "validator": lambda x: isinstance(x, bool),
         }
-        self._executable = {
-            "value": None,
+        self._executable: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._internal_check_process = {
+        self._internal_check_process: Any = {
             "value": 8,
             "validator": lambda x: isinstance(x, int) or isinstance(x, float),
         }
-        self._internal_queue_timeout = {
+        self._internal_queue_timeout: Any = {
             "value": 2,
             "validator": lambda x: isinstance(x, int) or isinstance(x, float),
         }
-        self._jupyter_name = {
-            "value": None,
+        self._jupyter_name: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._jupyter_path = {
-            "value": None,
+        self._jupyter_path: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._jupyter_root = {
-            "value": None,
+        self._jupyter_root: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._kaggle = {
-            "value": None,
+        self._os: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._os = {
-            "value": None,
+        self._python: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._python = {
-            "value": None,
+        self._require_service: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._require_service = {
-            "value": None,
+        self._runqueue_item_id: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._runqueue_item_id = {
-            "value": None,
-            "validator": lambda x: isinstance(x, str),
-        }
-        self._save_requirements = {
+        self._save_requirements: Any = {
             "value": True,
             "validator": lambda x: isinstance(x, bool),
         }
-        self._service_transport = {
-            "value": None,
+        self._service_transport: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._start_datetime = {
-            "value": None,
+        self._start_datetime: Any = {
             "validator": lambda x: isinstance(x, datetime),
         }
-        self._start_time = {
-            "value": None,
+        # self._start_datetime: Any = Property(name="_start_datetime", validator=lambda x: isinstance(x, datetime))
+        self._start_time: Any = {
             "validator": lambda x: isinstance(x, float),
         }
-        self._unsaved_keys = {
-            "value": None,
+        self._tmp_code_dir: Any = {
+            "value": "code",
+            "validator": lambda x: isinstance(x, str),
+            "hook": lambda x: _path_convert(self.tmp_dir, x),
+        }
+        self._unsaved_keys: Any = {
             "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
         }
-        self.allow_val_change = {
-            "value": None,
+        self.allow_val_change: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.anonymous = {
-            "value": None,
+        self.anonymous: Any = {
             "validator": [
                 lambda x: isinstance(x, str),
                 self._validate_anonymous
             ],
         }
-        self.api_key = {
-            "value": None,
+        self.api_key: Any = {
             # do not preprocess api_key: as @kptkin says, it's like changing the password
             "validator": [
                 lambda x: isinstance(x, str)
             ],
         }
-        self.base_url = {
+        self.base_url: Any = {
             "value": "https://api.wandb.ai",
             "preprocessor": lambda x: str(x).rstrip("/"),
             "validator": [
@@ -414,317 +399,282 @@ class Settings:
             ],
             "help": "The base url for the wandb api.",
         }
-        self.code_dir = {
-            "value": None,
+        self.code_dir: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.config_paths = {
-            "value": None,
+        self.config_paths: Any = {
             "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
         }
-        self.console = {
+        self.console: Any = {
             "value": "auto",
             "validator": [
                 lambda x: isinstance(x, str),
                 self._validate_console,
             ],
         }
-        self.disable_code = {
-            "value": None,
+        self.disable_code: Any = {
             "validator": lambda x: isinstance(x, bool),
             "is_priority": True,
         }
-        self.disable_git = {
-            "value": None,
+        self.disable_git: Any = {
             "validator": lambda x: isinstance(x, bool),
             "is_priority": True,
         }
-        self.disabled = {
+        self.disabled: Any = {
             "value": False,
             "validator": lambda x: isinstance(x, bool),
             "help": "Alias for mode=dryrun, not supported yet",
         }
-        self.docker = {
-            "value": None,
+        self.docker: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.email = {
+        self.email: Any = {
             "value": "False",
             "validator": lambda x: isinstance(x, str),
         }
-        self.entity = {
-            "value": None,
+        self.entity: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.files_dir_spec = {
+        self.files_dir: Any = {
             "value": "files",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "hook": lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
         }
-        self.force = {
-            "value": None,
+        self.force: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.git_remote = {
+        self.git_remote: Any = {
             "value": "origin",
             "validator": lambda x: isinstance(x, str),
         }
-        self.heartbeat_seconds = {
+        self.heartbeat_seconds: Any = {
             "value": 30,
             "validator": lambda x: isinstance(x, int),
         }
-        self.host = {
-            "value": None,
+        self.host: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.ignore_globs = {
+        self.ignore_globs: Any = {
             "value": tuple(),
             "validator": lambda x: isinstance(x, Sequence),
         }
-        self.label_disable = {
-            "value": None,
+        self.label_disable: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.launch = {
-            "value": None,
+        self.launch: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.launch_config_path = {
-            "value": None,
+        self.launch_config_path: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.log_dir_spec = {
+        self.log_dir: Any = {
             "value": "logs",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "hook": lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
         }
-        self.log_internal_spec = {
+        self.log_internal: Any = {
             "value": "debug-internal.log",
             "validator": lambda x: isinstance(x, str),
+            "hook": lambda x: _path_convert(self.log_dir, x),
         }
-        self.log_symlink_internal_spec = {
+        self.log_symlink_internal: Any = {
             "value": "debug-internal.log",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, x),
+            "hook": lambda x: _path_convert(self.wandb_dir, x),
         }
-        self.log_symlink_user_spec = {
+        self.log_symlink_user: Any = {
             "value": "debug.log",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, x),
+            "hook": lambda x: _path_convert(self.wandb_dir, x),
         }
-        self.log_user_spec = {
+        self.log_user: Any = {
             "value": "debug.log",
             "validator": lambda x: isinstance(x, str),
+            "hook": lambda x: _path_convert(self.log_dir, x),
         }
-        self.login_timeout = {
-            "value": None,
+        self.login_timeout: Any = {
             "preprocessor": lambda x: float(x),
             "validator": lambda x: isinstance(x, float),
         }
-        self.magic = {
-            "value": None,
+        self.magic: Any = {
             "validator": lambda x: isinstance(x, str) or isinstance(x, bool) or isinstance(x, Dict),
         }
-        self.mode = {
+        self.mode: Any = {
             "value": "online",
             "validator": [
                 lambda x: isinstance(x, str),
                 self._validate_mode,
             ],
         }
-        self.notebook_name = {
-            "value": None,
+        self.notebook_name: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.problem = {
+        self.problem: Any = {
             "value": "fatal",
             "validator": [
                 lambda x: isinstance(x, str),
                 self._validate_problem
             ],
         }
-        self.program = {
-            "value": None,
+        self.program: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.program_relpath = {
-            "value": None,
+        self.program_relpath: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.project = {
-            "value": None,
+        self.project: Any = {
             "validator": [
                 lambda x: isinstance(x, str),
                 self._validate_project,
             ],
         }
-        self.quiet = {
-            "value": None,
+        self.quiet: Any = {
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
-        self.reinit = {
-            "value": None,
+        self.reinit: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.relogin = {
-            "value": None,
+        self.relogin: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.resume = {
-            "value": None,
+        self.resume: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.resume_fname_spec = {
+        self.resume_fname: Any = {
             "value": "wandb-resume.json",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, x),
+            "hook": lambda x: _path_convert(self.wandb_dir, x),
         }
-        self.root_dir = {
-            "value": None,
+        self.root_dir: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.run_group = {
-            "value": None,
+        self.run_group: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.run_id = {
-            "value": None,
+        self.run_id: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.run_job_type = {  # TODO(jhr): Audit this
-            "value": None,
+        self.run_job_type: Any = {  # TODO(jhr): Audit this
             "validator": lambda x: isinstance(x, str),
         }
-        self.run_name = {
-            "value": None,
+        self.run_name: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.run_notes = {
-            "value": None,
+        self.run_notes: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.run_tags = {
-            "value": None,
+        self.run_tags: Any = {
             "validator": lambda x: isinstance(x, tuple),
         }
-        self.sagemaker_disable = {
-            "value": None,
+        self.sagemaker_disable: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.save_code = {
-            "value": None,
+        self.save_code: Any = {
             "validator": lambda x: isinstance(x, bool),
             "is_priority": True,
         }
-        self.settings_system_spec = {
+        self.settings_system: Any = {
             "value": "~/.config/wandb/settings",
             "validator": lambda x: isinstance(x, str),
+            "hook": lambda x: _path_convert(x),
         }
-        self.settings_workspace_spec = {
+        self.settings_workspace: Any = {
             "value": "settings",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, x),
+            "hook": lambda x: _path_convert(self.wandb_dir, x),
         }
-        self.show_colors = {
-            "value": None,
+        self.show_colors: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.show_emoji = {
-            "value": None,
+        self.show_emoji: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
-        self.show_errors = {
+        self.show_errors: Any = {
             "value": "True",
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
-        self.show_info = {
+        self.show_info: Any = {
             "value": "True",
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
-        self.show_warnings = {
+        self.show_warnings: Any = {
             "value": "True",
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
-        self.silent = {
+        self.silent: Any = {
             "value": "False",
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
-        self.start_method = {
-            "value": None,
+        self.start_method: Any = {
             "validator": [
                 lambda x: isinstance(x, str),
                 self._validate_start_method,
             ],
         }
-        self.strict = {
-            "value": None,
+        self.strict: Any = {
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
-        self.summary_errors = {
-            "value": None,
+        self.summary_errors: Any = {
             "validator": lambda x: isinstance(x, int),
         }
-        self.summary_warnings = {
+        self.summary_warnings: Any = {
             "value": 5,
             "preprocessor": lambda x: int(x),
             "validator": lambda x: isinstance(x, int),
             "is_policy": True,
         }
-        self.sweep_id = {
-            "value": None,
+        self.sweep_id: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.sweep_param_path = {
-            "value": None,
+        self.sweep_param_path: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self.symlink = {
-            "value": None,
+        self.symlink: Any = {
             "validator": lambda x: isinstance(x, bool),  # probed
         }
-        self.sync_dir_spec = {
-            "value": None,
+        self.sync_dir: Any = {
             "validator": lambda x: isinstance(x, str),
             "hook": [
-                lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}")
+                lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}")
             ],
         }
-        self.sync_file_spec = {
-            "value": None,
+        self.sync_file: Any = {
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: f"run-{self.run_id}.wandb",
+            "hook": lambda x: _path_convert(self.sync_dir, f"run-{self.run_id}.wandb"),
         }
-        self.sync_symlink_latest_spec = {
+        self.sync_symlink_latest: Any = {
             "value": "latest-run",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, x),
+            "hook": lambda x: _path_convert(self.wandb_dir, x),
         }
-        self.system_sample = {
+        self.system_sample: Any = {
             "value": 15,
             "validator": lambda x: isinstance(x, int),
         }
-        self.system_sample_seconds = {
+        self.system_sample_seconds: Any = {
             "value": 2,
             "validator": lambda x: isinstance(x, int),
         }
-        self.tmp_dir_spec = {
+        self.tmp_dir: Any = {
             "value": "tmp",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: os.path.join(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "hook": lambda x: (
+                _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x)
+                or tempfile.gettempdir()
+            ),
         }
-        self.username = {
-            "value": None,
+        self.username: Any = {
             "validator": lambda x: isinstance(x, str),
         }
 
         # fixme: debug
-        self.lol_id = {
+        self.lol_id: Any = {
             "value": "abc123",
             "preprocessor": lambda x: str(x),
             "validator": lambda x: isinstance(x, str),
@@ -760,6 +710,7 @@ class Settings:
         # setup private attributes
         object.__setattr__(self, "_Settings_start_datetime", None)
         object.__setattr__(self, "_Settings_start_time", None)
+
         if os.environ.get(wandb.env.DIR) is None:
             self.root_dir = os.path.abspath(os.getcwd())
 
@@ -849,13 +800,12 @@ class Settings:
         )
         console: str = str(self.console)
         if console == "auto":
-            if self._jupyter:
-                console = "wrap"
-            elif self.start_method == "thread":
-                console = "wrap"
-            elif self._require_service:
-                console = "wrap"
-            elif self._windows:
+            if (
+                self._jupyter
+                or (self.start_method == "thread")
+                or self._require_service
+                or self._windows
+            ):
                 console = "wrap"
             else:
                 console = "redirect"
