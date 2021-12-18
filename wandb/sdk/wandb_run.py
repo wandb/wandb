@@ -2908,12 +2908,13 @@ class _LazyArtifact(ArtifactInterface):
             timestamp = time.time()
             f.write(f"{timestamp}, in wait() after _future.get().response,{mem_used}\n")
 
-        assert isinstance(
-            self._instance, ArtifactInterface
-        ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
-            resp.artifact_id, self._api.client.app_url
-        )
-        return self._instance
+        # assert isinstance(
+        #     self._instance, ArtifactInterface
+        # ), "Insufficient permissions to fetch Artifact with id {} from {}".format(
+        #     resp.artifact_id, self._api.client.app_url
+        # )
+        # return self._instance
+        return None
 
     @property
     def id(self) -> Optional[str]:
