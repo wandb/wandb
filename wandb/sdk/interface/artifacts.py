@@ -855,13 +855,15 @@ class ArtifactsCache(object):
         return self._artifacts_by_id.get(artifact_id)
 
     def store_artifact(self, artifact):
-        self._artifacts_by_id[artifact.id] = artifact
+        pass
+        # self._artifacts_by_id[artifact.id] = artifact
 
     def get_client_artifact(self, client_id):
         return self._artifacts_by_client_id.get(client_id)
 
     def store_client_artifact(self, artifact):
-        self._artifacts_by_client_id[artifact._client_id] = artifact
+        pass
+        # self._artifacts_by_client_id[artifact._client_id] = artifact
 
     def cleanup(self, target_size: int) -> int:
         bytes_reclaimed: int = 0
@@ -940,11 +942,8 @@ _artifacts_cache = None
 
 
 def get_artifacts_cache() -> ArtifactsCache:
-    cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-    return ArtifactsCache(cache_dir)
-
-    # global _artifacts_cache
-    # if _artifacts_cache is None:
-    #     cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-    #     _artifacts_cache = ArtifactsCache(cache_dir)
-    # return _artifacts_cache
+    global _artifacts_cache
+    if _artifacts_cache is None:
+        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
+        _artifacts_cache = ArtifactsCache(cache_dir)
+    return _artifacts_cache
