@@ -940,8 +940,11 @@ _artifacts_cache = None
 
 
 def get_artifacts_cache() -> ArtifactsCache:
-    global _artifacts_cache
-    if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-        _artifacts_cache = ArtifactsCache(cache_dir)
-    return _artifacts_cache
+    cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
+    return ArtifactsCache(cache_dir)
+
+    # global _artifacts_cache
+    # if _artifacts_cache is None:
+    #     cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
+    #     _artifacts_cache = ArtifactsCache(cache_dir)
+    # return _artifacts_cache
