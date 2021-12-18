@@ -16,7 +16,11 @@ import logging
 import os
 import sys
 import threading
-from typing import Optional
+from typing import (
+    Any,
+    Dict,
+    Optional,
+)
 
 import wandb
 
@@ -35,7 +39,7 @@ def _set_logger(log_object):
     logger = log_object
 
 
-class _EarlyLogger(object):
+class _EarlyLogger:
     """Early logger which captures logs in memory until logging can be configured."""
 
     def __init__(self):
@@ -73,13 +77,17 @@ class _EarlyLogger(object):
             logger.exception(msg, *args, **kwargs)
 
 
-class _WandbSetup__WandbSetup(object):  # noqa: N801
+class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
     _manager: Optional[wandb_manager._Manager]
 
-    def __init__(self, settings=None, environ=None, pid=None):
-        self._settings = None
+    def __init__(
+        self,
+        settings: Optional[Dict[str, Any]] = None,
+        environ: Optional[Dict[str, Any]] = None,
+        pid: Optional[int] = None
+    ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
@@ -95,7 +103,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         self._early_logger = _EarlyLogger()
         _set_logger(self._early_logger)
 
-        self._settings_setup(settings, self._early_logger)
+        self._settings = self._settings_setup(settings, self._early_logger)
         self._settings.freeze()
 
         wandb.termsetup(self._settings, logger)
@@ -107,19 +115,17 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         if debug_log_mode:
             debug_log.enable(debug_log_mode)
 
-    def _settings_setup(self, settings=None, early_logger=None):
-        # TODO: Do a more formal merge of user settings from the backend.
+    def _settings_setup(
+        self,
+        settings: Optional[Dict[str, Any]] = None,
+        early_logger: Optional[_EarlyLogger] = None
+    ):
         s = wandb_settings.Settings()
-        s._apply_configfiles(_logger=early_logger)
-        s._apply_environ(self._environ, _logger=early_logger)
+        s.apply_config_files(_logger=early_logger)
+        s.apply_env(self._environ, _logger=early_logger)
 
-        # NOTE: Do not update user settings until wandb.init() time
-        # if not s._offline:
-        #    user_settings = self._load_user_settings(settings=settings)
-        #    s._apply_user(user_settings, _logger=early_logger)
-
-        if settings:
-            s._apply_settings(settings, _logger=early_logger)
+        if settings is not None:
+            s.apply_settings(settings, _logger=early_logger)
 
         # setup defaults
         s.setdefaults()
@@ -127,10 +133,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         if not s._cli_only_mode:
             s._infer_run_settings_from_env(_logger=early_logger)
 
-        # move freeze to later
-        # TODO(jhr): is this ok?
-        # s.freeze()
-        self._settings = s
+        return s
 
     def _update(self, settings=None):
         if settings:
