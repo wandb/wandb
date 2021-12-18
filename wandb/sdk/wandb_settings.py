@@ -400,6 +400,10 @@ class Settings:
         self._python: Any = {
             "validator": lambda x: isinstance(x, str),
         }
+        self._quiet: Any = {
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
         self._require_service: Any = {
             "validator": lambda x: isinstance(x, str),
         }
@@ -412,6 +416,26 @@ class Settings:
         }
         self._service_transport: Any = {
             "validator": lambda x: isinstance(x, str),
+        }
+        self._show_errors: Any = {
+            "value": "True",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
+        self._show_info: Any = {
+            "value": "True",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
+        self._show_warnings: Any = {
+            "value": "True",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
+        self._silent: Any = {
+            "value": "False",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
         }
         self._start_datetime: Any = {
             "validator": lambda x: isinstance(x, datetime),
@@ -581,10 +605,6 @@ class Settings:
                 self._validate_project,
             ],
         }
-        self.quiet: Any = {
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
         self.reinit: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
@@ -641,26 +661,6 @@ class Settings:
             "validator": lambda x: isinstance(x, bool),
         }
         self.show_emoji: Any = {
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self.show_errors: Any = {
-            "value": "True",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self.show_info: Any = {
-            "value": "True",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self.show_warnings: Any = {
-            "value": "True",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self.silent: Any = {
-            "value": "False",
-            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.start_method: Any = {
@@ -966,7 +966,7 @@ class Settings:
 
         self.update(settings, source=Source.ENV)
 
-    def infer_run_settings_from_env(
+    def infer_run_settings_from_environment(
         self,
         _logger: Optional[_EarlyLogger] = None,
     ) -> None:
@@ -991,6 +991,17 @@ class Settings:
             )
 
         self.update(settings, source=Source.ENV)
+
+    def apply_user(
+        self,
+        user_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None
+    ) -> None:
+        if _logger:
+            _logger.info(
+                f"Applying user settings: {_redact_dict(user_settings)}"
+            )
+        self.update(user_settings, source=Source.USER)
 
     # computed properties
     @property
