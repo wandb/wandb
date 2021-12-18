@@ -2901,7 +2901,7 @@ class _LazyArtifact(ArtifactInterface):
             resp = self._future.get().response.log_artifact_response
             if resp.error_message:
                 raise ValueError(resp.error_message)
-            self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
+            # self._instance = public.Artifact.from_id(resp.artifact_id, self._api.client)
 
         with open("memory-use-artifact-wait.txt", "a") as f:
             mem_used = psutil.virtual_memory()[3]
