@@ -122,33 +122,33 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     ):
         s = wandb_settings.Settings()
         s.apply_config_files(_logger=early_logger)
-        s.apply_env(self._environ, _logger=early_logger)
+        s.apply_env_vars(self._environ, _logger=early_logger)
 
         if settings is not None:
             s.apply_settings(settings, _logger=early_logger)
+            s.update(settings, source=wandb_settings.Source.SETUP)
 
-        # setup defaults
-        s.setdefaults()
-        s._infer_settings_from_env()
+        s.infer_settings_from_environment()
         if not s._cli_only_mode:
-            s._infer_run_settings_from_env(_logger=early_logger)
+            s.infer_run_settings_from_environment(_logger=early_logger)
 
         return s
 
-    def _update(self, settings=None):
-        if settings:
-            s = self._clone_settings()
-            s._apply_settings(settings=settings)
-            self._settings = s.freeze()
+    def _update(self, settings: Dict[str, Any] = None):
+        if settings is not None:
+            # self._settings.unfreeze()
+            self._settings.update(settings, source=wandb_settings.Source.SETUP)
+            # self._settings.freeze()
 
     def _update_user_settings(self, settings=None):
         settings = settings or self._settings
-        s = self._clone_settings()
         # Get rid of cached results to force a refresh.
         self._server = None
         user_settings = self._load_user_settings(settings=settings)
-        s._apply_user(user_settings)
-        self._settings = s.freeze()
+        if user_settings is not None:
+            # self._settings.unfreeze()
+            self._settings.apply_user(user_settings)
+            # self._settings.freeze()
 
     def _early_logger_flush(self, new_logger):
         if not self._early_logger:
@@ -165,11 +165,12 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         return self._settings
 
     def _clone_settings(self, __d=None, **kwargs):
+        raise Exception("_clone_settings is deprecated")
         s = copy.copy(self._settings)
         s.update(__d, **kwargs)
         return s
 
-    def _get_entity(self):
+    def _get_entity(self) -> Optional[str]:
         if self._settings and self._settings._offline:
             return None
         if self._server is None:
@@ -177,16 +178,20 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         entity = self._server._viewer.get("entity")
         return entity
 
-    def _load_viewer(self, settings=None):
+    def _load_viewer(self, settings=None) -> None:
         if self._settings and self._settings._offline:
             return
         s = server.Server(settings=settings)
         s.query_with_timeout()
         self._server = s
 
-    def _load_user_settings(self, settings=None):
+    def _load_user_settings(self, settings=None) -> Optional[Dict[str, Any]]:
         if self._server is None:
-            self._load_viewer()
+            self._load_viewer(settings=settings)
+
+        # offline?
+        if self._server is None:
+            return None
 
         flags = self._server._flags
         user_settings = {}
@@ -203,13 +208,10 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if hasattr(threading, "main_thread"):
             if threading.current_thread() is not threading.main_thread():
                 pass
-                # print("bad thread")
         elif threading.current_thread().name != "MainThread":
             print("bad thread2", threading.current_thread().name)
         if getattr(sys, "frozen", False):
             print("frozen, could be trouble")
-        # print("t2", multiprocessing.get_start_method(allow_none=True))
-        # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
         self._setup_manager()

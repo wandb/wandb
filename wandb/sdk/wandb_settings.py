@@ -2,10 +2,13 @@ import configparser
 from datetime import datetime
 from distutils.util import strtobool
 import enum
+import getpass
 import multiprocessing
 import os
 import platform
 import re
+import socket
+import sys
 import tempfile
 import time
 from typing import (
@@ -31,11 +34,8 @@ from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
+from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
-
-
-def _build_inverse_map(prefix: str, d: Dict[str, Optional[str]]) -> Dict[str, str]:
-    return {v or prefix + k.upper(): k for k, v in d.items()}
 
 
 def get_wandb_dir(root_dir: str) -> str:
@@ -91,6 +91,40 @@ def _redact_dict(
     safe_dict = d.copy()
     safe_dict.update({k: redact_str for k in unsafe_keys.intersection(d)})
     return safe_dict
+
+
+def _get_program() -> Optional[Any]:
+    program = os.getenv(wandb.env.PROGRAM)
+    if program is not None:
+        return program
+    try:
+        import __main__  # type: ignore
+        return __main__.__file__
+    except (ImportError, AttributeError):
+        return None
+
+
+def _get_program_relpath_from_gitrepo(
+    program: str, _logger: Optional[_EarlyLogger] = None
+) -> Optional[str]:
+    repo = GitRepo()
+    root = repo.root
+    if not root:
+        root = os.getcwd()
+    full_path_to_program = os.path.join(
+        root, os.path.relpath(os.getcwd(), root), program
+    )
+    if os.path.exists(full_path_to_program):
+        relative_path = os.path.relpath(full_path_to_program, start=root)
+        if "../" in relative_path:
+            if _logger is not None:
+                _logger.warning(f"Could not save program above cwd: {program}")
+            return None
+        return relative_path
+
+    if _logger is not None:
+        _logger.warning(f"Could not find program at {program}")
+    return None
 
 
 @enum.unique
@@ -311,7 +345,7 @@ class Settings:
         # at init, explicitly assign attributes for static type checking purposes
         # once initialized, attributes are to be updated using the update method
         self._args: Any = {
-            "validator": lambda x: isinstance(x, list),
+            "validator": lambda x: isinstance(x, Sequence),
         }
         self._cli_only_mode: Any = {
             "validator": lambda x: isinstance(x, bool),
@@ -345,11 +379,11 @@ class Settings:
         }
         self._internal_check_process: Any = {
             "value": 8,
-            "validator": lambda x: isinstance(x, int) or isinstance(x, float),
+            "validator": lambda x: isinstance(x, (int, float)),
         }
         self._internal_queue_timeout: Any = {
             "value": 2,
-            "validator": lambda x: isinstance(x, int) or isinstance(x, float),
+            "validator": lambda x: isinstance(x, (int, float)),
         }
         self._jupyter_name: Any = {
             "validator": lambda x: isinstance(x, str),
@@ -516,7 +550,7 @@ class Settings:
             "validator": lambda x: isinstance(x, float),
         }
         self.magic: Any = {
-            "validator": lambda x: isinstance(x, str) or isinstance(x, bool) or isinstance(x, Dict),
+            "validator": lambda x: isinstance(x, (str, bool, dict)),
         }
         self.mode: Any = {
             "value": "online",
@@ -812,7 +846,7 @@ class Settings:
                 source=Source.WORKSPACE,
             )
 
-    def apply_env(
+    def apply_env_vars(
         self,
         environ: Mapping[str, Any],
        _logger: Optional[_EarlyLogger] = None,
@@ -836,6 +870,7 @@ class Settings:
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
             else:
+                # otherwise, strip the prefix and convert to lowercase
                 key = setting[len(env_prefix):].lower()
 
             if key in self.__dict__:
@@ -843,12 +878,119 @@ class Settings:
             elif _logger is not None:
                 _logger.warning(f"Unknown environment variable: {setting}")
 
-        if _logger:
+        if _logger is not None:
             _logger.info(
                 f"Loading settings from environment variables: {_redact_dict(env)}"
             )
 
         self.update(env, source=Source.ENV)
+
+    def infer_settings_from_environment(
+        self,
+        _logger: Optional[_EarlyLogger] = None
+    ) -> None:
+        """Modify settings based on environment (for runs and cli)."""
+
+        settings: Dict[str, Union[bool, str, Sequence]] = dict()
+        # disable symlinks if on windows (requires admin or developer setup)
+        settings["symlink"] = True
+        if self._windows:
+            settings["symlink"] = False
+
+        # TODO(jhr): this needs to be moved last in setting up settings ?
+        #  (dd): loading order does not matter as long as source is set correctly
+
+        # For code saving, only allow env var override if value from server is true, or
+        # if no preference was specified.
+        if (
+            (self.save_code is True or self.save_code is None)
+            and os.getenv(wandb.env.SAVE_CODE) is not None
+            or os.getenv(wandb.env.DISABLE_CODE) is not None
+        ):
+            settings["save_code"] = wandb.env.should_save_code()
+
+        settings["disable_git"] = wandb.env.disable_git()
+
+        # Attempt to get notebook information if not already set by the user
+        if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
+            meta = wandb.jupyter.notebook_metadata(self._silent)
+            settings["_jupyter_path"] = meta.get("path")
+            settings["_jupyter_name"] = meta.get("name")
+            settings["_jupyter_root"] = meta.get("root")
+        elif (
+            self._jupyter
+            and self.notebook_name is not None
+            and os.path.exists(self.notebook_name)
+        ):
+            settings["_jupyter_path"] = self.notebook_name
+            settings["_jupyter_name"] = self.notebook_name
+            settings["_jupyter_root"] = os.getcwd()
+        elif self._jupyter:
+            wandb.termwarn(
+                "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
+                f"couldn't find {self.notebook_name}"
+            )
+
+        # host and username are populated by apply_env_vars if corresponding env
+        # vars exist -- but if they don't, we'll fill them in here
+        if self.host is None:
+            settings["host"] = socket.gethostname()
+
+        if self.username is None:
+            try:
+                settings["username"] = getpass.getuser()
+            except KeyError:
+                # getuser() could raise KeyError in restricted environments like
+                # chroot jails or docker containers. Return user id in these cases.
+                settings["username"] = str(os.getuid())
+
+        settings["_executable"] = sys.executable
+
+        settings["docker"] = wandb.env.get_docker(wandb.util.image_id_from_k8s())
+
+        # TODO: we should use the cuda library to collect this
+        if os.path.exists("/usr/local/cuda/version.txt"):
+            with open("/usr/local/cuda/version.txt") as f:
+                settings["_cuda"] = f.read().split(" ")[-1].strip()
+        settings["_args"] = sys.argv[1:]
+        settings["_os"] = platform.platform(aliased=True)
+        settings["_python"] = platform.python_version()
+        # hack to make sure we don't hang on windows
+        if self._windows and self._except_exit is None:
+            settings["_except_exit"] = True
+
+        if _logger is not None:
+            _logger.info(
+                f"Inferring settings from compute environment: {_redact_dict(settings)}"
+            )
+
+        self.update(settings, source=Source.ENV)
+
+    def infer_run_settings_from_env(
+        self,
+        _logger: Optional[_EarlyLogger] = None,
+    ) -> None:
+        """Modify settings based on environment (for runs only)."""
+        # If there's not already a program file, infer it now.
+        settings: Dict[str, Union[bool, str, None]] = dict()
+        program = self.program or _get_program()
+        if program is not None:
+            program_relpath = (
+                    self.program_relpath
+                    or _get_program_relpath_from_gitrepo(program, _logger=_logger)
+            )
+            settings["program_relpath"] = program_relpath
+        else:
+            program = "<python with no main file>"
+
+        settings["program"] = program
+
+        if _logger is not None:
+            _logger.info(
+                f"Inferring run settings from compute environment: {_redact_dict(settings)}"
+            )
+
+        self.update(settings, source=Source.ENV)
 
     # computed properties
     @property
