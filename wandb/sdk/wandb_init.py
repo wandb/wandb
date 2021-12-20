@@ -37,7 +37,7 @@ from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
-from .wandb_settings import Settings
+from .wandb_settings import Settings, Source
 
 
 logger = None  # logger configured during wandb.init()
@@ -107,27 +107,25 @@ class _WandbInit(object):
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings: Settings = self._wl._clone_settings()
+        settings: Settings = self._wl._settings
         settings_param = kwargs.pop("settings", None)
         if settings_param:
-            settings._apply_settings(settings_param)
+            settings.update(settings_param, source=Source.INIT)
 
-        self._reporter = reporting.setup_reporter(
-            settings=settings.duplicate().freeze()
-        )
+        self._reporter = reporting.setup_reporter(settings=settings)
 
-        sm_config: Dict = (
-            {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        sagemaker_config: Dict = (
+            dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
         )
-        if sm_config:
-            sm_api_key = sm_config.get("wandb_api_key", None)
-            sm_run, sm_env = sagemaker.parse_sm_resources()
-            if sm_env:
-                if sm_api_key:
-                    sm_env["WANDB_API_KEY"] = sm_api_key
-                settings._apply_environ(sm_env)
+        if sagemaker_config:
+            sagemaker_api_key = sagemaker_config.get("wandb_api_key", None)
+            sagemaker_run, sagemaker_env = sagemaker.parse_sm_resources()
+            if sagemaker_env:
+                if sagemaker_api_key:
+                    sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
+                settings.apply_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
-            settings._apply_setup(sm_run)
+            settings.update(sagemaker_run, source=Source.SETUP)
             self._use_sagemaker = True
         self._set_init_telemetry_attrs(kwargs)
         # Remove parameters that are not part of settings
@@ -136,7 +134,7 @@ class _WandbInit(object):
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
-        # Add deprecation message once we can better track it and document alternatives
+        # todo: add deprecation message once PR #3028 is merged
         # if config_include_keys or config_exclude_keys:
         #     wandb.termwarn(
         #       "config_include_keys and config_exclude_keys are deprecated:"
@@ -148,10 +146,10 @@ class _WandbInit(object):
             init_config, include=config_include_keys, exclude=config_exclude_keys
         )
 
-        # merge config with sweep or sm (or config file)
+        # merge config with sweep or sagemaker (or config file)
         self.sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
-        for config_data in sm_config, self._wl._config, init_config:
+        for config_data in sagemaker_config, self._wl._config, init_config:
             if not config_data:
                 continue
             for k, v in config_data.items():
@@ -171,39 +169,49 @@ class _WandbInit(object):
             magic_install(kwargs)
 
         # handle login related parameters as these are applied to global state
-        anonymous = kwargs.pop("anonymous", None)
-        force = kwargs.pop("force", None)
+        init_settings = dict()
+        for key in ["anonymous", "force", "mode"]:
+            if key in kwargs and kwargs[key] is not None:
+                init_settings[key] = kwargs.get(key)
+        if init_settings:
+            settings.update(init_settings, source=Source.INIT)
 
-        # TODO: move above parameters into apply_init_login
-        settings._apply_init_login(kwargs)
-
+        # fixme: does not work yet
         if not settings._offline and not settings._noop:
             wandb_login._login(
-                anonymous=anonymous,
-                force=force,
+                anonymous=kwargs.pop("anonymous", None),
+                force=kwargs.pop("force", None),
                 _disable_warning=True,
-                _silent=(settings._quiet or settings._silent) is True,
+                _silent=settings._quiet or settings._silent,
             )
 
+        # fixme: hopefully such a brutal thing is not needed ???
+        # todo: check what exactly needs to be updated here
         # apply updated global state after login was handled
-        settings._apply_settings(wandb.setup()._settings)
+        # settings._apply_settings(wandb.setup()._settings)
 
         # get status of code saving before applying user settings
-        save_code_pre_user_settings = settings["save_code"]
+        save_code_pre_user_settings = settings.save_code
 
-        settings._apply_init(kwargs)
+        settings.apply_init(kwargs)
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
-            settings._apply_user(user_settings)
+            settings.apply_user(user_settings)
 
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false
         if save_code_pre_user_settings is False:
-            settings.update({"save_code": False})
+            settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
-        settings.update(d)
+        time_stamp: float = time.time()
+        settings.update(
+            {
+                "_start_time": time_stamp,
+                "_start_datetime": datetime.datetime.fromtimestamp(time_stamp)
+            },
+            source=Source.INIT,
+        )
 
         if not settings._noop:
             self._log_setup(settings)
@@ -211,7 +219,8 @@ class _WandbInit(object):
             if settings._jupyter:
                 self._jupyter_setup(settings)
 
-        self.settings = settings.freeze()
+        self.settings = settings
+        # self.settings.freeze()
 
     def teardown(self):
         # TODO: currently this is only called on failed wandb.init attempts
@@ -400,7 +409,8 @@ class _WandbInit(object):
         return drun
 
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
-        assert logger
+        if logger is None:
+            raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
         trigger.call("on_init", **self.kwargs)
         s = self.settings
@@ -417,30 +427,25 @@ class _WandbInit(object):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
-                        "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
+                        "If you want to track multiple runs concurrently in wandb, "
+                        "you should use multi-processing not threads"  # noqa: E501
                     )
 
                 last_id = self._wl._global_run_stack[-1]._run_id
                 logger.info(
-                    "re-initializing run, found existing run on stack: {}".format(
-                        last_id
-                    )
+                    f"re-initializing run, found existing run on stack: {last_id}"
                 )
                 jupyter = s._jupyter and not s._silent and ipython.in_jupyter()
                 if jupyter:
                     ipython.display_html(
-                        "Finishing last run (ID:{}) before initializing another...".format(
-                            last_id
-                        )
+                        f"Finishing last run (ID:{last_id}) before initializing another..."
                     )
 
                 self._wl._global_run_stack[-1].finish()
 
                 if jupyter:
                     ipython.display_html(
-                        "Successfully finished last run (ID:{}). Initializing new run:<br/>".format(
-                            last_id
-                        )
+                        f"Successfully finished last run (ID:{last_id}). Initializing new run:<br/>"
                     )
         elif isinstance(wandb.run, Run):
             allow_return_run = True
@@ -448,7 +453,7 @@ class _WandbInit(object):
             if manager:
                 current_pid = os.getpid()
                 if current_pid != wandb.run._init_pid:
-                    # We shouldnt return a stale global run if we are in a new pid
+                    # We shouldn't return a stale global run if we are in a new pid
                     allow_return_run = False
 
             if allow_return_run:
@@ -557,7 +562,8 @@ class _WandbInit(object):
             run._set_run_obj_offline(run_proto)
             if s.resume:
                 wandb.termwarn(
-                    f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
+                    "`resume` will be ignored since W&B syncing is set to `offline`. "
+                    f"Starting a new run with run id {run.id}."
                 )
         else:
             logger.info("communicating current version")
@@ -675,6 +681,7 @@ def _attach(
     if manager:
         manager._inform_attach(attach_id=attach_id)
 
+    # fixme
     settings: Settings = _wl._clone_settings()
     settings.run_id = attach_id
 

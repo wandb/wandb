@@ -4,11 +4,16 @@
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
 """
-from __future__ import print_function
 
 import enum
 import os
+import sys
 from typing import Dict, Optional, Tuple
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 import click
 import wandb
@@ -37,7 +42,14 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
-def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout=None):
+def login(
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
+) -> bool:
     """
     Log in to W&B.
 
@@ -49,6 +61,7 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout
         key: (string, optional) authentication key.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
+        force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
 
     Returns:
@@ -146,7 +159,7 @@ class _WandbLogin(object):
             wandb.termwarn(
                 (
                     "If you're specifying your api key in code, ensure this "
-                    "code is not shared publically.\nConsider setting the "
+                    "code is not shared publicly.\nConsider setting the "
                     "WANDB_API_KEY environment variable, or running "
                     "`wandb login` from the command line."
                 )

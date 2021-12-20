@@ -3,6 +3,7 @@ from datetime import datetime
 from distutils.util import strtobool
 import enum
 import getpass
+import json
 import multiprocessing
 import os
 import platform
@@ -36,6 +37,7 @@ from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
+from .lib.runid import generate_id
 
 
 def get_wandb_dir(root_dir: str) -> str:
@@ -150,6 +152,9 @@ class SettingsConsole(enum.Enum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
+
+    def __repr__(self):
+        return str(self.value)
 
 
 class Property:
@@ -417,26 +422,6 @@ class Settings:
         self._service_transport: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._show_errors: Any = {
-            "value": "True",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self._show_info: Any = {
-            "value": "True",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self._show_warnings: Any = {
-            "value": "True",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
-        self._silent: Any = {
-            "value": "False",
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
         self._start_datetime: Any = {
             "validator": lambda x: isinstance(x, datetime),
         }
@@ -663,6 +648,26 @@ class Settings:
         self.show_emoji: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
+        self.show_errors: Any = {
+            "value": "True",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
+        self.show_info: Any = {
+            "value": "True",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
+        self.show_warnings: Any = {
+            "value": "True",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
+        self.silent: Any = {
+            "value": "False",
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
         self.start_method: Any = {
             "validator": [
                 lambda x: isinstance(x, str),
@@ -692,12 +697,14 @@ class Settings:
             "validator": lambda x: isinstance(x, bool),  # probed
         }
         self.sync_dir: Any = {
+            "value": "<sync_dir>",
             "validator": lambda x: isinstance(x, str),
             "hook": [
                 lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}")
             ],
         }
         self.sync_file: Any = {
+            "value": "run-<run_id>.wandb",
             "validator": lambda x: isinstance(x, str),
             "hook": lambda x: _path_convert(self.sync_dir, f"run-{self.run_id}.wandb"),
         }
@@ -810,9 +817,20 @@ class Settings:
     def unfreeze(self) -> None:
         object.__setattr__(self, "_Settings__frozen", False)
 
+    def is_frozen(self) -> bool:
+        return self.__frozen
+
     def make_static(self) -> Dict[str, Any]:
         """Generate a static, serializable version of the settings."""
-        return {k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)}
+        # get attributes that are instances of the Property class:
+        attributes = {k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)}
+        # add @property-based settings:
+        properties = {
+            property_name: object.__getattribute__(self, property_name)
+            for property_name, obj in self.__class__.__dict__.items()
+            if isinstance(obj, property)
+        }
+        return {**attributes, **properties}
 
     # apply settings from different sources
     # TODO(dd): think about doing all that at init time
@@ -1003,20 +1021,98 @@ class Settings:
             )
         self.update(user_settings, source=Source.USER)
 
+    def apply_init(
+        self,
+        init_settings: Dict[str, Union[str, int, None]]
+    ) -> None:
+        # prevent setting project, entity if in sweep
+        # TODO(jhr): these should be locked elements in the future
+        if self.sweep_id:
+            for key in ("project", "entity", "id"):
+                val = init_settings.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        f"Ignored wandb.init() arg {key} when running a sweep"
+                    )
+        if self.launch:
+            for key in ("project", "entity", "id"):
+                val = init_settings.pop(key, None)
+                if val:
+                    wandb.termwarn(
+                        "Project, entity and id are ignored when running from wandb launch context. "
+                        f"Ignored wandb.init() arg {key} when running running from launch"
+                    )
+
+        # strip out items where value is None
+        param_map = dict(
+            name="run_name",
+            id="run_id",
+            tags="run_tags",
+            group="run_group",
+            job_type="run_job_type",
+            notes="run_notes",
+            dir="root_dir",
+        )
+        init_settings = {
+            param_map.get(k, k): v
+            for k, v in init_settings.items()
+            if v is not None
+        }
+        # fun logic to convert the resume init arg
+        if init_settings.get("resume"):
+            if isinstance(init_settings["resume"], str):
+                if init_settings["resume"] not in ("allow", "must", "never", "auto"):
+                    if init_settings.get("run_id") is None:
+                        #  TODO: deprecate or don't support
+                        init_settings["run_id"] = init_settings["resume"]
+                    init_settings["resume"] = "allow"
+            elif init_settings["resume"] is True:
+                init_settings["resume"] = "auto"
+
+        # update settings
+        self.update(init_settings, source=Source.INIT)
+
+        # handle auto resume logic
+        if self.resume == "auto":
+            if os.path.exists(self.resume_fname):
+                with open(self.resume_fname) as f:
+                    resume_run_id = json.load(f)["run_id"]
+                if self.run_id is None:
+                    self.run_id = resume_run_id
+                elif self.run_id != resume_run_id:
+                    wandb.termwarn(
+                        "Tried to auto resume run with "
+                        f"id {resume_run_id} but id {self.run_id} is set."
+                    )
+        self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
+        # persist our run id in case of failure
+        # check None for mypy
+        if self.resume == "auto" and self.resume_fname is not None:
+            wandb.util.mkdir_exists_ok(self.wandb_dir)
+            with open(self.resume_fname, "w") as f:
+                f.write(json.dumps({"run_id": self.run_id}))
+
     # computed properties
     @property
-    def wandb_dir(self) -> str:
-        return get_wandb_dir(self.root_dir or "")
-
-    @property
-    def _offline(self) -> bool:
-        if self.disabled or (self.mode in ("dryrun", "offline")):
-            return True
-        return False
-
-    @property
-    def _noop(self) -> bool:
-        return self.mode == "disabled"
+    def _console(self) -> SettingsConsole:
+        convert_dict: Dict[str, SettingsConsole] = dict(
+            off=SettingsConsole.OFF,
+            wrap=SettingsConsole.WRAP,
+            redirect=SettingsConsole.REDIRECT,
+        )
+        console: str = str(self.console)
+        if console == "auto":
+            if (
+                    self._jupyter
+                    or (self.start_method == "thread")
+                    or self._require_service
+                    or self._windows
+            ):
+                console = "wrap"
+            else:
+                console = "redirect"
+        convert: SettingsConsole = convert_dict[console]
+        return convert
 
     @property
     def _jupyter(self) -> bool:
@@ -1030,29 +1126,34 @@ class Settings:
         return is_kaggle
 
     @property
-    def _windows(self) -> bool:
-        return platform.system() == "Windows"
+    def _noop(self) -> bool:
+        return self.mode == "disabled"
 
     @property
-    def _console(self) -> SettingsConsole:
-        convert_dict: Dict[str, SettingsConsole] = dict(
-            off=SettingsConsole.OFF,
-            wrap=SettingsConsole.WRAP,
-            redirect=SettingsConsole.REDIRECT,
-        )
-        console: str = str(self.console)
-        if console == "auto":
-            if (
-                self._jupyter
-                or (self.start_method == "thread")
-                or self._require_service
-                or self._windows
-            ):
-                console = "wrap"
-            else:
-                console = "redirect"
-        convert: SettingsConsole = convert_dict[console]
-        return convert
+    def _offline(self) -> bool:
+        if self.disabled or (self.mode in ("dryrun", "offline")):
+            return True
+        return False
+
+    @property
+    def _show_info(self) -> Optional[bool]:
+        return self.show_info
+
+    @property
+    def _show_warnings(self) -> Optional[bool]:
+        return self.show_warnings
+
+    @property
+    def _show_errors(self) -> Optional[bool]:
+        return self.show_errors
+
+    @property
+    def _silent(self) -> Optional[bool]:
+        return self.silent
+
+    @property
+    def _windows(self) -> bool:
+        return platform.system() == "Windows"
 
     @property
     def is_local(self) -> bool:
@@ -1070,3 +1171,7 @@ class Settings:
             return datetime.strftime(
                 self._start_datetime, "%Y%m%d_%H%M%S"
             )
+
+    @property
+    def wandb_dir(self) -> str:
+        return get_wandb_dir(self.root_dir or "")

@@ -1586,14 +1586,14 @@ class Run(object):
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
-        version_str = "Tracking run with wandb version {}".format(wandb.__version__)
+        version_str = f"Tracking run with wandb version {wandb.__version__}"
         if self.resumed:
             run_state_str = "Resuming run"
         else:
             run_state_str = "Syncing run"
         run_name = self._get_run_name()
 
-        sync_dir = self._settings._sync_dir
+        sync_dir = self._settings.sync_dir
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
