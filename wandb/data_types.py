@@ -532,10 +532,7 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(columns=json_obj["columns"], data=data)
-
-        if column_types is not None:
-            new_obj._column_types = column_types
+        new_obj = cls(columns=json_obj["columns"], data=data, dtype=column_types)
 
         new_obj._update_keys()
         return new_obj
