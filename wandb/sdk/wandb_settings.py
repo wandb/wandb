@@ -1017,7 +1017,7 @@ class Settings:
     ) -> None:
         if _logger:
             _logger.info(
-                f"Applying setup settings: {_redact_dict(user_settings)}"
+                f"Applying setup settings: {_redact_dict(setup_settings)}"
             )
         self.update(setup_settings, source=Source.SETUP)
 
