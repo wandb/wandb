@@ -125,8 +125,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         s.apply_env_vars(self._environ, _logger=early_logger)
 
         if settings is not None:
-            s.apply_settings(settings, _logger=early_logger)
-            s.update(settings, source=wandb_settings.Source.SETUP)
+            s.apply_setup(settings, _logger=early_logger)
 
         s.infer_settings_from_environment()
         if not s._cli_only_mode:
@@ -194,7 +193,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             return None
 
         flags = self._server._flags
-        user_settings = {}
+        user_settings = dict()
         if "code_saving_enabled" in flags:
             user_settings["save_code"] = flags["code_saving_enabled"]
 
@@ -257,7 +256,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         return self._manager
 
 
-class _WandbSetup(object):
+class _WandbSetup:
     """Wandb singleton class.
 
     Note: This is a process local singleton.

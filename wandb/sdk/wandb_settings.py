@@ -1010,6 +1010,17 @@ class Settings:
 
         self.update(settings, source=Source.ENV)
 
+    def apply_setup(
+        self,
+        setup_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None
+    ) -> None:
+        if _logger:
+            _logger.info(
+                f"Applying setup settings: {_redact_dict(user_settings)}"
+            )
+        self.update(setup_settings, source=Source.SETUP)
+
     def apply_user(
         self,
         user_settings: Dict[str, Any],
@@ -1091,6 +1102,20 @@ class Settings:
             wandb.util.mkdir_exists_ok(self.wandb_dir)
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
+
+    def apply_login(
+        self,
+        login_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None
+    ) -> None:
+        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
+        login_settings = {param_map.get(k, k): v for k, v in login_settings.items() if v is not None}
+        if login_settings:
+            if _logger:
+                _logger.info(
+                    f"Applying login settings: {_redact_dict(login_settings)}"
+                )
+            self.update(login_settings, source=Source.LOGIN)
 
     # computed properties
     @property

@@ -22,7 +22,7 @@ from wandb.old.settings import Settings as OldSettings
 
 from .internal.internal_api import Api
 from .lib import apikey
-from .wandb_settings import Settings
+from .wandb_settings import Settings, Source
 from ..apis import InternalApi
 
 
@@ -86,7 +86,7 @@ class ApiKeyStatus(enum.Enum):
     DISABLED = 4
 
 
-class _WandbLogin(object):
+class _WandbLogin:
     def __init__(self):
         self.kwargs: Optional[Dict] = None
         self._settings: Optional[Settings] = None
@@ -100,17 +100,15 @@ class _WandbLogin(object):
         self.kwargs = kwargs
 
         # built up login settings
-        login_settings: Settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
-        if settings_param:
-            login_settings._apply_settings(settings_param)
-        _logger = wandb.setup()._get_logger()
         # Do not save relogin into settings as we just want to relogin once
         self._relogin = kwargs.pop("relogin", None)
-        login_settings._apply_login(kwargs, _logger=_logger)
 
-        # make sure they are applied globally
-        self._wl = wandb.setup(settings=login_settings)
+        self._wl = wandb.setup()
+        _logger = self._wl._get_logger()
+        self._wl.settings.apply_login(kwargs, _logger=_logger)
+        if settings_param:
+            self._wl.settings.update(settings_param, source=Source.LOGIN)
         self._settings = self._wl._settings
 
     def is_apikey_configured(self):
@@ -119,7 +117,7 @@ class _WandbLogin(object):
     def set_backend(self, backend):
         self._backend = backend
 
-    def set_silent(self, silent):
+    def set_silent(self, silent: bool):
         self._silent = silent
 
     def login(self):
@@ -150,9 +148,7 @@ class _WandbLogin(object):
             )
         else:
             login_state_str = "W&B API key is configured"
-            wandb.termlog(
-                "{} {}".format(login_state_str, login_info_str,), repeat=False,
-            )
+            wandb.termlog(f"{login_state_str} {login_info_str}", repeat=False)
 
     def configure_api_key(self, key):
         if self._settings._jupyter and not self._settings._silent:
@@ -172,7 +168,6 @@ class _WandbLogin(object):
         self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
     ) -> None:
         _logger = wandb.setup()._get_logger()
-        settings: Settings = wandb.Settings()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
             login_settings = dict(mode="offline")
@@ -180,8 +175,7 @@ class _WandbLogin(object):
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        settings._apply_source_login(login_settings, _logger=_logger)
-        self._wl._update(settings=settings)
+        self._wl._settings.apply_login(login_settings, _logger=_logger)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wl.settings._offline:
@@ -234,15 +228,15 @@ class _WandbLogin(object):
 
 
 def _login(
-    anonymous=None,
-    key=None,
-    relogin=None,
-    host=None,
-    force=None,
-    timeout=None,
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
     _backend=None,
-    _silent=None,
-    _disable_warning=None,
+    _silent: Optional[bool] = None,
+    _disable_warning: Optional[bool] = None,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)

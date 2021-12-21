@@ -12,6 +12,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 
 from __future__ import print_function
 
+import copy
 import datetime
 import logging
 import os
@@ -659,7 +660,8 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None, run_id: Optional[str] = None,
+    attach_id: Optional[str] = None,
+    run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
@@ -669,20 +671,22 @@ def _attach(
         run_id: (str, optional) The id of the run to attach to.
     """
     attach_id = attach_id or run_id
-    assert attach_id
+    if attach_id is None:
+        raise UsageError("attach_id or run_id must be specified")
     wandb._assert_is_user_process()
 
     _wl = wandb_setup._setup()
 
     _set_logger(_wl._get_logger())
-    assert logger
+    if logger is None:
+        raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
     if manager:
         manager._inform_attach(attach_id=attach_id)
 
     # fixme
-    settings: Settings = _wl._clone_settings()
+    settings: Settings = copy.copy(_wl._settings)
     settings.run_id = attach_id
 
     # TODO: consolidate this codepath with wandb.init()
