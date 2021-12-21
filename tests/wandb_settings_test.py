@@ -8,21 +8,144 @@ import os
 
 import pytest  # type: ignore
 import wandb
-from wandb import Settings
 from wandb.errors import UsageError
 from wandb.sdk import wandb_settings
 
 
+Property = wandb_settings.Property
+Settings = wandb_settings.Settings
+Source = wandb_settings.Source
+
+
+# test Property class
+def test_property_init():
+    p = Property(
+        name="foo",
+        value=1,
+    )
+    assert p.name == "foo"
+    assert p.value == 1
+    assert p._source == Source.BASE
+    assert not p._is_policy
+
+
+def test_property_preprocess_and_validate():
+    p = Property(
+        name="foo",
+        value=1,
+        preprocessor=lambda x: str(x),
+        validator=lambda x: isinstance(x, str),
+    )
+    assert p.name == "foo"
+    assert p.value == "1"
+    assert p._source == Source.BASE
+    assert not p._is_policy
+
+
+def test_property_preprocess_validate_hook():
+    p = Property(
+        name="foo",
+        value="2",
+        preprocessor=lambda x: int(x),
+        validator=lambda x: isinstance(x, int),
+        hook=lambda x: x ** 2,
+        source=Source.OVERRIDE,
+    )
+    assert p._source == Source.OVERRIDE
+    assert p.value == 4
+    assert not p._is_policy
+
+
+def test_property_multiple_validators():
+    def meaning_of_life(x):
+        return x == 42
+
+    p = Property(
+        name="foo",
+        value=42,
+        validator=[
+            lambda x: isinstance(x, int),
+            meaning_of_life
+        ],
+    )
+    assert p.value == 42
+    with pytest.raises(ValueError):
+        p.update(value=43)
+
+
+def test_property_update():
+    p = Property(
+        name="foo",
+        value=1,
+    )
+    p.update(value=2)
+    assert p.value == 2
+
+
+def test_property_update_sources():
+    p = Property(
+        name="foo",
+        value=1,
+        source=Source.ORG,
+    )
+    assert p.value == 1
+    # smaller source => lower priority
+    # lower priority:
+    p.update(value=2, source=Source.BASE)
+    assert p.value == 1
+    # higher priority:
+    p.update(value=3, source=Source.USER)
+    assert p.value == 3
+
+
+def test_property_update_policy_sources():
+    p = Property(
+        name="foo",
+        value=1,
+        is_policy=True,
+        source=Source.ORG,
+    )
+    assert p.value == 1
+    # smaller source => higher priority
+    # higher priority:
+    p.update(value=2, source=Source.BASE)
+    assert p.value == 2
+    # higher priority:
+    p.update(value=3, source=Source.USER)
+    assert p.value == 2
+
+
+def test_property_set_value_directly_forbidden():
+    p = Property(
+        name="foo",
+        value=1,
+    )
+    with pytest.raises(AttributeError):
+        p.value = 2
+
+
+def test_property_update_frozen_forbidden():
+    p = Property(
+        name="foo",
+        value=1,
+        frozen=True
+    )
+    with pytest.raises(TypeError):
+        p.update(value=2)
+
+
+# test Settings class
+
+
 def test_attrib_get():
     s = Settings()
-    s.setdefaults()
     assert s.base_url == "https://api.wandb.ai"
 
 
-def test_attrib_set():
+def test_attrib_set_not_allowed():
     s = Settings()
-    s.base_url = "this"
-    assert s.base_url == "this"
+    with pytest.raises(TypeError):
+        s.base_url = "new"
 
 
 def test_attrib_get_bad():
@@ -31,16 +154,34 @@ def test_attrib_get_bad():
         s.missing
 
 
-def test_attrib_set_bad():
+def test_update_override():
     s = Settings()
-    with pytest.raises(AttributeError):
-        s.missing = "nope"
-
-
-def test_update_dict():
-    s = Settings()
-    s.update(dict(base_url="something2"))
+    s.update(dict(base_url="something2"), source=Source.OVERRIDE)
     assert s.base_url == "something2"
+
+
+def test_update_priorities():
+    s = Settings()
+    # USER has higher priority than ORG (and both are higher priority than BASE)
+    s.update(dict(base_url="foo"), source=Source.USER)
+    assert s.base_url == "foo"
+    s.update(dict(base_url="bar"), source=Source.ORG)
+    assert s.base_url == "foo"
+
+
+def test_update_priorities_order():
+    s = Settings()
+    # USER has higher priority than ORG (and both are higher priority than BASE)
+    s.update(dict(base_url="bar"), source=Source.ORG)
+    assert s.base_url == "bar"
+    s.update(dict(base_url="foo"), source=Source.USER)
+    assert s.base_url == "foo"
+
+
+def test_update_missing_attrib():
+    s = Settings()
+    with pytest.raises(KeyError):
+        s.update(dict(missing="nope"), source=Source.OVERRIDE)
 
 
 def test_update_kwargs():
@@ -51,27 +192,28 @@ def test_update_kwargs():
 
 def test_update_both():
     s = Settings()
-    s.update(dict(base_url="somethingb"), project="nothing")
-    assert s.base_url == "somethingb"
+    s.update(dict(base_url="something"), project="nothing")
+    assert s.base_url == "something"
     assert s.project == "nothing"
 
 
 def test_ignore_globs():
     s = Settings()
-    s.setdefaults()
     assert s.ignore_globs == ()
 
 
 def test_ignore_globs_explicit():
     s = Settings(ignore_globs=["foo"])
-    s.setdefaults()
     assert s.ignore_globs == ("foo",)
 
 
 def test_ignore_globs_env():
     s = Settings()
-    s._apply_environ({"WANDB_IGNORE_GLOBS": "foo,bar"})
-    s.setdefaults()
+    s.apply_env_vars({"WANDB_IGNORE_GLOBS": "foo"})
+    assert s.ignore_globs == ("foo",)
+
+    s = Settings()
+    s.apply_env_vars({"WANDB_IGNORE_GLOBS": "foo,bar"})
     assert s.ignore_globs == ("foo", "bar",)
 
 
@@ -81,9 +223,8 @@ def test_quiet():
     s = Settings(quiet=True)
     assert s._quiet
     s = Settings()
-    s._apply_environ({"WANDB_QUIET": "false"})
-    s.setdefaults()
-    assert s._quiet == False
+    s.apply_env_vars({"WANDB_QUIET": "false"})
+    assert not s._quiet
 
 
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
@@ -94,7 +235,6 @@ def test_ignore_globs_settings(local_settings):
 ignore_globs=foo,bar"""
         )
     s = Settings(_files=True)
-    s.setdefaults()
     assert s.ignore_globs == ("foo", "bar",)
 
 
@@ -150,93 +290,93 @@ def test_freeze():
 
 def test_bad_choice():
     s = Settings()
-    with pytest.raises(UsageError):
+    with pytest.raises(TypeError):
         s.mode = "goodprojo"
     with pytest.raises(UsageError):
-        s.update(mode="badpro")
+        s.update(mode="badmode")
 
 
 def test_prio_update_ok():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.ENTITY)
+    s.update(project="pizza", source=Source.ENTITY)
     assert s.project == "pizza"
-    s.update(project="pizza2", _source=s.Source.PROJECT)
+    s.update(project="pizza2", source=Source.PROJECT)
     assert s.project == "pizza2"
 
 
 def test_prio_update_ignore():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.PROJECT)
+    s.update(project="pizza", source=Source.PROJECT)
     assert s.project == "pizza"
-    s.update(project="pizza2", _source=s.Source.ENTITY)
+    s.update(project="pizza2", source=Source.ENTITY)
     assert s.project == "pizza"
 
 
 def test_prio_update_over_ok():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.PROJECT)
+    s.update(project="pizza", source=Source.PROJECT)
     assert s.project == "pizza"
-    s.update(project="pizza2", _source=s.Source.ENTITY, _override=True)
+    s.update(project="pizza2", source=Source.ENTITY, _override=True)
     assert s.project == "pizza2"
 
 
 def test_prio_update_over_both_ok():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.PROJECT, _override=True)
+    s.update(project="pizza", source=Source.PROJECT, _override=True)
     assert s.project == "pizza"
-    s.update(project="pizza2", _source=s.Source.ENTITY, _override=True)
+    s.update(project="pizza2", source=Source.ENTITY, _override=True)
     assert s.project == "pizza2"
 
 
 def test_prio_update_over_ignore():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.ENTITY, _override=True)
+    s.update(project="pizza", source=Source.ENTITY, _override=True)
     assert s.project == "pizza"
-    s.update(project="pizza2", _source=s.Source.PROJECT, _override=True)
+    s.update(project="pizza2", source=Source.PROJECT, _override=True)
     assert s.project == "pizza"
 
 
 def test_prio_context_ok():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.ENTITY)
+    s.update(project="pizza", source=Source.ENTITY)
     assert s.project == "pizza"
-    with s._as_source(s.Source.PROJECT) as s2:
+    with s._as_source(Source.PROJECT) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
 def test_prio_context_ignore():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.PROJECT)
+    s.update(project="pizza", source=Source.PROJECT)
     assert s.project == "pizza"
-    with s._as_source(s.Source.ENTITY) as s2:
+    with s._as_source(Source.ENTITY) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza"
 
 
 def test_prio_context_over_ok():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.PROJECT)
+    s.update(project="pizza", source=Source.PROJECT)
     assert s.project == "pizza"
-    with s._as_source(s.Source.ENTITY, override=True) as s2:
+    with s._as_source(Source.ENTITY, override=True) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
 def test_prio_context_over_both_ok():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.PROJECT, _override=True)
+    s.update(project="pizza", source=Source.PROJECT, _override=True)
     assert s.project == "pizza"
-    with s._as_source(s.Source.ENTITY, override=True) as s2:
+    with s._as_source(Source.ENTITY, override=True) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza2"
 
 
 def test_prio_context_over_ignore():
     s = Settings()
-    s.update(project="pizza", _source=s.Source.ENTITY, _override=True)
+    s.update(project="pizza", source=Source.ENTITY, _override=True)
     assert s.project == "pizza"
-    with s._as_source(s.Source.PROJECT, override=True) as s2:
+    with s._as_source(Source.PROJECT, override=True) as s2:
         s2.project = "pizza2"
     assert s.project == "pizza"
 

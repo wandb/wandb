@@ -465,7 +465,7 @@ class Settings:
             "validator": lambda x: isinstance(x, str),
         }
         self.config_paths: Any = {
-            "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
+            "validator": lambda x: isinstance(x, Sequence) and all(isinstance(y, str) for y in x),
         }
         self.console: Any = {
             "value": "auto",
@@ -518,7 +518,8 @@ class Settings:
         }
         self.ignore_globs: Any = {
             "value": tuple(),
-            "validator": lambda x: isinstance(x, Sequence),
+            "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
+            "validator": lambda x: isinstance(x, tuple) and all(isinstance(y, str) for y in x),
         }
         self.label_disable: Any = {
             "validator": lambda x: isinstance(x, bool),
@@ -799,16 +800,27 @@ class Settings:
             raise TypeError("Please use update() to update attribute values")
         object.__setattr__(self, key, value)
 
-    def update(self, settings: Dict[str, Any], source: int = Source.OVERRIDE) -> None:
+    def update(
+        self,
+        settings: Optional[Dict[str, Any]] = None,
+        source: int = Source.OVERRIDE,
+        **kwargs: Any,
+    ) -> None:
         """Update individual settings using the Property.update() method."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
             raise TypeError(f"Settings object is frozen")
         if TYPE_CHECKING:
             _source = cast(Optional[int], source)
+        # add kwargs to settings
+        settings = settings or dict()
+        # explicit kwargs take precedence over settings
+        settings = {**settings, **kwargs}
         for key, value in settings.items():
             # only allow updating known Properties
             if key not in self.__dict__ or not isinstance(self.__dict__[key], Property):
                 raise KeyError(f"Unknown setting: {key}")
+        # only if all keys are valid, update them
+        for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
     def freeze(self) -> None:
@@ -892,6 +904,8 @@ class Settings:
                 key = setting[len(env_prefix):].lower()
 
             if key in self.__dict__:
+                if key in ("ignore_globs", "run_tags"):
+                    value = value.split(",")
                 env[key] = value
             elif _logger is not None:
                 _logger.warning(f"Unknown environment variable: {setting}")
