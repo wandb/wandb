@@ -99,6 +99,8 @@ class WandbServer:
         try:
             self._sock_server.start()
             port = self._sock_server.port
+            if self._pid:
+                mux.set_pid(self._pid)
         except KeyboardInterrupt:
             mux.cleanup()
             raise
@@ -126,9 +128,13 @@ class WandbServer:
         self._inform_used_ports(grpc_port=grpc_port, sock_port=sock_port)
         setproctitle = wandb.util.get_optional_module("setproctitle")
         if setproctitle:
-            service_ver = 0
+            service_ver = 2
+            pid = str(self._pid or 0)
+            transport = "s" if sock_port else "g"
             port = grpc_port or sock_port or 0
-            service_id = f"{service_ver}-{port}"
+            # this format is similar to wandb_manager token but it purely informative now
+            # (consider unifying this in the future)
+            service_id = f"{service_ver}-{pid}-{transport}-{port}"
             proc_title = f"wandb-service({service_id})"
             setproctitle.setproctitle(proc_title)
         mux.loop()

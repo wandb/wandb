@@ -75,6 +75,8 @@ message Feature {
   bool sb3 = 22; // Using stable_baselines3 integration
   bool service = 23; // Using wandb service internal process
   bool init_return_run = 24; // wandb.init() called in the same process returning previous run
+  bool lightgbm_wandb_callback = 25; // lightgbm callback used
+  bool lightgbm_log_summary = 26; // lightgbm log summary used
 }
 
 message Env {

@@ -324,7 +324,7 @@ def test_image_type():
             "mask_ground_truth": set(),
             "mask_predictions": {1, 2, 3},
         },
-        class_map={1: "tree", 2: "car", 3: "road"},
+        class_map={"1": "tree", "2": "car", "3": "road"},
     )
 
 
