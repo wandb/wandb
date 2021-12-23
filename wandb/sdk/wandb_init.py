@@ -110,8 +110,22 @@ class _WandbInit(object):
         # Start with settings from wandb library singleton
         settings: Settings = self._wl._settings
         settings_param = kwargs.pop("settings", None)
-        if settings_param:
-            settings.update(settings_param, source=Source.INIT)
+        if settings_param is not None:
+            if isinstance(settings_param, Settings):
+                # todo: check the logic here
+                #  this _only_ comes up in tests
+                #  if a Settings object is passed in, use it instead?
+                # settings = settings_param
+                # fixme? or update the settings with the values from it with BASE source?
+                settings.update(
+                    settings_param.make_static(include_properties=False),
+                    source=Source.BASE,
+                )
+                # raise Exception(settings)
+            elif isinstance(settings_param, dict):
+                # if it is a mapping, update the settings with it
+                print(settings.make_static())
+                settings.update(settings_param, source=Source.INIT)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -177,7 +191,6 @@ class _WandbInit(object):
         if init_settings:
             settings.update(init_settings, source=Source.INIT)
 
-        # fixme: does not work yet
         if not settings._offline and not settings._noop:
             wandb_login._login(
                 anonymous=kwargs.pop("anonymous", None),
@@ -187,7 +200,7 @@ class _WandbInit(object):
             )
 
         # fixme: hopefully such a brutal thing is not needed ???
-        # todo: check what exactly needs to be updated here
+        # todo: check what exactly needs to be updated here, if anything
         # apply updated global state after login was handled
         # settings._apply_settings(wandb.setup()._settings)
 

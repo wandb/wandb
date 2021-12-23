@@ -273,19 +273,19 @@ def test_invalid_both():
 
 def test_freeze():
     s = Settings()
-    s.project = "goodprojo"
+    s.update(project="goodprojo")
     assert s.project == "goodprojo"
     s.freeze()
     with pytest.raises(TypeError):
-        s.project = "badprojo"
+        s.update(project="badprojo")
     assert s.project == "goodprojo"
     with pytest.raises(TypeError):
         s.update(project="badprojo2")
-    assert s.project == "goodprojo"
     c = copy.copy(s)
     assert c.project == "goodprojo"
-    c.project = "changed"
+    c.update(project="changed")
     assert c.project == "changed"
+    assert s.project == "goodprojo"
 
 
 def test_bad_choice():
@@ -296,89 +296,40 @@ def test_bad_choice():
         s.update(mode="badmode")
 
 
-def test_prio_update_ok():
+def test_priority_update_greater_source():
     s = Settings()
+    # for a non-policy setting, greater source (PROJECT) has higher priority
     s.update(project="pizza", source=Source.ENTITY)
     assert s.project == "pizza"
     s.update(project="pizza2", source=Source.PROJECT)
     assert s.project == "pizza2"
 
 
-def test_prio_update_ignore():
+def test_priority_update_smaller_source():
     s = Settings()
     s.update(project="pizza", source=Source.PROJECT)
     assert s.project == "pizza"
     s.update(project="pizza2", source=Source.ENTITY)
+    # for a non-policy setting, greater source (PROJECT) has higher priority
     assert s.project == "pizza"
 
 
-def test_prio_update_over_ok():
+def test_priority_update_policy_greater_source():
     s = Settings()
-    s.update(project="pizza", source=Source.PROJECT)
-    assert s.project == "pizza"
-    s.update(project="pizza2", source=Source.ENTITY, _override=True)
-    assert s.project == "pizza2"
+    # for a policy setting, greater source (PROJECT) has lower priority
+    s.update(summary_warnings=42, source=Source.PROJECT)
+    assert s.summary_warnings == 42
+    s.update(summary_warnings=43, source=Source.ENTITY)
+    assert s.summary_warnings == 43
 
 
-def test_prio_update_over_both_ok():
+def test_priority_update_policy_smaller_source():
     s = Settings()
-    s.update(project="pizza", source=Source.PROJECT, _override=True)
-    assert s.project == "pizza"
-    s.update(project="pizza2", source=Source.ENTITY, _override=True)
-    assert s.project == "pizza2"
-
-
-def test_prio_update_over_ignore():
-    s = Settings()
-    s.update(project="pizza", source=Source.ENTITY, _override=True)
-    assert s.project == "pizza"
-    s.update(project="pizza2", source=Source.PROJECT, _override=True)
-    assert s.project == "pizza"
-
-
-def test_prio_context_ok():
-    s = Settings()
-    s.update(project="pizza", source=Source.ENTITY)
-    assert s.project == "pizza"
-    with s._as_source(Source.PROJECT) as s2:
-        s2.project = "pizza2"
-    assert s.project == "pizza2"
-
-
-def test_prio_context_ignore():
-    s = Settings()
-    s.update(project="pizza", source=Source.PROJECT)
-    assert s.project == "pizza"
-    with s._as_source(Source.ENTITY) as s2:
-        s2.project = "pizza2"
-    assert s.project == "pizza"
-
-
-def test_prio_context_over_ok():
-    s = Settings()
-    s.update(project="pizza", source=Source.PROJECT)
-    assert s.project == "pizza"
-    with s._as_source(Source.ENTITY, override=True) as s2:
-        s2.project = "pizza2"
-    assert s.project == "pizza2"
-
-
-def test_prio_context_over_both_ok():
-    s = Settings()
-    s.update(project="pizza", source=Source.PROJECT, _override=True)
-    assert s.project == "pizza"
-    with s._as_source(Source.ENTITY, override=True) as s2:
-        s2.project = "pizza2"
-    assert s.project == "pizza2"
-
-
-def test_prio_context_over_ignore():
-    s = Settings()
-    s.update(project="pizza", source=Source.ENTITY, _override=True)
-    assert s.project == "pizza"
-    with s._as_source(Source.PROJECT, override=True) as s2:
-        s2.project = "pizza2"
-    assert s.project == "pizza"
+    # for a policy setting, greater source (PROJECT) has lower priority
+    s.update(summary_warnings=42, source=Source.ENTITY)
+    assert s.summary_warnings == 42
+    s.update(summary_warnings=43, source=Source.PROJECT)
+    assert s.summary_warnings == 42
 
 
 def test_validate_base_url():
@@ -412,6 +363,7 @@ def test_code_saving_save_code_env_false(live_mock_server, test_settings):
     os.environ["WANDB_SAVE_CODE"] = "false"
     run = wandb.init(settings=test_settings)
     assert run._settings.save_code is False
+    run.finish()
 
 
 def test_code_saving_disable_code(live_mock_server, test_settings):
@@ -419,6 +371,7 @@ def test_code_saving_disable_code(live_mock_server, test_settings):
     os.environ["WANDB_DISABLE_CODE"] = "true"
     run = wandb.init(settings=test_settings)
     assert run._settings.save_code is False
+    run.finish()
 
 
 def test_redact():
@@ -458,32 +411,17 @@ def test_offline(test_settings):
     assert test_settings._offline is True
 
 
-@pytest.mark.skip(reason="Setting offline via settings doesn't work after init")
-def test_offline_run(live_mock_server, test_settings):
-    # check defaults to False
-    run = wandb.init(settings=test_settings)
-    assert run._settings._offline is False
-    # check setting to offline works
-    test_settings.update({"mode": "offline"})
-    run = wandb.init(settings=test_settings)
-    assert run._settings._offline is True
-    # check setting dryrun works
-    test_settings.update({"mode": "dryrun"})
-    run = wandb.init(settings=test_settings)
-    assert run._settings._offline is True
-
-
 def test_silent(test_settings):
     test_settings.update({"silent": "true"})
     assert test_settings._silent is True
 
 
-@pytest.mark.skip(reason="Setting silent via settings doesn't work after init")
 def test_silent_run(live_mock_server, test_settings):
     test_settings.update({"silent": "true"})
     assert test_settings._silent is True
     run = wandb.init(settings=test_settings)
     assert run._settings._silent is True
+    run.finish()
 
 
 def test_silent_env_run(live_mock_server, test_settings, capsys):
@@ -492,15 +430,16 @@ def test_silent_env_run(live_mock_server, test_settings, capsys):
     assert run._settings._silent is True
     captured = capsys.readouterr()
     assert len(captured.out) == 0
+    run.finish()
 
 
 def test_strict():
     settings = Settings(strict=True)
-    assert settings.strict == True
+    assert settings.strict is True
     assert settings._strict is True
 
     settings = Settings(strict=False)
-    assert settings.strict == False
+    assert not settings.strict
     assert settings._strict is None
 
 
@@ -511,10 +450,6 @@ def test_strict_run(live_mock_server, test_settings):
     assert run._settings._strict is True
     run.finish()
 
-    test_settings.update({"strict": "false"})
-    run = wandb.init(settings=test_settings)
-    assert run._settings._strict is False
-
 
 def test_show_info(test_settings):
     test_settings.update({"show_info": True})
@@ -524,14 +459,17 @@ def test_show_info(test_settings):
     assert test_settings._show_info is None
 
 
-@pytest.mark.skip(reason="Setting show_info false via settings doesn't work")
 def test_show_info_run(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._show_info is True
+    run.finish()
 
+
+def test_show_info_false_run(live_mock_server, test_settings):
     test_settings.update({"show_info": "false"})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_info is None
+    run.finish()
 
 
 def test_show_warnings(test_settings):
@@ -539,18 +477,21 @@ def test_show_warnings(test_settings):
     assert test_settings._show_warnings is True
 
     test_settings.update({"show_warnings": "false"})
-    assert test_settings._show_warnings is False
+    assert test_settings._show_warnings is None
 
 
-@pytest.mark.skip(reason="Setting show_warnings false via settings doesn't work")
 def test_show_warnings_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "true"})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_warnings is True
+    run.finish()
 
+
+def test_show_warnings_false_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "false"})
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_warnings is False
+    assert run._settings._show_warnings is None
+    run.finish()
 
 
 def test_show_errors(test_settings):
@@ -561,15 +502,18 @@ def test_show_errors(test_settings):
     assert test_settings._show_errors is None
 
 
-@pytest.mark.skip(reason="Setting show_errors false via settings doesn't work")
 def test_show_errors_run(test_settings):
     test_settings.update({"show_errors": True})
     run = wandb.init(settings=test_settings)
     assert run._settings._show_errors is True
+    run.finish()
 
+
+def test_show_errors_false_run(test_settings):
     test_settings.update({"show_errors": False})
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_errors is False
+    assert run._settings._show_errors is None
+    run.finish()
 
 
 def test_noop(test_settings):
@@ -577,28 +521,10 @@ def test_noop(test_settings):
     assert test_settings._noop is True
 
 
-@pytest.mark.skip(reason="Setting mode disabled via settings doesn't work")
-def test_noop_run(live_mock_server, test_settings):
-    test_settings.update({"mode": "disabled"})
-    run = wandb.init(settings=test_settings)
-    assert run._settings._noop is True
-
-
-def test_jupyter(notebook):
-    with notebook("one_cell.ipynb") as nb:
-        nb.execute_all()
-        output = nb.cell_output(0)
-        print(output)
-        assert "is_jupyter: True\n" in output[-1]["text"]
-
-
 def test_not_jupyter(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._jupyter is False
-
-
-def test_kaggle():
-    pass
+    run.finish()
 
 
 def test_console(test_settings):
@@ -608,18 +534,19 @@ def test_console(test_settings):
     assert test_settings._console == wandb_settings.SettingsConsole.REDIRECT
     test_settings.update({"console": "wrap"})
     assert test_settings._console == wandb_settings.SettingsConsole.WRAP
+    run.finish()
 
 
 def test_console_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings._console == wandb_settings.SettingsConsole.OFF
-    # commented out because you can't set console using settings
     # test_settings.update({"console": "auto"})
     # run = wandb.init(settings=test_settings)
     # assert run._settings._console == SettingsConsole.REDIRECT
     # os.environ["WANDB_START_METHOD"] = "thread"
     # run = wandb.init(settings=test_settings)
     # assert run._settings._console == SettingsConsole.WRAP
+    run.finish()
 
 
 def test_resume_fname(test_settings):
@@ -633,6 +560,7 @@ def test_resume_fname_run(test_settings):
     assert run._settings.resume_fname == os.path.join(
         run._settings.root_dir, "wandb", "wandb-resume.json"
     )
+    run.finish()
 
 
 def test_wandb_dir(test_settings):
@@ -644,6 +572,7 @@ def test_wandb_dir_run(test_settings):
     assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(
         os.path.join(run._settings.root_dir, "wandb/")
     )
+    run.finish()
 
 
 def test_log_user(test_settings):
@@ -668,7 +597,8 @@ def test_log_internal(test_settings):
 
 def test_sync_dir(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings._sync_dir == os.path.realpath("./wandb/latest-run")
+    assert run._settings.sync_dir == os.path.realpath("./wandb/latest-run")
+    run.finish()
 
 
 def test_sync_file(test_settings):
@@ -676,16 +606,19 @@ def test_sync_file(test_settings):
     assert run._settings.sync_file == os.path.realpath(
         "./wandb/latest-run/run-{}.wandb".format(run.id)
     )
+    run.finish()
 
 
 def test_files_dir(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings.files_dir == os.path.realpath("./wandb/latest-run/files")
+    run.finish()
 
 
 def test_tmp_dir(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings.tmp_dir == os.path.realpath("./wandb/latest-run/tmp")
+    run.finish()
 
 
 def test_tmp_code_dir(test_settings):
@@ -693,6 +626,7 @@ def test_tmp_code_dir(test_settings):
     assert run._settings._tmp_code_dir == os.path.realpath(
         "./wandb/latest-run/tmp/code"
     )
+    run.finish()
 
 
 def test_log_symlink_user(test_settings):
@@ -700,6 +634,7 @@ def test_log_symlink_user(test_settings):
     assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
         run._settings.log_user
     )
+    run.finish()
 
 
 def test_log_symlink_internal(test_settings):
@@ -707,6 +642,7 @@ def test_log_symlink_internal(test_settings):
     assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
         run._settings.log_internal
     )
+    run.finish()
 
 
 def test_sync_symlink_latest(test_settings):
@@ -716,6 +652,7 @@ def test_sync_symlink_latest(test_settings):
             datetime.datetime.strftime(run._settings._start_datetime, "%Y%m%d_%H%M%S"), run.id
         )
     )
+    run.finish()
 
 
 def test_settings_system(test_settings):

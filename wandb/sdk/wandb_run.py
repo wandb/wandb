@@ -1,8 +1,6 @@
 #
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
-
 import atexit
 from datetime import timedelta
 from enum import IntEnum
@@ -2035,7 +2033,7 @@ class Run(object):
         if self._settings._offline and not self._quiet:
             final_logs += f"You can sync this run to the cloud by running:{lb}"
             final_logs += click.style(
-                f"wandb sync {self._settings._sync_dir}{lb}", fg="yellow"
+                f"wandb sync {self._settings.sync_dir}{lb}", fg="yellow"
             )
 
         if not self._quiet and (self._settings.log_user or self._settings.log_internal):

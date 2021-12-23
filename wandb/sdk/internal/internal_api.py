@@ -40,13 +40,13 @@ from .progress import Progress
 logger = logging.getLogger(__name__)
 
 
-class Api(object):
+class Api:
     """W&B Internal Api wrapper
 
     Note:
         Settings are automatically overridden by looking for
         a `wandb/settings` file in the current working directory or it's parent
-        directory.  If none can be found, we look in the current users home
+        directory. If none can be found, we look in the current users home
         directory.
 
     Arguments:
@@ -1976,7 +1976,7 @@ class Api(object):
                     else open(normal_name, "rb")
                 )
             except IOError:
-                print("%s does not exist" % file_name)
+                print(f"{file_name} does not exist")
                 continue
             if progress:
                 if hasattr(progress, "__call__"):

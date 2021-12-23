@@ -1,4 +1,5 @@
 import configparser
+import copy
 from datetime import datetime
 from distutils.util import strtobool
 import enum
@@ -405,10 +406,6 @@ class Settings:
         self._python: Any = {
             "validator": lambda x: isinstance(x, str),
         }
-        self._quiet: Any = {
-            "preprocessor": _str_as_bool,
-            "validator": lambda x: isinstance(x, bool),
-        }
         self._require_service: Any = {
             "validator": lambda x: isinstance(x, str),
         }
@@ -475,15 +472,18 @@ class Settings:
             ],
         }
         self.disable_code: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
             "is_priority": True,
         }
         self.disable_git: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
             "is_priority": True,
         }
         self.disabled: Any = {
             "value": False,
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
             "help": "Alias for mode=dryrun, not supported yet",
         }
@@ -503,6 +503,7 @@ class Settings:
             "hook": lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
         }
         self.force: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.git_remote: Any = {
@@ -522,9 +523,11 @@ class Settings:
             "validator": lambda x: isinstance(x, tuple) and all(isinstance(y, str) for y in x),
         }
         self.label_disable: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.launch: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.launch_config_path: Any = {
@@ -591,10 +594,16 @@ class Settings:
                 self._validate_project,
             ],
         }
+        self.quiet: Any = {
+            "preprocessor": _str_as_bool,
+            "validator": lambda x: isinstance(x, bool),
+        }
         self.reinit: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.relogin: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.resume: Any = {
@@ -627,9 +636,11 @@ class Settings:
             "validator": lambda x: isinstance(x, tuple),
         }
         self.sagemaker_disable: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.save_code: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
             "is_priority": True,
         }
@@ -644,9 +655,11 @@ class Settings:
             "hook": lambda x: _path_convert(self.wandb_dir, x),
         }
         self.show_colors: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.show_emoji: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
         }
         self.show_errors: Any = {
@@ -695,6 +708,7 @@ class Settings:
             "validator": lambda x: isinstance(x, str),
         }
         self.symlink: Any = {
+            "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),  # probed
         }
         self.sync_dir: Any = {
@@ -773,7 +787,7 @@ class Settings:
         object.__setattr__(self, "_Settings_start_time", None)
 
         if os.environ.get(wandb.env.DIR) is None:
-            self.root_dir = os.path.abspath(os.getcwd())
+            self.__dict__["root_dir"].update(os.path.abspath(os.getcwd()), Source.SETTINGS)
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
@@ -784,6 +798,16 @@ class Settings:
     def __repr__(self):
         # return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
         return f"<Settings {self.__dict__}>"
+
+    def __copy__(self) -> "Settings":
+        """
+        Ensure that a copy of the settings object is a deep copy.
+
+        Note that the copied object will not be frozen  fixme? why is this needed?
+        """
+        cp = copy.deepcopy(self)
+        cp.unfreeze()
+        return cp
 
     # attribute access methods
     if not TYPE_CHECKING:  # this a hack to make mypy happy
@@ -832,7 +856,7 @@ class Settings:
     def is_frozen(self) -> bool:
         return self.__frozen
 
-    def make_static(self) -> Dict[str, Any]:
+    def make_static(self, include_properties: bool = True) -> Dict[str, Any]:
         """Generate a static, serializable version of the settings."""
         # get attributes that are instances of the Property class:
         attributes = {k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)}
@@ -842,7 +866,9 @@ class Settings:
             for property_name, obj in self.__class__.__dict__.items()
             if isinstance(obj, property)
         }
-        return {**attributes, **properties}
+        if include_properties:
+            return {**attributes, **properties}
+        return attributes
 
     # apply settings from different sources
     # TODO(dd): think about doing all that at init time
@@ -1175,20 +1201,40 @@ class Settings:
         return False
 
     @property
+    def _quiet(self) -> Optional[bool]:
+        return self.quiet
+
+    @property
     def _show_info(self) -> Optional[bool]:
+        if not self.show_info:
+            # fixme (dd): why?
+            return None
         return self.show_info
 
     @property
     def _show_warnings(self) -> Optional[bool]:
+        if not self.show_warnings:
+            # fixme (dd): why?
+            return None
         return self.show_warnings
 
     @property
     def _show_errors(self) -> Optional[bool]:
+        if not self.show_errors:
+            # fixme (dd): why?
+            return None
         return self.show_errors
 
     @property
     def _silent(self) -> Optional[bool]:
         return self.silent
+
+    @property
+    def _strict(self) -> Optional[bool]:
+        if not self.strict:
+            # fixme (dd): why?
+            return None
+        return self.strict
 
     @property
     def _windows(self) -> bool:
