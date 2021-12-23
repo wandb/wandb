@@ -16,14 +16,13 @@ import time
 from typing import (
     Any,
     Callable,
-    cast,
     Dict,
     FrozenSet,
     Mapping,
     no_type_check,
     Optional,
-    Set,
     Sequence,
+    Set,
     Type,
     TYPE_CHECKING,
     Union,
@@ -70,7 +69,7 @@ def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
     if isinstance(val, bool):
         return val
     try:
-        ret_val = bool(strtobool(val))
+        ret_val = bool(strtobool(str(val)))
     except (AttributeError, ValueError):
         pass
     return ret_val
@@ -155,7 +154,7 @@ class SettingsConsole(enum.Enum):
     WRAP = 1
     REDIRECT = 2
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self.value)
 
 
@@ -183,15 +182,13 @@ class Property:
         is_policy: bool = False,
         frozen: bool = False,
         source: int = Source.BASE,
-        **kwargs,
+        **kwargs: Any,
     ):
         self.name = name
         self._preprocessor = preprocessor
         self._validator = validator
         self._hook = hook
         self._is_policy = is_policy
-        if TYPE_CHECKING:
-            source = cast(Optional[int], source)
         self._source = source
 
         # preprocess and validate value
@@ -231,13 +228,11 @@ class Property:
         return value
 
     def update(
-        self, value: Any, source: Optional[int] = Source.OVERRIDE,
-    ):
+        self, value: Any, source: int = Source.OVERRIDE,
+    ) -> None:
         """Update the value of the property."""
         if self.__frozen:
             raise TypeError("Property object is frozen")
-        if TYPE_CHECKING:
-            source = cast(Optional[int], source)
         # - always update value if source == Source.OVERRIDE
         # - if not previously overridden:
         #   - update value if source is lower than or equal to current source and property is policy
@@ -259,14 +254,14 @@ class Property:
             self._value = self._validate(self._preprocess(value))
             self._source = source
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str, value: Any) -> None:
         if "_Property__frozen" in self.__dict__ and self.__frozen:
             raise TypeError(f"Property object {self.name} is frozen")
         if key == "value":
             raise AttributeError("Use update() to update property value")
         self.__dict__[key] = value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # return f"<Property {self.name}: value={self.value} source={self._source}>"
         # return f"<Property {self.name}: value={self._value}>"
         # return self.__dict__.__repr__()
@@ -282,7 +277,7 @@ class Settings:
 
     # helper methods for pre-processing values
     def _join_with_base_url(self, url: str) -> str:
-        return urljoin(self.base_url, url)
+        return str(urljoin(self.base_url, url))
 
     # helper methods for validating values
     @staticmethod
@@ -807,7 +802,7 @@ class Settings:
         # freeze settings to prevent accidental changes
         # self.freeze()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
         return f"<Settings {self.__dict__}>"
 
@@ -845,14 +840,12 @@ class Settings:
     ) -> None:
         """Update individual settings using the Property.update() method."""
         if "_Settings__frozen" in self.__dict__ and self.__frozen:
-            raise TypeError(f"Settings object is frozen")
-        if TYPE_CHECKING:
-            _source = cast(Optional[int], source)
+            raise TypeError("Settings object is frozen")
         # add kwargs to settings
         settings = settings or dict()
         # explicit kwargs take precedence over settings
         settings = {**settings, **kwargs}
-        for key, value in settings.items():
+        for key, _ in settings.items():
             # only allow updating known Properties
             if key not in self.__dict__ or not isinstance(self.__dict__[key], Property):
                 raise KeyError(f"Unknown setting: {key}")
@@ -1186,7 +1179,7 @@ class Settings:
 
     @property
     def _noop(self) -> bool:
-        return self.mode == "disabled"
+        return (self.mode == "disabled") is True
 
     @property
     def _offline(self) -> bool:
@@ -1195,36 +1188,36 @@ class Settings:
         return False
 
     @property
-    def _quiet(self) -> Optional[bool]:
+    def _quiet(self) -> Any:
         return self.quiet
 
     @property
-    def _show_info(self) -> Optional[bool]:
+    def _show_info(self) -> Any:
         if not self.show_info:
             # fixme (dd): why?
             return None
         return self.show_info
 
     @property
-    def _show_warnings(self) -> Optional[bool]:
+    def _show_warnings(self) -> Any:
         if not self.show_warnings:
             # fixme (dd): why?
             return None
         return self.show_warnings
 
     @property
-    def _show_errors(self) -> Optional[bool]:
+    def _show_errors(self) -> Any:
         if not self.show_errors:
             # fixme (dd): why?
             return None
         return self.show_errors
 
     @property
-    def _silent(self) -> Optional[bool]:
+    def _silent(self) -> Any:
         return self.silent
 
     @property
-    def _strict(self) -> Optional[bool]:
+    def _strict(self) -> Any:
         if not self.strict:
             # fixme (dd): why?
             return None
@@ -1237,7 +1230,7 @@ class Settings:
     @property
     def is_local(self) -> bool:
         if self.base_url is not None:
-            return self.base_url != "https://api.wandb.ai"
+            return (self.base_url == "https://api.wandb.ai") is False
         return False
 
     @property
@@ -1248,6 +1241,7 @@ class Settings:
     def timespec(self) -> Optional[str]:
         if self._start_time and self._start_datetime:
             return datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
+        return None
 
     @property
     def wandb_dir(self) -> str:
