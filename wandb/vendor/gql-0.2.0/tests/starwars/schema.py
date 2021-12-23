@@ -1,4 +1,4 @@
-from graphql.type import (GraphQLArgument, GraphQLEnumType, GraphQLEnumValue,
+from wandb_graphql.type import (GraphQLArgument, GraphQLEnumType, GraphQLEnumValue,
                           GraphQLField, GraphQLInterfaceType, GraphQLList,
                           GraphQLNonNull, GraphQLObjectType, GraphQLSchema,
                           GraphQLString)
