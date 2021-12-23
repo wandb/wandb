@@ -102,6 +102,7 @@ def _get_program() -> Optional[Any]:
         return program
     try:
         import __main__  # type: ignore
+
         return __main__.__file__
     except (ImportError, AttributeError):
         return None
@@ -170,6 +171,7 @@ class Property:
         - The `is_policy` attribute determines the source priority when updating the property value.
           E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
+
     def __init__(  # pylint: disable=unused-argument
         self,
         name: str,
@@ -209,23 +211,27 @@ class Property:
 
     def _preprocess(self, value: Any) -> Any:
         if value is not None and self._preprocessor is not None:
-            _preprocessor = [self._preprocessor] if callable(self._preprocessor) else self._preprocessor
+            _preprocessor = (
+                [self._preprocessor]
+                if callable(self._preprocessor)
+                else self._preprocessor
+            )
             for p in _preprocessor:
                 value = p(value)
         return value
 
     def _validate(self, value: Any) -> Any:
         if value is not None and self._validator is not None:
-            _validator = [self._validator] if callable(self._validator) else self._validator
+            _validator = (
+                [self._validator] if callable(self._validator) else self._validator
+            )
             for v in _validator:
                 if not v(value):
                     raise ValueError(f"Invalid value for property {self.name}: {value}")
         return value
 
     def update(
-        self,
-        value: Any,
-        source: Optional[int] = Source.OVERRIDE,
+        self, value: Any, source: Optional[int] = Source.OVERRIDE,
     ):
         """Update the value of the property."""
         if self.__frozen:
@@ -238,8 +244,16 @@ class Property:
         #   - update value if source is higher than or equal to current source and property is not policy
         if (
             (source == Source.OVERRIDE)
-            or (self._is_policy and self._source != Source.OVERRIDE and source <= self._source)
-            or (not self._is_policy and self._source != Source.OVERRIDE and source >= self._source)
+            or (
+                self._is_policy
+                and self._source != Source.OVERRIDE
+                and source <= self._source
+            )
+            or (
+                not self._is_policy
+                and self._source != Source.OVERRIDE
+                and source >= self._source
+            )
         ):
             # self.__dict__["_value"] = self._validate(self._preprocess(value))
             self._value = self._validate(self._preprocess(value))
@@ -283,7 +297,9 @@ class Settings:
         invalid_chars_list = list("/\\#?%:")
         if value is not None:
             if len(value) > 128:
-                raise UsageError(f'Invalid project name "{value}": exceeded 128 characters')
+                raise UsageError(
+                    f'Invalid project name "{value}": exceeded 128 characters'
+                )
             invalid_chars = set([char for char in invalid_chars_list if char in value])
             if invalid_chars:
                 raise UsageError(
@@ -299,7 +315,9 @@ class Settings:
         if hasattr(multiprocessing, "get_all_start_methods"):
             available_methods += multiprocessing.get_all_start_methods()
         if value not in available_methods:
-            raise UsageError(f"Settings field `start_method`: '{value}' not in {available_methods}")
+            raise UsageError(
+                f"Settings field `start_method`: '{value}' not in {available_methods}"
+            )
         return True
 
     @staticmethod
@@ -329,7 +347,9 @@ class Settings:
         if value is not None:
             if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
                 # user might guess app.wandb.ai or wandb.ai is the default cloud server
-                raise UsageError(f"{value} is not a valid server address, did you mean https://api.wandb.ai?")
+                raise UsageError(
+                    f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
+                )
             elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
                 raise UsageError("http is not secure, please use https://api.wandb.ai")
         return True
@@ -341,15 +361,14 @@ class Settings:
         object.__setattr__(self, "_Settings_start_datetime", datetime_now)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
 
-    def __init__(
-        self,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         self.__frozen: bool = False
         self.__initialized: bool = False
 
-        # at init, explicitly assign attributes for static type checking purposes
-        # once initialized, attributes are to be updated using the update method
+        # At init, we explicitly assign attributes for static type checking purposes
+        # and to help with IDE autocomplete.
+        # We start off with dicts and then convert to Property objects.
+        # Once initialized, attributes are to be updated using the update method
         self._args: Any = {
             "validator": lambda x: isinstance(x, Sequence),
         }
@@ -432,44 +451,35 @@ class Settings:
             "hook": lambda x: _path_convert(self.tmp_dir, x),
         }
         self._unsaved_keys: Any = {
-            "validator": lambda x: isinstance(x, list) and all(isinstance(y, str) for y in x),
+            "validator": lambda x: isinstance(x, list)
+            and all(isinstance(y, str) for y in x),
         }
         self.allow_val_change: Any = {
             "validator": lambda x: isinstance(x, bool),
         }
         self.anonymous: Any = {
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_anonymous
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_anonymous],
         }
         self.api_key: Any = {
             # do not preprocess api_key: as @kptkin says, it's like changing the password
-            "validator": [
-                lambda x: isinstance(x, str)
-            ],
+            "validator": [lambda x: isinstance(x, str)],
         }
         self.base_url: Any = {
             "value": "https://api.wandb.ai",
             "preprocessor": lambda x: str(x).rstrip("/"),
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_base_url,
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_base_url,],
             "help": "The base url for the wandb api.",
         }
         self.code_dir: Any = {
             "validator": lambda x: isinstance(x, str),
         }
         self.config_paths: Any = {
-            "validator": lambda x: isinstance(x, Sequence) and all(isinstance(y, str) for y in x),
+            "validator": lambda x: isinstance(x, Sequence)
+            and all(isinstance(y, str) for y in x),
         }
         self.console: Any = {
             "value": "auto",
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_console,
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_console,],
         }
         self.disable_code: Any = {
             "preprocessor": _str_as_bool,
@@ -500,7 +510,9 @@ class Settings:
         self.files_dir: Any = {
             "value": "files",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "hook": lambda x: _path_convert(
+                self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+            ),
         }
         self.force: Any = {
             "preprocessor": _str_as_bool,
@@ -520,7 +532,8 @@ class Settings:
         self.ignore_globs: Any = {
             "value": tuple(),
             "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
-            "validator": lambda x: isinstance(x, tuple) and all(isinstance(y, str) for y in x),
+            "validator": lambda x: isinstance(x, tuple)
+            and all(isinstance(y, str) for y in x),
         }
         self.label_disable: Any = {
             "preprocessor": _str_as_bool,
@@ -536,7 +549,9 @@ class Settings:
         self.log_dir: Any = {
             "value": "logs",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x),
+            "hook": lambda x: _path_convert(
+                self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+            ),
         }
         self.log_internal: Any = {
             "value": "debug-internal.log",
@@ -567,20 +582,14 @@ class Settings:
         }
         self.mode: Any = {
             "value": "online",
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_mode,
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_mode,],
         }
         self.notebook_name: Any = {
             "validator": lambda x: isinstance(x, str),
         }
         self.problem: Any = {
             "value": "fatal",
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_problem
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_problem],
         }
         self.program: Any = {
             "validator": lambda x: isinstance(x, str),
@@ -589,10 +598,7 @@ class Settings:
             "validator": lambda x: isinstance(x, str),
         }
         self.project: Any = {
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_project,
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_project,],
         }
         self.quiet: Any = {
             "preprocessor": _str_as_bool,
@@ -683,10 +689,7 @@ class Settings:
             "validator": lambda x: isinstance(x, bool),
         }
         self.start_method: Any = {
-            "validator": [
-                lambda x: isinstance(x, str),
-                self._validate_start_method,
-            ],
+            "validator": [lambda x: isinstance(x, str), self._validate_start_method],
         }
         self.strict: Any = {
             "preprocessor": _str_as_bool,
@@ -715,7 +718,9 @@ class Settings:
             "value": "<sync_dir>",
             "validator": lambda x: isinstance(x, str),
             "hook": [
-                lambda x: _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}")
+                lambda x: _path_convert(
+                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
+                )
             ],
         }
         self.sync_file: Any = {
@@ -740,7 +745,9 @@ class Settings:
             "value": "tmp",
             "validator": lambda x: isinstance(x, str),
             "hook": lambda x: (
-                _path_convert(self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x)
+                _path_convert(
+                    self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
+                )
                 or tempfile.gettempdir()
             ),
         }
@@ -757,7 +764,8 @@ class Settings:
             "is_policy": True,
         }
 
-        # re-init attributes as Property objects. These are defaults, using Source.BASE
+        # re-init attributes as Property objects.
+        # These are defaults, using Source.BASE for non-policy attributes and Source.ARGS for policies.
         for key, specs in self.__dict__.items():
             if isinstance(specs, dict):
                 object.__setattr__(
@@ -767,7 +775,9 @@ class Settings:
                         name=key,
                         **specs,
                         # todo: double-check this logic:
-                        source=Source.ARGS if specs.get("is_policy", False) else Source.BASE
+                        source=Source.ARGS
+                        if specs.get("is_policy", False)
+                        else Source.BASE,
                     ),
                 )
 
@@ -787,7 +797,9 @@ class Settings:
         object.__setattr__(self, "_Settings_start_time", None)
 
         if os.environ.get(wandb.env.DIR) is None:
-            self.__dict__["root_dir"].update(os.path.abspath(os.getcwd()), Source.SETTINGS)
+            self.__dict__["root_dir"].update(
+                os.path.abspath(os.getcwd()), Source.SETTINGS
+            )
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
@@ -811,6 +823,7 @@ class Settings:
 
     # attribute access methods
     if not TYPE_CHECKING:  # this a hack to make mypy happy
+
         @no_type_check  # another way to do this
         def __getattribute__(self, name: str) -> Any:
             """Expose attribute.value if attribute is a Property."""
@@ -859,7 +872,9 @@ class Settings:
     def make_static(self, include_properties: bool = True) -> Dict[str, Any]:
         """Generate a static, serializable version of the settings."""
         # get attributes that are instances of the Property class:
-        attributes = {k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)}
+        attributes = {
+            k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
+        }
         # add @property-based settings:
         properties = {
             property_name: object.__getattribute__(self, property_name)
@@ -891,8 +906,7 @@ class Settings:
             if _logger is not None:
                 _logger.info(f"Loading settings from {self.settings_system}")
             self.update(
-                self._load_config_file(self.settings_system),
-                source=Source.SYSTEM,
+                self._load_config_file(self.settings_system), source=Source.SYSTEM,
             )
         if self.settings_workspace is not None:
             if _logger is not None:
@@ -903,9 +917,7 @@ class Settings:
             )
 
     def apply_env_vars(
-        self,
-        environ: Mapping[str, Any],
-       _logger: Optional[_EarlyLogger] = None,
+        self, environ: Mapping[str, Any], _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
@@ -927,7 +939,7 @@ class Settings:
                 key = special_env_var_names[setting]
             else:
                 # otherwise, strip the prefix and convert to lowercase
-                key = setting[len(env_prefix):].lower()
+                key = setting[len(env_prefix) :].lower()
 
             if key in self.__dict__:
                 if key in ("ignore_globs", "run_tags"):
@@ -944,8 +956,7 @@ class Settings:
         self.update(env, source=Source.ENV)
 
     def infer_settings_from_environment(
-        self,
-        _logger: Optional[_EarlyLogger] = None
+        self, _logger: Optional[_EarlyLogger] = None
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
 
@@ -1025,17 +1036,15 @@ class Settings:
         self.update(settings, source=Source.ENV)
 
     def infer_run_settings_from_environment(
-        self,
-        _logger: Optional[_EarlyLogger] = None,
+        self, _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""
         # If there's not already a program file, infer it now.
         settings: Dict[str, Union[bool, str, None]] = dict()
         program = self.program or _get_program()
         if program is not None:
-            program_relpath = (
-                    self.program_relpath
-                    or _get_program_relpath_from_gitrepo(program, _logger=_logger)
+            program_relpath = self.program_relpath or _get_program_relpath_from_gitrepo(
+                program, _logger=_logger
             )
             settings["program_relpath"] = program_relpath
         else:
@@ -1051,31 +1060,20 @@ class Settings:
         self.update(settings, source=Source.ENV)
 
     def apply_setup(
-        self,
-        setup_settings: Dict[str, Any],
-        _logger: Optional[_EarlyLogger] = None
+        self, setup_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info(
-                f"Applying setup settings: {_redact_dict(setup_settings)}"
-            )
+            _logger.info(f"Applying setup settings: {_redact_dict(setup_settings)}")
         self.update(setup_settings, source=Source.SETUP)
 
     def apply_user(
-        self,
-        user_settings: Dict[str, Any],
-        _logger: Optional[_EarlyLogger] = None
+        self, user_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
-            _logger.info(
-                f"Applying user settings: {_redact_dict(user_settings)}"
-            )
+            _logger.info(f"Applying user settings: {_redact_dict(user_settings)}")
         self.update(user_settings, source=Source.USER)
 
-    def apply_init(
-        self,
-        init_settings: Dict[str, Union[str, int, None]]
-    ) -> None:
+    def apply_init(self, init_settings: Dict[str, Union[str, int, None]]) -> None:
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
@@ -1105,9 +1103,7 @@ class Settings:
             dir="root_dir",
         )
         init_settings = {
-            param_map.get(k, k): v
-            for k, v in init_settings.items()
-            if v is not None
+            param_map.get(k, k): v for k, v in init_settings.items() if v is not None
         }
         # fun logic to convert the resume init arg
         if init_settings.get("resume"):
@@ -1144,17 +1140,15 @@ class Settings:
                 f.write(json.dumps({"run_id": self.run_id}))
 
     def apply_login(
-        self,
-        login_settings: Dict[str, Any],
-        _logger: Optional[_EarlyLogger] = None
+        self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
-        login_settings = {param_map.get(k, k): v for k, v in login_settings.items() if v is not None}
+        login_settings = {
+            param_map.get(k, k): v for k, v in login_settings.items() if v is not None
+        }
         if login_settings:
             if _logger:
-                _logger.info(
-                    f"Applying login settings: {_redact_dict(login_settings)}"
-                )
+                _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
 
     # computed properties
@@ -1168,10 +1162,10 @@ class Settings:
         console: str = str(self.console)
         if console == "auto":
             if (
-                    self._jupyter
-                    or (self.start_method == "thread")
-                    or self._require_service
-                    or self._windows
+                self._jupyter
+                or (self.start_method == "thread")
+                or self._require_service
+                or self._windows
             ):
                 console = "wrap"
             else:
@@ -1253,9 +1247,7 @@ class Settings:
     @property
     def timespec(self) -> Optional[str]:
         if self._start_time and self._start_datetime:
-            return datetime.strftime(
-                self._start_datetime, "%Y%m%d_%H%M%S"
-            )
+            return datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
 
     @property
     def wandb_dir(self) -> str:
