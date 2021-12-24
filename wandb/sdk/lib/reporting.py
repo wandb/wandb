@@ -91,8 +91,8 @@ class Reporter(object):
 
 def setup_reporter(settings):
     # fixme: why?
-    if not settings.is_frozen():
-        logging.error("internal issue: settings not frozen")
+    # if not settings.is_frozen():
+    #     logging.error("internal issue: settings not frozen")
     r = Reporter(settings=settings)
     return r
 

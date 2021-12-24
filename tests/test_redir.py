@@ -42,8 +42,7 @@ class CapList(list):
 
 @pytest.fixture
 def console_settings(test_settings, request):
-    s = wandb.Settings(console=request.param)
-    test_settings._apply_settings(s)
+    test_settings.update(console=request.param)
     return test_settings
 
 
@@ -241,8 +240,7 @@ def test_run_with_console_redirect(console_settings, capfd):
 @pytest.mark.parametrize("console_settings", console_modes, indirect=True)
 def test_offline_compression(console_settings, capfd, runner):
     with capfd.disabled():
-        s = wandb.Settings(mode="offline")
-        console_settings._apply_settings(s)
+        console_settings.update(mode="offline")
 
         run = wandb.init(settings=console_settings)
 

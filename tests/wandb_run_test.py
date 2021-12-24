@@ -87,8 +87,7 @@ def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util
 def test_log_code_settings(live_mock_server, test_settings):
     with open("test.py", "w") as f:
         f.write('print("test")')
-    test_settings.save_code = True
-    test_settings.code_dir = "."
+    test_settings.update(save_code=True, code_dir=".")
     run = wandb.init(settings=test_settings)
     run.finish()
     ctx = live_mock_server.get_ctx()

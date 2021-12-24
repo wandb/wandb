@@ -652,7 +652,7 @@ def internal_sm(
     _internal_sender,
 ):
     with runner.isolated_filesystem():
-        test_settings.root_dir = os.getcwd()
+        test_settings.update(root_dir=os.getcwd())
         sm = SendManager(
             settings=test_settings,
             record_q=internal_sender_q,
@@ -681,7 +681,7 @@ def internal_hm(
     stopped_event,
 ):
     with runner.isolated_filesystem():
-        test_settings.root_dir = os.getcwd()
+        test_settings.update(root_dir=os.getcwd())
         hm = HandleManager(
             settings=test_settings,
             record_q=record_q,

@@ -127,7 +127,7 @@ def test_resume_auto_success(live_mock_server, test_settings):
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
-    test_settings.run_id = None
+    test_settings.update(run_id=None)
     with open(test_settings.resume_fname, "w") as f:
         f.write(json.dumps({"run_id": "resumeme"}))
     run = wandb.init(reinit=True, resume=True, settings=test_settings)
@@ -208,7 +208,7 @@ def test_network_fault_files(live_mock_server, test_settings):
 
 
 def test_ignore_globs_wandb_files(live_mock_server, test_settings):
-    test_settings.ignore_globs = ["requirements.txt"]
+    test_settings.update(ignore_globs=["requirements.txt"])
     run = wandb.init(settings=test_settings)
     run.finish()
     ctx = live_mock_server.get_ctx()
