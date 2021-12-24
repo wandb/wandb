@@ -86,7 +86,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self,
         settings: Optional[Dict[str, Any]] = None,
         environ: Optional[Dict[str, Any]] = None,
-        pid: Optional[int] = None
+        pid: Optional[int] = None,
     ):
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
@@ -118,7 +118,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def _settings_setup(
         self,
         settings: Optional[Dict[str, Any]] = None,
-        early_logger: Optional[_EarlyLogger] = None
+        early_logger: Optional[_EarlyLogger] = None,
     ):
         s = wandb_settings.Settings()
         s.apply_config_files(_logger=early_logger)

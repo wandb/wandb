@@ -96,7 +96,7 @@ class _WandbInit(object):
         self._set_init_config = None
         self.notebook = None
 
-    def setup(self, kwargs) -> None:
+    def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.
@@ -222,7 +222,7 @@ class _WandbInit(object):
         settings.update(
             {
                 "_start_time": time_stamp,
-                "_start_datetime": datetime.datetime.fromtimestamp(time_stamp)
+                "_start_datetime": datetime.datetime.fromtimestamp(time_stamp),
             },
             source=Source.INIT,
         )
@@ -673,8 +673,7 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None,
-    run_id: Optional[str] = None,
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 
