@@ -120,13 +120,13 @@ def test_bad_url(test_settings):
     test_settings.update(mode="disabled", base_url="localhost:9000")
     run = wandb.init(settings=test_settings)
     run.log({"acc": 0.9})
-    wandb.join()
+    run.finish()
 
 
 def test_login(test_settings):
     test_settings.update(mode="disabled")
-    wandb.setup(test_settings)
-    wandb.login("")
+    wandb.setup(settings=test_settings.make_static(include_properties=False))
+    wandb.login()
 
 
 def test_no_dirs(test_settings, runner):

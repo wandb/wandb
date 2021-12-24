@@ -124,6 +124,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         s.apply_config_files(_logger=early_logger)
         s.apply_env_vars(self._environ, _logger=early_logger)
 
+        # fixme? same logic as in init? i.e. let it be Settings or dict?
         if settings is not None:
             s.apply_setup(settings, _logger=early_logger)
 

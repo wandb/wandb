@@ -751,15 +751,6 @@ class Settings:
             "validator": lambda x: isinstance(x, str),
         }
 
-        # fixme: debug
-        self.lol_id: Any = {
-            "value": "abc123",
-            "preprocessor": lambda x: str(x),
-            "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: self._join_with_base_url(x),
-            "is_policy": True,
-        }
-
         # re-init attributes as Property objects.
         # These are defaults, using Source.BASE for non-policy attributes and Source.ARGS for policies.
         for key, specs in self.__dict__.items():
@@ -832,6 +823,12 @@ class Settings:
         if "_Settings__initialized" in self.__dict__ and self.__initialized:
             raise TypeError("Please use update() to update attribute values")
         object.__setattr__(self, key, value)
+
+    def __iter__(self):
+        return iter(self.make_static(include_properties=True))
+
+    def copy(self):
+        return copy.deepcopy(self)
 
     # implement the Mapping interface
     def keys(self) -> Iterable[str]:
