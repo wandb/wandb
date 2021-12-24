@@ -476,7 +476,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
             **args["wandb_init"],
         )
         yield run
-        wandb.join()
+        wandb.finish()
     finally:
         unset_globals()
         for k, v in args["env"].items():
