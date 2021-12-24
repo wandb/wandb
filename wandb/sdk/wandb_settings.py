@@ -228,9 +228,7 @@ class Property:
                     raise ValueError(f"Invalid value for property {self.name}: {value}")
         return value
 
-    def update(
-        self, value: Any, source: int = Source.OVERRIDE,
-    ) -> None:
+    def update(self, value: Any, source: int = Source.OVERRIDE,) -> None:
         """Update the value of the property."""
         if self.__frozen:
             raise TypeError("Property object is frozen")
@@ -463,7 +461,7 @@ class Settings:
         self.base_url: Any = {
             "value": "https://api.wandb.ai",
             "preprocessor": lambda x: str(x).rstrip("/"),
-            "validator": [lambda x: isinstance(x, str), self._validate_base_url,],
+            "validator": [lambda x: isinstance(x, str), self._validate_base_url],
             "help": "The base url for the wandb api.",
         }
         self.code_dir: Any = {
@@ -475,7 +473,7 @@ class Settings:
         }
         self.console: Any = {
             "value": "auto",
-            "validator": [lambda x: isinstance(x, str), self._validate_console,],
+            "validator": [lambda x: isinstance(x, str), self._validate_console],
         }
         self.disable_code: Any = {
             "preprocessor": _str_as_bool,
@@ -635,7 +633,9 @@ class Settings:
             "validator": lambda x: isinstance(x, str),
         }
         self.run_tags: Any = {
-            "validator": lambda x: isinstance(x, tuple),
+            "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
+            "validator": lambda x: isinstance(x, tuple)
+            and all(isinstance(y, str) for y in x),
         }
         self.sagemaker_disable: Any = {
             "preprocessor": _str_as_bool,
