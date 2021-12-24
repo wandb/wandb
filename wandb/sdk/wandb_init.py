@@ -124,7 +124,7 @@ class _WandbInit(object):
                 # raise Exception(settings)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
-                print(settings.make_static())
+                # print(settings.make_static())
                 settings.update(settings_param, source=Source.INIT)
 
         self._reporter = reporting.setup_reporter(settings=settings)

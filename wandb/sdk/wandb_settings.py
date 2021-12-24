@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Dict,
     FrozenSet,
+    Iterable,
     Mapping,
     no_type_check,
     Optional,
@@ -831,6 +832,18 @@ class Settings:
         if "_Settings__initialized" in self.__dict__ and self.__initialized:
             raise TypeError("Please use update() to update attribute values")
         object.__setattr__(self, key, value)
+
+    # implement the Mapping interface
+    def keys(self) -> Iterable[str]:
+        return self.make_static(include_properties=True).keys()
+
+    @no_type_check
+    def __getitem__(self, name: str) -> Any:
+        """Expose attribute.value if attribute is a Property."""
+        item = object.__getattribute__(self, name)
+        if isinstance(item, Property):
+            return item.value
+        return item
 
     def update(
         self,

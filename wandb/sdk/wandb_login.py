@@ -182,7 +182,7 @@ class _WandbLogin:
             self._wl._update_user_settings()
 
     def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
-        api = Api(self._settings.make_static())
+        api = Api(self._settings)
         while True:
             try:
                 key = apikey.prompt_api_key(
