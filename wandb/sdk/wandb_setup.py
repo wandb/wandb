@@ -163,12 +163,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
     def settings(self):
         return self._settings
 
-    def _clone_settings(self, __d=None, **kwargs):
-        raise Exception("_clone_settings is deprecated")
-        s = copy.copy(self._settings)
-        s.update(__d, **kwargs)
-        return s
-
     def _get_entity(self) -> Optional[str]:
         if self._settings and self._settings._offline:
             return None

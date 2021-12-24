@@ -576,7 +576,7 @@ class Settings:
         }
         self.mode: Any = {
             "value": "online",
-            "validator": [lambda x: isinstance(x, str), self._validate_mode,],
+            "validator": [lambda x: isinstance(x, str), self._validate_mode],
         }
         self.notebook_name: Any = {
             "validator": lambda x: isinstance(x, str),
@@ -592,7 +592,7 @@ class Settings:
             "validator": lambda x: isinstance(x, str),
         }
         self.project: Any = {
-            "validator": [lambda x: isinstance(x, str), self._validate_project,],
+            "validator": [lambda x: isinstance(x, str), self._validate_project],
         }
         self.quiet: Any = {
             "preprocessor": _str_as_bool,
