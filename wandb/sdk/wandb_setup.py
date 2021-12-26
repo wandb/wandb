@@ -20,6 +20,7 @@ from typing import (
     Any,
     Dict,
     Optional,
+    Union,
 )
 
 import wandb
@@ -117,16 +118,26 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _settings_setup(
         self,
-        settings: Optional[Dict[str, Any]] = None,
+        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         early_logger: Optional[_EarlyLogger] = None,
     ):
         s = wandb_settings.Settings()
         s.apply_config_files(_logger=early_logger)
         s.apply_env_vars(self._environ, _logger=early_logger)
 
-        # fixme? same logic as in init? i.e. let it be Settings or dict?
+        # same logic as in wandb.init, i.e. let it be Settings or dict
         if settings is not None:
-            s.apply_setup(settings, _logger=early_logger)
+            if isinstance(settings, wandb_settings.Settings):
+                # todo: check the logic here
+                #  this _only_ comes up in tests
+                # fixme? update the settings with the values from it with BASE source
+                s.update(
+                    settings.make_static(include_properties=False),
+                    source=wandb_settings.Source.BASE,
+                )
+            elif isinstance(settings, dict):
+                # if it is a mapping, update the settings with it
+                s.apply_setup(settings, _logger=early_logger)
 
         s.infer_settings_from_environment()
         if not s._cli_only_mode:

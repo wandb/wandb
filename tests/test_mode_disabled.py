@@ -125,7 +125,7 @@ def test_bad_url(test_settings):
 
 def test_login(test_settings):
     test_settings.update(mode="disabled")
-    wandb.setup(settings=test_settings.make_static(include_properties=False))
+    wandb.setup(settings=test_settings)
     wandb.login()
 
 
