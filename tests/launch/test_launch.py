@@ -308,8 +308,8 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
@@ -335,8 +335,8 @@ def test_run_in_launch_context_with_artifact_string_no_used_as(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
@@ -369,8 +369,8 @@ def test_run_in_launch_context_with_artifact_unique(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
@@ -400,8 +400,8 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("test/test/old_name:v0")
         assert run.config.epochs == 10
@@ -467,8 +467,8 @@ def test_run_in_launch_context_with_artifact_string_used_as_config(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:latest", use_as="dataset")
         run.config.dataset = arti_inst
@@ -502,8 +502,8 @@ def test_run_in_launch_context_with_artifacts_api(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         public_api = PublicApi()
         art = public_api.artifact("old_name:v0")
@@ -541,8 +541,8 @@ def test_run_in_launch_context_with_artifacts_no_match(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True)
+        test_settings.update(launch_config_path=path)
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
