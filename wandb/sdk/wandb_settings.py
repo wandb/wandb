@@ -62,18 +62,18 @@ def get_wandb_dir(root_dir: str) -> str:
     return os.path.expanduser(path)
 
 
-def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
+def _str_as_bool(val: Union[str, bool, None]) -> bool:
     """
     Parse a string as a bool.
     """
-    ret_val: Optional[bool] = None
     if isinstance(val, bool):
         return val
     try:
         ret_val = bool(strtobool(str(val)))
+        return ret_val
     except (AttributeError, ValueError):
         pass
-    return ret_val
+    raise UsageError(f"Could not parse value {val} as a bool")
 
 
 def _path_convert(*args: str) -> str:
@@ -228,7 +228,7 @@ class Property:
                     raise ValueError(f"Invalid value for property {self.name}: {value}")
         return value
 
-    def update(self, value: Any, source: int = Source.OVERRIDE,) -> None:
+    def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
         """Update the value of the property."""
         if self.__frozen:
             raise TypeError("Property object is frozen")
@@ -769,15 +769,12 @@ class Settings:
                 )
 
         # update overridden defaults from kwargs
-        unexpected_arguments = []
-        for k, v in kwargs.items():
-            if k in self.__dict__:
-                self.update({k: v}, source=Source.SETTINGS)
-            else:
-                unexpected_arguments.append(k)
+        unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
             raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
+        for k, v in kwargs.items():
+            self.update({k: v}, source=Source.SETTINGS)
 
         # setup private attributes
         object.__setattr__(self, "_Settings_start_datetime", None)
@@ -821,7 +818,7 @@ class Settings:
 
     def __setattr__(self, key: str, value: Any) -> None:
         if "_Settings__initialized" in self.__dict__ and self.__initialized:
-            raise TypeError("Please use update() to update attribute values")
+            raise TypeError("Please use update() to update attribute value")
         object.__setattr__(self, key, value)
 
     def __iter__(self) -> Iterable:
