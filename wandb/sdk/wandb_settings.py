@@ -824,10 +824,10 @@ class Settings:
             raise TypeError("Please use update() to update attribute values")
         object.__setattr__(self, key, value)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable:
         return iter(self.make_static(include_properties=True))
 
-    def copy(self):
+    def copy(self) -> "Settings":
         return copy.deepcopy(self)
 
     # implement the Mapping interface

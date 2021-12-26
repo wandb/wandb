@@ -11,7 +11,6 @@ run_id can be resolved.
 
 """
 
-import copy
 import logging
 import os
 import sys
