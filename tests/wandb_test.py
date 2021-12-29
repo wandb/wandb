@@ -3,15 +3,26 @@ See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
 import wandb
+from wandb.viz import create_custom_chart
 import pytest
 import tempfile
 import glob
 import os
+import sys
+from unittest import mock
 
 
 def test_log_step(wandb_init_run):
     wandb.log({"acc": 1}, step=5, commit=True)
     assert wandb.run._backend.history[0]["_step"] == 5
+
+
+def test_log_custom_chart(wandb_init_run):
+    custom_chart = create_custom_chart(
+        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+    )
+    wandb.log({"my_custom_chart": custom_chart})
+    assert wandb.run._backend.history[0].get("my_custom_chart_table")
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
@@ -105,14 +116,16 @@ def test_k8s_failure(wandb_init_run):
 
 
 @pytest.mark.wandb_args(sagemaker=True)
-@pytest.mark.skip(
-    reason="Sagemaker support not currently implemented, see wandb.util.parse_sm_config"
+@pytest.mark.skipif(
+    sys.version_info < (3, 0), reason="py27 patch doesn't work with builtins"
 )
 def test_sagemaker(wandb_init_run):
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
-    assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
-    assert wandb.run.group == "sage"
+    # TODO: add test for secret, but for now there is no env or setting for it
+    #  so its not added. Similarly add test for group
+    # assert os.getenv("WANDB_TEST_SECRET") == "TRUE"
+    # assert wandb.run.group == "sage"
 
 
 @pytest.mark.wandb_args(
@@ -175,6 +188,39 @@ def test_custom_dir_env(wandb_init_run):
     assert len(glob.glob("/tmp/wandb/offline-*")) > 0
 
 
+def test_anonymous_mode(live_mock_server, test_settings, capsys, monkeypatch):
+    copied_env = os.environ.copy()
+    copied_env.pop("WANDB_API_KEY")
+    copied_env.pop("WANDB_USERNAME")
+    test_settings.update({"anonymous": "must", "api_key": None})
+    with mock.patch.dict("os.environ", copied_env, clear=True):
+        run = wandb.init(settings=test_settings, anonymous="must")
+        run.log({"something": 1})
+        _, err = capsys.readouterr()
+        assert (
+            "Do NOT share these links with anyone. They can be used to claim your runs."
+            in err
+        )
+
+
+def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkeypatch):
+    copied_env = os.environ.copy()
+    copied_env.pop("WANDB_API_KEY")
+    copied_env.pop("WANDB_USERNAME")
+    test_settings.update({"anonymous": "must", "api_key": None})
+    with mock.patch.dict("os.environ", copied_env, clear=True):
+
+        run = wandb.init(settings=test_settings, anonymous="must")
+        artifact = wandb.Artifact("my-arti", type="dataset")
+        run.log_artifact(artifact)
+        _, err = capsys.readouterr()
+
+        assert (
+            "Artifacts logged anonymously cannot be claimed and expire after 7 days."
+            in err
+        )
+
+
 def test_login_key(capsys):
     wandb.login(key="A" * 40)
     # TODO: this was a bug when tests were leaking out to the global config
@@ -185,6 +231,13 @@ def test_login_key(capsys):
     assert "Appending key" in err
     #  WTF is happening?
     assert wandb.api.api_key == "A" * 40
+
+
+def test_sagemaker_key(runner):
+    with runner.isolated_filesystem():
+        with open("secrets.env", "w") as f:
+            f.write("WANDB_API_KEY={}".format("S" * 40))
+        assert wandb.api.api_key == "S" * 40
 
 
 @pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")
@@ -201,6 +254,17 @@ def test_login_anonymous(mock_server, local_netrc):
     os.environ["WANDB_API_KEY"] = "B" * 40
     wandb.login(anonymous="must")
     assert wandb.api.api_key == "ANONYMOOSE" * 4
+
+
+def test_login_sets_api_base_url(mock_server):
+    base_url = "https://api.test.host.ai"
+    wandb.login(anonymous="must", host=base_url)
+    api = wandb.Api()
+    assert api.settings["base_url"] == base_url
+    base_url = "https://api.wandb.ai"
+    wandb.login(anonymous="must", host=base_url)
+    api = wandb.Api()
+    assert api.settings["base_url"] == base_url
 
 
 def test_save_policy_symlink(wandb_init_run):

@@ -6,7 +6,7 @@ progress.
 
 import os
 
-from wandb.errors.error import CommError
+from wandb.errors import CommError
 
 
 class Progress(object):
@@ -57,5 +57,8 @@ class Progress(object):
         if len(bites) == 0:
             raise StopIteration
         return bites
+
+    def __len__(self):
+        return self.len
 
     next = __next__

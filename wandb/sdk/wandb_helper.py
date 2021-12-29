@@ -3,7 +3,7 @@ import inspect
 import types
 
 import six
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
 
 from .lib import config_util
 

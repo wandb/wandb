@@ -3,12 +3,12 @@
 mkdir -p wandb
 echo "Stopping all old grpc-server"
 set +e
-(ps auxw | grep "wandb grpc-server" | grep -v grep | awk '{print $2}' | xargs kill) 2>/dev/null
+(ps auxw | grep "wandb-service" | grep -v grep | awk '{print $2}' | xargs kill) 2>/dev/null
 set -e
 echo "Wait for servers to be gone..."
 sleep 1
-echo "Running grpc-server in the background..."
-pyenv exec wandb grpc-server &
+echo "Running wandb service in the background..."
+pyenv exec wandb service --grpc-port 50051 --serve-grpc &
 echo "Wait for server to be up..."
 sleep 1
 echo "Starting grpc client..."

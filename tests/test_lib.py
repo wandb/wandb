@@ -7,7 +7,8 @@ from wandb import env
 
 def test_write_netrc():
     api_key = "X" * 40
-    wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
+    res = wandb_lib.apikey.write_netrc("http://localhost", "vanpelt", api_key)
+    assert res
     with open(os.path.expanduser("~/.netrc")) as f:
         assert f.read() == (
             "machine localhost\n" "  login vanpelt\n" "  password %s\n" % api_key
@@ -68,3 +69,9 @@ def test_session_manager_refresh(live_mock_server):
     finally:
         del os.environ["OAUTHLIB_INSECURE_TRANSPORT"]
         del os.environ[env.DISCOVERY_URL]
+
+
+def test_write_netrc_invalid_host():
+    api_key = "X" * 40
+    res = wandb_lib.apikey.write_netrc("http://foo", "vanpelt", api_key)
+    assert res is None

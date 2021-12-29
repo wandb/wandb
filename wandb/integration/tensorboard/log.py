@@ -3,6 +3,7 @@ import time
 
 import six
 import wandb
+from wandb.viz import create_custom_chart
 
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
@@ -11,7 +12,7 @@ STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 # We support rate limited logging by setting this to number of seconds,
 # can be a floating point.
 RATE_LIMIT_SECONDS = None
-IGNORE_KINDS = []
+IGNORE_KINDS = ["graphs"]
 tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 
 
@@ -65,8 +66,8 @@ def history_image_key(key, namespace=""):
 def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     """Convert a Tensorboard Summary to a dictionary
 
-    Accepts either a tensorflow.summary.Summary
-    or one encoded as a string.
+    Accepts a tensorflow.summary.Summary, one encoded as a string,
+    or a list of such encoded as strings.
     """
     values = {}
     if hasattr(tf_summary_str_or_pb, "summary"):
@@ -76,6 +77,13 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
     elif isinstance(tf_summary_str_or_pb, (str, bytes, bytearray)):
         summary_pb = Summary()
         summary_pb.ParseFromString(tf_summary_str_or_pb)
+    elif hasattr(tf_summary_str_or_pb, "__iter__"):
+        summary_pb = [Summary() for _ in range(len(tf_summary_str_or_pb))]
+        for i, summary in enumerate(tf_summary_str_or_pb):
+            summary_pb[i].ParseFromString(summary)
+            if i > 0:
+                summary_pb[0].MergeFrom(summary_pb[i])
+        summary_pb = summary_pb[0]
     else:
         summary_pb = tf_summary_str_or_pb
 
@@ -125,10 +133,55 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
             elif plugin_name == "images":
                 img_strs = value.tensor.string_val[2:]  # First two items are dims.
                 encode_images(img_strs, value)
+            elif plugin_name == "histograms":
+                # https://github.com/tensorflow/tensorboard/blob/master/tensorboard/plugins/histogram/summary_v2.py#L15-L26
+                ndarray = make_ndarray(value.tensor)
+                shape = ndarray.shape
+                counts = []
+                bins = []
+                if shape[0] > 1:
+                    bins.append(ndarray[0][0])  # Add the left most edge
+                    for v in ndarray:
+                        counts.append(v[2])
+                        bins.append(v[1])  # Add the right most edges
+                elif shape[0] == 1:
+                    counts = [ndarray[0][2]]
+                    bins = ndarray[0][:2]
+                if len(counts) > 0:
+                    values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
+                        np_histogram=(counts, bins)
+                    )
+            elif plugin_name == "pr_curves":
+                pr_curve_data = make_ndarray(value.tensor)
+                precision = pr_curve_data[-2, :].tolist()
+                recall = pr_curve_data[-1, :].tolist()
+                # TODO: (kdg) implement spec for showing additional info in tool tips
+                # true_pos = pr_curve_data[1,:]
+                # false_pos = pr_curve_data[2,:]
+                # true_neg = pr_curve_data[1,:]
+                # false_neg = pr_curve_data[1,:]
+                # threshold = [1.0 / n for n in range(len(true_pos), 0, -1)]
+                # min of each in case tensorboard ever changes their pr_curve
+                # to allow for different length outputs
+                data = []
+                for i in range(min(len((precision)), len(recall))):
+                    # drop additional threshold values if they exist
+                    if precision[i] != 0 or recall[i] != 0:
+                        data.append((recall[i], precision[i]))
+                # sort data so custom chart looks the same as tb generated pr curve
+                # ascending recall, descending precision for the same recall values
+                data = sorted(data, key=lambda x: (x[0], -x[1]))
+                data_table = wandb.Table(data=data, columns=["recall", "precision"])
+                name = namespaced_tag(value.tag, namespace)
+                values[name] = create_custom_chart(
+                    "wandb/line/v0",
+                    data_table,
+                    {"x": "recall", "y": "precision"},
+                    {"title": f"{name} Precision v. Recall"},
+                )
         elif kind == "image":
             img_str = value.image.encoded_image_string
             encode_images([img_str], value)
-
         # Coming soon...
         # elif kind == "audio":
         #     audio = wandb.Audio(
@@ -193,7 +246,7 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
 
 
 def reset_state():
-    """Internal method for reseting state, called by wandb.join"""
+    """Internal method for resetting state, called by wandb.join"""
     global STEPS
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
@@ -202,7 +255,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
-    history object is passed.  Can optionally namespace events.  Results are commited
+    history object is passed.  Can optionally namespace events.  Results are committed
     when step increases for this namespace.
 
     NOTE: This assumes that events being passed in are in chronological order

@@ -38,3 +38,19 @@ class TestGitRepo:
 
     def test_no_remote(self):
         assert not GitRepo(remote=None).enabled
+
+    def test_remote_url_with_token(self, git_repo_with_remote):
+        assert "bar" not in git_repo_with_remote.remote_url
+        assert git_repo_with_remote.remote_url is not None
+
+    def test_remote_url_no_token(self, git_repo_with_remote_and_empty_pass):
+        assert (
+            git_repo_with_remote_and_empty_pass.remote_url
+            == "https://foo:@github.com/FooTest/Foo.git"
+        )
+
+    def test_remote_with_port(self, git_repo_with_remote_and_port):
+        assert (
+            git_repo_with_remote_and_port.remote_url
+            == "https://foo:@github.com:8080/FooTest/Foo.git"
+        )

@@ -80,9 +80,10 @@ def main():
     #matplotlib.pyplot.plt.axis('scaled')
 
     # pytorch model graph
-    alex = models.AlexNet()
-    graph = wandb.wandb_torch.TorchGraph.hook_torch(alex)
-    alex.forward(dummy_torch_tensor((2, 3, 224, 224)))
+    #alex = models.AlexNet()
+    #graph = wandb.wandb_torch.TorchGraph.hook_torch(alex)
+    #alex.forward(dummy_torch_tensor((2, 3, 224, 224)))
+
 
 
     with tensorflow.Session().as_default() as sess:
@@ -93,7 +94,8 @@ def main():
             'histogram-large-random-summary': histogram_large_random,
             'numpy-array-summary': numpy_array,
             'torch-tensor-summary': torch_tensor,
-            'data-frame-summary': data_frame,
+            # bare dataframes in summary and history removed in 0.10.21
+            # 'data-frame-summary': data_frame,
 
             'image-cool-summary': image_cool,
             'image-nice-summary': image_nice,
@@ -126,7 +128,7 @@ def main():
             'tensorflow-variable-single-summary': tensorflow_variable_single,
             'tensorflow-variable-multi-summary': tensorflow_variable_multi,
 
-            'graph-summary': graph,
+            #'graph-summary': graph,
         })
 
         for i in range(10):
@@ -174,7 +176,8 @@ def main():
             'histogram-large-random-summary': histogram_large_random,
             'numpy-array-summary': numpy_array,
             'torch-tensor-summary': torch_tensor,
-            'data-frame-summary': data_frame,
+            # bare dataframes in summary and history removed in 0.10.21
+            # 'data-frame-summary': data_frame,
 
             'image-cool-summary': image_cool,
             'image-nice-summary': image_nice,
@@ -204,7 +207,7 @@ def main():
             'tensorflow-variable-single-summary': tensorflow_variable_single,
             'tensorflow-variable-multi-summary': tensorflow_variable_multi,
 
-            'graph-summary': graph,
+            #'graph-summary': graph,
         })
 
         #history.add({

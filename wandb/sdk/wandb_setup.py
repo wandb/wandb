@@ -13,15 +13,16 @@ run_id can be resolved.
 
 import copy
 import logging
-import multiprocessing
 import os
 import sys
 import threading
+from typing import Optional
 
 import wandb
 
+from . import wandb_manager
 from . import wandb_settings
-from .lib import config_util, server
+from .lib import config_util, debug_log, server
 
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -75,13 +76,16 @@ class _EarlyLogger(object):
 class _WandbSetup__WandbSetup(object):  # noqa: N801
     """Inner class of _WandbSetup."""
 
-    def __init__(self, settings=None, environ=None):
-        self._multiprocessing = None
+    _manager: Optional[wandb_manager._Manager]
+
+    def __init__(self, settings=None, environ=None, pid=None):
         self._settings = None
         self._environ = environ or dict(os.environ)
         self._sweep_config = None
         self._config = None
         self._server = None
+        self._manager = None
+        self._pid = pid
 
         # keep track of multiple runs so we can unwind with join()s
         self._global_run_stack = []
@@ -98,6 +102,10 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
 
         self._check()
         self._setup()
+
+        debug_log_mode = self._settings._debug_log
+        if debug_log_mode:
+            debug_log.enable(debug_log_mode)
 
     def _settings_setup(self, settings=None, early_logger=None):
         # TODO: Do a more formal merge of user settings from the backend.
@@ -201,19 +209,7 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
         # print("t3", multiprocessing.get_start_method())
 
     def _setup(self):
-        # TODO: use fork context if unix and frozen?
-        # if py34+, else fall back
-        if hasattr(multiprocessing, "get_context"):
-            all_methods = multiprocessing.get_all_start_methods()
-            logger.info(
-                "multiprocessing start_methods={}".format(",".join(all_methods))
-            )
-            ctx = multiprocessing.get_context("spawn")
-        else:
-            logger.info("multiprocessing fallback, likely fork on unix")
-            ctx = multiprocessing
-        self._multiprocessing = ctx
-        # print("t3b", self._multiprocessing.get_start_method())
+        self._setup_manager()
 
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
@@ -234,17 +230,43 @@ class _WandbSetup__WandbSetup(object):  # noqa: N801
                 else:
                     self._config = config_dict
 
+    def _teardown(self, exit_code: int = None):
+        exit_code = exit_code or 0
+        self._teardown_manager(exit_code=exit_code)
+
+    def _setup_manager(self) -> None:
+        if not self._settings._require_service:
+            return
+        # Temporary setting to allow use of grpc so that we can keep
+        # that code from rotting during the transition
+        use_grpc = self._settings._service_transport == "grpc"
+        self._manager = wandb_manager._Manager(_use_grpc=use_grpc)
+
+    def _teardown_manager(self, exit_code: int) -> None:
+        if not self._manager:
+            return
+        self._manager._teardown(exit_code)
+        self._manager = None
+
+    def _get_manager(self) -> Optional[wandb_manager._Manager]:
+        return self._manager
+
 
 class _WandbSetup(object):
-    """Wandb singleton class."""
+    """Wandb singleton class.
+
+    Note: This is a process local singleton.
+    (Forked processes will get a new copy of the object)
+    """
 
     _instance = None
 
     def __init__(self, settings=None):
-        if _WandbSetup._instance is not None:
+        pid = os.getpid()
+        if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
-        else:
-            _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings)
+            return
+        _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
     def __getattr__(self, name):
         return getattr(self._instance, name)
@@ -253,6 +275,9 @@ class _WandbSetup(object):
 def _setup(settings=None, _reset=None):
     """Setup library context."""
     if _reset:
+        setup_instance = _WandbSetup._instance
+        if setup_instance:
+            setup_instance._teardown()
         _WandbSetup._instance = None
         return
     wl = _WandbSetup(settings=settings)
@@ -262,3 +287,10 @@ def _setup(settings=None, _reset=None):
 def setup(settings=None):
     ret = _setup(settings=settings)
     return ret
+
+
+def teardown(exit_code=None):
+    setup_instance = _WandbSetup._instance
+    if setup_instance:
+        setup_instance._teardown(exit_code=exit_code)
+    _WandbSetup._instance = None

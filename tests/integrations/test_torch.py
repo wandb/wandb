@@ -40,6 +40,25 @@ class DynamicModule(nn.Module):
         return x
 
 
+class EmbModel(nn.Module):
+    def __init__(self, x=16, y=32):
+        super().__init__()
+        self.emb1 = nn.Embedding(x, y)
+        self.emb2 = nn.Embedding(x, y)
+
+    def forward(self, x):
+        return {"key": {"emb1": self.emb1(x), "emb2": self.emb2(x),}}
+
+
+class EmbModelWrapper(nn.Module):
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+        self.emb = EmbModel(*args, **kwargs)
+
+    def forward(self, *args, **kwargs):
+        return self.emb(*args, **kwargs)
+
+
 class Discrete(nn.Module):
     def __init__(self):
         super(Discrete, self).__init__()
@@ -155,15 +174,30 @@ def test_all_logging(wandb_init_run):
 
 def test_double_log(wandb_init_run):
     net = ConvNet()
-    wandb.watch(net)
+    wandb.watch(net, log_graph=True)
     with pytest.raises(ValueError):
-        wandb.watch(net)
+        wandb.watch(net, log_graph=True)
+
+
+def test_embedding_dict_watch(wandb_init_run):
+    model = EmbModelWrapper()
+    wandb.watch(model, log_freq=1, idx=0)
+    opt = torch.optim.Adam(params=model.parameters())
+    inp = torch.randint(16, [8, 5])
+    out = model(inp)
+    out = (out["key"]["emb1"]).sum(-1)
+    loss = F.mse_loss(out, inp.float())
+    loss.backward()
+    opt.step()
+    wandb.log({"loss": loss})
+    print(wandb.run._backend.history)
+    assert len(wandb.run._backend.history[0]["gradients/emb.emb1.weight"]["bins"]) == 65
 
 
 @pytest.mark.timeout(120)
 def test_sequence_net(wandb_init_run):
     net = Sequence()
-    graph = wandb.wandb_torch.TorchGraph.hook_torch(net)
+    graph = wandb.watch(net, log_graph=True)[0]
     output = net.forward(dummy_torch_tensor((97, 100)))
     output.backward(torch.zeros((97, 100)))
     graph = graph._to_graph_json()
@@ -179,7 +213,7 @@ def test_sequence_net(wandb_init_run):
 def test_multi_net(wandb_init_run):
     net1 = ConvNet()
     net2 = ConvNet()
-    graphs = wandb.watch((net1, net2))
+    graphs = wandb.watch((net1, net2), log_graph=True)
     output1 = net1.forward(dummy_torch_tensor((64, 1, 28, 28)))
     output2 = net2.forward(dummy_torch_tensor((64, 1, 28, 28)))
     grads = torch.ones(64, 10)
@@ -206,3 +240,39 @@ def test_nested_shape():
     t3.append(t2)
     shape = wandb.wandb_torch.nested_shape([t1, t2, t3])
     assert shape == [[2, 3], [4, 5], [[2, 3], [4, 5], 0, [4, 5]]]
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        (torch.Tensor([1.0, 2.0, 3.0]), False),
+        (torch.Tensor([0.0, 0.0, 0.0]), False),
+        (torch.Tensor([1.0]), False),
+        (torch.Tensor([]), True),
+        (torch.Tensor([1.0, float("nan"), float("nan")]), False),
+        (torch.Tensor([1.0, float("inf"), -float("inf")]), False),
+        (torch.Tensor([1.0, float("nan"), float("inf")]), False),
+        (torch.Tensor([float("nan"), float("nan"), float("nan")]), True),
+        (torch.Tensor([float("inf"), float("inf"), -float("inf")]), True),
+        (torch.Tensor([float("nan"), float("inf"), -float("inf")]), True),
+    ],
+)
+def test_no_finite_values(test_input, expected, wandb_init_run):
+    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+
+    assert torch_history._no_finite_values(test_input) is expected
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        (torch.Tensor([0.0, 1.0, 2.0]), torch.Tensor([0.0, 1.0, 2.0])),
+        (torch.Tensor([1.0]), torch.Tensor([1.0])),
+        (torch.Tensor([0.0, float("inf"), -float("inf")]), torch.Tensor([0.0])),
+        (torch.Tensor([0.0, float("nan"), float("inf")]), torch.Tensor([0.0])),
+    ],
+)
+def test_remove_infs_nans(test_input, expected, wandb_init_run):
+    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+
+    assert torch.equal(torch_history._remove_infs_nans(test_input), expected)

@@ -1,13 +1,15 @@
-import random
+import itertools
 import sys
 import os
 import pytest
 import numpy
 import platform
+import random
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 import tensorflow
+
 import plotly
 import matplotlib.pyplot as plt
 
@@ -164,6 +166,21 @@ def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="test suite does not build jaxlib on windows"
+)
+@pytest.mark.parametrize(
+    "array_shape", [(), (1,), (3,), (300,), (300, 300), (1,) * 8, (3,) * 8]
+)
+def test_jax_json(array_shape):
+    from jax import numpy as jnp
+
+    orig_data = nested_list(*array_shape)
+    jax_array = jnp.asarray(orig_data)
+    json_friendly_test(orig_data, jax_array)
+    assert util.is_jax_tensor_typename(util.get_full_typename(jax_array))
+
+
 def test_image_from_docker_args_simple():
     image = util.image_from_docker_args(
         ["run", "-v", "/foo:/bar", "-e", "NICE=foo", "-it", "wandb/deepo", "/bin/bash"]
@@ -197,6 +214,16 @@ def test_image_from_docker_args_sha():
     )
     image = util.image_from_docker_args([dsha])
     assert image == dsha
+
+
+def test_app_url():
+    os.environ["WANDB_APP_URL"] = "https://foo.com/bar/"
+    assert util.app_url("https://api.foo.com") == "https://foo.com/bar"
+    del os.environ["WANDB_APP_URL"]
+    assert util.app_url("http://api.wandb.test") == "http://app.wandb.test"
+    assert util.app_url("https://api.wandb.ai") == "https://wandb.ai"
+    assert util.app_url("https://api.foo/bar") == "https://app.foo/bar"
+    assert util.app_url("https://wandb.foo") == "https://wandb.foo"
 
 
 def test_safe_for_json():
@@ -234,10 +261,24 @@ def test_parse_sweep_id():
     assert parts == {"name": "test", "entity": "test", "project": "test"}
 
 
-def test_sizeof_fmt():
-    assert util.sizeof_fmt(1000) == "1000.0B"
-    assert util.sizeof_fmt(1000000) == "976.6KiB"
-    assert util.sizeof_fmt(5000000) == "4.8MiB"
+def test_from_human_size():
+    assert util.from_human_size("1000B", units=util.POW_2_BYTES) == 1000
+    assert util.from_human_size("976.6KiB", units=util.POW_2_BYTES) == 1000038
+    assert util.from_human_size("4.8MiB", units=util.POW_2_BYTES) == 5033164
+
+    assert util.from_human_size("1000.0B") == 1000
+    assert util.from_human_size("1000KB") == 1000000
+    assert util.from_human_size("5.0MB") == 5000000
+
+
+def test_to_human_size():
+    assert util.to_human_size(1000, units=util.POW_2_BYTES) == "1000.0B"
+    assert util.to_human_size(1000000, units=util.POW_2_BYTES) == "976.6KiB"
+    assert util.to_human_size(5000000, units=util.POW_2_BYTES) == "4.8MiB"
+
+    assert util.to_human_size(1000) == "1000.0B"
+    assert util.to_human_size(1000000) == "1000.0KB"
+    assert util.to_human_size(5000000) == "5.0MB"
 
 
 def test_matplotlib_contains_images():

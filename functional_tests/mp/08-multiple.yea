@@ -1,0 +1,14 @@
+id: 0.mp.08-multiple
+plugin:
+  - wandb
+tag:
+  shard: service
+  skip: true
+assert:
+  - :wandb:runs_len: 2
+  - :wandb:runs[0][config]: {id: parent}
+  - :wandb:runs[0][summary]: {p1: 12}
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[1][config]: {id: child}
+  - :wandb:runs[1][summary]: {c1: 22}
+  - :wandb:runs[1][exitcode]: 0

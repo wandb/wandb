@@ -73,8 +73,8 @@ def main(argv):
         # print(art.list())
         art_dir = art.download()
         print(os.listdir(art_dir))
-        print('Art bla.txt reference', art.get_path('bla.txt').ref())
-        print('Art requirements.txt reference', art.get_path('requirements.txt').ref())
+        print('Art bla.txt reference', art.get_path('bla.txt').ref_target())
+        print('Art requirements.txt reference', art.get_path('requirements.txt').ref_target())
         print('Art requirements.txt reference', art.get_path('requirements.txt').download())
 
         print('Downloading art2')

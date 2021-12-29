@@ -10,7 +10,7 @@ def thread_test(n):
 def main():
     try:
         threads = []
-        for i in range(10):
+        for i in range(2):
             threads.append(threading.Thread(target=thread_test, args=(i,)))
         for thread in threads:
             thread.start()
@@ -19,3 +19,6 @@ def main():
     except:
         print("Issue with calling wandb init in a multithreaded situation")
         assert False
+
+if __name__== "__main__":
+    main()

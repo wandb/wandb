@@ -59,53 +59,57 @@ def download_artifacts(gcs_alias="v0", s3_alias="v0"):
     s3_art.download()
     return gcs_art, s3_art
 
-v1_root = update_versions()
-sync_buckets(v1_root)
-log_artifacts()
-v2_root = update_versions(2)
-sync_buckets(v2_root)
-log_artifacts()
+def main(argv):
+    v1_root = update_versions()
+    sync_buckets(v1_root)
+    log_artifacts()
+    v2_root = update_versions(2)
+    sync_buckets(v2_root)
+    log_artifacts()
 
-print("Sleeping for arts to get processed...")
-time.sleep(1)
+    print("Sleeping for arts to get processed...")
+    time.sleep(1)
 
-gcs_v1_art, s3_v1_art = download_artifacts()
-gcs_v2_art, s3_v2_art = download_artifacts("v1", "v1")
-gcs_latest_art, s3_latest_art = download_artifacts("latest", "latest")
+    gcs_v1_art, s3_v1_art = download_artifacts()
+    gcs_v2_art, s3_v2_art = download_artifacts("v1", "v1")
+    gcs_latest_art, s3_latest_art = download_artifacts("latest", "latest")
 
 
-v1_gcs_cmp = dircmp(gcs_v1_art.cache_dir, v1_root)
-v1_s3_cmp = dircmp(s3_v1_art.cache_dir, v1_root)
+    v1_gcs_cmp = dircmp(gcs_v1_art.cache_dir, v1_root)
+    v1_s3_cmp = dircmp(s3_v1_art.cache_dir, v1_root)
 
-v2_gcs_cmp = dircmp(gcs_v2_art.cache_dir, v2_root)
-v2_s3_cmp = dircmp(s3_v2_art.cache_dir, v2_root)
+    v2_gcs_cmp = dircmp(gcs_v2_art.cache_dir, v2_root)
+    v2_s3_cmp = dircmp(s3_v2_art.cache_dir, v2_root)
 
-latest_gcs_cmp = dircmp(gcs_latest_art.cache_dir, v2_root)
-latest_s3_cmp = dircmp(s3_latest_art.cache_dir, v2_root)
+    latest_gcs_cmp = dircmp(gcs_latest_art.cache_dir, v2_root)
+    latest_s3_cmp = dircmp(s3_latest_art.cache_dir, v2_root)
 
-print("v0 GCS")
-v1_gcs_cmp.report()
+    print("v0 GCS")
+    v1_gcs_cmp.report()
 
-print("v0 S3")
-v1_s3_cmp.report()
+    print("v0 S3")
+    v1_s3_cmp.report()
 
-print("v1 GCS")
-v2_gcs_cmp.report()
+    print("v1 GCS")
+    v2_gcs_cmp.report()
 
-print("v1 S3")
-v2_s3_cmp.report()
+    print("v1 S3")
+    v2_s3_cmp.report()
 
-print("latest GCS")
-latest_gcs_cmp.report()
+    print("latest GCS")
+    latest_gcs_cmp.report()
 
-print("latest S3")
-latest_s3_cmp.report()
+    print("latest S3")
+    latest_s3_cmp.report()
 
-assert v1_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-assert v1_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert v1_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert v1_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
 
-assert v2_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-assert v2_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert v2_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert v2_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
 
-assert latest_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
-assert latest_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert latest_gcs_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+    assert latest_s3_cmp.common == ['even.txt', 'every.txt', 'odd.txt']
+
+if __name__ == '__main__':
+    main(sys.argv)

@@ -1,10 +1,16 @@
-<div align="center">
-  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
-</div>
+<p align="center">
+  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
+  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+</p>
 
-# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![Coverage Status](https://coveralls.io/repos/github/wandb/client/badge.svg?branch=master)](https://coveralls.io/github/wandb/client?branch=master)
+# Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
 
-Use W&B to organize and analyze machine learning experiments. It's framework-agnostic and lighter than TensorBoard. Each time you run a script instrumented with `wandb`, we save your hyperparameters and output metrics. Visualize models over the course of training, and compare versions of your models easily. We also automatically track the state of your code, system metrics, and configuration parameters.
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
+
+- Quickly identify model regressions. Use W&B to visualize results in real time, all in a central dashboard.
+- Focus on the interesting ML. Spend less time manually tracking results in spreadsheets and text files.
+- Capture dataset versions with W&B Artifacts to identify how changing data affects your resulting models.
+- Reproduce any model, with saved code, hyperparameters, launch commands, input data, and resulting model weights.
 
 [Sign up for a free account →](https://wandb.com)
 
@@ -20,7 +26,7 @@ Use W&B to organize and analyze machine learning experiments. It's framework-agn
 
 [Documentation →](https://docs.wandb.com)
 
-If you have any questions, please don't hesitate to ask in our [Slack community](http://bit.ly/slack-forum).
+If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum).
 
 # 🤝 Simple integration with any framework
 Install `wandb` library and login:
@@ -46,9 +52,9 @@ for i in range (10):
     wandb.log({"loss": loss})
 ```
 
-### [Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb)
+### [Try in a colab →](http://wandb.me/intro)
 
-If you have any questions, please don't hesitate to ask in our [Slack community](http://bit.ly/slack-forum).
+If you have any questions, please don't hesitate to ask in our [user forum](http://wandb.me/forum).
 
 ![](https://i.imgur.com/TU34QFZ.png)
 
@@ -74,7 +80,7 @@ wandb.config.learning_rate = 0.001
 wandb.config.architecture = "resnet"
 ```
 
-- **[See how to set configs in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/wandb-config/Configs_in_W%26B.ipynb)**
+- **[See how to set configs in a colab →](http://wandb.me/config-colab)**
 - [Docs](https://docs.wandb.com/library/config)
 
 # 🏗 Use your favorite framework
@@ -100,7 +106,7 @@ model.fit(X_train, y_train,  validation_data=(X_test, y_test),
           callbacks=[WandbCallback()])
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/keras/Simple_Keras_Integration.ipynb)**
+- **[Try in a colab →](http://wandb.me/keras-colab)**
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Keras--VmlldzoyMTEwNjQ)
 - [Docs](https://docs.wandb.com/library/integrations/keras)
 
@@ -126,7 +132,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
     wandb.log({"loss": loss})
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Simple_PyTorch_Integration.ipynb)**
+- **[Try in a colab →](http://wandb.me/pytorch-colab)**
 - [Learn More](https://app.wandb.ai/wandb/getting-started/reports/Pytorch--VmlldzoyMTEwNzM)
 - [Docs](https://docs.wandb.com/library/integrations/pytorch)
 
@@ -151,7 +157,7 @@ with tf.Session() as sess:
   wandb.tensorflow.log(tf.summary.merge_all())
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/drive/126c1k5IfbQpE7dVmhnoDTdmFfC7CgJqg?usp=sharing)**
+- **[Try in a colab →](http://wandb.me/tf-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/tensorflow)
 
 
@@ -159,7 +165,7 @@ with tf.Session() as sess:
 Visualize, compare, and iterate on fastai models using Weights & Biases with the `WandbCallback`.
 ```python
 import wandb
-from fastai2.callback.wandb import WandbCallback
+from fastai.callback.wandb import WandbCallback
 
 # 1. Start a new run
 wandb.init(project="gpt-3")
@@ -168,8 +174,22 @@ wandb.init(project="gpt-3")
 learn.fit(..., cbs=WandbCallback())
 ```
 
-- **[Try in a colab →](http://bit.ly/fastai-wandb)**
+- **[Try in a colab →](http://wandb.me/fastai-colab)**
 - [Docs](https://docs.wandb.com/library/integrations/fastai)
+
+
+## ⚡️ PyTorch Lightning
+Build scalable, structured, high-performance PyTorch models with Lightning and log them with W&B.
+```python
+from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning import Trainer
+
+wandb_logger = WandbLogger(project="gpt-3")
+trainer = Trainer(logger=wandb_logger)
+```
+
+- **[Try in a colab →](http://wandb.me/lit-colab)**
+- [Docs](https://docs.wandb.ai/guides/integrations/lightning)
 
 
 ## 🤗 HuggingFace
@@ -195,14 +215,14 @@ python run_glue.py \
  --logging_steps 50
 ```
 
-- **[Try in a colab →](https://colab.research.google.com/drive/1NEiqNPhiouu2pPwDAVeFoN4-vTYMz9F8?usp=sharing)**
+- **[Try in a colab →](http://wandb.me/hf)**
 - [Docs](https://docs.wandb.com/library/integrations/huggingface)
 
 # 🧹 Optimize hyperparameters with Sweeps
 Use Weights & Biases Sweeps to automate hyperparameter optimization and explore the space of possible models.
 
 ### [Get started in 5 mins →](https://docs.wandb.com/sweeps/quickstart)
-### [Try Sweeps in PyTorch in a Colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/pytorch/Organizing_Hyperparameter_Sweeps_in_PyTorch_with_W%26B.ipynb)
+### [Try Sweeps in PyTorch in a Colab →](http://wandb.me/sweeps-colab)
 
 ### Benefits of using W&B Sweeps 
 - **Quick to setup:** With just a few lines of code you can run W&B sweeps.
@@ -225,7 +245,7 @@ Parallel coordinates plots map hyperparameter values to model metrics. They're u
 
 <img src="https://i.imgur.com/THYXBN0.png" width="720" alt="Weights & Biases" />
 
-# 📜 Share insights with with Reports
+# 📜 Share insights with Reports
 Reports let you [organize visualizations, describe your findings, and share updates with collaborators](https://www.youtube.com/watch?v=o2dOSIDDr1w&&ab_channel=Weights%26Biases).
 
 ### Common use cases
@@ -249,7 +269,7 @@ With just a few extra lines of code,
 you can start tracking you and your team's outputs,
 all directly linked to run.
 
-### [Try Artifacts in a Colab →](https://colab.research.google.com/github/wandb/examples/blob/master/colabs/wandb-artifacts/Pipeline_Versioning_with_W&B_Artifacts.ipynb)
+### [Try Artifacts in a Colab →](http://wandb.me/artifacts-colab)
 
 ![](https://i.imgur.com/zvBWhGx.png)
 

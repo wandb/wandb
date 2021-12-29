@@ -6,7 +6,7 @@ import threading
 import wandb
 
 EventJobDone = collections.namedtuple("EventJobDone", ("job", "success"))
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class UploadJob(threading.Thread):
@@ -15,6 +15,8 @@ class UploadJob(threading.Thread):
         done_queue,
         stats,
         api,
+        file_stream,
+        silent,
         save_name,
         path,
         artifact_id,
@@ -37,6 +39,8 @@ class UploadJob(threading.Thread):
         self._done_queue = done_queue
         self._stats = stats
         self._api = api
+        self._file_stream = file_stream
+        self.silent = silent
         self.save_name = save_name
         self.save_path = self.path = path
         self.artifact_id = artifact_id
@@ -54,6 +58,8 @@ class UploadJob(threading.Thread):
             if self.copied and os.path.isfile(self.save_path):
                 os.remove(self.save_path)
             self._done_queue.put(EventJobDone(self, success))
+            if success:
+                self._file_stream.push_success(self.artifact_id, self.save_name)
 
     def push(self):
         try:
@@ -133,11 +139,12 @@ class UploadJob(threading.Thread):
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
                 wandb.util.sentry_exc(e)
-                wandb.termerror(
-                    'Error uploading "{}": {}, {}'.format(
-                        self.save_name, type(e).__name__, e
+                if not self.silent:
+                    wandb.termerror(
+                        'Error uploading "{}": {}, {}'.format(
+                            self.save_name, type(e).__name__, e
+                        )
                     )
-                )
                 return False
         return True
 

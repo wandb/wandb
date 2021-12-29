@@ -7,9 +7,8 @@ config.
 import logging
 
 import six
-from six.moves.collections_abc import Sequence
 import wandb
-from wandb.util import json_friendly
+from wandb.util import check_dict_contains_nested_artifact, json_friendly_val
 
 from . import wandb_helper
 from .lib import config_util
@@ -22,24 +21,25 @@ logger = logging.getLogger("wandb")
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
 class Config(object):
-    """Config object
+    """
+    Config object
 
     Config objects are intended to hold all of the hyperparameters associated with
-    a wandb run and are saved with the run object when wandb.init is called.
+    a wandb run and are saved with the run object when `wandb.init` is called.
 
-    We recommend setting wandb.config once at the top of your training experiment or
-    setting the config as a parameter to init, ie. wandb.init(config=my_config_dict)
+    We recommend setting `wandb.config` once at the top of your training experiment or
+    setting the config as a parameter to init, ie. `wandb.init(config=my_config_dict)`
 
-    You can create a file called config-defaults.yaml, and it will automatically be
-    loaded into wandb.config. See https://docs.wandb.com/library/config#file-based-configs.
+    You can create a file called `config-defaults.yaml`, and it will automatically be
+    loaded into `wandb.config`. See https://docs.wandb.com/library/config#file-based-configs.
 
     You can also load a config YAML file with your custom name and pass the filename
-    into wandb.init(config="special_config.yaml").
+    into `wandb.init(config="special_config.yaml")`.
     See https://docs.wandb.com/library/config#file-based-configs.
 
     Examples:
         Basic usage
-        ```
+        ```python
         wandb.config.epochs = 4
         wandb.init()
         for x in range(wandb.config.epochs):
@@ -47,14 +47,14 @@ class Config(object):
         ```
 
         Using wandb.init to set config
-        ```
+        ```python
         wandb.init(config={"epochs": 4, "batch_size": 32})
         for x in range(wandb.config.epochs):
             # train
         ```
 
         Nested configs
-        ```
+        ```python
         wandb.config['train']['epochs] = 4
         wandb.init()
         for x in range(wandb.config['train']['epochs']):
@@ -62,14 +62,13 @@ class Config(object):
         ```
 
         Using absl flags
-
-        ```
+        ```python
         flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
 
         Argparse flags
-        ```
+        ```python
         wandb.init()
         wandb.config.epochs = 4
 
@@ -81,7 +80,7 @@ class Config(object):
         ```
 
         Using TensorFlow flags (deprecated in tensorflow v2)
-        ```
+        ```python
         flags = tf.app.flags
         flags.DEFINE_string('data_dir', '/tmp/data')
         flags.DEFINE_integer('batch_size', 128, 'Batch size.')
@@ -137,6 +136,9 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
+        with wandb.sdk.lib.telemetry.context() as tel:
+            tel.feature.set_config_item = True
+        self._raise_value_error_on_nested_artifact(val, nested=True)
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -156,10 +158,13 @@ class Config(object):
 
     def _update(self, d, allow_val_change=None, ignore_locked=None):
         parsed_dict = wandb_helper.parse_config(d)
+        locked_keys = set()
         for key in list(parsed_dict):
             if self._check_locked(key, ignore_locked=ignore_locked):
-                del parsed_dict[key]
-        sanitized = self._sanitize_dict(parsed_dict, allow_val_change)
+                locked_keys.add(key)
+        sanitized = self._sanitize_dict(
+            parsed_dict, allow_val_change, ignore_keys=locked_keys
+        )
         self._items.update(sanitized)
         return sanitized
 
@@ -178,13 +183,14 @@ class Config(object):
 
     def setdefaults(self, d):
         d = wandb_helper.parse_config(d)
-        d = self._sanitize_dict(d)
         # strip out keys already configured
         d = {k: v for k, v in six.iteritems(d) if k not in self._items}
+        d = self._sanitize_dict(d)
+        self._items.update(d)
         if self._callback:
             self._callback(data=d)
 
-    def update_locked(self, d, user=None):
+    def update_locked(self, d, user=None, _allow_val_change=None):
         if user not in self._users:
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
@@ -193,7 +199,7 @@ class Config(object):
         num = self._users[user]
 
         for k, v in six.iteritems(d):
-            k, v = self._sanitize(k, v)
+            k, v = self._sanitize(k, v, allow_val_change=_allow_val_change)
             self._locked[k] = num
             self._items[k] = v
 
@@ -205,9 +211,14 @@ class Config(object):
         if conf_dict is not None:
             self.update(conf_dict)
 
-    def _sanitize_dict(self, config_dict, allow_val_change=None):
+    def _sanitize_dict(
+        self, config_dict, allow_val_change=None, ignore_keys: set = None,
+    ):
         sanitized = {}
+        self._raise_value_error_on_nested_artifact(config_dict)
         for k, v in six.iteritems(config_dict):
+            if ignore_keys and k in ignore_keys:
+                continue
             k, v = self._sanitize(k, v, allow_val_change)
             sanitized[k] = v
         return sanitized
@@ -218,7 +229,12 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        val = self._sanitize_val(val)
+        # if the user inserts an artifact into the config
+        if not (
+            isinstance(val, wandb.Artifact)
+            or isinstance(val, wandb.apis.public.Artifact)
+        ):
+            val = json_friendly_val(val)
         if not allow_val_change:
             if key in self._items and val != self._items[key]:
                 raise config_util.ConfigError(
@@ -231,28 +247,14 @@ class Config(object):
                 )
         return key, val
 
-    def _sanitize_val(self, val):
-        """Turn all non-builtin values into something safe for YAML"""
-        if isinstance(val, dict):
-            converted = {}
-            for key, value in six.iteritems(val):
-                converted[key] = self._sanitize_val(value)
-            return converted
-        if isinstance(val, slice):
-            converted = dict(
-                slice_start=val.start, slice_step=val.step, slice_stop=val.stop
+    def _raise_value_error_on_nested_artifact(self, v, nested=False):
+        # we can't swap nested artifacts because their root key can be locked by other values
+        # best if we don't allow nested artifacts until we can lock nested keys in the config
+        if isinstance(v, dict) and check_dict_contains_nested_artifact(v, nested):
+            raise ValueError(
+                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
+                " can only be top level keys in wandb.config"
             )
-            return converted
-        val, _ = json_friendly(val)
-        if isinstance(val, Sequence) and not isinstance(val, six.string_types):
-            converted = []
-            for value in val:
-                converted.append(self._sanitize_val(value))
-            return converted
-        else:
-            if val.__class__.__module__ not in ("builtins", "__builtin__"):
-                val = str(val)
-            return val
 
 
 class ConfigStatic(object):

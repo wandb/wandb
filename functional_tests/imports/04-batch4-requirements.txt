@@ -1,0 +1,12 @@
+# paddle
+parlai
+prophet
+pycaret
+pytorch-ignite
+pytorchvideo
+pytorch_lightning
+ray
+scikit-learn
+simpletransformers
+skorch
+spacy>=3.1

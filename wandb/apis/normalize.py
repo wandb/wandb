@@ -10,7 +10,7 @@ import sys
 import requests
 import six
 from wandb import env
-from wandb.errors.error import CommError
+from wandb.errors import CommError
 
 
 def normalize_exceptions(func):

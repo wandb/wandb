@@ -4,35 +4,61 @@
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
 """
-
 from __future__ import print_function
+
+import enum
+import os
+from typing import Dict, Optional, Tuple
 
 import click
 import wandb
-from wandb.errors.error import UsageError
+from wandb.errors import UsageError
+from wandb.old.settings import Settings as OldSettings
 
 from .internal.internal_api import Api
 from .lib import apikey
 from .lib import oidc
 from .wandb_settings import Settings
+from ..apis import InternalApi
 
-if wandb.TYPE_CHECKING:  # type: ignore
-    from typing import Dict, Optional  # noqa: F401 pylint: disable=unused-import
+
+def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
+    """Write the host parameter from wandb.login or wandb login to
+    the global settings file so that it is used automatically by
+    the application's APIs."""
+    _api = InternalApi()
+    if host == "https://api.wandb.ai" or (host is None and cloud):
+        _api.clear_setting("base_url", globally=True, persist=True)
+        # To avoid writing an empty local settings file, we only clear if it exists
+        if os.path.exists(OldSettings._local_path()):
+            _api.clear_setting("base_url", persist=True)
+    elif host:
+        host = host.rstrip("/")
+        # force relogin if host is specified
+        _api.set_setting("base_url", host, globally=True, persist=True)
 
 
 def login(
-    anonymous=None, key=None, relogin=None, host=None, force=None, auth_mode=None
+    anonymous=None,
+    key=None,
+    relogin=None,
+    host=None,
+    force=None,
+    timeout=None,
+    auth_mode=None,
 ):
-    """Log in to W&B.
+    """
+    Log in to W&B.
 
     Arguments:
-        anonymous (string, optional): Can be "must", "allow", or "never".
+        anonymous: (string, optional) Can be "must", "allow", or "never".
             If set to "must" we'll always login anonymously, if set to
             "allow" we'll only create an anonymous user if the user
             isn't already logged in.
         key (string, optional): authentication key.
         relogin (bool, optional): If true, will re-prompt for API key.
         host (string, optional): The host to connect to.
+        timeout: (int, optional) Number of seconds to wait for user input.
         auth_mode (string, optional): Can be "key", "google" or "oidc" for
             Open ID Connect refresh tokens
 
@@ -42,9 +68,20 @@ def login(
     Raises:
         UsageError - if api_key can not be configured and no tty
     """
+
+    _handle_host_wandb_setting(host)
+    if wandb.setup()._settings._noop:
+        return True
     kwargs = dict(locals())
     configured = _login(**kwargs)
     return True if configured else False
+
+
+class ApiKeyStatus(enum.Enum):
+    VALID = 1
+    NOTTY = 2
+    OFFLINE = 3
+    DISABLED = 4
 
 
 class _WandbLogin(object):
@@ -56,6 +93,7 @@ class _WandbLogin(object):
         self._silent = None
         self._wl = None
         self._key = None
+        self._relogin = None
 
     def setup(self, kwargs):
         self.kwargs = kwargs
@@ -66,6 +104,8 @@ class _WandbLogin(object):
         if settings_param:
             login_settings._apply_settings(settings_param)
         _logger = wandb.setup()._get_logger()
+        # Do not save relogin into settings as we just want to relogin once
+        self._relogin = kwargs.pop("relogin", None)
         login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
@@ -97,7 +137,7 @@ class _WandbLogin(object):
             return True
 
         apikey_configured = self.is_apikey_configured()
-        if self._settings.relogin:
+        if self._settings.relogin or self._relogin:
             apikey_configured = False
         if not apikey_configured:
             return False
@@ -124,7 +164,11 @@ class _WandbLogin(object):
         else:
             login_state_str = "W&B API is authenticated"
             wandb.termlog(
-                "{} {}".format(login_state_str, login_info_str,), repeat=False,
+                "{} {}".format(
+                    login_state_str,
+                    login_info_str,
+                ),
+                repeat=False,
             )
 
     def configure_api_key(self, key):
@@ -141,10 +185,18 @@ class _WandbLogin(object):
         self.update_session(key)
         self._key = key
 
-    def update_session(self, key):
+    def update_session(
+        self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
+    ) -> None:
         _logger = wandb.setup()._get_logger()
         settings: Settings = wandb.Settings()
-        login_settings = dict(api_key=key) if key else dict(mode="offline")
+        login_settings = dict()
+        if status == ApiKeyStatus.OFFLINE:
+            login_settings = dict(mode="offline")
+        elif status == ApiKeyStatus.DISABLED:
+            login_settings = dict(mode="disabled")
+        elif key:
+            login_settings = dict(api_key=key)
         settings._apply_source_login(login_settings, _logger=_logger)
         self._wl._update(settings=settings)
         # Whenever the key changes, make sure to pull in user settings
@@ -155,17 +207,41 @@ class _WandbLogin(object):
     def prompt_oidc(self):
         return self._session_manager.prompt_login()
 
-    def prompt_api_key(self):
+    def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
+
         api = Api(self._settings)
-        key = apikey.prompt_api_key(
-            self._settings,
-            api=api,
-            no_offline=self._settings.force,
-            no_create=self._settings.force,
-        )
-        if key is False:
-            raise UsageError("api_key not configured (no-tty).  Run wandb login")
-        self.update_session(key)
+        while True:
+            try:
+                key = apikey.prompt_api_key(
+                    self._settings,
+                    api=api,
+                    no_offline=self._settings.force if self._settings else None,
+                    no_create=self._settings.force if self._settings else None,
+                )
+            except ValueError as e:
+                # invalid key provided, try again
+                wandb.termerror(e.args[0])
+                continue
+            except TimeoutError:
+                wandb.termlog("W&B disabled due to login timeout.")
+                return None, ApiKeyStatus.DISABLED
+            if key is False:
+                return None, ApiKeyStatus.NOTTY
+            if not key:
+                return None, ApiKeyStatus.OFFLINE
+            return key, ApiKeyStatus.VALID
+
+    def prompt_api_key(self):
+        key, status = self._prompt_api_key()
+        if status == ApiKeyStatus.NOTTY:
+            directive = (
+                "wandb login [your_api_key]"
+                if self._settings._cli_only_mode
+                else "wandb.login(key=[your_api_key])"
+            )
+            raise UsageError("api_key not configured (no-tty). call " + directive)
+
+        self.update_session(key, status=status)
         self._key = key
 
     def propogate_login(self):
@@ -184,6 +260,7 @@ def _login(
     host=None,
     force=None,
     auth_mode=None,
+    timeout=None,
     _backend=None,
     _silent=None,
     _disable_warning=None,
@@ -210,6 +287,11 @@ def _login(
     wlogin.setup(kwargs)
 
     if wlogin._settings._offline:
+        return False
+    elif wandb.util._is_kaggle() and not wandb.util._has_internet():
+        wandb.termerror(
+            "To use W&B in kaggle you must enable internet in the settings panel on the right."
+        )
         return False
 
     # perform a login

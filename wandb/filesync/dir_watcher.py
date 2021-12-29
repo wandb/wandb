@@ -1,16 +1,17 @@
 import logging
 import os
+import fnmatch
 import six
 from six.moves import queue
 import time
 
-from watchdog.observers.polling import PollingObserver
-from watchdog.events import PatternMatchingEventHandler
 from wandb import util
 import glob
 
+wd_polling = util.vendor_import("watchdog.observers.polling")
+wd_events = util.vendor_import("watchdog.events")
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class FileEventHandler(object):
@@ -113,25 +114,28 @@ class PolicyLive(FileEventHandler):
         else:
             return 20 * 60
 
-    def last_uploaded(self):
+    def should_update(self):
         if self._last_uploaded_time:
             # Check rate limit by time elapsed
             time_elapsed = time.time() - self._last_uploaded_time
+            # if more than 15 seconds has passed potentially upload it
             if time_elapsed < self.RATE_LIMIT_SECONDS:
-                return time_elapsed
+                return False
+
             # Check rate limit by size increase
             if float(self._last_uploaded_size) > 0:
                 size_increase = self.current_size / float(self._last_uploaded_size)
                 if size_increase < self.RATE_LIMIT_SIZE_INCREASE:
-                    return time_elapsed
-        return 0
+                    return False
+            return time_elapsed > self.min_wait_for_size(self.current_size)
+
+        # if the file has never been uploaded, we'll upload it
+        return True
 
     def on_modified(self, force=False):
         if self.current_size == 0:
             return 0
-
-        time_elapsed = self.last_uploaded()
-        if not self.synced or time_elapsed > self.min_wait_for_size(self.current_size):
+        if not self.synced and self.should_update():
             self.save_file()
         # if the run is finished, or wandb.save is called explicitly save me
         elif force and not self.synced:
@@ -149,15 +153,15 @@ class PolicyLive(FileEventHandler):
 
 
 class DirWatcher(object):
-    def __init__(self, settings, api, file_pusher):
+    def __init__(self, settings, api, file_pusher, file_dir=None):
         self._api = api
         self._file_count = 0
-        self._dir = settings.files_dir
+        self._dir = file_dir or settings.files_dir
         self._settings = settings
         self._user_file_policies = {"end": set(), "live": set(), "now": set()}
         self._file_pusher = file_pusher
         self._file_event_handlers = {}
-        self._file_observer = PollingObserver()
+        self._file_observer = wd_polling.PollingObserver()
         self._file_observer.schedule(
             self._per_file_event_handler(), self._dir, recursive=True
         )
@@ -189,7 +193,7 @@ class DirWatcher(object):
     def _per_file_event_handler(self):
         """Create a Watchdog file event handler that does different things for every file
         """
-        file_event_handler = PatternMatchingEventHandler()
+        file_event_handler = wd_events.PatternMatchingEventHandler()
         file_event_handler.on_created = self._on_file_created
         file_event_handler.on_modified = self._on_file_modified
         file_event_handler.on_moved = self._on_file_moved
@@ -312,5 +316,13 @@ class DirWatcher(object):
             for fname in filenames:
                 file_path = os.path.join(dirpath, fname)
                 save_name = os.path.relpath(file_path, self._dir)
+                ignored = False
+                for glb in self._settings.ignore_globs:
+                    if len(fnmatch.filter([save_name], glb)) > 0:
+                        ignored = True
+                        logger.info("ignored: %s matching glob %s", save_name, glb)
+                        break
+                if ignored:
+                    continue
                 logger.info("scan save: %s %s", file_path, save_name)
                 self._get_file_event_handler(file_path, save_name).finish()

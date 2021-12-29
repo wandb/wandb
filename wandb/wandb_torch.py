@@ -3,15 +3,13 @@
 """PyTorch-specific functionality
 """
 
-from collections import namedtuple
 import itertools
 import weakref
 from six.moves import reduce
-from distutils.version import LooseVersion
 from operator import mul
 
 from wandb import util
-from wandb.data_types import Node, Edge
+from wandb.data_types import Node
 import wandb
 
 torch = None
@@ -19,11 +17,11 @@ torch = None
 
 def nested_shape(array_or_tuple, seen=None):
     """Figures out the shape of tensors possibly embedded in tuples
-     i.e 
-     [0,0] returns (2)
-     ([0,0], [0,0]) returns (2,2)
-     (([0,0], [0,0]),[0,0]) returns ((2,2),2)
-     """
+    i.e
+    [0,0] returns (2)
+    ([0,0], [0,0]) returns (2,2)
+    (([0,0], [0,0]),[0,0]) returns ((2,2),2)
+    """
     if seen is None:
         seen = set()
     if hasattr(array_or_tuple, "size"):
@@ -52,16 +50,14 @@ LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)
 
 
 def log_track_init(log_freq):
-    """create tracking structure used by log_track_update
-    """
+    """create tracking structure used by log_track_update"""
     l = [0] * 2
     l[LOG_TRACK_THRESHOLD] = log_freq
     return l
 
 
 def log_track_update(log_track):
-    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached
-    """
+    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached"""
     log_track[LOG_TRACK_COUNT] += 1
     if log_track[LOG_TRACK_COUNT] < log_track[LOG_TRACK_THRESHOLD]:
         return False
@@ -70,8 +66,7 @@ def log_track_update(log_track):
 
 
 class TorchHistory(object):
-    """History methods specific to PyTorch
-    """
+    """History methods specific to PyTorch"""
 
     def __init__(self, history):
         global torch
@@ -81,6 +76,7 @@ class TorchHistory(object):
         self._num_bins = 64
         self._is_cuda_histc_supported = None
         self._jupyter_run = None
+        self.hook_torch = TorchGraph.hook_torch
 
     def add_log_hooks_to_pytorch_module(
         self,
@@ -92,7 +88,7 @@ class TorchHistory(object):
         log_freq=0,
         jupyter_run=None,
     ):
-        """ This instuments hooks into the pytorch module
+        """This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches
@@ -103,7 +99,8 @@ class TorchHistory(object):
         if jupyter_run:
             self._jupyter_run = weakref.ref(jupyter_run)
 
-        module._wandb_hook_names = []
+        if not hasattr(module, "_wandb_hook_names"):
+            module._wandb_hook_names = []
 
         if log_parameters:
 
@@ -137,8 +134,7 @@ class TorchHistory(object):
                     )
 
     def log_tensor_stats(self, tensor, name):
-        """Add distribution statistics on a tensor's elements to the current History entry
-        """
+        """Add distribution statistics on a tensor's elements to the current History entry"""
         # TODO Handle the case of duplicate names.
 
         if isinstance(tensor, tuple) or isinstance(tensor, list):
@@ -216,12 +212,13 @@ class TorchHistory(object):
         if isinstance(flat, torch.HalfTensor):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
-        # Remove nans from tensor. There's no good way to represent that in histograms.
-        flat = flat[~torch.isnan(flat)]
-        flat = flat[~torch.isinf(flat)]
-        if flat.shape == torch.Size([0]):
-            # Often the whole tensor is nan or inf. Just don't log it in that case.
+        # Skip logging if all values are nan or inf or the tensor is empty.
+        if self._no_finite_values(flat):
             return
+
+        # Remove nans and infs if present. There's no good way to represent that in histograms.
+        flat = self._remove_infs_nans(flat)
+
         tmin = flat.min().item()
         tmax = flat.max().item()
         if sparse_zeros:
@@ -302,24 +299,35 @@ class TorchHistory(object):
         else:
             return handle.id in d
 
+    def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
+        return tensor.shape == torch.Size([0]) or (~torch.isfinite(tensor)).all().item()
+
+    def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
+        if not torch.isfinite(tensor).all():
+            tensor = tensor[torch.isfinite(tensor)]
+
+        return tensor
+
 
 class TorchGraph(wandb.data_types.Graph):
     def __init__(self):
         super(TorchGraph, self).__init__("torch")
+        self._graph_hooks = set()
 
     @classmethod
     def hook_torch(cls, model, criterion=None, graph_idx=0):
+        wandb.termlog("logging graph, to disable use `wandb.watch(log_graph=False)`")
         graph = TorchGraph()
         graph.hook_torch_modules(model, criterion, graph_idx=graph_idx)
         return graph
 
-    def create_forward_hook(self, name, modules):
+    def create_forward_hook(self, name, graph_idx):
         graph = self
 
         def after_forward_hook(module, input, output):
-            if id(module) in modules:
+            if id(module) not in self._graph_hooks:
+                # hook already processed -> noop
                 return
-            modules.add(id(module))
             if not isinstance(output, tuple):
                 output = (output,)
             parameters = [
@@ -342,15 +350,26 @@ class TorchGraph(wandb.data_types.Graph):
             if not graph.criterion_passed:
                 if hasattr(output[0], "grad_fn"):
                     graph.criterion = output[0].grad_fn
-                elif isinstance(output[0], list) and hasattr(output[0][0], "grad_fn"):
+                elif (
+                    isinstance(output[0], list)
+                    and output[0]
+                    and hasattr(output[0][0], "grad_fn")
+                ):
                     graph.criterion = output[0][0].grad_fn
+
+            # hook has been processed
+            self._graph_hooks -= {id(module)}
+
+            if not self._graph_hooks:
+                # we went through the entire graph
+                wandb.run.summary["graph_%i" % graph_idx] = self
 
         return after_forward_hook
 
-    def hook_torch_modules(self, module, criterion=None, prefix=None, graph_idx=0):
+    def hook_torch_modules(
+        self, module, criterion=None, prefix=None, graph_idx=0, parent=None
+    ):
         torch = util.get_module("torch", "Could not import torch")
-        hooks = []
-        modules = set()
         layers = 0
         graph = self
         if hasattr(module, "_wandb_watch_called") and module._wandb_watch_called:
@@ -386,53 +405,23 @@ class TorchGraph(wandb.data_types.Graph):
                 )
                 if hasattr(torch.nn, module_classname)
             ]
+            if parent is None:
+                parent = module
 
             if isinstance(sub_module, tuple(module_types)):
-                self.hook_torch_modules(sub_module, prefix=name)
+                self.hook_torch_modules(sub_module, prefix=name, parent=parent)
             else:
-
-                def backward_hook(module, input, output):
-                    [hook.remove() for hook in hooks]
-                    graph.loaded = True
-                    if wandb.run:
-                        wandb.run.summary["graph_%i" % graph_idx] = graph
-                    else:
-                        wandb.termwarn(
-                            "wandb.watch was called without a call to wandb.init, call wandb.init before wandb.watch",
-                            repeat=False,
-                        )
-                    # TODO: Keeping this here as a starting point for adding graph data
-                    if not graph.loaded:
-
-                        def traverse(node, functions=[]):
-                            if hasattr(node, "grad_fn"):
-                                node = node.grad_fn
-
-                            if hasattr(node, "variable"):
-                                node = graph.nodes_by_id.get(id(node.variable))
-                                if node:
-                                    node.functions = list(functions)
-                                    del functions[:]
-
-                            if hasattr(node, "next_functions"):
-                                functions.append(type(node).__name__)
-                                for f in node.next_functions:
-                                    if f[0]:
-                                        functions.append(type(f[0]).__name__)
-                                        traverse(f[0], functions)
-
-                            if hasattr(node, "saved_tensors"):
-                                for t in node.saved_tensors:
-                                    traverse(t)
-
-                        traverse(graph.criterion)
-
-                hooks.append(
-                    sub_module.register_forward_hook(
-                        self.create_forward_hook(name, modules)
-                    )
+                self._graph_hooks |= {id(sub_module)}
+                graph_hook = sub_module.register_forward_hook(
+                    self.create_forward_hook(name, graph_idx)
                 )
-                hooks.append(sub_module.register_backward_hook(backward_hook))
+                wandb.run.history.torch._hook_handles[
+                    "topology/" + str(id(graph_hook))
+                ] = graph_hook
+                if not hasattr(parent, "_wandb_hook_names"):
+                    # should never happen but let's be extra safe
+                    parent._wandb_hook_names = []
+                parent._wandb_hook_names.append("topology/" + str(id(graph_hook)))
 
     @classmethod
     def from_torch_layers(cls, module_graph, variable):

@@ -168,18 +168,17 @@ class Agent(object):
                 if status in (RunStatus.QUEUED, RunStatus.RUNNING)
             }
             commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
-            if not commands:
-                continue
-            job = Job(commands[0])
-            logger.debug("Job received: {}".format(job))
-            if job.type == "run":
-                self._queue.put(job)
-                self._run_status[job.run_id] = RunStatus.QUEUED
-            elif job.type == "stop":
-                self._stop_run(job.run_id)
-            elif job.type == "exit":
-                self._exit()
-                return
+            if commands:
+                job = Job(commands[0])
+                logger.debug("Job received: {}".format(job))
+                if job.type in ["run", "resume"]:
+                    self._queue.put(job)
+                    self._run_status[job.run_id] = RunStatus.QUEUED
+                elif job.type == "stop":
+                    self._stop_run(job.run_id)
+                elif job.type == "exit":
+                    self._exit()
+                    return
             time.sleep(5)
 
     def _run_jobs_from_queue(self):  # noqa:C901
@@ -309,6 +308,11 @@ class Agent(object):
             if self._run_status[run_id] == RunStatus.RUNNING:
                 self._run_status[run_id] = RunStatus.ERRORED
                 self._exceptions[run_id] = e
+        finally:
+            # clean up the environment changes made
+            os.environ.pop(wandb.env.RUN_ID, None)
+            os.environ.pop(wandb.env.SWEEP_ID, None)
+            os.environ.pop(wandb.env.SWEEP_PARAM_PATH, None)
 
     def run(self):
         logger.info(
@@ -318,7 +322,8 @@ class Agent(object):
         )
         self._setup()
         # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat, daemon=True)
+        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
+        self._heartbeat_thread.daemon = True
         # self._main_thread.start()
         self._heartbeat_thread.start()
         # self._main_thread.join()

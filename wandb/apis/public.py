@@ -1,3 +1,15 @@
+"""Use the Public API to export or update data that you have saved to W&B.
+
+Before using this API, you'll want to log data from your script — check the
+[Quickstart](https://docs.wandb.ai/quickstart) for more details.
+
+You might use the Public API to
+ - update metadata or metrics for an experiment after it has been completed,
+ - pull down your results as a dataframe for post-hoc analysis in a Jupyter notebook, or
+ - check your saved model artifacts for those tagged as `ready-to-deploy`.
+
+For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
+"""
 import datetime
 from functools import partial
 import json
@@ -6,10 +18,11 @@ import os
 import platform
 import re
 import shutil
-import sys
 import tempfile
 import time
+from typing import Optional
 
+from dateutil.relativedelta import relativedelta
 import requests
 import six
 from six.moves import urllib
@@ -18,20 +31,14 @@ from wandb import __version__, env, util
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.data_types import WBValue
+from wandb.errors import LaunchError
 from wandb.errors.term import termlog
-from wandb.old.retry import retriable
 from wandb.old.summary import HTTPSummary
-import yaml
+from wandb.sdk.interface import artifacts
+from wandb.sdk.lib import ipython, retry
 
 from .client import gql, GQLClient
 
-
-# TODO: consolidate dynamic imports
-PY3 = sys.version_info.major == 3 and sys.version_info.minor >= 6
-if PY3:
-    from wandb.sdk.interface import artifacts
-else:
-    from wandb.sdk_py27.interface import artifacts
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +61,8 @@ RUN_FRAGMENT = """fragment RunFragment on Run {
     sweepName
     state
     config
+    group
+    jobType
     commit
     readOnly
     createdAt
@@ -77,6 +86,7 @@ FILE_FRAGMENT = """fragment RunFilesFragment on Run {
                 id
                 name
                 url(upload: $upload)
+                directUrl
                 sizeBytes
                 mimetype
                 updatedAt
@@ -133,6 +143,7 @@ fragment ArtifactFragment on Artifact {
         id
         name
     }
+    commitHash
 }
 """
 
@@ -159,6 +170,21 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
     }
 }"""
 
+SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
+    id
+    name
+    method
+    state
+    description
+    displayName
+    bestLoss
+    config
+    createdAt
+    updatedAt
+    runCount
+}
+"""
+
 
 class RetryingClient(object):
     def __init__(self, client):
@@ -166,15 +192,25 @@ class RetryingClient(object):
 
     @property
     def app_url(self):
-        return util.app_url(self._client.transport.url).replace("/graphql", "/")
+        return util.app_url(self._client.transport.url.replace("/graphql", "")) + "/"
 
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(requests.RequestException),
     )
     def execute(self, *args, **kwargs):
-        return self._client.execute(*args, **kwargs)
+        try:
+            return self._client.execute(*args, **kwargs)
+        except requests.exceptions.ReadTimeout:
+            if "timeout" not in kwargs:
+                timeout = self._client.transport.default_timeout
+                wandb.termwarn(
+                    f"A graphql request initiated by the public wandb API timed out (timeout={timeout} sec). "
+                    f"Create a new API with an integer timeout larger than {timeout}, e.g., `api = wandb.Api(timeout={timeout + 10})` "
+                    f"to increase the graphql timeout."
+                )
+            raise
 
 
 class Api(object):
@@ -183,12 +219,10 @@ class Api(object):
 
     Examples:
         Most common way to initialize
-        ```
-            wandb.Api()
-        ```
+        >>> wandb.Api()
 
     Arguments:
-        overrides (dict): You can set `base_url` if you are using a wandb server
+        overrides: (dict) You can set `base_url` if you are using a wandb server
             other than https://api.wandb.ai.
             You can also set defaults for `entity`, `project`, and `run`.
     """
@@ -201,6 +235,9 @@ class Api(object):
             id
             flags
             entity
+            username
+            email
+            admin
             teams {
                 edges {
                     node {
@@ -212,8 +249,43 @@ class Api(object):
     }
     """
     )
+    USERS_QUERY = gql(
+        """
+    query SearchUsers($query: String) {
+        users(query: $query) {
+            edges {
+                node {
+                    id
+                    flags
+                    entity
+                    admin
+                    email
+                    deletedAt
+                    username
+                    apiKeys {
+                        edges {
+                            node {
+                                id
+                                name
+                                description
+                            }
+                        }
+                    }
+                    teams {
+                        edges {
+                            node {
+                                name
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+        """
+    )
 
-    def __init__(self, overrides={}):
+    def __init__(self, overrides={}, timeout: Optional[int] = None):
         self.settings = InternalApi().settings()
         self.settings.update(overrides)
         if "username" in overrides and "entity" not in overrides:
@@ -221,6 +293,9 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+
+        self._viewer = None
         self._projects = {}
         self._runs = {}
         self._sweeps = {}
@@ -230,7 +305,7 @@ class Api(object):
             headers={"User-Agent": self.user_agent, "Use-Admin-Privileges": "true"},
             # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
             # https://bugs.python.org/issue22889
-            timeout=self._HTTP_TIMEOUT,
+            timeout=self._timeout,
             api_key=self.api_key,
             url="%s/graphql" % self.settings["base_url"],
         )
@@ -240,9 +315,33 @@ class Api(object):
         self._client = RetryingClient(self._base_client)
 
     def create_run(self, **kwargs):
+        """Create a new run"""
         if kwargs.get("entity") is None:
             kwargs["entity"] = self.default_entity
         return Run.create(self, **kwargs)
+
+    def sync_tensorboard(self, root_dir, run_id=None, project=None, entity=None):
+        """Sync a local directory containing tfevent files to wandb"""
+        from wandb.sync import SyncManager  # noqa: F401  TODO: circular import madness
+
+        run_id = run_id or util.generate_id()
+        project = project or self.settings.get("project") or "uncategorized"
+        entity = entity or self.default_entity
+        sm = SyncManager(
+            project=project,
+            entity=entity,
+            run_id=run_id,
+            mark_synced=False,
+            app_url=self.client.app_url,
+            view=False,
+            verbose=False,
+            sync_tensorboard=True,
+        )
+        sm.add(root_dir)
+        sm.start()
+        while not sm.is_done():
+            _ = sm.poll()
+        return self.run("/".join([entity, project, run_id]))
 
     @property
     def client(self):
@@ -270,12 +369,78 @@ class Api(object):
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
 
+    @property
+    def viewer(self):
+        if self._viewer is None:
+            self._viewer = User(
+                self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
+            )
+            self._default_entity = self._viewer.entity
+        return self._viewer
+
     def flush(self):
         """
         The api object keeps a local cache of runs, so if the state of the run may
-            change while executing your script you must clear the local cache with `api.flush()`
-            to get the latest values associated with the run."""
+        change while executing your script you must clear the local cache with `api.flush()`
+        to get the latest values associated with the run.
+        """
         self._runs = {}
+
+    def from_path(self, path):
+        """Return a run, sweep, project or report from a path
+
+        Examples:
+            ```
+            project = api.from_path("my_project")
+            team_project = api.from_path("my_team/my_project")
+            run = api.from_path("my_team/my_project/runs/id")
+            sweep = api.from_path("my_team/my_project/sweeps/id")
+            report = api.from_path("my_team/my_project/reports/My-Report-Vm11dsdf")
+            ```
+
+        Arguments:
+            path: (str) The path to the project, run, sweep or report
+
+        Returns:
+            A `Project`, `Run`, `Sweep`, or `BetaReport` instance.
+
+        Raises:
+            wandb.Error if path is invalid or the object doesn't exist
+        """
+        parts = path.strip("/ ").split("/")
+        if len(parts) == 1:
+            return self.project(path)
+        elif len(parts) == 2:
+            return self.project(parts[1], parts[0])
+        elif len(parts) == 3:
+            return self.run(path)
+        elif len(parts) == 4:
+            if parts[2].startswith("run"):
+                return self.run(path)
+            elif parts[2].startswith("sweep"):
+                return self.sweep(path)
+            elif parts[2].startswith("report"):
+                if "--" not in parts[-1]:
+                    if "-" in parts[-1]:
+                        raise wandb.Error(
+                            "Invalid report path, should be team/project/reports/Name--XXXX"
+                        )
+                    else:
+                        parts[-1] = "--" + parts[-1]
+                name, id = parts[-1].split("--")
+                return BetaReport(
+                    self.client,
+                    {
+                        "display_name": urllib.parse.unquote(name.replace("-", " ")),
+                        "id": id,
+                        "spec": "{}",
+                    },
+                    parts[0],
+                    parts[1],
+                )
+        raise wandb.Error(
+            "Invalid path, should be TEAM/PROJECT/TYPE/ID where TYPE is runs, sweeps, or reports"
+        )
 
     def _parse_project_path(self, path):
         """Returns project and entity for project specified by path"""
@@ -291,23 +456,25 @@ class Api(object):
     def _parse_path(self, path):
         """Parses paths in the following formats:
 
-        url: entity/project/runs/run_id
-        path: entity/project/run_id
-        docker: entity/project:run_id
+        url: entity/project/runs/id
+        path: entity/project/id
+        docker: entity/project:id
 
         entity is optional and will fallback to the current logged in user.
         """
         project = self.settings["project"]
         entity = self.settings["entity"] or self.default_entity
-        parts = path.replace("/runs/", "/").strip("/ ").split("/")
+        parts = (
+            path.replace("/runs/", "/").replace("/sweeps/", "/").strip("/ ").split("/")
+        )
         if ":" in parts[-1]:
-            run = parts[-1].split(":")[-1]
+            id = parts[-1].split(":")[-1]
             parts[-1] = parts[-1].split(":")[0]
         elif parts[-1]:
-            run = parts[-1]
+            id = parts[-1]
         if len(parts) > 1:
             project = parts[1]
-            if entity and run == project:
+            if entity and id == project:
                 project = parts[0]
             else:
                 entity = parts[0]
@@ -315,7 +482,7 @@ class Api(object):
                 entity = parts[0]
         else:
             project = parts[0]
-        return entity, project, run
+        return entity, project, id
 
     def _parse_artifact_path(self, path):
         """Returns project, entity and artifact name for project specified by path"""
@@ -333,11 +500,13 @@ class Api(object):
         return parts
 
     def projects(self, entity=None, per_page=200):
-        """Get projects for a given entity.
+        """
+        Get projects for a given entity.
+
         Arguments:
-            entity (str): Name of the entity requested.  If None will fallback to
+            entity: (str) Name of the entity requested.  If None will fallback to
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
-            per_page (int): Sets the page size for query pagination.  None will use the default size.
+            per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
@@ -354,30 +523,33 @@ class Api(object):
             self._projects[entity] = Projects(self.client, entity, per_page=per_page)
         return self._projects[entity]
 
+    def project(self, name, entity=None):
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+        return Project(self.client, entity, name, {})
+
     def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
         WARNING: This api is in beta and will likely change in a future release
 
         Arguments:
-            path (str): path to project the report resides in, should be in the form: "entity/project"
-            name (str): optional name of the report requested.
-            per_page (int): Sets the page size for query pagination.  None will use the default size.
+            path: (str) path to project the report resides in, should be in the form: "entity/project"
+            name: (str) optional name of the report requested.
+            per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
             A `Reports` object which is an iterable collection of `BetaReport` objects.
         """
-        entity, project, run = self._parse_path(path)
-        if entity is None:
-            entity = self.settings["entity"] or self.default_entity
-            if entity is None:
-                raise ValueError(
-                    "entity must be passed as a parameter, or set in settings"
-                )
+        entity, project, _ = self._parse_path(path + "/fake_run")
+
         if name:
             name = urllib.parse.unquote(name)
-        key = "/".join([entity, project, str(name)])
+            key = "/".join([entity, project, str(name)])
+        else:
+            key = "/".join([entity, project])
+
         if key not in self._reports:
             self._reports[key] = Reports(
                 self.client,
@@ -387,37 +559,103 @@ class Api(object):
             )
         return self._reports[key]
 
-    def runs(self, path="", filters={}, order="-created_at", per_page=50):
-        """Return a set of runs from a project that match the filters provided.
-        You can filter by `config.*`, `summary.*`, `state`, `entity`, `createdAt`, etc.
+    def create_team(self, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+        """
+        return Team.create(self.client, team, admin_username)
+
+    def team(self, team):
+        return Team(self.client, team)
+
+    def user(self, username_or_email):
+        """Return a user from a username or email address
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user
+
+        Returns:
+            A `User` object or None if a user couldn't be found
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        if len(res["users"]["edges"]) == 0:
+            return None
+        elif len(res["users"]["edges"]) > 1:
+            wandb.termwarn(
+                "Found multiple users, returning the first user matching {}".format(
+                    username_or_email
+                )
+            )
+        return User(self._client, res["users"]["edges"][0]["node"])
+
+    def users(self, username_or_email):
+        """Return all users from a partial username or email address query
+
+        Arguments:
+            username_or_email: (str) The prefix or suffix of the user you want to find
+
+        Returns:
+            An array of `User` objects
+        """
+        res = self._client.execute(self.USERS_QUERY, {"query": username_or_email})
+        return [User(self._client, edge["node"]) for edge in res["users"]["edges"]]
+
+    def runs(self, path=None, filters=None, order="-created_at", per_page=50):
+        """
+        Return a set of runs from a project that match the filters provided.
+
+        You can filter by `config.*`, `summary_metrics.*`, `tags`, `state`, `entity`, `createdAt`, etc.
 
         Examples:
-            Find runs in my_project config.experiment_name has been set to "foo"
+            Find runs in my_project where config.experiment_name has been set to "foo"
             ```
-            api.runs(path="my_entity/my_project", {"config.experiment_name": "foo"})
+            api.runs(path="my_entity/my_project", filters={"config.experiment_name": "foo"})
             ```
 
-            Find runs in my_project config.experiment_name has been set to "foo" or "bar"
+            Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
-            api.runs(path="my_entity/my_project",
-                {"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+            )
+            ```
+
+            Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}}
+            )
+            ```
+
+            Find runs in my_project where the run name matches a regex (anchors are not supported)
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}}
+            )
             ```
 
             Find runs in my_project sorted by ascending loss
             ```
-            api.runs(path="my_entity/my_project", {"order": "+summary_metrics.loss"})
+            api.runs(path="my_entity/my_project", order="+summary_metrics.loss")
             ```
 
-
         Arguments:
-            path (str): path to project, should be in the form: "entity/project"
-            filters (dict): queries for specific runs using the MongoDB query language.
+            path: (str) path to project, should be in the form: "entity/project"
+            filters: (dict) queries for specific runs using the MongoDB query language.
                 You can filter by run properties such as config.key, summary_metrics.key, state, entity, createdAt, etc.
                 For example: {"config.experiment_name": "foo"} would find runs with a config entry
                     of experiment name set to "foo"
                 You can compose operations to make more complicated queries,
                     see Reference for the language is at  https://docs.mongodb.com/manual/reference/operator/query
-            order (str): Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
+            order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
                 The default order is run.created_at from newest to oldest.
@@ -426,7 +664,8 @@ class Api(object):
             A `Runs` object, which is an iterable collection of `Run` objects.
         """
         entity, project = self._parse_project_path(path)
-        key = path + str(filters) + str(order)
+        filters = filters or {}
+        key = (path or "") + str(filters) + str(order)
         if not self._runs.get(key):
             self._runs[key] = Runs(
                 self.client,
@@ -440,12 +679,13 @@ class Api(object):
 
     @normalize_exceptions
     def run(self, path=""):
-        """Returns a single run by parsing path in the form entity/project/run_id.
+        """
+        Returns a single run by parsing path in the form entity/project/run_id.
 
         Arguments:
-            path (str): path to run in the form entity/project/run_id.
-                If api.entity is set, this can be in the form project/run_id
-                and if api.project is set this can just be the run_id.
+            path: (str) path to run in the form `entity/project/run_id`.
+                If api.entity is set, this can be in the form `project/run_id`
+                and if `api.project` is set this can just be the run_id.
 
         Returns:
             A `Run` object.
@@ -455,14 +695,21 @@ class Api(object):
             self._runs[path] = Run(self.client, entity, project, run)
         return self._runs[path]
 
+    def queued_job(self, path=""):
+        """
+        Returns a single queued run by parsing the path in the form entity/project/queue_id/run_queue_item_id
+        """
+        entity, project, queue, run_queue_item_id = path.split("/")
+        return QueuedJob(self.client, entity, project, queue, run_queue_item_id)
+
     @normalize_exceptions
     def sweep(self, path=""):
         """
-        Returns a sweep by parsing path in the form entity/project/sweep_id.
+        Returns a sweep by parsing path in the form `entity/project/sweep_id`.
 
         Arguments:
-            path (str, optional): path to sweep in the form entity/project/sweep_id.  If api.entity
-                is set, this can be in the form project/sweep_id and if api.project is set
+            path: (str, optional) path to sweep in the form entity/project/sweep_id.  If api.entity
+                is set, this can be in the form project/sweep_id and if `api.project` is set
                 this can just be the sweep_id.
 
         Returns:
@@ -491,15 +738,16 @@ class Api(object):
 
     @normalize_exceptions
     def artifact(self, name, type=None):
-        """Returns a single artifact by parsing path in the form entity/project/run_id.
+        """
+        Returns a single artifact by parsing path in the form `entity/project/run_id`.
 
         Arguments:
-            name (str): An artifact name. May be prefixed with entity/project. Valid names
+            name: (str) An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
                     name:version
                     name:alias
                     digest
-            type (str, optional): The type of artifact to fetch.
+            type: (str, optional) The type of artifact to fetch.
         Returns:
             A `Artifact` object.
         """
@@ -508,7 +756,9 @@ class Api(object):
         entity, project, artifact_name = self._parse_artifact_path(name)
         artifact = Artifact(self.client, entity, project, artifact_name)
         if type is not None and artifact.type != type:
-            raise ValueError("type %s specified but this artifact is of type %s")
+            raise ValueError(
+                f"type {type} specified but this artifact is of type {artifact.type}"
+            )
         return artifact
 
 
@@ -519,6 +769,22 @@ class Attrs(object):
     def snake_to_camel(self, string):
         camel = "".join([i.title() for i in string.split("_")])
         return camel[0].lower() + camel[1:]
+
+    def display(self, height=420, hidden=False) -> bool:
+        """Display this object in jupyter"""
+        html = self.to_html(height, hidden)
+        if html is None:
+            wandb.termwarn("This object does not support `.display()`")
+            return False
+        if ipython.in_jupyter():
+            ipython.display_html(html)
+            return True
+        else:
+            wandb.termwarn(".display() only works in jupyter environments")
+            return False
+
+    def to_html(self, *args, **kwargs):
+        return None
 
     def __getattr__(self, name):
         key = self.snake_to_camel(name)
@@ -606,8 +872,270 @@ class Paginator(object):
 
 
 class User(Attrs):
-    def init(self, attrs):
+    DELETE_API_KEY_MUTATION = gql(
+        """
+    mutation DeleteApiKey($id: String!) {
+        deleteApiKey(input: {id: $id}) {
+            success
+        }
+    }
+        """
+    )
+    GENERATE_API_KEY_MUTATION = gql(
+        """
+    mutation GenerateApiKey($description: String) {
+        generateApiKey(input: {description: $description}) {
+            apiKey {
+                id
+                name
+            }
+        }
+    }
+        """
+    )
+
+    def __init__(self, client, attrs):
         super(User, self).__init__(attrs)
+        self._client = client
+
+    @property
+    def api_keys(self):
+        if self._attrs.get("apiKeys") is None:
+            return []
+        return [k["node"]["name"] for k in self._attrs["apiKeys"]["edges"]]
+
+    @property
+    def teams(self):
+        if self._attrs.get("teams") is None:
+            return []
+        return [k["node"]["name"] for k in self._attrs["teams"]["edges"]]
+
+    def delete_api_key(self, api_key):
+        """Delete a users api key
+
+        Returns:
+            Boolean indicating success
+
+        Raises:
+            ValueError if the api_key couldn't be found
+        """
+        idx = self.api_keys.index(api_key)
+        try:
+            self._client.execute(
+                self.DELETE_API_KEY_MUTATION,
+                {"id": self._attrs["apiKeys"]["edges"][idx]["node"]["id"]},
+            )
+        except requests.exceptions.HTTPError:
+            return False
+        return True
+
+    def generate_api_key(self, description=None):
+        """Generates a new api key
+
+        Returns:
+            The new api key, or None on failure
+        """
+        try:
+            return self._client.execute(
+                self.GENERATE_API_KEY_MUTATION, {"description": description}
+            )["generateApiKey"]["apiKey"]["name"]
+        except requests.exceptions.HTTPError:
+            return None
+
+    def __repr__(self):
+        return "<User {}>".format(self.email)
+
+
+class Member(Attrs):
+    DELETE_MEMBER_MUTATION = gql(
+        """
+    mutation DeleteInvite($id: String, $entityName: String) {
+        deleteInvite(input: {id: $id, entityName: $entityName}) {
+            success
+        }
+    }
+  """
+    )
+
+    def __init__(self, client, team, attrs):
+        super(Member, self).__init__(attrs)
+        self._client = client
+        self.team = team
+
+    def delete(self):
+        """Remove a member from a team
+
+        Returns:
+            Boolean indicating success
+        """
+        try:
+            return self._client.execute(
+                self.DELETE_MEMBER_MUTATION, {"id": self.id, "entityName": self.team}
+            )["deleteInvite"]["success"]
+        except requests.exceptions.HTTPError:
+            return False
+
+    def __repr__(self):
+        return "<Member {} ({})>".format(self.name, self.account_type)
+
+
+class Team(Attrs):
+    CREATE_TEAM_MUTATION = gql(
+        """
+    mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
+        createTeam(input: {teamName: $teamName, teamAdminUserName: $teamAdminUserName}) {
+            entity {
+                id
+                name
+                available
+                photoUrl
+                limits
+            }
+        }
+    }
+    """
+    )
+    CREATE_INVITE_MUTATION = gql(
+        """
+    mutation CreateInvite($entityName: String!, $email: String, $username: String, $admin: Boolean) {
+        createInvite(input: {entityName: $entityName, email: $email, username: $username, admin: $admin}) {
+            invite {
+                id
+                name
+                email
+                createdAt
+                toUser {
+                    name
+                }
+            }
+        }
+    }
+    """
+    )
+    TEAM_QUERY = gql(
+        """
+    query Entity($name: String!) {
+        entity(name: $name) {
+            id
+            name
+            available
+            photoUrl
+            readOnly
+            readOnlyAdmin
+            isTeam
+            privateOnly
+            storageBytes
+            codeSavingEnabled
+            defaultAccess
+            isPaid
+            members {
+                id
+                admin
+                pending
+                email
+                username
+                name
+                photoUrl
+                accountType
+                apiKey
+            }
+        }
+    }
+    """
+    )
+    CREATE_SERVICE_ACCOUNT_MUTATION = gql(
+        """
+    mutation CreateServiceAccount($entityName: String!, $description: String!) {
+        createServiceAccount(
+            input: {description: $description, entityName: $entityName}
+        ) {
+            user {
+                id
+            }
+        }
+    }
+    """
+    )
+
+    def __init__(self, client, name, attrs=None):
+        super(Team, self).__init__(attrs or {})
+        self._client = client
+        self.name = name
+        self.load()
+
+    @classmethod
+    def create(cls, api, team, admin_username=None):
+        """Creates a new team
+
+        Arguments:
+            api: (`Api`) The api instance to use
+            team: (str) The name of the team
+            admin_username: (str) optional username of the admin user of the team, defaults to the current user.
+
+        Returns:
+            A `Team` object
+        """
+        try:
+            api.execute(
+                cls.CREATE_TEAM_MUTATION,
+                {"teamName": team, "teamAdminUserName": admin_username},
+            )
+        except requests.exceptions.HTTPError:
+            pass
+        return Team(api, team)
+
+    def invite(self, username_or_email, admin=False):
+        """Invites a user to a team
+
+        Arguments:
+            username_or_email: (str) The username or email address of the user you want to invite
+            admin: (bool) Whether to make this user a team admin, defaults to False
+
+        Returns:
+            True on success, False if user was already invited or didn't exist
+        """
+        variables = {"entityName": self.name, "admin": admin}
+        if "@" in username_or_email:
+            variables["email"] = username_or_email
+        else:
+            variables["username"] = username_or_email
+        try:
+            self._client.execute(self.CREATE_INVITE_MUTATION, variables)
+        except requests.exceptions.HTTPError:
+            return False
+        return True
+
+    def create_service_account(self, description):
+        """Creates a service account for the team
+
+        Arguments:
+            description: (str) A description for this service account
+
+        Returns:
+            The service account `Member` object, or None on failure
+        """
+        try:
+            self._client.execute(
+                self.CREATE_SERVICE_ACCOUNT_MUTATION,
+                {"description": description, "entityName": self.name},
+            )
+            self.load(True)
+            return self.members[-1]
+        except requests.exceptions.HTTPError:
+            return None
+
+    def load(self, force=False):
+        if force or not self._attrs:
+            response = self._client.execute(self.TEAM_QUERY, {"name": self.name})
+            self._attrs = response["entity"]
+            self._attrs["members"] = [
+                Member(self._client, self.name, member)
+                for member in self._attrs["members"]
+            ]
+        return self._attrs
+
+    def __repr__(self):
+        return "<Team {}>".format(self.name)
 
 
 class Projects(Paginator):
@@ -673,7 +1201,7 @@ class Projects(Paginator):
 
 
 class Project(Attrs):
-    """A project is a namespace for runs"""
+    """A project is a namespace for runs."""
 
     def __init__(self, client, entity, project, attrs):
         super(Project, self).__init__(dict(attrs))
@@ -685,12 +1213,76 @@ class Project(Attrs):
     def path(self):
         return [self.entity, self.name]
 
+    @property
+    def url(self):
+        return self.client.app_url + "/".join(self.path + ["workspace"])
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this project"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("project")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
     def __repr__(self):
         return "<Project {}>".format("/".join(self.path))
 
     @normalize_exceptions
     def artifacts_types(self, per_page=50):
         return ProjectArtifactTypes(self.client, self.entity, self.name)
+
+    @normalize_exceptions
+    def sweeps(self):
+        query = gql(
+            """
+            query GetSweeps($project: String!, $entity: String!) {
+                project(name: $project, entityName: $entity) {
+                    totalSweeps
+                    sweeps {
+                        edges {
+                            node {
+                                ...SweepFragment
+                            }
+                            cursor
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                    }
+                }
+            }
+            %s
+            """
+            % SWEEP_FRAGMENT
+        )
+        variable_values = {"project": self.name, "entity": self.entity}
+        ret = self.client.execute(query, variable_values)
+        if ret["project"]["totalSweeps"] < 1:
+            return []
+
+        return [
+            # match format of existing public sweep apis
+            Sweep(
+                self.client,
+                self.entity,
+                self.name,
+                e["node"]["name"],
+                attrs={
+                    "id": e["node"]["id"],
+                    "name": e["node"]["name"],
+                    "bestLoss": e["node"]["bestLoss"],
+                    "config": e["node"]["config"],
+                },
+            )
+            for e in ret["project"]["sweeps"]["edges"]
+        ]
 
 
 class Runs(Paginator):
@@ -788,14 +1380,76 @@ class Runs(Paginator):
                 if sweep is None:
                     continue
                 run.sweep = sweep
-                if run.id not in sweep.runs_by_id:
-                    sweep.runs_by_id[run.id] = run
-                    sweep.runs.append(run)
 
         return objs
 
     def __repr__(self):
-        return "<Runs {}/{} ({})>".format(self.entity, self.project, len(self))
+        return "<Runs {}/{}>".format(self.entity, self.project)
+
+
+class QueuedJob(Attrs):
+    def __init__(self, client, entity, project, queue, run_queue_item_id, attrs={}):
+        super(QueuedJob, self).__init__(dict(attrs))
+        self.client = client
+        self._entity = entity
+        self.project = project
+        self._queue = queue
+        self._run_queue_item_id = run_queue_item_id
+        self._run_id = None
+
+    @normalize_exceptions
+    def wait_until_running(self):
+        query = gql(
+            """
+            query GetRunQueueItem($projectName: String!, $entityName: String!, $runQueue: String!) {
+                project(name: $projectName, entityName: $entityName) {
+                    runQueue(name:$runQueue) {
+                        runQueueItems {
+                            edges {
+                                node {
+                                    id
+                                    state
+                                    resultingRunId
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        """
+        )
+        variable_values = {
+            "projectName": self.project,
+            "entityName": self._entity,
+            "runQueue": self._queue,
+        }
+
+        while True:
+            res = self.client.execute(query, variable_values)
+            for item in res["project"]["runQueue"]["runQueueItems"]["edges"]:
+                if (
+                    item["node"]["id"] == self._run_queue_item_id
+                    and item["node"]["resultingRunId"] is not None
+                ):
+                    # TODO: this should be changed once the ack occurs within the docker container.
+                    try:
+                        Run(
+                            self.client,
+                            self._entity,
+                            self.project,
+                            item["node"]["resultingRunId"],
+                        )
+                        self._run_id = item["node"]["resultingRunId"]
+                        return
+                    except ValueError:
+                        continue
+            time.sleep(5)
+
+    @property
+    def run(self):
+        if self._run_id is None:
+            raise LaunchError("Tried to fetch run without having run_id")
+        return Run(self.client, self._entity, self.project, self._run_id)
 
 
 class Run(Attrs):
@@ -807,7 +1461,7 @@ class Run(Attrs):
         url (str): the url of this run
         id (str): unique identifier for the run (defaults to eight characters)
         name (str): the name of the run
-        state (str): one of: running, finished, crashed, aborted
+        state (str): one of: running, finished, crashed, killed, preempting, preempted
         config (dict): a dict of hyperparameters associated with the run
         created_at (str): ISO timestamp when the run was started
         system_metrics (dict): the latest system metrics recorded for the run
@@ -841,9 +1495,13 @@ class Run(Attrs):
         except OSError:
             pass
         self._summary = None
-        self.state = attrs.get("state", "not found")
+        self._state = attrs.get("state", "not found")
 
         self.load(force=not attrs)
+
+    @property
+    def state(self):
+        return self._state
 
     @property
     def entity(self):
@@ -884,7 +1542,7 @@ class Run(Attrs):
     def create(cls, api, run_id=None, project=None, entity=None):
         """Create a run for the given project"""
         run_id = run_id or util.generate_id()
-        project = project or api.settings.get("project")
+        project = project or api.settings.get("project") or "uncategorized"
         mutation = gql(
             """
         mutation UpsertBucket($project: String, $entity: String, $name: String!) {
@@ -945,7 +1603,7 @@ class Run(Attrs):
             ):
                 raise ValueError("Could not find run %s" % self)
             self._attrs = response["project"]["run"]
-            self.state = self._attrs["state"]
+            self._state = self._attrs["state"]
 
             if self.sweep_name and not self.sweep:
                 # There may be a lot of runs. Don't bother pulling them all
@@ -957,10 +1615,6 @@ class Run(Attrs):
                     self.sweep_name,
                     withRuns=False,
                 )
-                # TODO: Older runs don't always have sweeps when sweep_name is set
-                if self.sweep:
-                    self.sweep.runs.append(self)
-                    self.sweep.runs_by_id[self.id] = self
 
         self._attrs["summaryMetrics"] = (
             json.loads(self._attrs["summaryMetrics"])
@@ -973,7 +1627,7 @@ class Run(Attrs):
             else {}
         )
         if self._attrs.get("user"):
-            self.user = User(self._attrs["user"])
+            self.user = User(self.client, self._attrs["user"])
         config_user, config_raw = {}, {}
         for key, value in six.iteritems(json.loads(self._attrs.get("config") or "{}")):
             config = config_raw if key in WANDB_INTERNAL_KEYS else config_user
@@ -987,14 +1641,37 @@ class Run(Attrs):
         return self._attrs
 
     @normalize_exceptions
+    def wait_until_finished(self):
+        query = gql(
+            """
+            query Run($project: String!, $entity: String!, $name: String!) {
+                project(name: $project, entityName: $entity) {
+                    run(name: $name) {
+                        state
+                    }
+                }
+            }
+        """
+        )
+        while True:
+            res = self._exec(query)
+            state = res["project"]["run"]["state"]
+            if state in ["finished", "crashed", "failed"]:
+                print("Run finished with status: {}".format(state))
+                self._attrs["state"] = state
+                self._state = state
+                return
+            time.sleep(5)
+
+    @normalize_exceptions
     def update(self):
         """
         Persists changes to the run object to the wandb backend.
         """
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!) {
-            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config}) {
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
+            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
                 bucket {
                     ...RunFragment
                 }
@@ -1012,8 +1689,45 @@ class Run(Attrs):
             notes=self.notes,
             display_name=self.display_name,
             config=self.json_config,
+            groupName=self.group,
         )
         self.summary.update()
+
+    @normalize_exceptions
+    def delete(self, delete_artifacts=False):
+        """
+        Deletes the given run from the wandb backend.
+        """
+        mutation = gql(
+            """
+            mutation DeleteRun(
+                $id: ID!,
+                %s
+            ) {
+                deleteRun(input: {
+                    id: $id,
+                    %s
+                }) {
+                    clientMutationId
+                }
+            }
+        """
+            %
+            # Older backends might not support the 'deleteArtifacts' argument,
+            # so only supply it when it is explicitly set.
+            (
+                "$deleteArtifacts: Boolean" if delete_artifacts else "",
+                "deleteArtifacts: $deleteArtifacts" if delete_artifacts else "",
+            )
+        )
+
+        self.client.execute(
+            mutation,
+            variable_values={
+                "id": self.storage_id,
+                "deleteArtifacts": delete_artifacts,
+            },
+        )
 
     def save(self):
         self.update()
@@ -1128,6 +1842,13 @@ class Run(Attrs):
             If pandas=True returns a `pandas.DataFrame` of history metrics.
             If pandas=False returns a list of dicts of history metrics.
         """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
         if keys and stream != "default":
             wandb.termerror("stream must be default when specifying keys")
             return []
@@ -1165,6 +1886,13 @@ class Run(Attrs):
         Returns:
             An iterable collection over history records (dict).
         """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+
         last_step = self.lastHistoryStep
         # set defaults for min/max step
         if min_step is None:
@@ -1201,12 +1929,17 @@ class Run(Attrs):
         return RunArtifacts(self.client, self, mode="used", per_page=per_page)
 
     @normalize_exceptions
-    def use_artifact(self, artifact):
-        """ Declare an artifact as an input to a run.
+    def use_artifact(self, artifact, use_as=None):
+        """Declare an artifact as an input to a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
                 `wandb.Api().artifact(name)`
+            use_as (string, optional): A string identifying
+                how the artifact is used in the script. Used
+                to easily differentiate artifacts used in a
+                run, when using the beta wandb launch
+                feature's artifact swapping functionality.
         Returns:
             A `Artifact` object.
         """
@@ -1217,7 +1950,7 @@ class Run(Attrs):
         api.set_current_run_id(self.id)
 
         if isinstance(artifact, Artifact):
-            api.use_artifact(artifact.id)
+            api.use_artifact(artifact.id, use_as=use_as or artifact.name)
             return artifact
         elif isinstance(artifact, wandb.Artifact):
             raise ValueError(
@@ -1229,7 +1962,7 @@ class Run(Attrs):
 
     @normalize_exceptions
     def log_artifact(self, artifact, aliases=None):
-        """ Declare an artifact as output of a run.
+        """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
@@ -1304,49 +2037,54 @@ class Run(Attrs):
         history_keys = response["project"]["run"]["historyKeys"]
         return history_keys["lastStep"] if "lastStep" in history_keys else -1
 
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this run"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button()
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
     def __repr__(self):
         return "<Run {} ({})>".format("/".join(self.path), self.state)
 
 
 class Sweep(Attrs):
-    """A set of runs associated with a sweep
-    Instantiate with:
-      api.sweep(sweep_path)
+    """A set of runs associated with a sweep.
+
+    Examples:
+        Instantiate with:
+        ```
+        api = wandb.Api()
+        sweep = api.sweep(path/to/sweep)
+        ```
 
     Attributes:
-        runs (`Runs`): list of runs
-        id (str): sweep id
-        project (str): name of project
-        config (str): dictionary of sweep configuration
+        runs: (`Runs`) list of runs
+        id: (str) sweep id
+        project: (str) name of project
+        config: (str) dictionary of sweep configuration
+        state: (str) the state of the sweep
     """
 
     QUERY = gql(
         """
-    query Sweep($project: String!, $entity: String, $name: String!, $withRuns: Boolean!, $order: String) {
+    query Sweep($project: String!, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
                 name
                 bestLoss
                 config
-                runs(order: $order) @include(if: $withRuns) {
-                    edges {
-                        node {
-                            ...RunFragment
-                        }
-                        cursor
-                    }
-                    pageInfo {
-                        endCursor
-                        hasNextPage
-                    }
-                }
             }
         }
     }
-    %s
     """
-        % RUN_FRAGMENT
     )
 
     def __init__(self, client, entity, project, sweep_id, attrs={}):
@@ -1357,7 +2095,6 @@ class Sweep(Attrs):
         self.project = project
         self.id = sweep_id
         self.runs = []
-        self.runs_by_id = {}
 
         self.load(force=not attrs)
 
@@ -1372,7 +2109,7 @@ class Sweep(Attrs):
 
     @property
     def config(self):
-        return yaml.load(self._attrs["config"])
+        return util.load_yaml(self._attrs["config"])
 
     def load(self, force=False):
         if force or not self._attrs:
@@ -1381,7 +2118,6 @@ class Sweep(Attrs):
                 raise ValueError("Could not find sweep %s" % self)
             self._attrs = sweep._attrs
             self.runs = sweep.runs
-            self.runs_by_id = sweep.runs_by_id
 
         return self._attrs
 
@@ -1433,6 +2169,10 @@ class Sweep(Attrs):
         path.insert(2, "sweeps")
         return self.client.app_url + "/".join(path)
 
+    @property
+    def name(self):
+        return self.config.get("name") or self.id
+
     @classmethod
     def get(
         cls,
@@ -1440,10 +2180,9 @@ class Sweep(Attrs):
         entity=None,
         project=None,
         sid=None,
-        withRuns=True,  # noqa: N803
         order=None,
         query=None,
-        **kwargs
+        **kwargs,
     ):
         """Execute a query against the cloud backend"""
         if query is None:
@@ -1453,8 +2192,6 @@ class Sweep(Attrs):
             "entity": entity,
             "project": project,
             "name": sid,
-            "order": order,
-            "withRuns": withRuns,
         }
         variables.update(kwargs)
 
@@ -1465,32 +2202,37 @@ class Sweep(Attrs):
             return None
 
         sweep_response = response["project"]["sweep"]
-
-        # TODO: make this paginate
-        runs_response = sweep_response.get("runs")
-        runs = []
-        if runs_response:
-            for r in runs_response["edges"]:
-                run = Run(client, entity, project, r["node"]["name"], r["node"])
-                runs.append(run)
-
-            del sweep_response["runs"]
-
         sweep = cls(client, entity, project, sid, attrs=sweep_response)
-        sweep.runs = runs
-
-        for run in runs:
-            sweep.runs_by_id[run.id] = run
-            run.sweep = sweep
+        sweep.runs = Runs(
+            client,
+            entity,
+            project,
+            order=order,
+            per_page=10,
+            filters={"$and": [{"sweep": sweep.id}]},
+        )
 
         return sweep
+
+    def to_html(self, height=420, hidden=False):
+        """Generate HTML containing an iframe displaying this sweep"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("sweep")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
 
     def __repr__(self):
         return "<Sweep {}>".format("/".join(self.path))
 
 
 class Files(Paginator):
-    """Files is an iterable collection of `File` objects."""
+    """An iterable collection of `File` objects."""
 
     QUERY = gql(
         """
@@ -1561,6 +2303,7 @@ class File(object):
     Attributes:
         name (string): filename
         url (string): path to file
+        direct_url (string): path to file in the bucket
         md5 (string): md5 of file
         mimetype (string): mimetype of file
         updated_at (string): timestamp of last update
@@ -1576,12 +2319,20 @@ class File(object):
         #        "File {} does not exist.".format(self._attrs["name"]))
 
     @property
+    def id(self):
+        return self._attrs["id"]
+
+    @property
     def name(self):
         return self._attrs["name"]
 
     @property
     def url(self):
         return self._attrs["url"]
+
+    @property
+    def direct_url(self):
+        return self._attrs["directUrl"]
 
     @property
     def md5(self):
@@ -1607,7 +2358,7 @@ class File(object):
         return 0
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         retry_timedelta=RETRY_TIMEDELTA,
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(requests.RequestException),
@@ -1629,9 +2380,26 @@ class File(object):
         util.download_file_from_url(path, self.url, Api().api_key)
         return open(path, "r")
 
+    @normalize_exceptions
+    def delete(self):
+        mutation = gql(
+            """
+        mutation deleteFiles($files: [ID!]!) {
+            deleteFiles(input: {
+                files: $files
+            }) {
+                success
+            }
+        }
+        """
+        )
+        self.client.execute(mutation, variable_values={"files": [self.id]})
+
     def __repr__(self):
         return "<File {} ({}) {}>".format(
-            self.name, self.mimetype, util.sizeof_fmt(self.size)
+            self.name,
+            self.mimetype,
+            util.to_human_size(self.size, units=util.POW_2_BYTES),
         )
 
 
@@ -1641,13 +2409,15 @@ class Reports(Paginator):
     QUERY = gql(
         """
         query Run($project: String!, $entity: String!, $reportCursor: String,
-            $reportLimit: Int = 50, $viewType: String = "runs", $viewName: String) {
+            $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
                 allViews(viewType: $viewType, viewName: $viewName, first:
                     $reportLimit, after: $reportCursor) {
                     edges {
                         node {
+                            id
                             name
+                            displayName
                             description
                             user {
                                 username
@@ -1658,6 +2428,11 @@ class Reports(Paginator):
                         }
                         cursor
                     }
+                    pageInfo {
+                        endCursor
+                        hasNextPage
+                    }
+
                 }
             }
         }
@@ -1677,14 +2452,15 @@ class Reports(Paginator):
     @property
     def length(self):
         # TODO: Add the count the backend
-        return self.per_page
+        if self.last_response:
+            return len(self.objects)
+        else:
+            return None
 
     @property
     def more(self):
         if self.last_response:
-            return (
-                len(self.last_response["project"]["allViews"]["edges"]) == self.per_page
-            )
+            return self.last_response["project"]["allViews"]["pageInfo"]["hasNextPage"]
         else:
             return True
 
@@ -1701,6 +2477,10 @@ class Reports(Paginator):
         )
 
     def convert_objects(self):
+        if self.last_response["project"] is None:
+            raise ValueError(
+                f"Project {self.variables['project']} does not exist under entity {self.variables['entity']}"
+            )
         return [
             BetaReport(
                 self.client,
@@ -1864,6 +2644,35 @@ class BetaReport(Attrs):
     def updated_at(self):
         return self._attrs["updatedAt"]
 
+    @property
+    def url(self):
+        return self.client.app_url + "/".join(
+            [
+                self.entity,
+                self.project,
+                "reports",
+                "--".join(
+                    [
+                        urllib.parse.quote(self.display_name.replace(" ", "-")),
+                        self.id.replace("=", ""),
+                    ]
+                ),
+            ]
+        )
+
+    def to_html(self, height=1024, hidden=False):
+        """Generate HTML containing an iframe displaying this report"""
+        url = self.url + "?jupyter=true"
+        style = f"border:none;width:100%;height:{height}px;"
+        prefix = ""
+        if hidden:
+            style += "display:none;"
+            prefix = ipython.toggle_button("report")
+        return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def _repr_html_(self) -> str:
+        return self.to_html()
+
 
 class HistoryScan(object):
     QUERY = gql(
@@ -1907,7 +2716,7 @@ class HistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(requests.RequestException),
     )
@@ -1974,7 +2783,7 @@ class SampledHistoryScan(object):
     next = __next__
 
     @normalize_exceptions
-    @retriable(
+    @retry.retriable(
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(requests.RequestException),
     )
@@ -2165,11 +2974,11 @@ class RunArtifacts(Paginator):
     OUTPUT_QUERY = gql(
         """
         query RunArtifacts(
-            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    outputArtifacts(after: $cursor) {
+                    outputArtifacts(after: $cursor, first: $perPage) {
                         totalCount
                         edges {
                             node {
@@ -2193,11 +3002,11 @@ class RunArtifacts(Paginator):
     INPUT_QUERY = gql(
         """
         query RunArtifacts(
-            $entity: String!, $project: String!, $runName: String!, $cursor: String,
+            $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
                 run(name: $runName) {
-                    inputArtifacts(after: $cursor) {
+                    inputArtifacts(after: $cursor, first: $perPage) {
                         totalCount
                         edges {
                             node {
@@ -2256,12 +3065,11 @@ class RunArtifacts(Paginator):
     @property
     def cursor(self):
         if self.last_response:
-            return self.last_response["project"]["run"][self.run_key]["edges"]["cursor"]
+            return self.last_response["project"]["run"][self.run_key]["edges"][-1][
+                "cursor"
+            ]
         else:
             return None
-
-    def update_variables(self):
-        self.variables.update({"cursor": self.cursor})
 
     def convert_objects(self):
         return [
@@ -2269,7 +3077,9 @@ class RunArtifacts(Paginator):
                 self.client,
                 self.run.entity,
                 self.run.project,
-                r["node"]["digest"],
+                "{}:v{}".format(
+                    r["node"]["artifactSequence"]["name"], r["node"]["versionIndex"]
+                ),
                 r["node"],
             )
             for r in self.last_response["project"]["run"][self.run_key]["edges"]
@@ -2354,6 +3164,8 @@ class ArtifactCollection(object):
         self.name = name
         self.type = type
         self._attrs = attrs
+        if self._attrs is None:
+            self.load()
 
     @property
     def id(self):
@@ -2371,11 +3183,189 @@ class ArtifactCollection(object):
             per_page=per_page,
         )
 
+    def load(self):
+        query = gql(
+            """
+        query ArtifactCollection(
+            $entityName: String!,
+            $projectName: String!,
+            $artifactTypeName: String!
+            $artifactCollectionName: String!
+        ) {
+            project(name: $projectName, entityName: $entityName) {
+                artifactType(name: $artifactTypeName) {
+                    artifactSequence(name: $artifactCollectionName) {
+                        id
+                        name
+                        description
+                        createdAt
+                    }
+                }
+            }
+        }
+        """
+        )
+        response = self.client.execute(
+            query,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactTypeName": self.type,
+                "artifactCollectionName": self.name,
+            },
+        )
+        if (
+            response is None
+            or response.get("project") is None
+            or response["project"].get("artifactType") is None
+            or response["project"]["artifactType"].get("artifactSequence") is None
+        ):
+            raise ValueError("Could not find artifact type %s" % self.type)
+        self._attrs = response["project"]["artifactType"]["artifactSequence"]
+        return self._attrs
+
     def __repr__(self):
         return "<ArtifactCollection {} ({})>".format(self.name, self.type)
 
 
-class Artifact(object):
+class _DownloadedArtifactEntry(artifacts.ArtifactEntry):
+    def __init__(self, name, entry, parent_artifact):
+        self.name = name
+        self.entry = entry
+        self._parent_artifact = parent_artifact
+
+        # Have to copy over a bunch of variables to get this ArtifactEntry interface
+        # to work properly
+        self.path = entry.path
+        self.ref = entry.ref
+        self.digest = entry.digest
+        self.birth_artifact_id = entry.birth_artifact_id
+        self.size = entry.size
+        self.extra = entry.extra
+        self.local_path = entry.local_path
+
+    def parent_artifact(self):
+        return self._parent_artifact
+
+    def copy(self, cache_path, target_path):
+        # can't have colons in Windows
+        if platform.system() == "Windows":
+            head, tail = os.path.splitdrive(target_path)
+            target_path = head + tail.replace(":", "-")
+
+        need_copy = (
+            not os.path.isfile(target_path)
+            or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
+        )
+        if need_copy:
+            util.mkdir_exists_ok(os.path.dirname(target_path))
+            # We use copy2, which preserves file metadata including modified
+            # time (which we use above to check whether we should do the copy).
+            shutil.copy2(cache_path, target_path)
+        return target_path
+
+    def download(self, root=None):
+        root = root or self._parent_artifact._default_root()
+        self._parent_artifact._add_download_root(root)
+        manifest = self._parent_artifact._load_manifest()
+        if self.entry.ref is not None:
+            cache_path = manifest.storage_policy.load_reference(
+                self._parent_artifact,
+                self.name,
+                manifest.entries[self.name],
+                local=True,
+            )
+        else:
+            cache_path = manifest.storage_policy.load_file(
+                self._parent_artifact, self.name, manifest.entries[self.name]
+            )
+
+        return self.copy(cache_path, os.path.join(root, self.name))
+
+    def ref_target(self):
+        manifest = self._parent_artifact._load_manifest()
+        if self.entry.ref is not None:
+            return manifest.storage_policy.load_reference(
+                self._parent_artifact,
+                self.name,
+                manifest.entries[self.name],
+                local=False,
+            )
+        raise ValueError("Only reference entries support ref_target().")
+
+    def ref_url(self):
+        return (
+            "wandb-artifact://"
+            + util.b64_to_hex_id(self._parent_artifact.id)
+            + "/"
+            + self.name
+        )
+
+
+class Artifact(artifacts.Artifact):
+    """
+    A wandb Artifact.
+
+    An artifact that has been logged, including all its attributes, links to the runs
+    that use it, and a link to the run that logged it.
+
+    Examples:
+        Basic usage
+        ```
+        api = wandb.Api()
+        artifact = api.artifact('project/artifact:alias')
+
+        # Get information about the artifact...
+        artifact.digest
+        artifact.aliases
+        ```
+
+        Updating an artifact
+        ```
+        artifact = api.artifact('project/artifact:alias')
+
+        # Update the description
+        artifact.description = 'My new description'
+
+        # Selectively update metadata keys
+        artifact.metadata["oldKey"] = "new value"
+
+        # Replace the metadata entirely
+        artifact.metadata = {"newKey": "new value"}
+
+        # Add an alias
+        artifact.aliases.append('best')
+
+        # Remove an alias
+        artifact.aliases.remove('latest')
+
+        # Completely replace the aliases
+        artifact.aliases = ['replaced']
+
+        # Persist all artifact modifications
+        artifact.save()
+        ```
+
+        Artifact graph traversal
+        ```
+        artifact = api.artifact('project/artifact:alias')
+
+        # Walk up and down the graph from an artifact:
+        producer_run = artifact.logged_by()
+        consumer_runs = artifact.used_by()
+
+        # Walk up and down the graph from a run:
+        logged_artifacts = run.logged_artifacts()
+        used_artifacts = run.used_artifacts()
+        ```
+
+        Deleting an artifact
+        ```
+        artifact = api.artifact('project/artifact:alias')
+        artifact.delete()
+        ```
+    """
+
     QUERY = gql(
         """
         query Artifact(
@@ -2432,7 +3422,7 @@ class Artifact(object):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 artifact._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    artifact, json.loads(req.content)
+                    artifact, json.loads(six.ensure_text(req.content))
                 )
 
             artifact._load_dependent_manifests()
@@ -2441,9 +3431,9 @@ class Artifact(object):
 
     def __init__(self, client, entity, project, name, attrs=None):
         self.client = client
-        self.entity = entity
-        self.project = project
-        self.artifact_name = name
+        self._entity = entity
+        self._project = project
+        self._artifact_name = name
         self._attrs = attrs
         if self._attrs is None:
             self._load()
@@ -2460,11 +3450,24 @@ class Artifact(object):
         self._manifest = None
         self._is_downloaded = False
         self._dependent_artifacts = []
+        self._download_roots = set()
         artifacts.get_artifacts_cache().store_artifact(self)
 
     @property
     def id(self):
         return self._attrs["id"]
+
+    @property
+    def version(self):
+        return "v%d" % self._version_index
+
+    @property
+    def entity(self):
+        return self._entity
+
+    @property
+    def project(self):
+        return self._project
 
     @property
     def metadata(self):
@@ -2492,10 +3495,18 @@ class Artifact(object):
 
     @property
     def created_at(self):
+        """
+        Returns:
+            (datetime): The time at which the artifact was created.
+        """
         return self._attrs["createdAt"]
 
     @property
     def updated_at(self):
+        """
+        Returns:
+            (datetime): The time at which the artifact was last updated.
+        """
         return self._attrs["updatedAt"] or self._attrs["createdAt"]
 
     @property
@@ -2511,6 +3522,10 @@ class Artifact(object):
         return self._attrs["artifactType"]["name"]
 
     @property
+    def commit_hash(self):
+        return self._attrs.get("commitHash", "")
+
+    @property
     def name(self):
         if self._version_index is None:
             return self.digest
@@ -2518,6 +3533,13 @@ class Artifact(object):
 
     @property
     def aliases(self):
+        """
+        The aliases associated with this artifact.
+
+        Returns:
+            List[str]: The aliases associated with this artifact.
+
+        """
         return self._aliases
 
     @aliases.setter
@@ -2571,12 +3593,41 @@ class Artifact(object):
 
         return None
 
-    def delete(self):
-        """Delete artifact and it's files."""
+    @property
+    def _use_as(self):
+        return self._attrs.get("_use_as")
+
+    @_use_as.setter
+    def _use_as(self, use_as):
+        self._attrs["_use_as"] = use_as
+        return use_as
+
+    @normalize_exceptions
+    def delete(self, delete_aliases=False):
+        """
+        Delete an artifact and its files.
+
+        Examples:
+            Delete all the "model" artifacts a run has logged:
+            ```
+            runs = api.runs(path="my_entity/my_project")
+            for run in runs:
+                for artifact in run.logged_artifacts():
+                    if artifact.type == "model":
+                        artifact.delete(delete_aliases=True)
+            ```
+
+        Arguments:
+            delete_aliases: (bool) If true, deletes all aliases associated with the artifact.
+                Otherwise, this raises an exception if the artifact has existing alaises.
+        """
         mutation = gql(
             """
-        mutation deleteArtifact($id: ID!) {
-            deleteArtifact(input: {artifactID: $id}) {
+        mutation DeleteArtifact($artifactID: ID!, $deleteAliases: Boolean) {
+            deleteArtifact(input: {
+                artifactID: $artifactID
+                deleteAliases: $deleteAliases
+            }) {
                 artifact {
                     id
                 }
@@ -2584,29 +3635,55 @@ class Artifact(object):
         }
         """
         )
-        self.client.execute(mutation, variable_values={"id": self.id,})
+        self.client.execute(
+            mutation,
+            variable_values={"artifactID": self.id, "deleteAliases": delete_aliases,},
+        )
         return True
 
     def new_file(self, name, mode=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_file(self, path, name=None):
+    def add_file(self, local_path, name=None, is_tmp=False):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
     def add_dir(self, path, name=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
-    def add_reference(self, path, name=None):
+    def add_reference(self, uri, name=None, checksum=True, max_objects=None):
         raise ValueError("Cannot add files to an artifact once it has been saved")
 
+    def add(self, obj, name):
+        raise ValueError("Cannot add files to an artifact once it has been saved")
+
+    def _add_download_root(self, dir_path):
+        """Adds `dir_path` as one of the known directories which this
+        artifact treated as a root"""
+        self._download_roots.add(os.path.abspath(dir_path))
+
+    def _is_download_root(self, dir_path):
+        """Determines if `dir_path` is a directory which this artifact as
+        treated as a root for downloading"""
+        return dir_path in self._download_roots
+
+    def _local_path_to_name(self, file_path):
+        """Converts a local file path to a path entry in the artifact"""
+        abs_file_path = os.path.abspath(file_path)
+        abs_file_parts = abs_file_path.split(os.sep)
+        for i in range(len(abs_file_parts) + 1):
+            if self._is_download_root(os.path.join(os.sep, *abs_file_parts[:i])):
+                return os.path.join(*abs_file_parts[i:])
+        return None
+
     def _get_obj_entry(self, name):
-        """When objects are added with `.add(obj, name)`, the name is typically
+        """
+        When objects are added with `.add(obj, name)`, the name is typically
         changed to include the suffix of the object type when serializing to JSON. So we need
         to be able to resolve a name, without tasking the user with appending .THING.json.
         This method returns an entry if it exists by a suffixed name.
 
         Args:
-            name (str): name used when adding
+            name: (str) name used when adding
         """
         self._load_manifest()
 
@@ -2620,11 +3697,7 @@ class Artifact(object):
         return None, None
 
     def get_path(self, name):
-        parent_self = self
-        manifest = parent_self._load_manifest()
-        storage_policy = manifest.storage_policy
-        default_root = parent_self._default_root()
-
+        manifest = self._load_manifest()
         entry = manifest.entries.get(name)
         if entry is None:
             entry = self._get_obj_entry(name)[0]
@@ -2633,72 +3706,9 @@ class Artifact(object):
             else:
                 name = entry.path
 
-        class ArtifactEntry(object):
-            def __init__(self):
-                self.parent_artifact = parent_self
-                self.name = name
-                self.entry = entry
-
-            @staticmethod
-            def copy(cache_path, target_path):
-                # can't have colons in Windows
-                if platform.system() == "Windows":
-                    head, tail = os.path.splitdrive(target_path)
-                    target_path = head + tail.replace(":", "-")
-
-                need_copy = (
-                    not os.path.isfile(target_path)
-                    or os.stat(cache_path).st_mtime != os.stat(target_path).st_mtime
-                )
-                if need_copy:
-                    util.mkdir_exists_ok(os.path.dirname(target_path))
-                    # We use copy2, which preserves file metadata including modified
-                    # time (which we use above to check whether we should do the copy).
-                    shutil.copy2(cache_path, target_path)
-                return target_path
-
-            @staticmethod
-            def download(root=None):
-                root = root or default_root
-                if entry.ref is not None:
-                    cache_path = storage_policy.load_reference(
-                        parent_self, name, manifest.entries[name], local=True
-                    )
-                else:
-                    cache_path = storage_policy.load_file(
-                        parent_self, name, manifest.entries[name]
-                    )
-
-                return ArtifactEntry().copy(cache_path, os.path.join(root, name))
-
-            @staticmethod
-            def ref():
-                if entry.ref is not None:
-                    return storage_policy.load_reference(
-                        parent_self, name, manifest.entries[name], local=False
-                    )
-                raise ValueError("Only reference entries support ref().")
-
-            @staticmethod
-            def ref_url():
-                return (
-                    "wandb-artifact://"
-                    + util.b64_to_hex_id(parent_self.id)
-                    + "/"
-                    + name
-                )
-
-        return ArtifactEntry()
+        return _DownloadedArtifactEntry(name, entry, self)
 
     def get(self, name):
-        """Returns the wandb.Media resource stored in the artifact. Media can be
-        stored in the artifact via Artifact#add(obj: wandbMedia, name: str)`
-        Arguments:
-            name (str): name of resource.
-
-        Returns:
-            A `wandb.Media` which has been stored at `name`
-        """
         entry, wb_class = self._get_obj_entry(name)
         if entry is not None:
             # If the entry is a reference from another artifact, then get it directly from that artifact
@@ -2723,34 +3733,24 @@ class Artifact(object):
             with open(item_path, "r") as file:
                 json_obj = json.load(file)
             result = wb_class.from_json(json_obj, self)
-            result.artifact_source = {"artifact": self, "name": name}
+            result._set_artifact_source(self, name)
             return result
 
     def download(self, root=None, recursive=False):
-        """Download the artifact to dir specified by the <root>
-
-        Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-            recursive (bool, optional): if set to true, then all dependent artifacts are
-                eagerly downloaded as well. If false, then the dependent artifact will
-                only be downloaded when needed.
-
-        Returns:
-            The path to the downloaded contents.
-        """
         dirpath = root or self._default_root()
+        self._add_download_root(dirpath)
         manifest = self._load_manifest()
         nfiles = len(manifest.entries)
         size = sum(e.size for e in manifest.entries.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
+            log = True
             termlog(
                 "Downloading large artifact %s, %.2fMB. %s files... "
-                % (self.artifact_name, size / (1024 * 1024), nfiles),
+                % (self._artifact_name, size / (1024 * 1024), nfiles),
                 newline=False,
             )
-        start_time = time.time()
+            start_time = datetime.datetime.now()
 
         # Force all the files to download into the same directory.
         # Download in parallel
@@ -2766,19 +3766,70 @@ class Artifact(object):
         self._is_downloaded = True
 
         if log:
-            termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-
+            delta = relativedelta(datetime.datetime.now() - start_time)
+            termlog(
+                "Done. %s:%s:%s" % (delta.hours, delta.minutes, delta.seconds),
+                prefix=False,
+            )
         return dirpath
+
+    def checkout(self, root=None):
+        dirpath = root or self._default_root(include_version=False)
+
+        for root, _, files in os.walk(dirpath):
+            for file in files:
+                full_path = os.path.join(root, file)
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
+                try:
+                    self.get_path(artifact_path)
+                except KeyError:
+                    # File is not part of the artifact, remove it.
+                    os.remove(full_path)
+
+        return self.download(root=dirpath)
+
+    def verify(self, root=None):
+        dirpath = root or self._default_root()
+        manifest = self._load_manifest()
+        ref_count = 0
+
+        for root, _, files in os.walk(dirpath):
+            for file in files:
+                full_path = os.path.join(root, file)
+                artifact_path = util.to_forward_slash_path(
+                    os.path.relpath(full_path, start=dirpath)
+                )
+                try:
+                    self.get_path(artifact_path)
+                except KeyError:
+                    raise ValueError(
+                        "Found file {} which is not a member of artifact {}".format(
+                            full_path, self.name
+                        )
+                    )
+
+        for entry in manifest.entries.values():
+            if entry.ref is None:
+                if (
+                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
+                    != entry.digest
+                ):
+                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+            else:
+                ref_count += 1
+        if ref_count > 0:
+            print("Warning: skipped verification of %s refs" % ref_count)
 
     def file(self, root=None):
         """Download a single file artifact to dir specified by the <root>
 
         Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
+            root: (str, optional) The root directory in which to place the file. Defaults to './artifacts/<self.name>/'.
 
         Returns:
-            The full path of the downloaded file
+            (str): The full path of the downloaded file.
         """
 
         if root is None:
@@ -2788,7 +3839,8 @@ class Artifact(object):
         nfiles = len(manifest.entries)
         if nfiles > 1:
             raise ValueError(
-                'This artifact contains more than one file, call `.download()` to get all files or call .get_path("filename").download()'
+                "This artifact contains more than one file, call `.download()` to get all files or call "
+                '.get_path("filename").download()'
             )
 
         return self._download_file(list(manifest.entries)[0], root=root)
@@ -2797,12 +3849,19 @@ class Artifact(object):
         # download file into cache and copy to target dir
         return self.get_path(name).download(root)
 
-    def _default_root(self):
-        root = os.path.join(".", "artifacts", self.name)
+    def _default_root(self, include_version=True):
+        root = (
+            os.path.join(".", "artifacts", self.name)
+            if include_version
+            else os.path.join(".", "artifacts", self._sequence_name)
+        )
         if platform.system() == "Windows":
             head, tail = os.path.splitdrive(root)
             root = head + tail.replace(":", "-")
         return root
+
+    def json_encode(self):
+        return util.artifact_to_json(self)
 
     @normalize_exceptions
     def save(self):
@@ -2844,32 +3903,8 @@ class Artifact(object):
         )
         return True
 
-    def verify(self, root=None):
-        """Verify an artifact by checksumming its downloaded contents.
-
-        Raises a ValueError if the verification fails. Does not verify downloaded
-        reference files.
-
-        Arguments:
-            root (str, optional): directory to download artifact to. If None
-                artifact will be downloaded to './artifacts/<self.name>/'
-        """
-        dirpath = root
-        if dirpath is None:
-            dirpath = os.path.join(".", "artifacts", self.name)
-        manifest = self._load_manifest()
-        ref_count = 0
-        for entry in manifest.entries.values():
-            if entry.ref is None:
-                if (
-                    artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
-                    != entry.digest
-                ):
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
-            else:
-                ref_count += 1
-        if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+    def wait(self):
+        return self
 
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
@@ -2904,13 +3939,13 @@ class Artifact(object):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self.artifact_name,
+                    "name": self._artifact_name,
                 },
             )
         except Exception:
             # we check for this after doing the call, since the backend supports raw digest lookups
             # which don't include ":" and are 32 characters long
-            if ":" not in self.artifact_name and len(self.artifact_name) != 32:
+            if ":" not in self._artifact_name and len(self._artifact_name) != 32:
                 raise ValueError(
                     'Attempted to fetch artifact without alias (e.g. "<artifact_name>:v3" or "<artifact_name>:latest")'
                 )
@@ -2921,7 +3956,7 @@ class Artifact(object):
         ):
             raise ValueError(
                 'Project %s/%s does not contain artifact: "%s"'
-                % (self.entity, self.project, self.artifact_name)
+                % (self.entity, self.project, self._artifact_name)
             )
         self._attrs = response["project"]["artifact"]
         return self._attrs
@@ -2958,7 +3993,7 @@ class Artifact(object):
                 variable_values={
                     "entityName": self.entity,
                     "projectName": self.project,
-                    "name": self.artifact_name,
+                    "name": self._artifact_name,
                 },
             )
 
@@ -2968,7 +4003,7 @@ class Artifact(object):
             with requests.get(index_file_url) as req:
                 req.raise_for_status()
                 self._manifest = artifacts.ArtifactManifest.from_manifest_json(
-                    self, json.loads(req.content)
+                    self, json.loads(six.ensure_text(req.content))
                 )
 
             self._load_dependent_manifests()
@@ -2982,8 +4017,9 @@ class Artifact(object):
             entry = self._manifest.entries[entry_key]
             if self._manifest_entry_is_artifact_reference(entry):
                 dep_artifact = self._get_ref_artifact_from_entry(entry)
-                dep_artifact._load_manifest()
-                self._dependent_artifacts.append(dep_artifact)
+                if dep_artifact not in self._dependent_artifacts:
+                    dep_artifact._load_manifest()
+                    self._dependent_artifacts.append(dep_artifact)
 
     @staticmethod
     def _manifest_entry_is_artifact_reference(entry):
@@ -3076,6 +4112,12 @@ class Artifact(object):
                 run_obj["project"]["name"],
                 run_obj["name"],
             )
+
+    def __setitem__(self, name, item):
+        return self.add(item, name)
+
+    def __getitem__(self, name):
+        return self.get(name)
 
 
 class ArtifactVersions(Paginator):

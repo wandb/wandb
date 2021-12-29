@@ -1,0 +1,12 @@
+id: init-method-log
+plugin:
+    - wandb
+tag:
+  shard: docs
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - accuracy
+    - :wandb:runs[0][exitcode]: 0
+    - :yea:exit: 0

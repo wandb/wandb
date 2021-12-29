@@ -1,142 +1,247 @@
-"""
-Hyperband Early Terminate
-"""
+from typing import List, Union, Dict, Any
+from copy import deepcopy
 
-import random
 import numpy as np
-from wandb.sweeps.base import EarlyTerminate
+
+from .config import SweepConfig, fill_validate_early_terminate
+from .config.schema import fill_validate_metric
+from .run import SweepRun, RunState
+from .config.schema import dereferenced_sweep_config_jsonschema
 
 
-class HyperbandEarlyTerminate(EarlyTerminate):
+def hyperband_baseline_validate_and_fill(config: Dict) -> Dict:
+    config = deepcopy(config)
+
+    if "metric" not in config:
+        raise ValueError('Hyperband stopping requires "metric" section')
+
+    if "early_terminate" not in config:
+        raise ValueError('Hyperband stopping requires "early_terminate" section.')
+
+    if config["early_terminate"]["type"] != "hyperband":
+        raise ValueError("Sweep config is not configured for hyperband stopping")
+
+    config = fill_validate_metric(config)
+    et_config = config["early_terminate"]
+
+    # remove extra keys (that are already ignored anyway) from the early_terminate config dict to avoid triggering a
+    # jsonschema validation error. Extra keys are disallowed by the schema but to maintain compatibility we
+    # will allow them here.
+    allowed_keys = list(
+        dereferenced_sweep_config_jsonschema["definitions"]["hyperband_stopping"][
+            "properties"
+        ].keys()
+    )
+
+    to_delete = []
+    for key in et_config:
+        if key not in allowed_keys:
+            to_delete.append(key)
+    for key in to_delete:
+        del et_config[key]
+
+    # fill in defaults needed for hyperband
+    config = fill_validate_early_terminate(config)
+
+    return config
+
+
+def hyperband_stop_runs(
+    runs: List[SweepRun],
+    config: Union[dict, SweepConfig],
+    validate: bool = False,
+) -> List[SweepRun]:
     """
-    Implementation of the Hyperband algorithm from
-      Hyperband: A Novel Bandit-Based Approach to Hyperparameter Optimization
+    Suggest sweep runs to terminate early using Hyperband: A Novel Bandit-Based Approach to Hyperparameter Optimization
       https://arxiv.org/pdf/1603.06560.pdf
 
-    Arguments
-    bands - Array of iterations to potentially early terminate algorithms
-    r - float in [0, 1] - fraction of runs to allow to pass through a band
-        r=1 means let all runs through and r=0 means let no runs through
+
+    >>> to_stop = hyperband_stop_runs(
+    ...    [SweepRun(
+    ...        name="a",
+    ...        state=RunState.finished,  # This is already stopped
+    ...        history=[
+    ...            {"loss": 10},
+    ...            {"loss": 9},
+    ...        ],
+    ...    ),
+    ...    SweepRun(
+    ...        name="b",
+    ...        state=RunState.running,  # This should be stopped
+    ...        history=[
+    ...            {"loss": 10},
+    ...            {"loss": 10},
+    ...        ],
+    ...    ),
+    ...    SweepRun(
+    ...        name="c",
+    ...        state=RunState.running,  # This passes band 1 but not band 2
+    ...        history=[
+    ...            {"loss": 10},
+    ...            {"loss": 8},
+    ...            {"loss": 8},
+    ...        ],
+    ...    ),
+    ...    SweepRun(
+    ...        name="d",
+    ...        state=RunState.running,
+    ...        history=[
+    ...            {"loss": 10},
+    ...            {"loss": 7},
+    ...            {"loss": 7},
+    ...        ],
+    ...    ),
+    ...    SweepRun(
+    ...        name="e",
+    ...        state=RunState.finished,
+    ...        history=[
+    ...            {"loss": 10},
+    ...            {"loss": 6},
+    ...            {"loss": 6},
+    ...        ],
+    ...    ),
+    ... ],
+    ... {
+    ...    "method": "grid",
+    ...    "metric": {"name": "loss", "goal": "minimize"},
+    ...    "early_terminate": {
+    ...        "type": "hyperband",
+    ...        "max_iter": 5,
+    ...        "eta": 2,
+    ...        "s": 2,
+    ...    },
+    ...    "parameters": {"a": {"values": [1, 2, 3]}},
+    ... })
+
+    Args:
+        runs: The runs in the sweep.
+        config: The sweep's config.
+        validate: Whether to validate `sweep_config` against the SweepConfig JSONschema.
+           If true, will raise a Validation error if `sweep_config` does not conform to
+           the schema. If false, will attempt to run the sweep with an unvalidated schema.
+
+    Returns:
+        List of runs to stop early.
     """
 
-    def __init__(self, bands, r):
-        if len(bands) < 1:
-            raise ValueError("Bands must be an array of length at least 1")
-        if r < 0 or r > 1:
-            raise ValueError("r must be a float between 0 and 1")
+    # validate config and fill in defaults
+    if validate:
+        # this fully validates the entire config
+        config = SweepConfig(config)
 
-        self.bands = bands
-        self.r = r
+    # this manually validates the parts of the config that are absolutely
+    # required to do hyperband stopping, and fills in any associated defaults
+    config = hyperband_baseline_validate_and_fill(config)
+    et_config = config["early_terminate"]
 
-    @classmethod
-    def init_from_max_iter(cls, max_iter, eta, s):
+    if "max_iter" in et_config:
+        max_iter = et_config["max_iter"]
+        s = et_config["s"]
+        eta = et_config["eta"]
+
         band = max_iter
         bands = []
         for i in range(s):
             band /= eta
             if band < 1:
                 break
-
             bands.append(int(band))
+        bands = sorted(bands)
 
-        return cls(sorted(bands), 1.0/eta)
-
-    @classmethod
-    def init_from_min_iter(cls, min_iter, eta):
-        if eta <= 1:
-            raise ValueError("eta must be greater than 1")
-        if min_iter < 1:
-            raise ValueError("min_iter must be at least 1")
+    # another way of defining hyperband with min_iter and possibly eta
+    elif "min_iter" in et_config:
+        min_iter = et_config["min_iter"]
+        eta = et_config["eta"]
 
         band = min_iter
         bands = []
         for i in range(100):
             bands.append(int(band))
             band *= eta
-
-        return cls(bands, 1.0/eta)
-
-    @classmethod
-    def init_from_config(cls, et_config):
-        # one way of defining hyperband, with max_iter, s and possibly eta
-        if 'max_iter' in et_config:
-            max_iter = et_config['max_iter']
-            eta = 3
-            if 'eta' in et_config:
-                eta = et_config['eta']
-
-            s = 0
-            if 's' in et_config:
-                s = et_config['s']
-            else:
-                raise ValueError(
-                    "Must define s for hyperband algorithm if max_iter is defined")
-
-            return cls.init_from_max_iter(max_iter, eta, s)
-        # another way of defining hyperband with min_iter and possibly eta
-        if 'min_iter' in et_config:
-            min_iter = et_config['min_iter']
-            eta = 3
-            if 'eta' in et_config:
-                eta = et_config['eta']
-            return cls.init_from_min_iter(min_iter, eta)
-
+    else:
         raise ValueError(
-            "Must define min_iter or max_iter for hyperband algorithm")
+            'invalid config for hyperband stopping: either "max_iter" or "min_iter" must be specified'
+        )
+    r = 1.0 / eta
 
-    def stop_runs(self, sweep_config, runs):
-        terminate_run_names = []
-        self._load_metric_name_and_goal(sweep_config)
+    if len(bands) < 1:
+        raise ValueError(
+            "Bands must be an array of length at least 1. Try increasing s, decreasing eta, or increasing min_iter."
+        )
 
-        all_run_histories = []  # we're going to look at every run
-        for run in runs:
-            # if run.state == "finished":  # complete run
-            history = self._load_run_metric_history(run)
-            if len(history) > 0:
-                all_run_histories.append(history)
+    if r < 0 or r > 1:
+        raise ValueError("r must be a float between 0 and 1")
 
-        self.thresholds = []
-        # iterate over the histories at every band and find the threshold for a run to be in the top r percentile
-        for band in self.bands:
-            # values of metric at iteration number "band"
-            band_values = [h[band] for h in all_run_histories if len(h) > band]
+    terminate_runs: List[SweepRun] = []
+    metric_name = config["metric"]["name"]
 
-            if len(band_values) == 0:
-                threshold = np.inf
-            else:
-                threshold = sorted(band_values)[
-                    int((self.r) * len(band_values))]
+    all_run_histories = []  # we're going to look at every run
+    for run in runs:
+        history = run.metric_history(metric_name, filter_invalid=True)
+        if config["metric"]["goal"] == "maximize":
+            history = list(map(lambda x: -x, history))
+        if len(history) > 0:
+            all_run_histories.append(history)
 
-            self.thresholds.append(threshold)
+    thresholds = []
+    # iterate over the histories at every band and find the threshold for a run to be in the top r percentile
+    for band in bands:
+        # values of metric at iteration number "band"
+        band_values = [h[band] for h in all_run_histories if len(h) > band]
+        if len(band_values) == 0:
+            threshold = np.inf
+        else:
+            threshold = sorted(band_values)[int((r) * len(band_values))]
+        thresholds.append(threshold)
 
-        info = {}
-        info['lines'] = []
-        info['lines'].append("Bands: %s" % (', '.join(["%s = %s" % (
-            band, threshold) for band, threshold in zip(self.bands, self.thresholds)])))
+    info: Dict[str, Any] = {}
+    info["lines"] = []
+    info["lines"].append(
+        "Bands: %s"
+        % (
+            ", ".join(
+                [
+                    "%s = %s" % (band, threshold)
+                    for band, threshold in zip(bands, thresholds)
+                ]
+            )
+        )
+    )
 
-        for run in runs:
-            if run.state == "running":
-                history = self._load_run_metric_history(run)
+    info["bands"] = bands
+    info["thresholds"] = thresholds
 
-                closest_band = -1
-                closest_threshold = 0
-                bandstr = ""
-                termstr = ""
-                for band, threshold in zip(self.bands, self.thresholds):
-                    if band < len(history):
-                        closest_band = band
-                        closest_threshold = threshold
-                    else:
-                        break
+    for run in runs:
+        if run.state == RunState.running:
+            history = run.metric_history(metric_name, filter_invalid=True)
+            if config["metric"]["goal"] == "maximize":
+                history = list(map(lambda x: -x, history))
 
-                if closest_band != -1:  # no bands apply yet
-                    bandstr = " (Metric: %f Band: %d Threshold %f)" % (
-                        min(history), closest_band, closest_threshold)
-                    if min(history) > closest_threshold:
-                        terminate_run_names.append(run.name)
-                        termstr = " STOP"
+            closest_band = -1
+            closest_threshold = 0.0
+            bandstr = ""
+            termstr = ""
+            for band, threshold in zip(bands, thresholds):
+                if band < len(history):
+                    closest_band = band
+                    closest_threshold = threshold
+                else:
+                    break
 
-                info['lines'].append("Run: %s Step: %d%s%s" % (
-                    run.name, len(history), bandstr, termstr))
+            if closest_band != -1:  # no bands apply yet
+                bandstr = " (Metric: %f Band: %d Threshold %f)" % (
+                    min(history),
+                    closest_band,
+                    closest_threshold,
+                )
+                if min(history) > closest_threshold:
+                    terminate_runs.append(run)
+                    termstr = " STOP"
 
-        return terminate_run_names, info
+            run_info = info.copy()
+            run_info["lines"].append(
+                "Run: %s Step: %d%s%s" % (run.name, len(history), bandstr, termstr)
+            )
+            run.early_terminate_info = run_info
+
+    return terminate_runs

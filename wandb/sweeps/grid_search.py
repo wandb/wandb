@@ -1,68 +1,116 @@
-"""
-Grid Search
-"""
-
 import itertools
 import random
-from wandb.sweeps.params import HyperParameter, HyperParameterSet
-from wandb.sweeps.base import Search
+import hashlib
+import yaml
+from typing import Any, List, Optional, Union
+
+from .config.cfg import SweepConfig
+from .run import SweepRun
+from .params import HyperParameter, HyperParameterSet
 
 
-class GridSearch(Search):
-    def __init__(self, randomize_order=False):
-        self.randomize_order = randomize_order
+def yaml_hash(value: Any) -> str:
+    return hashlib.md5(
+        yaml.dump(value, default_flow_style=True, sort_keys=True).encode("ascii")
+    ).hexdigest()
 
-    def next_run(self, sweep):
-        if 'parameters' not in sweep['config']:
-            raise ValueError('Grid search requires "parameters" section')
-        config = sweep['config']['parameters']
-        params = HyperParameterSet.from_config(config)
 
-        # Check that all parameters are categorical or constant
-        for p in params:
-            if p.type != HyperParameter.CATEGORICAL and p.type != HyperParameter.CONSTANT:
-                raise ValueError(
-                    'Parameter %s is a disallowed type with grid search. Grid search requires all parameters to be categorical or constant' % p.name)
+def grid_search_next_runs(
+    runs: List[SweepRun],
+    sweep_config: Union[dict, SweepConfig],
+    validate: bool = False,
+    n: int = 1,
+    randomize_order: bool = False,
+) -> List[Optional[SweepRun]]:
+    """Suggest runs with Hyperparameters drawn from a grid.
 
-        # we can only deal with discrete params in a grid search
-        discrete_params = [p for p in params if p.type ==
-                           HyperParameter.CATEGORICAL]
+    >>> suggestion = grid_search_next_runs([], {'method': 'grid', 'parameters': {'a': {'values': [1, 2, 3]}}})
+    >>> assert suggestion[0].config['a']['value'] == 1
 
-        # build an iterator over all combinations of param values
-        param_names = [p.name for p in discrete_params]
-        param_values = [p.values for p in discrete_params]
-        param_value_set = list(itertools.product(*param_values))
+    Args:
+        runs: The runs in the sweep.
+        sweep_config: The sweep's config.
+        randomize_order: Whether to randomize the order of the grid search.
+        n: The number of runs to draw
+        validate: Whether to validate `sweep_config` against the SweepConfig JSONschema.
+           If true, will raise a Validation error if `sweep_config` does not conform to
+           the schema. If false, will attempt to run the sweep with an unvalidated schema.
 
-        if self.randomize_order:
-            random.shuffle(param_value_set)
+    Returns:
+        The suggested runs.
+    """
 
-        new_value_set = next(
-            (value_set for value_set in param_value_set
-             # check if parameter set is contained in some run
-                if not self._runs_contains_param_values(sweep['runs'], dict(zip(param_names, value_set))
-                                                        )
-             ), None)
+    # make sure the sweep config is valid
+    if validate:
+        sweep_config = SweepConfig(sweep_config)
 
-        # handle the case where we couldn't find a unique parameter set
-        if new_value_set == None:
-            return None
+    if sweep_config["method"] != "grid":
+        raise ValueError("Invalid sweep configuration for grid_search_next_run.")
 
-        # set next_run_params based on our new set of params
-        for param, value in zip(discrete_params, new_value_set):
-            param.value = value
+    if "parameters" not in sweep_config:
+        raise ValueError('Grid search requires "parameters" section')
+    params = HyperParameterSet.from_config(sweep_config["parameters"])
 
-        return (params.to_config(), None)
+    # Check that all parameters are categorical or constant
+    for p in params:
+        if p.type != HyperParameter.CATEGORICAL and p.type != HyperParameter.CONSTANT:
+            raise ValueError(
+                "Parameter %s is a disallowed type with grid search. Grid search requires all parameters to be categorical or constant"
+                % p.name
+            )
 
-    def _run_contains_param_values(self, run, params):
-        for key, value in params.items():
-            if not key in run.config:
-                return False
-            if not run.config[key]['value'] == value:
-                #print("not same {} {}".format(run.config[key], value))
-                return False
-        return True
+    # we can only deal with discrete params in a grid search
+    discrete_params = HyperParameterSet(
+        [p for p in params if p.type == HyperParameter.CATEGORICAL]
+    )
 
-    def _runs_contains_param_values(self, runs, params):
-        ret_val = any(self._run_contains_param_values(run, params)
-                      for run in runs)
-        return any(self._run_contains_param_values(run, params) for run in runs)
+    # build an iterator over all combinations of param values
+    param_names = [p.name for p in discrete_params]
+    param_values = [p.config["values"] for p in discrete_params]
+    param_hashes = [
+        [yaml_hash(value) for value in p.config["values"]] for p in discrete_params
+    ]
+    value_hash_lookup = {
+        name: dict(zip(hashes, vals))
+        for name, vals, hashes in zip(param_names, param_values, param_hashes)
+    }
+
+    all_param_hashes = list(itertools.product(*param_hashes))
+    if randomize_order:
+        random.shuffle(all_param_hashes)
+
+    param_hashes_seen = set(
+        [
+            tuple(
+                yaml_hash(run.config[name]["value"])
+                for name in param_names
+                if name in run.config
+            )
+            for run in runs
+        ]
+    )
+
+    hash_gen = (
+        hash_val for hash_val in all_param_hashes if hash_val not in param_hashes_seen
+    )
+
+    retval: List[Optional[SweepRun]] = []
+    for _ in range(n):
+
+        # this is O(1)
+        next_hash = next(hash_gen, None)
+
+        # we have searched over the entire parameter space
+        if next_hash is None:
+            retval.append(None)
+            return retval
+
+        for param, hash_val in zip(discrete_params, next_hash):
+            param.value = value_hash_lookup[param.name][hash_val]
+
+        run = SweepRun(config=params.to_config())
+        retval.append(run)
+
+        param_hashes_seen.add(next_hash)
+
+    return retval
