@@ -45,8 +45,8 @@ class Api:
 
     Note:
         Settings are automatically overridden by looking for
-        a `wandb/settings` file in the current working directory or it's parent
-        directory. If none can be found, we look in the current users home
+        a `wandb/settings` file in the current working directory or its parent
+        directory. If none can be found, we look in the current user's home
         directory.
 
     Arguments:

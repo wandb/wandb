@@ -111,7 +111,8 @@ def _get_cling_api(reset=None):
         wandb_sdk.wandb_setup._setup(_reset=True)
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
-        wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
+        # only override the necessary setting
+        wandb.setup(settings=dict(_cli_only_mode=True))
         _api = InternalApi()
     return _api
 
@@ -221,7 +222,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 
     try:
         wandb.setup(
-            settings=wandb.Settings(
+            settings=dict(
                 _cli_only_mode=True,
                 _disable_viewer=relogin,
                 anonymous=anon_mode,
@@ -353,7 +354,8 @@ def init(ctx, project, entity, reset, mode):
     if not viewer:
         click.echo(
             click.style(
-                "We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.",
+                "We're sorry, there was a problem logging you in. "
+                "Please send us a note at support@wandb.com and tell us how this happened.",
                 fg="red",
                 bold=True,
             )
@@ -383,7 +385,7 @@ def init(ctx, project, entity, reset, mode):
     try:
         project = prompt_for_project(ctx, entity)
     except ClickWandbException:
-        raise ClickException("Could not find team: %s" % entity)
+        raise ClickException(f"Could not find team: {entity}")
 
     api.set_setting("entity", entity, persist=True)
     api.set_setting("project", project, persist=True)
