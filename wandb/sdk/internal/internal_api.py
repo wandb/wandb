@@ -97,7 +97,7 @@ class Api:
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key or ""),
-                url="%s/graphql" % self.settings("base_url"),
+                url=f"{self.settings('base_url')}/graphql",
             )
         )
         self.retry_callback = retry_callback

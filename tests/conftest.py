@@ -472,7 +472,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
         wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
         mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
         run = wandb.init(
-            settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
+            settings=dict(console="off", mode="offline", _except_exit=False),
             **args["wandb_init"],
         )
         yield run

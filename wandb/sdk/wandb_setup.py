@@ -144,11 +144,25 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
         return s
 
-    def _update(self, settings: Dict[str, Any] = None):
-        if settings is not None:
-            # self._settings.unfreeze()
+    def _update(
+        self,
+        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None
+    ) -> None:
+        if settings is None:
+            return
+        # self._settings.unfreeze()
+        if isinstance(settings, wandb_settings.Settings):
+            # todo: check the logic here
+            #  this _only_ comes up in tests
+            # fixme? update the settings with the values from it with SETUP source
+            self._settings.update(
+                settings.make_static(include_properties=False),
+                source=wandb_settings.Source.SETUP,
+            )
+        elif isinstance(settings, dict):
+            # if it is a mapping, update the settings with it
             self._settings.update(settings, source=wandb_settings.Source.SETUP)
-            # self._settings.freeze()
+        # self._settings.freeze()
 
     def _update_user_settings(self, settings=None):
         settings = settings or self._settings
