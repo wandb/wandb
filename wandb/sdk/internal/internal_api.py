@@ -1552,6 +1552,12 @@ class Api(object):
 
         return path, response
 
+    def upload_file_azure(self, url, file, extra_headers):
+        blob = util.get_module("azure.storage.blob", required="Large file uploads require the azure sdk, install with pip install wandb[azure]")
+        # TODO: deal with azure.core.AzureError and retries
+        client = blob.BlobServiceClient.from_blob_url(url)
+        return client.upload_blob(file, metadata=extra_headers)
+
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
@@ -1568,8 +1574,12 @@ class Api(object):
         response = None
         progress = Progress(file, callback=callback)
         try:
-            response = requests.put(url, data=progress, headers=extra_headers)
-            response.raise_for_status()
+            # TODO: better checking here
+            if "blob.core.windows.net" in url:
+                response = self.upload_file_azure(url, file, extra_headers)
+            else:
+                response = requests.put(url, data=progress, headers=extra_headers)
+                response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error("upload_file exception {}: {}".format(url, e))
             request_headers = e.request.headers if e.request is not None else ""
