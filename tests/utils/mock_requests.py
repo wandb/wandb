@@ -130,7 +130,9 @@ class RequestsMock(object):
         inject = InjectRequestsParse(self.ctx).find(pre_request=pre_request)
         if inject:
             if inject.requests_error:
-                raise requests.exceptions.RetryError()
+                if inject.requests_error is True:
+                    raise requests.exceptions.RetryError()
+                raise requests.exceptions.ConnectionError()
 
     def post(self, url, **kwargs):
         self._inject("post", url, kwargs)
@@ -202,8 +204,9 @@ class InjectRequestsParse(object):
         if request:
             request_path = request.path
         if pre_request:
-            # TODO: fix this to be just the path
-            request_path = pre_request["url"]
+            url = pre_request["url"]
+            parsed = urllib.parse.urlparse(url)
+            request_path = parsed.path
 
         rules = inject.get("rules", [])
         for r in rules:
@@ -241,7 +244,7 @@ class InjectRequestsParse(object):
                     if http_status:
                         action.http_status = http_status
                     if requests_error:
-                        action.requests_error = True
+                        action.requests_error = requests_error
                     # print("INJECT_REQUEST: action =", action)
                     return action
 
