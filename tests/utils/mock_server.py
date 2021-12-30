@@ -1376,9 +1376,9 @@ def create_app(user_ctx=None):
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
 
-    @app.route("/storage", defaults={"extra", ""}, methods=["PUT", "GET"])
+    @app.route("/storage", methods=["PUT", "GET"])
     @app.route("/storage/<path:extra>", methods=["PUT", "GET"])
-    def storage(extra):
+    def storage(extra=None):
         ctx = get_ctx()
         if "fail_storage_times" in ctx:
             if ctx["fail_storage_count"] < ctx["fail_storage_times"]:
