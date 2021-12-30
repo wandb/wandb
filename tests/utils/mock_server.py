@@ -70,6 +70,7 @@ def default_ctx():
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
@@ -101,6 +102,7 @@ def mock_server(mocker):
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
+    mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
 
@@ -410,6 +412,10 @@ def create_app(user_ctx=None):
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
+            emulate_azure = ctx.get("emulate_azure")
+            # Azure expects the request path of signed urls to have 2 parts
+            if emulate_azure:
+                base_url += "/storage"
             url = base_url + "/storage?file={}&run={}".format(
                 urllib.parse.quote(requested_file), ctx["current_run"]
             )
@@ -1370,8 +1376,9 @@ def create_app(user_ctx=None):
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
 
-    @app.route("/storage", methods=["PUT", "GET"])
-    def storage():
+    @app.route("/storage", defaults={"extra", ""}, methods=["PUT", "GET"])
+    @app.route("/storage/<path:extra>", methods=["PUT", "GET"])
+    def storage(extra):
         ctx = get_ctx()
         if "fail_storage_times" in ctx:
             if ctx["fail_storage_count"] < ctx["fail_storage_times"]:
