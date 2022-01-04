@@ -222,33 +222,31 @@ def dummy_api_key():
 
 
 @pytest.fixture
-def test_settings(test_dir, runner, live_mock_server):
+def test_settings(test_dir, mocker, live_mock_server):
     """Settings object for tests"""
-    with runner.isolated_filesystem():
-        #  TODO: likely not the right thing to do, we shouldn't be setting this
-        wandb._IS_INTERNAL_PROCESS = False
-        wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
-        wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
-        wandb_dir = os.path.join(test_dir, "wandb")
-        mkdir_exists_ok(wandb_dir)
-        # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        # settings = dict(
-        settings = wandb.Settings(
-            _start_time=time.time(),
-            base_url=live_mock_server.base_url,
-            root_dir=test_dir,
-            save_code=False,
-            project="test",
-            console="off",
-            host="test",
-            api_key=DUMMY_API_KEY,
-            run_id=wandb.util.generate_id(),
-            _start_datetime=datetime.datetime.now(),
-        )
-        # Just in case someone forgets to join in tests
-        yield settings
-        if wandb.run is not None:
-            wandb.run.finish()
+    #  TODO: likely not the right thing to do, we shouldn't be setting this
+    wandb._IS_INTERNAL_PROCESS = False
+    wandb.wandb_sdk.wandb_run.EXIT_TIMEOUT = 15
+    wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
+    wandb_dir = os.path.join(test_dir, "wandb")
+    mkdir_exists_ok(wandb_dir)
+    # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    settings = wandb.Settings(
+        _start_time=time.time(),
+        base_url=live_mock_server.base_url,
+        root_dir=test_dir,
+        save_code=False,
+        project="test",
+        console="off",
+        host="test",
+        api_key=DUMMY_API_KEY,
+        run_id=wandb.util.generate_id(),
+        _start_datetime=datetime.datetime.now(),
+    )
+    # Just in case someone forgets to join in tests
+    yield settings
+    if wandb.run is not None:
+        wandb.run.finish()
 
 
 @pytest.fixture
