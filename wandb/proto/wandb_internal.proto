@@ -19,7 +19,7 @@ import "wandb/proto/wandb_telemetry.proto";
  ************************/
 
 /*
- * Record: joined record for message passing and persistance
+ * Record: joined record for message passing and persistence
  */
 message Record {
   int64            num = 1;
