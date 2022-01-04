@@ -10,3 +10,4 @@ nemo_toolkit[all]
 nni
 onmt
 optuna
+numpy>=1.22.0 # not directly required, pinned by Snyk to avoid a vulnerability
