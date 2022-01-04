@@ -184,6 +184,7 @@ def assertion(run_id, found, stderr):
         ("must", True),
         ("", False),
         (0, False),
+        (True, True),
         (None, False),
     ],
 )

@@ -577,7 +577,7 @@ def test_sync_dir(test_settings):
 def test_sync_file(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings.sync_file == os.path.realpath(
-        "./wandb/latest-run/run-{}.wandb".format(run.id)
+        f"./wandb/latest-run/run-{run.id}.wandb"
     )
     run.finish()
 

@@ -607,7 +607,7 @@ class Settings:
             "validator": lambda x: isinstance(x, bool),
         }
         self.resume: Any = {
-            "validator": lambda x: isinstance(x, str),
+            "validator": lambda x: isinstance(x, (str, int, bool)),
         }
         self.resume_fname: Any = {
             "value": "wandb-resume.json",
