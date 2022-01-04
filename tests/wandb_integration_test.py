@@ -48,7 +48,7 @@ def test_resume_allow_success(live_mock_server, test_settings):
     print("GET RIGHT AWAY", live_mock_server.get_ctx())
     wandb.init(reinit=True, resume="allow", settings=test_settings)
     wandb.log({"acc": 10})
-    wandb.join()
+    wandb.finish()
     server_ctx = live_mock_server.get_ctx()
     print("CTX", server_ctx)
     first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
@@ -122,7 +122,7 @@ def test_resume_never_failure(live_mock_server, test_settings):
 
 def test_resume_auto_success(live_mock_server, test_settings):
     run = wandb.init(reinit=True, resume=True, settings=test_settings)
-    run.join()
+    run.finish()
     assert not os.path.exists(test_settings.resume_fname)
 
 
@@ -140,7 +140,7 @@ def test_resume_no_metadata(live_mock_server, test_settings):
     # do not write metadata file if we are resuming
     live_mock_server.set_ctx({"resume": True})
     run = wandb.init(resume=True, settings=test_settings)
-    run.join()
+    run.finish()
     ctx = live_mock_server.get_ctx()
     assert "wandb-metadata.json" not in ctx["storage"][run.id]
 
@@ -162,7 +162,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
     assert run.config["foo"] == 1
     assert run.config["baz"] == 3
     assert "bar" not in run.config
-    run.join()
+    run.finish()
 
     run = wandb.init(
         reinit=True,
@@ -174,7 +174,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
     assert run.config["bar"] == 2
     assert "foo" not in run.config
     assert "baz" not in run.config
-    run.join()
+    run.finish()
 
     with pytest.raises(wandb.errors.UsageError):
         run = wandb.init(
@@ -190,7 +190,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
 def test_network_fault_files(live_mock_server, test_settings):
     live_mock_server.set_ctx({"fail_storage_times": 5})
     run = wandb.init(settings=test_settings)
-    run.join()
+    run.finish()
     ctx = live_mock_server.get_ctx()
     print(ctx)
     assert [
@@ -226,7 +226,7 @@ def test_network_fault_graphql(live_mock_server, test_settings):
     # TODO: Initial login fails within 5 seconds so we fail after boot.
     run = wandb.init(settings=test_settings)
     live_mock_server.set_ctx({"fail_graphql_times": 5})
-    run.join()
+    run.finish()
     ctx = live_mock_server.get_ctx()
     print(ctx)
     assert [
@@ -288,7 +288,7 @@ def test_dir_on_init(live_mock_server, test_settings):
     reloadFn(wandb)
     _remove_dir_if_exists(default_path)
     run = wandb.init()
-    run.join()
+    run.finish()
     assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
 
 
@@ -304,7 +304,7 @@ def test_dir_on_init_env(live_mock_server, test_settings):
     reloadFn(wandb)
     _remove_dir_if_exists(default_path)
     run = wandb.init()
-    run.join()
+    run.finish()
     assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
         default_path
     )
@@ -314,7 +314,7 @@ def test_dir_on_init_env(live_mock_server, test_settings):
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
     run = wandb.init()
-    run.join()
+    run.finish()
     assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
         default_path
     )
@@ -337,7 +337,7 @@ def test_dir_on_init_dir(live_mock_server, test_settings):
     if not os.path.isdir(custom_dir_path):
         os.makedirs(custom_dir_path)
     run = wandb.init(dir="./" + dir_name)
-    run.join()
+    run.finish()
     assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
         default_path
     )
@@ -347,7 +347,7 @@ def test_dir_on_init_dir(live_mock_server, test_settings):
     # And for the duplicate-run case
     _remove_dir_if_exists(default_path)
     run = wandb.init(dir="./" + dir_name)
-    run.join()
+    run.finish()
     assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
         default_path
     )

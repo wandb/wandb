@@ -774,16 +774,17 @@ class Settings:
         if unexpected_arguments:
             raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
         for k, v in kwargs.items():
-            self.update({k: v}, source=Source.SETTINGS)
+            # todo: double-check this logic:
+            source = Source.ARGS if self.__dict__[k]._is_policy else Source.BASE
+            self.update({k: v}, source=source)
 
         # setup private attributes
         object.__setattr__(self, "_Settings_start_datetime", None)
         object.__setattr__(self, "_Settings_start_time", None)
 
         if os.environ.get(wandb.env.DIR) is None:
-            self.__dict__["root_dir"].update(
-                os.path.abspath(os.getcwd()), Source.SETTINGS
-            )
+            # todo: double-check source:
+            self.update({"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE)
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
