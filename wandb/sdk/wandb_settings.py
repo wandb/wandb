@@ -1125,7 +1125,7 @@ class Settings:
                 with open(self.resume_fname) as f:
                     resume_run_id = json.load(f)["run_id"]
                 if self.run_id is None:
-                    self.run_id = resume_run_id
+                    self.update({"run_id": resume_run_id}, source=Source.INIT)
                 elif self.run_id != resume_run_id:
                     wandb.termwarn(
                         "Tried to auto resume run with "
