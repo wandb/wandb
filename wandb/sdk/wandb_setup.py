@@ -145,8 +145,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         return s
 
     def _update(
-        self,
-        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None
+        self, settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None
     ) -> None:
         if settings is None:
             return

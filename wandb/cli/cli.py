@@ -221,9 +221,7 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
         relogin = True
 
     login_settings = dict(
-        _cli_only_mode=True,
-        _disable_viewer=relogin,
-        anonymous=anon_mode,
+        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
     )
     if host is not None:
         login_settings["base_url"] = host

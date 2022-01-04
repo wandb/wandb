@@ -107,9 +107,7 @@ def prompt_api_key(  # noqa: C901
         key = browser_callback(signup=True) if browser_callback else None
 
         if not key:
-            wandb.termlog(
-                f"Create an account here: {app_url}/authorize?signup=true"
-            )
+            wandb.termlog(f"Create an account here: {app_url}/authorize?signup=true")
             key = input_callback(api_ask).strip()
 
         write_key(settings, key, api=api)
