@@ -220,15 +220,16 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     if key:
         relogin = True
 
+    login_settings = dict(
+        _cli_only_mode=True,
+        _disable_viewer=relogin,
+        anonymous=anon_mode,
+    )
+    if host is not None:
+        login_settings["base_url"] = host
+
     try:
-        wandb.setup(
-            settings=dict(
-                _cli_only_mode=True,
-                _disable_viewer=relogin,
-                anonymous=anon_mode,
-                base_url=host,
-            )
-        )
+        wandb.setup(settings=login_settings)
     except TypeError as e:
         wandb.termerror(str(e))
         sys.exit(1)

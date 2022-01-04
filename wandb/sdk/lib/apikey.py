@@ -95,8 +95,8 @@ def prompt_api_key(  # noqa: C901
         )
 
     api_ask = (
-        "%s: Paste an API key from your profile and hit enter, or press ctrl+c to quit: "
-        % log_string
+        f"{log_string}: Paste an API key from your profile and hit enter, "
+        "or press ctrl+c to quit: "
     )
     if result == LOGIN_CHOICE_ANON:
         key = api.create_anonymous_api_key()
@@ -108,7 +108,7 @@ def prompt_api_key(  # noqa: C901
 
         if not key:
             wandb.termlog(
-                "Create an account here: {}/authorize?signup=true".format(app_url)
+                f"Create an account here: {app_url}/authorize?signup=true"
             )
             key = input_callback(api_ask).strip()
 
@@ -119,9 +119,7 @@ def prompt_api_key(  # noqa: C901
 
         if not key:
             wandb.termlog(
-                "You can find your API key in your browser here: {}/authorize".format(
-                    app_url
-                )
+                f"You can find your API key in your browser here: {app_url}/authorize"
             )
             key = input_callback(api_ask).strip()
         write_key(settings, key, api=api)
@@ -156,9 +154,7 @@ def write_netrc(host, entity, key):
         normalized_host = urlparse(host).netloc.split(":")[0]
         if normalized_host != "localhost" and "." not in normalized_host:
             wandb.termerror(
-                "Host must be a url in the form https://some.address.com, received {}".format(
-                    host
-                )
+                f"Host must be a url in the form https://some.address.com, received {host}"
             )
             return None
         wandb.termlog(
@@ -166,7 +162,7 @@ def write_netrc(host, entity, key):
                 normalized_host, os.path.expanduser("~/.netrc")
             )
         )
-        machine_line = "machine %s" % normalized_host
+        machine_line = f"machine {normalized_host}"
         path = os.path.expanduser("~/.netrc")
         orig_lines = None
         try:
