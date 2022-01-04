@@ -176,10 +176,10 @@ workflows:
          toxenv: "unit-s_nb-py36,covercircle"
       - win:
          name: "unit-s_nb-win-py37"
-         toxenv: "py37,wincovercircle"
+         toxenv: "unit-s_nb-py37"
       - mac:
          name: "unit-s_nb-mac-py37"
-         toxenv: "py37"
+         toxenv: "unit-s_nb-py37"
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
