@@ -10,3 +10,6 @@ nemo_toolkit[all]
 nni
 onmt
 optuna
+nltk>=3.6.6 # not directly required, pinned by Snyk to avoid a vulnerability
+torchtext>=0.10.0 # not directly required, pinned by Snyk to avoid a vulnerability
+urllib3>=1.26.5 # not directly required, pinned by Snyk to avoid a vulnerability
