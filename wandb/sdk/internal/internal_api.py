@@ -2130,8 +2130,8 @@ class Api(object):
         aliases=None,
         distributed_id=None,
         is_user_created=False,
+        enable_digest_deduplication=False,
     ):
-        # TODO: Ignore clientID and sequenceClientID if server can't handle it
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
@@ -2139,6 +2139,7 @@ class Api(object):
         can_handle_client_id = max_cli_version is None or parse_version(
             "0.11.0"
         ) <= parse_version(max_cli_version)
+        can_handle_dedupe = max_cli_version is None or parse_version("0.12.10")
 
         mutation = gql(
             """
@@ -2156,6 +2157,7 @@ class Api(object):
             %s
             %s
             %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -2169,6 +2171,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
                 %s
                 %s
                 %s
@@ -2194,14 +2197,18 @@ class Api(object):
         """
             %
             # For backwards compatibility with older backends that don't support
-            # distributed writers.
+            # distributed writers or digest deduplication.
             (
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
+                "enableDigestDeduplication: $enableDigestDeduplication,"
+                if can_handle_dedupe
+                else "",
             )
         )
 
@@ -2232,6 +2239,7 @@ class Api(object):
                 if metadata
                 else None,
                 "distributedID": distributed_id,
+                "enableDigestDeduplication": enable_digest_deduplication,
             },
         )
         av = response["createArtifact"]["artifact"]
