@@ -4,7 +4,7 @@ tox==3.24.0
 pip
 Pillow
 pandas; python_version < '3.10'
-matplotlib
+matplotlib<3.5.2
 soundfile
 boto3
 google-cloud-storage

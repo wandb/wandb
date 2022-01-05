@@ -18,8 +18,9 @@ from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
-from wandb.util import add_import_hook
 from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+from wandb.sdk.lib.deprecate import deprecate, Deprecated
+from wandb.util import add_import_hook
 
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -372,7 +373,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
         training_data=None,
         validation_data=None,
         labels=[],
-        data_type=None,
         predictions=36,
         generator=None,
         input_type=None,
@@ -388,6 +388,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        **kwargs,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -418,7 +419,18 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.generator = generator
         self._graph_rendered = False
 
-        self.input_type = input_type or data_type
+        data_type = kwargs.get("data_type", None)
+        if data_type is not None:
+            deprecate(
+                field_name=Deprecated.keras_callback__data_type,
+                warning_message=(
+                    "The data_type argument of wandb.keras.WandbCallback is deprecated "
+                    "and will be removed in a future release. Please use input_type instead.\n"
+                    "Setting input_type = data_type."
+                ),
+            )
+            input_type = data_type
+        self.input_type = input_type
         self.output_type = output_type
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
@@ -447,9 +459,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
-            print(
-                "WandbCallback mode %s is unknown, " "fallback to auto mode." % (mode)
-            )
+            print(f"WandbCallback mode {mode} is unknown, fallback to auto mode.")
             mode = "auto"
 
         if mode == "min":

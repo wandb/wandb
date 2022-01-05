@@ -30,6 +30,7 @@ Please make sure to update the ToC when you update this page.
 * [Changes from production library](#changes-from-production-library)
 * [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
 * [Documentation Generation](#documentation-generation)
+* [Deprecating Features](#deprecating-features)
 
 ## Development workflow
 
@@ -228,10 +229,10 @@ tox -e py37 --recreate
 
 ### Overview
 
-Testing wandb is tricky for a few reasons:
+Testing `wandb` is tricky for a few reasons:
 
 1. `wandb.init` launches a separate process, this adds overhead and makes it difficult to assert logic happening in the backend process.
-2. The library makes lot's of requests to a W&B server as well as other services. We don't want to make requests to an actual server so we need to mock one out.
+2. The library makes lots of requests to a W&B server as well as other services. We don't want to make requests to an actual server, so we need to mock one out.
 3. The library has many integrations with 3rd party libraries and frameworks. We need to assert we never break compatibility with these libraries as they evolve.
 4. wandb writes files to the local file system. When we're testing we need to make sure each test is isolated.
 5. wandb reads configuration state from global directories such as `~/.netrc` and `~/.config/wandb/settings` we need to override these in tests.
@@ -324,9 +325,9 @@ All global fixtures are defined in `tests/conftest.py`:
 - `runner` — exposes a click.CliRunner object which can be used by calling `.isolated_filesystem()`. This also mocks out calls for login returning a dummy api key.
 - `mocked_run` - returns a mocked out run object that replaces the backend interface with a MagicMock so no actual api calls are made.
 - `mocked_module` - if you need to test code that calls `wandb.util.get_module("XXX")`, you can use this fixture to get a MagicMock(). See `tests/test_notebook.py`
-- `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling wandb.init). No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`. See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
+- `wandb_init_run` - returns a fully functioning run with a mocked out interface (the result of calling `wandb.init`). No api's are actually called, but you can access what apis were called via `run._backend.{summary,history,files}`. See `test/utils/mock_backend.py` and `tests/frameworks/test_keras.py`
 - `mock_server` - mocks all calls to the `requests` module with sane defaults. You can customize `tests/utils/mock_server.py` to use context or add api calls.
-- `live_mock_server` - we start a live flask server when tests start. live_mock_server configures WANDB_BASE_URL point to this server. You can alter or get it's context with the `get_ctx` and `set_ctx` methods. See `tests/wandb_integration_test.py`. NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.
+- `live_mock_server` - we start a live flask server when tests start. live_mock_server configures WANDB_BASE_URL point to this server. You can alter or get its context with the `get_ctx` and `set_ctx` methods. See `tests/wandb_integration_test.py`. NOTE: this currently doesn't support concurrent requests so if we run tests in parallel we need to solve for this.
 - `git_repo` — places the test context into an isolated git repository
 - `test_dir` - places the test into `tests/logs/NAME_OF_TEST` this is useful for looking at debug logs. This is used by `test_settings`
 - `notebook` — gives you a context manager for reading a notebook providing `execute_cell`. See `tests/utils/notebook_client.py` and `tests/test_notebooks.py`. This uses `live_mock_server` to enable actual api calls in a notebook context.
@@ -337,19 +338,19 @@ All global fixtures are defined in `tests/conftest.py`:
 We use codecov to ensure we're executing all branches of logic in our tests. Below are some JHR Protips™
 
 1. If you want to see the lines not covered you click on the “Diff” tab. then look for any “+” lines that have a red block for the line number
-2. If you want more context about the files, go to the “Files” tab, it will highlight diffs but you have to do even more searching for the lines you might care about
-3. If you dont want to use codecov, you can use local coverage (i tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from master)
+2. If you want more context about the files, go to the “Files” tab, it will highlight diffs, but you have to do even more searching for the lines you might care about
+3. If you don't want to use codecov, you can use local coverage (I tend to do this for speeding things up a bit, run your tests then run tox -e cover ). This will give you the old school text output of missing lines (but not based on a diff from master)
 
 We currently have 8 categories of test coverage:
 
-1. `project`: main coverage numbers, I dont think it can drop by more than a few percent or you will get a failure
+1. `project`: main coverage numbers, I don't think it can drop by more than a few percent, or you will get a failure
 2. `patch/tests`: must be 100%, if you are writing code for tests, it needs to be executed, if you are planning for the future, comment out your lines
 3. `patch/tests-utils`: tests/conftest.py and supporting fixtures at tests/utils/, no coverage requirements
-4. `patch/sdk`: anything that matches `wandb/sdk/*.py` (so top level sdk files). These have lots of ways to test, so it should be high coverage. currently target is ~80% (but it is dynamic)
+4. `patch/sdk`: anything that matches `wandb/sdk/*.py` (so top level sdk files). These have lots of ways to test, so it should be high coverage. Currently, target is ~80% (but it is dynamic)
 5. `patch/sdk-internal`: should be covered very high target is around 80% (also dynamic)
-6. `patch/sdk-other`: will be a catch all for other stuff in `wandb/sdk/` target around 75% (dynamic)
+6. `patch/sdk-other`: will be a "catch all" for other stuff in `wandb/sdk/` target around 75% (dynamic)
 7. `patch/apis`: we have no good fixtures for this, so until we do, this will get a waiver
-8. `patch/other`: everything else, we have lots of stuff that isnt easy to test, so it is in this category, currently the requirement is ~60%
+8. `patch/other`: everything else, we have lots of stuff that isn't easy to test, so it is in this category, currently the requirement is ~60%
 
 ### Test parallelism
 
@@ -416,7 +417,7 @@ structure. There should be no need for `.save()` methods on objects.
 
 ### Library can be disabled
 
-When running in disabled mode, all objects act as in memory stores of attribute information but they do
+When running in disabled mode, all objects act as in memory stores of attribute information, but they do
 not perform any serialization to sync data.
 
 ## Changes from production library
@@ -507,7 +508,7 @@ The documentation generator is broken into two parts:
 
 ### `generate.py`
 
-The follwing is a road map of how to generate documentaion for the reference.
+The following is a road map of how to generate documentation for the reference.
 **Steps**
 
 1. `pip install git+https://github.com/wandb/tf-docs@wandb-docs` This installs a modified fork of [Tensorflow docs](https://github.com/tensorflow/docs). The modifications are minor templating changes.
@@ -535,3 +536,33 @@ A file named `cli.md` in the same folder as the code. The file is the generated 
 
 - python >= 3.8
 - wandb
+
+## Deprecating features
+
+Starting with version 1.0.0, `wandb` will be using [Semantic Versioning](https://semver.org/). 
+The major version of the library will be incremented for all backwards-incompatible changes, 
+including dropping support for older Python versions.
+
+Features currently marked as deprecated will be removed in the next major version (1.0.0).
+
+<!--
+It is safe to depend on `wandb` like this: `wandb >=x.y, <(x+1)`, 
+where `x.y` is the first version that includes all features you need.
+-->
+
+### Marking a feature as deprecated
+
+To mark a feature as deprecated (and to be removed in the next major release), please follow these steps:
+
+- Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`, 
+  which will be used to track the to-be-deprecated feature usage.
+- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `make proto`.
+- Finally, to mark a feature as deprecated, call `wand.sdk.lib.deprecate` in your code:
+```python
+from wandb.sdk.lib import deprecate
+
+deprecate.deprecate(
+    field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1 
+    warning_message="This feature is deprecated and will be removed in a future release.",
+)
+```
