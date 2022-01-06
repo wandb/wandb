@@ -39,15 +39,6 @@ class CapList(list):
         super(CapList, self).append(x)
 
 
-# @pytest.fixture
-# def console_settings(test_settings, request):
-#     test_settings.update(
-#         console=request.param,
-#         source=wandb.sdk.wandb_settings.Source.BASE
-#     )
-#     return test_settings
-
-
 @pytest.mark.parametrize("cls", impls)
 def test_basic(cls, capfd):
     with capfd.disabled():

@@ -84,7 +84,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def __init__(
         self,
-        settings: Optional[Dict[str, Any]] = None,
+        settings: Union["wandb_settings.Settings", Dict[str, Any], None] = None,
         environ: Optional[Dict[str, Any]] = None,
         pid: Optional[int] = None,
     ):
@@ -124,19 +124,11 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         s.apply_config_files(_logger=early_logger)
         s.apply_env_vars(self._environ, _logger=early_logger)
 
-        # same logic as in wandb.init, i.e. let it be Settings or dict
-        if settings is not None:
-            if isinstance(settings, wandb_settings.Settings):
-                # todo: check the logic here
-                #  this _only_ comes up in tests
-                # fixme? update the settings with the values from it with BASE source
-                s.update(
-                    settings.make_static(include_properties=False),
-                    source=wandb_settings.Source.BASE,
-                )
-            elif isinstance(settings, dict):
-                # if it is a mapping, update the settings with it
-                s.apply_setup(settings, _logger=early_logger)
+        if isinstance(settings, wandb_settings.Settings):
+            s.apply_settings(settings, _logger=early_logger)
+        elif isinstance(settings, dict):
+            # if passed settings arg is a mapping, update the settings with it
+            s.apply_setup(settings, _logger=early_logger)
 
         s.infer_settings_from_environment()
         if not s._cli_only_mode:
@@ -151,15 +143,8 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             return
         # self._settings.unfreeze()
         if isinstance(settings, wandb_settings.Settings):
-            # todo: check the logic here
-            #  this _only_ comes up in tests
-            #  if a Settings object is passed in, use it instead?
-            self._settings = settings.copy()
-            # fixme? or update the settings with the values from it with SETUP source?
-            # self._settings.update(
-            #     settings.make_static(include_properties=False),
-            #     source=wandb_settings.Source.SETUP,
-            # )
+            # todo: check the logic here. this _only_ comes up in tests?
+            self._settings.apply_settings(settings)
         elif isinstance(settings, dict):
             # if it is a mapping, update the settings with it
             self._settings.update(settings, source=wandb_settings.Source.SETUP)

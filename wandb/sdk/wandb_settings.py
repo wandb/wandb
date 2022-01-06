@@ -805,8 +805,6 @@ class Settings:
 
         Note that the copied object will not be frozen  fixme? why is this needed?
         """
-        # fixme: instead, need to reinit the settings object and copy the attributes
-        # !!!
         # get attributes that are instances of the Property class:
         attributes = {
             k: v for k, v in self.__dict__.items() if isinstance(v, Property)
@@ -902,7 +900,22 @@ class Settings:
         return attributes
 
     # apply settings from different sources
-    # TODO(dd): think about doing all that at init time
+    # TODO(dd): think about doing some|all of that at init time
+    def apply_settings(
+        self,
+        settings: "Settings",
+        _logger: Optional[_EarlyLogger] = None,
+    ) -> None:
+        """Apply settings from a Settings object."""
+        if _logger is not None:
+            _logger.info(f"Applying settings from {settings}")
+        attributes = {
+            k: v for k, v in settings.__dict__.items() if isinstance(v, Property)
+        }
+        for k, v in attributes.items():
+            # note that only the same/higher priority settings are propagated
+            self.update({k: v._value}, source=v._source)
+
     @staticmethod
     def _load_config_file(file_name: str, section: str = "default") -> dict:
         parser = configparser.ConfigParser()

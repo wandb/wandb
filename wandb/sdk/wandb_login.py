@@ -8,7 +8,7 @@ account.
 import enum
 import os
 import sys
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -89,7 +89,7 @@ class ApiKeyStatus(enum.Enum):
 class _WandbLogin:
     def __init__(self):
         self.kwargs: Optional[Dict] = None
-        self._settings: Optional[Settings] = None
+        self._settings: Union[Settings, Dict[str, Any], None] = None
         self._backend = None
         self._silent = None
         self._wl = None
@@ -100,16 +100,21 @@ class _WandbLogin:
         self.kwargs = kwargs
 
         # built up login settings
+        login_settings: Settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
+        if settings_param is not None:
+            if isinstance(settings_param, Settings):
+                login_settings.apply_settings(settings_param)
+            elif isinstance(settings_param, dict):
+                login_settings.update(settings_param, source=Source.LOGIN)
+        _logger = wandb.setup()._get_logger()
         # Do not save relogin into settings as we just want to relogin once
         self._relogin = kwargs.pop("relogin", None)
+        login_settings.apply_login(kwargs, _logger=_logger)
 
-        self._wl = wandb.setup()
-        _logger = self._wl._get_logger()
-        self._wl.settings.apply_login(kwargs, _logger=_logger)
-        if settings_param:
-            self._wl.settings.update(settings_param, source=Source.LOGIN)
-        self._settings = self._wl._settings
+        # make sure they are applied globally
+        self._wl = wandb.setup(settings=login_settings)
+        self._settings = self._wl.settings
 
     def is_apikey_configured(self):
         return apikey.api_key(settings=self._settings) is not None

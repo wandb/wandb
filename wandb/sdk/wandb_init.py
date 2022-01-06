@@ -108,17 +108,15 @@ class _WandbInit(object):
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings: Settings = self._wl._settings
+        settings: Settings = self._wl.settings.copy()
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None:
             if isinstance(settings_param, Settings):
-                # todo: check the logic here
-                #  this _only_ comes up in tests
-                #  if a Settings object is passed in, use it instead?
-                settings = copy.copy(settings_param)
+                # todo: check the logic here. this _only_ comes up in tests?
+                settings.apply_settings(settings_param, _logger=logger)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
-                settings.update(settings_param, source=Source.SETUP)
+                settings.update(settings_param, source=Source.INIT)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -192,10 +190,8 @@ class _WandbInit(object):
                 _silent=settings._quiet or settings._silent,
             )
 
-        # fixme: hopefully such a brutal thing is not needed ???
-        # todo: check what exactly needs to be updated here, if anything
         # apply updated global state after login was handled
-        # settings._apply_settings(wandb.setup()._settings)
+        settings.apply_settings(wandb.setup().settings)
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
