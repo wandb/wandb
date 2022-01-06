@@ -796,6 +796,7 @@ class SendManager(object):
             project=self._run.project,
             email=self._settings.email,
         )
+
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
         self._dir_watcher = DirWatcher(
@@ -806,6 +807,10 @@ class SendManager(object):
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
+
+        # TODO: Vish remove
+        raise FileNotFoundError("rewq/wandb-summary.json")
+        # raise OSError("No space left on device.")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:

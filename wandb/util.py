@@ -66,7 +66,11 @@ else:
 
 if error_reporting_enabled():
     sentry_sdk.init(
-        dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
+        # TODO: the below dsn points to sentry-robustness-vr, in order to make changes to our SDK
+        # in an isolated sentry project without breaking the main one.
+        # TODO: it should be changed to wandb-client-ng when merged.
+        dsn="https://5cd138b4087545cdbe296e6bd581d8aa@o151352.ingest.sentry.io/6133358",
+        # dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
         release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
