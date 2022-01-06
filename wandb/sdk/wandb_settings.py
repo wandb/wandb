@@ -76,13 +76,6 @@ def _str_as_bool(val: Union[str, bool, None]) -> bool:
     raise UsageError(f"Could not parse value {val} as a bool")
 
 
-def _path_convert(*args: str) -> str:
-    """
-    Join path and apply os.path.expanduser to it.
-    """
-    return os.path.expanduser(os.path.join(*args))
-
-
 def _redact_dict(
     d: Dict[str, Any],
     unsafe_keys: Union[Set[str], FrozenSet[str]] = frozenset({"api_key"}),
@@ -264,7 +257,7 @@ class Property:
         # return f"<Property {self.name}: value={self.value} source={self._source}>"
         # return f"<Property {self.name}: value={self._value}>"
         # return self.__dict__.__repr__()
-        return f"{self.value}"
+        return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
 
 
 class Settings:
@@ -349,6 +342,13 @@ class Settings:
         return True
 
     # other helper methods
+    @staticmethod
+    def _path_convert(*args: str) -> str:
+        """
+        Join path and apply os.path.expanduser to it.
+        """
+        return os.path.expanduser(os.path.join(*args))
+
     def _start_run(self) -> None:
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
@@ -435,14 +435,17 @@ class Settings:
         self._start_datetime: Any = {
             "validator": lambda x: isinstance(x, datetime),
         }
-        # self._start_datetime: Any = Property(name="_start_datetime", validator=lambda x: isinstance(x, datetime))
+        # self._start_datetime: Any = Property(
+        #     name="_start_datetime",
+        #     validator=lambda x: isinstance(x, datetime),
+        # )
         self._start_time: Any = {
             "validator": lambda x: isinstance(x, float),
         }
         self._tmp_code_dir: Any = {
             "value": "code",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.tmp_dir, x),
+            "hook": lambda x: self._path_convert(self.tmp_dir, x),
         }
         self._unsaved_keys: Any = {
             "validator": lambda x: isinstance(x, list)
@@ -504,7 +507,7 @@ class Settings:
         self.files_dir: Any = {
             "value": "files",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(
+            "hook": lambda x: self._path_convert(
                 self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
             ),
         }
@@ -543,29 +546,29 @@ class Settings:
         self.log_dir: Any = {
             "value": "logs",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(
+            "hook": lambda x: self._path_convert(
                 self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
             ),
         }
         self.log_internal: Any = {
             "value": "debug-internal.log",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.log_dir, x),
+            "hook": lambda x: self._path_convert(self.log_dir, x),
         }
         self.log_symlink_internal: Any = {
             "value": "debug-internal.log",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, x),
+            "hook": lambda x: self._path_convert(self.wandb_dir, x),
         }
         self.log_symlink_user: Any = {
             "value": "debug.log",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, x),
+            "hook": lambda x: self._path_convert(self.wandb_dir, x),
         }
         self.log_user: Any = {
             "value": "debug.log",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.log_dir, x),
+            "hook": lambda x: self._path_convert(self.log_dir, x),
         }
         self.login_timeout: Any = {
             "preprocessor": lambda x: float(x),
@@ -612,7 +615,7 @@ class Settings:
         self.resume_fname: Any = {
             "value": "wandb-resume.json",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, x),
+            "hook": lambda x: self._path_convert(self.wandb_dir, x),
         }
         self.root_dir: Any = {
             "validator": lambda x: isinstance(x, str),
@@ -649,12 +652,12 @@ class Settings:
         self.settings_system: Any = {
             "value": "~/.config/wandb/settings",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(x),
+            "hook": lambda x: self._path_convert(x),
         }
         self.settings_workspace: Any = {
             "value": "settings",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, x),
+            "hook": lambda x: self._path_convert(self.wandb_dir, x),
         }
         self.show_colors: Any = {
             "preprocessor": _str_as_bool,
@@ -714,7 +717,7 @@ class Settings:
             "value": "<sync_dir>",
             "validator": lambda x: isinstance(x, str),
             "hook": [
-                lambda x: _path_convert(
+                lambda x: self._path_convert(
                     self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
                 )
             ],
@@ -722,12 +725,12 @@ class Settings:
         self.sync_file: Any = {
             "value": "run-<run_id>.wandb",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.sync_dir, f"run-{self.run_id}.wandb"),
+            "hook": lambda x: self._path_convert(self.sync_dir, f"run-{self.run_id}.wandb"),
         }
         self.sync_symlink_latest: Any = {
             "value": "latest-run",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: _path_convert(self.wandb_dir, x),
+            "hook": lambda x: self._path_convert(self.wandb_dir, x),
         }
         self.system_sample: Any = {
             "value": 15,
@@ -741,7 +744,7 @@ class Settings:
             "value": "tmp",
             "validator": lambda x: isinstance(x, str),
             "hook": lambda x: (
-                _path_convert(
+                self._path_convert(
                     self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}", x
                 )
                 or tempfile.gettempdir()
@@ -798,16 +801,28 @@ class Settings:
 
     def __copy__(self) -> "Settings":
         """
-        Ensure that a copy of the settings object is a deep copy.
+        Ensure that a copy of the settings object is a truly deep copy
 
         Note that the copied object will not be frozen  fixme? why is this needed?
         """
-        cp = copy.deepcopy(self)
-        cp.unfreeze()
-        return cp
+        # fixme: instead, need to reinit the settings object and copy the attributes
+        # !!!
+        # get attributes that are instances of the Property class:
+        attributes = {
+            k: v for k, v in self.__dict__.items() if isinstance(v, Property)
+        }
+        new = Settings()
+        for k, v in attributes.items():
+            new.update({k: v._value}, source=v._source)
+        new.unfreeze()
+
+        return new
+
+    def __deepcopy__(self, memo: dict) -> "Settings":
+        return self.__copy__()
 
     # attribute access methods
-    if not TYPE_CHECKING:  # this a hack to make mypy happy
+    if not TYPE_CHECKING:  # this is a hack to make mypy happy
 
         @no_type_check  # another way to do this
         def __getattribute__(self, name: str) -> Any:
@@ -826,7 +841,7 @@ class Settings:
         return iter(self.make_static(include_properties=True))
 
     def copy(self) -> "Settings":
-        return copy.deepcopy(self)
+        return self.__copy__()
 
     # implement the Mapping interface
     def keys(self) -> Iterable[str]:

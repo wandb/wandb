@@ -122,7 +122,7 @@ def start_mock_server(worker_id):
             if res.status_code == 200:
                 started = True
                 break
-            print("Attempting to connect but got: %s" % res)
+            print(f"Attempting to connect but got: {res}")
         except requests.exceptions.RequestException:
             print(
                 "Timed out waiting for server to start...", server.base_url, time.time()
@@ -243,8 +243,8 @@ def test_settings(test_dir, mocker, live_mock_server):
         run_id=wandb.util.generate_id(),
         _start_datetime=datetime.datetime.now(),
     )
-    # Just in case someone forgets to join in tests
     yield settings
+    # Just in case someone forgets to join in tests
     if wandb.run is not None:
         wandb.run.finish()
 

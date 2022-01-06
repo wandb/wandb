@@ -221,6 +221,43 @@ def test_copy():
     assert s2.base_url == "changed"
 
 
+def test_update_linked_properties():
+    s = Settings()
+    # sync_dir depends, among other things, on run_mode
+    assert s.mode == "online"
+    assert s.run_mode == "run"
+    assert ("offline-run" not in s.sync_dir) and ("run" in s.sync_dir)
+    s.update(mode="offline")
+    assert s.mode == "offline"
+    assert s.run_mode == "offline-run"
+    assert "offline-run" in s.sync_dir
+
+
+def test_copy_update_linked_properties():
+    s = Settings()
+    assert s.mode == "online"
+    assert s.run_mode == "run"
+    assert ("offline-run" not in s.sync_dir) and ("run" in s.sync_dir)
+
+    s2 = copy.copy(s)
+    assert s2.mode == "online"
+    assert s2.run_mode == "run"
+    assert ("offline-run" not in s2.sync_dir) and ("run" in s2.sync_dir)
+
+    s.update(mode="offline")
+    assert s.mode == "offline"
+    assert s.run_mode == "offline-run"
+    assert "offline-run" in s.sync_dir
+    assert s2.mode == "online"
+    assert s2.run_mode == "run"
+    assert ("offline-run" not in s2.sync_dir) and ("run" in s2.sync_dir)
+
+    s2.update(mode="offline")
+    assert s2.mode == "offline"
+    assert s2.run_mode == "offline-run"
+    assert "offline-run" in s2.sync_dir
+
+
 def test_invalid_dict():
     s = Settings()
     with pytest.raises(KeyError):

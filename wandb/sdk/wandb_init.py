@@ -115,17 +115,10 @@ class _WandbInit(object):
                 # todo: check the logic here
                 #  this _only_ comes up in tests
                 #  if a Settings object is passed in, use it instead?
-                # settings = settings_param
-                # fixme? or update the settings with the values from it with BASE source?
-                settings.update(
-                    settings_param.make_static(include_properties=False),
-                    source=Source.BASE,
-                )
-                # raise Exception(settings)
+                settings = copy.copy(settings_param)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
-                # print(settings.make_static())
-                settings.update(settings_param, source=Source.INIT)
+                settings.update(settings_param, source=Source.SETUP)
 
         self._reporter = reporting.setup_reporter(settings=settings)
 
@@ -149,7 +142,7 @@ class _WandbInit(object):
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
-        # todo: add deprecation message once PR #3028 is merged
+        # todo: deprecate config_include_keys and config_exclude_keys
         # if config_include_keys or config_exclude_keys:
         #     wandb.termwarn(
         #       "config_include_keys and config_exclude_keys are deprecated:"

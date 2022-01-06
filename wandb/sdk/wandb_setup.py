@@ -153,11 +153,13 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         if isinstance(settings, wandb_settings.Settings):
             # todo: check the logic here
             #  this _only_ comes up in tests
-            # fixme? update the settings with the values from it with SETUP source
-            self._settings.update(
-                settings.make_static(include_properties=False),
-                source=wandb_settings.Source.SETUP,
-            )
+            #  if a Settings object is passed in, use it instead?
+            self._settings = settings.copy()
+            # fixme? or update the settings with the values from it with SETUP source?
+            # self._settings.update(
+            #     settings.make_static(include_properties=False),
+            #     source=wandb_settings.Source.SETUP,
+            # )
         elif isinstance(settings, dict):
             # if it is a mapping, update the settings with it
             self._settings.update(settings, source=wandb_settings.Source.SETUP)
