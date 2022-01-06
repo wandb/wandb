@@ -254,7 +254,10 @@ class Property:
         self.__dict__[key] = value
 
     def __repr__(self) -> str:
-        # return f"<Property {self.name}: value={self.value} source={self._source}>"
+        return (
+            f"<Property {self.name}: value={self.value} "
+            f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
+        )
         # return f"<Property {self.name}: value={self._value}>"
         # return self.__dict__.__repr__()
         return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
@@ -481,12 +484,12 @@ class Settings:
         self.disable_code: Any = {
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
-            "is_priority": True,
+            "is_policy": True,
         }
         self.disable_git: Any = {
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
-            "is_priority": True,
+            "is_policy": True,
         }
         self.disabled: Any = {
             "value": False,
@@ -647,7 +650,7 @@ class Settings:
         self.save_code: Any = {
             "preprocessor": _str_as_bool,
             "validator": lambda x: isinstance(x, bool),
-            "is_priority": True,
+            "is_policy": True,
         }
         self.settings_system: Any = {
             "value": "~/.config/wandb/settings",

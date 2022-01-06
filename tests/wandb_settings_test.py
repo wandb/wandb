@@ -369,7 +369,10 @@ def test_preprocess_base_url():
 
 
 def test_code_saving_save_code_env_false(live_mock_server, test_settings):
-    test_settings.update({"save_code": None})
+    # first, ditch user preference for code saving since it has higher priority for policies
+    live_mock_server.set_ctx({"code_saving_enabled": None})
+    # note that save_code is a policy
+    test_settings.update({"save_code": None}, source=Source.SETTINGS)
     os.environ["WANDB_SAVE_CODE"] = "false"
     run = wandb.init(settings=test_settings)
     assert run._settings.save_code is False
@@ -377,7 +380,10 @@ def test_code_saving_save_code_env_false(live_mock_server, test_settings):
 
 
 def test_code_saving_disable_code(live_mock_server, test_settings):
-    test_settings.update({"save_code": None})
+    # first, ditch user preference for code saving since it has higher priority for policies
+    live_mock_server.set_ctx({"code_saving_enabled": None})
+    # note that save_code is a policy
+    test_settings.update({"save_code": None}, source=Source.SETTINGS)
     os.environ["WANDB_DISABLE_CODE"] = "true"
     run = wandb.init(settings=test_settings)
     assert run._settings.save_code is False
