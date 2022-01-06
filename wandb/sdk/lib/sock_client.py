@@ -12,6 +12,12 @@ if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
 
 
+class SockClientClosedError(Exception):
+    """Socket has been closed"""
+
+    pass
+
+
 class SockClient:
     _sock: socket.socket
     _data: bytes
@@ -107,6 +113,14 @@ class SockClient:
         return None
 
     def _read_packet_bytes(self, timeout: int = None) -> Optional[bytes]:
+        """Read full message from socket.
+
+        Args:
+            timeout: number of seconds to wait on socket data.
+
+        Raises:
+            SockClientClosedError: socket has been closed.
+        """
         while True:
             rec = self._extract_packet_bytes()
             if rec:
@@ -119,11 +133,16 @@ class SockClient:
             except socket.timeout:
                 break
             except ConnectionResetError:
-                break
+                raise SockClientClosedError()
             except OSError:
-                break
-            if timeout:
-                self._sock.settimeout(None)
+                raise SockClientClosedError()
+            finally:
+                if timeout:
+                    self._sock.settimeout(None)
+            if len(data) == 0:
+                # socket.recv() will return 0 bytes if socket was shutdown
+                # caller will handle this condition like other connection problems
+                raise SockClientClosedError()
             self._data += data
         return None
 

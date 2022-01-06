@@ -76,6 +76,7 @@ from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
+    deprecate,
     filenames,
     filesystem,
     ipython,
@@ -333,7 +334,6 @@ class Run(object):
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
-        self._runqueue_item_id = settings._runqueue_item_id
         self._start_time = time.time()
         self._starting_step = 0
         self._name = None
@@ -538,8 +538,6 @@ class Run(object):
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:
             run.git.last_commit = self._last_commit
-        if self._runqueue_item_id is not None:
-            run.runqueue_item_id = self._runqueue_item_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
@@ -710,6 +708,13 @@ class Run(object):
     @property
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1362,11 +1367,12 @@ class Run(object):
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
-            wandb.termwarn(
-                (
-                    "Calling run.save without any arguments is deprecated."
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__save_no_args,
+                warning_message=(
+                    "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
-                )
+                ),
             )
             return True
         if policy not in ("live", "end", "now"):
@@ -1480,6 +1486,12 @@ class Run(object):
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__join,
+            warning_message=(
+                "wandb.run.join() is deprecated, please use wandb.run.finish()."
+            ),
+        )
         self.finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
