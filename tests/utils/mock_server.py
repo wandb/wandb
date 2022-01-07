@@ -570,9 +570,9 @@ def create_app(user_ctx=None):
             }
             code_saving_enabled = ctx.get("code_saving_enabled")
             if code_saving_enabled is not None:
-                viewer_dict["data"]["viewer"]["flags"] = (
-                    f'{{"code_saving_enabled": {str(code_saving_enabled).lower()}}}'
-                )
+                viewer_dict["data"]["viewer"][
+                    "flags"
+                ] = f'{{"code_saving_enabled": {str(code_saving_enabled).lower()}}}'
             server_info = {
                 "serverInfo": {
                     "cliVersionInfo": {

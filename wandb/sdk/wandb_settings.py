@@ -728,7 +728,9 @@ class Settings:
         self.sync_file: Any = {
             "value": "run-<run_id>.wandb",
             "validator": lambda x: isinstance(x, str),
-            "hook": lambda x: self._path_convert(self.sync_dir, f"run-{self.run_id}.wandb"),
+            "hook": lambda x: self._path_convert(
+                self.sync_dir, f"run-{self.run_id}.wandb"
+            ),
         }
         self.sync_symlink_latest: Any = {
             "value": "latest-run",
@@ -809,9 +811,7 @@ class Settings:
         Note that the copied object will not be frozen  fixme? why is this needed?
         """
         # get attributes that are instances of the Property class:
-        attributes = {
-            k: v for k, v in self.__dict__.items() if isinstance(v, Property)
-        }
+        attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
         new = Settings()
         for k, v in attributes.items():
             new.update({k: v._value}, source=v._source)
@@ -905,9 +905,7 @@ class Settings:
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init time
     def apply_settings(
-        self,
-        settings: "Settings",
-        _logger: Optional[_EarlyLogger] = None,
+        self, settings: "Settings", _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Apply settings from a Settings object."""
         if _logger is not None:
