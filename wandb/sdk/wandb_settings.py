@@ -1,5 +1,4 @@
 import configparser
-import copy
 from datetime import datetime
 from distutils.util import strtobool
 import enum
@@ -254,11 +253,11 @@ class Property:
         self.__dict__[key] = value
 
     def __repr__(self) -> str:
-        return (
-            f"<Property {self.name}: value={self.value} "
-            f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
-        )
-        # return f"<Property {self.name}: value={self._value}>"
+        # return (
+        #     f"<Property {self.name}: value={self.value} "
+        #     f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
+        # )
+        # return f"<Property {self.name}: value={self.value}>"
         # return self.__dict__.__repr__()
         return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
 
