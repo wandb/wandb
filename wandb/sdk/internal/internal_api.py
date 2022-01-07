@@ -448,7 +448,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Models($entity: String!) {
+        query EntityProjects($entity: String!) {
             models(first: 10, entityName: $entity) {
                 edges {
                     node {
@@ -480,7 +480,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Models($entity: String, $project: String!) {
+        query ProjectDetails($entity: String, $project: String!) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -579,7 +579,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Buckets($model: String!, $entity: String!) {
+        query ProjectRuns($model: String!, $entity: String!) {
             model(name: $model, entityName: $entity) {
                 buckets(first: 10) {
                     edges {
@@ -670,7 +670,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model(
+        query RunConfigs(
             $name: String!,
             $entity: String!,
             $run: String!,
@@ -755,7 +755,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($project: String!, $entity: String, $name: String!) {
+        query RunResumeStatus($project: String!, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -800,7 +800,7 @@ class Api(object):
     def check_stop_requested(self, project_name, entity_name, run_id):
         query = gql(
             """
-        query Model($projectName: String, $entityName: String, $runId: String!) {
+        query RunStoppedStatus($projectName: String, $entityName: String, $runId: String!) {
             project(name:$projectName, entityName:$entityName) {
                 run(name:$runId) {
                     stopped
@@ -869,7 +869,7 @@ class Api(object):
     def get_project_run_queues(self, entity, project):
         query = gql(
             """
-        query Project($entity: String!, $projectName: String!){
+        query ProjectRunQueues($entity: String!, $projectName: String!){
             project(entityName: $entity, name: $projectName) {
                 runQueues {
                     id
@@ -1311,7 +1311,7 @@ class Api(object):
     def get_run_info(self, entity, project, name):
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!) {
+        query RunInfo($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
                     runInfo {
@@ -1372,7 +1372,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
@@ -1433,7 +1433,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrls($name: String!, $entity: String!, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files {
@@ -1480,7 +1480,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files(names: [$fileName]) {
