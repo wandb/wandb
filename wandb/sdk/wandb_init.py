@@ -113,9 +113,12 @@ class _WandbInit(object):
         if settings_param is not None:
             if isinstance(settings_param, Settings):
                 # todo: check the logic here. this _only_ comes up in tests?
+                # update settings with settings_param using whatever
+                # source each parameter has there
                 settings.apply_settings(settings_param, _logger=logger)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
+                # explicitly using Source.INIT
                 settings.update(settings_param, source=Source.INIT)
 
         self._reporter = reporting.setup_reporter(settings=settings)
