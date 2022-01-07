@@ -131,7 +131,7 @@ def test_resume_auto_failure(live_mock_server, test_settings):
         f.write(json.dumps({"run_id": "resumeme"}))
     run = wandb.init(reinit=True, resume=True, settings=test_settings)
     assert run.id == "resumeme"
-    run.join(exit_code=3)
+    run.finish(exit_code=3)
     assert os.path.exists(test_settings.resume_fname)
 
 
@@ -403,6 +403,7 @@ def test_end_to_end_preempting(live_mock_server, test_settings, disable_console)
                 break
         time.sleep(1)
     assert ok
+    run.finish()
 
 
 def test_end_to_end_preempting_via_module_func(
@@ -424,6 +425,7 @@ def test_end_to_end_preempting_via_module_func(
                 break
         time.sleep(1)
     assert ok
+    wandb.finish()
 
 
 @pytest.mark.flaky
@@ -476,3 +478,4 @@ def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
     assert "saveFile" in server_ctx["file_bytes"].keys()
     # TODO: bug sometimes it seems that on windows the first file is sent twice
     assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
+    wandb.finish()
