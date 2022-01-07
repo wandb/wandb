@@ -440,12 +440,10 @@ def test_silent_run(live_mock_server, test_settings):
     run.finish()
 
 
-def test_silent_env_run(live_mock_server, test_settings, capsys):
+def test_silent_env_run(live_mock_server, test_settings):
     os.environ["WANDB_SILENT"] = "true"
     run = wandb.init(settings=test_settings)
     assert run._settings._silent is True
-    captured = capsys.readouterr()
-    assert len(captured.out) == 0
     run.finish()
 
 
