@@ -418,22 +418,22 @@ def test_redact():
 
 def test_offline(test_settings):
     assert test_settings._offline is False
-    test_settings.update({"disabled": True})
+    test_settings.update({"disabled": True}, source=Source.BASE)
     assert test_settings._offline is True
-    test_settings.update({"disabled": None})
-    test_settings.update({"mode": "dryrun"})
+    test_settings.update({"disabled": None}, source=Source.BASE)
+    test_settings.update({"mode": "dryrun"}, source=Source.BASE)
     assert test_settings._offline is True
-    test_settings.update({"mode": "offline"})
+    test_settings.update({"mode": "offline"}, source=Source.BASE)
     assert test_settings._offline is True
 
 
 def test_silent(test_settings):
-    test_settings.update({"silent": "true"})
+    test_settings.update({"silent": "true"}, source=Source.BASE)
     assert test_settings._silent is True
 
 
 def test_silent_run(live_mock_server, test_settings):
-    test_settings.update({"silent": "true"})
+    test_settings.update({"silent": "true"}, source=Source.SETTINGS)
     assert test_settings._silent is True
     run = wandb.init(settings=test_settings)
     assert run._settings._silent is True
@@ -460,7 +460,7 @@ def test_strict():
 
 
 def test_strict_run(live_mock_server, test_settings):
-    test_settings.update({"strict": "true"})
+    test_settings.update({"strict": "true"}, source=Source.SETTINGS)
     assert test_settings._strict is True
     run = wandb.init(settings=test_settings)
     assert run._settings._strict is True
@@ -468,10 +468,10 @@ def test_strict_run(live_mock_server, test_settings):
 
 
 def test_show_info(test_settings):
-    test_settings.update({"show_info": True})
+    test_settings.update({"show_info": True}, source=Source.BASE)
     assert test_settings._show_info is True
 
-    test_settings.update({"show_info": False})
+    test_settings.update({"show_info": False}, source=Source.BASE)
     assert test_settings._show_info is None
 
 
@@ -482,58 +482,58 @@ def test_show_info_run(live_mock_server, test_settings):
 
 
 def test_show_info_false_run(live_mock_server, test_settings):
-    test_settings.update({"show_info": "false"})
+    test_settings.update({"show_info": "false"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
     assert run._settings._show_info is None
     run.finish()
 
 
 def test_show_warnings(test_settings):
-    test_settings.update({"show_warnings": "true"})
+    test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
     assert test_settings._show_warnings is True
 
-    test_settings.update({"show_warnings": "false"})
+    test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
     assert test_settings._show_warnings is None
 
 
 def test_show_warnings_run(live_mock_server, test_settings):
-    test_settings.update({"show_warnings": "true"})
+    test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
     assert run._settings._show_warnings is True
     run.finish()
 
 
 def test_show_warnings_false_run(live_mock_server, test_settings):
-    test_settings.update({"show_warnings": "false"})
+    test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
     assert run._settings._show_warnings is None
     run.finish()
 
 
 def test_show_errors(test_settings):
-    test_settings.update({"show_errors": True})
+    test_settings.update({"show_errors": True}, source=Source.SETTINGS)
     assert test_settings._show_errors is True
 
-    test_settings.update({"show_errors": False})
+    test_settings.update({"show_errors": False}, source=Source.SETTINGS)
     assert test_settings._show_errors is None
 
 
 def test_show_errors_run(test_settings):
-    test_settings.update({"show_errors": True})
+    test_settings.update({"show_errors": True}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
     assert run._settings._show_errors is True
     run.finish()
 
 
 def test_show_errors_false_run(test_settings):
-    test_settings.update({"show_errors": False})
+    test_settings.update({"show_errors": False}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
     assert run._settings._show_errors is None
     run.finish()
 
 
 def test_noop(test_settings):
-    test_settings.update({"mode": "disabled"})
+    test_settings.update({"mode": "disabled"}, source=Source.BASE)
     assert test_settings._noop is True
 
 
@@ -547,9 +547,9 @@ def test_console(test_settings):
     run = wandb.init(settings=test_settings)
     assert run._settings.console == "auto"
     assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
-    test_settings.update({"console": "off"})
+    test_settings.update({"console": "off"}, source=Source.BASE)
     assert test_settings._console == wandb_settings.SettingsConsole.OFF
-    test_settings.update({"console": "wrap"})
+    test_settings.update({"console": "wrap"}, source=Source.BASE)
     assert test_settings._console == wandb_settings.SettingsConsole.WRAP
     run.finish()
 
