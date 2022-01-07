@@ -125,15 +125,15 @@ def test_resume_auto_success(live_mock_server, test_settings):
     assert not os.path.exists(test_settings.resume_fname)
 
 
-def test_resume_auto_failure(live_mock_server, test_settings):
-    # fixme?
-    test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.INIT)
-    with open(test_settings.resume_fname, "w") as f:
-        f.write(json.dumps({"run_id": "resumeme"}))
-    run = wandb.init(reinit=True, resume=True, settings=test_settings)
-    assert run.id == "resumeme"
-    run.finish(exit_code=3)
-    assert os.path.exists(test_settings.resume_fname)
+def test_resume_auto_failure(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.INIT)
+        with open(test_settings.resume_fname, "w") as f:
+            f.write(json.dumps({"run_id": "resumeme"}))
+        run = wandb.init(reinit=True, resume=True, settings=test_settings)
+        assert run.id == "resumeme"
+        run.finish(exit_code=3)
+        assert os.path.exists(test_settings.resume_fname)
 
 
 def test_resume_no_metadata(live_mock_server, test_settings):

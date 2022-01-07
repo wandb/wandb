@@ -606,65 +606,73 @@ def test_log_internal(test_settings):
     assert fname == "debug-internal.log"
 
 
-def test_sync_dir(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert run._settings.sync_dir == os.path.realpath("./wandb/latest-run")
-    run.finish()
+def test_sync_dir(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert run._settings.sync_dir == os.path.realpath("./wandb/latest-run")
+        run.finish()
 
 
-def test_sync_file(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert run._settings.sync_file == os.path.realpath(
-        f"./wandb/latest-run/run-{run.id}.wandb"
-    )
-    run.finish()
-
-
-def test_files_dir(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert run._settings.files_dir == os.path.realpath("./wandb/latest-run/files")
-    run.finish()
-
-
-def test_tmp_dir(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert run._settings.tmp_dir == os.path.realpath("./wandb/latest-run/tmp")
-    run.finish()
-
-
-def test_tmp_code_dir(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert run._settings._tmp_code_dir == os.path.realpath(
-        "./wandb/latest-run/tmp/code"
-    )
-    run.finish()
-
-
-def test_log_symlink_user(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
-        run._settings.log_user
-    )
-    run.finish()
-
-
-def test_log_symlink_internal(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
-        run._settings.log_internal
-    )
-    run.finish()
-
-
-def test_sync_symlink_latest(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath(
-        "./wandb/run-{}-{}".format(
-            datetime.datetime.strftime(run._settings._start_datetime, "%Y%m%d_%H%M%S"),
-            run.id,
+def test_sync_file(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert run._settings.sync_file == os.path.realpath(
+            f"./wandb/latest-run/run-{run.id}.wandb"
         )
-    )
-    run.finish()
+        run.finish()
+
+
+def test_files_dir(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert run._settings.files_dir == os.path.realpath("./wandb/latest-run/files")
+        run.finish()
+
+
+def test_tmp_dir(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert run._settings.tmp_dir == os.path.realpath("./wandb/latest-run/tmp")
+        run.finish()
+
+
+def test_tmp_code_dir(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert run._settings._tmp_code_dir == os.path.realpath(
+            "./wandb/latest-run/tmp/code"
+        )
+        run.finish()
+
+
+def test_log_symlink_user(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
+            run._settings.log_user
+        )
+        run.finish()
+
+
+def test_log_symlink_internal(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
+            run._settings.log_internal
+        )
+        run.finish()
+
+
+def test_sync_symlink_latest(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath(
+            "./wandb/run-{}-{}".format(
+                datetime.datetime.strftime(run._settings._start_datetime, "%Y%m%d_%H%M%S"),
+                run.id,
+            )
+        )
+        run.finish()
 
 
 def test_settings_system(test_settings):
