@@ -1008,6 +1008,7 @@ def test_local_references(runner, live_mock_server, test_settings):
     artifact2 = wandb.Artifact("test_local_references_2", "dataset")
     artifact2.add(t1, "t2")
     assert artifact2.manifest.entries["t2.table.json"].ref is not None
+    run.finish()
 
 
 def test_artifact_references_internal(
@@ -1168,6 +1169,8 @@ def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
                 _ = attr_method(*params.get(method, []))
         else:
             _ = attr_method(*params.get(method, []))
+
+    run.finish()
 
 
 def test_reference_download(runner, live_mock_server, test_settings):

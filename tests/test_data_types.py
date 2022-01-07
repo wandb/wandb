@@ -61,6 +61,7 @@ def test_wb_value(live_mock_server, test_settings):
 
     assert wbvalue == wbvalue
     assert wbvalue != data_types.WBValue()
+    run.finish()
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")

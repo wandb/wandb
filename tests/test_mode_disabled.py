@@ -114,6 +114,7 @@ def test_disabled_globals(test_settings):
     assert wandb.summary["foo"].bar.x == "y"
     wandb.summary.foo["bar"].update({"a": "b"})
     assert wandb.summary.foo.bar.a == "b"
+    run.finish()
 
 
 def test_bad_url(test_settings):
@@ -131,6 +132,7 @@ def test_login(test_settings):
     test_settings.update(mode="disabled", source=wandb.sdk.wandb_settings.Source.INIT)
     wandb.setup(settings=test_settings)
     wandb.login()
+    wandb.finish()
 
 
 def test_no_dirs(test_settings, runner):

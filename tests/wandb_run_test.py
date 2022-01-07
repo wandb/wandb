@@ -239,7 +239,7 @@ def test_use_artifact_offline(live_mock_server, test_settings):
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
 def test_invalid_project_name(live_mock_server, project_name):
     with pytest.raises(UsageError) as e:
-        _ = wandb.init(project=project_name)
+        wandb.init(project=project_name)
         assert 'Invalid project name "{project_name}"' in str(e.value)
 
 

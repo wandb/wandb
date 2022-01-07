@@ -5,12 +5,8 @@ import platform
 import sys
 
 import pytest
+from unittest import mock
 import wandb
-
-try:
-    from unittest import mock
-except ImportError:  # TODO: this is only for python2
-    import mock
 
 
 def test_telemetry_finish(live_mock_server, parse_ctx):
@@ -29,7 +25,7 @@ def test_telemetry_imports_hf(live_mock_server, parse_ctx):
     with mock.patch.dict("sys.modules", {"transformers": mock.Mock()}):
         import transformers
 
-        run.finish()
+    run.finish()
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     telemetry = ctx_util.telemetry
@@ -75,7 +71,7 @@ def test_telemetry_run_organizing_set(live_mock_server, parse_ctx):
     run.name = "test-name"
     run.tags = ["tag1"]
     wandb.config.update = True
-    wandb.finish()
+    run.finish()
 
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     telemetry = ctx_util.telemetry

@@ -45,9 +45,9 @@ def test_resume_allow_success(live_mock_server, test_settings):
     res = live_mock_server.set_ctx({"resume": True})
     print("CTX AFTER UPDATE", res)
     print("GET RIGHT AWAY", live_mock_server.get_ctx())
-    wandb.init(reinit=True, resume="allow", settings=test_settings)
-    wandb.log({"acc": 10})
-    wandb.finish()
+    run = wandb.init(reinit=True, resume="allow", settings=test_settings)
+    run.log({"acc": 10})
+    run.finish()
     server_ctx = live_mock_server.get_ctx()
     print("CTX", server_ctx)
     first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
@@ -126,6 +126,7 @@ def test_resume_auto_success(live_mock_server, test_settings):
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
+    # fixme?
     test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.INIT)
     with open(test_settings.resume_fname, "w") as f:
         f.write(json.dumps({"run_id": "resumeme"}))
@@ -176,7 +177,7 @@ def test_include_exclude_config_keys(live_mock_server, test_settings):
     run.finish()
 
     with pytest.raises(wandb.errors.UsageError):
-        run = wandb.init(
+        wandb.init(
             reinit=True,
             resume=True,
             settings=test_settings,
