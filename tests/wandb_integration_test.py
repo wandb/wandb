@@ -10,7 +10,6 @@ import json
 import platform
 import subprocess
 import os
-import sys
 import shutil
 from .utils import fixture_open, first_filestream
 import sys
@@ -127,7 +126,7 @@ def test_resume_auto_success(live_mock_server, test_settings):
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
-    test_settings.update(run_id=None)
+    test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
     with open(test_settings.resume_fname, "w") as f:
         f.write(json.dumps({"run_id": "resumeme"}))
     run = wandb.init(reinit=True, resume=True, settings=test_settings)
