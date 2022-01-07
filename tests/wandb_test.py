@@ -189,7 +189,10 @@ def test_anonymous_mode(live_mock_server, test_settings, capsys, monkeypatch):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")
     copied_env.pop("WANDB_USERNAME")
-    test_settings.update({"anonymous": "must", "api_key": None})
+    test_settings.update(
+        {"anonymous": "must", "api_key": None},
+        source=wandb.sdk.wandb_settings.Source.INIT,
+    )
     with mock.patch.dict("os.environ", copied_env, clear=True):
         run = wandb.init(settings=test_settings, anonymous="must")
         run.log({"something": 1})
@@ -198,13 +201,17 @@ def test_anonymous_mode(live_mock_server, test_settings, capsys, monkeypatch):
             "Do NOT share these links with anyone. They can be used to claim your runs."
             in err
         )
+        run.finish()
 
 
 def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkeypatch):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")
     copied_env.pop("WANDB_USERNAME")
-    test_settings.update({"anonymous": "must", "api_key": None})
+    test_settings.update(
+        {"anonymous": "must", "api_key": None},
+        source=wandb.sdk.wandb_settings.Source.INIT,
+    )
     with mock.patch.dict("os.environ", copied_env, clear=True):
 
         run = wandb.init(settings=test_settings, anonymous="must")
@@ -216,6 +223,7 @@ def test_anonymous_mode_artifact(live_mock_server, test_settings, capsys, monkey
             "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             in err
         )
+        run.finish()
 
 
 def test_login_key(capsys):

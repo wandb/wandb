@@ -232,22 +232,21 @@ def test_settings(test_dir, mocker, live_mock_server):
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
+        _start_datetime=datetime.datetime.now(),
         _start_time=time.time(),
+        api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
-        root_dir=test_dir,
-        save_code=False,
-        project="test",
         console="off",
         host="test",
-        api_key=DUMMY_API_KEY,
+        project="test",
+        root_dir=test_dir,
         run_id=wandb.util.generate_id(),
-        _start_datetime=datetime.datetime.now(),
+        save_code=False,
     )
-    return settings
-    # yield settings
-    # # Just in case someone forgets to join in tests. ...well, don't!
-    # if wandb.run is not None:
-    #     wandb.run.finish()
+    yield settings
+    # Just in case someone forgets to join in tests. ...well, don't!
+    if wandb.run is not None:
+        wandb.run.finish()
 
 
 @pytest.fixture

@@ -105,6 +105,7 @@ def test_log_code(test_settings):
         f.write("Not that big")
     art = run.log_code()
     assert sorted(art.manifest.entries.keys()) == ["test.py"]
+    run.finish()
 
 
 def test_log_code_include(test_settings):
@@ -115,6 +116,7 @@ def test_log_code_include(test_settings):
         f.write("Not that big")
     art = run.log_code(include_fn=lambda p: p.endswith(".py") or p.endswith(".cc"))
     assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
+    run.finish()
 
 
 def test_log_code_custom_root(test_settings):
@@ -127,11 +129,13 @@ def test_log_code_custom_root(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
     art = run.log_code(root="../")
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
+    run.finish()
 
 
 def test_display(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
-    assert run.display() == False
+    assert run.display() is False
+    run.finish()
 
 
 def test_mark_preempting(fake_run, record_q, records_util):
@@ -170,10 +174,14 @@ def test_except_hook(test_settings):
     assert "".join(stderr) == "Exception: After wandb.init()\n"
 
     sys.stderr.write = old_stderr_write
+    run.finish()
 
 
 def assertion(run_id, found, stderr):
-    msg = f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run_id}"
+    msg = (
+        "`resume` will be ignored since W&B syncing is set to `offline`. "
+        f"Starting a new run with run id {run_id}"
+    )
     return msg in stderr if found else msg not in stderr
 
 
@@ -194,6 +202,7 @@ def test_offline_resume(test_settings, capsys, resume, found):
     run = wandb.init(mode="offline", resume=resume, settings=test_settings)
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
+    run.finish()
 
 
 @pytest.mark.parametrize("empty_query", [True, False])
@@ -224,6 +233,7 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     with pytest.raises(Exception) as e_info:
         artifact = run.use_artifact("boom-data")
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
+    run.finish()
 
 
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
@@ -302,6 +312,7 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             str(e_info.value)
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
+    run.finish()
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
@@ -322,3 +333,4 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
         and (3 in telemetry_deprecated)
         and (4 in telemetry_deprecated)
     )
+    run.finish()
