@@ -215,17 +215,29 @@ To run all tests in a specific environment:
 tox -e py38
 ```
 
-Sometimes, `pytest` will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
-
-```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
-```
-
 If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
 
 ```shell
 tox -e py37 --recreate
 ```
+
+Sometimes, `pytest` will swallow or shorten important print messages or stack traces sent to stdout and stderr (particularly when they are coming from background processes). 
+This will manifest as a test failure with no/shortened associated output. 
+In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
+
+```shell
+tox -e py37 -- tests/test_public_api.py -k substring_of_test -vvvv --showlocals
+```
+
+If a test fails, you can use the `--pdb -n0` flags to get the 
+[pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
+
+```shell
+tox -e py37 -- tests/test_public_api.py -k failing_test -vvvv --showlocals --pdb -n0
+```
+
+You can also manually set breakpoints in the test code (`breakpoint()`) 
+to inspect the test failures.
 
 ### Overview
 

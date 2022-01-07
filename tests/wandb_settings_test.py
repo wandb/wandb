@@ -545,23 +545,20 @@ def test_not_jupyter(test_settings):
 
 def test_console(test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings._console == wandb_settings.SettingsConsole.OFF
-    test_settings.update({"console": "auto"})
-    assert test_settings._console == wandb_settings.SettingsConsole.REDIRECT
+    assert run._settings.console == "auto"
+    assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
+    test_settings.update({"console": "off"})
+    assert test_settings._console == wandb_settings.SettingsConsole.OFF
     test_settings.update({"console": "wrap"})
     assert test_settings._console == wandb_settings.SettingsConsole.WRAP
     run.finish()
 
 
 def test_console_run(test_settings):
+    os.environ["WANDB_START_METHOD"] = "thread"
     run = wandb.init(settings=test_settings)
-    assert run._settings._console == wandb_settings.SettingsConsole.OFF
-    # test_settings.update({"console": "auto"})
-    # run = wandb.init(settings=test_settings)
-    # assert run._settings._console == SettingsConsole.REDIRECT
-    # os.environ["WANDB_START_METHOD"] = "thread"
-    # run = wandb.init(settings=test_settings)
-    # assert run._settings._console == SettingsConsole.WRAP
+    assert run._settings.console == "auto"
+    assert run._settings._console == wandb_settings.SettingsConsole.WRAP
     run.finish()
 
 
