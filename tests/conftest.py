@@ -243,10 +243,11 @@ def test_settings(test_dir, mocker, live_mock_server):
         run_id=wandb.util.generate_id(),
         _start_datetime=datetime.datetime.now(),
     )
-    yield settings
-    # Just in case someone forgets to join in tests
-    if wandb.run is not None:
-        wandb.run.finish()
+    return settings
+    # yield settings
+    # # Just in case someone forgets to join in tests. ...well, don't!
+    # if wandb.run is not None:
+    #     wandb.run.finish()
 
 
 @pytest.fixture
@@ -649,7 +650,9 @@ def internal_sm(
     _internal_sender,
 ):
     with runner.isolated_filesystem():
-        test_settings.update(root_dir=os.getcwd())
+        test_settings.update(
+            root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
+        )
         sm = SendManager(
             settings=test_settings,
             record_q=internal_sender_q,
@@ -678,7 +681,9 @@ def internal_hm(
     stopped_event,
 ):
     with runner.isolated_filesystem():
-        test_settings.update(root_dir=os.getcwd())
+        test_settings.update(
+            root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
+        )
         hm = HandleManager(
             settings=test_settings,
             record_q=record_q,

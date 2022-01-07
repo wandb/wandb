@@ -68,7 +68,7 @@ def test_multiproc_ignore(live_mock_server, test_settings, parse_ctx):
 @pytest.mark.skipif(platform.system() == "Windows", reason="fork needed")
 @pytest.mark.xfail(platform.system() == "Darwin", reason="console parse_ctx issues")
 def test_multiproc_strict(live_mock_server, test_settings, parse_ctx):
-    test_settings.update(strict="true")
+    test_settings.update(strict="true", source=wandb.sdk.wandb_settings.Source.INIT)
     run = wandb.init(settings=test_settings)
 
     train(0)

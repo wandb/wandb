@@ -219,7 +219,9 @@ def test_print_torch_model(cls, capfd):
 def test_run_with_console_redirect(test_settings, capfd, console):
     with capfd.disabled():
         local_settings = copy.copy(test_settings)
-        local_settings.update(console=console)
+        local_settings.update(
+            console=console, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=local_settings)
 
         print(np.random.randint(64, size=(40, 40, 40, 40)))
@@ -237,7 +239,11 @@ def test_run_with_console_redirect(test_settings, capfd, console):
 def test_offline_compression(test_settings, capfd, runner, console):
     with capfd.disabled():
         local_settings = copy.copy(test_settings)
-        local_settings.update(mode="offline", console=console)
+        local_settings.update(
+            mode="offline",
+            console=console,
+            source=wandb.sdk.wandb_settings.Source.INIT,
+        )
 
         run = wandb.init(settings=local_settings)
 
@@ -281,7 +287,9 @@ def test_offline_compression(test_settings, capfd, runner, console):
 def test_very_long_output(test_settings, capfd, runner, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
     local_settings = copy.copy(test_settings)
-    local_settings.update(mode="offline", console=console)
+    local_settings.update(
+        mode="offline", console=console, source=wandb.sdk.wandb_settings.Source.INIT,
+    )
 
     with capfd.disabled():
         if not numpy:
@@ -309,7 +317,7 @@ def test_very_long_output(test_settings, capfd, runner, console, numpy):
 @pytest.mark.parametrize("console", console_modes)
 def test_no_numpy(test_settings, capfd, runner, console):
     local_settings = copy.copy(test_settings)
-    local_settings.update(console=console)
+    local_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
         wandb.wandb_sdk.lib.redirect.np = wandb.wandb_sdk.lib.redirect._Numpy()
         try:
@@ -329,7 +337,7 @@ def test_no_numpy(test_settings, capfd, runner, console):
 @pytest.mark.parametrize("console", console_modes)
 def test_memory_leak2(test_settings, capfd, runner, console):
     local_settings = copy.copy(test_settings)
-    local_settings.update(console=console)
+    local_settings.update(console=console, source=wandb.sdk.wandb_settings.Source.INIT)
     with capfd.disabled():
         run = wandb.init(settings=local_settings)
         for i in range(1000):

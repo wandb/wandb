@@ -207,7 +207,9 @@ def test_network_fault_files(live_mock_server, test_settings):
 
 
 def test_ignore_globs_wandb_files(live_mock_server, test_settings):
-    test_settings.update(ignore_globs=["requirements.txt"])
+    test_settings.update(
+        ignore_globs=["requirements.txt"], source=wandb.sdk.wandb_settings.Source.INIT
+    )
     run = wandb.init(settings=test_settings)
     run.finish()
     ctx = live_mock_server.get_ctx()
@@ -427,7 +429,9 @@ def test_end_to_end_preempting_via_module_func(
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
 def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
-    test_settings.update({"start_method": "thread"})
+    test_settings.update(
+        {"start_method": "thread"}, source=wandb.sdk.wandb_settings.Source.INIT,
+    )
 
     def mock_min_size(self, size):
         return 2

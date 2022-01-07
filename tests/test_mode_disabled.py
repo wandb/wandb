@@ -117,21 +117,27 @@ def test_disabled_globals(test_settings):
 
 
 def test_bad_url(test_settings):
-    test_settings.update(mode="disabled", base_url="localhost:9000")
+    test_settings.update(
+        mode="disabled",
+        base_url="localhost:9000",
+        source=wandb.sdk.wandb_settings.Source.INIT,
+    )
     run = wandb.init(settings=test_settings)
     run.log({"acc": 0.9})
     run.finish()
 
 
 def test_login(test_settings):
-    test_settings.update(mode="disabled")
+    test_settings.update(mode="disabled", source=wandb.sdk.wandb_settings.Source.INIT)
     wandb.setup(settings=test_settings)
     wandb.login()
 
 
 def test_no_dirs(test_settings, runner):
     with runner.isolated_filesystem():
-        test_settings.update(mode="disabled")
+        test_settings.update(
+            mode="disabled", source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings)
         run.log({"acc": 0.9})
         run.finish()
