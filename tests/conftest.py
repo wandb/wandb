@@ -247,6 +247,8 @@ def test_settings(test_dir, mocker, live_mock_server):
     # Just in case someone forgets to join in tests. ...well, don't!
     if wandb.run is not None:
         wandb.run.finish()
+    # if wandb.wandb_sdk.wandb_setup._WandbSetup.instance is not None:
+    #     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
 
 
 @pytest.fixture
@@ -255,6 +257,8 @@ def mocked_run(runner, test_settings):
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run
+    # if wandb.run is not None:
+    #     wandb.run.finish()
 
 
 @pytest.fixture

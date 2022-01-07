@@ -988,10 +988,10 @@ def test_artifact_incremental_internal(
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
 
-        art = internal_sm.send_artifact(log_artifact)
-
+        internal_sm.send_artifact(log_artifact)
     manifests_created = parse_ctx(mock_server.ctx).manifests_created
     assert manifests_created[0]["type"] == "INCREMENTAL"
+    wandb.finish()
 
 
 def test_local_references(runner, live_mock_server, test_settings):
@@ -1041,7 +1041,8 @@ def test_artifact_references_internal(
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
 
-        art = internal_sm.send_artifact(log_artifact)
+        internal_sm.send_artifact(log_artifact)
+    wandb.finish()
 
 
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
