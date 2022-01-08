@@ -116,7 +116,7 @@ def test_resume_auto_failure(live_mock_server, test_settings):
     # so that if that is set (e.g. by some other test/fixture),
     # test_settings.wandb_dir != run_settings.wandb_dir
     # and this test will fail
-    with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.wandb_dir}):
+    with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.root_dir}):
         test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
         live_mock_server.set_ctx({"resume": True})
         with open(test_settings.resume_fname, "w") as f:
@@ -249,9 +249,6 @@ def test_dir_on_import(runner, live_mock_server, test_settings):
         default_path = os.path.join(os.getcwd(), "wandb")
         custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
-        if "WANDB_DIR" in os.environ:
-            del os.environ["WANDB_DIR"]
-
         # Test for the base case
         _remove_dir_if_exists(default_path)
         reloadFn(wandb)
@@ -260,16 +257,15 @@ def test_dir_on_import(runner, live_mock_server, test_settings):
         )
 
         # test for the case that the env variable is set
-        os.environ["WANDB_DIR"] = custom_env_path
-        _remove_dir_if_exists(default_path)
-        reloadFn(wandb)
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
-        )
-        assert not os.path.isdir(custom_env_path), "Unexpected directory at {}".format(
-            custom_env_path
-        )
-        del os.environ["WANDB_DIR"]
+        with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
+            _remove_dir_if_exists(default_path)
+            reloadFn(wandb)
+            assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+                default_path
+            )
+            assert not os.path.isdir(
+                custom_env_path
+            ), "Unexpected directory at {}".format(custom_env_path)
 
 
 def test_dir_on_init(runner, live_mock_server, test_settings):
@@ -298,30 +294,29 @@ def test_dir_on_init_env(runner, live_mock_server, test_settings):
         custom_env_path = os.path.join(os.getcwd(), "env_custom")
 
         # test for the case that the env variable is set
-        os.environ["WANDB_DIR"] = custom_env_path
-        if not os.path.isdir(custom_env_path):
-            os.makedirs(custom_env_path)
-        reloadFn(wandb)
-        _remove_dir_if_exists(default_path)
-        run = wandb.init()
-        run.finish()
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
-        )
-        assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
-            custom_env_path
-        )
-        # And for the duplicate-run case
-        _remove_dir_if_exists(default_path)
-        run = wandb.init()
-        run.finish()
-        assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
-            default_path
-        )
-        assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
-            custom_env_path
-        )
-        del os.environ["WANDB_DIR"]
+        with mock.patch.dict(os.environ, {"WANDB_DIR": custom_env_path}):
+            if not os.path.isdir(custom_env_path):
+                os.makedirs(custom_env_path)
+            reloadFn(wandb)
+            _remove_dir_if_exists(default_path)
+            run = wandb.init()
+            run.finish()
+            assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+                default_path
+            )
+            assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
+                custom_env_path
+            )
+            # And for the duplicate-run case
+            _remove_dir_if_exists(default_path)
+            run = wandb.init()
+            run.finish()
+            assert not os.path.isdir(default_path), "Unexpected directory at {}".format(
+                default_path
+            )
+            assert os.path.isdir(custom_env_path), "Expected directory at {}".format(
+                custom_env_path
+            )
 
 
 def test_dir_on_init_dir(runner, live_mock_server, test_settings):

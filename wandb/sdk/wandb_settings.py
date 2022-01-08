@@ -1037,7 +1037,7 @@ class Settings:
         if self.username is None:
             try:
                 settings["username"] = getpass.getuser()
-            except KeyError:
+            except (KeyError, ModuleNotFoundError):
                 # getuser() could raise KeyError in restricted environments like
                 # chroot jails or docker containers. Return user id in these cases.
                 settings["username"] = str(os.getuid())
