@@ -112,14 +112,20 @@ def test_resume_auto_success(runner, live_mock_server, test_settings):
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
-    test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
-    live_mock_server.set_ctx({"resume": True})
-    with open(test_settings.resume_fname, "w") as f:
-        f.write(json.dumps({"run_id": "resume-me"}))
-    run = wandb.init(resume="auto", settings=test_settings)
-    assert run.id == "resume-me"
-    run.finish(exit_code=3)
-    assert os.path.exists(test_settings.resume_fname)
+    # env vars have a higher priority than the BASE settings
+    # so that if that is set (e.g. by some other test/fixture),
+    # test_settings.wandb_dir != run_settings.wandb_dir
+    # and this test will fail
+    with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.wandb_dir}):
+        os.environ["WANDB_DIR"] = test_settings.root_dir
+        test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
+        live_mock_server.set_ctx({"resume": True})
+        with open(test_settings.resume_fname, "w") as f:
+            f.write(json.dumps({"run_id": "resume-me"}))
+        run = wandb.init(resume="auto", settings=test_settings)
+        assert run.id == "resume-me"
+        run.finish(exit_code=3)
+        assert os.path.exists(test_settings.resume_fname)
 
 
 def test_resume_no_metadata(live_mock_server, test_settings):
