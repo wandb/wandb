@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import platform
 import pytest
+from unittest import mock
 
 import wandb
 from wandb import wandb_sdk
@@ -95,6 +96,34 @@ def test_log_code_settings(live_mock_server, test_settings):
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
     assert artifact_name == "source-" + run.id
+
+
+@pytest.mark.parametrize("save_code", [True, False])
+def test_log_code_env(live_mock_server, test_settings, save_code):
+    # test for WB-7468
+    with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+
+        # first, ditch user preference for code saving
+        # since it has higher priority for policy settings
+        live_mock_server.set_ctx({"code_saving_enabled": None})
+        # note that save_code is a policy by definition
+        test_settings.update(
+            save_code=None,
+            code_dir=".",
+            source=wandb.sdk.wandb_settings.Source.SETTINGS,
+        )
+        run = wandb.init(settings=test_settings)
+        assert run._settings.save_code is save_code
+        run.finish()
+
+        ctx = live_mock_server.get_ctx()
+        artifact_names = list(ctx["artifacts"].keys())
+        if save_code:
+            assert artifact_names[0] == "source-" + run.id
+        else:
+            assert len(artifact_names) == 0
 
 
 def test_log_code(test_settings):
