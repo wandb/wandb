@@ -535,9 +535,9 @@ class Table(Media):
         # construct Table with dtypes for each column if type information exists
         dtypes = None
         if column_types is not None:
-            dtypes = []
-            for col in json_obj["columns"]:
-                dtypes.append(column_types.params["type_map"][col])
+            dtypes = [
+                column_types.params["type_map"][col] for col in json_obj["columns"]
+            ]
 
         new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
 
