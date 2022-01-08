@@ -389,7 +389,7 @@ def test_version_retired(
 
 
 def test_end_to_end_preempting(runner, live_mock_server, test_settings, disable_console):
-    with runner.isolated_filesystem():
+    with runner.isolation():
         run = wandb.init(settings=test_settings)
         run.mark_preempting()
 
@@ -411,7 +411,7 @@ def test_end_to_end_preempting(runner, live_mock_server, test_settings, disable_
 def test_end_to_end_preempting_via_module_func(
     runner, live_mock_server, test_settings, disable_console
 ):
-    with runner.isolated_filesystem():
+    with runner.isolation():
         wandb.init(settings=test_settings)
         wandb.log({"a": 1})
         wandb.mark_preempting()
@@ -448,33 +448,33 @@ def test_live_policy_file_upload(runner, live_mock_server, test_settings, mocker
         )
 
         wandb.init(settings=test_settings)
-        fpath = "/tmp/saveFile"
+        file_path = "saveFile"
         sent = 0
         # file created, should be uploaded
-        with open(fpath, "w") as fp:
+        with open(file_path, "w") as fp:
             fp.write("a" * 10000)
             fp.close()
-        wandb.save(fpath, policy="live")
+        wandb.save(file_path, policy="live")
         # on save file is sent
-        sent += os.path.getsize(fpath)
+        sent += os.path.getsize(file_path)
         time.sleep(2.1)
-        with open(fpath, "a") as fp:
+        with open(file_path, "a") as fp:
             fp.write("a" * 10000)
             fp.close()
         # 2.1 seconds is longer than set rate limit
-        sent += os.path.getsize(fpath)
+        sent += os.path.getsize(file_path)
         # give watchdog time to register the change
         time.sleep(1.0)
         # file updated within modified time, should not be uploaded
-        with open(fpath, "a") as fp:
+        with open(file_path, "a") as fp:
             fp.write("a" * 10000)
             fp.close()
         time.sleep(2.0)
         # file updated outside of rate limit should be uploaded
-        with open(fpath, "a") as fp:
+        with open(file_path, "a") as fp:
             fp.write("a" * 10000)
             fp.close()
-        sent += os.path.getsize(fpath)
+        sent += os.path.getsize(file_path)
         time.sleep(2)
 
         server_ctx = live_mock_server.get_ctx()
