@@ -1000,9 +1000,8 @@ class Settings:
 
         # For code saving, only allow env var override if value from server is true, or
         # if no preference was specified.
-        if (
-            (self.save_code is True or self.save_code is None)
-            and os.getenv(wandb.env.SAVE_CODE) is not None
+        if (self.save_code is True or self.save_code is None) and (
+            os.getenv(wandb.env.SAVE_CODE) is not None
             or os.getenv(wandb.env.DISABLE_CODE) is not None
         ):
             settings["save_code"] = wandb.env.should_save_code()

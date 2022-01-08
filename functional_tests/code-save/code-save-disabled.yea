@@ -4,7 +4,7 @@ plugin:
 command:
   program: code-save.py
 env:
-  - WANDB_DISABLE_CODE: "True"
+  - WANDB_DISABLE_CODE: "true"
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
