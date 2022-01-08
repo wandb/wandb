@@ -112,6 +112,8 @@ def test_resume_auto_success(runner, live_mock_server, test_settings):
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
+    test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
+    live_mock_server.set_ctx({"resume": True})
     with open(test_settings.resume_fname, "w") as f:
         f.write(json.dumps({"run_id": "resume-me"}))
     run = wandb.init(resume="auto", settings=test_settings)
