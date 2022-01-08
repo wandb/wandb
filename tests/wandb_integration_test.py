@@ -117,7 +117,6 @@ def test_resume_auto_failure(live_mock_server, test_settings):
     # test_settings.wandb_dir != run_settings.wandb_dir
     # and this test will fail
     with mock.patch.dict(os.environ, {"WANDB_DIR": test_settings.wandb_dir}):
-        os.environ["WANDB_DIR"] = test_settings.root_dir
         test_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
         live_mock_server.set_ctx({"resume": True})
         with open(test_settings.resume_fname, "w") as f:
