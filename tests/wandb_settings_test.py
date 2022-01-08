@@ -679,7 +679,9 @@ def test_sync_symlink_latest(runner):
         run = wandb.init(mode="offline")
         assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath(
             "./wandb/offline-run-{}-{}".format(
-                datetime.datetime.strftime(run._settings._start_datetime, "%Y%m%d_%H%M%S"),
+                datetime.datetime.strftime(
+                    run._settings._start_datetime, "%Y%m%d_%H%M%S"
+                ),
                 run.id,
             )
         )

@@ -48,8 +48,7 @@ def test_resume_allow_success(runner, live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="File syncing is somewhat busted in windows",
+    platform.system() == "Windows", reason="File syncing is somewhat busted in windows",
 )
 def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
     with runner.isolation():
@@ -287,7 +286,9 @@ def test_dir_on_init(runner, live_mock_server, test_settings):
         _remove_dir_if_exists(default_path)
         run = wandb.init()
         run.finish()
-        assert os.path.isdir(default_path), "Expected directory at {}".format(default_path)
+        assert os.path.isdir(default_path), "Expected directory at {}".format(
+            default_path
+        )
 
 
 def test_dir_on_init_env(runner, live_mock_server, test_settings):
@@ -388,7 +389,9 @@ def test_version_retired(
         assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
-def test_end_to_end_preempting(runner, live_mock_server, test_settings, disable_console):
+def test_end_to_end_preempting(
+    runner, live_mock_server, test_settings, disable_console
+):
     with runner.isolation():
         run = wandb.init(settings=test_settings)
         run.mark_preempting()
@@ -399,7 +402,10 @@ def test_end_to_end_preempting(runner, live_mock_server, test_settings, disable_
             ctx = live_mock_server.get_ctx()
             if "file_stream" in ctx:
                 ok = any(
-                    ["preempting" in request_dict for request_dict in ctx["file_stream"]]
+                    [
+                        "preempting" in request_dict
+                        for request_dict in ctx["file_stream"]
+                    ]
                 )
                 if ok:
                     break
@@ -422,7 +428,10 @@ def test_end_to_end_preempting_via_module_func(
             ctx = live_mock_server.get_ctx()
             if "file_stream" in ctx:
                 ok = any(
-                    ["preempting" in request_dict for request_dict in ctx["file_stream"]]
+                    [
+                        "preempting" in request_dict
+                        for request_dict in ctx["file_stream"]
+                    ]
                 )
                 if ok:
                     break

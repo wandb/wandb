@@ -980,7 +980,9 @@ def test_artifact_incremental_internal(
     runner, mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
     with runner.isolated_filesystem():
-        artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
+        artifact = wandb.Artifact(
+            "incremental_test_PENDING", "dataset", incremental=True
+        )
 
         with backend_interface() as interface:
             proto_run = interface._make_run(mocked_run)
@@ -1023,7 +1025,13 @@ def test_local_references(runner, live_mock_server, test_settings):
 
 
 def test_artifact_references_internal(
-    runner, mocked_run, mock_server, internal_sm, backend_interface, parse_ctx, test_settings,
+    runner,
+    mocked_run,
+    mock_server,
+    internal_sm,
+    backend_interface,
+    parse_ctx,
+    test_settings,
 ):
     with runner.isolated_filesystem():
         mock_server.set_context("max_cli_version", "0.11.0")
