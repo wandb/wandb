@@ -100,7 +100,7 @@ def start_mock_server(worker_id):
         close_fds=True,
     )
     server._port = port
-    server.base_url = "http://localhost:%i" % server._port
+    server.base_url = f"http://localhost:{server._port}"
 
     def get_ctx():
         return requests.get(server.base_url + "/ctx").json()
