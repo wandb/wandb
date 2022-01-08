@@ -194,8 +194,7 @@ def test_network_fault_files(live_mock_server, test_settings):
 
 def test_ignore_globs_wandb_files(live_mock_server, test_settings):
     test_settings.update(
-        ignore_globs=["requirements.txt"],
-        source=wandb.sdk.wandb_settings.Source.INIT,
+        ignore_globs=["requirements.txt"], source=wandb.sdk.wandb_settings.Source.INIT,
     )
     run = wandb.init(settings=test_settings)
     run.finish()
@@ -384,10 +383,7 @@ def test_end_to_end_preempting(live_mock_server):
         ctx = live_mock_server.get_ctx()
         if "file_stream" in ctx:
             ok = any(
-                [
-                    "preempting" in request_dict
-                    for request_dict in ctx["file_stream"]
-                ]
+                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
             )
             if ok:
                 break
@@ -407,10 +403,7 @@ def test_end_to_end_preempting_via_module_func(live_mock_server):
         ctx = live_mock_server.get_ctx()
         if "file_stream" in ctx:
             ok = any(
-                [
-                    "preempting" in request_dict
-                    for request_dict in ctx["file_stream"]
-                ]
+                ["preempting" in request_dict for request_dict in ctx["file_stream"]]
             )
             if ok:
                 break

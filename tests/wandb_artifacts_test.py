@@ -979,9 +979,7 @@ def test_interface_commit_hash(runner):
 def test_artifact_incremental_internal(
     mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
-    artifact = wandb.Artifact(
-        "incremental_test_PENDING", "dataset", incremental=True
-    )
+    artifact = wandb.Artifact("incremental_test_PENDING", "dataset", incremental=True)
 
     with backend_interface() as interface:
         proto_run = interface._make_run(mocked_run)

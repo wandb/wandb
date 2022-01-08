@@ -98,7 +98,9 @@ def test_nice_log_error():
 def test_nice_log_error_config():
     with pytest.raises(wandb.Error) as e:
         wandb.config.update({"foo": 1})
-        assert e.value.message == "You must call wandb.init() before wandb.config.update"
+        assert (
+            e.value.message == "You must call wandb.init() before wandb.config.update"
+        )
     with pytest.raises(wandb.Error) as e:
         wandb.config.foo = 1
         assert e.value.message == "You must call wandb.init() before wandb.config.foo"
@@ -107,7 +109,10 @@ def test_nice_log_error_config():
 def test_nice_log_error_summary():
     with pytest.raises(wandb.Error) as e:
         wandb.summary["great"] = 1
-        assert e.value.message == 'You must call wandb.init() before wandb.summary["great"]'
+        assert (
+            e.value.message
+            == 'You must call wandb.init() before wandb.summary["great"]'
+        )
     with pytest.raises(wandb.Error) as e:
         wandb.summary.bam = 1
         assert e.value.message == "You must call wandb.init() before wandb.summary.bam"

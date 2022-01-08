@@ -21,7 +21,6 @@ import wandb.util as util
 from ..utils import fixture_open, notebook_path
 
 
-
 @pytest.fixture
 def mocked_fetchable_git_repo():
     m = mock.Mock()
