@@ -282,6 +282,7 @@ def test_audio_to_json(mocked_run):
         "size": 88244,
     }
     assert utils.subdict(meta["audio"][0], audio_expected) == audio_expected
+    wandb.finish()
 
 
 def test_audio_refs():
@@ -456,72 +457,74 @@ def test_video_path_invalid(runner):
             wandb.Video("video.avi")
 
 
-def test_molecule(runner, mocked_run):
-    with runner.isolated_filesystem():
-        with open("test.pdb", "w") as f:
-            f.write("00000")
-        mol = wandb.Molecule("test.pdb")
-        mol.bind_to_run(mocked_run, "rad", "summary")
-        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+def test_molecule(mocked_run):
+    with open("test.pdb", "w") as f:
+        f.write("00000")
+    mol = wandb.Molecule("test.pdb")
+    mol.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
-        assert os.path.exists(mol._path)
-
-
-def test_molecule_file(runner, mocked_run):
-    with runner.isolated_filesystem():
-        with open("test.pdb", "w") as f:
-            f.write("00000")
-        mol = wandb.Molecule(open("test.pdb", "r"))
-        mol.bind_to_run(mocked_run, "rad", "summary")
-        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
-
-        assert os.path.exists(mol._path)
+    assert os.path.exists(mol._path)
+    wandb.finish()
 
 
-def test_molecule_from_smiles(runner, mocked_run):
+def test_molecule_file(mocked_run):
+    with open("test.pdb", "w") as f:
+        f.write("00000")
+    mol = wandb.Molecule(open("test.pdb", "r"))
+    mol.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+
+    assert os.path.exists(mol._path)
+    wandb.finish()
+
+
+def test_molecule_from_smiles(mocked_run):
     """Ensures that wandb.Molecule.from_smiles supports valid SMILES molecule string representations"""
-    with runner.isolated_filesystem():
-        mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
-        mol.bind_to_run(mocked_run, "rad", "summary")
-        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+    mol = wandb.Molecule.from_smiles("CC(=O)Nc1ccc(O)cc1")
+    mol.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
-        assert os.path.exists(mol._path)
+    assert os.path.exists(mol._path)
+    wandb.finish()
 
 
-def test_molecule_from_invalid_smiles(runner, mocked_run):
+def test_molecule_from_invalid_smiles(mocked_run):
     """Ensures that wandb.Molecule.from_smiles errs if passed an invalid SMILES string"""
     with pytest.raises(ValueError):
         wandb.Molecule.from_smiles("TEST")
+    wandb.finish()
 
 
-def test_molecule_from_rdkit_mol_object(runner, mocked_run):
+def test_molecule_from_rdkit_mol_object(mocked_run):
     """Ensures that wandb.Molecule.from_rdkit supports rdkit.Chem.rdchem.Mol objects"""
-    with runner.isolated_filesystem():
-        mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
-        mol.bind_to_run(mocked_run, "rad", "summary")
-        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+    mol = wandb.Molecule.from_rdkit(rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1"))
+    mol.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
-        assert os.path.exists(mol._path)
+    assert os.path.exists(mol._path)
+    wandb.finish()
 
 
-def test_molecule_from_rdkit_mol_file(runner, mocked_run):
+def test_molecule_from_rdkit_mol_file(mocked_run):
     """Ensures that wandb.Molecule.from_rdkit supports .mol files"""
-    with runner.isolated_filesystem():
-        substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
-        mol_file_name = "test.mol"
-        rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
-        mol = wandb.Molecule.from_rdkit(mol_file_name)
-        mol.bind_to_run(mocked_run, "rad", "summary")
-        wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
+    substance = rdkit.Chem.MolFromSmiles("CC(=O)Nc1ccc(O)cc1")
+    mol_file_name = "test.mol"
+    rdkit.Chem.rdmolfiles.MolToMolFile(substance, mol_file_name)
+    mol = wandb.Molecule.from_rdkit(mol_file_name)
+    mol.bind_to_run(mocked_run, "rad", "summary")
+    wandb.Molecule.seq_to_json([mol], mocked_run, "rad", "summary")
 
-        assert os.path.exists(mol._path)
+    assert os.path.exists(mol._path)
+    wandb.finish()
 
 
-def test_molecule_from_rdkit_invalid_input(runner, mocked_run):
+def test_molecule_from_rdkit_invalid_input(mocked_run):
     """Ensures that wandb.Molecule.from_rdkit errs on invalid input"""
     mol_file_name = "test"
     with pytest.raises(ValueError):
         wandb.Molecule.from_rdkit(mol_file_name)
+    wandb.finish()
 
 
 def test_html_str(mocked_run):
@@ -529,6 +532,7 @@ def test_html_str(mocked_run):
     html.bind_to_run(mocked_run, "rad", "summary")
     wandb.Html.seq_to_json([html], mocked_run, "rad", "summary")
     assert os.path.exists(html._path)
+    wandb.finish()
 
 
 def test_html_styles():
@@ -670,28 +674,33 @@ def test_object3d_dict(mocked_run):
     obj = wandb.Object3D({"type": "lidar/beta",})
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+    wandb.finish()
 
 
 def test_object3d_dict_invalid(mocked_run):
     with pytest.raises(ValueError):
         obj = wandb.Object3D({"type": "INVALID",})
+    wandb.finish()
 
 
 def test_object3d_dict_invalid_string(mocked_run):
     with pytest.raises(ValueError):
         obj = wandb.Object3D("INVALID")
+    wandb.finish()
 
 
 def test_object3d_obj(mocked_run):
     obj = wandb.Object3D(utils.fixture_open("cube.obj"))
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+    wandb.finish()
 
 
 def test_object3d_gltf(mocked_run):
     obj = wandb.Object3D(utils.fixture_open("Box.gltf"))
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+    wandb.finish()
 
 
 def test_object3d_io(mocked_run):
@@ -702,6 +711,7 @@ def test_object3d_io(mocked_run):
     obj = wandb.Object3D(ioObj, file_type="obj")
     obj.bind_to_run(mocked_run, "object3D", 0)
     assert obj.to_json(mocked_run)["_type"] == "object3D-file"
+    wandb.finish()
 
 
 def test_object3d_unsupported_numpy():
@@ -750,6 +760,7 @@ def test_object3d_seq_to_json(mocked_run):
         cube,
         pts,
     ]
+    wandb.finish()
 
 
 def test_table_init():

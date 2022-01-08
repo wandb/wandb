@@ -100,20 +100,17 @@ def test_multiproc_strict_bad(live_mock_server, test_settings, parse_ctx):
         test_settings.update(strict="bad")
 
 
-@pytest.mark.skipif(
-    sys.version_info[0] < 3, reason="multiprocessing.get_context introduced in py3"
-)
-def test_multiproc_spawn(test_settings):
+def test_multiproc_spawn(runner, test_settings):
     # WB5640. Before the WB5640 fix this code fragment would raise an
     # exception, this test checks that it runs without error
+    with runner.isolated_filesystem():
+        from .utils import test_mod
 
-    from .utils import test_mod
-
-    test_mod.main()
-    sys.modules["__main__"].__spec__ = importlib.machinery.ModuleSpec(
-        name="tests.utils.test_mod", loader=importlib.machinery.BuiltinImporter
-    )
-    test_mod.main()
-    sys.modules["__main__"].__spec__ = None
-    # run this to get credit for the diff
-    test_mod.mp_func()
+        test_mod.main()
+        sys.modules["__main__"].__spec__ = importlib.machinery.ModuleSpec(
+            name="tests.utils.test_mod", loader=importlib.machinery.BuiltinImporter
+        )
+        test_mod.main()
+        sys.modules["__main__"].__spec__ = None
+        # run this to get credit for the diff
+        test_mod.mp_func()

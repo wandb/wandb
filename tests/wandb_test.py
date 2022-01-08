@@ -2,14 +2,14 @@
 See wandb_integration_test.py for tests that launch a real backend against
 a live backend server.
 """
+import glob
+import tempfile
+import os
+from unittest import mock
+
+import pytest
 import wandb
 from wandb.viz import create_custom_chart
-import pytest
-import tempfile
-import glob
-import os
-import sys
-from unittest import mock
 
 
 def test_log_step(wandb_init_run):
@@ -28,7 +28,6 @@ def test_log_custom_chart(wandb_init_run):
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
-@pytest.mark.skip(reason="We haven't implemented wandb silent yet")
 def test_log_silent(wandb_init_run, capsys):
     wandb.log({"acc": 1})
     _, err = capsys.readouterr()
@@ -99,19 +98,19 @@ def test_nice_log_error():
 def test_nice_log_error_config():
     with pytest.raises(wandb.Error) as e:
         wandb.config.update({"foo": 1})
-    assert e.value.message == "You must call wandb.init() before wandb.config.update"
+        assert e.value.message == "You must call wandb.init() before wandb.config.update"
     with pytest.raises(wandb.Error) as e:
         wandb.config.foo = 1
-    assert e.value.message == "You must call wandb.init() before wandb.config.foo"
+        assert e.value.message == "You must call wandb.init() before wandb.config.foo"
 
 
 def test_nice_log_error_summary():
     with pytest.raises(wandb.Error) as e:
         wandb.summary["great"] = 1
-    assert e.value.message == 'You must call wandb.init() before wandb.summary["great"]'
+        assert e.value.message == 'You must call wandb.init() before wandb.summary["great"]'
     with pytest.raises(wandb.Error) as e:
         wandb.summary.bam = 1
-    assert e.value.message == "You must call wandb.init() before wandb.summary.bam"
+        assert e.value.message == "You must call wandb.init() before wandb.summary.bam"
 
 
 @pytest.mark.wandb_args(k8s=True)

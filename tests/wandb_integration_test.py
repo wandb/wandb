@@ -12,6 +12,7 @@ import pytest
 import shutil
 import subprocess
 import time
+from unittest import mock
 
 import wandb
 from .utils import fixture_open, first_filestream
@@ -26,25 +27,24 @@ reloadFn = importlib.reload
 #  errors until we ensure we propagate the errors up.
 
 
-def test_resume_allow_success(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        res = live_mock_server.set_ctx({"resume": True})
-        print("CTX AFTER UPDATE", res)
-        print("GET RIGHT AWAY", live_mock_server.get_ctx())
-        run = wandb.init(reinit=True, resume="allow", settings=test_settings)
-        run.log({"acc": 10})
-        run.finish()
-        server_ctx = live_mock_server.get_ctx()
-        print("CTX", server_ctx)
-        first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
-        print(first_stream_hist)
-        assert first_stream_hist["offset"] == 15
-        assert json.loads(first_stream_hist["content"][0])["_step"] == 16
-        # TODO: test _runtime offset setting
-        # TODO: why no event stream?
-        # assert first_stream['files']['wandb-events.jsonl'] == {
-        #    'content': ['{"acc": 10, "_step": 15}'], 'offset': 0
-        # }
+def test_resume_allow_success(live_mock_server, test_settings):
+    res = live_mock_server.set_ctx({"resume": True})
+    print("CTX AFTER UPDATE", res)
+    print("GET RIGHT AWAY", live_mock_server.get_ctx())
+    run = wandb.init(reinit=True, resume="allow", settings=test_settings)
+    run.log({"acc": 10})
+    run.finish()
+    server_ctx = live_mock_server.get_ctx()
+    print("CTX", server_ctx)
+    first_stream_hist = first_filestream(server_ctx)["files"]["wandb-history.jsonl"]
+    print(first_stream_hist)
+    assert first_stream_hist["offset"] == 15
+    assert json.loads(first_stream_hist["content"][0])["_step"] == 16
+    # TODO: test _runtime offset setting
+    # TODO: why no event stream?
+    # assert first_stream['files']['wandb-events.jsonl'] == {
+    #    'content': ['{"acc": 10, "_step": 15}'], 'offset': 0
+    # }
 
 
 @pytest.mark.skipif(
@@ -111,26 +111,24 @@ def test_resume_auto_success(runner, live_mock_server, test_settings):
         assert not os.path.exists(test_settings.resume_fname)
 
 
-def test_resume_auto_failure(runner, live_mock_server, test_settings):
-    with runner.isolation():
-        local_settings = test_settings.copy()
-        local_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.INIT)
-        with open(test_settings.resume_fname, "w") as f:
-            f.write(json.dumps({"run_id": "resumeme"}))
-        run = wandb.init(reinit=True, resume=True, settings=local_settings)
-        assert run.id == "resumeme"
-        run.finish(exit_code=3)
-        assert os.path.exists(local_settings.resume_fname)
+def test_resume_auto_failure(live_mock_server, test_settings):
+    local_settings = test_settings.copy()
+    local_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
+    with open(local_settings.resume_fname, "w") as f:
+        f.write(json.dumps({"run_id": "resumeme"}))
+    run = wandb.init(reinit=True, resume=True, settings=local_settings)
+    assert run.id == "resumeme"
+    run.finish(exit_code=3)
+    assert os.path.exists(local_settings.resume_fname)
 
 
-def test_resume_no_metadata(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        # do not write metadata file if we are resuming
-        live_mock_server.set_ctx({"resume": True})
-        run = wandb.init(resume=True, settings=test_settings)
-        run.finish()
-        ctx = live_mock_server.get_ctx()
-        assert "wandb-metadata.json" not in ctx["storage"][run.id]
+def test_resume_no_metadata(live_mock_server, test_settings):
+    # do not write metadata file if we are resuming
+    live_mock_server.set_ctx({"resume": True})
+    run = wandb.init(resume=True, settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    assert "wandb-metadata.json" not in ctx["storage"][run.id]
 
 
 def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
@@ -176,66 +174,63 @@ def test_include_exclude_config_keys(runner, live_mock_server, test_settings):
             )
 
 
-def test_network_fault_files(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        live_mock_server.set_ctx({"fail_storage_times": 5})
-        run = wandb.init(settings=test_settings)
-        run.finish()
-        ctx = live_mock_server.get_ctx()
-        print(ctx)
-        assert [
-            f
-            for f in sorted(ctx["storage"][run.id])
-            if not f.endswith(".patch") and not f.endswith(".py")
-        ] == sorted(
-            [
-                "wandb-metadata.json",
-                "requirements.txt",
-                "config.yaml",
-                "wandb-summary.json",
-            ]
-        )
+def test_network_fault_files(live_mock_server, test_settings):
+    live_mock_server.set_ctx({"fail_storage_times": 5})
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    print(ctx)
+    assert [
+        f
+        for f in sorted(ctx["storage"][run.id])
+        if not f.endswith(".patch") and not f.endswith(".py")
+    ] == sorted(
+        [
+            "wandb-metadata.json",
+            "requirements.txt",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
 
 
-def test_ignore_globs_wandb_files(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        test_settings.update(
-            ignore_globs=["requirements.txt"],
-            source=wandb.sdk.wandb_settings.Source.INIT,
-        )
-        run = wandb.init(settings=test_settings)
-        run.finish()
-        ctx = live_mock_server.get_ctx()
-        print(ctx)
-        assert [
-            f
-            for f in sorted(ctx["storage"][run.id])
-            if not f.endswith(".patch") and not f.endswith(".py")
-        ] == sorted(["wandb-metadata.json", "config.yaml", "wandb-summary.json",])
+def test_ignore_globs_wandb_files(live_mock_server, test_settings):
+    test_settings.update(
+        ignore_globs=["requirements.txt"],
+        source=wandb.sdk.wandb_settings.Source.INIT,
+    )
+    run = wandb.init(settings=test_settings)
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    print(ctx)
+    assert [
+        f
+        for f in sorted(ctx["storage"][run.id])
+        if not f.endswith(".patch") and not f.endswith(".py")
+    ] == sorted(["wandb-metadata.json", "config.yaml", "wandb-summary.json",])
 
 
 # TODO(jhr): look into why this timeout needed to be extend for windows
 @pytest.mark.timeout(120)
-def test_network_fault_graphql(runner, live_mock_server, test_settings):
-    with runner.isolated_filesystem():
-        # TODO: Initial login fails within 5 seconds so we fail after boot.
-        run = wandb.init(settings=test_settings)
-        live_mock_server.set_ctx({"fail_graphql_times": 5})
-        run.finish()
-        ctx = live_mock_server.get_ctx()
-        print(ctx)
-        assert [
-            f
-            for f in sorted(ctx["storage"][run.id])
-            if not f.endswith(".patch") and not f.endswith(".py")
-        ] == sorted(
-            [
-                "wandb-metadata.json",
-                "requirements.txt",
-                "config.yaml",
-                "wandb-summary.json",
-            ]
-        )
+def test_network_fault_graphql(live_mock_server, test_settings):
+    # TODO: Initial login fails within 5 seconds so we fail after boot.
+    run = wandb.init(settings=test_settings)
+    live_mock_server.set_ctx({"fail_graphql_times": 5})
+    run.finish()
+    ctx = live_mock_server.get_ctx()
+    print(ctx)
+    assert [
+        f
+        for f in sorted(ctx["storage"][run.id])
+        if not f.endswith(".patch") and not f.endswith(".py")
+    ] == sorted(
+        [
+            "wandb-metadata.json",
+            "requirements.txt",
+            "config.yaml",
+            "wandb-summary.json",
+        ]
+    )
 
 
 def _remove_dir_if_exists(path):
@@ -270,6 +265,7 @@ def test_dir_on_import(runner, live_mock_server, test_settings):
         assert not os.path.isdir(custom_env_path), "Unexpected directory at {}".format(
             custom_env_path
         )
+        del os.environ["WANDB_DIR"]
 
 
 def test_dir_on_init(runner, live_mock_server, test_settings):
@@ -356,139 +352,123 @@ def test_dir_on_init_dir(runner, live_mock_server, test_settings):
         )
 
 
-def test_version_upgraded(
-    runner, live_mock_server, test_settings, capsys, disable_console, restore_version
-):
-    with runner.isolated_filesystem():
-        wandb.__version__ = "0.10.2"
-        run = wandb.init()
-        run.finish()
-        captured = capsys.readouterr()
-        assert "is available!  To upgrade, please run:" in captured.err
+def test_version_upgraded(live_mock_server, capsys, restore_version):
+    wandb.__version__ = "0.10.2"
+    run = wandb.init(settings=dict(console="off"))
+    run.finish()
+    captured = capsys.readouterr()
+    assert "is available!  To upgrade, please run:" in captured.err
 
 
-def test_version_yanked(
-    runner, live_mock_server, test_settings, capsys, disable_console, restore_version
-):
-    with runner.isolated_filesystem():
-        wandb.__version__ = "0.10.0"
-        run = wandb.init()
-        run.finish()
-        captured = capsys.readouterr()
-        assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
+def test_version_yanked(live_mock_server, capsys, restore_version):
+    wandb.__version__ = "0.10.0"
+    run = wandb.init(settings=dict(console="off"))
+    run.finish()
+    captured = capsys.readouterr()
+    assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
 
 
-def test_version_retired(
-    runner, live_mock_server, test_settings, capsys, disable_console, restore_version
-):
-    with runner.isolated_filesystem():
-        wandb.__version__ = "0.9.99"
-        run = wandb.init()
-        run.finish()
-        captured = capsys.readouterr()
-        assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+def test_version_retired(live_mock_server, capsys, restore_version):
+    wandb.__version__ = "0.9.99"
+    run = wandb.init(settings=dict(console="off"))
+    run.finish()
+    captured = capsys.readouterr()
+    assert "ERROR wandb version 0.9.99 has been retired" in captured.err
 
 
-def test_end_to_end_preempting(
-    runner, live_mock_server, test_settings, disable_console
-):
-    with runner.isolation():
-        run = wandb.init(settings=test_settings)
-        run.mark_preempting()
+def test_end_to_end_preempting(live_mock_server):
+    run = wandb.init(settings=dict(console="off"))
+    run.mark_preempting()
 
-        # poll for message arrival
-        ok = False
-        for _ in range(3):
-            ctx = live_mock_server.get_ctx()
-            if "file_stream" in ctx:
-                ok = any(
-                    [
-                        "preempting" in request_dict
-                        for request_dict in ctx["file_stream"]
-                    ]
-                )
-                if ok:
-                    break
-            time.sleep(1)
-        assert ok
-        run.finish()
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        if "file_stream" in ctx:
+            ok = any(
+                [
+                    "preempting" in request_dict
+                    for request_dict in ctx["file_stream"]
+                ]
+            )
+            if ok:
+                break
+        time.sleep(1)
+    assert ok
+    run.finish()
 
 
-def test_end_to_end_preempting_via_module_func(
-    runner, live_mock_server, test_settings, disable_console
-):
-    with runner.isolation():
-        wandb.init(settings=test_settings)
-        wandb.log({"a": 1})
-        wandb.mark_preempting()
+def test_end_to_end_preempting_via_module_func(live_mock_server):
+    run = wandb.init(settings=dict(console="off"))
+    run.log({"a": 1})
+    run.mark_preempting()
 
-        # poll for message arrival
-        ok = False
-        for _ in range(3):
-            ctx = live_mock_server.get_ctx()
-            if "file_stream" in ctx:
-                ok = any(
-                    [
-                        "preempting" in request_dict
-                        for request_dict in ctx["file_stream"]
-                    ]
-                )
-                if ok:
-                    break
-            time.sleep(1)
-        assert ok
-        wandb.finish()
+    # poll for message arrival
+    ok = False
+    for _ in range(3):
+        ctx = live_mock_server.get_ctx()
+        if "file_stream" in ctx:
+            ok = any(
+                [
+                    "preempting" in request_dict
+                    for request_dict in ctx["file_stream"]
+                ]
+            )
+            if ok:
+                break
+        time.sleep(1)
+    assert ok
+    run.finish()
 
 
 @pytest.mark.flaky
 @pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
-def test_live_policy_file_upload(runner, live_mock_server, test_settings, mocker):
-    with runner.isolated_filesystem():
-        test_settings.update(
-            {"start_method": "thread"}, source=wandb.sdk.wandb_settings.Source.INIT,
-        )
+def test_live_policy_file_upload(live_mock_server, test_settings, mocker):
+    test_settings.update(
+        {"start_method": "thread"}, source=wandb.sdk.wandb_settings.Source.INIT,
+    )
 
-        def mock_min_size(self, size):
-            return 2
+    def mock_min_size(self, size):
+        return 2
 
-        mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
-        mocker.patch(
-            "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
-        )
+    mocker.patch("wandb.filesync.dir_watcher.PolicyLive.RATE_LIMIT_SECONDS", 2)
+    mocker.patch(
+        "wandb.filesync.dir_watcher.PolicyLive.min_wait_for_size", mock_min_size
+    )
 
-        wandb.init(settings=test_settings)
-        file_path = "saveFile"
-        sent = 0
-        # file created, should be uploaded
-        with open(file_path, "w") as fp:
-            fp.write("a" * 10000)
-            fp.close()
-        wandb.save(file_path, policy="live")
-        # on save file is sent
-        sent += os.path.getsize(file_path)
-        time.sleep(2.1)
-        with open(file_path, "a") as fp:
-            fp.write("a" * 10000)
-            fp.close()
-        # 2.1 seconds is longer than set rate limit
-        sent += os.path.getsize(file_path)
-        # give watchdog time to register the change
-        time.sleep(1.0)
-        # file updated within modified time, should not be uploaded
-        with open(file_path, "a") as fp:
-            fp.write("a" * 10000)
-            fp.close()
-        time.sleep(2.0)
-        # file updated outside of rate limit should be uploaded
-        with open(file_path, "a") as fp:
-            fp.write("a" * 10000)
-            fp.close()
-        sent += os.path.getsize(file_path)
-        time.sleep(2)
+    run = wandb.init(settings=test_settings)
+    file_path = "saveFile"
+    sent = 0
+    # file created, should be uploaded
+    with open(file_path, "w") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    run.save(file_path, policy="live")
+    # on save file is sent
+    sent += os.path.getsize(file_path)
+    time.sleep(2.1)
+    with open(file_path, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    # 2.1 seconds is longer than set rate limit
+    sent += os.path.getsize(file_path)
+    # give watchdog time to register the change
+    time.sleep(1.0)
+    # file updated within modified time, should not be uploaded
+    with open(file_path, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    time.sleep(2.0)
+    # file updated outside of rate limit should be uploaded
+    with open(file_path, "a") as fp:
+        fp.write("a" * 10000)
+        fp.close()
+    sent += os.path.getsize(file_path)
+    time.sleep(2)
 
-        server_ctx = live_mock_server.get_ctx()
-        print(server_ctx["file_bytes"], sent)
-        assert "saveFile" in server_ctx["file_bytes"].keys()
-        # TODO: bug sometimes it seems that on windows the first file is sent twice
-        assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
-        wandb.finish()
+    server_ctx = live_mock_server.get_ctx()
+    print(server_ctx["file_bytes"], sent)
+    assert "saveFile" in server_ctx["file_bytes"].keys()
+    # TODO: bug sometimes it seems that on windows the first file is sent twice
+    assert abs(server_ctx["file_bytes"]["saveFile"] - sent) <= 10000
+    run.finish()

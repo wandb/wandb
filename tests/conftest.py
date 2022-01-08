@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import pytest
 import time
 import platform
@@ -173,9 +171,13 @@ def test_dir(test_name):
 
 @pytest.fixture
 def disable_git_save():
+    env_var_is_set = "WANDB_DISABLE_GIT" in os.environ
     os.environ["WANDB_DISABLE_GIT"] = "true"
     yield
-    os.environ["WANDB_DISABLE_GIT"] = "false"
+    if env_var_is_set:
+        os.environ["WANDB_DISABLE_GIT"] = "false"
+    else:
+        del os.environ["WANDB_DISABLE_GIT"]
 
 
 @pytest.fixture
@@ -516,13 +518,6 @@ def restore_version():
         del wandb.__hack_pypi_latest_version__
     except AttributeError:
         pass
-
-
-@pytest.fixture()
-def disable_console():
-    os.environ["WANDB_CONSOLE"] = "off"
-    yield
-    del os.environ["WANDB_CONSOLE"]
 
 
 @pytest.fixture()

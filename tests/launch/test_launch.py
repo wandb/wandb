@@ -1,18 +1,14 @@
 import json
 import os
-from wandb.apis import PublicApi
+from unittest import mock
 from unittest.mock import MagicMock
-from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.docker import pull_docker_image
-
-try:
-    from unittest import mock
-except ImportError:  # TODO: this is only for python2
-    import mock
 import sys
 
+import pytest
 import wandb
-import wandb.util as util
+from wandb.apis import PublicApi
+from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.docker import pull_docker_image
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
@@ -20,10 +16,10 @@ from wandb.sdk.launch.utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
+import wandb.util as util
 
 from ..utils import fixture_open, notebook_path
 
-import pytest
 
 
 @pytest.fixture
