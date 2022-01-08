@@ -689,9 +689,8 @@ def _attach(
     if manager:
         manager._inform_attach(attach_id=attach_id)
 
-    # fixme
     settings: Settings = copy.copy(_wl._settings)
-    settings.run_id = attach_id
+    settings.update(run_id=attach_id, source=Source.INIT)
 
     # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)
