@@ -977,33 +977,32 @@ def test_interface_commit_hash(runner):
 
 
 def test_artifact_incremental_internal(
-    runner, mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
+    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
-    with runner.isolated_filesystem():
-        artifact = wandb.Artifact(
-            "incremental_test_PENDING", "dataset", incremental=True
-        )
+    artifact = wandb.Artifact(
+        "incremental_test_PENDING", "dataset", incremental=True
+    )
 
-        with backend_interface() as interface:
-            proto_run = interface._make_run(mocked_run)
-            r = internal_sm.send_run(interface._make_record(run=proto_run))
+    with backend_interface() as interface:
+        proto_run = interface._make_run(mocked_run)
+        r = internal_sm.send_run(interface._make_record(run=proto_run))
 
-            proto_artifact = interface._make_artifact(artifact)
-            proto_artifact.run_id = proto_run.run_id
-            proto_artifact.project = proto_run.project
-            proto_artifact.entity = proto_run.entity
-            proto_artifact.user_created = False
-            proto_artifact.use_after_commit = False
-            proto_artifact.finalize = True
-            for alias in ["latest"]:
-                proto_artifact.aliases.append(alias)
-            log_artifact = pb.LogArtifactRequest()
-            log_artifact.artifact.CopyFrom(proto_artifact)
+        proto_artifact = interface._make_artifact(artifact)
+        proto_artifact.run_id = proto_run.run_id
+        proto_artifact.project = proto_run.project
+        proto_artifact.entity = proto_run.entity
+        proto_artifact.user_created = False
+        proto_artifact.use_after_commit = False
+        proto_artifact.finalize = True
+        for alias in ["latest"]:
+            proto_artifact.aliases.append(alias)
+        log_artifact = pb.LogArtifactRequest()
+        log_artifact.artifact.CopyFrom(proto_artifact)
 
-            internal_sm.send_artifact(log_artifact)
-        manifests_created = parse_ctx(mock_server.ctx).manifests_created
-        assert manifests_created[0]["type"] == "INCREMENTAL"
-        wandb.finish()
+        internal_sm.send_artifact(log_artifact)
+    manifests_created = parse_ctx(mock_server.ctx).manifests_created
+    assert manifests_created[0]["type"] == "INCREMENTAL"
+    wandb.finish()
 
 
 def test_local_references(runner, live_mock_server, test_settings):

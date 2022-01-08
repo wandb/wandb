@@ -92,7 +92,7 @@ def test_parallel_runs(runner, live_mock_server, test_settings, test_name):
 def test_resume_must_failure(live_mock_server, test_settings):
     with pytest.raises(wandb.Error) as e:
         wandb.init(reinit=True, resume="must", settings=test_settings)
-    assert "resume='must' but run" in e.value.message
+        assert "resume='must' but run" in e.value.message
 
 
 def test_resume_never_failure(runner, live_mock_server, test_settings):
@@ -101,7 +101,7 @@ def test_resume_never_failure(runner, live_mock_server, test_settings):
         print("CTX", live_mock_server.get_ctx())
         with pytest.raises(wandb.Error) as e:
             wandb.init(reinit=True, resume="never", settings=test_settings)
-        assert "resume='never' but run" in e.value.message
+            assert "resume='never' but run" in e.value.message
 
 
 def test_resume_auto_success(runner, live_mock_server, test_settings):
@@ -112,14 +112,12 @@ def test_resume_auto_success(runner, live_mock_server, test_settings):
 
 
 def test_resume_auto_failure(live_mock_server, test_settings):
-    local_settings = test_settings.copy()
-    local_settings.update(run_id=None, source=wandb.sdk.wandb_settings.Source.BASE)
-    with open(local_settings.resume_fname, "w") as f:
-        f.write(json.dumps({"run_id": "resumeme"}))
-    run = wandb.init(reinit=True, resume=True, settings=local_settings)
-    assert run.id == "resumeme"
+    with open(test_settings.resume_fname, "w") as f:
+        f.write(json.dumps({"run_id": "resume-me"}))
+    run = wandb.init(resume="auto", settings=test_settings)
+    assert run.id == "resume-me"
     run.finish(exit_code=3)
-    assert os.path.exists(local_settings.resume_fname)
+    assert os.path.exists(test_settings.resume_fname)
 
 
 def test_resume_no_metadata(live_mock_server, test_settings):
@@ -352,28 +350,28 @@ def test_dir_on_init_dir(runner, live_mock_server, test_settings):
         )
 
 
-def test_version_upgraded(live_mock_server, capsys, restore_version):
-    wandb.__version__ = "0.10.2"
-    run = wandb.init(settings=dict(console="off"))
-    run.finish()
-    captured = capsys.readouterr()
-    assert "is available!  To upgrade, please run:" in captured.err
+def test_version_upgraded(live_mock_server, capsys):
+    with mock.patch("wandb.__version__", "0.10.2"):
+        run = wandb.init(settings=dict(console="off"))
+        captured = capsys.readouterr()
+        assert "is available!  To upgrade, please run:" in captured.err
+        run.finish()
 
 
-def test_version_yanked(live_mock_server, capsys, restore_version):
-    wandb.__version__ = "0.10.0"
-    run = wandb.init(settings=dict(console="off"))
-    run.finish()
-    captured = capsys.readouterr()
-    assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
+def test_version_yanked(live_mock_server, capsys):
+    with mock.patch("wandb.__version__", "0.10.0"):
+        run = wandb.init(settings=dict(console="off"))
+        captured = capsys.readouterr()
+        assert "WARNING wandb version 0.10.0 has been recalled" in captured.err
+        run.finish()
 
 
-def test_version_retired(live_mock_server, capsys, restore_version):
-    wandb.__version__ = "0.9.99"
-    run = wandb.init(settings=dict(console="off"))
-    run.finish()
-    captured = capsys.readouterr()
-    assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+def test_version_retired(live_mock_server, capsys):
+    with mock.patch("wandb.__version__", "0.9.99"):
+        run = wandb.init(settings=dict(console="off"))
+        captured = capsys.readouterr()
+        assert "ERROR wandb version 0.9.99 has been retired" in captured.err
+        run.finish()
 
 
 def test_end_to_end_preempting(live_mock_server):

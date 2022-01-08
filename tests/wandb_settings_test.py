@@ -544,20 +544,23 @@ def test_not_jupyter(test_settings):
     run.finish()
 
 
-def test_console(test_settings):
-    run = wandb.init(settings=test_settings)
-    assert run._settings.console == "auto"
-    assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
-    test_settings.update({"console": "off"}, source=Source.BASE)
-    assert test_settings._console == wandb_settings.SettingsConsole.OFF
-    test_settings.update({"console": "wrap"}, source=Source.BASE)
-    assert test_settings._console == wandb_settings.SettingsConsole.WRAP
-    run.finish()
+@mock.patch.dict(os.environ, {}, clear=True)
+def test_console(runner, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(mode="offline")
+        assert run._settings.console == "auto"
+        assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
+        test_settings.update({"console": "off"}, source=Source.BASE)
+        assert test_settings._console == wandb_settings.SettingsConsole.OFF
+        test_settings.update({"console": "wrap"}, source=Source.BASE)
+        assert test_settings._console == wandb_settings.SettingsConsole.WRAP
+        run.finish()
 
 
-def test_console_run(test_settings):
-    with mock.patch.dict("os.environ", WANDB_START_METHOD="thread"):
-        run = wandb.init(settings=test_settings)
+@mock.patch.dict(os.environ, {"WANDB_START_METHOD": "thread"}, clear=True)
+def test_console_run(runner):
+    with runner.isolated_filesystem():
+        run = wandb.init(mode="offline")
         assert run._settings.console == "auto"
         assert run._settings._console == wandb_settings.SettingsConsole.WRAP
         run.finish()
