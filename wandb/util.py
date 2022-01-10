@@ -56,7 +56,7 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile('[<>:"/\?*]')
+RE_WINFNAMES = re.compile('[<>:"\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
