@@ -8,4 +8,4 @@ build:
 		--platform=linux/arm64,linux/amd64 --push
 
 dev:
-	docker run -it -v $(CURDIR)/../:/workspaces/client -v tox-cache:/workspaces/client.tox:cached --privileged wandb/devcontainer-cli zsh
+	docker run -it -v $(CURDIR)/../:/workspaces/client -v tox-cache:/workspaces/client/.tox:cached --privileged wandb/devcontainer-cli zsh

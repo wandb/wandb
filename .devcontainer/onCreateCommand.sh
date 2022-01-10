@@ -22,12 +22,17 @@ fi
 unset __conda_setup
 conda activate $DEFAULT_PYTHON
 
-echo -e "${YELO}Installing dev dependencies ${NC}"
+echo -e "${YELO}Installing dev dependencies for ${DEFAULT_PYTHON} ${NC}"
 cd /workspaces/client/
 pip install -e .
 
 echo -e "${YELO}Setting up default tox environment ${NC}"
 tox --verbose -e $DEFAULT_PYTHON -- tests/test-lib.py
+
+echo -e "${YELO}Setting up tox environment for py36 ${NC}"
+conda activate py36
+pip install -e .
+tox --verbose -e py36 -- tests/test-lib.py
 
 if [ ! -d /var/lib/docker/volumes/wandb-dev ]; then
     echo -e "${YELO}Pulling pre-populated DB ${NC}"

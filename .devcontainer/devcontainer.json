@@ -59,7 +59,8 @@
     "vscode-icons-team.vscode-icons",
     "formulahendry.auto-close-tag",
     "formulahendry.auto-rename-tag",
-    "alefragnani.bookmarks"
+    "alefragnani.bookmarks",
+    "ms-python.python"
   ],
 
   "forwardPorts": [],
