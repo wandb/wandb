@@ -20,7 +20,7 @@ logger = logging.getLogger("wandb")
 # TODO(jhr): consider a callback for persisting changes?
 # if this is done right we might make sure this is pickle-able
 # we might be able to do this on other objects like Run?
-class Config(object):
+class Config:
     """
     Config object
 
@@ -89,21 +89,21 @@ class Config(object):
     """
 
     def __init__(self):
-        object.__setattr__(self, "_items", dict())
-        object.__setattr__(self, "_locked", dict())
-        object.__setattr__(self, "_users", dict())
-        object.__setattr__(self, "_users_inv", dict())
-        object.__setattr__(self, "_users_cnt", 0)
-        object.__setattr__(self, "_callback", None)
-        object.__setattr__(self, "_settings", None)
+        super().__setattr__("_items", dict())
+        super().__setattr__("_locked", dict())
+        super().__setattr__("_users", dict())
+        super().__setattr__("_users_inv", dict())
+        super().__setattr__("_users_cnt", 0)
+        super().__setattr__("_callback", None)
+        super().__setattr__("_settings", None)
 
         self._load_defaults()
 
     def _set_callback(self, cb):
-        object.__setattr__(self, "_callback", cb)
+        super().__setattr__("_callback", cb)
 
     def _set_settings(self, settings):
-        object.__setattr__(self, "_settings", settings)
+        super().__setattr__("_settings", settings)
 
     def __repr__(self):
         return str(dict(self))
@@ -194,7 +194,7 @@ class Config(object):
         if user not in self._users:
             self._users[user] = self._users_cnt
             self._users_inv[self._users_cnt] = user
-            object.__setattr__(self, "_users_cnt", self._users_cnt + 1)
+            super().__setattr__(self, "_users_cnt", self._users_cnt + 1)
 
         num = self._users[user]
 
@@ -212,7 +212,10 @@ class Config(object):
             self.update(conf_dict)
 
     def _sanitize_dict(
-        self, config_dict, allow_val_change=None, ignore_keys: set = None,
+        self,
+        config_dict,
+        allow_val_change=None,
+        ignore_keys: set = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
