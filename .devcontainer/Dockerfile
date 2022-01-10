@@ -30,6 +30,7 @@ RUN apt-get update \
     && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
 # VSCode dev tools are installed with pipx
+# TODO: CONDA_EXE isn't persisting / being used and it breaks activation
 ENV PIPX_HOME=/usr/local/py-utils
 ENV PIPX_BIN_DIR=${PIPX_HOME}/bin \
     DEFAULT_PYTHON=$PYTHON_VERSION \

@@ -11,7 +11,6 @@ export PIPX_BIN_DIR="${PIPX_HOME}/bin"
 # Downgrade black so we're using the same version as tox
 sudo PIPX_HOME=$PIPX_HOME PIPX_BIN_DIR=$PIPX_BIN_DIR /usr/local/py-utils/bin/pipx install --force black==19.10b0
 
-echo "BLAMO $PYTHON_VERSION"
 mamba env update --file /tmp/scripts/environment_dev.yml --file /tmp/scripts/environment.yml --name $PYTHON_VERSION
 
 eval "$(pyenv init -)"
