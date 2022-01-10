@@ -570,6 +570,11 @@ class Run(object):
         self._attach_id = _attach_id
 
     @property
+    def settings(self) -> Settings:
+        """Returns the run's Settings object."""
+        return self._settings
+
+    @property
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir

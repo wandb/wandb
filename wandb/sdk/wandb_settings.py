@@ -199,6 +199,14 @@ class Property:
                 _value = h(_value)
         return _value
 
+    @property
+    def is_policy(self) -> bool:
+        return self._is_policy
+
+    @property
+    def source(self) -> int:
+        return self._source
+
     def _preprocess(self, value: Any) -> Any:
         if value is not None and self._preprocessor is not None:
             _preprocessor = (
@@ -252,14 +260,16 @@ class Property:
             raise AttributeError("Use update() to update property value")
         self.__dict__[key] = value
 
+    def __str__(self) -> str:
+        return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
+
     def __repr__(self) -> str:
-        # return (
-        #     f"<Property {self.name}: value={self.value} "
-        #     f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
-        # )
+        return (
+            f"<Property {self.name}: value={self.value} "
+            f"_value={self._value} source={self._source} is_policy={self._is_policy}>"
+        )
         # return f"<Property {self.name}: value={self.value}>"
         # return self.__dict__.__repr__()
-        return f"'{self.value}'" if isinstance(self.value, str) else f"{self.value}"
 
 
 class Settings:
@@ -782,7 +792,7 @@ class Settings:
             raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
         for k, v in kwargs.items():
             # todo: double-check this logic:
-            source = Source.ARGS if self.__dict__[k]._is_policy else Source.BASE
+            source = Source.ARGS if self.__dict__[k].is_policy else Source.BASE
             self.update({k: v}, source=source)
 
         # setup private attributes
@@ -799,9 +809,42 @@ class Settings:
         # freeze settings to prevent accidental changes
         # self.freeze()
 
+    def __str__(self) -> str:
+        # get attributes that are instances of the Property class:
+        attributes = {
+            k: v.value
+            for k, v in self.__dict__.items()
+            if isinstance(v, Property)
+        }
+        # add @property-based settings:
+        properties = {
+            property_name: object.__getattribute__(self, property_name)
+            for property_name, obj in self.__class__.__dict__.items()
+            if isinstance(obj, property)
+        }
+        representation = {**attributes, **properties}
+        return f"<Settings {representation}>"
+
     def __repr__(self) -> str:
-        # return f"<Settings {[{a: p} for a, p in self.__dict__.items()]}>"
-        return f"<Settings {self.__dict__}>"
+        # private attributes
+        private = {
+            k: v for k, v in self.__dict__.items()
+            if k.startswith("_Settings")
+        }
+        # get attributes that are instances of the Property class:
+        attributes = {
+            k: f"<Property value={v.value} source={v.source}>"
+            for k, v in self.__dict__.items()
+            if isinstance(v, Property)
+        }
+        # add @property-based settings:
+        properties = {
+            property_name: object.__getattribute__(self, property_name)
+            for property_name, obj in self.__class__.__dict__.items()
+            if isinstance(obj, property)
+        }
+        representation = {**private, **attributes, **properties}
+        return f"<Settings {representation}>"
 
     def __copy__(self) -> "Settings":
         """
@@ -813,7 +856,7 @@ class Settings:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
         new = Settings()
         for k, v in attributes.items():
-            new.update({k: v._value}, source=v._source)
+            new.update({k: v._value}, source=v.source)
         new.unfreeze()
 
         return new
@@ -914,7 +957,7 @@ class Settings:
         }
         for k, v in attributes.items():
             # note that only the same/higher priority settings are propagated
-            self.update({k: v._value}, source=v._source)
+            self.update({k: v._value}, source=v.source)
 
     @staticmethod
     def _load_config_file(file_name: str, section: str = "default") -> dict:
