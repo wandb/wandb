@@ -22,6 +22,7 @@ from typing import (
     Sequence,
     Tuple,
     TYPE_CHECKING,
+    Union,
 )
 
 import six
@@ -102,6 +103,7 @@ class HandleManager(object):
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
         self._sampled_history = dict()
+        self._partial_history = dict()
         self._metric_defines = dict()
         self._metric_globs = dict()
         self._metric_track = dict()
@@ -156,6 +158,9 @@ class HandleManager(object):
                 # shutdown tensorboard workers so we get all metrics flushed
                 self._tb_watcher.finish()
                 self._tb_watcher = None
+        elif state == defer.FLUSH_PARTIAL_HISTORY:
+            # pass  # TODO add flush logic!
+            self._save_partial_history()
         elif state == defer.FLUSH_SUM:
             self._save_summary(self._consolidated_summary, flush=True)
 
@@ -198,8 +203,20 @@ class HandleManager(object):
         elif not self._settings._offline:
             self._sender_q.put(record)
 
-    def _save_history(self, record: Record) -> None:
-        for item in record.history.item:
+    def _save_partial_history(self) -> None:
+        partial_history = wandb_internal_pb2.PartialHistoryRequest()
+        partial_history.action.flush = True
+        request = wandb_internal_pb2.Request(partial_history=partial_history)
+        record = wandb_internal_pb2.Record(request=request)
+        self._flush_partial_history(record)
+
+    def _save_history(
+        self,
+        history: Union[
+            wandb_internal_pb2.PartialHistoryRequest, wandb_internal_pb2.HistoryRecord
+        ],
+    ) -> None:
+        for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
             v = json.loads(item.value_json)
@@ -353,12 +370,18 @@ class HandleManager(object):
                 updated = True
         return updated
 
-    def _history_assign_step(self, record: Record, history_dict: Dict) -> None:
-        has_step = record.history.HasField("step")
-        item = record.history.item.add()
+    def _history_assign_step(
+        self,
+        history: Union[
+            wandb_internal_pb2.PartialHistoryRequest, wandb_internal_pb2.HistoryRecord
+        ],
+        history_dict: Dict,
+    ) -> None:
+        has_step = history.HasField("step")
+        item = history.item.add()
         item.key = "_step"
         if has_step:
-            step = record.history.step.num
+            step = history.step.num
             history_dict["_step"] = step
             item.value_json = json.dumps(step)
             self._step = step + 1
@@ -422,10 +445,17 @@ class HandleManager(object):
             kl=kl, v=v, history_dict=history_dict, update_history=update_history
         )
 
-    def _history_update(self, record: Record, history_dict: Dict) -> None:
-        # if syncing an old run, we can skip this logic
+    def _history_update(
+        self,
+        history: Union[
+            wandb_internal_pb2.PartialHistoryRequest, wandb_internal_pb2.HistoryRecord
+        ],
+        history_dict: Dict,
+    ) -> None:
+
+        #  if syncing an old run, we can skip this logic
         if history_dict.get("_step") is None:
-            self._history_assign_step(record, history_dict)
+            self._history_assign_step(history, history_dict)
 
         update_history: Dict[str, Any] = {}
         # Look for metric matches
@@ -436,7 +466,7 @@ class HandleManager(object):
         if update_history:
             history_dict.update(update_history)
             for k, v in six.iteritems(update_history):
-                item = record.history.item.add()
+                item = history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
 
@@ -446,15 +476,48 @@ class HandleManager(object):
         # Inject _runtime if it is not present
         if history_dict is not None:
             if "_runtime" not in history_dict:
-                self._history_assign_runtime(record, history_dict)
+                self._history_assign_runtime(record.history, history_dict)
 
-        self._history_update(record, history_dict)
+        self._history_update(record.history, history_dict)
         self._dispatch_record(record)
-        self._save_history(record)
-
+        self._save_history(record.history)
+        logger.info(record)
         updated = self._update_summary(history_dict)
         if updated:
             self._save_summary(self._consolidated_summary)
+
+    def _flush_partial_history(self, record: Record) -> None:
+
+        # Inject _runtime if it is not present
+        if "_runtime" not in self._partial_history:
+            self._history_assign_runtime(
+                record.request.partial_history, self._partial_history
+            )
+
+        for k, v in self._partial_history.items():
+            item = record.request.partial_history.item.add()
+            item.key = k
+            item.value_json = json.dumps(v)
+
+        self._history_update(record.request.partial_history, self._partial_history)
+        self._dispatch_record(record)
+        self._save_history(record.request.partial_history)
+
+        updated = self._update_summary(self._partial_history)
+        if updated:
+            self._save_summary(self._consolidated_summary)
+        self._partial_history = {}
+
+    def handle_request_partial_history(self, record: Record) -> None:
+        # TODO convert partial history to record object!!!
+
+        history_dict = proto_util.dict_from_proto_list(
+            record.request.partial_history.item
+        )
+        self._partial_history.update(history_dict)
+
+        if record.request.partial_history.action.flush:
+            self._flush_partial_history(record)
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary
@@ -737,7 +800,13 @@ class HandleManager(object):
 
     next = __next__
 
-    def _history_assign_runtime(self, record: Record, history_dict: Dict) -> None:
+    def _history_assign_runtime(
+        self,
+        history: Union[
+            wandb_internal_pb2.PartialHistoryRequest, wandb_internal_pb2.HistoryRecord
+        ],
+        history_dict: Dict,
+    ) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:
             return
@@ -748,6 +817,6 @@ class HandleManager(object):
         history_dict["_runtime"] = int(
             history_dict["_timestamp"] - self._run_start_time
         )
-        item = record.history.item.add()
+        item = history.item.add()
         item.key = "_runtime"
         item.value_json = json.dumps(history_dict[item.key])

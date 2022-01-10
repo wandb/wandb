@@ -168,6 +168,16 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = pb.TBResult()
         return result
 
+    def PartialLog(  # noqa: N802
+        self, partial_history: pb.PartialHistoryRequest, context: grpc.ServicerContext
+    ) -> pb.PartialHistoryResponse:
+        stream_id = partial_history._info.stream_id
+        iface = self._mux.get_stream(stream_id).interface
+        iface._publish_partial_history(partial_history)
+        # make up a response even though this was async
+        result = pb.PartialHistoryResponse()
+        return result
+
     def Log(  # noqa: N802
         self, history: pb.HistoryRecord, context: grpc.ServicerContext
     ) -> pb.HistoryResult:

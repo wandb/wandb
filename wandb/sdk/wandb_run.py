@@ -320,8 +320,9 @@ class Run(object):
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history = wandb_history.History(self)
-        self.history._set_callback(self._history_callback)
+        # self.history = wandb_history.History(self)
+        self.history_step = 0
+        # self.history._set_callback(self._history_callback)
 
         _datatypes_set_callback(self._datatypes_callback)
 
@@ -699,7 +700,7 @@ class Run(object):
 
         This counter is incremented by `wandb.log`.
         """
-        return self.history._step
+        return self.history_step
 
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
@@ -991,9 +992,7 @@ class Run(object):
         files = dict(files=[(fname, "now")])
         self._backend.interface.publish_files(files)
 
-    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
-
+    def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         custom_charts = {}
         for k in row:
@@ -1019,6 +1018,23 @@ class Run(object):
             # add the panel
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
+        return row
+
+    def _partial_history_callback(
+        self, row: Dict[str, Any], step: int, commit: bool = False
+    ) -> None:
+        row = self._visualization_hack(row)
+
+        if self._backend and self._backend.interface:
+            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+            self._backend.interface.publish_partial_history(
+                row, step, flush=commit, publish_step=not_using_tensorboard,
+            )
+
+    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
+    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
+
+        row = self._visualization_hack(row)
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1078,7 +1094,8 @@ class Run(object):
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self.history._update_step()
+        # self.history._update_step()
+        self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             "user",
@@ -1328,25 +1345,30 @@ class Run(object):
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
-            if self.history._step > step:
+            if self.history_step > step:
                 wandb.termwarn(
                     (
                         "Step must only increase in log calls.  "
                         "Step {} < {}; dropping {}.".format(
-                            step, self.history._step, data
+                            step, self.history_step, data
                         )
                     )
                 )
                 return
-            elif step > self.history._step:
-                self.history._flush()
-                self.history._step = step
-        elif commit is None:
+            if step > self.history_step:
+                self._partial_history_callback(
+                    {}, self.history_step, commit=True,
+                )
+                self.history_step = step
+        elif commit is None:  # step is None and commit is None
             commit = True
+
+        data["_timestamp"] = int(data.get("_timestamp", time.time()))
         if commit:
-            self.history._row_add(data)
+            self._partial_history_callback(data, self.history_step, commit=True)
+            self.history_step += 1
         else:
-            self.history._row_update(data)
+            self._partial_history_callback(data, self.history_step)
 
     def save(
         self,
@@ -1946,7 +1968,7 @@ class Run(object):
             self._run_status_checker.stop()
 
         # make sure all uncommitted history is flushed
-        self.history._flush()
+        # self.history._flush()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
         if not self._settings._silent:

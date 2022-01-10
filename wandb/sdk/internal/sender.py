@@ -396,6 +396,9 @@ class SendManager(object):
         elif state == defer.FLUSH_TB:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
+        elif state == defer.FLUSH_PARTIAL_HISTORY:
+            # NOTE: this is handled in handler.py:handle_request_defer()
+            transition_state()
         elif state == defer.FLUSH_SUM:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
@@ -813,6 +816,11 @@ class SendManager(object):
 
     def send_history(self, record: "Record") -> None:
         history = record.history
+        history_dict = proto_util.dict_from_proto_list(history.item)
+        self._save_history(history_dict)
+
+    def send_request_partial_history(self, record: "Record") -> None:
+        history = record.request.partial_history
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 

@@ -489,6 +489,32 @@ class InterfaceBase(object):
     def _publish_telemetry(self, telem: tpb.TelemetryRecord) -> None:
         raise NotImplementedError
 
+    def publish_partial_history(
+        self,
+        data: dict,
+        step: int = None,
+        run: "Run" = None,
+        flush: bool = False,
+        publish_step: bool = True,
+    ) -> None:
+        run = run or self._run
+        data = data_types.history_dict_to_json(run, data, step=step)
+        partial_history = pb.PartialHistoryRequest()
+        if publish_step:
+            assert step is not None
+            partial_history.step.num = step
+        data.pop("_step", None)
+        for k, v in six.iteritems(data):
+            item = partial_history.item.add()
+            item.key = k
+            item.value_json = json_dumps_safer_history(v)  # type: ignore
+        partial_history.action.flush = flush
+        self._publish_partial_history(partial_history)
+
+    @abstractmethod
+    def _publish_partial_history(self, history: pb.HistoryRecord) -> None:
+        raise NotImplementedError
+
     def publish_history(
         self, data: dict, step: int = None, run: "Run" = None, publish_step: bool = True
     ) -> None:
