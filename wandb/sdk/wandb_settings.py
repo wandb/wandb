@@ -110,6 +110,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     start_method=None,
     strict=None,
     label_disable=None,
+    _debug_log="WANDB_DEBUG_LOG",
     _require_service="WANDB_REQUIRE_SERVICE",
     _service_transport="WANDB_SERVICE_TRANSPORT",
     login_timeout=None,
@@ -118,7 +119,6 @@ env_settings: Dict[str, Optional[str]] = dict(
     run_notes="WANDB_NOTES",
     run_tags="WANDB_TAGS",
     run_job_type="WANDB_JOB_TYPE",
-    _runqueue_item_id="WANDB_RUNQUEUE_ITEM_ID",
 )
 
 
@@ -237,6 +237,7 @@ class Settings(object):
 
     mode: str = "online"
     start_method: Optional[str] = None
+    _debug_log: Optional[str] = None
     _require_service: Optional[str] = None
     _service_transport: Optional[str] = None
     console: str = "auto"
@@ -298,7 +299,6 @@ class Settings(object):
     _start_datetime: Optional[datetime]
     _unsaved_keys: List[str]
     _except_exit: Optional[bool]
-    _runqueue_item_id: Optional[str] = None
 
     # Internal attributes
     __frozen: bool
@@ -332,6 +332,7 @@ class Settings(object):
         anonymous: str = None,
         mode: str = None,
         start_method: str = None,
+        _debug_log: str = None,
         _require_service: str = None,
         _service_transport: str = None,
         entity: str = None,
@@ -436,7 +437,6 @@ class Settings(object):
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
-        _runqueue_item_id: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")

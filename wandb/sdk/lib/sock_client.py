@@ -6,9 +6,16 @@ import uuid
 
 from wandb.proto import wandb_server_pb2 as spb
 
+from . import debug_log
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
+
+
+class SockClientClosedError(Exception):
+    """Socket has been closed"""
+
+    pass
 
 
 class SockClient:
@@ -39,6 +46,7 @@ class SockClient:
         self._sock = sock
 
     def _send_message(self, msg: Any) -> None:
+        debug_log.log_message_send(msg, self._sockid)
         raw_size = msg.ByteSize()
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
@@ -105,6 +113,14 @@ class SockClient:
         return None
 
     def _read_packet_bytes(self, timeout: int = None) -> Optional[bytes]:
+        """Read full message from socket.
+
+        Args:
+            timeout: number of seconds to wait on socket data.
+
+        Raises:
+            SockClientClosedError: socket has been closed.
+        """
         while True:
             rec = self._extract_packet_bytes()
             if rec:
@@ -117,11 +133,16 @@ class SockClient:
             except socket.timeout:
                 break
             except ConnectionResetError:
-                break
+                raise SockClientClosedError()
             except OSError:
-                break
-            if timeout:
-                self._sock.settimeout(None)
+                raise SockClientClosedError()
+            finally:
+                if timeout:
+                    self._sock.settimeout(None)
+            if len(data) == 0:
+                # socket.recv() will return 0 bytes if socket was shutdown
+                # caller will handle this condition like other connection problems
+                raise SockClientClosedError()
             self._data += data
         return None
 
@@ -131,6 +152,7 @@ class SockClient:
             return None
         rec = spb.ServerRequest()
         rec.ParseFromString(data)
+        debug_log.log_message_recv(rec, self._sockid)
         return rec
 
     def read_server_response(self, timeout: int = None) -> Optional[spb.ServerResponse]:
@@ -139,4 +161,5 @@ class SockClient:
             return None
         rec = spb.ServerResponse()
         rec.ParseFromString(data)
+        debug_log.log_message_recv(rec, self._sockid)
         return rec

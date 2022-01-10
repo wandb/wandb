@@ -4,6 +4,7 @@ into a runnable wandb launch script
 """
 
 import enum
+import json
 import logging
 import os
 from shlex import quote
@@ -44,6 +45,8 @@ class LaunchProject(object):
         docker_config: Dict[str, Any],
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
+        resource: str,
+        resource_args: Dict[str, str],
     ):
         if utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -67,6 +70,8 @@ class LaunchProject(object):
         self.git_repo: Optional[str] = git_info.get("repo")
         self.override_args: Dict[str, Any] = overrides.get("args", {})
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
+        self.resource = resource
+        self.resource_args = resource_args
         self._runtime: Optional[str] = None
         self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
@@ -101,8 +106,9 @@ class LaunchProject(object):
     def base_image(self) -> str:
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
+        python_version = (self.python_version or "3").replace("+", "dev")
         generated_name = "{}_base:{}".format(
-            self.target_project.replace(" ", "-"), self.python_version or "3"
+            self.target_project.replace(" ", "-"), python_version
         )
         return self._base_image or generated_name
 
@@ -362,6 +368,8 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("docker", {}),
         launch_spec.get("git", {}),
         launch_spec.get("overrides", {}),
+        launch_spec.get("resource", "local"),
+        launch_spec.get("resource_args", {}),
     )
 
 
@@ -390,3 +398,21 @@ def fetch_and_validate_project(
         launch_project.override_args
     )
     return launch_project
+
+
+def create_metadata_file(
+    launch_project: LaunchProject,
+    sanitized_command_str: str,
+    sanitized_dockerfile_contents: str,
+) -> None:
+    with open(
+        os.path.join(launch_project.project_dir, DEFAULT_LAUNCH_METADATA_PATH), "w",
+    ) as f:
+        json.dump(
+            {
+                **launch_project.launch_spec,
+                "command": sanitized_command_str,
+                "dockerfile_contents": sanitized_dockerfile_contents,
+            },
+            f,
+        )

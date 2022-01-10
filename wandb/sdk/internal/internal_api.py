@@ -425,6 +425,7 @@ class Api(object):
             "serverInfo" in query_types
             and "latestLocalVersionInfo" in server_info_types
         )
+
         cli_query_string = "" if not cli_version_exists else cli_query
         local_query_string = "" if not local_version_exists else local_query
 
@@ -1180,7 +1181,6 @@ class Api(object):
         sweep_name=None,
         summary_metrics=None,
         num_retries=None,
-        runqueue_item_id=None,
     ):
         """Update a run
 
@@ -1198,9 +1198,9 @@ class Api(object):
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
-            runqueue_item_id (str, optional): The graphql id of the run queue item to acknowledge
         """
-        mutation_str = """
+        mutation = gql(
+            """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -1221,7 +1221,6 @@ class Api(object):
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
-            __RUNQUEUE_ITEM_ID_ARG_STRING__
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -1243,7 +1242,6 @@ class Api(object):
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
-                __RUNQUEUE_ITEM_ID_BIND_STRING__
             }) {
                 bucket {
                     id
@@ -1265,21 +1263,7 @@ class Api(object):
             }
         }
         """
-
-        _, server_info_types = self.server_info_introspection()
-        use_run_queue_item_id = (
-            "exposesExplicitRunQueueAckPath" in server_info_types
-            and runqueue_item_id is not None
         )
-
-        mutation_str = mutation_str.replace(
-            "__RUNQUEUE_ITEM_ID_ARG_STRING__",
-            "$runQueueItemId: ID" if use_run_queue_item_id else "",
-        ).replace(
-            "__RUNQUEUE_ITEM_ID_BIND_STRING__",
-            "runQueueItemId: $runQueueItemId" if use_run_queue_item_id else "",
-        )
-
         if config is not None:
             config = json.dumps(config)
         if not description or description.isspace():
@@ -1311,10 +1295,6 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
-        if use_run_queue_item_id:
-            variable_values["runQueueItemId"] = runqueue_item_id
-
-        mutation = gql(mutation_str)
         response = self.gql(mutation, variable_values=variable_values, **kwargs)
 
         run = response["upsertBucket"]["bucket"]
@@ -1325,10 +1305,7 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return (
-            response["upsertBucket"]["bucket"],
-            response["upsertBucket"]["inserted"],
-        )
+        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):
@@ -1594,7 +1571,11 @@ class Api(object):
             response = requests.put(url, data=progress, headers=extra_headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error("upload_file exception {} {}".format(url, e))
+            logger.error("upload_file exception {}: {}".format(url, e))
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error("upload_file request headers: {}".format(request_headers))
+            response_content = e.response.content if e.response is not None else ""
+            logger.error("upload_file response body: {}".format(response_content))
             status_code = e.response.status_code if e.response != None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
