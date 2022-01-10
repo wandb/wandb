@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.9
+  - tensorboard
+  - pandas
+  - scikit-learn
+  - jupyterlab
+  - tensorflow-cpu
+  - pytorch
+  - cpuonly

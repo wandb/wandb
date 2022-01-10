@@ -1,0 +1,70 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README
+{
+  "name": "W&B Dev Container",
+  "image": "wandb/devcontainer-cli:latest",
+  "settings": {
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": "active",
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "python.pythonPath": "/opt/python/latest/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.autopep8Path": "/usr/local/py-utils/bin/autopep8",
+    "python.formatting.blackPath": "/usr/local/py-utils/bin/black",
+    "python.formatting.yapfPath": "/usr/local/py-utils/bin/yapf",
+    "python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
+    "python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
+    "python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
+    "python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
+    "python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
+    "python.linting.pylintPath": "/usr/local/py-utils/bin/pylint",
+    "lldb.executable": "/usr/bin/lldb",
+    "files.watcherExclude": {
+      "**/target/**": true
+    }
+  },
+
+  "remoteUser": "vscode",
+  "overrideCommand": false,
+  "mounts": [
+    // "source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind",
+    "source=codespaces-linux-var-lib-docker,target=/var/lib/docker,consistency=delegated,type=volume",
+    "source=codespaces-linux-cache,target=/home/vscode/.cache,consistency=delegated,type=volume",
+    // Change to home?
+    "source=codespaces-linux-tox,target=/workspaces/client/.tox,consistency=delegated,type=volume",
+    "source=codespaces-linux-vscode-extensions,target=/home/vscode/.vscode-server/extensions,type=volume"
+  ],
+  "runArgs": [
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined",
+    "--privileged",
+    "--init"
+  ],
+
+  "extensions": [
+    "naumovs.color-highlight",
+    "dbaeumer.vscode-eslint",
+    "eamodio.gitlens",
+    "kumar-harsh.graphql-for-vscode",
+    "ms-vsliveshare.vsliveshare",
+    "esbenp.prettier-vscode",
+    "prisma.prisma",
+    "ms-vscode.vscode-typescript-tslint-plugin",
+    "ms-azuretools.vscode-docker",
+    "arthurwang.vsc-prolog",
+    "aaron-bond.better-comments",
+    "stkb.rewrap",
+    "mutantdino.resourcemonitor",
+    "vscode-icons-team.vscode-icons",
+    "formulahendry.auto-close-tag",
+    "formulahendry.auto-rename-tag",
+    "alefragnani.bookmarks"
+  ],
+
+  "forwardPorts": [],
+
+  "onCreateCommand": "bash ./.devcontainer/onCreateCommand.sh",
+  "postCreateCommand": "bash ./.devcontainer/postCreateCommand.sh",
+  "postAttachCommand": "bash ./.devcontainer/postAttachCommand.sh"
+}

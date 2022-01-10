@@ -1,0 +1,6 @@
+👋 Welcome to the W&B CLI Dev Container
+   - This container uses conda to manage python environments and has py36-310 installed:
+    conda activate py36
+    tox -epy36 -- tests/XXXX
+
+📝 Edit away, run your app as usual, and we'll automatically make it available for you to access.
