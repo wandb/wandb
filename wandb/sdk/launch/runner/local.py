@@ -110,7 +110,7 @@ class LocalRunner(AbstractRunner):
 
         if launch_project.docker_image is None or launch_project.build_image:
             # image_uri = construct_local_image_uri(launch_project)
-            image_uri = "test_dev" # @@@ todo
+            image_uri = "us-east1-docker.pkg.dev/playground-111/launch-vertex-test/test_dev:test" # @@@ todo
             command_args = get_full_command(
                 image_uri,
                 launch_project,

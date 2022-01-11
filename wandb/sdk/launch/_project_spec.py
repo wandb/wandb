@@ -107,7 +107,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
 
-        return "test_dev"   # @@@ temp
+        return "us-east1-docker.pkg.dev/playground-111/launch-vertex-test/test_dev:test"   # @@@ temp
 
 
 
