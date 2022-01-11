@@ -532,7 +532,14 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(columns=json_obj["columns"], data=data)
+        # construct Table with dtypes for each column if type information exists
+        dtypes = None
+        if column_types is not None:
+            dtypes = [
+                column_types.params["type_map"][col] for col in json_obj["columns"]
+            ]
+
+        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -593,7 +600,9 @@ class Table(Media):
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
-                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                        **{
+                            str(col_name): self.get_column(col_name, convert_to="numpy")
+                        },
                     )
                     entry = artifact.add_file(
                         npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
@@ -854,8 +863,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts
-    """
+    """Helper class for PartitionTable to track its parts"""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -872,7 +880,7 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """ PartitionedTable represents a table which is composed
+    """PartitionedTable represents a table which is composed
     by the union of multiple sub-tables. Currently, PartitionedTable
     is designed to point to a directory within an artifact.
     """
