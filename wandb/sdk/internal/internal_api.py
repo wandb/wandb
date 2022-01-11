@@ -1,28 +1,26 @@
-#
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
-import datetime
+
 import ast
+from copy import deepcopy
+import datetime
+from io import BytesIO
+import json
 import os
 from pkg_resources import parse_version  # type: ignore
-import json
-import yaml
 import re
-import click
-import logging
 import requests
+import logging
 import socket
 import sys
 
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
+import click
+import yaml
 
-from copy import deepcopy
 import six
-from six import BytesIO
+
+
 import wandb
 from wandb import __version__
 from wandb import env
@@ -155,7 +153,7 @@ class Api:
         if "errors" in data and isinstance(data["errors"], list):
             for err in data["errors"]:
                 # Our tests and potentially some api endpoints return a string error?
-                if isinstance(err, six.string_types):
+                if isinstance(err, str):
                     err = {"message": err}
                 if not err.get("message"):
                     continue
@@ -912,7 +910,6 @@ class Api:
                 success
                 queueID
             }
-            
         }
         """
         )
