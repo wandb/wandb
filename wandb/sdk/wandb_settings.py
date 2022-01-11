@@ -814,9 +814,7 @@ class Settings:
     def __str__(self) -> str:
         # get attributes that are instances of the Property class:
         attributes = {
-            k: v.value
-            for k, v in self.__dict__.items()
-            if isinstance(v, Property)
+            k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
         }
         # add @property-based settings:
         properties = {
@@ -829,10 +827,7 @@ class Settings:
 
     def __repr__(self) -> str:
         # private attributes
-        private = {
-            k: v for k, v in self.__dict__.items()
-            if k.startswith("_Settings")
-        }
+        private = {k: v for k, v in self.__dict__.items() if k.startswith("_Settings")}
         # get attributes that are instances of the Property class:
         attributes = {
             k: f"<Property value={v.value} source={v.source}>"
