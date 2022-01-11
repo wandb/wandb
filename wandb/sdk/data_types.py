@@ -771,13 +771,10 @@ class Object3D(BatchableMedia):
                 )
 
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif _is_numpy_array(data_or_path):
             np_data = data_or_path
@@ -801,13 +798,10 @@ class Object3D(BatchableMedia):
 
             list_data = np_data.tolist()
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                list_data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
@@ -2565,7 +2559,8 @@ class Plotly(Media):
 
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
-        util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod
