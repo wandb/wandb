@@ -45,6 +45,152 @@ def validate_docker_installation() -> None:
         )
 
 
+def get_docker_user(launch_project):
+    import getpass
+    username = getpass.getuser()
+    userid = launch_project.docker_user_id or os.geteuid()
+    return username, userid
+
+
+
+TEMPLATE = """
+FROM buildpack-deps:bionic
+
+ENV SHELL /bin/bash
+
+# todo: handle uids
+RUN useradd \
+    --create-home \
+    --no-log-init \
+    --shell /bin/bash \
+    --gid 0 \
+    --uid {uid} \
+    {user}
+
+# get repo with python versions
+RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
+
+# base packages: git etc
+# todo: get the right python version -- support runtime.txt
+RUN apt-get update -qq && apt-get install -qq -y \
+    {base_packages} \
+    && apt-get -qq purge && apt-get -qq clean \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR {home_dir}
+RUN chown {user} {home_dir}
+ENV PATH="/.local/bin:$PATH"
+
+{env_vars}
+
+# install requirements earlier so they cache UNLESS (todo) any are local refs
+# todo: don't hardcode reqs.txt, check _should_preassemble_pip for local installs
+COPY --chown={user} src/requirements.txt {home_dir}
+COPY --chown={user} src/_wandb_bootstrap.py {home_dir}
+{requirements_section}
+
+# copy code/etc
+# todo: make this location configurable away from $HOME
+COPY --chown={user} src/ {home_dir}
+
+# todo: if local refs present, build pip here
+
+USER {user}
+
+ENV PYTHONUNBUFFERED=1
+
+CMD {command_arr}
+
+"""
+
+def get_current_python_version():
+    # todo: this should be somewhere else
+    return sys.version.split()[0]
+
+
+def generate_base_image_no_r2d(api, launch_project, entry_cmd):
+    username, userid = get_docker_user(launch_project)
+    workdir = "/home/{user}".format(user=username) # @@@ default, this should be configurable
+    base_packages = ["git", "python3.7", "python3-pip", "unzip"]    # todo: get version from current or saved run
+
+    # add env vars
+    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
+        _, _, port = _, _, port = api.settings("base_url").split(":")
+        base_url = "http://host.docker.internal:{}".format(port)
+    elif _is_wandb_dev_uri(api.settings("base_url")):
+        base_url = "http://host.docker.internal:9002"
+    else:
+        base_url = api.settings("base_url")
+    env_vars_section = "\n".join(
+        [
+            f"ENV WANDB_BASE_URL={base_url}",
+            f"ENV WANDB_API_KEY={api.api_key}",
+            f"ENV WANDB_PROJECT={launch_project.target_project}",
+            f"ENV WANDB_ENTITY={launch_project.target_entity}",
+            f"ENV WANDB_LAUNCH={True}",
+            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir, DEFAULT_LAUNCH_METADATA_PATH)}",
+            f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
+            f"ENV WANDB_DOCKER={launch_project.docker_image}",
+        ]
+    )
+
+    requirements_line = ""
+
+    if docker.is_buildx_installed():
+        requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+            workdir, launch_project.docker_user_id
+        )
+    else:
+        wandb.termwarn(
+            "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+        )
+        requirements_line = "RUN WANDB_DISABLE_CACHE=true "
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
+        os.path.join(launch_project.project_dir),
+    )
+
+
+    requirements_line += "pip3 install -r requirements.txt"
+
+    # # TODO: make this configurable or change the default behavior...
+    # requirements_line += _parse_existing_requirements(launch_project)
+    # requirements_line += "python _wandb_bootstrap.py\n"
+
+    dockerfile_contents = TEMPLATE.format(
+        user=username,
+        uid=launch_project.docker_user_id,
+        base_packages=' \\\n'.join(base_packages),
+        env_vars=env_vars_section,
+        home_dir=workdir,   # rename this var to workdir as distinct from homedir
+        command_arr=entry_cmd,
+        requirements_section=requirements_line,
+    )
+    print(dockerfile_contents)
+
+
+
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)  # @@@ todo: this is bad if buildx is not installed
+    dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
+    image_uri = launch_project.base_image
+
+    try:
+        image = docker.build(
+            tags=[image_uri], file=dockerfile, context_path=build_ctx_path
+        )
+    except DockerError as e:
+        raise LaunchError("Error communicating with docker client: {}".format(e))
+
+    try:
+        os.remove(build_ctx_path)
+    except Exception:
+        _logger.info(
+            "Temporary docker context file %s was not deleted.", build_ctx_path
+        )
+
+    return image
+
+
 def generate_docker_base_image(
     launch_project: LaunchProject, entry_cmd: str
 ) -> Optional[str]:
@@ -179,7 +325,7 @@ def build_docker_image_if_needed(
         if env.startswith("HOME="):
             homedir = env.split("=", 1)[1]
     if copy_code:
-        copy_code_line = "COPY --chown={} ./src/ {}\n".format(
+        copy_code_line = "COPY --chown={} ./src/ {}\n".format(  # @@@
             launch_project.docker_user_id, workdir
         )
         if docker.is_buildx_installed():
@@ -249,7 +395,7 @@ def build_docker_image_if_needed(
         launch_project, sanitized_command_string, sanitized_dockerfile_contents
     )
 
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents) # @@@@
 
     _logger.info("=== Building docker image %s ===", image_uri)
 
@@ -323,9 +469,6 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                     else:
                         name = str(pkg)
                     include_only.add(shlex_quote(name))
-                    requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
-                        ",".join(include_only)
-                    )
                 except StopIteration:
                     break
                 # Different versions of pkg_resources throw different errors
@@ -333,6 +476,9 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                 except Exception as e:
                     _logger.warn(f"Unable to parse requirements.txt: {e}")
                     continue
+        requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
+                ",".join(include_only)
+            )
     return requirements_line
 
 
@@ -399,5 +545,5 @@ def get_full_command(
     commands += get_docker_command(
         image_uri, launch_project, api, container_workdir, docker_args
     )
-    commands += get_entry_point_command(entry_point, launch_project.override_args)
+    # commands += get_entry_point_command(entry_point, launch_project.override_args)    # @@@ already in dockerfile
     return commands

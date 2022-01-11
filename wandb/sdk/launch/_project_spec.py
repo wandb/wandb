@@ -106,10 +106,15 @@ class LaunchProject(object):
     def base_image(self) -> str:
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
-        generated_name = "{}_base:{}".format(
-            self.target_project.replace(" ", "-"), self.python_version or "3"
-        )
-        return self._base_image or generated_name
+
+        return "test_dev"   # @@@ temp
+
+
+
+        # generated_name = "{}_base:{}".format(
+        #     self.target_project.replace(" ", "-"), self.python_version or "3"
+        # )
+        # return self._base_image or generated_name
 
     @property
     def image_name(self) -> str:
@@ -138,7 +143,8 @@ class LaunchProject(object):
     def add_entry_point(self, entry_point: str) -> "EntryPoint":
         """Adds an entry point to the project."""
         _, file_extension = os.path.splitext(entry_point)
-        ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
+        # ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
+        ext_to_cmd = {".py": "python3", ".sh": os.environ.get("SHELL", "bash")}     # @@@ todo version
         if file_extension in ext_to_cmd:
             command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
             new_entrypoint = EntryPoint(name=entry_point, command=command)

@@ -16,6 +16,7 @@ from ..docker import (
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
+    generate_base_image_no_r2d,
     get_full_command,
     pull_docker_image,
     validate_docker_installation,
@@ -88,14 +89,16 @@ class LocalRunner(AbstractRunner):
             pull_docker_image(launch_project.docker_image)
             copy_code = False
         else:
-            # TODO: potentially pull the base_image
-            if not docker_image_exists(launch_project.base_image):
-                if generate_docker_base_image(launch_project, entry_cmd) is None:
-                    raise LaunchError("Unable to build base image")
-            else:
-                wandb.termlog(
-                    "Using existing base image: {}".format(launch_project.base_image)
-                )
+            generate_base_image_no_r2d(self._api, launch_project, entry_cmd)
+
+            # # TODO: potentially pull the base_image    # @@@
+            # if not docker_image_exists(launch_project.base_image):
+            #     if generate_docker_base_image(launch_project, entry_cmd) is None:
+            #         raise LaunchError("Unable to build base image")
+            # else:
+            #     wandb.termlog(
+            #         "Using existing base image: {}".format(launch_project.base_image)
+            #     )
 
         command_separator = " "
         command_args = []
@@ -104,8 +107,10 @@ class LocalRunner(AbstractRunner):
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
+
         if launch_project.docker_image is None or launch_project.build_image:
-            image_uri = construct_local_image_uri(launch_project)
+            # image_uri = construct_local_image_uri(launch_project)
+            image_uri = "test_dev" # @@@ todo
             command_args = get_full_command(
                 image_uri,
                 launch_project,
@@ -119,18 +124,18 @@ class LocalRunner(AbstractRunner):
             sanitized_command_str = re.sub(
                 r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
             )
-
-            _logger.info("Building docker image...")
-            build_docker_image_if_needed(
-                launch_project=launch_project,
-                api=self._api,
-                copy_code=copy_code,
-                workdir=container_workdir,
-                container_env=container_env,
-                runner_type="local",
-                image_uri=image_uri,
-                command_args=command_args,
-            )
+            
+            # _logger.info("Building docker image...")
+            # build_docker_image_if_needed(   # @@@
+            #     launch_project=launch_project,
+            #     api=self._api,
+            #     copy_code=copy_code,
+            #     workdir=container_workdir,
+            #     container_env=container_env,
+            #     runner_type="local",
+            #     image_uri=image_uri,
+            #     command_args=command_args,
+            # )
         else:
             # TODO: rewrite env vars and copy code in supplied docker image
             wandb.termwarn(
