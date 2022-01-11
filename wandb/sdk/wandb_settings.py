@@ -808,7 +808,7 @@ class Settings:
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
 
-        # freeze settings to prevent accidental changes
+        # fixme? freeze settings to prevent accidental changes
         # self.freeze()
 
     def __str__(self) -> str:
