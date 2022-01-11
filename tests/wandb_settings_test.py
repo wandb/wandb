@@ -20,7 +20,7 @@ Source = wandb_settings.Source
 
 # test Property class
 def test_property_init():
-    p = Property(name="foo", value=1,)
+    p = Property(name="foo", value=1)
     assert p.name == "foo"
     assert p.value == 1
     assert p._source == Source.BASE
@@ -67,13 +67,13 @@ def test_property_multiple_validators():
 
 
 def test_property_update():
-    p = Property(name="foo", value=1,)
+    p = Property(name="foo", value=1)
     p.update(value=2)
     assert p.value == 2
 
 
 def test_property_update_sources():
-    p = Property(name="foo", value=1, source=Source.ORG,)
+    p = Property(name="foo", value=1, source=Source.ORG)
     assert p.value == 1
     # smaller source => lower priority
     # lower priority:
@@ -85,7 +85,7 @@ def test_property_update_sources():
 
 
 def test_property_update_policy_sources():
-    p = Property(name="foo", value=1, is_policy=True, source=Source.ORG,)
+    p = Property(name="foo", value=1, is_policy=True, source=Source.ORG)
     assert p.value == 1
     # smaller source => higher priority
     # higher priority:
@@ -97,7 +97,7 @@ def test_property_update_policy_sources():
 
 
 def test_property_set_value_directly_forbidden():
-    p = Property(name="foo", value=1,)
+    p = Property(name="foo", value=1)
     with pytest.raises(AttributeError):
         p.value = 2
 

@@ -378,6 +378,12 @@ class Settings:
         self._args: Any = {
             "validator": lambda x: isinstance(x, Sequence),
         }
+        # todo? we could use Property straight away, just takes a bit more typing.
+        #  should we?
+        # self._args: Property = Property(
+        #     name="_args",
+        #     validator=lambda x: isinstance(x, Sequence),
+        # )
         self._cli_only_mode: Any = {
             "validator": lambda x: isinstance(x, bool),
             "help": "Avoid running any code specific for runs",
@@ -447,10 +453,6 @@ class Settings:
         self._start_datetime: Any = {
             "validator": lambda x: isinstance(x, datetime),
         }
-        # self._start_datetime: Any = Property(
-        #     name="_start_datetime",
-        #     validator=lambda x: isinstance(x, datetime),
-        # )
         self._start_time: Any = {
             "validator": lambda x: isinstance(x, float),
         }
@@ -823,7 +825,7 @@ class Settings:
             if isinstance(obj, property)
         }
         representation = {**attributes, **properties}
-        return f"<Settings {representation}>"
+        return f"<Settings {_redact_dict(representation)}>"
 
     def __repr__(self) -> str:
         # private attributes
@@ -856,6 +858,8 @@ class Settings:
         attributes = {k: v for k, v in self.__dict__.items() if isinstance(v, Property)}
         new = Settings()
         for k, v in attributes.items():
+            # make sure to use the raw property value (v._value),
+            # not the the result of the hooks applied to it (v.value)
             new.update({k: v._value}, source=v.source)
         new.unfreeze()
 
