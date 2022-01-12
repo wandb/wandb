@@ -505,21 +505,22 @@ def create_app(user_ctx=None):
                 )
                 ctx["run_state"] = "finished"
                 return ret_val
-            return json.dumps({"data": {"project": {"run": run(ctx)}}})
-        if "query Model(" in body["query"]:
-            if "project(" in body["query"]:
-                project_field_name = "project"
-                run_field_name = "run"
-            else:
-                project_field_name = "model"
-                run_field_name = "bucket"
-            if "commit" in body["query"]:
-                run_config = _bucket_config(ctx)
-            else:
-                run_config = run(ctx)
-            return json.dumps(
-                {"data": {project_field_name: {run_field_name: run_config}}}
-            )
+            return json.dumps({"data": {"project": {"run": run(ctx)}}})       
+        for query_name in ["RunConfigs", "RunStoppedStatus", "RunUploadUrls", "RunDownloadUrls", "RunDownloadUrl"]:    
+            if f"query {query_name}(" in body["query"]:
+                if "project(" in body["query"]:
+                    project_field_name = "project"
+                    run_field_name = "run"
+                else:
+                    project_field_name = "model"
+                    run_field_name = "bucket"
+                if "commit" in body["query"]:
+                    run_config = _bucket_config(ctx)
+                else:
+                    run_config = run(ctx)
+                return json.dumps(
+                    {"data": {project_field_name: {run_field_name: run_config}}}
+                )
         if "query Models(" in body["query"]:
             return json.dumps(
                 {
