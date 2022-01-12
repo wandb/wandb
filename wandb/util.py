@@ -381,13 +381,23 @@ def _user_args_to_dict(arguments):
             i += 2
         elif len(split) == 2:
             name = split[0].lstrip("-")
-            value = split[1]
+            value = maybe_json_decode(split[1])
             i += 1
         if name in user_dict:
             wandb.termerror("Repeated parameter: '%s'" % name)
             sys.exit(1)
         user_dict[name] = value
     return user_dict
+
+
+# command line arguments can be strings, but we should also
+# support json encoded CLI inputs (for example to support
+# Sagemaker config resource args)
+def maybe_json_decode(arg):
+    try:
+        return json.loads(arg)
+    except json.JSONDecodeError:
+        return arg
 
 
 def is_tf_tensor(obj):
