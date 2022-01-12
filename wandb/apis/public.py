@@ -3372,7 +3372,7 @@ class Artifact(artifacts.Artifact):
 
     QUERY = gql(
         """
-        query Artifact(
+        query ArtifactWithCurrentManifest(
             $id: ID!,
         ) {
             artifact(id: $id) {
@@ -3560,7 +3560,7 @@ class Artifact(artifacts.Artifact):
         """Returns the expected type for a given artifact name and project"""
         query = gql(
             """
-        query Artifact(
+        query ArtifactType(
             $entityName: String!,
             $projectName: String!,
             $name: String!
@@ -4046,7 +4046,7 @@ class Artifact(artifacts.Artifact):
         """
         query = gql(
             """
-            query Artifact(
+            query ArtifactUsedBy(
                 $id: ID!,
                 $before: String,
                 $after: String,
@@ -4090,7 +4090,7 @@ class Artifact(artifacts.Artifact):
         """
         query = gql(
             """
-            query Artifact(
+            query ArtifactCreatedBy(
                 $id: ID!
             ) {
                 artifact(id: $id) {
