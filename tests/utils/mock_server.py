@@ -506,7 +506,7 @@ def create_app(user_ctx=None):
                 ctx["run_state"] = "finished"
                 return ret_val
             return json.dumps({"data": {"project": {"run": run(ctx)}}})       
-        for query_name in ["RunConfigs", "RunStoppedStatus", "RunUploadUrls", "RunDownloadUrls", "RunDownloadUrl"]:    
+        for query_name in ["RunConfigs", "RunResumeStatus", "RunStoppedStatus", "RunUploadUrls", "RunDownloadUrls", "RunDownloadUrl"]:    
             if f"query {query_name}(" in body["query"]:
                 if "project(" in body["query"]:
                     project_field_name = "project"
