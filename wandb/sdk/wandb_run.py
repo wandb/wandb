@@ -320,7 +320,7 @@ class Run(object):
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        # self.history = wandb_history.History(self)
+        self.history = wandb_history.History(self)
         self.history_step = 0
         # self.history._set_callback(self._history_callback)
 
@@ -1023,7 +1023,10 @@ class Run(object):
     def _partial_history_callback(
         self, row: Dict[str, Any], step: int, commit: bool = False
     ) -> None:
-        row = self._visualization_hack(row)
+        if row:
+            row = self._visualization_hack(row)
+            row["_timestamp"] = int(row.get("_timestamp", time.time()))
+            row["_runtime"] = int(row.get("_runtime", time.time() - self.start_time))
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
@@ -1363,7 +1366,6 @@ class Run(object):
         elif commit is None:  # step is None and commit is None
             commit = True
 
-        data["_timestamp"] = int(data.get("_timestamp", time.time()))
         if commit:
             self._partial_history_callback(data, self.history_step, commit=True)
             self.history_step += 1

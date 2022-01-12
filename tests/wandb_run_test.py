@@ -58,7 +58,7 @@ def test_run_pub_history(fake_run, record_q, records_util):
     r = records_util(record_q)
     assert len(r.records) == 2
     assert len(r.summary) == 0
-    history = r.history
+    history = r.history or r.partial_history
     assert len(history) == 2
     # TODO(jhr): check history vals
 
@@ -73,7 +73,7 @@ def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util
     r = records_util(record_q)
     assert len(r.records) == 1
     assert len(r.summary) == 0
-    history = r.history
+    history = r.history or r.partial_history
     assert len(history) == 1
 
     found = False

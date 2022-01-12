@@ -481,32 +481,31 @@ class HandleManager(object):
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)
         self._save_history(record.history)
-        logger.info(record)
         updated = self._update_summary(history_dict)
         if updated:
             self._save_summary(self._consolidated_summary)
 
     def _flush_partial_history(self, record: Record) -> None:
+        if self._partial_history:
+            # Inject _runtime if it is not present
+            if "_runtime" not in self._partial_history:
+                self._history_assign_runtime(
+                    record.request.partial_history, self._partial_history
+                )
 
-        # Inject _runtime if it is not present
-        if "_runtime" not in self._partial_history:
-            self._history_assign_runtime(
-                record.request.partial_history, self._partial_history
-            )
+            for k, v in self._partial_history.items():
+                item = record.request.partial_history.item.add()
+                item.key = k
+                item.value_json = json.dumps(v)
 
-        for k, v in self._partial_history.items():
-            item = record.request.partial_history.item.add()
-            item.key = k
-            item.value_json = json.dumps(v)
+            self._history_update(record.request.partial_history, self._partial_history)
+            self._dispatch_record(record)
+            self._save_history(record.request.partial_history)
 
-        self._history_update(record.request.partial_history, self._partial_history)
-        self._dispatch_record(record)
-        self._save_history(record.request.partial_history)
-
-        updated = self._update_summary(self._partial_history)
-        if updated:
-            self._save_summary(self._consolidated_summary)
-        self._partial_history = {}
+            updated = self._update_summary(self._partial_history)
+            if updated:
+                self._save_summary(self._consolidated_summary)
+            self._partial_history = {}
 
     def handle_request_partial_history(self, record: Record) -> None:
         # TODO convert partial history to record object!!!

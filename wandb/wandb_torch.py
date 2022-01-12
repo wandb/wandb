@@ -183,7 +183,8 @@ class TorchHistory(object):
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            history._row_update({name: wandb.Histogram(tensor)})
+            # history._row_update({name: wandb.Histogram(tensor)})
+            wandb.log({name: wandb.Histogram(tensor)}, commit=False)
             return
 
         if flat.is_cuda:
@@ -254,8 +255,12 @@ class TorchHistory(object):
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        history._row_update(
-            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
+        # history._row_update(
+        #     {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
+        # )
+        wandb.log(
+            {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))},
+            commit=False,
         )
 
     def _hook_variable_gradient_stats(self, var, name, log_track):
