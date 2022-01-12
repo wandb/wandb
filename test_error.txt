@@ -1,556 +1,0 @@
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/2q7lgha0
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/wandb/run-20220112_121952-2q7lgha0
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Waiting for W&B process to finish, PID 28985
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/wandb/run-20220112_121952-2q7lgha0/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/wandb/run-20220112_121952-2q7lgha0/logs/debug-internal.log
-wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/2q7lgha0
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/18dv2xyo
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/wandb/run-20220112_122002-18dv2xyo
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Waiting for W&B process to finish, PID 29022
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: | 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: \ 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/wandb/run-20220112_122002-18dv2xyo/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/wandb/run-20220112_122002-18dv2xyo/logs/debug-internal.log
-wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/18dv2xyo
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/200b86hg
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/log-code/wandb/run-20220112_122012-200b86hg
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Waiting for W&B process to finish, PID 29075
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/log-code/wandb/run-20220112_122012-200b86hg/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/log-code/wandb/run-20220112_122012-200b86hg/logs/debug-internal.log
-wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/200b86hg
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/1zeu17yv
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122021-1zeu17yv
-wandb: Run `wandb offline` to turn off syncing.
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Waiting for W&B process to finish, PID 29117
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122021-1zeu17yv/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122021-1zeu17yv/logs/debug-internal.log
-wandb: Run summary:
-wandb:           m1 1
-wandb:     _runtime 4
-wandb:   _timestamp 1642011625
-wandb:        _step 1
-wandb:           m2 2
-wandb: Run history:
-wandb:           m1 ▁
-wandb:     _runtime ▁▁
-wandb:   _timestamp ▁▁
-wandb:        _step ▁█
-wandb:           m2 ▁
-wandb: 
-wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/1zeu17yv
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/3703q9gd
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122032-3703q9gd
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Waiting for W&B process to finish, PID 29181
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122032-3703q9gd/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122032-3703q9gd/logs/debug-internal.log
-wandb: Run summary:
-wandb:           m1 1
-wandb:     _runtime 3
-wandb:   _timestamp 1642011635
-wandb:        _step 1
-wandb:           m2 2
-wandb: Run history:
-wandb:           m1 ▁
-wandb:     _runtime ▁▁
-wandb:   _timestamp ▁▁
-wandb:        _step ▁█
-wandb:           m2 ▁
-wandb: 
-wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/3703q9gd
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/k10wdffr
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122041-k10wdffr
-wandb: Run `wandb offline` to turn off syncing.
-Traceback (most recent call last):
-  File "./03-script-fail.py", line 23, in <module>
-    print(1 / 0)
-ZeroDivisionError: division by zero
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Waiting for W&B process to finish, PID 29241
-wandb: Program failed with code 1.  Press ctrl-c to abort syncing.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122041-k10wdffr/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122041-k10wdffr/logs/debug-internal.log
-wandb: Run summary:
-wandb:           m1 1
-wandb:     _runtime 4
-wandb:   _timestamp 1642011645
-wandb:        _step 1
-wandb:           m2 2
-wandb: Run history:
-wandb:           m1 ▁
-wandb:     _runtime ▁▁
-wandb:   _timestamp ▁▁
-wandb:        _step ▁█
-wandb:           m2 ▁
-wandb: 
-wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/k10wdffr
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/1n61ayel
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122052-1n61ayel
-wandb: Run `wandb offline` to turn off syncing.
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Waiting for W&B process to finish, PID 29268
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: | 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: \ 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122052-1n61ayel/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/wandb/run-20220112_122052-1n61ayel/logs/debug-internal.log
-wandb: Run summary:
-wandb:           m1 1
-wandb:     _runtime 3
-wandb:   _timestamp 1642011655
-wandb:        _step 2
-wandb:           m2 2
-wandb:           m3 3
-wandb: Run history:
-wandb:           m1 ▁
-wandb:     _runtime ▁▁▁
-wandb:   _timestamp ▁▁▁
-wandb:        _step ▁▅█
-wandb:           m2 ▁
-wandb:           m3 ▁
-wandb: 
-wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/1n61ayel
-Traceback (most recent call last):
-  File "./01-debuglog-stderr.py", line 27, in <module>
-    wandb.require("service")
-AttributeError: module 'wandb' has no attribute 'require'
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-Traceback (most recent call last):
-  File "./01-simple.py", line 10, in <module>
-    wandb.require("service")
-AttributeError: module 'wandb' has no attribute 'require'
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/1hle5n3q
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/imports/wandb/run-20220112_122146-1hle5n3q
-wandb: Run `wandb offline` to turn off syncing.
-wandb: Waiting for W&B process to finish, PID 29381
-wandb: Program ended successfully.
-wandb: - 0.00MB of 0.00MB uploaded (0.00MB deduped)wandb: \ 0.00MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: / 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/imports/wandb/run-20220112_122146-1hle5n3q/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/imports/wandb/run-20220112_122146-1hle5n3q/logs/debug-internal.log
-wandb: Run summary:
-wandb:         loss 1
-wandb:     _runtime 4
-wandb:   _timestamp 1642011710
-wandb:        _step 0
-wandb: Run history:
-wandb:         loss ▁
-wandb:     _runtime ▁
-wandb:   _timestamp ▁
-wandb:        _step ▁
-wandb: 
-wandb: Synced 4 W&B file(s), 0 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/1hle5n3q
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
-deepctr 0.9.0 requires h5py==2.10.0, but you have h5py 3.1.0 which is incompatible.
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/1u45lkct
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122227-1u45lkct
-wandb: Run `wandb offline` to turn off syncing.
-2022-01-12 12:22:31.259315: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
-To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
-WARNING:tensorflow:mask_value is deprecated, use mask_token instead.
-WARNING:tensorflow:mask_value is deprecated, use mask_token instead.
-2022-01-12 12:22:31.694436: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:176] None of the MLIR Optimization Passes are enabled (registered 2)
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-WARNING:tensorflow:Callback method `on_train_batch_end` is slow compared to the batch time (batch time: 0.0013s vs `on_train_batch_end` time: 0.0017s). Check your callbacks.
-Traceback (most recent call last):
-  File "./test_keras_nonnumeric.py", line 85, in <module>
-    model.fit(
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/keras/engine/training.py", line 1229, in fit
-    callbacks.on_epoch_end(epoch, epoch_logs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/keras/callbacks.py", line 435, in on_epoch_end
-    callback.on_epoch_end(epoch, logs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/integration/keras/keras.py", line 459, in on_epoch_end
-    wandb.log(self._log_weights(), commit=False)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/integration/keras/keras.py", line 793, in _log_weights
-    metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/sdk/data_types.py", line 316, in __init__
-    self.histogram, self.bins = np.histogram(sequence, bins=num_bins)
-  File "<__array_function__ internals>", line 5, in histogram
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/numpy/lib/histograms.py", line 792, in histogram
-    bin_edges, uniform_bins = _get_bin_edges(a, bins, range, weights)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/numpy/lib/histograms.py", line 426, in _get_bin_edges
-    first_edge, last_edge = _get_outer_edges(a, range)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/numpy/lib/histograms.py", line 322, in _get_outer_edges
-    if not (np.isfinite(first_edge) and np.isfinite(last_edge)):
-TypeError: ufunc 'isfinite' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Waiting for W&B process to finish, PID 29431
-wandb: Program failed with code 1.  Press ctrl-c to abort syncing.
-wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: \ 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.02MB uploaded (0.00MB deduped)wandb: / 0.02MB of 0.02MB uploaded (0.00MB deduped)wandb: - 0.02MB of 0.02MB uploaded (0.00MB deduped)wandb: \ 0.02MB of 0.02MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122227-1u45lkct/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122227-1u45lkct/logs/debug-internal.log
-wandb: Run summary:
-
-wandb: Synced 5 W&B file(s), 1 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/1u45lkct
-ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
-autokeras 1.0.16.post1 requires tensorflow<2.6,>=2.3.0, but you have tensorflow 2.6.2 which is incompatible.
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/3dzty6p2
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122310-3dzty6p2
-wandb: Run `wandb offline` to turn off syncing.
-2022-01-12 12:23:14.389988: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
-To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
-WARNING:tensorflow:mask_value is deprecated, use mask_token instead.
-2022-01-12 12:23:14.919280: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:185] None of the MLIR Optimization Passes are enabled (registered 2)
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-WARNING:tensorflow:Callback method `on_train_batch_end` is slow compared to the batch time (batch time: 0.0012s vs `on_train_batch_end` time: 0.0016s). Check your callbacks.
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model_1/model/linear_model/dense_6/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model_1/model/linear_model/dense_6/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model_1/model/linear_model/dense_6/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model_1/model/linear_model/dense_5/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model_1/model/linear_model/dense_5/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model_1/model/linear_model/dense_5/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model_1/model/linear_model/dense_4/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model_1/model/linear_model/dense_4/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model_1/model/linear_model/dense_4/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model_1/model/linear_model/dense_3/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model_1/model/linear_model/dense_3/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model_1/model/linear_model/dense_3/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model_1/model/linear_model/dense_2/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model_1/model/linear_model/dense_2/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model_1/model/linear_model/dense_2/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.
-  warnings.warn(
-Traceback (most recent call last):
-  File "./test_keras_nonnumeric.py", line 85, in <module>
-    model.fit(
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/engine/training.py", line 1230, in fit
-    callbacks.on_epoch_end(epoch, epoch_logs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/callbacks.py", line 413, in on_epoch_end
-    callback.on_epoch_end(epoch, logs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/integration/keras/keras.py", line 462, in on_epoch_end
-    wandb.log(self._log_gradients(), commit=False)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/integration/keras/keras.py", line 806, in _log_gradients
-    self._grad_accumulator_model.fit(
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/engine/training.py", line 1184, in fit
-    tmp_logs = self.train_function(iterator)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/def_function.py", line 885, in __call__
-    result = self._call(*args, **kwds)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/def_function.py", line 933, in _call
-    self._initialize(args, kwds, add_initializers_to=initializers)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/def_function.py", line 759, in _initialize
-    self._stateful_fn._get_concrete_function_internal_garbage_collected(  # pylint: disable=protected-access
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 3066, in _get_concrete_function_internal_garbage_collected
-    graph_function, _ = self._maybe_define_function(args, kwargs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 3463, in _maybe_define_function
-    graph_function = self._create_graph_function(args, kwargs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/function.py", line 3298, in _create_graph_function
-    func_graph_module.func_graph_from_py_func(
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/func_graph.py", line 1007, in func_graph_from_py_func
-    func_outputs = python_func(*func_args, **func_kwargs)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/eager/def_function.py", line 668, in wrapped_fn
-    out = weak_wrapped_fn().__wrapped__(*args, **kwds)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/func_graph.py", line 994, in wrapper
-    raise e.ag_error_metadata.to_exception(e)
-NotImplementedError: in user code:
-
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/engine/training.py:853 train_function  *
-        return step_function(self, iterator)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/engine/training.py:842 step_function  **
-        outputs = model.distribute_strategy.run(run_step, args=(data,))
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:1286 run
-        return self._extended.call_for_each_replica(fn, args=args, kwargs=kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:2849 call_for_each_replica
-        return self._call_for_each_replica(fn, args, kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:3632 _call_for_each_replica
-        return fn(*args, **kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/engine/training.py:835 run_step  **
-        outputs = model.train_step(data)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/engine/training.py:791 train_step
-        self.optimizer.minimize(loss, self.trainable_variables, tape=tape)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/optimizer_v2/optimizer_v2.py:522 minimize
-        return self.apply_gradients(grads_and_vars, name=name)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/optimizer_v2/optimizer_v2.py:659 apply_gradients
-        return self._distributed_apply(strategy, grads_and_vars, name,
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/optimizer_v2/optimizer_v2.py:706 _distributed_apply
-        update_op = distribution.extended.update(
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:2594 update
-        return self._replica_ctx_update(
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:2473 _replica_ctx_update
-        return replica_context.merge_call(merge_fn, args=args, kwargs=kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:3064 merge_call
-        return self._merge_call(merge_fn, args, kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:3071 _merge_call
-        return merge_fn(self._strategy, *args, **kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:2471 merge_fn  **
-        return self.update(var, fn, merged_args, merged_kwargs, group=group)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:2592 update
-        return self._update(var, fn, args, kwargs, group)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:3646 _update
-        return self._update_non_slot(var, fn, (var,) + tuple(args), kwargs, group)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/distribute/distribute_lib.py:3652 _update_non_slot
-        result = fn(*args, **kwargs)
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/optimizer_v2/optimizer_v2.py:684 apply_grad_to_update_var  **
-        return self._resource_apply_sparse_duplicate_indices(
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/optimizer_v2/optimizer_v2.py:1268 _resource_apply_sparse_duplicate_indices
-        return self._resource_apply_sparse(summed_grad, handle, unique_indices,
-    /Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/keras/optimizer_v2/optimizer_v2.py:1290 _resource_apply_sparse
-        raise NotImplementedError("Must be implemented in subclasses.")
-
-    NotImplementedError: Must be implemented in subclasses.
-
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Waiting for W&B process to finish, PID 29530
-wandb: Program failed with code 1.  Press ctrl-c to abort syncing.
-wandb: - 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: \ 0.01MB of 0.01MB uploaded (0.00MB deduped)wandb: | 0.01MB of 0.03MB uploaded (0.00MB deduped)wandb: / 0.03MB of 0.03MB uploaded (0.00MB deduped)wandb: - 0.03MB of 0.03MB uploaded (0.00MB deduped)wandb: \ 0.03MB of 0.03MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122310-3dzty6p2/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122310-3dzty6p2/logs/debug-internal.log
-wandb: Run summary:
-wandb:                            _runtime 7
-wandb:                          _timestamp 1642011797
-wandb:                               _step 0
-wandb: Run history:
-wandb:     _runtime ▁
-wandb:   _timestamp ▁
-wandb:        _step ▁
-wandb: 
-wandb: Synced 5 W&B file(s), 1 media file(s), 0 artifact file(s) and 1 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/3dzty6p2
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/11davnke
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122352-11davnke
-wandb: Run `wandb offline` to turn off syncing.
-2022-01-12 12:23:55.662212: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
-To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2022-01-12 12:23:56.008785: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:176] None of the MLIR Optimization Passes are enabled (registered 2)
-wandb: Waiting for W&B process to finish, PID 29625
-wandb: Program ended successfully.
-wandb: - 0.16MB of 0.16MB uploaded (0.00MB deduped)wandb: \ 0.17MB of 0.17MB uploaded (0.00MB deduped)wandb: | 0.17MB of 0.17MB uploaded (0.00MB deduped)wandb: / 0.17MB of 0.17MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122352-11davnke/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122352-11davnke/logs/debug-internal.log
-wandb: Run summary:
-wandb:                              epoch 1
-wandb:                               loss 2.30257
-wandb:                           accuracy 0.12
-wandb:                           val_loss 2.3023
-wandb:                       val_accuracy 0.12
-wandb:                           _runtime 5
-wandb:                         _timestamp 1642011837
-wandb:                              _step 1
-wandb:                      best_val_loss 2.3023
-wandb:                         best_epoch 1
-wandb: Run history:
-wandb:          epoch ▁█
-wandb:           loss █▁
-wandb:       accuracy ▁█
-wandb:       val_loss █▁
-wandb:   val_accuracy ▁▁
-wandb:       _runtime ▁█
-wandb:     _timestamp ▁█
-wandb:          _step ▁█
-wandb: 
-wandb: Synced 5 W&B file(s), 73 media file(s), 0 artifact file(s) and 2 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/11davnke
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
-autokeras 1.0.16.post1 requires tensorflow<2.6,>=2.3.0, but you have tensorflow 2.6.2 which is incompatible.
-wandb: Currently logged in as: mock_server_entity (use `wandb login --relogin` to force relogin)
-wandb: wandb version 0.12.9 is available!  To upgrade, please run:
-wandb:  $ pip install wandb --upgrade
-wandb: Tracking run with wandb version 0.10.33
-wandb: Syncing run lovely-dawn-32
-wandb:  View project at http://127.0.0.1:62182/mock_server_entity/test
-wandb:  View run at http://127.0.0.1:62182/mock_server_entity/test/runs/119tjqb0
-wandb: Run data is saved locally in /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122431-119tjqb0
-wandb: Run `wandb offline` to turn off syncing.
-2022-01-12 12:24:34.733964: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA
-To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.
-2022-01-12 12:24:35.127556: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:185] None of the MLIR Optimization Passes are enabled (registered 2)
-[34m[1mwandb[0m: [33mWARNING[0m No validation_data set, pass a generator to the callback.
-[34m[1mwandb[0m: [33mWARNING[0m No validation_data set, pass a generator to the callback.
-wandb: Waiting for W&B process to finish, PID 29701
-wandb: Program ended successfully.
-wandb: - 0.10MB of 0.10MB uploaded (0.00MB deduped)wandb: \ 0.10MB of 0.11MB uploaded (0.00MB deduped)wandb: | 0.11MB of 0.11MB uploaded (0.00MB deduped)wandb: / 0.11MB of 0.11MB uploaded (0.00MB deduped)wandb: - 0.11MB of 0.11MB uploaded (0.00MB deduped)wandb:                                                                                
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-wandb: Find user logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122431-119tjqb0/logs/debug.log
-wandb: Find internal logs for this run at: /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/wandb/run-20220112_122431-119tjqb0/logs/debug-internal.log
-wandb: Run summary:
-wandb:                              epoch 1
-wandb:                               loss 2.3025
-wandb:                           accuracy 0.1
-wandb:                           val_loss 2.30215
-wandb:                       val_accuracy 0.14
-wandb:                           _runtime 5
-wandb:                         _timestamp 1642011876
-wandb:                              _step 1
-wandb:                      best_val_loss 2.30215
-wandb:                         best_epoch 1
-wandb: Run history:
-wandb:          epoch ▁█
-wandb:           loss █▁
-wandb:       accuracy █▁
-wandb:       val_loss █▁
-wandb:   val_accuracy ▁█
-wandb:       _runtime ▁█
-wandb:     _timestamp ▁█
-wandb:          _step ▁█
-wandb: 
-wandb: Synced 5 W&B file(s), 1 media file(s), 0 artifact file(s) and 2 other file(s)
-wandb: 
-wandb: Synced lovely-dawn-32: http://127.0.0.1:62182/mock_server_entity/test/runs/119tjqb0
-/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)
-  self._warn("No data was collected.", slug="no-data-collected")
-ERROR: Could not find a version that satisfies the requirement tensorflow==2.1.0 (from versions: 2.2.0rc3, 2.2.0rc4, 2.2.0, 2.2.1, 2.2.2, 2.2.3, 2.3.0rc0, 2.3.0rc1, 2.3.0rc2, 2.3.0, 2.3.1, 2.3.2, 2.3.3, 2.3.4, 2.4.0rc0, 2.4.0rc1, 2.4.0rc2, 2.4.0rc3, 2.4.0rc4, 2.4.0, 2.4.1, 2.4.2, 2.4.3, 2.4.4, 2.5.0rc0, 2.5.0rc1, 2.5.0rc2, 2.5.0rc3, 2.5.0, 2.5.1, 2.5.2, 2.6.0rc0, 2.6.0rc1, 2.6.0rc2, 2.6.0, 2.6.1, 2.6.2, 2.7.0rc0, 2.7.0rc1, 2.7.0, 2.8.0rc0)
-ERROR: No matching distribution found for tensorflow==2.1.0
-Traceback (most recent call last):
-  File "/Users/johnqian/.pyenv/versions/wandb-3.8.2/bin/yea", line 8, in <module>
-    sys.exit(cli())
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/yea/cli.py", line 52, in cli
-    args.func(yc)
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/yea/cli.py", line 24, in cli_run
-    tr.run()
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/yea/runner.py", line 264, in run
-    self._runall()
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/yea/runner.py", line 225, in _runall
-    t.run()
-  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/yea/ytest.py", line 243, in run
-    assert not err, "Problem getting test dependencies"
-AssertionError: Problem getting test dependencies
