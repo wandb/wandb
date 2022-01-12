@@ -96,7 +96,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> Union[int, str]:
+    def id(self) -> str:
         pass
 
 

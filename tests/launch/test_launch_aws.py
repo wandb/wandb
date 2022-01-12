@@ -3,7 +3,11 @@ import os
 from unittest.mock import MagicMock
 
 
-from wandb.sdk.launch.runner.aws import AWSSubmittedRun, get_aws_credentials, get_region
+from wandb.sdk.launch.runner.aws import (
+    SagemakerSubmittedRun,
+    get_aws_credentials,
+    get_region,
+)
 
 import sys
 
@@ -78,7 +82,7 @@ def test_launch_aws_sagemaker(
         "project": "test",
         "resource_args": {
             "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_name": "my-test-repo",
+            "ecr_repo_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
@@ -136,7 +140,7 @@ def test_launch_aws_sagemaker_launch_fail(
         "project": "test",
         "resource_args": {
             "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_name": "my-test-repo",
+            "ecr_repo_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
@@ -171,7 +175,7 @@ def test_launch_aws_sagemaker_push_image_fail_none(
         "project": "test",
         "resource_args": {
             "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_name": "my-test-repo",
+            "ecr_repo_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
@@ -208,7 +212,7 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
         "project": "test",
         "resource_args": {
             "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_name": "my-test-repo",
+            "ecr_repo_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
@@ -244,7 +248,7 @@ def test_sagemaker_specified_image(
                 "TrainingImage": "my-test-image",
                 "TrainingInputMode": "File",
             },
-            "ecr_name": "my-test-repo",
+            "ecr_repo_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
@@ -264,31 +268,31 @@ def test_aws_submitted_run_status():
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "InProgress",
     }
-    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
+    run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "running"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Completed",
     }
-    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
+    run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "finished"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Failed",
     }
-    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
+    run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "failed"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Stopped",
     }
-    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
+    run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "finished"
 
     mock_sagemaker_client.describe_training_job.return_value = {
         "TrainingJobStatus": "Stopping",
     }
-    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
+    run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
     assert run.get_status().state == "stopping"
 
 
@@ -319,13 +323,13 @@ def test_aws_submitted_run_cancel():
 
     mock_sagemaker_client.describe_training_job = mock_describe_training_job
     mock_sagemaker_client.stop_training_job = mock_stop_training_job
-    run = AWSSubmittedRun("test-job-1", mock_sagemaker_client)
+    run = SagemakerSubmittedRun("test-job-1", mock_sagemaker_client)
     run.cancel()
     assert run._status.state == "finished"
 
 
 def test_aws_submitted_run_id():
-    run = AWSSubmittedRun("test-job-1", None)
+    run = SagemakerSubmittedRun("test-job-1", None)
     assert run.id == "sagemaker-test-job-1"
 
 
@@ -368,7 +372,7 @@ def test_failed_aws_cred_login(
             project="test",
             resource_args={
                 "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_name": "my-test-repo",
+                "ecr_repo_name": "my-test-repo",
                 "RoleArn": "arn:aws:iam::123456789012:role/test-role",
                 "TrainingJobName": "test-job-1",
                 "region": "us-east-1",
@@ -483,7 +487,7 @@ def test_aws_fail_build(
         "project": "test",
         "resource_args": {
             "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_name": "my-test-repo",
+            "ecr_repo_name": "my-test-repo",
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",

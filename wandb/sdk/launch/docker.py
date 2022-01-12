@@ -143,10 +143,7 @@ def construct_local_image_uri(launch_project: LaunchProject) -> str:
 
 
 def construct_gcp_image_uri(
-    launch_project: LaunchProject,
-    gcp_repo: str,
-    gcp_project: str,
-    gcp_registry: str,
+    launch_project: LaunchProject, gcp_repo: str, gcp_project: str, gcp_registry: str,
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
@@ -184,10 +181,8 @@ def build_docker_image_if_needed(
     if copy_code:
         copy_code_line = "COPY ./src/ {}\n".format(workdir)
         if docker.is_buildx_installed():
-            requirements_line = (
-                "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
-                    homedir, launch_project.docker_user_id
-                )
+            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+                homedir, launch_project.docker_user_id
             )
         else:
             wandb.termwarn(
@@ -277,10 +272,7 @@ def build_docker_image_if_needed(
     return image
 
 
-def get_docker_command(
-    image: str,
-    docker_args: Dict[str, Any] = None,
-) -> List[str]:
+def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
@@ -356,16 +348,13 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
 
 
 def _create_docker_build_ctx(
-    launch_project: LaunchProject,
-    dockerfile_contents: str,
+    launch_project: LaunchProject, dockerfile_contents: str,
 ) -> str:
     """Creates build context temp dir containing Dockerfile and project code, returning path to temp dir."""
     directory = tempfile.mkdtemp()
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
-        src=launch_project.project_dir,
-        dst=dst_path,
-        symlinks=True,
+        src=launch_project.project_dir, dst=dst_path, symlinks=True,
     )
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")
