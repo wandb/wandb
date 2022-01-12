@@ -497,7 +497,8 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        if "query RunInfo(" in body["query"]:
+        
+        if "query RunState(" in body["query"]:
             # if querying state of run, change context from running to finished
             if "RunFragment" not in body["query"] and "state" in body["query"]:
                 ret_val = json.dumps(
