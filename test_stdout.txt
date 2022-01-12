@@ -1,0 +1,133 @@
+
+
+
+
+
+RUN_ID=200b86hg
+
+
+
+
+
+
+
+
+
+
+
+
+Epoch 1/10
+ 1/20 [>.............................] - ETA: 24s - loss: 0.6931 - accuracy: 0.531220/20 [==============================] - 1s 2ms/step - loss: 0.6926 - accuracy: 0.6124
+
+INFO: Timed out waiting for server to start... http://localhost:62182 1642011590.563403
+INFO: Mock server listing on 62182 see /Users/johnqian/go/src/github.com/wandb/client/.yea_cache/standalone-live_mock_server-1.log
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/code-save-disabled.yea
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/code-save-disabled.yea
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.code-save.1-disabled.conf', './code-save.py']
+INFO: exit= 0
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/code-save-enabled.yea
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/code-save-enabled.yea
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.code-save.1-enabled.conf', './code-save.py']
+INFO: exit= 0
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/log-code/log-code.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/code-save/log-code/log-code.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.code-save.3-log_code.conf', './log-code.py']
+INFO: exit= 0
+WARNING: index 0 not found in :wandb:runs [0,output,stdout,0]
+invalid :op:contains {} contains source-200b86hg
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/01-without-finish.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/01-without-finish.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.core.01-without-finish.conf', './01-without-finish.py']
+INFO: exit= 0
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/02-with-finish.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/02-with-finish.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.core.02-with-finish.conf', './02-with-finish.py']
+INFO: exit= 0
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/03-script-fail.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/03-script-fail.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.core.03-script-fail.conf', './03-script-fail.py']
+INFO: exit= 1
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/04-multiple-init.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/core/04-multiple-init.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.core.04-multiple-init.conf', './04-multiple-init.py']
+INFO: exit= 0
+WARNING: key 3 not found in :wandb:runs [0,telemetry,3]
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/debug/01-debuglog-stderr.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/debug/01-debuglog-stderr.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.debug.01-debuglog-stderr.conf', './01-debuglog-stderr.py']
+INFO: exit= 1
+WARNING: index 0 not found in :wandb:runs [0,config]
+WARNING: index 0 not found in :wandb:runs [0,summary]
+WARNING: index 0 not found in :wandb:runs [0,exitcode]
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/grpc/01-simple.py
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/grpc/01-simple.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.grpc.01-simple.conf', './01-simple.py']
+INFO: exit= 1
+WARNING: index 0 not found in :wandb:runs [0,config]
+WARNING: index 0 not found in :wandb:runs [0,summary]
+WARNING: index 0 not found in :wandb:runs [0,output,stdout]
+WARNING: index 0 not found in :wandb:runs [0,exitcode]
+WARNING: index 0 not found in :wandb:runs [0,telemetry,3]
+WARNING: index 0 not found in :wandb:runs [0,telemetry,3]
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/imports/01-batch1.py
+INFO: RUNNING= ['python', '-m', 'pip', 'install', '-qq', '-r', '.yea-requirements.txt']
+INFO: exit= 0
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/imports/01-batch1.py
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.imports.01-batch1.conf', './01-batch1.py']
+INFO: exit= 0
+invalid :op:contains [1, 3, 5, 7, 11] contains 14
+invalid :op:contains [1, 3, 5, 7, 11] contains 15
+invalid :op:contains [1, 3, 5, 7, 11] contains 16
+invalid :op:contains [1, 3, 5, 7, 11] contains 18
+invalid :op:contains [1, 3, 5, 7, 11] contains 21
+invalid :op:contains [1, 3, 5, 7, 11] contains 22
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_nonnumeric_tf_2_5.yea
+INFO: RUNNING= ['python', '-m', 'pip', 'install', '-qq', '-r', '.yea-requirements.txt']
+INFO: exit= 0
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_nonnumeric_tf_2_5.yea
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.keras.nonnumericlayers.conf', './test_keras_nonnumeric.py']
+INFO: exit= 1
+invalid :op:contains_regex ['2022-01-12 12:22:31.259315: I tensorflow/core/platform/cpu_feature_guard.cc:142] This TensorFlow binary is optimized with oneAPI Deep Neural Network Library (oneDNN) to use the following CPU instructions in performance-critical operations:  AVX2 FMA', 'To enable them in other operations, rebuild TensorFlow with the appropriate compiler flags.', 'WARNING:tensorflow:mask_value is deprecated, use mask_token instead.', 'WARNING:tensorflow:mask_value is deprecated, use mask_token instead.', '2022-01-12 12:22:31.694436: I tensorflow/compiler/mlir/mlir_graph_optimization_pass.cc:176] None of the MLIR Optimization Passes are enabled (registered 2)', '/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_6/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.', '  warnings.warn(', '/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_5/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.', '  warnings.warn(', '/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_4/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.', '  warnings.warn(', '/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_3/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.', '  warnings.warn(', '/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/framework/indexed_slices.py:447: UserWarning: Converting sparse IndexedSlices(IndexedSlices(indices=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Reshape_1:0", shape=(None,), dtype=int32), values=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Reshape:0", shape=(None, 5), dtype=float32), dense_shape=Tensor("gradient_tape/model/linear_model/dense_2/embedding_lookup_sparse/Cast:0", shape=(2,), dtype=int32))) to a dense Tensor of unknown shape. This may consume a large amount of memory.', '  warnings.warn(', 'WARNING:tensorflow:Callback method `on_train_batch_end` is slow compared to the batch time (batch time: 0.0013s vs `on_train_batch_end` time: 0.0017s). Check your callbacks.', 'Traceback (most recent call last):', '  File "./test_keras_nonnumeric.py", line 85, in <module>', '    model.fit(', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/keras/engine/training.py", line 1229, in fit', '    callbacks.on_epoch_end(epoch, epoch_logs)', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/tensorflow/python/keras/callbacks.py", line 435, in on_epoch_end', '    callback.on_epoch_end(epoch, logs)', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/integration/keras/keras.py", line 459, in on_epoch_end', '    wandb.log(self._log_weights(), commit=False)', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/integration/keras/keras.py", line 793, in _log_weights', '    metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/wandb/sdk/data_types.py", line 316, in __init__', '    self.histogram, self.bins = np.histogram(sequence, bins=num_bins)', '  File "<__array_function__ internals>", line 5, in histogram', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/numpy/lib/histograms.py", line 792, in histogram', '    bin_edges, uniform_bins = _get_bin_edges(a, bins, range, weights)', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/numpy/lib/histograms.py", line 426, in _get_bin_edges', '    first_edge, last_edge = _get_outer_edges(a, range)', '  File "/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/numpy/lib/histograms.py", line 322, in _get_outer_edges', '    if not (np.isfinite(first_edge) and np.isfinite(last_edge)):', "TypeError: ufunc 'isfinite' not supported for the input types, and the inputs could not be safely coerced to any supported types according to the casting rule ''safe''", '/Users/johnqian/.pyenv/versions/3.8.2/envs/wandb-3.8.2/lib/python3.8/site-packages/coverage/control.py:768: CoverageWarning: No data was collected. (no-data-collected)', '  self._warn("No data was collected.", slug="no-data-collected")']
+Epoch 1/10
+ 1/20 [>.............................] - ETA: 28s - loss: 0.6931 - accuracy: 0.531219/20 [===========================>..] - ETA: 0s - loss: 0.6926 - accuracy: 0.6118 20/20 [==============================] - 2s 3ms/step - loss: 0.6926 - accuracy: 0.6124
+
+
+Epoch 1/2
+1/4 [======>.......................] - ETA: 1s - loss: 108.4506 - accuracy: 0.09384/4 [==============================] - 1s 57ms/step - loss: 36.6601 - accuracy: 0.1100 - val_loss: 2.3026 - val_accuracy: 0.1200
+Epoch 2/2
+1/4 [======>.......................] - ETA: 0s - loss: 2.3027 - accuracy: 0.15624/4 [==============================] - 0s 10ms/step - loss: 2.3026 - accuracy: 0.1200 - val_loss: 2.3023 - val_accuracy: 0.1200
+
+
+Epoch 1/2
+1/4 [======>.......................] - ETA: 1s - loss: 36.8285 - accuracy: 0.18754/4 [==============================] - 1s 62ms/step - loss: 23.3293 - accuracy: 0.1500 - val_loss: 2.3024 - val_accuracy: 0.1000
+Epoch 2/2
+1/4 [======>.......................] - ETA: 0s - loss: 2.3027 - accuracy: 0.06254/4 [==============================] - 0s 10ms/step - loss: 2.3025 - accuracy: 0.1000 - val_loss: 2.3022 - val_accuracy: 0.1400
+
+ contains_regex .*Non-numeric values found in layer.*parameters/lookupsex.*, not logging this layer.*
+WARNING: key parameters/linear_model_1.bias not found in :wandb:runs [0,summary,parameters/linear_model_1.bias,_type]
+WARNING: key parameters/linear_model_1.weights not found in :wandb:runs [0,summary,parameters/linear_model_1.weights,_type]
+WARNING: key gradients/linear_model_1/bias.gradient not found in :wandb:runs [0,summary,gradients/linear_model_1/bias.gradient,_type]
+WARNING: key gradients/linear_model_1/kernel.gradient not found in :wandb:runs [0,summary,gradients/linear_model_1/kernel.gradient,_type]
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_nonnumeric_tf_2_6.yea
+INFO: RUNNING= ['python', '-m', 'pip', 'install', '-qq', '-r', '.yea-requirements.txt']
+INFO: exit= 0
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_nonnumeric_tf_2_6.yea
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.keras.nonnumericlayers.conf', './test_keras_nonnumeric.py']
+INFO: exit= 1
+WARNING: key gradients/linear_model_1/bias.gradient not found in :wandb:runs [0,summary,gradients/linear_model_1/bias.gradient,_type]
+WARNING: key gradients/linear_model_1/kernel.gradient not found in :wandb:runs [0,summary,gradients/linear_model_1/kernel.gradient,_type]
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_logged_params_names_tf_2_5.yea
+INFO: RUNNING= ['python', '-m', 'pip', 'install', '-qq', '-r', '.yea-requirements.txt']
+INFO: exit= 0
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_logged_params_names_tf_2_5.yea
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.keras.parameter_gradient_names.conf', './test_keras_log_names.py']
+INFO: exit= 0
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_logged_params_names_tf_2_6.yea
+INFO: RUNNING= ['python', '-m', 'pip', 'install', '-qq', '-r', '.yea-requirements.txt']
+INFO: exit= 0
+INFO: RUN= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/keras_logged_params_names_tf_2_6.yea
+INFO: RUNNING= ['coverage', 'run', '--rcfile', '/Users/johnqian/go/src/github.com/wandb/client/.yea_cache/yea-covrc-28927-0.keras.parameter_gradient_names.conf', './test_keras_log_names.py']
+INFO: exit= 0
+INFO: DEPEND= /Users/johnqian/go/src/github.com/wandb/client/functional_tests/keras/tf_2_1.yea
+INFO: RUNNING= ['python', '-m', 'pip', 'install', '-qq', '-r', '.yea-requirements.txt']
+INFO: exit= 1
