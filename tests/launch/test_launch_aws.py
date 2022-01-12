@@ -86,12 +86,14 @@ def test_launch_aws_sagemaker(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
         },
     }
     run = launch.run(**kwargs)
     assert run.training_job_name == "test-job-1"
 
 
+@pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_launch_fail(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
 ):
@@ -144,6 +146,7 @@ def test_launch_aws_sagemaker_launch_fail(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -151,6 +154,7 @@ def test_launch_aws_sagemaker_launch_fail(
     assert "Unable to create training job" in str(e_info.value)
 
 
+@pytest.mark.timeout(320)
 def test_launch_aws_sagemaker_push_image_fail_none(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
 ):
@@ -179,6 +183,7 @@ def test_launch_aws_sagemaker_push_image_fail_none(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -216,6 +221,7 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -252,6 +258,7 @@ def test_sagemaker_specified_image(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
         },
     }
     run = launch.run(**kwargs)
@@ -376,6 +383,7 @@ def test_failed_aws_cred_login(
                 "RoleArn": "arn:aws:iam::123456789012:role/test-role",
                 "TrainingJobName": "test-job-1",
                 "region": "us-east-1",
+                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
             },
         )
 
@@ -491,6 +499,7 @@ def test_aws_fail_build(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
