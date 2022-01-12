@@ -505,3 +505,61 @@ def test_aws_fail_build(
     with pytest.raises(wandb.errors.LaunchError) as e_info:
         launch.run(**kwargs)
     assert str(e_info.value) == "Unable to build base image"
+
+
+def test_no_OuputDataConfig(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
+            "ecr_repo_name": "my-test-repo",
+            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+        },
+    }
+    with pytest.raises(wandb.errors.LaunchError) as e_info:
+        launch.run(**kwargs)
+    assert (
+        str(e_info.value)
+        == "AWS sagemaker jobs, set this using `resource_args OutputDataConfig=<output_data_config>`"
+    )
+
+
+def test_no_RoleARN(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "aws-sagemaker",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
+            "ecr_repo_name": "my-test-repo",
+            "TrainingJobName": "test-job-1",
+            "region": "us-east-1",
+            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+        },
+    }
+    with pytest.raises(wandb.errors.LaunchError) as e_info:
+        launch.run(**kwargs)
+    assert (
+        str(e_info.value)
+        == "AWS sagemaker jobs, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+    )
