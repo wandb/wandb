@@ -497,16 +497,16 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        
-        if "query Run(" in body["query"] or "query RunState(" in body["query"]:
-            # if querying state of run, change context from running to finished
-            if "RunFragment" not in body["query"] and "state" in body["query"]:
-                ret_val = json.dumps(
-                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
-                )
-                ctx["run_state"] = "finished"
-                return ret_val
-            return json.dumps({"data": {"project": {"run": run(ctx)}}})       
+        for query_name in ["Run", "RunState", "RunFiles", "RunFullHistory", "RunSampledHistory"]:
+            if f"query {query_name}(" in body["query"]:
+                # if querying state of run, change context from running to finished
+                if "RunFragment" not in body["query"] and "state" in body["query"]:
+                    ret_val = json.dumps(
+                        {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                    )
+                    ctx["run_state"] = "finished"
+                    return ret_val
+                return json.dumps({"data": {"project": {"run": run(ctx)}}})       
         for query_name in ["RunConfigs", "RunResumeStatus", "RunStoppedStatus", "RunUploadUrls", "RunDownloadUrls", "RunDownloadUrl"]:    
             if f"query {query_name}(" in body["query"]:
                 if "project(" in body["query"]:
@@ -1039,40 +1039,41 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-        if "query Artifact(" in body["query"] or "query ArtifactType(" in body["query"]:
-            if ART_EMU:
-                return ART_EMU.query(
-                    variables=body.get("variables", {}), query=body.get("query")
-                )
-            art = artifact(
-                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
-            )
-            if "id" in body.get("variables", {}):
+        for query_name in ["Artifact", "ArtifactType", "ArtifactWithCurrentManifest"]:
+            if f"query {query_name}(" in body["query"]:
+                if ART_EMU:
+                    return ART_EMU.query(
+                        variables=body.get("variables", {}), query=body.get("query")
+                    )
                 art = artifact(
-                    ctx,
-                    request_url_root=base_url,
-                    id_override=body.get("variables", {}).get("id"),
+                    ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
                 )
-                art["artifactType"] = {"id": 1, "name": "dataset"}
-                return {"data": {"artifact": art}}
-            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
-                full_name = body.get("variables", {}).get("name", None)
-                if full_name is not None:
-                    collection_name = full_name.split(":")[0]
-                art = artifact(
-                    ctx, collection_name=collection_name, request_url_root=base_url,
-                )
-            # code artifacts use source-RUNID names, we return the code type
-            art["artifactType"] = {"id": 2, "name": "code"}
-            if "source" not in body["variables"]["name"]:
-                art["artifactType"] = {"id": 1, "name": "dataset"}
-            if "logged_table" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 3, "name": "run_table"}
-            if "run-" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "run_table"}
-            if "wb_validation_data" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "validation_dataset"}
-            return {"data": {"project": {"artifact": art}}}
+                if "id" in body.get("variables", {}):
+                    art = artifact(
+                        ctx,
+                        request_url_root=base_url,
+                        id_override=body.get("variables", {}).get("id"),
+                    )
+                    art["artifactType"] = {"id": 1, "name": "dataset"}
+                    return {"data": {"artifact": art}}
+                if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                    full_name = body.get("variables", {}).get("name", None)
+                    if full_name is not None:
+                        collection_name = full_name.split(":")[0]
+                    art = artifact(
+                        ctx, collection_name=collection_name, request_url_root=base_url,
+                    )
+                # code artifacts use source-RUNID names, we return the code type
+                art["artifactType"] = {"id": 2, "name": "code"}
+                if "source" not in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 1, "name": "dataset"}
+                if "logged_table" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 3, "name": "run_table"}
+                if "run-" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "run_table"}
+                if "wb_validation_data" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
             art["currentManifest"] = {
