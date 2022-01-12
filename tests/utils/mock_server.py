@@ -1052,7 +1052,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-        for query_name in ["Artifact", "ArtifactType", "ArtifactWithCurrentManifest", "ArtifactUsedBy"]:
+        for query_name in ["Artifact", "ArtifactType", "ArtifactWithCurrentManifest", "ArtifactUsedBy", "ArtifactCreatedBy"]:
             if f"query {query_name}(" in body["query"]:
                 if ART_EMU:
                     return ART_EMU.query(
