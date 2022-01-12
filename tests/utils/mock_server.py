@@ -521,7 +521,7 @@ def create_app(user_ctx=None):
                 return json.dumps(
                     {"data": {project_field_name: {run_field_name: run_config}}}
                 )
-        if "query Models(" in body["query"]:
+        if "query EntityProjects(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
