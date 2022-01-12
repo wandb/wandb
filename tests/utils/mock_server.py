@@ -497,7 +497,13 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        for query_name in ["Run", "RunState", "RunFiles", "RunFullHistory", "RunSampledHistory"]:
+        for query_name in [
+            "Run",
+            "RunState",
+            "RunFiles",
+            "RunFullHistory",
+            "RunSampledHistory",
+        ]:
             if f"query {query_name}(" in body["query"]:
                 # if querying state of run, change context from running to finished
                 if "RunFragment" not in body["query"] and "state" in body["query"]:
@@ -506,8 +512,15 @@ def create_app(user_ctx=None):
                     )
                     ctx["run_state"] = "finished"
                     return ret_val
-                return json.dumps({"data": {"project": {"run": run(ctx)}}})       
-        for query_name in ["RunConfigs", "RunResumeStatus", "RunStoppedStatus", "RunUploadUrls", "RunDownloadUrls", "RunDownloadUrl"]:    
+                return json.dumps({"data": {"project": {"run": run(ctx)}}})
+        for query_name in [
+            "RunConfigs",
+            "RunResumeStatus",
+            "RunStoppedStatus",
+            "RunUploadUrls",
+            "RunDownloadUrls",
+            "RunDownloadUrl",
+        ]:
             if f"query {query_name}(" in body["query"]:
                 if "project(" in body["query"]:
                     project_field_name = "project"
