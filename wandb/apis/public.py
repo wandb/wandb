@@ -2977,7 +2977,7 @@ class ProjectArtifactCollections(Paginator):
 class RunArtifacts(Paginator):
     OUTPUT_QUERY = gql(
         """
-        query RunArtifacts(
+        query RunOutputArtifacts(
             $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
@@ -3005,7 +3005,7 @@ class RunArtifacts(Paginator):
 
     INPUT_QUERY = gql(
         """
-        query RunArtifacts(
+        query RunInputArtifacts(
             $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {

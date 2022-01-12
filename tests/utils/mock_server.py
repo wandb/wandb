@@ -1015,14 +1015,14 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-        if "query RunArtifacts(" in body["query"]:
-            if "inputArtifacts" in body["query"]:
-                key = "inputArtifacts"
-            else:
-                key = "outputArtifacts"
+        if "query RunInputArtifacts(" in body["query"]:
             artifacts = paginated(artifact(ctx), ctx)
             artifacts["totalCount"] = ctx["page_times"]
-            return {"data": {"project": {"run": {key: artifacts}}}}
+            return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
+        if "query RunOutputArtifacts(" in body["query"]:
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
             artifacts = paginated(artifact(ctx), ctx, {"version": version})
