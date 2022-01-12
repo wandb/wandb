@@ -476,7 +476,8 @@ class Table(Media):
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(*args, **kwargs)
 
@@ -532,7 +533,14 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(columns=json_obj["columns"], data=data)
+        # construct Table with dtypes for each column if type information exists
+        dtypes = None
+        if column_types is not None:
+            dtypes = [
+                column_types.params["type_map"][col] for col in json_obj["columns"]
+            ]
+
+        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -593,7 +601,9 @@ class Table(Media):
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
-                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                        **{
+                            str(col_name): self.get_column(col_name, convert_to="numpy")
+                        },
                     )
                     entry = artifact.add_file(
                         npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
@@ -854,8 +864,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts
-    """
+    """Helper class for PartitionTable to track its parts"""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -872,7 +881,7 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """ PartitionedTable represents a table which is composed
+    """PartitionedTable represents a table which is composed
     by the union of multiple sub-tables. Currently, PartitionedTable
     is designed to point to a directory within an artifact.
     """
@@ -1268,7 +1277,8 @@ class Bokeh(Media):
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
-            util.json_dump_safer(b_json, codecs.open(tmp_path, "w", encoding="utf-8"))
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
         elif not isinstance(data_or_path, bokeh.document.Document):
             raise TypeError(
@@ -1349,7 +1359,8 @@ class Graph(Media):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
