@@ -1085,7 +1085,7 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
-        if "query Project" in body["query"] and "runQueues" in body["query"]:
+        if "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]:
             if ctx["run_queues_return_default"]:
                 return json.dumps(
                     {
