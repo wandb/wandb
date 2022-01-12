@@ -498,7 +498,7 @@ def create_app(user_ctx=None):
                 }
             )
         
-        if "query RunState(" in body["query"]:
+        if "query Run(" in body["query"] or "query RunState(" in body["query"]:
             # if querying state of run, change context from running to finished
             if "RunFragment" not in body["query"] and "state" in body["query"]:
                 ret_val = json.dumps(
@@ -1039,7 +1039,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-        if "query Artifact(" in body["query"]:
+        if "query Artifact(" in body["query"] or "query ArtifactType(" in body["query"]:
             if ART_EMU:
                 return ART_EMU.query(
                     variables=body.get("variables", {}), query=body.get("query")
