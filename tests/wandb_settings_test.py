@@ -5,6 +5,7 @@ settings test.
 import copy
 import datetime
 import os
+import platform
 from unittest import mock
 
 import pytest  # type: ignore
@@ -546,9 +547,9 @@ def test_not_jupyter(test_settings):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_console(runner, test_settings):
+def test_console(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert run._settings.console == "auto"
         assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
         test_settings.update({"console": "off"}, source=Source.BASE)
@@ -579,8 +580,9 @@ def test_validate_console_problem_anonymous():
         s.update(anonymous="lol")
 
 
-def test_resume_fname(test_settings):
-    assert test_settings.resume_fname == os.path.abspath(
+def test_resume_fname():
+    s = Settings()
+    assert s.resume_fname == os.path.abspath(
         os.path.join(".", "wandb", "wandb-resume.json")
     )
 
@@ -593,8 +595,9 @@ def test_resume_fname_run(test_settings):
     run.finish()
 
 
-def test_wandb_dir(test_settings):
-    assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb")
+def test_wandb_dir():
+    s = Settings()
+    assert os.path.abspath(s.wandb_dir) == os.path.abspath("wandb")
 
 
 def test_wandb_dir_run(test_settings):
@@ -629,9 +632,9 @@ def test_log_internal(test_settings):
 # that are not in the default environment, which would cause these test to fail.
 # setting {"USERNAME": "test"} because on Windows getpass.getuser() would otherwise fail.
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_sync_dir(runner):
+def test_sync_dir(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert run._settings.sync_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run")
         )
@@ -639,9 +642,9 @@ def test_sync_dir(runner):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_sync_file(runner):
+def test_sync_file(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert run._settings.sync_file == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", f"run-{run.id}.wandb")
         )
@@ -649,9 +652,9 @@ def test_sync_file(runner):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_files_dir(runner):
+def test_files_dir(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert run._settings.files_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", "files")
         )
@@ -659,9 +662,9 @@ def test_files_dir(runner):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_tmp_dir(runner):
+def test_tmp_dir(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert run._settings.tmp_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", "tmp")
         )
@@ -669,9 +672,9 @@ def test_tmp_dir(runner):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_tmp_code_dir(runner):
+def test_tmp_code_dir(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert run._settings._tmp_code_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", "tmp", "code")
         )
@@ -679,9 +682,9 @@ def test_tmp_code_dir(runner):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_log_symlink_user(runner):
+def test_log_symlink_user(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
             run._settings.log_user
         )
@@ -689,15 +692,18 @@ def test_log_symlink_user(runner):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_log_symlink_internal(runner):
+def test_log_symlink_internal(runner, live_mock_server, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(mode="offline")
+        run = wandb.init(settings=test_settings)
         assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
             run._settings.log_internal
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_sync_symlink_latest(runner):
     with runner.isolated_filesystem():
