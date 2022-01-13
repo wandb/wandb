@@ -55,7 +55,7 @@ def get_docker_user(launch_project):
 
 TEMPLATE = """
 ### todo use python-slim as builder?
-FROM buildpack-deps:bionic as base
+FROM python:3.7-slim-buster
 ### gpu
 # FROM nvidia/cuda:10.0-base
 
@@ -71,7 +71,7 @@ RUN useradd \
     {user}
 
 # get repo with python versions
-RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
+# RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
 
 # base packages: git etc
 # todo: get the right python version -- support runtime.txt
@@ -116,7 +116,8 @@ def get_current_python_version():
 def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     username, userid = get_docker_user(launch_project)
     workdir = "/home/{user}".format(user=username) # @@@ default, this should be configurable
-    base_packages = ["git", "python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
+    # base_packages = ["git", "python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
+    base_packages = ["git"]
 
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
@@ -156,7 +157,7 @@ def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     )
 
 
-    requirements_line += "pip3 install --no-cache-dir -r requirements.txt"
+    requirements_line += "pip install --no-cache-dir -r requirements.txt"
 
     # # TODO: make this configurable or change the default behavior...
     # requirements_line += _parse_existing_requirements(launch_project)

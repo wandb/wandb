@@ -107,7 +107,7 @@ class LaunchProject(object):
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
 
-        return "us-east1-docker.pkg.dev/playground-111/launch-vertex-test/test_dev:test_cpu_nocachedir"   # @@@ temp
+        return "us-east1-docker.pkg.dev/playground-111/launch-vertex-test/test_dev:test_cpu_pythonslim"   # @@@ temp
 
 
 
@@ -144,7 +144,7 @@ class LaunchProject(object):
         """Adds an entry point to the project."""
         _, file_extension = os.path.splitext(entry_point)
         # ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}
-        ext_to_cmd = {".py": "python3", ".sh": os.environ.get("SHELL", "bash")}     # @@@ todo version
+        ext_to_cmd = {".py": "python", ".sh": os.environ.get("SHELL", "bash")}     # @@@ todo version
         if file_extension in ext_to_cmd:
             command = "%s %s" % (ext_to_cmd[file_extension], quote(entry_point))
             new_entrypoint = EntryPoint(name=entry_point, command=command)
