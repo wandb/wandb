@@ -27,7 +27,6 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
-from urllib.parse import urljoin
 
 import wandb
 from wandb import util
