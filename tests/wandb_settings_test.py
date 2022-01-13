@@ -581,7 +581,7 @@ def test_validate_console_problem_anonymous():
 
 def test_resume_fname(test_settings):
     assert test_settings.resume_fname == os.path.abspath(
-        os.path.join("./wandb", "wandb-resume.json")
+        os.path.join(".", "wandb", "wandb-resume.json")
     )
 
 
@@ -594,13 +594,13 @@ def test_resume_fname_run(test_settings):
 
 
 def test_wandb_dir(test_settings):
-    assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb/")
+    assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb")
 
 
 def test_wandb_dir_run(test_settings):
     run = wandb.init(settings=test_settings)
     assert os.path.abspath(run._settings.wandb_dir) == os.path.abspath(
-        os.path.join(run._settings.root_dir, "wandb/")
+        os.path.join(run._settings.root_dir, "wandb")
     )
     run.finish()
 
@@ -608,7 +608,7 @@ def test_wandb_dir_run(test_settings):
 def test_log_user(test_settings):
     _, run_dir, log_dir, fname = os.path.abspath(
         os.path.realpath(test_settings.log_user)
-    ).rsplit("/", 3)
+    ).rsplit(os.path.sep, 3)
     _, _, run_id = run_dir.split("-")
     assert run_id == test_settings.run_id
     assert log_dir == "logs"
@@ -618,7 +618,7 @@ def test_log_user(test_settings):
 def test_log_internal(test_settings):
     _, run_dir, log_dir, fname = os.path.abspath(
         os.path.realpath(test_settings.log_internal)
-    ).rsplit("/", 3)
+    ).rsplit(os.path.sep, 3)
     _, _, run_id = run_dir.split("-")
     assert run_id == test_settings.run_id
     assert log_dir == "logs"
@@ -632,7 +632,9 @@ def test_log_internal(test_settings):
 def test_sync_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
-        assert run._settings.sync_dir == os.path.realpath("./wandb/latest-run")
+        assert run._settings.sync_dir == os.path.realpath(
+            os.path.join(".", "wandb", "latest-run")
+        )
         run.finish()
 
 
@@ -641,7 +643,7 @@ def test_sync_file(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
         assert run._settings.sync_file == os.path.realpath(
-            f"./wandb/latest-run/run-{run.id}.wandb"
+            os.path.join(".", "wandb", "latest-run", f"run-{run.id}.wandb")
         )
         run.finish()
 
@@ -650,7 +652,9 @@ def test_sync_file(runner):
 def test_files_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
-        assert run._settings.files_dir == os.path.realpath("./wandb/latest-run/files")
+        assert run._settings.files_dir == os.path.realpath(
+            os.path.join(".", "wandb", "latest-run", "files")
+        )
         run.finish()
 
 
@@ -658,7 +662,9 @@ def test_files_dir(runner):
 def test_tmp_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
-        assert run._settings.tmp_dir == os.path.realpath("./wandb/latest-run/tmp")
+        assert run._settings.tmp_dir == os.path.realpath(
+            os.path.join(".", "wandb", "latest-run", "tmp")
+        )
         run.finish()
 
 
@@ -667,7 +673,7 @@ def test_tmp_code_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
         assert run._settings._tmp_code_dir == os.path.realpath(
-            "./wandb/latest-run/tmp/code"
+            os.path.join(".", "wandb", "latest-run", "tmp", "code")
         )
         run.finish()
 
@@ -696,20 +702,18 @@ def test_log_symlink_internal(runner):
 def test_sync_symlink_latest(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
+        time_tag = datetime.datetime.strftime(
+            run._settings._start_datetime, "%Y%m%d_%H%M%S"
+        )
         assert os.path.realpath(run._settings.sync_symlink_latest) == os.path.abspath(
-            "./wandb/offline-run-{}-{}".format(
-                datetime.datetime.strftime(
-                    run._settings._start_datetime, "%Y%m%d_%H%M%S"
-                ),
-                run.id,
-            )
+            os.path.join(".", "wandb", f"offline-run-{time_tag}-{run.id}")
         )
         run.finish()
 
 
 def test_settings_system(test_settings):
     assert os.path.abspath(test_settings.settings_system) == os.path.expanduser(
-        "~/.config/wandb/settings"
+        os.path.join("~", ".config", "wandb", "settings")
     )
 
 
