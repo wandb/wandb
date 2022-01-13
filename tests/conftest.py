@@ -159,13 +159,8 @@ def test_dir(test_name):
 
 @pytest.fixture
 def disable_git_save():
-    env_var_is_set = "WANDB_DISABLE_GIT" in os.environ
-    os.environ["WANDB_DISABLE_GIT"] = "true"
-    yield
-    if env_var_is_set:
-        os.environ["WANDB_DISABLE_GIT"] = "false"
-    else:
-        del os.environ["WANDB_DISABLE_GIT"]
+    with mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
+        yield
 
 
 @pytest.fixture
@@ -234,11 +229,9 @@ def test_settings(test_dir, mocker, live_mock_server):
         save_code=False,
     )
     yield settings
-    # Just in case someone forgets to join in tests. ...well, don't!
+    # Just in case someone forgets to join in tests. ...well, please don't!
     if wandb.run is not None:
         wandb.run.finish()
-    # if wandb.wandb_sdk.wandb_setup._WandbSetup.instance is not None:
-    #     wandb.wandb_sdk.wandb_setup._WandbSetup.instance = None
 
 
 @pytest.fixture
@@ -247,8 +240,6 @@ def mocked_run(runner, test_settings):
     run = wandb.wandb_sdk.wandb_run.Run(settings=test_settings)
     run._set_backend(MagicMock())
     yield run
-    # if wandb.run is not None:
-    #     wandb.run.finish()
 
 
 @pytest.fixture

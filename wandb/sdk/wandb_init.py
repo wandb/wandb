@@ -180,7 +180,7 @@ class _WandbInit(object):
         # handle login related parameters as these are applied to global state
         init_settings = dict()
         for key in ["anonymous", "force", "mode", "resume"]:
-            if key in kwargs and kwargs[key] is not None:
+            if kwargs.get(key, None) is not None:
                 init_settings[key] = kwargs.get(key)
         if init_settings:
             settings.update(init_settings, source=Source.INIT)

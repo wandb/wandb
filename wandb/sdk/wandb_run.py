@@ -1,6 +1,3 @@
-#
-# -*- coding: utf-8 -*-
-
 import atexit
 from datetime import timedelta
 from enum import IntEnum
