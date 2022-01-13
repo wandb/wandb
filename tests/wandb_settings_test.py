@@ -793,3 +793,11 @@ def test_make_static_include_not_properties():
 def test_is_local():
     s = Settings(base_url=None)
     assert s.is_local is False
+
+
+def test_setup_offline(live_mock_server, test_settings):
+    # this is to increase coverage
+    login_settings = test_settings.copy()
+    login_settings.update(mode="offline")
+    assert wandb.setup(settings=login_settings)._instance._get_entity() is None
+    assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
