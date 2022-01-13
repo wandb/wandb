@@ -546,6 +546,10 @@ def test_not_jupyter(test_settings):
     run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="backend crashes on Windows in CI, likely bc of the overloaded env",
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_console(runner, test_settings):
     with runner.isolated_filesystem():
@@ -561,7 +565,7 @@ def test_console(runner, test_settings):
 
 @pytest.mark.skipif(
     platform.system() == "Windows",
-    reason="backend crashes on Windows in CI, likely bc of the overloaded env",
+    reason="backend crashes on Windows in CI",
 )
 @mock.patch.dict(
     os.environ, {"WANDB_START_METHOD": "thread", "USERNAME": "test"}, clear=True
