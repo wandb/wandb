@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 """
 multiproc full tests.
 """
@@ -114,3 +112,10 @@ def test_multiproc_spawn(runner, test_settings):
         sys.modules["__main__"].__spec__ = None
         # run this to get credit for the diff
         test_mod.mp_func()
+
+
+def test_missing_attach_id(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    with pytest.raises(UsageError):
+        wandb._attach(attach_id=None, run_id=None)
+    run.finish()
