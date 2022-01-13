@@ -28,15 +28,16 @@ def test_run_from_dict():
     assert run.summary_metrics == {}
 
 
-def test_print_status(mock_server, capsys):
-    c = wandb.controller("test", entity="test", project="test")
-    c.print_status()
-    stdout, stderr = capsys.readouterr()
-    assert stdout == "Sweep: fun-sweep-10 (random) | Runs: 1 (Running: 1)\n"
-    # For some reason, the windows and mac tests are failing in CI
-    # as there are write permissions warnings.
-    if platform.system() != "Windows" and platform.system() != "Darwin":
-        assert stderr == ""
+def test_print_status(runner, mock_server, capsys):
+    with runner.isolated_filesystem():
+        c = wandb.controller("test", entity="test", project="test")
+        c.print_status()
+        stdout, stderr = capsys.readouterr()
+        assert stdout == "Sweep: fun-sweep-10 (random) | Runs: 1 (Running: 1)\n"
+        # For some reason, the windows and mac tests are failing in CI
+        # as there are write permissions warnings.
+        if platform.system() != "Windows" and platform.system() != "Darwin":
+            assert stderr == ""
 
 
 def test_controller_existing(mock_server):
