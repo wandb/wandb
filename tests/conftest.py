@@ -1,51 +1,39 @@
-import pytest
-import time
-import platform
-import tempfile
-import datetime
-import requests
-import os
-import sys
-import threading
-import logging
-import shutil
+import atexit
 from contextlib import contextmanager
-from tests import utils
-from six.moves import queue
-from wandb import wandb_sdk
-
-# from multiprocessing import Process
+import datetime
+import logging
+import os
+import platform
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
+import threading
+from unittest import mock
+from unittest.mock import MagicMock
+
 import click
 from click.testing import CliRunner
-import webbrowser
 import git
+import nbformat
 import psutil
-import atexit
-import wandb
-import shutil
-from wandb.util import mkdir_exists_ok
-from six.moves import urllib
+import pytest
+import requests
+from six.moves import queue, urllib
+import webbrowser
 
-from wandb.sdk.lib.module import unset_globals
-from wandb.sdk.lib.git import GitRepo
+from tests import utils
+import wandb
+from wandb import wandb_sdk
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.lib.module import unset_globals
+from wandb.sdk.lib.git import GitRepo
+from wandb.util import mkdir_exists_ok
 
-from wandb.proto import wandb_internal_pb2
-from wandb.proto import wandb_internal_pb2 as pb
-
-
-try:
-    import nbformat
-except ImportError:  # TODO: no fancy notebook fun in python2
-    pass
-
-try:
-    from unittest.mock import MagicMock
-except ImportError:  # TODO: this is only for python2
-    from mock import MagicMock
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 
