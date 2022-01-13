@@ -52,12 +52,40 @@ def get_docker_user(launch_project):
     return username, userid
 
 
-
 TEMPLATE = """
-### todo use python-slim as builder?
-FROM python:3.7-slim-buster
-### gpu
-# FROM nvidia/cuda:10.0-base
+FROM python:{py_version_image} as base
+
+# install in venv to copy
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY src/requirements.txt .
+RUN pip install -r requirements.txt     # todo: buildx
+
+################## cpu
+
+# FROM python:{py_version_image} as build
+
+################## gpu needs python install
+
+FROM nvidia/cuda:10.0-base as build
+RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
+
+# install python
+# todo support runtime.txt
+RUN apt-get update -qq && apt-get install --no-install-recommends -y \
+    {python_packages} \
+    && apt-get -qq purge && apt-get -qq clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 \
+    && update-alternatives --install /usr/local/bin/python python /usr/bin/python3.7 1 # todo fix version
+
+##################
+
+COPY --from=base /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 
 ENV SHELL /bin/bash
 
@@ -70,43 +98,29 @@ RUN useradd \
     --uid {uid} \
     {user}
 
-# get repo with python versions
-# RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
-
-# base packages: git etc
-# todo: get the right python version -- support runtime.txt
-RUN apt-get update -qq && apt-get install -y \
-    {base_packages} \
-    && apt-get -qq purge && apt-get -qq clean \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR {home_dir}
 RUN chown {user} {home_dir}
-ENV PATH="/.local/bin:$PATH"
 
+# add env vars
 {env_vars}
 
-# install requirements earlier so they cache UNLESS (todo) any are local refs
-# todo: don't hardcode reqs.txt, check _should_preassemble_pip for local installs
-COPY --chown={user} src/requirements.txt {home_dir}
-# todo this is unused rn
-COPY --chown={user} src/_wandb_bootstrap.py {home_dir}
-{requirements_section}
-
+# make artifacts cache dir unrelated to build
+RUN mkdir -p {home_dir}/.cache && chown -R {uid} {home_dir}/.cache
 
 # copy code/etc
 # todo: make this location configurable away from $HOME
 COPY --chown={user} src/ {home_dir}
 
-# todo: if local refs present, build pip here
+# todo handle local installs
 
 USER {user}
 
 ENV PYTHONUNBUFFERED=1
 
-CMD {command_arr}
+ENTRYPOINT {command_arr}
 
 """
+
 
 def get_current_python_version():
     # todo: this should be somewhere else
@@ -116,8 +130,7 @@ def get_current_python_version():
 def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     username, userid = get_docker_user(launch_project)
     workdir = "/home/{user}".format(user=username) # @@@ default, this should be configurable
-    # base_packages = ["git", "python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
-    base_packages = ["git"]
+    python_packages = ["python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
 
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
@@ -143,7 +156,7 @@ def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     requirements_line = ""
 
     if docker.is_buildx_installed():
-        requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
+        requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(
             workdir, launch_project.docker_user_id
         )
     else:
@@ -157,16 +170,17 @@ def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     )
 
 
-    requirements_line += "pip install --no-cache-dir -r requirements.txt"
+    requirements_line += "pip install -r requirements.txt"
 
     # # TODO: make this configurable or change the default behavior...
     # requirements_line += _parse_existing_requirements(launch_project)
     # requirements_line += "python _wandb_bootstrap.py\n"
 
     dockerfile_contents = TEMPLATE.format(
+        py_version_image="3.7-slim-buster",     # todo
         user=username,
         uid=launch_project.docker_user_id,
-        base_packages=' \\\n'.join(base_packages),
+        python_packages=' \\\n'.join(python_packages),
         env_vars=env_vars_section,
         home_dir=workdir,   # rename this var to workdir as distinct from homedir
         command_arr=entry_cmd,
