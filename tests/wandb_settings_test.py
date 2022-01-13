@@ -559,6 +559,10 @@ def test_console(runner, test_settings):
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="backend crashes on Windows in CI, likely bc of the overloaded env",
+)
 @mock.patch.dict(
     os.environ, {"WANDB_START_METHOD": "thread", "USERNAME": "test"}, clear=True
 )
@@ -580,9 +584,8 @@ def test_validate_console_problem_anonymous():
         s.update(anonymous="lol")
 
 
-def test_resume_fname():
-    s = Settings()
-    assert s.resume_fname == os.path.abspath(
+def test_resume_fname(test_settings):
+    assert test_settings.resume_fname == os.path.abspath(
         os.path.join(".", "wandb", "wandb-resume.json")
     )
 
@@ -595,9 +598,8 @@ def test_resume_fname_run(test_settings):
     run.finish()
 
 
-def test_wandb_dir():
-    s = Settings()
-    assert os.path.abspath(s.wandb_dir) == os.path.abspath("wandb")
+def test_wandb_dir(test_settings):
+    assert os.path.abspath(test_settings.wandb_dir) == os.path.abspath("wandb")
 
 
 def test_wandb_dir_run(test_settings):
