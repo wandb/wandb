@@ -564,8 +564,7 @@ def test_console(runner, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="backend crashes on Windows in CI",
+    platform.system() == "Windows", reason="backend crashes on Windows in CI",
 )
 @mock.patch.dict(
     os.environ, {"WANDB_START_METHOD": "thread", "USERNAME": "test"}, clear=True
