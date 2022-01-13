@@ -512,7 +512,7 @@ class InterfaceBase(object):
         self._publish_partial_history(partial_history)
 
     @abstractmethod
-    def _publish_partial_history(self, history: pb.HistoryRecord) -> None:
+    def _publish_partial_history(self, history: pb.PartialHistoryRequest) -> None:
         raise NotImplementedError
 
     def publish_history(

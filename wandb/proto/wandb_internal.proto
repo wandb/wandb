@@ -489,8 +489,8 @@ message DeferRequest {
   enum DeferState {
     BEGIN = 0;
     FLUSH_STATS = 1;
-    FLUSH_TB = 2;
-    FLUSH_PARTIAL_HISTORY = 3;
+    FLUSH_PARTIAL_HISTORY = 2;
+    FLUSH_TB = 3;
     FLUSH_SUM = 4;
     FLUSH_DEBOUNCER = 5;
     FLUSH_DIR = 6;

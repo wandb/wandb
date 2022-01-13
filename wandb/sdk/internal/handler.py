@@ -57,6 +57,7 @@ def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) ->
 class HandleManager(object):
     _consolidated_summary: SummaryDict
     _sampled_history: Dict[str, sample.UniformSampleAccumulator]
+    _partial_history: Dict[str, Any]
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
     _result_q: "Queue[Result]"
