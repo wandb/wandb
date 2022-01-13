@@ -1060,7 +1060,7 @@ def create_app(user_ctx=None):
                 art = artifact(
                     ctx, collection_name=collection_name, request_url_root=base_url,
                 )
-            # code artifacts use source-RUNID names, we return the code type
+            # code artifacts use source-RUNID names, we return the code typez
             art["artifactType"] = {"id": 2, "name": "code"}
             if "source" not in body["variables"]["name"]:
                 art["artifactType"] = {"id": 1, "name": "dataset"}
