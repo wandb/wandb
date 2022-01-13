@@ -545,7 +545,7 @@ def test_not_jupyter(test_settings):
     run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_console(runner, test_settings):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -558,7 +558,9 @@ def test_console(runner, test_settings):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {"WANDB_START_METHOD": "thread"}, clear=True)
+@mock.patch.dict(
+    os.environ, {"WANDB_START_METHOD": "thread", "USERNAME": "test"}, clear=True
+)
 def test_console_run(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -624,8 +626,9 @@ def test_log_internal(test_settings):
 
 
 # note: patching os.environ because other tests may have created env variables
-# that are not in the default environment, which would cause this test to fail
-@mock.patch.dict(os.environ, {}, clear=True)
+# that are not in the default environment, which would cause these test to fail.
+# setting {"USERNAME": "test"} because on Windows getpass.getuser() would otherwise fail.
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_sync_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -633,7 +636,7 @@ def test_sync_dir(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_sync_file(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -643,7 +646,7 @@ def test_sync_file(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_files_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -651,7 +654,7 @@ def test_files_dir(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_tmp_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -659,7 +662,7 @@ def test_tmp_dir(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_tmp_code_dir(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -669,7 +672,7 @@ def test_tmp_code_dir(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_log_symlink_user(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -679,7 +682,7 @@ def test_log_symlink_user(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_log_symlink_internal(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
@@ -689,7 +692,7 @@ def test_log_symlink_internal(runner):
         run.finish()
 
 
-@mock.patch.dict(os.environ, {}, clear=True)
+@mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
 def test_sync_symlink_latest(runner):
     with runner.isolated_filesystem():
         run = wandb.init(mode="offline")
