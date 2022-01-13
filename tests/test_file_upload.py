@@ -37,8 +37,6 @@ def test_file_upload_azure_good(mocked_run, publish_util, mock_server):
     mock_server.set_context("emulate_azure", True)
 
     def begin_fn(interface):
-        # We use the sketchy hack of naming our file after azure blob storage
-        # to trigger the azure logic
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
@@ -53,8 +51,6 @@ def test_file_upload_azure_inject(
     mock_server.set_context("emulate_azure", True)
 
     def begin_fn(interface):
-        # We use the sketchy hack of naming our file after azure blob storage
-        # to trigger the azure logic
         with open(os.path.join(mocked_run.dir, "test.txt"), "w") as f:
             f.write("TEST TEST")
 
