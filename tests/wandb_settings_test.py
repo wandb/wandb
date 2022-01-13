@@ -547,9 +547,9 @@ def test_not_jupyter(test_settings):
 
 
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_console(runner, live_mock_server, test_settings):
+def test_console(runner, test_settings):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert run._settings.console == "auto"
         assert run._settings._console == wandb_settings.SettingsConsole.REDIRECT
         test_settings.update({"console": "off"}, source=Source.BASE)
@@ -631,70 +631,91 @@ def test_log_internal(test_settings):
 # note: patching os.environ because other tests may have created env variables
 # that are not in the default environment, which would cause these test to fail.
 # setting {"USERNAME": "test"} because on Windows getpass.getuser() would otherwise fail.
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_sync_dir(runner, live_mock_server, test_settings):
+def test_sync_dir(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert run._settings.sync_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run")
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_sync_file(runner, live_mock_server, test_settings):
+def test_sync_file(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert run._settings.sync_file == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", f"run-{run.id}.wandb")
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_files_dir(runner, live_mock_server, test_settings):
+def test_files_dir(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert run._settings.files_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", "files")
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_tmp_dir(runner, live_mock_server, test_settings):
+def test_tmp_dir(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert run._settings.tmp_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", "tmp")
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_tmp_code_dir(runner, live_mock_server, test_settings):
+def test_tmp_code_dir(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert run._settings._tmp_code_dir == os.path.realpath(
             os.path.join(".", "wandb", "latest-run", "tmp", "code")
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_log_symlink_user(runner, live_mock_server, test_settings):
+def test_log_symlink_user(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert os.path.realpath(run._settings.log_symlink_user) == os.path.abspath(
             run._settings.log_user
         )
         run.finish()
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="backend crashes on Windows in CI"
+)
 @mock.patch.dict(os.environ, {"USERNAME": "test"}, clear=True)
-def test_log_symlink_internal(runner, live_mock_server, test_settings):
+def test_log_symlink_internal(runner):
     with runner.isolated_filesystem():
-        run = wandb.init(settings=test_settings)
+        run = wandb.init(mode="offline")
         assert os.path.realpath(run._settings.log_symlink_internal) == os.path.abspath(
             run._settings.log_internal
         )
