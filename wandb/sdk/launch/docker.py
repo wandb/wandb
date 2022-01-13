@@ -55,9 +55,9 @@ def get_docker_user(launch_project):
 
 TEMPLATE = """
 ### todo use python-slim as builder?
-# FROM buildpack-deps:bionic as base
+FROM buildpack-deps:bionic as base
 ### gpu
-FROM nvidia/cuda:10.0-base
+# FROM nvidia/cuda:10.0-base
 
 ENV SHELL /bin/bash
 
@@ -75,7 +75,7 @@ RUN apt-get update -qq && apt-get install -y software-properties-common && add-a
 
 # base packages: git etc
 # todo: get the right python version -- support runtime.txt
-RUN apt-get update -qq && apt-get install -qq -y \
+RUN apt-get update -qq && apt-get install -y \
     {base_packages} \
     && apt-get -qq purge && apt-get -qq clean \
     && rm -rf /var/lib/apt/lists/*
@@ -156,7 +156,7 @@ def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     )
 
 
-    requirements_line += "pip3 install -r requirements.txt"
+    requirements_line += "pip3 install --no-cache-dir -r requirements.txt"
 
     # # TODO: make this configurable or change the default behavior...
     # requirements_line += _parse_existing_requirements(launch_project)
