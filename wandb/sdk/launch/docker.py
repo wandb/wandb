@@ -54,7 +54,10 @@ def get_docker_user(launch_project):
 
 
 TEMPLATE = """
-FROM buildpack-deps:bionic
+### todo use python-slim as builder?
+# FROM buildpack-deps:bionic as base
+### gpu
+FROM nvidia/cuda:10.0-base
 
 ENV SHELL /bin/bash
 
@@ -86,8 +89,10 @@ ENV PATH="/.local/bin:$PATH"
 # install requirements earlier so they cache UNLESS (todo) any are local refs
 # todo: don't hardcode reqs.txt, check _should_preassemble_pip for local installs
 COPY --chown={user} src/requirements.txt {home_dir}
+# todo this is unused rn
 COPY --chown={user} src/_wandb_bootstrap.py {home_dir}
 {requirements_section}
+
 
 # copy code/etc
 # todo: make this location configurable away from $HOME
@@ -111,7 +116,7 @@ def get_current_python_version():
 def generate_base_image_no_r2d(api, launch_project, entry_cmd):
     username, userid = get_docker_user(launch_project)
     workdir = "/home/{user}".format(user=username) # @@@ default, this should be configurable
-    base_packages = ["git", "python3.7", "python3-pip", "unzip"]    # todo: get version from current or saved run
+    base_packages = ["git", "python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
 
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
