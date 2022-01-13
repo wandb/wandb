@@ -287,6 +287,7 @@ def test_freeze():
     s.update(project="goodprojo")
     assert s.project == "goodprojo"
     s.freeze()
+    assert s.is_frozen()
     with pytest.raises(TypeError):
         s.update(project="badprojo")
     assert s.project == "goodprojo"
@@ -566,6 +567,16 @@ def test_console_run(runner):
         run.finish()
 
 
+def test_validate_console_problem_anonymous():
+    s = Settings()
+    with pytest.raises(UsageError):
+        s.update(console="lol")
+    with pytest.raises(UsageError):
+        s.update(problem="lol")
+    with pytest.raises(UsageError):
+        s.update(anonymous="lol")
+
+
 def test_resume_fname(test_settings):
     assert test_settings.resume_fname == os.path.abspath(
         os.path.join("./wandb", "wandb-resume.json")
@@ -712,3 +723,34 @@ def test_override_login_settings_with_dict(live_mock_server, test_settings):
     login_settings = dict(show_emoji=True)
     wlogin.setup({"_settings": login_settings})
     assert wlogin._settings.show_emoji is True
+
+
+def test_start_run():
+    s = Settings()
+    s._start_run()
+    assert s._Settings_start_time is not None
+    assert s._Settings_start_datetime is not None
+
+
+def test_unexpected_arguments():
+    with pytest.raises(TypeError):
+        Settings(lol=False)
+
+
+def test_mapping_interface():
+    s = Settings()
+    for setting in s:
+        assert setting in s
+
+
+def test_make_static_include_not_properties():
+    s = Settings()
+    static_settings = s.make_static(include_properties=False)
+    assert "run_mode" not in static_settings
+    static_settings = s.make_static(include_properties=True)
+    assert "run_mode" in static_settings
+
+
+def test_is_local():
+    s = Settings(base_url=None)
+    assert s.is_local is False

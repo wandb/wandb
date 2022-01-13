@@ -279,10 +279,6 @@ class Settings:
 
     Console: Type[SettingsConsole] = SettingsConsole
 
-    # helper methods for pre-processing values
-    def _join_with_base_url(self, url: str) -> str:
-        return str(urljoin(self.base_url, url))
-
     # helper methods for validating values
     @staticmethod
     def _validate_mode(value: str) -> bool:
