@@ -10,7 +10,7 @@ from unittest import mock
 import pytest  # type: ignore
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk import wandb_settings
+from wandb.sdk import wandb_login, wandb_settings
 
 
 Property = wandb_settings.Property
@@ -697,3 +697,18 @@ def test_settings_system(test_settings):
     assert os.path.abspath(test_settings.settings_system) == os.path.expanduser(
         "~/.config/wandb/settings"
     )
+
+
+def test_override_login_settings(live_mock_server, test_settings):
+    wlogin = wandb_login._WandbLogin()
+    login_settings = test_settings.copy()
+    login_settings.update(show_emoji=True)
+    wlogin.setup({"_settings": login_settings})
+    assert wlogin._settings.show_emoji is True
+
+
+def test_override_login_settings_with_dict(live_mock_server, test_settings):
+    wlogin = wandb_login._WandbLogin()
+    login_settings = dict(show_emoji=True)
+    wlogin.setup({"_settings": login_settings})
+    assert wlogin._settings.show_emoji is True

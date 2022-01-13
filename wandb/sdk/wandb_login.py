@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
@@ -102,6 +100,7 @@ class _WandbLogin:
         # built up login settings
         login_settings: Settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
+        # note that this case does not come up anywhere except for the tests
         if settings_param is not None:
             if isinstance(settings_param, Settings):
                 login_settings.apply_settings(settings_param)
