@@ -1,3 +1,4 @@
+import argparse
 from omegaconf import DictConfig
 
 from wandb import UsageError
@@ -56,6 +57,29 @@ def test_parse_normal_dict_config_with_include_and_exclude_then_raise_error():
     except UsageError:
         raised = True
     assert raised
+
+
+def test_parse_dict_not_a_dict_config_then_raise_error():
+    not_a_dict_config = ["a_list"]
+
+    raised = False
+    try:
+        parse_config(params=not_a_dict_config)
+    except TypeError:
+        raised = True
+    assert raised
+
+
+def test_parse_dict_an_argparse_namespace():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("an_argument", type=str)
+
+    args = parser.parse_args(["a_value_for_the_argument"])
+    actual = parse_config(params=args)
+
+    expected = {"an_argument": "a_value_for_the_argument"}
+
+    assert actual.items() == expected.items()
 
 
 def test_parse_nested_dict_config():
