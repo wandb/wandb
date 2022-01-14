@@ -16,10 +16,8 @@ import socket
 import sys
 
 import click
-import yaml
-
 import six
-
+import yaml
 
 import wandb
 from wandb import __version__
