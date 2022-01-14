@@ -62,7 +62,7 @@ def _to_dict(params):
     return params
 
 
-def _parse_nested_config(config_params: Union[Mapping, Sequence]):
+def _parse_nested_config(config_params: Union[Mapping, Sequence]) -> Dict:
     """
     Args:
         config_params (Union[Mapping, Sequence]):
