@@ -95,7 +95,7 @@ class ArtifactManifest(object):
         self.entries[entry.path] = entry
 
     def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
-        return self.entries.get(path)
+        return self.entries.get(util.to_forward_slash_path(path))
 
     def get_entries_in_directory(self, directory):
         return [
