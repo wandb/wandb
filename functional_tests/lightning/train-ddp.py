@@ -94,7 +94,7 @@ def main():
         max_epochs=1,
         progress_bar_refresh_rate=20,
         num_processes=2,
-        accelerator="ddp_cpu",
+        accelerator="ddp",
         logger=wandb_logger,
     )
 
