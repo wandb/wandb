@@ -703,7 +703,7 @@ def _attach(
 def init(
     job_type: Optional[str] = None,
     dir=None,
-    config: Union[Dict, Mapping, Namespace, str, None] = None,
+    config: Union[Dict, Namespace, Mapping, str, None] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     reinit: bool = None,
@@ -776,7 +776,7 @@ def init(
             entity, which is usually your username. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
-        config: (dict, mapping, argparse, absl.flags, str, optional)
+        config: (dict, absl.flags, argparse, mapping, str, optional)
             This sets `wandb.config`, a dictionary-like object for saving inputs
             to your job, like hyperparameters for a model or settings for a data
             preprocessing job. The config will show up in a table in the UI that

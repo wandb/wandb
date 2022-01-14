@@ -10,6 +10,11 @@ from .lib import config_util
 
 
 def parse_config(params, exclude=None, include=None):
+    """
+    Function to parse a params config object into a dictionary. Params can be
+    a dictionary, a Tensorflow flags parameters settings, a namespace (argparse), a
+    nested dictionary (DictConfig) or a string.
+    """
     if exclude and include:
         raise UsageError("Expected at most only one of exclude or include")
     if isinstance(params, six.string_types):
@@ -25,6 +30,11 @@ def parse_config(params, exclude=None, include=None):
 
 
 def _to_dict(params):
+    """
+    Function to convert a dict-like parameters object into a proper dict.
+    Params can be a dictionary, a Tensorflow flags parameters settings, a namespace
+    (argparse) or a nested dictionary (DictConfig).
+    """
     if isinstance(params, dict):
         return params
 
@@ -48,11 +58,11 @@ def _to_dict(params):
         if not "__parsed" not in vars(params):
             params._parse_flags()
         params = vars(params)["__flags"]
+    elif isinstance(params, Mapping):
+        # Cases where params is a dict of dict, a dict of config or other similar mapping type.
+        params = _parse_nested_config(params)
     elif not hasattr(params, "__dict__"):
         raise TypeError("config must be a dict or have a __dict__ attribute.")
-    elif isinstance(params, Mapping) or isinstance(params, Sequence):
-        # Cases where params is a dict of dict, a dict of config, a sequence or other similar mapping type.
-        params = _parse_nested_config(params)
     else:
         # params is a Namespace object (argparse)
         # or something else
