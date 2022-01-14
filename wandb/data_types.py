@@ -288,7 +288,9 @@ class Table(Media):
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.data = []
-        self.columns = list(dataframe.columns)
+        columns = list(dataframe.columns)
+        self._assert_valid_columns(columns)
+        self.columns = columns
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))

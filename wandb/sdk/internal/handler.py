@@ -34,6 +34,7 @@ from . import meta, sample, stats
 from . import tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
+from ..lib import debug_log
 from ..lib import handler_util, proto_util
 
 SummaryDict = Dict[str, Any]
@@ -136,9 +137,15 @@ class HandleManager(object):
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
+            debug_log.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
         if not record.control.local and self._writer_q:
+            debug_log.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
+
+    def _respond_result(self, result: Result) -> None:
+        debug_log.log_message_queue(result, self._result_q)
+        self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
@@ -201,6 +208,7 @@ class HandleManager(object):
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
+            debug_log.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
     def _save_partial_history(self) -> None:
@@ -594,7 +602,7 @@ class HandleManager(object):
         # send response immediately, the request will be polled for result
         xid = record.uuid
         result.response.artifact_send_response.xid = xid
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_artifact_poll(self, record: Record) -> None:
         assert record.control.req_resp
@@ -609,7 +617,7 @@ class HandleManager(object):
                 done_req.error_message
             )
             result.response.artifact_poll_response.ready = True
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_artifact_done(self, record: Record) -> None:
         assert not record.control.req_resp
@@ -656,7 +664,7 @@ class HandleManager(object):
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
         result = proto_util._result_from_record(record)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_stats is not None:
@@ -694,7 +702,7 @@ class HandleManager(object):
             item.key = key
             item.value_json = json.dumps(value)
             result.response.get_summary_response.item.append(item)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_tbrecord(self, record: Record) -> None:
         logger.info("handling tbrecord: %s", record)
@@ -779,12 +787,12 @@ class HandleManager(object):
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
         result = proto_util._result_from_record(record)
-        self._result_q.put(result)
+        self._respond_result(result)
         self._stopped.set()
 
     def finish(self) -> None:
