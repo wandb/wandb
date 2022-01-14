@@ -426,6 +426,7 @@ def create_app(user_ctx=None):
                     + requested_file
                 )
                 upload_headers.append("x-ms-blob-type:Block")
+                upload_headers.append("Content-MD5:{}".format("AAAA"))
             else:
                 url = base_url + "/storage?file={}&run={}".format(
                     urllib.parse.quote(requested_file), ctx["current_run"]
@@ -1416,7 +1417,7 @@ def create_app(user_ctx=None):
                 response = inject.response
             if inject.http_status:
                 # print("INJECT", inject, inject.http_status)
-                raise HttpException("some error", status_code=inject.http_status)
+                raise HttpException({"code": 500, "message": "some error"}, status_code=inject.http_status)
 
         run_ctx = ctx["runs"].setdefault(run, default_ctx())
         for c in ctx, run_ctx:

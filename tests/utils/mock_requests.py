@@ -64,6 +64,7 @@ class RequestsMock(object):
         self.app = app
         self.client = app.test_client()
         self.ctx = ctx
+        self.mock = MagicMock()
         self._lock = threading.Lock()
 
     def set_context(self, key, value):
@@ -80,6 +81,10 @@ class RequestsMock(object):
     @property
     def HTTPError(self):
         return requests.HTTPError
+
+    @property
+    def model(self):
+        return self.mock
 
     @property
     def headers(self):
@@ -127,6 +132,10 @@ class RequestsMock(object):
             del kwargs["files"]
         if "cert" in kwargs:
             del kwargs["cert"]
+        if "hosts" in kwargs:
+            del kwargs["hosts"]
+        if "location_mode" in kwargs:
+            del kwargs["location_mode"]
         if "headers" in kwargs:
             # We convert our headers to a dict to avoid requests mocking madness
             kwargs["headers"] = dict(kwargs["headers"])
