@@ -169,6 +169,23 @@ workflows:
       - launch:
          name: "wandb launch tests"
          toxenv: "pylaunch,covercircle"
+      #
+      # sharded unittests
+      #
+      - test:
+         name: "unit-s_nb-lin-py36"
+         image: "python:3.6"
+         toxenv: "unit-s_nb-py36,unit-covercircle"
+      - win:
+         name: "unit-s_nb-win-py37"
+         toxenv: "unit-s_nb-py37"
+         parallelism: 1
+         xdist: 1
+      - mac:
+         name: "unit-s_nb-mac-py37"
+         toxenv: "unit-s_nb-py37"
+         parallelism: 1
+         xdist: 1
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:

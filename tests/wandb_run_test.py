@@ -300,3 +300,23 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             str(e_info.value)
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
+
+
+def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+    # use deprecated features
+    deprecated_features = [
+        run.mode,
+        run.save(),
+        run.join(),
+    ]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    # TelemetryRecord field 10 is Deprecated,
+    # whose fields 2-4 correspond to deprecated wandb.run features
+    telemetry_deprecated = telemetry.get("10", [])
+    assert (
+        (2 in telemetry_deprecated)
+        and (3 in telemetry_deprecated)
+        and (4 in telemetry_deprecated)
+    )
