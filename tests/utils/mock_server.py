@@ -1417,7 +1417,10 @@ def create_app(user_ctx=None):
                 response = inject.response
             if inject.http_status:
                 # print("INJECT", inject, inject.http_status)
-                raise HttpException({"code": 500, "message": "some error"}, status_code=inject.http_status)
+                raise HttpException(
+                    {"code": 500, "message": "some error"},
+                    status_code=inject.http_status,
+                )
 
         run_ctx = ctx["runs"].setdefault(run, default_ctx())
         for c in ctx, run_ctx:
