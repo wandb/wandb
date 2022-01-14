@@ -909,7 +909,7 @@ class Api(object):
                 success
                 queueID
             }
-            
+
         }
         """
         )
