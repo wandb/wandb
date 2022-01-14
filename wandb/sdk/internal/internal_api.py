@@ -1553,6 +1553,8 @@ class Api(object):
         from azure.core.exceptions import HttpResponseError
 
         client = self._azure_blob_module.BlobClient.from_blob_url(url)
+        # Disable retry logic
+        client.retry = lambda ctx: None
         try:
             if extra_headers.get("Content-MD5") is not None:
                 md5 = base64.b64decode(extra_headers["Content-MD5"])
