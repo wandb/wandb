@@ -509,8 +509,6 @@ class HandleManager(object):
             self._partial_history = {}
 
     def handle_request_partial_history(self, record: Record) -> None:
-        # TODO convert partial history to record object!!!
-
         history_dict = proto_util.dict_from_proto_list(
             record.request.partial_history.item
         )

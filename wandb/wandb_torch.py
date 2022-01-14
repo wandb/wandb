@@ -65,13 +65,12 @@ def log_track_update(log_track):
     return True
 
 
-class TorchHistory(object):
+class TorchHistory:
     """History methods specific to PyTorch"""
 
-    def __init__(self, history):
+    def __init__(self):
         global torch
         torch = wandb.util.get_module("torch", "Could not import torch")
-        self._history = weakref.ref(history)
         self._hook_handles = {}
         self._num_bins = 64
         self._is_cuda_histc_supported = None
@@ -150,16 +149,6 @@ class TorchHistory(object):
             raise TypeError(
                 "Expected Tensor, not {}.{}".format(cls.__module__, cls.__name__)
             )
-        history = self._history()
-
-        # recover history from run if using jupyter
-        if history is None and self._jupyter_run:
-            jupyter_run = self._jupyter_run()
-            if jupyter_run:
-                history = jupyter_run.history
-
-        if history is None or not history.compute:
-            return
 
         # HalfTensors on cpu do not support view(), upconvert to 32bit
         if isinstance(tensor, torch.HalfTensor):
@@ -420,7 +409,7 @@ class TorchGraph(wandb.data_types.Graph):
                 graph_hook = sub_module.register_forward_hook(
                     self.create_forward_hook(name, graph_idx)
                 )
-                wandb.run.history.torch._hook_handles[
+                wandb.run.torch._hook_handles[
                     "topology/" + str(id(graph_hook))
                 ] = graph_hook
                 if not hasattr(parent, "_wandb_hook_names"):

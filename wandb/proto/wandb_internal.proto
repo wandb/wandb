@@ -665,7 +665,7 @@ message TestInjectResponse {
     bool flush = 1;
  }
  message PartialHistoryRequest{
-   repeated HistoryItem item = 1;
+    repeated HistoryItem item = 1;
     HistoryStep step = 2;
     HistoryAction action = 3;
    _RequestInfo _info = 200;

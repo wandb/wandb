@@ -5,6 +5,7 @@ import six
 import wandb
 from wandb.viz import create_custom_chart
 
+
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
 STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
@@ -251,7 +252,9 @@ def reset_state():
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
 
-def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
+def log(
+    tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs,
+):
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
@@ -262,7 +265,7 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
     """
     global STEPS
     global RATE_LIMIT
-    history = history or wandb.run.history
+    # history = history or wandb.run.history
     # To handle multiple global_steps, we keep track of them here instead
     # of the global log
     last_step = STEPS.get(namespace, {"step": 0})
@@ -300,6 +303,14 @@ def log(tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs):
             RATE_LIMIT_SECONDS is None
             or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS
         ):
-            history.add({}, **kwargs)
+            if history is None:
+                wandb.log({})
+            else:
+                history.add({}, **kwargs)
+
         STEPS["global"]["last_log"] = timestamp
-    history._row_update(log_dict)
+
+    if history is None:
+        wandb.log(log_dict, commit=False)
+    else:
+        history._row_update(log_dict)

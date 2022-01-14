@@ -86,7 +86,7 @@ def watch(
             # TODO: this makes ugly chart names like gradients/graph_1conv1d.bias
             prefix = "graph_%i" % global_idx
 
-        wandb.run.history.torch.add_log_hooks_to_pytorch_module(
+        wandb.run.torch.add_log_hooks_to_pytorch_module(
             model,
             log_parameters=log_parameters,
             log_gradients=log_gradients,
@@ -96,9 +96,7 @@ def watch(
         )
 
         if log_graph:
-            graph = wandb.run.history.torch.hook_torch(
-                model, criterion, graph_idx=global_idx
-            )
+            graph = wandb.run.torch.hook_torch(model, criterion, graph_idx=global_idx)
             graphs.append(graph)
             # NOTE: the graph is set in run.summary by hook_torch on the backward pass
     return graphs
@@ -118,9 +116,9 @@ def unwatch(models=None):
                 wandb.termwarn("%s model has not been watched" % model)
             else:
                 for name in model._wandb_hook_names:
-                    wandb.run.history.torch.unhook(name)
+                    wandb.run.torch.unhook(name)
                 delattr(model, "_wandb_hook_names")
                 # TODO: we should also remove recursively model._wandb_watch_called
 
     else:
-        wandb.run.history.torch.unhook_all()
+        wandb.run.torch.unhook_all()

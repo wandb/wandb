@@ -258,7 +258,7 @@ def test_nested_shape():
     ],
 )
 def test_no_finite_values(test_input, expected, wandb_init_run):
-    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+    torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch_history._no_finite_values(test_input) is expected
 
@@ -273,6 +273,6 @@ def test_no_finite_values(test_input, expected, wandb_init_run):
     ],
 )
 def test_remove_infs_nans(test_input, expected, wandb_init_run):
-    torch_history = wandb.wandb_torch.TorchHistory(wandb.run.history)
+    torch_history = wandb.wandb_torch.TorchHistory()
 
     assert torch.equal(torch_history._remove_infs_nans(test_input), expected)

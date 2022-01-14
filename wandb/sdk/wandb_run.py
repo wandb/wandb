@@ -1,8 +1,3 @@
-#
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 import atexit
 from datetime import timedelta
 from enum import IntEnum
@@ -67,7 +62,8 @@ from wandb.viz import (
 
 from . import wandb_artifacts
 from . import wandb_config
-from . import wandb_history
+
+# from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
@@ -320,9 +316,10 @@ class Run(object):
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history = wandb_history.History(self)
-        self.history_step = 0
+        # self.history = wandb_history.History(self)
         # self.history._set_callback(self._history_callback)
+        self.history_step = 0
+        self._torch = None
 
         _datatypes_set_callback(self._datatypes_callback)
 
@@ -571,6 +568,12 @@ class Run(object):
             return
 
         self._attach_id = _attach_id
+
+    @property
+    def torch(self) -> None:
+        if self._torch is None:
+            self._torch = wandb.wandb_torch.TorchHistory()
+        return self._torch
 
     @property
     def dir(self) -> str:
@@ -1018,6 +1021,7 @@ class Run(object):
             # add the panel
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
+
         return row
 
     def _partial_history_callback(

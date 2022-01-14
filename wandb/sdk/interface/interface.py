@@ -493,7 +493,7 @@ class InterfaceBase(object):
         self,
         data: dict,
         step: int = None,
-        run: "Run" = None,
+        run: Optional["Run"] = None,
         flush: bool = False,
         publish_step: bool = True,
     ) -> None:
@@ -504,7 +504,7 @@ class InterfaceBase(object):
             assert step is not None
             partial_history.step.num = step
         data.pop("_step", None)
-        for k, v in six.iteritems(data):
+        for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)  # type: ignore
