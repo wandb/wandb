@@ -455,6 +455,8 @@ class Artifact(ArtifactInterface):
         return manifest_entries
 
     def add(self, obj: data_types.WBValue, name: str) -> ArtifactEntry:
+        if "classes" in name:
+            print(f"Calling artifact.add with name {name}")
         self._ensure_can_add()
 
         # This is a "hack" to automatically rename tables added to
@@ -501,6 +503,7 @@ class Artifact(ArtifactInterface):
         name = obj.with_suffix(name)
         entry = self._manifest.get_entry_by_path(name)
         if entry is not None:
+            print(f"Entry already found with name {name}\n")
             return entry
 
         def do_write(f: IO) -> None:
@@ -687,6 +690,8 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[str] = None
     ) -> ArtifactEntry:
+        if "classes" in name:
+            print(f"Calling _add_local_file with name {name}")
         digest = digest or md5_file_b64(path)
         size = os.path.getsize(path)
 
@@ -699,6 +704,11 @@ class Artifact(ArtifactInterface):
             name, None, digest=digest, size=size, local_path=cache_path,
         )
 
+        # TODO: Vish delete
+        if "classes" in name:
+            print(
+                f"Adding entry with \n\tname {name}\n\tlocal_path {cache_path}\n\tdigest {digest}\n"
+            )
         self._manifest.add_entry(entry)
         self._added_local_paths[path] = entry
         return entry
