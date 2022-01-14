@@ -1019,6 +1019,14 @@ def _check_launch_imports():
     multiple=True,
     help="A resource argument for launching runs with cloud providers, of the form -R name=value.",
 )
+@click.option(
+    "--gpu",
+    is_flag=False,
+    flag_value=True,
+    default=False,
+    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
+    "built by default and you must set --gpu=False to build a CPU-only image."
+)
 @display_error
 def launch(
     uri,
@@ -1035,6 +1043,7 @@ def launch(
     queue,
     run_async,
     resource_args,
+    gpu,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1096,6 +1105,7 @@ def launch(
                 resource_args=resource_args_dict,
                 config=config,
                 synchronous=(not run_async),
+                gpu=gpu,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1118,6 +1128,7 @@ def launch(
             docker_image,
             args_dict,
             resource_args_dict,
+            gpu=gpu,
         )
 
 

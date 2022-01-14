@@ -103,6 +103,7 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
+    gpu: Optional[bool],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -153,6 +154,7 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
+    launch_spec["gpu"] = True if gpu else False
 
     return launch_spec
 

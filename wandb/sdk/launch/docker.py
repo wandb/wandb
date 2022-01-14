@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from platform import python_version
 import re
 import shutil
 import subprocess
@@ -53,7 +54,7 @@ def get_docker_user(launch_project):
 
 
 TEMPLATE = """
-FROM python:{py_version_image} as base
+FROM python:{py_version_image} as build
 
 # install in venv to copy
 RUN python -m venv /opt/venv
@@ -62,28 +63,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY src/requirements.txt .
 RUN pip install -r requirements.txt     # todo: buildx
 
-################## cpu
+# different base image for cpu/gpu
+{base_setup}
 
-# FROM python:{py_version_image} as build
-
-################## gpu needs python install
-
-FROM nvidia/cuda:10.0-base as build
-RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
-
-# install python
-# todo support runtime.txt
-RUN apt-get update -qq && apt-get install --no-install-recommends -y \
-    {python_packages} \
-    && apt-get -qq purge && apt-get -qq clean \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 \
-    && update-alternatives --install /usr/local/bin/python python /usr/bin/python3.7 1 # todo fix version
-
-##################
-
-COPY --from=base /opt/venv /opt/venv
+COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 
@@ -128,9 +111,31 @@ def get_current_python_version():
 
 
 def generate_base_image_no_r2d(api, launch_project, entry_cmd):
+    python_packages = ["python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
+
+    if launch_project.gpu:
+        base_setup = """
+FROM nvidia/cuda:10.0-base as base
+RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
+
+# install python
+# todo support runtime.txt
+RUN apt-get update -qq && apt-get install --no-install-recommends -y \
+    {python_packages} \
+    && apt-get -qq purge && apt-get -qq clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 \
+    && update-alternatives --install /usr/local/bin/python python /usr/bin/python3.7 1 # todo fix version
+""".format(python_packages=' \\\n'.join(python_packages))
+    else:
+        base_setup = """
+FROM python:{py_version_image} as base
+""".format(py_version_image="3.7-slim-buster") # todo
+
+
     username, userid = get_docker_user(launch_project)
     workdir = "/home/{user}".format(user=username) # @@@ default, this should be configurable
-    python_packages = ["python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
 
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
@@ -180,11 +185,11 @@ def generate_base_image_no_r2d(api, launch_project, entry_cmd):
         py_version_image="3.7-slim-buster",     # todo
         user=username,
         uid=launch_project.docker_user_id,
-        python_packages=' \\\n'.join(python_packages),
         env_vars=env_vars_section,
         home_dir=workdir,   # rename this var to workdir as distinct from homedir
         command_arr=entry_cmd,
         requirements_section=requirements_line,
+        base_setup=base_setup,
     )
     print(dockerfile_contents)
 
