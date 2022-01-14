@@ -430,7 +430,8 @@ class Artifact(ArtifactInterface):
         max_objects: Optional[int] = None,
     ) -> Sequence[ArtifactEntry]:
         self._ensure_can_add()
-        name = util.to_forward_slash_path(name)
+        if name is not None:
+            name = util.to_forward_slash_path(name)
 
         # This is a bit of a hack, we want to check if the uri is a of the type
         # ArtifactEntry which is a private class returned by Artifact.get_path in
