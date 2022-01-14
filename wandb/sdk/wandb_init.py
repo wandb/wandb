@@ -12,6 +12,7 @@ For more on using `wandb.init()`, including code snippets, check out our
 
 from __future__ import print_function
 
+from argparse import Namespace
 import datetime
 import logging
 import os
@@ -20,8 +21,7 @@ import sys
 import tempfile
 import time
 import traceback
-from argparse import Namespace
-from typing import Any, Dict, Optional, Sequence, Union, Mapping
+from typing import Any, Dict, Mapping, Optional, Sequence, Union
 
 import shortuuid  # type: ignore
 import six
