@@ -13,6 +13,7 @@ from threading import Event
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -113,6 +114,7 @@ class StreamMux:
     _pid: Optional[int]
     _action_q: "queue.Queue[StreamAction]"
     _stopped: Event
+    _pid_checked_ts: Optional[float]
 
     def __init__(self) -> None:
         self._streams_lock = threading.Lock()
@@ -121,6 +123,7 @@ class StreamMux:
         self._pid = None
         self._stopped = Event()
         self._action_q = queue.Queue()
+        self._pid_checked_ts = None
 
     def _get_stopped_event(self) -> "Event":
         # TODO: clean this up, there should be a better way to abstract this
@@ -245,9 +248,21 @@ class StreamMux:
             return
         raise AssertionError(f"Unsupported action: {action._action}")
 
+    def _check_orphaned(self) -> bool:
+        if not self._pid:
+            return False
+        time_now = time.time()
+        # if we have checked already and it was less than 2 seconds ago
+        if self._pid_checked_ts and time_now < self._pid_checked_ts + 2:
+            return False
+        self._pid_checked_ts = time_now
+        return not psutil.pid_exists(self._pid)
+
     def _loop(self) -> None:
         while not self._stopped.is_set():
-            # TODO: check for parent process going away
+            if self._check_orphaned():
+                # parent process is gone, let other threads know we need to shutdown
+                self._stopped.set()
             try:
                 action = self._action_q.get(timeout=1)
             except queue.Empty:

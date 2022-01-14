@@ -476,7 +476,8 @@ class Table(Media):
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(*args, **kwargs)
 
@@ -532,7 +533,14 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(columns=json_obj["columns"], data=data)
+        # construct Table with dtypes for each column if type information exists
+        dtypes = None
+        if column_types is not None:
+            dtypes = [
+                column_types.params["type_map"][col] for col in json_obj["columns"]
+            ]
+
+        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -593,7 +601,9 @@ class Table(Media):
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
-                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                        **{
+                            str(col_name): self.get_column(col_name, convert_to="numpy")
+                        },
                     )
                     entry = artifact.add_file(
                         npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
@@ -854,8 +864,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts
-    """
+    """Helper class for PartitionTable to track its parts"""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -872,7 +881,7 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """ PartitionedTable represents a table which is composed
+    """PartitionedTable represents a table which is composed
     by the union of multiple sub-tables. Currently, PartitionedTable
     is designed to point to a directory within an artifact.
     """
@@ -1268,7 +1277,8 @@ class Bokeh(Media):
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
-            util.json_dump_safer(b_json, codecs.open(tmp_path, "w", encoding="utf-8"))
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
         elif not isinstance(data_or_path, bokeh.document.Document):
             raise TypeError(
@@ -1349,7 +1359,8 @@ class Graph(Media):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
@@ -1706,31 +1717,33 @@ class _ImageFileType(_dtypes.Type):
         class_map = class_map or {}
 
         if isinstance(box_layers, _dtypes.ConstType):
-            box_layers = box_layers
-        elif not isinstance(box_layers, dict):
+            box_layers = box_layers._params["val"]
+        if not isinstance(box_layers, dict):
             raise TypeError("box_layers must be a dict")
         else:
-            box_layers = _dtypes.ConstType(box_layers)
+            box_layers = _dtypes.ConstType(
+                {layer_key: set(box_layers[layer_key]) for layer_key in box_layers}
+            )
 
         if isinstance(mask_layers, _dtypes.ConstType):
-            mask_layers = mask_layers
-        elif not isinstance(mask_layers, dict):
+            mask_layers = mask_layers._params["val"]
+        if not isinstance(mask_layers, dict):
             raise TypeError("mask_layers must be a dict")
         else:
-            mask_layers = _dtypes.ConstType(mask_layers)
+            mask_layers = _dtypes.ConstType(
+                {layer_key: set(mask_layers[layer_key]) for layer_key in mask_layers}
+            )
 
         if isinstance(box_score_keys, _dtypes.ConstType):
-            box_score_keys = box_score_keys
-        elif not isinstance(box_score_keys, list) and not isinstance(
-            box_score_keys, set
-        ):
+            box_score_keys = box_score_keys._params["val"]
+        if not isinstance(box_score_keys, list) and not isinstance(box_score_keys, set):
             raise TypeError("box_score_keys must be a list or a set")
         else:
             box_score_keys = _dtypes.ConstType(set(box_score_keys))
 
         if isinstance(class_map, _dtypes.ConstType):
-            class_map = class_map
-        elif not isinstance(class_map, dict):
+            class_map = class_map._params["val"]
+        if not isinstance(class_map, dict):
             raise TypeError("class_map must be a dict")
         else:
             class_map = _dtypes.ConstType(class_map)
@@ -1758,7 +1771,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of box_layers
             box_layers = {
-                key: set(
+                str(key): set(
                     list(box_layers_self.get(key, []))
                     + list(box_layers_other.get(key, []))
                 )
@@ -1769,7 +1782,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_ids from each set of mask_layers
             mask_layers = {
-                key: set(
+                str(key): set(
                     list(mask_layers_self.get(key, []))
                     + list(mask_layers_other.get(key, []))
                 )
@@ -1783,7 +1796,7 @@ class _ImageFileType(_dtypes.Type):
 
             # Merge the class_map
             class_map = {
-                key: class_map_self.get(key, class_map_other.get(key, None))
+                str(key): class_map_self.get(key, class_map_other.get(key, None))
                 for key in set(
                     list(class_map_self.keys()) + list(class_map_other.keys())
                 )
@@ -1800,7 +1813,7 @@ class _ImageFileType(_dtypes.Type):
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
                 box_layers = {
-                    key: set(py_obj._boxes[key]._class_labels.keys())
+                    str(key): set(py_obj._boxes[key]._class_labels.keys())
                     for key in py_obj._boxes.keys()
                 }
                 box_score_keys = set(
@@ -1818,7 +1831,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    key: set(
+                    str(key): set(
                         py_obj._masks[key]._val["class_labels"].keys()
                         if hasattr(py_obj._masks[key], "_val")
                         else []
@@ -1830,7 +1843,7 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
-                    item["id"]: item["name"] for item in py_obj._classes._class_set
+                    str(item["id"]): item["name"] for item in py_obj._classes._class_set
                 }
             else:
                 class_set = {}
