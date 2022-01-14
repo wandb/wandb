@@ -160,7 +160,6 @@ class HandleManager(object):
                 self._tb_watcher.finish()
                 self._tb_watcher = None
         elif state == defer.FLUSH_PARTIAL_HISTORY:
-            # pass  # TODO add flush logic!
             self._save_partial_history()
         elif state == defer.FLUSH_SUM:
             self._save_summary(self._consolidated_summary, flush=True)

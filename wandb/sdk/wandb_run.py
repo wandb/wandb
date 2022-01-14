@@ -62,8 +62,6 @@ from wandb.viz import (
 
 from . import wandb_artifacts
 from . import wandb_config
-
-# from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
@@ -316,10 +314,8 @@ class Run(object):
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        # self.history = wandb_history.History(self)
-        # self.history._set_callback(self._history_callback)
         self.history_step = 0
-        self._torch = None
+        self._torch_history: Union["wandb.wandb_torch.TorchHistory", None] = None
 
         _datatypes_set_callback(self._datatypes_callback)
 
@@ -570,10 +566,10 @@ class Run(object):
         self._attach_id = _attach_id
 
     @property
-    def torch(self) -> None:
-        if self._torch is None:
-            self._torch = wandb.wandb_torch.TorchHistory()
-        return self._torch
+    def _torch(self) -> "wandb.wandb_torch.TorchHistory":
+        if self._torch_history is None:
+            self._torch_history = wandb.wandb_torch.TorchHistory()
+        return self._torch_history
 
     @property
     def dir(self) -> str:
@@ -1038,17 +1034,6 @@ class Run(object):
                 row, step, flush=commit, publish_step=not_using_tensorboard,
             )
 
-    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
-
-        row = self._visualization_hack(row)
-
-        if self._backend and self._backend.interface:
-            not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-            self._backend.interface.publish_history(
-                row, step, publish_step=not_using_tensorboard
-            )
-
     def _console_callback(self, name: str, data: str) -> None:
         # logger.info("console callback: %s, %s", name, data)
         if self._backend and self._backend.interface:
@@ -1101,7 +1086,6 @@ class Run(object):
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        # self.history._update_step()
         self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
@@ -1972,9 +1956,6 @@ class Run(object):
 
         if self._run_status_checker:
             self._run_status_checker.stop()
-
-        # make sure all uncommitted history is flushed
-        # self.history._flush()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
         if not self._settings._silent:

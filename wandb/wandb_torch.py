@@ -95,6 +95,7 @@ class TorchHistory:
         if name is not None:
             prefix = prefix + name
 
+        # TODO should we remove this?
         if jupyter_run:
             self._jupyter_run = weakref.ref(jupyter_run)
 
@@ -172,7 +173,6 @@ class TorchHistory:
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            # history._row_update({name: wandb.Histogram(tensor)})
             wandb.log({name: wandb.Histogram(tensor)}, commit=False)
             return
 
@@ -244,9 +244,6 @@ class TorchHistory:
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        # history._row_update(
-        #     {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))}
-        # )
         wandb.log(
             {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))},
             commit=False,
@@ -409,7 +406,7 @@ class TorchGraph(wandb.data_types.Graph):
                 graph_hook = sub_module.register_forward_hook(
                     self.create_forward_hook(name, graph_idx)
                 )
-                wandb.run.torch._hook_handles[
+                wandb.run._torch._hook_handles[
                     "topology/" + str(id(graph_hook))
                 ] = graph_hook
                 if not hasattr(parent, "_wandb_hook_names"):

@@ -5,7 +5,6 @@ import six
 import wandb
 from wandb.viz import create_custom_chart
 
-
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
 STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
@@ -265,7 +264,6 @@ def log(
     """
     global STEPS
     global RATE_LIMIT
-    # history = history or wandb.run.history
     # To handle multiple global_steps, we keep track of them here instead
     # of the global log
     last_step = STEPS.get(namespace, {"step": 0})

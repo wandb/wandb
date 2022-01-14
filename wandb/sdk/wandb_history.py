@@ -22,7 +22,7 @@ from wandb.wandb_torch import TorchHistory
 
 class History(object):
     """Time series data for Runs. This is essentially a list of dicts where each
-        dict is a set of summary statistics logged.
+    dict is a set of summary statistics logged.
     """
 
     def __init__(self, run):
@@ -69,5 +69,5 @@ class History(object):
     @property
     def torch(self):
         if self._torch is None:
-            self._torch = TorchHistory(self)
+            self._torch = TorchHistory()
         return self._torch
