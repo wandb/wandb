@@ -95,7 +95,7 @@ class ArtifactManifest(object):
         self.entries[entry.path] = entry
 
     def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
-        return self.entries.get(util.to_forward_slash_path(path))
+        return self.entries.get(path)
 
     def get_entries_in_directory(self, directory):
         return [
@@ -791,7 +791,10 @@ class StorageHandler(object):
         pass
 
     def load_path(
-        self, artifact: Artifact, manifest_entry: ArtifactEntry, local: bool = False,
+        self,
+        artifact: Artifact,
+        manifest_entry: ArtifactEntry,
+        local: bool = False,
     ) -> str:
         """
         Loads the file or directory within the specified artifact given its
