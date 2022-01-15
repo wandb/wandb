@@ -5,6 +5,11 @@ command:
   program: code-save.py
 env:
   - WANDB_DISABLE_CODE: "true"
+parametrize:
+  permute:
+    - :wandb:mock_server:code_saving_enabled:
+      - null
+      - False
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
