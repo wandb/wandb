@@ -1,7 +1,7 @@
 #
 import inspect
 import types
-from typing import Dict, Mapping, Sequence, Union
+from typing import Mapping, Sequence
 
 import six
 from wandb.errors import UsageError
@@ -73,11 +73,14 @@ def _to_dict(params):
     return params
 
 
-def _parse_nested_config(config_params: Mapping) -> Dict:
+def _parse_nested_config(config_params):
     """
     Args:
         config_params (Mapping):
             The config parameters of the training to log, such as number of epoch, loss function, optimizer etc.
+
+    Return:
+        A dictionary with the unwrapped nested config.
     """
     un_nested_params = {}
     for param_name, element in config_params.items():
@@ -85,11 +88,18 @@ def _parse_nested_config(config_params: Mapping) -> Dict:
     return un_nested_params
 
 
-def _unwrap_nested_config(
-    parent_name: str, element: Union[int, float, str, Mapping, Sequence]
-) -> Dict:
+def _unwrap_nested_config(parent_name, element):
     """
     Function to unwrap nested config such as {"nested": {"a_nested_dict": 1.0}}.
+    Args:
+        parent_name (str): The name of the previous level of a nested config. For example, in the nested config file
+            '{"a_dict": {"nested_element": 1.0}}', the `parent_name` of nested_element is "a_dict".
+        element (Union[int, float, str, Mapping, Sequence]): The element (value) of the nested config. For example,
+            in the nested config file '{"a_dict": {"nested_element": 1.0}}', the `element` of is
+            `{"a_nested_dict": 1.0}`.
+
+    Return:
+        A dictionary with the unwrapped nested config.
     """
     if isinstance(element, Mapping):
         # Case where the value is another dict (a nested dict)

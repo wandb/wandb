@@ -35,3 +35,4 @@ rdkit-pypi
 .[launch]
 .[sweeps]
 omegaconf
+absl-py
