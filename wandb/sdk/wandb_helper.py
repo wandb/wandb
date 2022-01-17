@@ -35,6 +35,9 @@ def _to_dict(params):
     Params can be a dictionary, a Tensorflow flags parameters settings, a namespace
     (argparse) or a nested dictionary (DictConfig).
     """
+    if not hasattr(params, "__dict__"):
+        raise TypeError("config must be a dict or have a __dict__ attribute.")
+
     if isinstance(params, dict):
         return params
 
@@ -61,8 +64,6 @@ def _to_dict(params):
     elif isinstance(params, Mapping):
         # Cases where params is a dict of dict, a dict of config or other similar mapping type.
         params = _parse_nested_config(params)
-    elif not hasattr(params, "__dict__"):
-        raise TypeError("config must be a dict or have a __dict__ attribute.")
     else:
         # params is a Namespace object (argparse)
         # or something else
@@ -72,19 +73,15 @@ def _to_dict(params):
     return params
 
 
-def _parse_nested_config(config_params: Union[Mapping, Sequence]) -> Dict:
+def _parse_nested_config(config_params: Mapping) -> Dict:
     """
     Args:
-        config_params (Union[Mapping, Sequence]):
+        config_params (Mapping):
             The config parameters of the training to log, such as number of epoch, loss function, optimizer etc.
     """
     un_nested_params = {}
-    if isinstance(config_params, Mapping):
-        for param_name, element in config_params.items():
-            un_nested_params.update(_unwrap_nested_config(param_name, element))
-    else:  # equivalent to "if isinstance(config_params, Sequence):"
-        for idx, element in enumerate(config_params):
-            un_nested_params.update(_unwrap_nested_config(str(idx), element))
+    for param_name, element in config_params.items():
+        un_nested_params.update(_unwrap_nested_config(param_name, element))
     return un_nested_params
 
 
