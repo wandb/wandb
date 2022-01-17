@@ -1,4 +1,6 @@
 import argparse
+
+from absl import flags
 from omegaconf import DictConfig
 
 from wandb import UsageError
@@ -59,6 +61,15 @@ def test_parse_normal_dict_config_with_include_and_exclude_then_raise_error():
     assert raised
 
 
+def test_parse_empty_dict():
+    config_params = {}
+
+    actual = parse_config(params=config_params)
+    expected = config_params
+
+    assert actual.items() == expected.items()
+
+
 def test_parse_dict_not_a_dict_config_then_raise_error():
     not_a_dict_config = ["a_list"]
 
@@ -68,6 +79,21 @@ def test_parse_dict_not_a_dict_config_then_raise_error():
     except TypeError:
         raised = True
     assert raised
+
+
+def test_parse_dict_of_tensorflow_flags():
+    flags.DEFINE_string("a_flag", "a_value", "a help message")
+    flags.DEFINE_integer("another_flag", 1, "a definition of a flag")
+
+    actual = parse_config(params=flags.FLAGS)
+
+    expected = {"a_flag": "a_value", "another_flag": 1}
+
+    # Since flags also generated other params, we only focuses on those we have set
+    for key, expected_value in expected.items():
+        # We use get, then if key not there will return a none and test fail
+        actual_value = actual.get(key)
+        assert actual_value == expected_value
 
 
 def test_parse_dict_an_argparse_namespace():

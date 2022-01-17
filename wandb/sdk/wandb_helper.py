@@ -35,11 +35,11 @@ def _to_dict(params):
     Params can be a dictionary, a Tensorflow flags parameters settings, a namespace
     (argparse) or a nested dictionary (DictConfig).
     """
-    if not hasattr(params, "__dict__"):
-        raise TypeError("config must be a dict or have a __dict__ attribute.")
-
     if isinstance(params, dict):
         return params
+
+    if not hasattr(params, "__dict__"):
+        raise TypeError("config must be a dict-like or have a __dict__ attribute.")
 
     # Handle some cases where params is not a dictionary
     # by trying to convert it into a dictionary
