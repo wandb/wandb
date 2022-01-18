@@ -14,11 +14,7 @@ import logging
 import requests
 import socket
 import sys
-
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
+import subprocess
 
 from copy import deepcopy
 import six
@@ -912,7 +908,7 @@ class Api(object):
                 success
                 queueID
             }
-            
+
         }
         """
         )
