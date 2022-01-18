@@ -106,8 +106,9 @@ class LaunchProject(object):
     def base_image(self) -> str:
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
+        python_version = (self.python_version or "3").replace("+", "dev")
         generated_name = "{}_base:{}".format(
-            self.target_project.replace(" ", "-"), self.python_version or "3"
+            self.target_project.replace(" ", "-"), python_version
         )
         return self._base_image or generated_name
 
