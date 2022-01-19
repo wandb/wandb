@@ -76,6 +76,7 @@ from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
+    deprecate,
     filenames,
     filesystem,
     ipython,
@@ -707,6 +708,13 @@ class Run(object):
     @property
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1359,11 +1367,12 @@ class Run(object):
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
-            wandb.termwarn(
-                (
-                    "Calling run.save without any arguments is deprecated."
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__save_no_args,
+                warning_message=(
+                    "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
-                )
+                ),
             )
             return True
         if policy not in ("live", "end", "now"):
@@ -1477,6 +1486,12 @@ class Run(object):
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__join,
+            warning_message=(
+                "wandb.run.join() is deprecated, please use wandb.run.finish()."
+            ),
+        )
         self.finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
@@ -2435,7 +2450,10 @@ class Run(object):
                         "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
                     )
                 self._log_artifact(
-                    artifact, aliases, is_user_created=True, use_after_commit=True
+                    artifact,
+                    aliases=aliases,
+                    is_user_created=True,
+                    use_after_commit=True,
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -2483,7 +2501,9 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        return self._log_artifact(artifact_or_path, name, type, aliases)
+        return self._log_artifact(
+            artifact_or_path, name=name, type=type, aliases=aliases
+        )
 
     def upsert_artifact(
         self,
@@ -2530,9 +2550,9 @@ class Run(object):
             distributed_id = self.group
         return self._log_artifact(
             artifact_or_path,
-            name,
-            type,
-            aliases,
+            name=name,
+            type=type,
+            aliases=aliases,
             distributed_id=distributed_id,
             finalize=False,
         )

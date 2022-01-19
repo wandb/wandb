@@ -217,18 +217,26 @@ def test_local_warning(
         assert msg in captured if outdated else msg not in captured
 
 
-def test_use_artifact_offline(live_mock_server, test_settings):
-    run = wandb.init(mode="offline")
-    with pytest.raises(Exception) as e_info:
-        artifact = run.use_artifact("boom-data")
-        assert str(e_info.value) == "Cannot use artifact when in offline mode."
-
-
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
 def test_invalid_project_name(live_mock_server, project_name):
     with pytest.raises(UsageError) as e:
         _ = wandb.init(project=project_name)
         assert 'Invalid project name "{project_name}"' in str(e.value)
+
+
+def test_use_artifact(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("arti", type="dataset")
+    run.use_artifact(artifact)
+    artifact.wait()
+    assert artifact.digest == "abc123"
+
+
+def test_use_artifact_offline(live_mock_server, test_settings):
+    run = wandb.init(mode="offline")
+    with pytest.raises(Exception) as e_info:
+        run.use_artifact("boom-data")
+        assert str(e_info.value) == "Cannot use artifact when in offline mode."
 
 
 def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
@@ -300,3 +308,23 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             str(e_info.value)
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
+
+
+def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+    # use deprecated features
+    deprecated_features = [
+        run.mode,
+        run.save(),
+        run.join(),
+    ]
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    # TelemetryRecord field 10 is Deprecated,
+    # whose fields 2-4 correspond to deprecated wandb.run features
+    telemetry_deprecated = telemetry.get("10", [])
+    assert (
+        (2 in telemetry_deprecated)
+        and (3 in telemetry_deprecated)
+        and (4 in telemetry_deprecated)
+    )
