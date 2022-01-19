@@ -8,7 +8,9 @@ tag:
 plugin:
   - wandb
 depend:
-  pip_install_timeout: 1500  # 25m
+  pip_install_timeout: 3000  # 50m
+  pip_install_options:
+    - "-v"
   requirements:
     - "-r 01-batch1-requirements.txt"
 assert:
