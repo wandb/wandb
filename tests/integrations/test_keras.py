@@ -1,3 +1,4 @@
+import platform
 import pytest
 import sys
 
@@ -90,9 +91,6 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     assert len(graph_json(wandb.run)["nodes"]) == 3
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
-)
 def test_keras_telemetry(
     dummy_model, dummy_data, live_mock_server, test_settings, parse_ctx
 ):
@@ -105,9 +103,18 @@ def test_keras_telemetry(
     assert telemetry and 8 in telemetry.get("3", [])
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 5), reason="test is flakey with py2, ignore for now"
-)
+def test_keras_telemetry_deprecated(live_mock_server, test_settings, parse_ctx):
+    wandb.init(settings=test_settings)
+    # use deprecated argument data_type
+    WandbCallback(data_type="image")
+    wandb.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    # TelemetryRecord field 10 is Deprecated,
+    # whose filed 1 is keras_callback_data_type
+    assert telemetry and 8 in telemetry.get("3", []) and 1 in telemetry.get("10", [])
+
+
 def test_keras_resume_best_metric(
     dummy_model, dummy_data, live_mock_server, test_settings
 ):
@@ -242,6 +249,32 @@ def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
     )
     assert (
         wandb.run._backend.history[0]["parameters/dense.weights"]["_type"]
+        == "histogram"
+    )
+
+
+# this is flaky on all platforms
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="flaky test")
+def test_keras_log_gradients(dummy_model, dummy_data, wandb_init_run):
+    dummy_model.fit(
+        *dummy_data,
+        epochs=2,
+        batch_size=36,
+        validation_data=dummy_data,
+        callbacks=[
+            WandbCallback(
+                data_type="image", log_gradients=True, training_data=dummy_data
+            )
+        ]
+    )
+    print(wandb.run._backend.history)
+    assert (
+        wandb.run._backend.history[0]["gradients/dense/kernel.gradient"]["_type"]
+        == "histogram"
+    )
+    assert (
+        wandb.run._backend.history[0]["gradients/dense/bias.gradient"]["_type"]
         == "histogram"
     )
 

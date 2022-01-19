@@ -296,6 +296,8 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+
         self._viewer = None
         self._projects = {}
         self._runs = {}
@@ -622,14 +624,26 @@ class Api(object):
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+            )
             ```
 
             Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}}
+            )
+            ```
+
+            Find runs in my_project where the run name matches a regex (anchors are not supported)
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}}
+            )
             ```
 
             Find runs in my_project sorted by ascending loss
@@ -2891,6 +2905,7 @@ class ProjectArtifactCollections(Paginator):
                                 description
                                 createdAt
                             }
+                            cursor
                         }
                     }
                 }

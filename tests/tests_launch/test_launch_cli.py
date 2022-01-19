@@ -42,6 +42,8 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_agent_base(
     runner, test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
@@ -102,6 +104,24 @@ def test_agent_update_failed(runner, test_settings, live_mock_server):
         )
 
         assert "Failed to update agent status" in result.output
+
+
+def test_agent_stop_polling(runner, live_mock_server, monkeypatch):
+    def patched_pop_empty_queue(self, queue):
+        # patch to no result, agent should read stopPolling and stop
+        return None
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.agent.LaunchAgent.pop_from_queue",
+        lambda c, queue: patched_pop_empty_queue(c, queue),
+    )
+    live_mock_server.set_ctx({"stop_launch_agent": True})
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch_agent, ["test_project", "--entity", "mock_server_entity",],
+        )
+
+    assert "Shutting down, active jobs" in result.output
 
 
 # this test includes building a docker container which can take some time.
@@ -199,3 +219,47 @@ def test_launch_local_dir(runner):
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
     assert "main.py" in result.output
+
+
+def test_launch_queue_error(runner):
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "https://github.com/test/repo.git",
+                "--entry-point",
+                "train.py",
+                "--async",
+                "--queue",
+            ],
+        )
+
+    assert result.exit_code != 0
+    assert "Cannot use both --async and --queue with wandb launch" in result.output
+
+
+def test_launch_supplied_docker_image(
+    runner, monkeypatch, live_mock_server, mocked_fetchable_git_repo
+):
+    def patched_pull_docker_image(docker_image):
+        return  # noop
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.local.pull_docker_image",
+        lambda docker_image: patched_pull_docker_image(docker_image),
+    )
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "https://github.com/test/repo.git",
+                "--entry-point",
+                "train.py",
+                "--docker-image",
+                "test:tag",
+            ],
+        )
+
+    assert result.exit_code == 0
+    assert "Using supplied docker image: test:tag" in result.output
+    assert "test:tag python train.py" in result.output

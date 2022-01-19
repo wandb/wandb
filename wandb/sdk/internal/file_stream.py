@@ -9,8 +9,7 @@ import random
 import requests
 import threading
 import time
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
 
 import wandb
 from wandb import util
@@ -75,7 +74,6 @@ class SummaryFilePolicy(DefaultFilePolicy):
         return {"offset": 0, "content": [data]}
 
 
-@dataclass
 class StreamCRState:
     """There are two streams: stdout and stderr.
     We create two instances for each stream.
@@ -87,9 +85,14 @@ class StreamCRState:
                         i.e the most recent "normal" line.
     """
 
-    found_cr: bool = False
-    cr = None
-    last_normal = None
+    found_cr: bool
+    cr: Optional[int]
+    last_normal: Optional[int]
+
+    def __init__(self):
+        self.found_cr = False
+        self.cr = None
+        self.last_normal = None
 
 
 class CRDedupeFilePolicy(DefaultFilePolicy):
@@ -375,12 +378,21 @@ class FileStreamApi(object):
             ):
                 posted_data_time = cur_time
                 posted_anything_time = cur_time
-                self._send(ready_chunks)
+                success = self._send(ready_chunks, uploaded=uploaded)
                 ready_chunks = []
+                if success:
+                    uploaded = set()
 
+            # If there aren't ready chunks or uploaded files, we still want to
+            # send regular heartbeats so the backend doesn't erroneously mark this
+            # run as crashed.
             if cur_time - posted_anything_time > self.heartbeat_seconds:
                 posted_anything_time = cur_time
-                self._handle_response(
+
+                # If we encountered an error trying to publish the
+                # list of uploaded files, don't reset the `uploaded`
+                # list. Retry publishing the list on the next attempt.
+                if not isinstance(
                     request_with_retry(
                         self._client.post,
                         self._endpoint,
@@ -390,9 +402,11 @@ class FileStreamApi(object):
                             "dropped": self._dropped_chunks,
                             "uploaded": list(uploaded),
                         },
-                    )
-                )
-                uploaded = set()
+                    ),
+                    Exception,
+                ):
+                    uploaded = set()
+
         # post the final close message. (item is self.Finish instance now)
         request_with_retry(
             self._client.post,
@@ -435,7 +449,8 @@ class FileStreamApi(object):
                 if isinstance(limits, dict):
                     self._api.dynamic_settings.update(limits)
 
-    def _send(self, chunks):
+    def _send(self, chunks, uploaded=None):
+        uploaded = list(uploaded or [])
         # create files dict. dict of <filename: chunks> pairs where chunks is a list of
         # [chunk_id, chunk_data] tuples (as lists since this will be json).
         files = {}
@@ -458,6 +473,23 @@ class FileStreamApi(object):
                     retry_callback=self._api.retry_callback,
                 )
             )
+
+        if uploaded:
+            if isinstance(
+                request_with_retry(
+                    self._client.post,
+                    self._endpoint,
+                    json={
+                        "complete": False,
+                        "failed": False,
+                        "dropped": self._dropped_chunks,
+                        "uploaded": uploaded,
+                    },
+                ),
+                Exception,
+            ):
+                return False
+        return True
 
     def stream_file(self, path):
         name = path.split("/")[-1]

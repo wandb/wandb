@@ -14,11 +14,7 @@ import logging
 import requests
 import socket
 import sys
-
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
+import subprocess
 
 from copy import deepcopy
 import six
@@ -912,7 +908,7 @@ class Api(object):
                 success
                 queueID
             }
-            
+
         }
         """
         )
@@ -1130,6 +1126,34 @@ class Api(object):
             "agentStatus": status,
         }
         return self.gql(mutation, variable_values)["updateLaunchAgent"]
+
+    @normalize_exceptions
+    def get_launch_agent(self, agent_id, gorilla_agent_support):
+        if not gorilla_agent_support:
+            return {
+                "id": None,
+                "name": "",
+                "stopPolling": False,
+            }
+        query = gql(
+            """
+            query LaunchAgent($agentId: ID!) {
+                launchAgent(id: $agentId) {
+                    id
+                    name
+                    runQueues
+                    hostname
+                    agentStatus
+                    stopPolling
+                    heartbeatAt
+                }
+            }
+            """
+        )
+        variable_values = {
+            "agentId": agent_id,
+        }
+        return self.gql(query, variable_values)["launchAgent"]
 
     @normalize_exceptions
     def upsert_run(
@@ -1543,7 +1567,11 @@ class Api(object):
             response = requests.put(url, data=progress, headers=extra_headers)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            logger.error("upload_file exception {} {}".format(url, e))
+            logger.error("upload_file exception {}: {}".format(url, e))
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error("upload_file request headers: {}".format(request_headers))
+            response_content = e.response.content if e.response is not None else ""
+            logger.error("upload_file response body: {}".format(response_content))
             status_code = e.response.status_code if e.response != None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()

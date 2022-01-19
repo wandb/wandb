@@ -78,6 +78,7 @@ def default_ctx():
         "launch_agents": {},
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
+        "stop_launch_agent": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
         "invalid_launch_spec_project": False,
@@ -1327,6 +1328,20 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {}})
+        if "query LaunchAgent" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "launchAgent": {
+                                "name": "test_agent",
+                                "stopPolling": ctx["stop_launch_agent"],
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {}})
 
         if "query GetSweeps" in body["query"]:
             if body["variables"]["project"] == "testnosweeps":
@@ -1454,7 +1469,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "6ddbe1c239de9c9fc6c397fc5591555a":
+            elif _id == "27c102831476c6ff7ce53c266c937612":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -1853,8 +1868,7 @@ class ParseCTX(object):
 
     @property
     def summary_wandb(self):
-        # TODO: move this to config_user eventually
-        return self.summary_raw["_wandb"]
+        return self.summary_raw.get("_wandb", {})
 
     @property
     def history(self):

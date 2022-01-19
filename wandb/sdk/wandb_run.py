@@ -76,6 +76,7 @@ from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
+    deprecate,
     filenames,
     filesystem,
     ipython,
@@ -135,11 +136,14 @@ class RunStatusChecker(object):
         self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
+
         self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.name = "ChkStopThr"
         self._stop_thread.daemon = True
         self._stop_thread.start()
 
         self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.name = "NetStatThr"
         self._retry_thread.daemon = True
         self._retry_thread.start()
 
@@ -299,6 +303,7 @@ class Run(object):
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _final_summary: Optional[Dict[str, Any]]
 
     def __init__(
         self,
@@ -474,33 +479,23 @@ class Run(object):
         super(Run, self).__setattr__(attr, value)
 
     def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
-        mods = sys.modules
-        if mods.get("torch"):
-            imp.torch = True
-        if mods.get("keras"):
-            imp.keras = True
-        if mods.get("tensorflow"):
-            imp.tensorflow = True
-        if mods.get("sklearn"):
-            imp.sklearn = True
-        if mods.get("fastai"):
-            imp.fastai = True
-        if mods.get("xgboost"):
-            imp.xgboost = True
-        if mods.get("catboost"):
-            imp.catboost = True
-        if mods.get("lightgbm"):
-            imp.lightgbm = True
-        if mods.get("pytorch_lightning"):
-            imp.pytorch_lightning = True
-        if mods.get("ignite"):
-            imp.pytorch_ignite = True
-        if mods.get("transformers"):
-            imp.transformers_huggingface = True
-        if mods.get("jax"):
-            imp.jax = True
-        if mods.get("metaflow"):
-            imp.metaflow = True
+        telem_map = dict(
+            pytorch_ignite="ignite", transformers_huggingface="transformers",
+        )
+
+        # calculate mod_map, a mapping from module_name to telem_name
+        mod_map = dict()
+        for desc in imp.DESCRIPTOR.fields:
+            if desc.type != desc.TYPE_BOOL:
+                continue
+            telem_name = desc.name
+            mod_name = telem_map.get(telem_name, telem_name)
+            mod_map[mod_name] = telem_name
+
+        # set telemetry field for every module loaded that we track
+        mods_set = set(sys.modules)
+        for mod in mods_set.intersection(mod_map):
+            setattr(imp, mod_map[mod], True)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -713,6 +708,13 @@ class Run(object):
     @property
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1365,11 +1367,12 @@ class Run(object):
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
-            wandb.termwarn(
-                (
-                    "Calling run.save without any arguments is deprecated."
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__save_no_args,
+                warning_message=(
+                    "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
-                )
+                ),
             )
             return True
         if policy not in ("live", "end", "now"):
@@ -1483,6 +1486,12 @@ class Run(object):
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__join,
+            warning_message=(
+                "wandb.run.join() is deprecated, please use wandb.run.finish()."
+            ),
+        )
         self.finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
@@ -1670,6 +1679,13 @@ class Run(object):
                 wandb.termlog(dir_str)
                 if not self._settings._offline:
                     wandb.termlog("Run `wandb offline` to turn off syncing.")
+
+            api = internal.Api()
+            if api.settings().get("anonymous") == "true":
+                wandb.termwarn(
+                    "Do NOT share these links with anyone. They can be used to claim your runs."
+                )
+
             print("")
 
     def _redirect(
@@ -1849,6 +1865,8 @@ class Run(object):
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
+
+        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
@@ -2597,6 +2615,11 @@ class Run(object):
         is_user_created: bool = False,
         use_after_commit: bool = False,
     ) -> wandb_artifacts.Artifact:
+        api = internal.Api()
+        if api.settings().get("anonymous") == "true":
+            wandb.termwarn(
+                "Artifacts logged anonymously cannot be claimed and expire after 7 days."
+            )
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:

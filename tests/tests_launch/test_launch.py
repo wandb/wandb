@@ -93,7 +93,14 @@ def mock_load_backend_agent():
 
 
 def check_project_spec(
-    project_spec, api, uri, project=None, entity=None, config=None, parameters=None,
+    project_spec,
+    api,
+    uri,
+    project=None,
+    entity=None,
+    config=None,
+    resource="local",
+    resource_args=None,
 ):
     assert project_spec.uri == uri
     expected_project = project or uri.split("/")[4]
@@ -108,6 +115,11 @@ def check_project_spec(
     ):
         assert (
             project_spec.override_config == config["config"]["overrides"]["run_config"]
+        )
+    assert project_spec.resource == resource
+    if resource_args:
+        assert set([(k, v) for k, v in resource_args.items()]) == set(
+            [(k, v) for k, v in project_spec.resource_args.items()]
         )
 
     with open(os.path.join(project_spec.project_dir, "patch.txt"), "r") as fp:
@@ -139,6 +151,46 @@ def check_mock_run_info(mock_with_run_info, expected_config, kwargs):
     reason="wandb launch is not available for python versions < 3.5",
 )
 def test_launch_base_case(
+    live_mock_server,
+    test_settings,
+    mocked_fetchable_git_repo,
+    mock_load_backend,
+    monkeypatch,
+):
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+
+    def mock_create_metadata_file(*args, **kwargs):
+        dockerfile_contents = args[2]
+        assert "ENV WANDB_BASE_URL=https://api.wandb.ai" in dockerfile_contents
+        assert f"ENV WANDB_API_KEY={api.api_key}" in dockerfile_contents
+        assert "ENV WANDB_PROJECT=test" in dockerfile_contents
+        assert "ENV WANDB_ENTITY=mock_server_entity" in dockerfile_contents
+
+        _project_spec.create_metadata_file(*args, **kwargs)
+
+    monkeypatch.setattr(
+        wandb.sdk.launch.docker, "create_metadata_file", mock_create_metadata_file,
+    )
+    expected_config = {}
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+    mock_with_run_info = launch.run(**kwargs)
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
+def test_launch_resource_args(
     live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
 ):
 
@@ -152,6 +204,8 @@ def test_launch_base_case(
         "api": api,
         "entity": "mock_server_entity",
         "project": "test",
+        "resource": "local",
+        "resource_args": {"a": "b", "c": "d"},
     }
     mock_with_run_info = launch.run(**kwargs)
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
@@ -546,8 +600,10 @@ def test_push_to_runqueue_notfound(live_mock_server, test_settings, capsys):
 
 # this test includes building a docker container which can take some time.
 # hence the timeout. caching should usually keep this under 30 seconds
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
-def test_launch_agent(
+def test_launch_agent_runs(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(
@@ -564,12 +620,27 @@ def test_launch_agent(
     assert len(ctx["launch_agents"].keys()) == 1
 
 
+def test_launch_agent_instance(test_settings, live_mock_server):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    agent = LaunchAgent("mock_server_entity", "test_project", ["default"])
+    ctx = live_mock_server.get_ctx()
+    assert len(ctx["launch_agents"]) == 1
+    assert agent._id == int(list(ctx["launch_agents"].keys())[0])
+
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == "test_agent"
+
+
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 def test_launch_agent_different_project_in_spec(
     test_settings,
     live_mock_server,
     mocked_fetchable_git_repo,
     monkeypatch,
-    mock_load_backend_agent,
+    # mock_load_backend_agent,
     capsys,
 ):
     live_mock_server.set_ctx({"invalid_launch_spec_project": True})
@@ -615,13 +686,20 @@ def test_agent_no_introspection(test_settings, live_mock_server):
     assert ctx["launch_agents"] == {}
     assert len(ctx["launch_agents"].keys()) == 0
     assert agent._id is None
+    assert agent._name == ""
 
     update_response = api.update_launch_agent_status(
         agent._id, "POLLING", agent.gorilla_supports_agents
     )
     assert update_response["success"]
 
+    get_agent_response = api.get_launch_agent(agent._id, agent.gorilla_supports_agents)
+    assert get_agent_response["name"] == ""
+    assert get_agent_response["stopPolling"] == False
 
+
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
 @pytest.mark.timeout(320)
 def test_launch_notebook(
     live_mock_server, test_settings, mocked_fetchable_git_repo_ipython
@@ -676,7 +754,9 @@ def test_launch_no_server_info(
         assert "Run info is invalid or doesn't exist" in str(e)
 
 
-@pytest.mark.timeout(320)
+@pytest.mark.flaky
+@pytest.mark.xfail(reason="test goes through flaky periods. Re-enable with WB7616")
+@pytest.mark.timeout(60)
 def test_launch_metadata(live_mock_server, test_settings, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -736,3 +816,28 @@ def test_fail_pull_docker_image():
         pull_docker_image("not an image")
     except wandb.errors.LaunchError as e:
         assert "Docker server returned error" in str(e)
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 5),
+    reason="wandb launch is not available for python versions < 3.5",
+)
+def test_bare_wandb_uri(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, mock_load_backend
+):
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    expected_config = {}
+    uri = "/mock_server_entity/test/runs/12345678"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "entity": "mock_server_entity",
+        "project": "test",
+    }
+
+    mock_with_run_info = launch.run(**kwargs)
+    kwargs["uri"] = live_mock_server.base_url + uri
+    check_mock_run_info(mock_with_run_info, expected_config, kwargs)

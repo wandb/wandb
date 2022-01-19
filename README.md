@@ -1,6 +1,7 @@
-<div align="center">
-  <img src="https://i.imgur.com/RUtiVzH.png" width="600" /><br><br>
-</div>
+<p align="center">
+  <img src=".github/wb-logo-lightbg.png#gh-light-mode-only" width="600" alt="Weights & Biases"/>
+  <img src=".github/wb-logo-darkbg.png#gh-dark-mode-only" width="600" alt="Weights & Biases"/>
+</p>
 
 # Weights and Biases [![ci](https://circleci.com/gh/wandb/client.svg?style=svg)](https://circleci.com/gh/wandb/client) [![pypi](https://img.shields.io/pypi/v/wandb.svg)](https://pypi.python.org/pypi/wandb) [![codecov](https://codecov.io/gh/wandb/client/branch/master/graph/badge.svg?token=41Iw2WzViQ)](https://codecov.io/gh/wandb/client)
 
@@ -164,7 +165,7 @@ with tf.Session() as sess:
 Visualize, compare, and iterate on fastai models using Weights & Biases with the `WandbCallback`.
 ```python
 import wandb
-from fastai2.callback.wandb import WandbCallback
+from fastai.callback.wandb import WandbCallback
 
 # 1. Start a new run
 wandb.init(project="gpt-3")

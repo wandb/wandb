@@ -1,9 +1,11 @@
 import codecs
 import hashlib
+import io
 import json
 import logging
 import numbers
 import os
+import pathlib
 import platform
 import re
 import shutil
@@ -44,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
     import plotly  # type: ignore
     import PIL  # type: ignore
+    import rdkit.Chem  # type: ignore
     import torch  # type: ignore
     from typing import TextIO
 
@@ -63,6 +66,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ]
     ImageDataOrPathType = Union[str, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
+    RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -767,13 +771,10 @@ class Object3D(BatchableMedia):
                 )
 
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif _is_numpy_array(data_or_path):
             np_data = data_or_path
@@ -797,13 +798,10 @@ class Object3D(BatchableMedia):
 
             list_data = np_data.tolist()
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                list_data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
@@ -857,16 +855,26 @@ class Object3D(BatchableMedia):
 
 class Molecule(BatchableMedia):
     """
-    Wandb class for Molecular data
+    Wandb class for 3D Molecular data
 
     Arguments:
         data_or_path: (string, io)
             Molecule can be initialized from a file name or an io object.
     """
 
-    SUPPORTED_TYPES = set(
-        ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf"]
-    )
+    SUPPORTED_TYPES = {
+        "pdb",
+        "pqr",
+        "mmcif",
+        "mcif",
+        "cif",
+        "sdf",
+        "sd",
+        "gro",
+        "mol2",
+        "mmtf",
+    }
+    SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
     _log_type = "molecule-file"
 
     def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
@@ -884,7 +892,7 @@ class Molecule(BatchableMedia):
             extension = kwargs.pop("file_type", None)
             if extension is None:
                 raise ValueError(
-                    "Must pass file type keyword argument when using io objects."
+                    "Must pass file_type keyword argument when using io objects."
                 )
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -910,6 +918,105 @@ class Molecule(BatchableMedia):
             self._set_file(data_or_path, is_tmp=False)
         else:
             raise ValueError("Data must be file name or a file object")
+
+    @classmethod
+    def from_rdkit(
+        cls,
+        data_or_path: "RDKitDataType",
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> "Molecule":
+        """
+        Convert RDKit-supported file/object types to wandb.Molecule
+
+        Arguments:
+            data_or_path: (string, rdkit.Chem.rdchem.Mol)
+                Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
+            convert_to_3d_and_optimize: bool
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: int
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+        """
+        rdkit_chem = util.get_module(
+            "rdkit.Chem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        rdkit_chem_all_chem = util.get_module(
+            "rdkit.Chem.AllChem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+
+        if isinstance(data_or_path, six.string_types):
+            # path to a file?
+            path = pathlib.Path(data_or_path)
+            extension = path.suffix.split(".")[-1]
+            if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
+                raise ValueError(
+                    "Molecule.from_rdkit only supports files of the type: "
+                    + ", ".join(Molecule.SUPPORTED_RDKIT_TYPES)
+                )
+            # use the appropriate method
+            if extension == "sdf":
+                with rdkit_chem.SDMolSupplier(data_or_path) as supplier:
+                    molecule = next(supplier)  # get only the first molecule
+            else:
+                molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
+                    data_or_path
+                )
+        elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
+            molecule = data_or_path
+        else:
+            raise ValueError(
+                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
+            )
+
+        if convert_to_3d_and_optimize:
+            molecule = rdkit_chem.AddHs(molecule)
+            rdkit_chem_all_chem.EmbedMolecule(molecule)
+            rdkit_chem_all_chem.MMFFOptimizeMolecule(
+                molecule, maxIters=mmff_optimize_molecule_max_iterations,
+            )
+        # convert to the pdb format supported by Molecule
+        pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
+
+        return cls(io.StringIO(pdb_block), file_type="pdb")
+
+    @classmethod
+    def from_smiles(
+        cls,
+        data: str,
+        sanitize: bool = True,
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> "Molecule":
+        """
+        Convert SMILES string to wandb.Molecule
+
+        Arguments:
+            data: string
+                SMILES string.
+            sanitize: bool
+                Check if the molecule is chemically reasonable by the RDKit's definition.
+            convert_to_3d_and_optimize: bool
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: int
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+        """
+        rdkit_chem = util.get_module(
+            "rdkit.Chem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        molecule = rdkit_chem.MolFromSmiles(data, sanitize=sanitize)
+        if molecule is None:
+            raise ValueError("Unable to parse the SMILES string.")
+
+        return cls.from_rdkit(
+            data_or_path=molecule,
+            convert_to_3d_and_optimize=convert_to_3d_and_optimize,
+            mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
+        )
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
@@ -1256,9 +1363,8 @@ class JSONMetadata(Media):
 
         ext = "." + self.type_name() + ".json"
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ext)
-        util.json_dump_uncompressed(
-            self._val, codecs.open(tmp_path, "w", encoding="utf-8")
-        )
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_uncompressed(self._val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     @classmethod
@@ -1988,11 +2094,7 @@ class Image(BatchableMedia):
         if caption is not None:
             self._caption = caption
 
-        if classes is not None:
-            if not isinstance(classes, Classes):
-                self._classes = Classes(classes)
-            else:
-                self._classes = classes
+        total_classes = {}
 
         if boxes:
             if not isinstance(boxes, dict):
@@ -2003,7 +2105,9 @@ class Image(BatchableMedia):
                 if isinstance(box_item, BoundingBoxes2D):
                     boxes_final[key] = box_item
                 elif isinstance(box_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
+                total_classes.update(boxes_final[key]._class_labels)
             self._boxes = boxes_final
 
         if masks:
@@ -2015,9 +2119,27 @@ class Image(BatchableMedia):
                 if isinstance(mask_item, ImageMask):
                     masks_final[key] = mask_item
                 elif isinstance(mask_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
+                if hasattr(masks_final[key], "_val"):
+                    total_classes.update(masks_final[key]._val["class_labels"])
             self._masks = masks_final
 
+        if classes is not None:
+            if isinstance(classes, Classes):
+                total_classes.update(
+                    {val["id"]: val["name"] for val in classes._class_set}
+                )
+            else:
+                total_classes.update({val["id"]: val["name"] for val in classes})
+
+        if len(total_classes.keys()) > 0:
+            self._classes = Classes(
+                [
+                    {"id": key, "name": total_classes[key]}
+                    for key in total_classes.keys()
+                ]
+            )
         self._width, self._height = self.image.size  # type: ignore
         self._free_ram()
 
@@ -2082,7 +2204,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".png")
+        tmp_path = os.path.join(_MEDIA_TMP.name, str(util.generate_id()) + ".png")
         self.format = "png"
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -2167,18 +2289,10 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                # Here, rather than give each class definition it's own name (and entry), we
-                # purposely are giving a non-unique class name of /media/cls.classes.json.
-                # This may create user confusion if if multiple different class definitions
-                # are expected in a single artifact. However, we want to catch this user pattern
-                # if it exists and dive deeper. The alternative code is provided below.
-                #
-                class_name = os.path.join("media", "cls")
-                #
-                # class_name = os.path.join(
-                #     "media", "classes", os.path.basename(self._path) + "_cls"
-                # )
-                #
+                class_id = hashlib.md5(
+                    str(self._classes._class_set).encode("utf-8")
+                ).hexdigest()
+                class_name = os.path.join("media", "classes", class_id + "_cls",)
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
@@ -2445,7 +2559,8 @@ class Plotly(Media):
 
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
-        util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod
@@ -2588,7 +2703,10 @@ def _numpy_arrays_to_lists(
     elif util.is_numpy_array(payload):
         if TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
-        return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
+        return [
+            _numpy_arrays_to_lists(v)
+            for v in (payload.tolist() if payload.ndim > 0 else [payload.tolist()])
+        ]
     # Protects against logging non serializable objects
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
