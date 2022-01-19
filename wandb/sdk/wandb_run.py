@@ -76,6 +76,7 @@ from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
+    deprecate,
     filenames,
     filesystem,
     ipython,
@@ -135,11 +136,14 @@ class RunStatusChecker(object):
         self._retry_polling_interval = retry_polling_interval
 
         self._join_event = threading.Event()
+
         self._stop_thread = threading.Thread(target=self.check_status)
+        self._stop_thread.name = "ChkStopThr"
         self._stop_thread.daemon = True
         self._stop_thread.start()
 
         self._retry_thread = threading.Thread(target=self.check_network_status)
+        self._retry_thread.name = "NetStatThr"
         self._retry_thread.daemon = True
         self._retry_thread.start()
 
@@ -299,6 +303,7 @@ class Run(object):
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _final_summary: Optional[Dict[str, Any]]
 
     def __init__(
         self,
@@ -329,7 +334,6 @@ class Run(object):
         self._group = None
         self._job_type = None
         self._run_id = settings.run_id
-        self._runqueue_item_id = settings._runqueue_item_id
         self._start_time = time.time()
         self._starting_step = 0
         self._name = None
@@ -534,8 +538,6 @@ class Run(object):
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:
             run.git.last_commit = self._last_commit
-        if self._runqueue_item_id is not None:
-            run.runqueue_item_id = self._runqueue_item_id
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
@@ -706,6 +708,13 @@ class Run(object):
     @property
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1358,11 +1367,12 @@ class Run(object):
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
-            wandb.termwarn(
-                (
-                    "Calling run.save without any arguments is deprecated."
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__save_no_args,
+                warning_message=(
+                    "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
-                )
+                ),
             )
             return True
         if policy not in ("live", "end", "now"):
@@ -1476,6 +1486,12 @@ class Run(object):
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__join,
+            warning_message=(
+                "wandb.run.join() is deprecated, please use wandb.run.finish()."
+            ),
+        )
         self.finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
@@ -1849,6 +1865,8 @@ class Run(object):
             self.log_code(self._settings.code_dir)
         if self._run_obj and not self._settings._silent:
             self._display_run()
+
+        # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
