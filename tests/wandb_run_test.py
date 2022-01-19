@@ -219,7 +219,7 @@ def test_local_warning(
 
 def test_use_artifact(live_mock_server):
     run = wandb.init()
-    artifact = wandb.Artifact('arti', type='dataset')
+    artifact = wandb.Artifact("arti", type="dataset")
     run.use_artifact(artifact)
     artifact.wait()
     assert artifact.digest == "abc123"
