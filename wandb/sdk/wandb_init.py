@@ -493,7 +493,7 @@ class _WandbInit(object):
             get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
             active_start_method = get_start_fn() if get_start_fn else None
 
-        # Populate intial telemetry
+        # Populate initial telemetry
         with telemetry.context(run=run) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()

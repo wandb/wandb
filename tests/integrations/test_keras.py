@@ -83,7 +83,6 @@ def test_basic_keras(dummy_model, dummy_data, wandb_init_run):
     # NOTE: backend mock doesnt copy history into summary (happens in internal process)
     # assert wandb.run._backend.summary["loss"] > 0
     assert len(graph_json(wandb.run)["nodes"]) == 3
-    wandb.finish()
 
 
 def test_keras_telemetry(
@@ -149,7 +148,6 @@ def test_keras_image_binary(dummy_model, dummy_data, wandb_init_run):
         callbacks=[WandbCallback(data_type="image")]
     )
     assert len(wandb.run._backend.history[0]["examples"]["captions"]) == 36
-    wandb.finish()
 
 
 def test_keras_image_binary_captions(dummy_model, dummy_data, wandb_init_run):
@@ -163,7 +161,6 @@ def test_keras_image_binary_captions(dummy_model, dummy_data, wandb_init_run):
         ]
     )
     assert wandb.run._backend.history[0]["examples"]["captions"][0] in ["Rad", "Nice"]
-    wandb.finish()
 
 
 @pytest.mark.multiclass
@@ -176,7 +173,6 @@ def test_keras_image_multiclass(dummy_model, dummy_data, wandb_init_run):
         callbacks=[WandbCallback(data_type="image", predictions=10)]
     )
     assert len(wandb.run._backend.history[0]["examples"]["captions"]) == 10
-    wandb.finish()
 
 
 @pytest.mark.multiclass
@@ -210,7 +206,6 @@ def test_keras_image_multiclass_captions(dummy_model, dummy_data, wandb_init_run
         "Nice",
         "Fun",
     ]
-    wandb.finish()
 
 
 @pytest.mark.image_output
@@ -225,7 +220,6 @@ def test_keras_image_output(dummy_model, dummy_data, wandb_init_run):
     print(wandb.run._backend.history[0])
     assert wandb.run._backend.history[0]["examples"]["count"] == 30
     assert wandb.run._backend.history[0]["examples"]["height"] == 10
-    wandb.finish()
 
 
 def test_dataset_functional(wandb_init_run):
@@ -238,7 +232,6 @@ def test_dataset_functional(wandb_init_run):
     model.compile(optimizer=tf.keras.optimizers.Adam(), loss="mse")
     model.fit(data, callbacks=[wandb_callback])
     assert graph_json(wandb.run)["nodes"][0]["class_name"] == "InputLayer"
-    wandb.finish()
 
 
 def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
@@ -253,7 +246,6 @@ def test_keras_log_weights(dummy_model, dummy_data, wandb_init_run):
         wandb.run._backend.history[0]["parameters/dense.weights"]["_type"]
         == "histogram"
     )
-    wandb.finish()
 
 
 # this is flaky on all platforms
@@ -280,7 +272,6 @@ def test_keras_log_gradients(dummy_model, dummy_data, wandb_init_run):
         wandb.run._backend.history[0]["gradients/dense/bias.gradient"]["_type"]
         == "histogram"
     )
-    wandb.finish()
 
 
 #  @pytest.mark.skip(reason="Coverage insanity error: sqlite3.OperationalError: unable to open database file")
@@ -294,7 +285,6 @@ def test_keras_save_model(dummy_model, dummy_data, wandb_init_run):
     )
     print("DAMN", glob.glob(os.path.join(wandb_init_run.dir, "model-best.h5")))
     assert len(glob.glob(os.path.join(wandb_init_run.dir, "model-best.h5"))) == 1
-    wandb.finish()
 
 
 def test_keras_convert_sequential():
