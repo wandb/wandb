@@ -2135,7 +2135,9 @@ class Api(object):
         can_handle_client_id = max_cli_version is None or parse_version(
             "0.11.0"
         ) <= parse_version(max_cli_version)
-        can_handle_dedupe = max_cli_version is None or parse_version("0.12.10")
+        can_handle_dedupe = max_cli_version is None or parse_version(
+            "0.12.10"
+        ) <= parse_version(max_cli_version)
 
         mutation = gql(
             """
