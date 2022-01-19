@@ -628,6 +628,7 @@ def test_wandb_dir_run(test_settings):
     run.finish()
 
 
+@pytest.mark.skip(reason="CircleCI still lets you write to root_dir")
 def test_non_writable_root_dir(runner, capsys):
     with runner.isolated_filesystem():
         root_dir = os.getcwd()
