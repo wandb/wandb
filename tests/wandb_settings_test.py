@@ -111,6 +111,7 @@ def test_property_update_frozen_forbidden():
 
 # test str and repr methods for Property class
 
+
 def test_property_str():
     p = Property(name="foo", value="1")
     assert str(p) == "'1'"
