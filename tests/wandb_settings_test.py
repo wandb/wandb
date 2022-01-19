@@ -109,6 +109,20 @@ def test_property_update_frozen_forbidden():
         p.update(value=2)
 
 
+# test str and repr methods for Property class
+
+def test_property_str():
+    p = Property(name="foo", value="1")
+    assert str(p) == "'1'"
+    p = Property(name="foo", value=1)
+    assert str(p) == "1"
+
+
+def test_property_repr():
+    p = Property(name="foo", value=2, hook=lambda x: x ** 2)
+    assert repr(p) == f"<Property foo: value=4 _value=2 source=1 is_policy=False>"
+
+
 # test Settings class
 
 
@@ -611,6 +625,15 @@ def test_wandb_dir_run(test_settings):
         os.path.join(run._settings.root_dir, "wandb")
     )
     run.finish()
+
+
+def test_non_writable_root_dir(capsys):
+    s = Settings()
+    s.update(root_dir="/")
+    wandb_dir = s.wandb_dir
+    assert wandb_dir != "/wandb"
+    _, err = capsys.readouterr()
+    assert "wasn't writable, using system temp directory" in err
 
 
 def test_log_user(test_settings):
