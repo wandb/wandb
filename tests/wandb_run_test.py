@@ -217,8 +217,15 @@ def test_local_warning(
         assert msg in captured if outdated else msg not in captured
 
 
-def test_use_artifact(live_mock_server):
-    run = wandb.init()
+@pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
+def test_invalid_project_name(live_mock_server, project_name):
+    with pytest.raises(UsageError) as e:
+        _ = wandb.init(project=project_name)
+        assert 'Invalid project name "{project_name}"' in str(e.value)
+
+
+def test_use_artifact(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
     artifact = wandb.Artifact("arti", type="dataset")
     run.use_artifact(artifact)
     artifact.wait()
@@ -228,15 +235,8 @@ def test_use_artifact(live_mock_server):
 def test_use_artifact_offline(live_mock_server, test_settings):
     run = wandb.init(mode="offline")
     with pytest.raises(Exception) as e_info:
-        artifact = run.use_artifact("boom-data")
+        run.use_artifact("boom-data")
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
-
-
-@pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
-def test_invalid_project_name(live_mock_server, project_name):
-    with pytest.raises(UsageError) as e:
-        _ = wandb.init(project=project_name)
-        assert 'Invalid project name "{project_name}"' in str(e.value)
 
 
 def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
