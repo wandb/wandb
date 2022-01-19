@@ -871,7 +871,7 @@ class Settings:
 
     def __setattr__(self, key: str, value: Any) -> None:
         if "_Settings__initialized" in self.__dict__ and self.__initialized:
-            raise TypeError("Please use update() to update attribute value")
+            raise TypeError(f"Please use update() to update attribute `{key}` value")
         object.__setattr__(self, key, value)
 
     def __iter__(self) -> Iterable:

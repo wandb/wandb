@@ -628,13 +628,17 @@ def test_wandb_dir_run(test_settings):
     run.finish()
 
 
-def test_non_writable_root_dir(capsys):
-    s = Settings()
-    s.update(root_dir="/")
-    wandb_dir = s.wandb_dir
-    assert wandb_dir != "/wandb"
-    _, err = capsys.readouterr()
-    assert "wasn't writable, using system temp directory" in err
+def test_non_writable_root_dir(runner, capsys):
+    with runner.isolated_filesystem():
+        root_dir = os.getcwd()
+        s = Settings()
+        s.update(root_dir=root_dir)
+        # make root_dir non-writable
+        os.chmod(root_dir, 0o444)
+        wandb_dir = s.wandb_dir
+        assert wandb_dir != "/wandb"
+        _, err = capsys.readouterr()
+        assert "wasn't writable, using system temp directory" in err
 
 
 def test_log_user(test_settings):
