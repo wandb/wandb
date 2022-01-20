@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from platform import python_version
+from platform import python_build, python_version
 import re
 import shutil
 import subprocess
@@ -60,15 +60,20 @@ FROM python:{py_version_image} as build
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+RUN apt-get update -qq && apt-get install --no-install-recommends -y \
+    {python_build_packages} \
+    && apt-get -qq purge && apt-get -qq clean \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY src/requirements.txt .
-RUN pip install -r requirements.txt     # todo: buildx
+# different requirements line if we have buildx or not
+{requirements_line}
 
 # different base image for cpu/gpu
 {base_setup}
 
 COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-
 
 ENV SHELL /bin/bash
 
@@ -106,32 +111,47 @@ ENTRYPOINT {command_arr}
 
 
 def get_current_python_version():
-    # todo: this should be somewhere else
-    return sys.version.split()[0]
+    full_version = sys.version.split()[0].split('.')
+    major = full_version[0]
+    version = '.'.join(full_version[:2]) if len(full_version) >= 2 else major + '.0'
+    return version, major
 
 
 def generate_base_image_no_r2d(api, launch_project, entry_cmd):
-    python_packages = ["python3.7", "python3-pip", "python3-setuptools", "python3-distutils"]    # todo: get version from current or saved run
+    if launch_project.python_version:
+        py_version, py_major = (launch_project.python_version, launch_project.python_version.split('.')[0])
+    else:
+        py_version, py_major = get_current_python_version()
 
+    python_base_image = "{}-slim-buster".format(py_version)
     if launch_project.gpu:
+        # must install all python setup
+        if py_major == '2':
+            python_packages = ["python{}".format(py_version), "python-pip", "python-setuptools"]
+        else:
+            python_packages = ["python{}".format(py_version), "python3-pip", "python3-setuptools"]
+
         base_setup = """
 FROM nvidia/cuda:10.0-base as base
 RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
 
 # install python
-# todo support runtime.txt
+# todo support runtime.txt, setup.py
 RUN apt-get update -qq && apt-get install --no-install-recommends -y \
     {python_packages} \
     && apt-get -qq purge && apt-get -qq clean \
     && rm -rf /var/lib/apt/lists/*
 
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 \
-    && update-alternatives --install /usr/local/bin/python python /usr/bin/python3.7 1 # todo fix version
-""".format(python_packages=' \\\n'.join(python_packages))
+# make sure `python` points at the right version
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_version} 1 \
+    && update-alternatives --install /usr/local/bin/python python /usr/bin/python{py_version} 1
+""".format(python_packages=' \\\n'.join(python_packages), py_version=py_version)
     else:
+        python_packages = ["python3-dev" if py_major == '3' else "python-dev", "gcc"]    # required for python < 3.7
+
         base_setup = """
-FROM python:{py_version_image} as base
-""".format(py_version_image="3.7-slim-buster") # todo
+FROM python:{py_image} as base
+""".format(py_image=python_base_image)
 
 
     username, userid = get_docker_user(launch_project)
@@ -169,27 +189,20 @@ FROM python:{py_version_image} as base
             "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
         )
         requirements_line = "RUN WANDB_DISABLE_CACHE=true "
-    shutil.copy(
-        os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
-        os.path.join(launch_project.project_dir),
-    )
-
-
     requirements_line += "pip install -r requirements.txt"
 
-    # # TODO: make this configurable or change the default behavior...
-    # requirements_line += _parse_existing_requirements(launch_project)
-    # requirements_line += "python _wandb_bootstrap.py\n"
+    python_build_packages = ["python3-dev", "gcc"] if py_major == '3' else ["python-dev", "gcc"]
 
     dockerfile_contents = TEMPLATE.format(
-        py_version_image="3.7-slim-buster",     # todo
+        py_version_image=python_base_image,
         user=username,
         uid=launch_project.docker_user_id,
         env_vars=env_vars_section,
         home_dir=workdir,   # rename this var to workdir as distinct from homedir
         command_arr=entry_cmd,
-        requirements_section=requirements_line,
+        requirements_line=requirements_line,
         base_setup=base_setup,
+        python_build_packages=" ".join(python_build_packages),
     )
     print(dockerfile_contents)
 
@@ -350,7 +363,7 @@ def build_docker_image_if_needed(
         if env.startswith("HOME="):
             homedir = env.split("=", 1)[1]
     if copy_code:
-        copy_code_line = "COPY --chown={} ./src/ {}\n".format(  # @@@
+        copy_code_line = "COPY --chown={} ./src/ {}\n".format(
             launch_project.docker_user_id, workdir
         )
         if docker.is_buildx_installed():
@@ -420,7 +433,7 @@ def build_docker_image_if_needed(
         launch_project, sanitized_command_string, sanitized_dockerfile_contents
     )
 
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents) # @@@@
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
 
     _logger.info("=== Building docker image %s ===", image_uri)
 

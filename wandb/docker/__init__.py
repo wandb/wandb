@@ -45,7 +45,7 @@ def is_buildx_installed() -> bool:
 
 
 def build(tags: List[str], file: str, context_path: str) -> str:
-    command = ["buildx", "build"] if is_buildx_installed() else ["build"]   # @@@ docker buildx build
+    command = ["buildx", "build"] if is_buildx_installed() else ["build"]
     build_tags = []
     for tag in tags:
         build_tags += ["-t", tag]
