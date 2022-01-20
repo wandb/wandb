@@ -48,6 +48,7 @@ def validate_docker_installation() -> None:
 
 def get_docker_user(launch_project):
     import getpass
+
     username = getpass.getuser()
     userid = launch_project.docker_user_id or os.geteuid()
     return username, userid
@@ -110,25 +111,36 @@ ENTRYPOINT {command_arr}
 
 
 def get_current_python_version():
-    full_version = sys.version.split()[0].split('.')
+    full_version = sys.version.split()[0].split(".")
     major = full_version[0]
-    version = '.'.join(full_version[:2]) if len(full_version) >= 2 else major + '.0'
+    version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
     return version, major
 
 
 def generate_base_image_no_r2d(api, launch_project, image_uri, entry_cmd):
     if launch_project.python_version:
-        py_version, py_major = (launch_project.python_version, launch_project.python_version.split('.')[0])
+        py_version, py_major = (
+            launch_project.python_version,
+            launch_project.python_version.split(".")[0],
+        )
     else:
         py_version, py_major = get_current_python_version()
 
     python_base_image = "{}-slim-buster".format(py_version)
     if launch_project.gpu:
         # must install all python setup
-        if py_major == '2':
-            python_packages = ["python{}".format(py_version), "python-pip", "python-setuptools"]
+        if py_major == "2":
+            python_packages = [
+                "python{}".format(py_version),
+                "python-pip",
+                "python-setuptools",
+            ]
         else:
-            python_packages = ["python{}".format(py_version), "python3-pip", "python3-setuptools"]
+            python_packages = [
+                "python{}".format(py_version),
+                "python3-pip",
+                "python3-setuptools",
+            ]
 
         base_setup = """
 FROM nvidia/cuda:10.0-base as base
@@ -144,14 +156,20 @@ RUN apt-get update -qq && apt-get install --no-install-recommends -y \
 # make sure `python` points at the right version
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_version} 1 \
     && update-alternatives --install /usr/local/bin/python python /usr/bin/python{py_version} 1
-""".format(python_packages=' \\\n'.join(python_packages), py_version=py_version)
+""".format(
+            python_packages=" \\\n".join(python_packages), py_version=py_version
+        )
     else:
-        python_packages = ["python3-dev" if py_major == '3' else "python-dev", "gcc"]    # required for python < 3.7
+        python_packages = [
+            "python3-dev" if py_major == "3" else "python-dev",
+            "gcc",
+        ]  # required for python < 3.7
 
         base_setup = """
 FROM python:{py_image} as base
-""".format(py_image=python_base_image)
-
+""".format(
+            py_image=python_base_image
+        )
 
     username, userid = get_docker_user(launch_project)
     workdir = "/home/{user}".format(user=username)
@@ -180,7 +198,7 @@ FROM python:{py_image} as base
     requirements_line = ""
 
     if docker.is_buildx_installed():
-        requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(   # todo: don't think this is working for partial caching
+        requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(  # todo: don't think this is working for partial caching
             workdir, launch_project.docker_user_id
         )
     else:
@@ -190,7 +208,9 @@ FROM python:{py_image} as base
         requirements_line = "RUN WANDB_DISABLE_CACHE=true "
     requirements_line += "pip install -r requirements.txt"
 
-    python_build_packages = ["python3-dev", "gcc"] if py_major == '3' else ["python-dev", "gcc"]
+    python_build_packages = (
+        ["python3-dev", "gcc"] if py_major == "3" else ["python-dev", "gcc"]
+    )
 
     dockerfile_contents = TEMPLATE.format(
         py_version_image=python_base_image,
@@ -203,7 +223,7 @@ FROM python:{py_image} as base
         base_setup=base_setup,
         python_build_packages=" ".join(python_build_packages),
     )
-    print(dockerfile_contents) # tmp
+    print(dockerfile_contents)  # tmp
 
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
@@ -451,10 +471,7 @@ def build_docker_image_if_needed(
     return image
 
 
-def get_docker_command(
-    image: str,
-    docker_args: Dict[str, Any] = None,
-) -> List[str]:
+def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
@@ -505,9 +522,7 @@ def _parse_existing_requirements(launch_project: LaunchProject) -> str:
                 except Exception as e:
                     _logger.warn(f"Unable to parse requirements.txt: {e}")
                     continue
-        requirements_line += "WANDB_ONLY_INCLUDE={} ".format(
-                ",".join(include_only)
-            )
+        requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
     return requirements_line
 
 
@@ -571,7 +586,5 @@ def get_full_command(
     """
 
     commands = []
-    commands += get_docker_command(
-        image_uri, docker_args
-    )
+    commands += get_docker_command(image_uri, docker_args)
     return commands

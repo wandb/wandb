@@ -67,7 +67,9 @@ def main():
                         req = "wandb"
                     reqs.append(req.strip())
                 else:
-                    print("Ignoring requirement: {} from frozen requirements".format(req))
+                    print(
+                        "Ignoring requirement: {} from frozen requirements".format(req)
+                    )
                 if len(reqs) >= CORES:
                     deps_failed = install_deps(reqs)
                     reqs = []

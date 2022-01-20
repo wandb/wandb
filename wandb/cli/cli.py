@@ -1025,7 +1025,7 @@ def _check_launch_imports():
     flag_value=True,
     default=False,
     help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
-    "built by default and you must set --gpu=False to build a CPU-only image."
+    "built by default and you must set --gpu=False to build a CPU-only image.",
 )
 @display_error
 def launch(
