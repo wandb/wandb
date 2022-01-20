@@ -18,6 +18,7 @@ from ..docker import (
     generate_docker_base_image,
     generate_base_image_no_r2d,
     get_full_command,
+    get_docker_command,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -83,78 +84,17 @@ class LocalRunner(AbstractRunner):
         entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
-        copy_code = True
+
         if launch_project.docker_image:
+            # user has provided their own docker image
             _logger.info("Pulling user provided docker image")
             pull_docker_image(launch_project.docker_image)
-            copy_code = False
         else:
-            generate_base_image_no_r2d(self._api, launch_project, entry_cmd)
-
-            # # TODO: potentially pull the base_image    # @@@
-            # if not docker_image_exists(launch_project.base_image):
-            #     if generate_docker_base_image(launch_project, entry_cmd) is None:
-            #         raise LaunchError("Unable to build base image")
-            # else:
-            #     wandb.termlog(
-            #         "Using existing base image: {}".format(launch_project.base_image)
-            #     )
-
-        command_separator = " "
-        command_args = []
-
-        _logger.info("Inspecting base image for env, and working dir...")
-        container_inspect = docker_image_inspect(launch_project.base_image)
-        container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
-        container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
-
-        if launch_project.docker_image is None or launch_project.build_image:
+            # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            # image_uri = "us-east1-docker.pkg.dev/playground-111/launch-vertex-test/test_dev:test" # @@@ todo
-            command_args = get_full_command(
-                image_uri,
-                launch_project,
-                self._api,
-                container_workdir,
-                docker_args,
-                entry_point,
-            )
-            command_str = command_separator.join(command_args)
+            generate_base_image_no_r2d(self._api, launch_project, image_uri, entry_cmd)
 
-            sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
-            )
-            
-            # _logger.info("Building docker image...")
-            # build_docker_image_if_needed(   # @@@
-            #     launch_project=launch_project,
-            #     api=self._api,
-            #     copy_code=copy_code,
-            #     workdir=container_workdir,
-            #     container_env=container_env,
-            #     runner_type="local",
-            #     image_uri=image_uri,
-            #     command_args=command_args,
-            # )
-        else:
-            # TODO: rewrite env vars and copy code in supplied docker image
-            wandb.termwarn(
-                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
-                    launch_project.docker_image
-                )
-            )
-            image_uri = launch_project.docker_image
-            _logger.info("Getting docker command...")
-            command_args = get_full_command(
-                image_uri,
-                launch_project,
-                self._api,
-                container_workdir,
-                docker_args,
-                entry_point,
-            )
-            command_str = command_separator.join(command_args)
-
+            command_str = " ".join(get_docker_command(image_uri, docker_args))
             sanitized_command_str = re.sub(
                 r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
             )

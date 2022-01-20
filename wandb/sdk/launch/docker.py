@@ -86,18 +86,17 @@ RUN useradd \
     --uid {uid} \
     {user}
 
-WORKDIR {home_dir}
-RUN chown {user} {home_dir}
+WORKDIR {workdir}
+RUN chown {user} {workdir}
 
 # add env vars
 {env_vars}
 
 # make artifacts cache dir unrelated to build
-RUN mkdir -p {home_dir}/.cache && chown -R {uid} {home_dir}/.cache
+RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 
 # copy code/etc
-# todo: make this location configurable away from $HOME
-COPY --chown={user} src/ {home_dir}
+COPY --chown={user} src/ {workdir}
 
 # todo handle local installs
 
@@ -117,7 +116,7 @@ def get_current_python_version():
     return version, major
 
 
-def generate_base_image_no_r2d(api, launch_project, entry_cmd):
+def generate_base_image_no_r2d(api, launch_project, image_uri, entry_cmd):
     if launch_project.python_version:
         py_version, py_major = (launch_project.python_version, launch_project.python_version.split('.')[0])
     else:
@@ -155,7 +154,7 @@ FROM python:{py_image} as base
 
 
     username, userid = get_docker_user(launch_project)
-    workdir = "/home/{user}".format(user=username) # @@@ default, this should be configurable
+    workdir = "/home/{user}".format(user=username)
 
     # add env vars
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
@@ -181,7 +180,7 @@ FROM python:{py_image} as base
     requirements_line = ""
 
     if docker.is_buildx_installed():
-        requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(
+        requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(   # todo: don't think this is working for partial caching
             workdir, launch_project.docker_user_id
         )
     else:
@@ -196,21 +195,18 @@ FROM python:{py_image} as base
     dockerfile_contents = TEMPLATE.format(
         py_version_image=python_base_image,
         user=username,
-        uid=launch_project.docker_user_id,
+        uid=userid,
         env_vars=env_vars_section,
-        home_dir=workdir,   # rename this var to workdir as distinct from homedir
+        workdir=workdir,
         command_arr=entry_cmd,
         requirements_line=requirements_line,
         base_setup=base_setup,
         python_build_packages=" ".join(python_build_packages),
     )
-    print(dockerfile_contents)
+    print(dockerfile_contents) # tmp
 
-
-
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)  # @@@ todo: this is bad if buildx is not installed
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
-    image_uri = launch_project.base_image
 
     try:
         image = docker.build(
@@ -457,17 +453,12 @@ def build_docker_image_if_needed(
 
 def get_docker_command(
     image: str,
-    launch_project: LaunchProject,
-    api: Api,
-    workdir: str,
     docker_args: Dict[str, Any] = None,
 ) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
     image: a Docker image to be run
-    launch_project: an instance of LaunchProject
-    api: an instance of wandb.apis.internal Api
     docker_args: a dictionary of additional docker args for the command
     """
     docker_path = "docker"
@@ -581,7 +572,6 @@ def get_full_command(
 
     commands = []
     commands += get_docker_command(
-        image_uri, launch_project, api, container_workdir, docker_args
+        image_uri, docker_args
     )
-    # commands += get_entry_point_command(entry_point, launch_project.override_args)    # @@@ already in dockerfile
     return commands
