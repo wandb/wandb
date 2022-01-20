@@ -96,11 +96,15 @@ class Config(object):
         object.__setattr__(self, "_users_cnt", 0)
         object.__setattr__(self, "_callback", None)
         object.__setattr__(self, "_settings", None)
+        object.__setattr__(self, "_artifact_callback", None)
 
         self._load_defaults()
 
     def _set_callback(self, cb):
         object.__setattr__(self, "_callback", cb)
+
+    def _set_artifact_callback(self, cb):
+        object.__setattr__(self, "_artifact_callback", cb)
 
     def _set_settings(self, settings):
         object.__setattr__(self, "_settings", settings)
@@ -139,6 +143,8 @@ class Config(object):
         with wandb.sdk.lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
+        if self._is_artifact_string_or_artifact(val):
+            val = self._artifact_callback(val)
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -212,7 +218,10 @@ class Config(object):
             self.update(conf_dict)
 
     def _sanitize_dict(
-        self, config_dict, allow_val_change=None, ignore_keys: set = None,
+        self,
+        config_dict,
+        allow_val_change=None,
+        ignore_keys: set = None,
     ):
         sanitized = {}
         self._raise_value_error_on_nested_artifact(config_dict)
@@ -255,6 +264,16 @@ class Config(object):
                 "Instances of wandb.Artifact and wandb.apis.public.Artifact"
                 " can only be top level keys in wandb.config"
             )
+        elif self._is_artifact_string_or_artifact(v) and nested:
+            raise ValueError(
+                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
+                " can only be top level keys in wandb.config"
+            )
+
+    def _is_artifact_string_or_artifact(self, v):
+        return (
+            isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
+        ) or isinstance(v, wandb.Artifact)
 
 
 class ConfigStatic(object):
