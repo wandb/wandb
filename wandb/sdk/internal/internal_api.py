@@ -14,11 +14,7 @@ import logging
 import requests
 import socket
 import sys
-
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
+import subprocess
 
 from copy import deepcopy
 import six
@@ -425,6 +421,7 @@ class Api(object):
             "serverInfo" in query_types
             and "latestLocalVersionInfo" in server_info_types
         )
+
         cli_query_string = "" if not cli_version_exists else cli_query
         local_query_string = "" if not local_version_exists else local_query
 
@@ -911,7 +908,7 @@ class Api(object):
                 success
                 queueID
             }
-            
+
         }
         """
         )
@@ -1180,7 +1177,6 @@ class Api(object):
         sweep_name=None,
         summary_metrics=None,
         num_retries=None,
-        runqueue_item_id=None,
     ):
         """Update a run
 
@@ -1198,9 +1194,9 @@ class Api(object):
             program_path (str, optional): Path to the program.
             commit (str, optional): The Git SHA to associate the run with
             summary_metrics (str, optional): The JSON summary metrics
-            runqueue_item_id (str, optional): The graphql id of the run queue item to acknowledge
         """
-        mutation_str = """
+        mutation = gql(
+            """
         mutation UpsertBucket(
             $id: String,
             $name: String,
@@ -1221,7 +1217,6 @@ class Api(object):
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
-            __RUNQUEUE_ITEM_ID_ARG_STRING__
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -1243,7 +1238,6 @@ class Api(object):
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
-                __RUNQUEUE_ITEM_ID_BIND_STRING__
             }) {
                 bucket {
                     id
@@ -1265,21 +1259,7 @@ class Api(object):
             }
         }
         """
-
-        _, server_info_types = self.server_info_introspection()
-        use_run_queue_item_id = (
-            "exposesExplicitRunQueueAckPath" in server_info_types
-            and runqueue_item_id is not None
         )
-
-        mutation_str = mutation_str.replace(
-            "__RUNQUEUE_ITEM_ID_ARG_STRING__",
-            "$runQueueItemId: ID" if use_run_queue_item_id else "",
-        ).replace(
-            "__RUNQUEUE_ITEM_ID_BIND_STRING__",
-            "runQueueItemId: $runQueueItemId" if use_run_queue_item_id else "",
-        )
-
         if config is not None:
             config = json.dumps(config)
         if not description or description.isspace():
@@ -1311,10 +1291,6 @@ class Api(object):
             "summaryMetrics": summary_metrics,
         }
 
-        if use_run_queue_item_id:
-            variable_values["runQueueItemId"] = runqueue_item_id
-
-        mutation = gql(mutation_str)
         response = self.gql(mutation, variable_values=variable_values, **kwargs)
 
         run = response["upsertBucket"]["bucket"]
@@ -1325,10 +1301,7 @@ class Api(object):
             if entity:
                 self.set_setting("entity", entity["name"])
 
-        return (
-            response["upsertBucket"]["bucket"],
-            response["upsertBucket"]["inserted"],
-        )
+        return response["upsertBucket"]["bucket"], response["upsertBucket"]["inserted"]
 
     @normalize_exceptions
     def get_run_info(self, entity, project, name):
@@ -1595,8 +1568,10 @@ class Api(object):
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error("upload_file exception {}: {}".format(url, e))
-            logger.error("upload_file request headers: {}".format(e.request.headers))
-            logger.error("upload_file response body: {}".format(e.response.content))
+            request_headers = e.request.headers if e.request is not None else ""
+            logger.error("upload_file request headers: {}".format(request_headers))
+            response_content = e.response.content if e.response is not None else ""
+            logger.error("upload_file response body: {}".format(response_content))
             status_code = e.response.status_code if e.response != None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
@@ -2151,14 +2126,17 @@ class Api(object):
         aliases=None,
         distributed_id=None,
         is_user_created=False,
+        enable_digest_deduplication=False,
     ):
-        # TODO: Ignore clientID and sequenceClientID if server can't handle it
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
         can_handle_client_id = max_cli_version is None or parse_version(
             "0.11.0"
+        ) <= parse_version(max_cli_version)
+        can_handle_dedupe = max_cli_version is None or parse_version(
+            "0.12.10"
         ) <= parse_version(max_cli_version)
 
         mutation = gql(
@@ -2177,6 +2155,7 @@ class Api(object):
             %s
             %s
             %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -2190,6 +2169,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
                 %s
                 %s
                 %s
@@ -2215,14 +2195,18 @@ class Api(object):
         """
             %
             # For backwards compatibility with older backends that don't support
-            # distributed writers.
+            # distributed writers or digest deduplication.
             (
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
+                "enableDigestDeduplication: $enableDigestDeduplication,"
+                if can_handle_dedupe
+                else "",
             )
         )
 
@@ -2253,6 +2237,7 @@ class Api(object):
                 if metadata
                 else None,
                 "distributedID": distributed_id,
+                "enableDigestDeduplication": enable_digest_deduplication,
             },
         )
         av = response["createArtifact"]["artifact"]
