@@ -1077,3 +1077,11 @@ def test_fail_to_make_file(mocked_run):
             assert False
     except ValueError as e:
         assert " is invalid. Please remove invalid filename characters" in str(e)
+
+
+def test_log_with_dir_sep_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+    run.log({"train/image": wb_image})
+    run.finish()
+    assert True
