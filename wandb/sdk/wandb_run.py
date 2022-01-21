@@ -14,6 +14,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -2787,6 +2788,25 @@ class Run(object):
         """
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
+
+    def log_checkpoint(self, name: str = None) -> None:
+        """Logs current runstate as an artifact checkpoint."""
+
+        name = name or "{}-{}".format("checkpoint", self.id)
+        art = wandb.Artifact(name, "checkpoint")
+
+        # TODO: should we save files and artifacts? probably, how?
+        data = dict(
+            step=self.step, config=dict(self.config), summary=dict(self.summary),
+        )
+        ckpt_metaname = "checkpoint.json"
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            ckpt_fname = os.path.join(tmpdirname, ckpt_metaname)
+            with open(ckpt_fname, "w") as f:
+                json.dump(data, f)
+            art.add_file(ckpt_fname, name=ckpt_metaname)
+        self.log_artifact(art)
+        # TODO: return artifact? or checkpoint?
 
 
 # We define this outside of the run context to support restoring before init

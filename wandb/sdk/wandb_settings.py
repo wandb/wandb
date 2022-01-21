@@ -294,6 +294,9 @@ class Settings(object):
     run_job_type: Optional[str] = None
     base_url: Optional[str] = None
 
+    # TODO: experimental?
+    from_checkpoint: Optional[str]
+
     # Private attributes
     _start_time: Optional[float]
     _start_datetime: Optional[datetime]
@@ -437,6 +440,8 @@ class Settings(object):
         _python: str = None,
         _kaggle: str = None,
         _except_exit: str = None,
+        # TODO: Should this be private or namespaced for init only?
+        from_checkpoint: str = None,
     ):
         kwargs = dict(locals())
         kwargs.pop("self")
