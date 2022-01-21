@@ -2078,7 +2078,7 @@ class Sweep(Attrs):
 
     QUERY = gql(
         """
-    query Sweep($project: String!, $entity: String, $name: String!) {
+    query Sweep($project: String, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
