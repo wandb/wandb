@@ -13,8 +13,8 @@ depend:
       source: https://raw.githubusercontent.com/wandb/examples/master/examples/data/wine.csv
 assert:
   - :wandb:runs_len: 1
-  - :wandb:runs[0][exitcode]: 1
-  - :yea:exit: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :yea:exit: 0
   - :op:contains_regex:
     - :wandb:runs[0][output][stderr]
     - This function only supports binary classification at the moment and therefore expects labels to be binary
