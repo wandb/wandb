@@ -506,7 +506,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Sweep($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
+        query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id

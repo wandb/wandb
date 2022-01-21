@@ -653,7 +653,7 @@ def create_app(user_ctx=None):
                 }
             )
 
-        if "query Sweep(" in body["query"]:
+        if "query Sweep(" in body["query"] or "query SweepWithRuns(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
