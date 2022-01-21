@@ -33,6 +33,9 @@ from wandb import sdk as wandb_sdk
 
 import wandb
 
+# import util early as other libraries use it often
+from wandb import util
+
 wandb.wandb_lib = wandb_sdk.lib
 
 init = wandb_sdk.init

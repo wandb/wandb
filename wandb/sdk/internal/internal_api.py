@@ -1,7 +1,4 @@
 #
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 import datetime
 import ast
 import os
@@ -25,6 +22,7 @@ from wandb import env
 from wandb.old.settings import Settings
 from wandb import util
 from wandb.apis.normalize import normalize_exceptions
+from wandb.apis.client import gql, GQLClient
 from wandb.errors import CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from ..lib import retry
@@ -81,27 +79,24 @@ class Api(object):
             "system_samples": 15,
             "heartbeat_seconds": 30,
         }
-        self.client = Client(
-            transport=RequestsHTTPTransport(
-                headers={
-                    "User-Agent": self.user_agent,
-                    "X-WANDB-USERNAME": env.get_username(env=self._environ),
-                    "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                },
-                use_json=True,
-                # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
-                # https://bugs.python.org/issue22889
-                timeout=self.HTTP_TIMEOUT,
-                auth=("api", self.api_key or ""),
-                url="%s/graphql" % self.settings("base_url"),
-            )
+        self.client = GQLClient(
+            headers={
+                "User-Agent": self.user_agent,
+                "X-WANDB-USERNAME": env.get_username(env=self._environ),
+                "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
+            },
+            # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
+            # https://bugs.python.org/issue22889
+            timeout=self.HTTP_TIMEOUT,
+            api_key=self.api_key,
+            url="%s/graphql" % self.settings("base_url"),
         )
         self.retry_callback = retry_callback
         self.gql = retry.Retry(
             self.execute,
             retry_timedelta=retry_timedelta,
             check_retry_fn=util.no_retry_auth,
-            retryable_exceptions=(RetryError, requests.RequestException),
+            retryable_exceptions=(requests.RequestException),
             retry_callback=retry_callback,
         )
         self._current_run_id = None
@@ -125,11 +120,11 @@ class Api(object):
 
     def reauth(self):
         """Ensures the current api key is set in the transport"""
-        self.client.transport.auth = ("api", self.api_key or "")
+        self.client.auth = ("api", self.api_key or "")
 
     def relocate(self):
         """Ensures the current api points to the right server"""
-        self.client.transport.url = "%s/graphql" % self.settings("base_url")
+        self.client.url = "%s/graphql" % self.settings("base_url")
 
     def execute(self, *args, **kwargs):
         """Wrapper around execute that logs in cases of failure."""
@@ -779,7 +774,11 @@ class Api(object):
 
         response = self.gql(
             query,
-            variable_values={"entity": entity, "project": project_name, "name": name,},
+            variable_values={
+                "entity": entity,
+                "project": project_name,
+                "name": name,
+            },
         )
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
@@ -1451,7 +1450,12 @@ class Api(object):
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.gql(
-            query, variable_values={"name": project, "run": run, "entity": entity,},
+            query,
+            variable_values={
+                "name": project,
+                "run": run,
+                "entity": entity,
+            },
         )
         if query_result["model"] is None:
             raise CommError("Run does not exist {}/{}/{}.".format(entity, project, run))
@@ -2405,7 +2409,8 @@ class Api(object):
         )
 
     def _resolve_client_id(
-        self, client_id,
+        self,
+        client_id,
     ):
 
         if client_id in self._client_id_mapping:
@@ -2420,7 +2425,12 @@ class Api(object):
             }
         """
         )
-        response = self.gql(query, variable_values={"clientID": client_id,},)
+        response = self.gql(
+            query,
+            variable_values={
+                "clientID": client_id,
+            },
+        )
         server_id = None
         if response is not None:
             client_id_mapping = response.get("clientIDMapping")

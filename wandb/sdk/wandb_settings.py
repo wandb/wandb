@@ -107,6 +107,7 @@ env_settings: Dict[str, Optional[str]] = dict(
     silent=None,
     quiet=None,
     sagemaker_disable=None,
+    auth_mode=None,
     start_method=None,
     strict=None,
     label_disable=None,
@@ -236,6 +237,7 @@ class Settings(object):
     """
 
     mode: str = "online"
+    auth_mode: str = "key"
     start_method: Optional[str] = None
     _debug_log: Optional[str] = None
     _require_service: Optional[str] = None
@@ -331,6 +333,7 @@ class Settings(object):
         api_key: str = None,
         anonymous: str = None,
         mode: str = None,
+        auth_mode: str = None,
         start_method: str = None,
         _debug_log: str = None,
         _require_service: str = None,
@@ -656,6 +659,16 @@ class Settings(object):
         choices = {"dryrun", "run", "offline", "online", "disabled"}
         if value in choices:
             return None
+        return _error_choices(value, choices)
+
+    def _validate_auth_mode(self, value: str) -> Optional[str]:
+        choices = {
+            "key",
+            "oidc",
+            "google",
+        }
+        if value in choices:
+            return
         return _error_choices(value, choices)
 
     def _validate_console(self, value: str) -> Optional[str]:
