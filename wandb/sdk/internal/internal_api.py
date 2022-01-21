@@ -476,7 +476,7 @@ class Api(object):
         """
         query = gql(
             """
-        query ProjectDetails($entity: String, $project: String!) {
+        query ProjectDetails($entity: String, $project: String) {
             model(name: $project, entityName: $entity) {
                 id
                 name
