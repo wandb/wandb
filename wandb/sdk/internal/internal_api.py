@@ -1600,8 +1600,8 @@ class Api(object):
             """
         mutation CreateAgent(
             $host: String!
-            $projectName: String!,
-            $entityName: String!,
+            $projectName: String,
+            $entityName: String,
             $sweep: String!
         ) {
             createAgent(input: {
