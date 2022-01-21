@@ -3562,8 +3562,8 @@ class Artifact(artifacts.Artifact):
         query = gql(
             """
         query ArtifactType(
-            $entityName: String!,
-            $projectName: String!,
+            $entityName: String,
+            $projectName: String,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
@@ -3923,8 +3923,8 @@ class Artifact(artifacts.Artifact):
         query = gql(
             """
         query Artifact(
-            $entityName: String!,
-            $projectName: String!,
+            $entityName: String,
+            $projectName: String,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {

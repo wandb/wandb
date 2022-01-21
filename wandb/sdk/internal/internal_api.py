@@ -575,7 +575,7 @@ class Api(object):
         """
         query = gql(
             """
-        query ProjectRuns($model: String!, $entity: String!) {
+        query ProjectRuns($model: String!, $entity: String) {
             model(name: $model, entityName: $entity) {
                 buckets(first: 10) {
                     edges {
@@ -668,7 +668,7 @@ class Api(object):
             """
         query RunConfigs(
             $name: String!,
-            $entity: String!,
+            $entity: String,
             $run: String!,
             $pattern: String!,
             $includeConfig: Boolean!,
@@ -751,7 +751,7 @@ class Api(object):
         """
         query = gql(
             """
-        query RunResumeStatus($project: String!, $entity: String, $name: String!) {
+        query RunResumeStatus($project: String, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -1368,7 +1368,7 @@ class Api(object):
         """
         query = gql(
             """
-        query RunUploadUrls($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
@@ -1429,7 +1429,7 @@ class Api(object):
         """
         query = gql(
             """
-        query RunDownloadUrls($name: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrls($name: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files {
@@ -1476,7 +1476,7 @@ class Api(object):
         """
         query = gql(
             """
-        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files(names: [$fileName]) {
