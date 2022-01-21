@@ -2905,6 +2905,7 @@ class ProjectArtifactCollections(Paginator):
                                 description
                                 createdAt
                             }
+                            cursor
                         }
                     }
                 }
