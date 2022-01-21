@@ -444,7 +444,7 @@ class Api(object):
         """
         query = gql(
             """
-        query EntityProjects($entity: String!) {
+        query EntityProjects($entity: String) {
             models(first: 10, entityName: $entity) {
                 edges {
                     node {
