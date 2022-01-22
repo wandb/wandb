@@ -568,8 +568,10 @@ class Run(object):
 
     @property
     def settings(self) -> Settings:
-        """Returns the run's Settings object."""
-        return self._settings
+        """Returns a frozen copy of run's Settings object."""
+        cp = self._settings.copy()
+        cp.freeze()
+        return cp
 
     @property
     def dir(self) -> str:
