@@ -98,7 +98,7 @@ def sweep(
         env.set_project(project)
 
     # Make sure we are logged in
-    wandb_login._login(_silent=True)
+    wandb_login._login(_silent=True, _disable_warning=True)
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep)
     handle_sweep_config_violations(warnings)
