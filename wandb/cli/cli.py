@@ -365,7 +365,9 @@ def init(ctx, project, entity, reset, mode):
         team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
             "Manual entry"
         ]
-        wandb.termlog("Which team should we use?",)
+        wandb.termlog(
+            "Which team should we use?",
+        )
         result = util.prompt_choices(team_names)
         # result can be empty on click
         if result:
@@ -901,9 +903,18 @@ def sweep(
 
 def _check_launch_imports():
     req_string = 'wandb launch requires additional dependencies, install with pip install "wandb[launch]"'
-    _ = util.get_module("docker", required=req_string,)
-    _ = util.get_module("repo2docker", required=req_string,)
-    _ = util.get_module("chardet", required=req_string,)
+    _ = util.get_module(
+        "docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "repo2docker",
+        required=req_string,
+    )
+    _ = util.get_module(
+        "chardet",
+        required=req_string,
+    )
     _ = util.get_module("iso8601", required=req_string)
 
 
@@ -1428,10 +1439,13 @@ def local(ctx, port, env, daemon, upgrade, edge):
     for e in env:
         env_vars.append("-e")
         env_vars.append(e)
+    # Added a ulimit per the following issue in github: https://github.com/docker-library/mysql/issues/579
     command = [
         "docker",
         "run",
         "--rm",
+        "--ulimit",
+        "nofile=262144:262144",
         "-v",
         "wandb:/vol",
         "-p",
@@ -1551,7 +1565,9 @@ def put(path, name, description, type, alias):
     )
 
     wandb.termlog(
-        '    artifact = run.use_artifact("{path}")\n'.format(path=artifact_path,),
+        '    artifact = run.use_artifact("{path}")\n'.format(
+            path=artifact_path,
+        ),
         prefix=False,
     )
 

@@ -964,11 +964,17 @@ def image_id_from_k8s():
           fieldPath: metadata.namespace
     """
     token_path = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    namespace_path = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    namespace = "default"
+    if os.path.exists(namespace_path):
+        with open(namespace_path) as f:
+            namespace = f.read()
+
     if os.path.exists(token_path):
         k8s_server = "https://{}:{}/api/v1/namespaces/{}/pods/{}".format(
             os.getenv("KUBERNETES_SERVICE_HOST"),
             os.getenv("KUBERNETES_PORT_443_TCP_PORT"),
-            os.getenv("KUBERNETES_NAMESPACE", "default"),
+            os.getenv("KUBERNETES_NAMESPACE", namespace),
             os.getenv("HOSTNAME"),
         )
         try:
