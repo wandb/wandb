@@ -295,7 +295,7 @@ class Settings:
 
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
-    _args: Sequence
+    _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
     _cuda: bool
