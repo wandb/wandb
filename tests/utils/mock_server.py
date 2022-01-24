@@ -83,6 +83,7 @@ def default_ctx():
         "used_artifact_info": None,
         "invalid_launch_spec_project": False,
         "n_sweep_runs": 0,
+        "code_saving_enabled": True,
     }
 
 
@@ -563,11 +564,15 @@ def create_app(user_ctx=None):
                         "admin": False,
                         "email": "mock@server.test",
                         "username": "mock",
-                        "flags": '{"code_saving_enabled": true}',
                         "teams": {"edges": []},  # TODO make configurable for cli_test
                     },
                 },
             }
+            code_saving_enabled = ctx.get("code_saving_enabled")
+            if code_saving_enabled is not None:
+                viewer_dict["data"]["viewer"][
+                    "flags"
+                ] = f'{{"code_saving_enabled": {str(code_saving_enabled).lower()}}}'
             server_info = {
                 "serverInfo": {
                     "cliVersionInfo": {
