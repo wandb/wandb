@@ -396,6 +396,7 @@ class Settings:
         """
         Helper method that is used in `__init__` together with the class attributes
         to initialize instance attributes (individual settings) as Property objects.
+        Note that key names must be the same as the class attribute names.
         """
         return dict(
             _internal_check_process={"value": 8},
