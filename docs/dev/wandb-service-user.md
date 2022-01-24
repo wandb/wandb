@@ -13,12 +13,6 @@ If you are using `wandb` in a distributed training setup and experiencing hangs,
 
 ## Installation
 
-The `service` feature is currently installed as an extra:
-
-```bash
-pip install --upgrade wandb[service]
-```
-
 If you are using `Pytorch-Lightning` please also install this custom branch:
 
 ```bash
@@ -37,10 +31,6 @@ Please try adding:
 if __name__ == "__main__":
     <your-script-goes-here>
 ```
-
-### AssertionError: start method 'fork' is not supported yet
-
-If the start method is not `fork` and you are running in a new enviroment try re-running your script to resolve this error message.
 
 ## Reporting issues
 
