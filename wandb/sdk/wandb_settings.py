@@ -41,8 +41,18 @@ from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
-else:
+elif sys.version_info >= (3, 7):
     from typing_extensions import get_args, get_origin, get_type_hints
+else:
+
+    def get_args(obj: Any) -> Optional[Sequence[str]]:
+        return obj.__args__ if hasattr(obj, "__args__") else tuple()
+
+    def get_origin(obj: Any) -> Optional[Any]:
+        return obj.__origin__ if hasattr(obj, "__origin__") else None
+
+    def get_type_hints(obj: Any) -> Dict[str, Any]:
+        return obj.__annotations__
 
 
 def get_wandb_dir(root_dir: str) -> str:
