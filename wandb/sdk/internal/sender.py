@@ -99,7 +99,7 @@ class ResumeState:
         return f"ResumeState({obj})"
 
 
-class SendManager(object):
+class SendManager:
 
     _settings: SettingsStatic
     _record_q: "Queue[Record]"

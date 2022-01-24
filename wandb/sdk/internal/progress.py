@@ -49,6 +49,13 @@ class Progress(object):
         self.bytes_read = 0
         self.file.seek(0)
 
+    def __getattr__(self, name):
+        """Fallback to the file object for attrs not defined here"""
+        if hasattr(self.file, name):
+            return getattr(self.file, name)
+        else:
+            raise AttributeError
+
     def __iter__(self):
         return self
 
