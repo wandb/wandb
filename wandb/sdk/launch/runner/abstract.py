@@ -96,7 +96,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> int:
+    def id(self) -> str:
         pass
 
 

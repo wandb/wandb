@@ -1,20 +1,16 @@
-import os
-import json
-import subprocess
-from typing import Any, Dict, List, Optional
 import datetime
-import yaml
+import os
+import subprocess
 import time
+from typing import Any, Dict, List, Optional
 
+from google.cloud import aiplatform  # type: ignore
 from six.moves import shlex_quote
-
 import wandb
-from wandb.sdk.launch.docker import validate_docker_installation
 from wandb.errors import CommError, LaunchError
-from wandb.apis.internal import Api
+import yaml
 
-from google.cloud import aiplatform
-
+from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import (
     get_entry_point_command,
     LaunchProject,
@@ -28,7 +24,6 @@ from ..docker import (
     pull_docker_image,
     validate_docker_installation,
 )
-from .abstract import AbstractRun, AbstractRunner, Status
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
@@ -36,25 +31,27 @@ from ..utils import (
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
+
 class VertexSubmittedRun(AbstractRun):
-    def __init__(self, job) -> None:
+    def __init__(self, job: Any) -> None:
         self._job = job
 
     @property
-    def id(self) -> int:
-        return self._job.name   # numeric ID of the custom training job
+    def id(self) -> str:
+        # numeric ID of the custom training job
+        return self._job.name  # type: ignore
 
     @property
     def name(self) -> str:
-        return self._job.display_name
+        return self._job.display_name  # type: ignore
 
     @property
     def gcp_region(self) -> str:
-        return self._job.location
+        return self._job.location  # type: ignore
 
     @property
     def gcp_project(self) -> str:
-        return self._job.project
+        return self._job.project  # type: ignore
 
     def get_page_link(self) -> str:
         return "{console_uri}/vertex-ai/locations/{region}/training/{job_id}?project={project}".format(
@@ -69,12 +66,12 @@ class VertexSubmittedRun(AbstractRun):
         return self.get_status() == Status("finished")
 
     def get_status(self) -> Status:
-        job_state = str(self._job.state)     # extract from type PipelineState
-        if job_state == 'PipelineState.PIPELINE_STATE_SUCCEEDED':
+        job_state = str(self._job.state)  # extract from type PipelineState
+        if job_state == "PipelineState.PIPELINE_STATE_SUCCEEDED":
             return Status("finished")
-        if job_state == 'PipelineState.PIPELINE_STATE_FAILED':
+        if job_state == "PipelineState.PIPELINE_STATE_FAILED":
             return Status("failed")
-        if job_state == 'PipelineState.PIPELINE_STATE_RUNNING':
+        if job_state == "PipelineState.PIPELINE_STATE_RUNNING":
             return Status("running")
         return Status("unknown")
 
@@ -83,8 +80,7 @@ class VertexSubmittedRun(AbstractRun):
 
 
 class VertexRunner(AbstractRunner):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    """Runner class, uses a project to create a VertexSubmittedRun"""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         resource_args = launch_project.resource_args
@@ -115,19 +111,23 @@ class VertexRunner(AbstractRunner):
             "gcp_docker_host"
         ) or "{region}-docker.pkg.dev".format(region=gcp_region)
         gcp_machine_type = resource_args.get("gcp_machine_type") or "n1-standard-4"
-        gcp_accelerator_type = resource_args.get("gcp_accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
+        gcp_accelerator_type = (
+            resource_args.get("gcp_accelerator_type") or "ACCELERATOR_TYPE_UNSPECIFIED"
+        )
         gcp_accelerator_count = int(resource_args.get("gcp_accelerator_count") or 0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        gcp_training_job_name = resource_args.get("gcp_job_name") or "{project}_{time}".format(project=launch_project.target_project, time=timestamp)
+        gcp_training_job_name = resource_args.get(
+            "gcp_job_name"
+        ) or "{project}_{time}".format(
+            project=launch_project.target_project, time=timestamp
+        )
 
         aiplatform.init(
             project=gcp_project, location=gcp_region, staging_bucket=gcp_staging_bucket
         )
 
         validate_docker_installation()
-        synchronous: bool = self.backend_config[
-            PROJECT_SYNCHRONOUS
-        ]
+        synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
         if docker_args:
             wandb.termwarn(
@@ -200,19 +200,31 @@ class VertexRunner(AbstractRunner):
 
         # todo: support gcp dataset?
 
-        wandb.termlog("Running training job {name} on {compute}.".format(name=gcp_training_job_name, compute=gcp_machine_type))
+        wandb.termlog(
+            "Running training job {name} on {compute}.".format(
+                name=gcp_training_job_name, compute=gcp_machine_type
+            )
+        )
 
         # when sync is True, vertex blocks the main thread on job completion. when False, vertex returns a Future
         # on this thread but continues to block the process on another thread. always set sync=False so we can get
         # the job info (dependent on job._gca_resource)
-        model = job.run(
-            machine_type=gcp_machine_type, accelerator_type=gcp_accelerator_type, accelerator_count=gcp_accelerator_count, replica_count=1, sync=False
+        job.run(
+            machine_type=gcp_machine_type,
+            accelerator_type=gcp_accelerator_type,
+            accelerator_count=gcp_accelerator_count,
+            replica_count=1,
+            sync=False,
         )
         while job._gca_resource is None:
             # give time for the gcp job object to be created, this should only loop a couple times max
             time.sleep(1)
 
-        wandb.termlog("View your job status and logs at {url}.".format(url=submitted_run.get_page_link()))
+        wandb.termlog(
+            "View your job status and logs at {url}.".format(
+                url=submitted_run.get_page_link()
+            )
+        )
 
         # hacky: if user doesn't want blocking behavior, kill both main thread and the background thread. job continues
         # to run remotely. this obviously doesn't work if we need to do some sort of postprocessing after this run fn
@@ -222,11 +234,11 @@ class VertexRunner(AbstractRunner):
         return submitted_run
 
 
-def run_shell(args):
+def run_shell(args: List[str]) -> str:
     return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
 
 
-def get_gcp_config(config="default"):
+def get_gcp_config(config: str = "default") -> Any:
     return yaml.safe_load(
         run_shell(
             ["gcloud", "config", "configurations", "describe", shlex_quote(config)]
