@@ -3,6 +3,7 @@ from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 import ast
+import base64
 from copy import deepcopy
 import datetime
 from io import BytesIO
@@ -112,6 +113,8 @@ class Api:
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
         self._client_id_mapping = {}
+        # Large file uploads to azure can optionally use their SDK
+        self._azure_blob_module = util.get_module("azure.storage.blob")
 
         (
             self.query_types,
@@ -1547,6 +1550,43 @@ class Api:
 
         return path, response
 
+    def upload_file_azure(self, url, file, extra_headers):
+        from azure.core.exceptions import HttpResponseError
+        from azure.core.pipeline.policies import HTTPPolicy
+
+        # Disable retries
+        class NoRetry(HTTPPolicy):
+            def send(self, request):
+                return self.next.send(request)
+
+            def increment(self, *args, **kwargs):
+                return 0
+
+        client = self._azure_blob_module.BlobClient.from_blob_url(
+            url, retry_policy=NoRetry()
+        )
+        try:
+            if extra_headers.get("Content-MD5") is not None:
+                md5 = base64.b64decode(extra_headers["Content-MD5"])
+            else:
+                md5 = None
+            content_settings = self._azure_blob_module.ContentSettings(
+                content_md5=md5, content_type=extra_headers.get("Content-Type"),
+            )
+            client.upload_blob(
+                file,
+                max_concurrency=4,
+                length=len(file),
+                overwrite=True,
+                content_settings=content_settings,
+            )
+        except HttpResponseError as e:
+            response = requests.model.Response()
+            response.status_code = e.response.status_code
+            response.headers = e.response.headers
+            response.raw = e.response.internal_response
+            raise requests.exceptions.RequestException(e.message, response=response)
+
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
@@ -1563,15 +1603,23 @@ class Api:
         response = None
         progress = Progress(file, callback=callback)
         try:
-            response = requests.put(url, data=progress, headers=extra_headers)
-            response.raise_for_status()
+            if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
+                response = self.upload_file_azure(url, progress, extra_headers)
+            else:
+                if "x-ms-blob-type" in extra_headers:
+                    wandb.termwarn(
+                        "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
+                        repeat=False,
+                    )
+                response = requests.put(url, data=progress, headers=extra_headers)
+                response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error("upload_file exception {}: {}".format(url, e))
             request_headers = e.request.headers if e.request is not None else ""
             logger.error("upload_file request headers: {}".format(request_headers))
             response_content = e.response.content if e.response is not None else ""
             logger.error("upload_file response body: {}".format(response_content))
-            status_code = e.response.status_code if e.response != None else 0
+            status_code = e.response.status_code if e.response is not None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues

@@ -70,6 +70,7 @@ def default_ctx():
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
@@ -102,6 +103,7 @@ def mock_server(mocker):
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
+    mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
 
@@ -349,6 +351,8 @@ def create_app(user_ctx=None):
     @app.errorhandler(HttpException)
     def handle_http_exception(error):
         response = jsonify(error.to_dict())
+        # For azure storage
+        response.headers["x-ms-error-code"] = 500
         response.status_code = error.status_code
         return response
 
@@ -411,9 +415,23 @@ def create_app(user_ctx=None):
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
-            url = base_url + "/storage?file={}&run={}".format(
-                urllib.parse.quote(requested_file), ctx["current_run"]
-            )
+            emulate_azure = ctx.get("emulate_azure")
+            # Azure expects the request path of signed urls to have 2 parts
+            upload_headers = []
+            if emulate_azure:
+                url = (
+                    base_url
+                    + "/storage/azure/"
+                    + ctx["current_run"]
+                    + "/"
+                    + requested_file
+                )
+                upload_headers.append("x-ms-blob-type:Block")
+                upload_headers.append("Content-MD5:{}".format("AAAA"))
+            else:
+                url = base_url + "/storage?file={}&run={}".format(
+                    urllib.parse.quote(requested_file), ctx["current_run"]
+                )
             return json.dumps(
                 {
                     "data": {
@@ -421,7 +439,7 @@ def create_app(user_ctx=None):
                             "bucket": {
                                 "id": "storageid",
                                 "files": {
-                                    "uploadHeaders": [],
+                                    "uploadHeaders": upload_headers,
                                     "edges": [
                                         {
                                             "node": {
@@ -1376,7 +1394,8 @@ def create_app(user_ctx=None):
         return json.dumps({"errors": [error]})
 
     @app.route("/storage", methods=["PUT", "GET"])
-    def storage():
+    @app.route("/storage/<path:extra>", methods=["PUT", "GET"])
+    def storage(extra=None):
         ctx = get_ctx()
         if "fail_storage_times" in ctx:
             if ctx["fail_storage_count"] < ctx["fail_storage_times"]:
@@ -1385,6 +1404,9 @@ def create_app(user_ctx=None):
         file = request.args.get("file")
         _id = request.args.get("id", "")
         run = request.args.get("run", "unknown")
+        # Grab the run from the url for azure uploads
+        if extra and run == "unknown":
+            run = extra.split("/")[-2]
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
         ctx["storage"][run].append(request.args.get("file"))
@@ -1393,17 +1415,25 @@ def create_app(user_ctx=None):
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data(as_text=True)
-        run_ctx = ctx["runs"].setdefault(run, default_ctx())
-        for c in ctx, run_ctx:
-            c["file_names"].append(request.args.get("file"))
-
+        # We need to bomb out before storing the file as uploaded for tests
         inject = InjectRequestsParse(ctx).find(request=request)
         if inject:
             if inject.response:
                 response = inject.response
             if inject.http_status:
                 # print("INJECT", inject, inject.http_status)
-                raise HttpException("some error", status_code=inject.http_status)
+                raise HttpException(
+                    {"code": 500, "message": "some error"},
+                    status_code=inject.http_status,
+                )
+
+        run_ctx = ctx["runs"].setdefault(run, default_ctx())
+        for c in ctx, run_ctx:
+            if extra:
+                file = extra.split("/")[-1]
+            else:
+                file = request.args.get("file", "UNKNOWN_STORAGE_FILE_PUT")
+            c["file_names"].append(file)
 
         if request.method == "PUT":
             for c in ctx, run_ctx:
@@ -1617,6 +1647,9 @@ index 30d74d2..9a2c773 100644
 +testing
 \ No newline at end of file
 """
+        # emulate azure when we're receving requests from them
+        if extra is not None:
+            return "", 201
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
