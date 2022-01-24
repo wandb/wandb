@@ -23,8 +23,11 @@ class RandomDataset(Dataset):
 
 
 class BoringModel(LightningModule):
-    def __init__(self):
+    def __init__(self, value=1):
         super().__init__()
+        # currently, will create 2 runs without calling `save_hyperparameters`.
+        # TODO remove this once we resolve the issue with PL
+        self.save_hyperparameters()
         self.layer = torch.nn.Linear(32, 2)
 
     def forward(self, x):
@@ -94,7 +97,7 @@ def main():
         max_epochs=1,
         progress_bar_refresh_rate=20,
         num_processes=2,
-        accelerator="ddp",
+        accelerator="ddp_cpu",
         logger=wandb_logger,
     )
 
