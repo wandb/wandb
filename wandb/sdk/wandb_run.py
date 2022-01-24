@@ -1702,7 +1702,7 @@ class Run(object):
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
-        if console == self._settings.Console.REDIRECT:
+        if console == SettingsConsole.REDIRECT:
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
@@ -1731,10 +1731,10 @@ class Run(object):
                         "wrapping stdout/err."
                     )
                     wandb.termlog(msg)
-                    self._redirect(None, None, console=self._settings.Console.WRAP)
+                    self._redirect(None, None, console=SettingsConsole.WRAP)
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == self._settings.Console.WRAP:
+        elif console == SettingsConsole.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
@@ -1750,7 +1750,7 @@ class Run(object):
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == self._settings.Console.OFF:
+        elif console == SettingsConsole.OFF:
             return
         else:
             raise ValueError("unhandled console")

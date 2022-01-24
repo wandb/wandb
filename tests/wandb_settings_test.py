@@ -6,6 +6,7 @@ import copy
 import datetime
 import os
 import platform
+import sys
 from unittest import mock
 
 import pytest  # type: ignore
@@ -13,6 +14,10 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_settings
 
+if sys.version_info >= (3, 8):
+    from typing import get_type_hints
+else:
+    from typing_extensions import get_type_hints
 
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
@@ -830,3 +835,11 @@ def test_setup_offline(live_mock_server, test_settings):
     login_settings.update(mode="offline")
     assert wandb.setup(settings=login_settings)._instance._get_entity() is None
     assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
+
+
+def test_default_props_match_class_attributes():
+    # make sure that the default properties match the class attributes
+    s = Settings()
+    class_attributes = list(get_type_hints(Settings).keys())
+    default_props = list(s._default_props().keys())
+    assert set(default_props) - set(class_attributes) == set()
