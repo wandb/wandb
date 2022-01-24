@@ -209,11 +209,11 @@ def test_ignore_globs_explicit():
 
 def test_ignore_globs_env():
     s = Settings()
-    s.apply_env_vars({"WANDB_IGNORE_GLOBS": "foo"})
+    s._apply_env_vars({"WANDB_IGNORE_GLOBS": "foo"})
     assert s.ignore_globs == ("foo",)
 
     s = Settings()
-    s.apply_env_vars({"WANDB_IGNORE_GLOBS": "foo,bar"})
+    s._apply_env_vars({"WANDB_IGNORE_GLOBS": "foo,bar"})
     assert s.ignore_globs == ("foo", "bar",)
 
 
@@ -223,7 +223,7 @@ def test_quiet():
     s = Settings(quiet=True)
     assert s._quiet
     s = Settings()
-    s.apply_env_vars({"WANDB_QUIET": "false"})
+    s._apply_env_vars({"WANDB_QUIET": "false"})
     assert not s._quiet
 
 

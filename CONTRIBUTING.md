@@ -415,11 +415,11 @@ These sources need to be merged consistently and information given to the user w
 to inform the user. Examples of sources of settings:
 
 - Enforced settings from organization, team, user, project
-- settings set by environment variables: `WANDB_PROJECT=`
-- settings passed to wandb function: `wandb.init(project=)`
+- Settings set by environment variables prefixed with `WANDB_`, e.g. `WANDB_PROJECT=`
+- Settings passed to the `wandb.init` function: `wandb.init(project=)`
 - Default settings from organization, team, project
-- settings in global settings file: `~/.config/wandb/settings`
-- settings in local settings file: `./wandb/settings`
+- Settings in global settings file: `~/.config/wandb/settings`
+- Settings in local settings file: `./wandb/settings`
 
 Source priorities are defined in `wandb.sdk.wandb_settings.Source`. 
 Each individual setting of the Settings object is either a default or priority setting.

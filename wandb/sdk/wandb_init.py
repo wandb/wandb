@@ -115,7 +115,7 @@ class _WandbInit(object):
                 # todo: check the logic here. this _only_ comes up in tests?
                 # update settings with settings_param using whatever
                 # source each parameter has there
-                settings.apply_settings(settings_param, _logger=logger)
+                settings._apply_settings(settings_param, _logger=logger)
             elif isinstance(settings_param, dict):
                 # if it is a mapping, update the settings with it
                 # explicitly using Source.INIT
@@ -132,7 +132,7 @@ class _WandbInit(object):
             if sagemaker_env:
                 if sagemaker_api_key:
                     sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
-                settings.apply_env_vars(sagemaker_env)
+                settings._apply_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
             settings.update(sagemaker_run, source=Source.SETUP)
             self._use_sagemaker = True
@@ -194,15 +194,15 @@ class _WandbInit(object):
             )
 
         # apply updated global state after login was handled
-        settings.apply_settings(wandb.setup().settings)
+        settings._apply_settings(wandb.setup().settings)
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
 
-        settings.apply_init(kwargs)
+        settings._apply_init(kwargs)
         if not settings._offline and not settings._noop:
             user_settings = self._wl._load_user_settings()
-            settings.apply_user(user_settings)
+            settings._apply_user(user_settings)
 
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false

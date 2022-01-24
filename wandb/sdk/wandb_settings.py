@@ -55,7 +55,7 @@ else:
         return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
 
 
-def get_wandb_dir(root_dir: str) -> str:
+def _get_wandb_dir(root_dir: str) -> str:
     """
     Get the full path to the wandb directory.
 
@@ -833,7 +833,7 @@ class Settings:
 
     # apply settings from different sources
     # TODO(dd): think about doing some|all of that at init
-    def apply_settings(
+    def _apply_settings(
         self, settings: "Settings", _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Apply settings from a Settings object."""
@@ -859,7 +859,7 @@ class Settings:
                 config[k] = config[k].split(",")
         return config
 
-    def apply_config_files(self, _logger: Optional[_EarlyLogger] = None) -> None:
+    def _apply_config_files(self, _logger: Optional[_EarlyLogger] = None) -> None:
         # TODO(jhr): permit setting of config in system and workspace
         if self.settings_system is not None:
             if _logger is not None:
@@ -875,7 +875,7 @@ class Settings:
                 source=Source.WORKSPACE,
             )
 
-    def apply_env_vars(
+    def _apply_env_vars(
         self, environ: Mapping[str, Any], _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         env_prefix: str = "WANDB_"
@@ -1017,21 +1017,21 @@ class Settings:
 
         self.update(settings, source=Source.ENV)
 
-    def apply_setup(
+    def _apply_setup(
         self, setup_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
             _logger.info(f"Applying setup settings: {_redact_dict(setup_settings)}")
         self.update(setup_settings, source=Source.SETUP)
 
-    def apply_user(
+    def _apply_user(
         self, user_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         if _logger:
             _logger.info(f"Applying user settings: {_redact_dict(user_settings)}")
         self.update(user_settings, source=Source.USER)
 
-    def apply_init(self, init_settings: Dict[str, Union[str, int, None]]) -> None:
+    def _apply_init(self, init_settings: Dict[str, Union[str, int, None]]) -> None:
         # prevent setting project, entity if in sweep
         # TODO(jhr): these should be locked elements in the future
         if self.sweep_id:
@@ -1097,7 +1097,7 @@ class Settings:
             with open(self.resume_fname, "w") as f:
                 f.write(json.dumps({"run_id": self.run_id}))
 
-    def apply_login(
+    def _apply_login(
         self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
     ) -> None:
         param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
@@ -1210,4 +1210,4 @@ class Settings:
 
     @property
     def wandb_dir(self) -> str:
-        return get_wandb_dir(self.root_dir or "")
+        return _get_wandb_dir(self.root_dir or "")

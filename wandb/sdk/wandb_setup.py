@@ -121,14 +121,14 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         early_logger: Optional[_EarlyLogger] = None,
     ):
         s = wandb_settings.Settings()
-        s.apply_config_files(_logger=early_logger)
-        s.apply_env_vars(self._environ, _logger=early_logger)
+        s._apply_config_files(_logger=early_logger)
+        s._apply_env_vars(self._environ, _logger=early_logger)
 
         if isinstance(settings, wandb_settings.Settings):
-            s.apply_settings(settings, _logger=early_logger)
+            s._apply_settings(settings, _logger=early_logger)
         elif isinstance(settings, dict):
             # if passed settings arg is a mapping, update the settings with it
-            s.apply_setup(settings, _logger=early_logger)
+            s._apply_setup(settings, _logger=early_logger)
 
         s.infer_settings_from_environment()
         if not s._cli_only_mode:
@@ -144,7 +144,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         # self._settings.unfreeze()
         if isinstance(settings, wandb_settings.Settings):
             # todo: check the logic here. this _only_ comes up in tests?
-            self._settings.apply_settings(settings)
+            self._settings._apply_settings(settings)
         elif isinstance(settings, dict):
             # if it is a mapping, update the settings with it
             self._settings.update(settings, source=wandb_settings.Source.SETUP)
@@ -157,7 +157,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         user_settings = self._load_user_settings(settings=settings)
         if user_settings is not None:
             # self._settings.unfreeze()
-            self._settings.apply_user(user_settings)
+            self._settings._apply_user(user_settings)
             # self._settings.freeze()
 
     def _early_logger_flush(self, new_logger):

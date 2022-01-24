@@ -103,13 +103,13 @@ class _WandbLogin:
         # note that this case does not come up anywhere except for the tests
         if settings_param is not None:
             if isinstance(settings_param, Settings):
-                login_settings.apply_settings(settings_param)
+                login_settings._apply_settings(settings_param)
             elif isinstance(settings_param, dict):
                 login_settings.update(settings_param, source=Source.LOGIN)
         _logger = wandb.setup()._get_logger()
         # Do not save relogin into settings as we just want to relogin once
         self._relogin = kwargs.pop("relogin", None)
-        login_settings.apply_login(kwargs, _logger=_logger)
+        login_settings._apply_login(kwargs, _logger=_logger)
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
@@ -179,7 +179,7 @@ class _WandbLogin:
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        self._wl._settings.apply_login(login_settings, _logger=_logger)
+        self._wl._settings._apply_login(login_settings, _logger=_logger)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wl.settings._offline:
