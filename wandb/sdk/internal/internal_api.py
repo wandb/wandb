@@ -1,23 +1,25 @@
-#
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
-import base64
-import datetime
+
 import ast
+import base64
+from copy import deepcopy
+import datetime
+from io import BytesIO
+import json
 import os
 from pkg_resources import parse_version  # type: ignore
-import json
-import yaml
 import re
-import click
-import logging
 import requests
+import logging
 import socket
 import sys
-from copy import deepcopy
+
+import click
 import six
-from six import BytesIO
+import yaml
+
 import wandb
 from wandb import __version__
 from wandb import env
@@ -35,13 +37,13 @@ from .progress import Progress
 logger = logging.getLogger(__name__)
 
 
-class Api(object):
+class Api:
     """W&B Internal Api wrapper
 
     Note:
         Settings are automatically overridden by looking for
-        a `wandb/settings` file in the current working directory or it's parent
-        directory.  If none can be found, we look in the current users home
+        a `wandb/settings` file in the current working directory or its parent
+        directory. If none can be found, we look in the current user's home
         directory.
 
     Arguments:
@@ -92,7 +94,7 @@ class Api(object):
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key or ""),
-                url="%s/graphql" % self.settings("base_url"),
+                url=f"{self.settings('base_url')}/graphql",
             )
         )
         self.retry_callback = retry_callback
@@ -152,7 +154,7 @@ class Api(object):
         if "errors" in data and isinstance(data["errors"], list):
             for err in data["errors"]:
                 # Our tests and potentially some api endpoints return a string error?
-                if isinstance(err, six.string_types):
+                if isinstance(err, str):
                     err = {"message": err}
                 if not err.get("message"):
                     continue
@@ -909,7 +911,6 @@ class Api(object):
                 success
                 queueID
             }
-
         }
         """
         )
@@ -2018,7 +2019,7 @@ class Api(object):
                     else open(normal_name, "rb")
                 )
             except IOError:
-                print("%s does not exist" % file_name)
+                print(f"{file_name} does not exist")
                 continue
             if progress:
                 if hasattr(progress, "__call__"):
