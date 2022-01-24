@@ -23,6 +23,7 @@ else:
     def get_type_hints(obj):
         return obj.__annotations__
 
+
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
 Source = wandb_settings.Source

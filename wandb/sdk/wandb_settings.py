@@ -52,7 +52,7 @@ else:
         return obj.__origin__ if hasattr(obj, "__origin__") else None
 
     def get_type_hints(obj: Any) -> Dict[str, Any]:
-        return obj.__annotations__
+        return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
 
 
 def get_wandb_dir(root_dir: str) -> str:
@@ -539,9 +539,13 @@ class Settings:
             if origin is None:
                 return isinstance(x, hint)
             elif origin is Union:
-                return isinstance(x, args)
+                return isinstance(x, args) if args is not None else True
             else:
-                return isinstance(x, origin) and all(isinstance(y, args) for y in x)
+                return (
+                    isinstance(x, origin) and all(isinstance(y, args) for y in x)
+                    if args is not None
+                    else isinstance(x, origin)
+                )
 
         return helper
 
