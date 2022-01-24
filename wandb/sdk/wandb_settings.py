@@ -536,7 +536,6 @@ class Settings:
         origin, args = get_origin(hint), get_args(hint)
 
         def helper(x: Any) -> bool:
-            # print(hint, origin, args, x)
             if origin is None:
                 return isinstance(x, hint)
             elif origin is Union:
@@ -692,7 +691,7 @@ class Settings:
         object.__setattr__(self, "_Settings_start_time", None)
 
         if os.environ.get(wandb.env.DIR) is None:
-            # todo: double-check source:
+            # todo: double-check source, shouldn't it be Source.ENV?
             self.update({"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE)
 
         # done with init, use self.update() to update attributes from now on
@@ -798,10 +797,13 @@ class Settings:
         settings = settings or dict()
         # explicit kwargs take precedence over settings
         settings = {**settings, **kwargs}
-        for key, _ in settings.items():
+        unknown_properties = []
+        for key in settings.keys():
             # only allow updating known Properties
             if key not in self.__dict__ or not isinstance(self.__dict__[key], Property):
-                raise KeyError(f"Unknown setting: {key}")
+                unknown_properties.append(key)
+        if unknown_properties:
+            raise KeyError(f"Unknown settings: {unknown_properties}")
         # only if all keys are valid, update them
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
