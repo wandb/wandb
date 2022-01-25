@@ -534,6 +534,7 @@ def create_app(user_ctx=None):
                 return json.dumps({"data": {"project": {"run": run(ctx)}}})
         for query_name in [
             "RunConfigs",
+            "RunInfo",
             "RunResumeStatus",
             "RunStoppedStatus",
             "RunUploadUrls",
