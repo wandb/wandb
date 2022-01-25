@@ -8,6 +8,7 @@ from __future__ import print_function
 
 from collections import defaultdict
 from datetime import datetime
+import glob
 import json
 import logging
 import os
@@ -943,7 +944,7 @@ class SendManager(object):
     def _save_file(self, fname: str, policy: str = "end") -> None:
         logger.info("saving file %s with policy %s", fname, policy)
         if self._dir_watcher:
-            self._dir_watcher.update_policy(fname, policy)
+            self._dir_watcher.update_policy(glob.escape(fname), policy)
 
     def send_files(self, record: "Record") -> None:
         files = record.files
