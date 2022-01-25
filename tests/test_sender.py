@@ -64,7 +64,7 @@ def test_send_status_request_network(mock_server, backend_interface):
 
 
 def test_resume_success(mocked_run, test_settings, mock_server, backend_interface):
-    test_settings.resume = "allow"
+    test_settings.update(resume="allow", source=wandb.sdk.wandb_settings.Source.INIT)
     mock_server.ctx["resume"] = True
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
@@ -73,7 +73,7 @@ def test_resume_success(mocked_run, test_settings, mock_server, backend_interfac
 
 
 def test_resume_error_never(mocked_run, test_settings, mock_server, backend_interface):
-    test_settings.resume = "never"
+    test_settings.update(resume="never", source=wandb.sdk.wandb_settings.Source.INIT)
     mock_server.ctx["resume"] = True
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
@@ -85,7 +85,7 @@ def test_resume_error_never(mocked_run, test_settings, mock_server, backend_inte
 
 
 def test_resume_error_must(mocked_run, test_settings, mock_server, backend_interface):
-    test_settings.resume = "must"
+    test_settings.update(resume="must", source=wandb.sdk.wandb_settings.Source.INIT)
     mock_server.ctx["resume"] = False
     with backend_interface(initial_run=False) as interface:
         run_result = interface.communicate_run(mocked_run)
