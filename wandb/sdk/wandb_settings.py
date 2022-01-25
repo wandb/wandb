@@ -298,7 +298,7 @@ class Settings:
     _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
-    _cuda: bool
+    _cuda: str
     _debug_log: str
     _disable_meta: bool
     _disable_stats: bool
