@@ -266,7 +266,9 @@ class Property:
                     # fixme: this is a temporary measure to bypass validation of certain settings
                     #  remove this once we are confident
                     if self.name in self.__strict_validate_settings:
-                        raise ValueError(f"Invalid value for property {self.name}: {value}")
+                        raise ValueError(
+                            f"Invalid value for property {self.name}: {value}"
+                        )
                     else:
                         wandb.termwarn(
                             f"Invalid value for property {self.name}: {value}. "
@@ -712,6 +714,8 @@ class Settings:
         if unexpected_arguments:
             # fixme: remove this and raise error instead once we are confident
             wandb.termwarn(f"Got unexpected arguments: {unexpected_arguments}")
+            for k in unexpected_arguments:
+                kwargs.pop(k)
             # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
         for k, v in kwargs.items():
