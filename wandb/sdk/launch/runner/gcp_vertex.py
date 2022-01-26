@@ -32,6 +32,11 @@ from ..utils import (
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
 
+def docker_push(image):
+    # tmp function until sagemaker pr merged
+    subprocess.run(["docker", "push", image])
+
+
 class VertexSubmittedRun(AbstractRun):
     def __init__(self, job: Any) -> None:
         self._job = job
@@ -63,7 +68,7 @@ class VertexSubmittedRun(AbstractRun):
 
     def wait(self) -> bool:
         self._job.wait()
-        return self.get_status() == Status("finished")
+        return self.get_status().state == "finished"
 
     def get_status(self) -> Status:
         job_state = str(self._job.state)  # extract from type PipelineState
@@ -177,10 +182,7 @@ class VertexRunner(AbstractRunner):
         else:
             image = launch_project.docker_image
 
-        # push to artifact registry
-        subprocess.run(
-            ["docker", "push", image]
-        )  # todo: when aws pr is merged, use docker python tooling
+        docker_push(image)  # todo: when aws pr is merged, use docker python tooling
 
         if self.backend_config.get("runQueueItemId"):
             try:
