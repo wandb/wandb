@@ -1648,6 +1648,8 @@ class GCSHandler(StorageHandler):
             # We're listing a path and user provided name, just prepend it
             name = os.path.join(name, os.path.basename(obj.name))
             ref = os.path.join(path, name)
+        # Retrieve the md5 hash of blob
+        obj.reload()
         return ArtifactManifestEntry(
             name, ref, obj.md5_hash, size=obj.size, extra=self._extra_from_obj(obj)
         )
