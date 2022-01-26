@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from google.cloud import aiplatform
 import wandb
+from wandb.errors import LaunchError
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.runner.abstract import Status
 import pytest
@@ -19,12 +20,13 @@ class dotdict(dict):
 
 
 def patched_get_gcp_config(config="default"):
-    return {
-        "properties": {
-            "core": {"project": "test-project",},
-            "compute": {"zone": "us-east1",},
-        },
-    }
+    if config == "default":
+        return {
+            "properties": {
+                "core": {"project": "test-project",},
+                "compute": {"zone": "us-east1",},
+            },
+        }
 
 
 def patched_docker_push(image):
@@ -41,10 +43,7 @@ def mock_aiplatform_CustomContainerTrainingJob(display_name, container_uri, job_
     return dotdict(job_dict)
 
 
-@pytest.mark.timeout(320)
-def test_launch_gcp_vertex(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
-):
+def setup_mock_aiplatform(monkeypatch):
     do_nothing = lambda *args, **kwargs: None
     job_dict = {
         "name": "testid-12345",
@@ -76,6 +75,14 @@ def test_launch_gcp_vertex(
         "wandb.sdk.launch.runner.gcp_vertex.get_gcp_config",
         lambda config: patched_get_gcp_config(config),
     )
+
+
+@pytest.mark.timeout(320)
+def test_launch_gcp_vertex(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    setup_mock_aiplatform(monkeypatch)
+
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.gcp_vertex.docker_push",
         lambda image: patched_docker_push(image),
@@ -102,3 +109,70 @@ def test_launch_gcp_vertex(
     assert run.gcp_region == job_dict["location"]
     assert run.gcp_project == job_dict["project"]
     assert run.get_status().state == "finished"
+    assert run.wait()
+
+
+def test_vertex_options(test_settings, monkeypatch):
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "gcp-vertex",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {},
+    }
+    try:
+        launch.run(**kwargs)
+    except LaunchError as e:
+        assert "Vertex requires a staging bucket" in str(e)
+
+    kwargs["resource_args"]["gcp_staging_bucket"] = "test-bucket"
+    try:
+        launch.run(**kwargs)
+    except LaunchError as e:
+        assert "Vertex requires an Artifact Registry repository" in str(e)
+
+
+def test_vertex_supplied_docker_image(
+    test_settings, monkeypatch, mocked_fetchable_git_repo
+):
+    setup_mock_aiplatform(monkeypatch)
+
+    def patched_pull_docker_image(docker_image):
+        return  # noop
+
+    def patched_docker_image_inspect(image):
+        return {
+            "ContainerConfig": {"WorkingDir": "/", "Env": [],},
+        }
+
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.gcp_vertex.pull_docker_image",
+        lambda docker_image: patched_pull_docker_image(docker_image),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.gcp_vertex.docker_image_inspect",
+        lambda docker_image: patched_docker_image_inspect(docker_image),
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "gcp-vertex",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "docker_image": "test:tag",
+        "resource_args": {
+            "gcp_staging_bucket": "test-bucket",
+            "gcp_artifact_repo": "test_repo",
+        },
+    }
+    launch.run(**kwargs)

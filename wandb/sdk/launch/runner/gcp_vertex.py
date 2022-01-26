@@ -32,7 +32,7 @@ from ..utils import (
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
 
-def docker_push(image):
+def docker_push(image: str) -> None:
     # tmp function until sagemaker pr merged
     subprocess.run(["docker", "push", image])
 
@@ -98,10 +98,6 @@ class VertexRunner(AbstractRunner):
             "compute", {}
         ).get("zone")
         gcp_region = "-".join(gcp_zone.split("-")[:2])
-        if not gcp_region:
-            raise LaunchError(
-                "GCP region not set. You can specify a region with --resource-arg gcp_region=<region> or a config with --resource-arg gcp_config=<config name>, otherwise uses region from GCP default config."
-            )
         gcp_staging_bucket = resource_args.get("gcp_staging_bucket")
         if not gcp_staging_bucket:
             raise LaunchError(
