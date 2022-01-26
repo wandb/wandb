@@ -796,10 +796,12 @@ class SendManager:
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state.output),
         )
         util.sentry_set_scope(
-            "internal",
             entity=self._run.entity,
             project=self._run.project,
             email=self._settings.email,
+            run_id=self._run.run_id,
+            sweep_id=self._run.sweep_id,
+            deployment="local" if self._settings.is_local else "cloud",
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
@@ -811,6 +813,9 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
+
+        # TODO: Vish delete
+        raise ValueError("test tag deployment local should show up")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:

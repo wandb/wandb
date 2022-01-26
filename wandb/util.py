@@ -64,9 +64,44 @@ if IS_GIT:
 else:
     SENTRY_ENV = "production"
 
+
+PLATFORM_WINDOWS = "windows"
+PLATFORM_LINUX = "linux"
+PLATFORM_BSD = "bsd"
+PLATFORM_DARWIN = "darwin"
+PLATFORM_UNKNOWN = "unknown"
+
+
+def get_platform_name():
+    if sys.platform.startswith("win"):
+        return PLATFORM_WINDOWS
+    elif sys.platform.startswith("darwin"):
+        return PLATFORM_DARWIN
+    elif sys.platform.startswith("linux"):
+        return PLATFORM_LINUX
+    elif sys.platform.startswith(("dragonfly", "freebsd", "netbsd", "openbsd",)):
+        return PLATFORM_BSD
+    else:
+        return PLATFORM_UNKNOWN
+
+
+def get_python_runtime():
+    env_type = wandb.wandb_sdk.lib.ipython._get_python_type()
+
+    if env_type == "python":
+        return "python"
+    elif "google.colab" in sys.modules:
+        return "colab"
+    else:
+        return "jupyter"
+
+
 if error_reporting_enabled():
     sentry_sdk.init(
-        dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
+        # TODO: Vish delete the below line when merging to master
+        # this sends events to sentry-robustness project.
+        dsn="https://5cd138b4087545cdbe296e6bd581d8aa@o151352.ingest.sentry.io/6133358",
+        # dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
         release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
@@ -121,17 +156,55 @@ def sentry_reraise(exc):
     six.reraise(type(exc), exc, sys.exc_info()[2])
 
 
-def sentry_set_scope(process_context, entity, project, email=None, url=None):
+def sentry_set_scope(**kwargs):
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
+
+    # this function assumes that all keyword arguments passed to it are tags
+    # to be attached to the current sentry scope (and bound to any Sentry event
+    # that gets sent).
+
+    # TODO: Vish does mypy/flake throw an error if you pass in a positional argument to this function?
+    # TODO: Vish test in jupyter and colab
+
+    TAGS = [
+        "process_context",
+        "entity",
+        "email",
+        "project",
+        "url",
+        "run_id",
+        "sweep_id",
+        "platform",
+        "python_runtime",
+        "deployment",
+    ]
+
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
-        scope.set_tag("process_context", process_context)
-        scope.set_tag("entity", entity)
-        scope.set_tag("project", project)
-        if email:
-            scope.user = {"email": email}
-        if url:
-            scope.set_tag("url", url)
+        scope.set_tag("platform", get_platform_name())
+        scope.set_tag("python_runtime", get_python_runtime())
+
+        for tag, value in kwargs.items():
+            assert tag in TAGS
+            if tag == "email":
+                scope.user = {"email": value}
+                continue
+
+            if value != "":
+                scope.set_tag(tag, value)
+
+
+# def sentry_set_scope(process_context, entity, project, email=None, url=None):
+#     # Using GLOBAL_HUB means these tags will persist between threads.
+#     # Normally there is one hub per thread.
+#     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+#         scope.set_tag("process_context", process_context)
+#         scope.set_tag("entity", entity)
+#         scope.set_tag("project", project)
+#         if email:
+#             scope.user = {"email": email}
+#         if url:
+#             scope.set_tag("url", url)
 
 
 def vendor_setup():

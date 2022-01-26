@@ -369,7 +369,7 @@ class Run(object):
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            "user",
+            process_context="user",
             entity=self._entity,
             project=self._project,
             email=self._settings.email,
@@ -1083,7 +1083,7 @@ class Run(object):
         self.history._update_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            "user",
+            process_context="user",
             entity=run_obj.entity,
             project=run_obj.project,
             email=self._settings.email,
