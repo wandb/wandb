@@ -1,8 +1,3 @@
-#
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 import atexit
 from datetime import timedelta
 from enum import IntEnum
@@ -76,6 +71,7 @@ from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
     config_util,
+    deprecate,
     filenames,
     filesystem,
     ipython,
@@ -571,6 +567,13 @@ class Run(object):
         self._attach_id = _attach_id
 
     @property
+    def settings(self) -> Settings:
+        """Returns a frozen copy of run's Settings object."""
+        cp = self._settings.copy()
+        cp.freeze()
+        return cp
+
+    @property
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
@@ -707,6 +710,13 @@ class Run(object):
     @property
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__mode,
+            warning_message=(
+                "The mode property of wandb.run is deprecated "
+                "and will be removed in a future release."
+            ),
+        )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1359,11 +1369,12 @@ class Run(object):
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
-            wandb.termwarn(
-                (
-                    "Calling run.save without any arguments is deprecated."
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__save_no_args,
+                warning_message=(
+                    "Calling wandb.run.save without any arguments is deprecated."
                     "Changes to attributes are automatically persisted."
-                )
+                ),
             )
             return True
         if policy not in ("live", "end", "now"):
@@ -1477,6 +1488,12 @@ class Run(object):
 
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.run__join,
+            warning_message=(
+                "wandb.run.join() is deprecated, please use wandb.run.finish()."
+            ),
+        )
         self.finish(exit_code=exit_code)
 
     # TODO(jhr): annotate this
@@ -1586,14 +1603,14 @@ class Run(object):
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
-        version_str = "Tracking run with wandb version {}".format(wandb.__version__)
+        version_str = f"Tracking run with wandb version {wandb.__version__}"
         if self.resumed:
             run_state_str = "Resuming run"
         else:
             run_state_str = "Syncing run"
         run_name = self._get_run_name()
 
-        sync_dir = self._settings._sync_dir
+        sync_dir = self._settings.sync_dir
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
@@ -1685,7 +1702,7 @@ class Run(object):
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
-        if console == self._settings.Console.REDIRECT:
+        if console == SettingsConsole.REDIRECT:
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
@@ -1714,10 +1731,10 @@ class Run(object):
                         "wrapping stdout/err."
                     )
                     wandb.termlog(msg)
-                    self._redirect(None, None, console=self._settings.Console.WRAP)
+                    self._redirect(None, None, console=SettingsConsole.WRAP)
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == self._settings.Console.WRAP:
+        elif console == SettingsConsole.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
@@ -1733,7 +1750,7 @@ class Run(object):
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == self._settings.Console.OFF:
+        elif console == SettingsConsole.OFF:
             return
         else:
             raise ValueError("unhandled console")
@@ -2035,7 +2052,7 @@ class Run(object):
         if self._settings._offline and not self._quiet:
             final_logs += f"You can sync this run to the cloud by running:{lb}"
             final_logs += click.style(
-                f"wandb sync {self._settings._sync_dir}{lb}", fg="yellow"
+                f"wandb sync {self._settings.sync_dir}{lb}", fg="yellow"
             )
 
         if not self._quiet and (self._settings.log_user or self._settings.log_internal):
@@ -2435,7 +2452,10 @@ class Run(object):
                         "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
                     )
                 self._log_artifact(
-                    artifact, aliases, is_user_created=True, use_after_commit=True
+                    artifact,
+                    aliases=aliases,
+                    is_user_created=True,
+                    use_after_commit=True,
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
@@ -2483,7 +2503,9 @@ class Run(object):
         Returns:
             An `Artifact` object.
         """
-        return self._log_artifact(artifact_or_path, name, type, aliases)
+        return self._log_artifact(
+            artifact_or_path, name=name, type=type, aliases=aliases
+        )
 
     def upsert_artifact(
         self,
@@ -2530,9 +2552,9 @@ class Run(object):
             distributed_id = self.group
         return self._log_artifact(
             artifact_or_path,
-            name,
-            type,
-            aliases,
+            name=name,
+            type=type,
+            aliases=aliases,
             distributed_id=distributed_id,
             finalize=False,
         )

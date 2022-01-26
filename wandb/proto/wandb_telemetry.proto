@@ -17,6 +17,7 @@ message TelemetryRecord {
   // string  framework = 7;
   Env     env = 8;
   Labels  label = 9;
+  Deprecated deprecated = 10;
   _RecordInfo _info = 200;
 }
 
@@ -95,4 +96,12 @@ message Labels {
   string code_string = 1;   // code identification
   string repo_string = 2;   // repo identification
   string code_version = 3;  // code version
+}
+
+message Deprecated {
+  bool keras_callback__data_type = 1; // wandb.keras.WandbCallback(data_type=...) called
+  bool run__mode = 2; // wandb.run.mode called
+  bool run__save_no_args = 3; // wandb.run.save() called without arguments
+  bool run__join = 4; // wandb.run.join() called
+  bool plots = 5; // wandb.plots.* called
 }

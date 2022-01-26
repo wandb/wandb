@@ -1,18 +1,14 @@
 import json
 import os
-from wandb.apis import PublicApi
+from unittest import mock
 from unittest.mock import MagicMock
-from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.docker import pull_docker_image
-
-try:
-    from unittest import mock
-except ImportError:  # TODO: this is only for python2
-    import mock
 import sys
 
+import pytest
 import wandb
-import wandb.util as util
+from wandb.apis import PublicApi
+from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.docker import pull_docker_image
 import wandb.sdk.launch.launch as launch
 from wandb.sdk.launch.launch_add import launch_add
 import wandb.sdk.launch._project_spec as _project_spec
@@ -20,10 +16,9 @@ from wandb.sdk.launch.utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
 )
+import wandb.util as util
 
 from ..utils import fixture_open, notebook_path
-
-import pytest
 
 
 @pytest.fixture
@@ -308,8 +303,10 @@ def test_run_in_launch_context_with_config(runner, live_mock_server, test_settin
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump({"overrides": {"run_config": {"epochs": 10}}}, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         assert run.config.epochs == 10
         assert run.config.lr == 0.004
@@ -335,8 +332,10 @@ def test_run_in_launch_context_with_artifact_string_no_used_as(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
@@ -369,8 +368,10 @@ def test_run_in_launch_context_with_artifact_unique(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
@@ -400,8 +401,12 @@ def test_run_in_launch_context_with_artifact_project_entity_string_no_used_as(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(
+            launch=True, source=wandb.sdk.wandb_settings.Source.INIT,
+        )
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("test/test/old_name:v0")
         assert run.config.epochs == 10
@@ -467,8 +472,10 @@ def test_run_in_launch_context_with_artifact_string_used_as_config(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:latest", use_as="dataset")
         run.config.dataset = arti_inst
@@ -502,8 +509,10 @@ def test_run_in_launch_context_with_artifacts_api(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         public_api = PublicApi()
         art = public_api.artifact("old_name:v0")
@@ -541,8 +550,10 @@ def test_run_in_launch_context_with_artifacts_no_match(
         path = _project_spec.DEFAULT_LAUNCH_METADATA_PATH
         with open(path, "w") as fp:
             json.dump(overrides, fp)
-        test_settings.launch = True
-        test_settings.launch_config_path = path
+        test_settings.update(launch=True, source=wandb.sdk.wandb_settings.Source.INIT)
+        test_settings.update(
+            launch_config_path=path, source=wandb.sdk.wandb_settings.Source.INIT
+        )
         run = wandb.init(settings=test_settings, config={"epochs": 2, "lr": 0.004})
         arti_inst = run.use_artifact("old_name:v0")
         assert run.config.epochs == 10
