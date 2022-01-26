@@ -24,6 +24,8 @@ _logger = logging.getLogger(__name__)
 
 DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
+RESOURCE_UID_MAP = {"local": 1000, "aws-sagemaker": 0}
+
 
 class LaunchSource(enum.IntEnum):
     WANDB: int = 1
@@ -61,7 +63,7 @@ class LaunchProject(object):
         self.python_version: Optional[str] = docker_config.get("python_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        uid = 1000
+        uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
             _logger.info(f"Retrieved base image uid {uid}")

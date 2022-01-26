@@ -202,14 +202,21 @@ def build_docker_image_if_needed(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
+    aws_line = ""
+    if runner_type == "aws":
+        # need to make user root for aws-sagemaker, so users have access to /opt/ml directories
+        # that let users create artifacts and access input data
+        aws_line = f"USER root\n"
     dockerfile_contents = (
         "FROM {imagename}\n"
+        "{aws_line}"
         # need to chown this directory for artifacts caching
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
         "{copy_code_line}"
         "{requirements_line}"
         "{name_line}"
     ).format(
+        aws_line=aws_line,
         imagename=launch_project.base_image,
         uid=launch_project.docker_user_id,
         homedir=homedir,
@@ -223,7 +230,7 @@ def build_docker_image_if_needed(
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
+        base_url = "http://host.docker.internal:9003"
     else:
         base_url = api.settings("base_url")
     env_vars = "\n".join(
@@ -242,6 +249,8 @@ def build_docker_image_if_needed(
 
     if runner_type == "aws":
         dockerfile_contents += f"ENTRYPOINT {json.dumps(command_args)} \n"
+
+    print(dockerfile_contents)
 
     sanitized_dockerfile_contents = re.sub(
         API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents

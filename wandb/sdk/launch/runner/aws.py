@@ -27,7 +27,7 @@ from ..docker import (
     pull_docker_image,
     validate_docker_installation,
 )
-from ..utils import PROJECT_DOCKER_ARGS
+from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
 
 
 _logger = logging.getLogger(__name__)
@@ -49,6 +49,9 @@ class SagemakerSubmittedRun(AbstractRun):
     def wait(self) -> bool:
         while True:
             status_state = self.get_status().state
+            wandb.termlog(
+                f"Training job {self.training_job_name} status: {status_state}"
+            )
             if status_state in ["stopped", "failed", "finished"]:
                 break
             time.sleep(5)
@@ -65,14 +68,12 @@ class SagemakerSubmittedRun(AbstractRun):
         job_status = self.client.describe_training_job(
             TrainingJobName=self.training_job_name
         )["TrainingJobStatus"]
-        if job_status == "Completed":
+        if job_status == "Completed" or job_status == "Stopped":
             self._status = Status("finished")
         elif job_status == "Failed":
             self._status = Status("failed")
         elif job_status == "Stopping":
             self._status = Status("stopping")
-        elif job_status == "Stopped":
-            self._status = Status("finished")
         elif job_status == "InProgress":
             self._status = Status("running")
         return self._status
@@ -122,6 +123,8 @@ class AWSSagemakerRunner(AbstractRunner):
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
             run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
+            if self.backend_config[PROJECT_SYNCHRONOUS]:
+                run.wait()
             return run
         _logger.info("Connecting to AWS ECR Client")
         ecr_client = boto3.client(
@@ -164,6 +167,8 @@ class AWSSagemakerRunner(AbstractRunner):
 
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
+        # print(container_workdir)
+        # container_workdir = "/opt/program"
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
 
         if launch_project.docker_image is None or launch_project.build_image:
@@ -201,7 +206,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
         docker.tag(image, aws_tag)
-        _logger.info(f"Pushing image {image} to registy {aws_registry}")
+        _logger.info(f"Pushing image {image} to registry {aws_registry}")
         push_resp = docker.push(aws_registry, launch_project.run_id)
         if push_resp is None:
             raise LaunchError("Failed to push image to repository")
@@ -234,6 +239,8 @@ class AWSSagemakerRunner(AbstractRunner):
         sagemaker_args = build_sagemaker_args(launch_project, aws_tag)
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
+        if self.backend_config[PROJECT_SYNCHRONOUS]:
+            run.wait()
         return run
 
 
@@ -293,7 +300,8 @@ def build_sagemaker_args(
     sagemaker_args[
         "AlgorithmSpecification"
     ] = merge_aws_tag_with_algorithm_specification(
-        resource_args.get("AlgorithmSpecification"), aws_tag,
+        resource_args.get("AlgorithmSpecification"),
+        aws_tag,
     )
     sagemaker_args["ResourceConfig"] = resource_args.get("ResourceConfig") or {
         "InstanceCount": 1,
