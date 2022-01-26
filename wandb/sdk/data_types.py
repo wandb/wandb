@@ -882,7 +882,7 @@ class Molecule(BatchableMedia):
         self,
         data_or_path: Union[str, "TextIO"],
         caption: Optional[str] = None,
-        **kwargs: str
+        **kwargs: str,
     ) -> None:
         super(Molecule, self).__init__()
 
