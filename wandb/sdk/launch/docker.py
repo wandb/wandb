@@ -165,7 +165,6 @@ def build_docker_image_if_needed(
     :param api: instance of wandb.apis.internal Api
     :param copy_code: boolean indicating if code should be copied into the docker container
     """
-    launch_project.docker_image = image_uri
     if docker_image_exists(image_uri) and not launch_project.build_image:
         wandb.termlog("Using existing image: {}".format(image_uri))
         return image_uri
@@ -234,7 +233,7 @@ def build_docker_image_if_needed(
             f"ENV WANDB_LAUNCH={True}",
             f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir, DEFAULT_LAUNCH_METADATA_PATH)}",
             f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
-            f"ENV WANDB_DOCKER={launch_project.docker_image}",
+            f"ENV WANDB_DOCKER={image_uri}",
         ]
     )
     dockerfile_contents += env_vars + "\n"
