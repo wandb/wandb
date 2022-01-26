@@ -110,7 +110,7 @@ def _unwrap_nested_config(parent_name, element):
                 _unwrap_nested_config(f"{parent_name}.{key}", value)
             )
         return unwrapped_nested_params
-    elif isinstance(element, Sequence) and not isinstance(element, str):
+    elif isinstance(element, Sequence) and not isinstance(element, (str, bytes)):
         # Case where the value is a list
         # Since str are sequence we negate it to be logged in the next else
         unwrapped_nested_params = {}
