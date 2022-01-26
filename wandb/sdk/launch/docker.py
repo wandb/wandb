@@ -240,15 +240,16 @@ def build_docker_image_if_needed(
 
     if runner_type == "gcp-vertex":
         # supply the entrypoint via the dockerfile since we don't `docker run`
+        # use json dumps to ensure double quotes
         dockerfile_contents += "ENTRYPOINT {cmd_arr}\n".format(
-            cmd_arr=launch_project.get_single_entry_point().command.split()
+            cmd_arr=json.dumps(command_args[0].split())
         )
 
     sanitized_dockerfile_contents = re.sub(
         API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents
     )
 
-    command_string = " ".join(command_args)  # @@@ args not working in gcp
+    command_string = " ".join(command_args)
     sanitized_command_string = re.sub(API_KEY_REGEX, "WANDB_API_KEY", command_string)
     create_metadata_file(
         launch_project, sanitized_command_string, sanitized_dockerfile_contents
