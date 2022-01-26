@@ -87,7 +87,11 @@ def _str_as_bool(val: Union[str, bool, None]) -> bool:
         return ret_val
     except (AttributeError, ValueError):
         pass
-    raise UsageError(f"Could not parse value {val} as a bool")
+    except Exception:
+        # all other uncaught exceptions
+        # fixme: remove this and raise error instead once we are confident
+        wandb.termwarn(f"Could not parse value {val} as a bool")
+        # raise UsageError(f"Could not parse value {val} as a bool")
 
 
 def _redact_dict(
@@ -179,6 +183,24 @@ class Property:
           E.g. if `is_policy` is True, the smallest `Source` value takes precedence.
     """
 
+    # fixme: this is a temporary measure to bypass validation of the settings
+    #  whose validation was not previously enforced to make sure we don't brake anything.
+    __strict_validate_settings = {
+        "project",
+        "start_method",
+        "mode",
+        "console",
+        "problem",
+        "anonymous",
+        "strict",
+        "silent",
+        "show_info",
+        "show_warnings",
+        "show_errors",
+        "base_url",
+        "login_timeout",
+    }
+
     def __init__(  # pylint: disable=unused-argument
         self,
         name: str,
@@ -241,7 +263,15 @@ class Property:
             )
             for v in _validator:
                 if not v(value):
-                    raise ValueError(f"Invalid value for property {self.name}: {value}")
+                    # fixme: this is a temporary measure to bypass validation of certain settings
+                    #  remove this once we are confident
+                    if self.name in self.__strict_validate_settings:
+                        raise ValueError(f"Invalid value for property {self.name}: {value}")
+                    else:
+                        wandb.termwarn(
+                            f"Invalid value for property {self.name}: {value}. "
+                            "This will cause an error in the future."
+                        )
         return value
 
     def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
@@ -680,7 +710,10 @@ class Settings:
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
-            raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
+            # fixme: remove this and raise error instead once we are confident
+            wandb.termwarn(f"Got unexpected arguments: {unexpected_arguments}")
+            # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
+
         for k, v in kwargs.items():
             # todo: double-check this logic:
             source = Source.ARGS if self.__dict__[k].is_policy else Source.BASE
