@@ -516,30 +516,48 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        if "query Run(" in body["query"]:
-            # if querying state of run, change context from running to finished
-            if "RunFragment" not in body["query"] and "state" in body["query"]:
-                ret_val = json.dumps(
-                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+        for query_name in [
+            "Run",
+            "RunInfo",
+            "RunState",
+            "RunFiles",
+            "RunFullHistory",
+            "RunSampledHistory",
+        ]:
+            if f"query {query_name}(" in body["query"]:
+                # if querying state of run, change context from running to finished
+                if "RunFragment" not in body["query"] and "state" in body["query"]:
+                    ret_val = json.dumps(
+                        {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                    )
+                    ctx["run_state"] = "finished"
+                    return ret_val
+                return json.dumps({"data": {"project": {"run": run(ctx)}}})
+        for query_name in [
+            "Model",  # backward compatible for 0.12.10 and below
+            "RunConfigs",
+            "RunResumeStatus",
+            "RunStoppedStatus",
+            "RunUploadUrls",
+            "RunDownloadUrls",
+            "RunDownloadUrl",
+        ]:
+            if f"query {query_name}(" in body["query"]:
+                if "project(" in body["query"]:
+                    project_field_name = "project"
+                    run_field_name = "run"
+                else:
+                    project_field_name = "model"
+                    run_field_name = "bucket"
+                if "commit" in body["query"]:
+                    run_config = _bucket_config(ctx)
+                else:
+                    run_config = run(ctx)
+                return json.dumps(
+                    {"data": {project_field_name: {run_field_name: run_config}}}
                 )
-                ctx["run_state"] = "finished"
-                return ret_val
-            return json.dumps({"data": {"project": {"run": run(ctx)}}})
-        if "query Model(" in body["query"]:
-            if "project(" in body["query"]:
-                project_field_name = "project"
-                run_field_name = "run"
-            else:
-                project_field_name = "model"
-                run_field_name = "bucket"
-            if "commit" in body["query"]:
-                run_config = _bucket_config(ctx)
-            else:
-                run_config = run(ctx)
-            return json.dumps(
-                {"data": {project_field_name: {run_field_name: run_config}}}
-            )
-        if "query Models(" in body["query"]:
+        # Models() is backward compatible for 0.12.10 and below
+        if "query Models(" in body["query"] or "query EntityProjects(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
@@ -661,7 +679,7 @@ def create_app(user_ctx=None):
                 }
             )
 
-        if "query Sweep(" in body["query"]:
+        if "query Sweep(" in body["query"] or "query SweepWithRuns(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
@@ -1036,6 +1054,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        # backward compatible for 0.12.10 and below
         if "query RunArtifacts(" in body["query"]:
             if "inputArtifacts" in body["query"]:
                 key = "inputArtifacts"
@@ -1044,6 +1063,14 @@ def create_app(user_ctx=None):
             artifacts = paginated(artifact(ctx), ctx)
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {key: artifacts}}}}
+        if "query RunInputArtifacts(" in body["query"]:
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
+        if "query RunOutputArtifacts(" in body["query"]:
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
             artifacts = paginated(artifact(ctx), ctx, {"version": version})
@@ -1060,40 +1087,47 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-        if "query Artifact(" in body["query"]:
-            if ART_EMU:
-                return ART_EMU.query(
-                    variables=body.get("variables", {}), query=body.get("query")
-                )
-            art = artifact(
-                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
-            )
-            if "id" in body.get("variables", {}):
+        for query_name in [
+            "Artifact",
+            "ArtifactType",
+            "ArtifactWithCurrentManifest",
+            "ArtifactUsedBy",
+            "ArtifactCreatedBy",
+        ]:
+            if f"query {query_name}(" in body["query"]:
+                if ART_EMU:
+                    return ART_EMU.query(
+                        variables=body.get("variables", {}), query=body.get("query")
+                    )
                 art = artifact(
-                    ctx,
-                    request_url_root=base_url,
-                    id_override=body.get("variables", {}).get("id"),
+                    ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
                 )
-                art["artifactType"] = {"id": 1, "name": "dataset"}
-                return {"data": {"artifact": art}}
-            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
-                full_name = body.get("variables", {}).get("name", None)
-                if full_name is not None:
-                    collection_name = full_name.split(":")[0]
-                art = artifact(
-                    ctx, collection_name=collection_name, request_url_root=base_url,
-                )
-            # code artifacts use source-RUNID names, we return the code type
-            art["artifactType"] = {"id": 2, "name": "code"}
-            if "source" not in body["variables"]["name"]:
-                art["artifactType"] = {"id": 1, "name": "dataset"}
-            if "logged_table" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 3, "name": "run_table"}
-            if "run-" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "run_table"}
-            if "wb_validation_data" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "validation_dataset"}
-            return {"data": {"project": {"artifact": art}}}
+                if "id" in body.get("variables", {}):
+                    art = artifact(
+                        ctx,
+                        request_url_root=base_url,
+                        id_override=body.get("variables", {}).get("id"),
+                    )
+                    art["artifactType"] = {"id": 1, "name": "dataset"}
+                    return {"data": {"artifact": art}}
+                if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                    full_name = body.get("variables", {}).get("name", None)
+                    if full_name is not None:
+                        collection_name = full_name.split(":")[0]
+                    art = artifact(
+                        ctx, collection_name=collection_name, request_url_root=base_url,
+                    )
+                # code artifacts use source-RUNID names, we return the code type
+                art["artifactType"] = {"id": 2, "name": "code"}
+                if "source" not in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 1, "name": "dataset"}
+                if "logged_table" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 3, "name": "run_table"}
+                if "run-" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "run_table"}
+                if "wb_validation_data" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
             art["currentManifest"] = {
@@ -1107,7 +1141,10 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
-        if "query Project" in body["query"] and "runQueues" in body["query"]:
+        # Project() is backward compatible for 0.12.10 and below
+        if ("query Project(" in body["query"] and "runQueues" in body["query"]) or (
+            "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]
+        ):
             if ctx["run_queues_return_default"]:
                 return json.dumps(
                     {
