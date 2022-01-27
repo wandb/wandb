@@ -15,6 +15,7 @@ import pkg_resources
 from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
+from wandb.cli.cli import launch
 import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
 from wandb.util import get_module
@@ -55,16 +56,11 @@ def get_docker_user(launch_project):
 
 
 TEMPLATE = """
-FROM python:{py_version_image} as build
+FROM {py_build_image} as build
 
 # install in venv to copy
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
-
-RUN apt-get update -qq && apt-get install --no-install-recommends -y \
-    {python_build_packages} \
-    && apt-get -qq purge && apt-get -qq clean \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY src/requirements.txt .
 # different requirements line if we have buildx or not
@@ -117,7 +113,7 @@ def get_current_python_version():
     return version, major
 
 
-def generate_base_image_no_r2d(api, launch_project, image_uri, entry_cmd):
+def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
     if launch_project.python_version:
         py_version, py_major = (
             launch_project.python_version,
@@ -126,7 +122,8 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entry_cmd):
     else:
         py_version, py_major = get_current_python_version()
 
-    python_base_image = "{}-slim-buster".format(py_version)
+    python_build_image = "python:{}".format(py_version)     # use bigger image for package installation
+    python_base_image = "python:{}-slim-buster".format(py_version)  # slim for running
     if launch_project.gpu:
         # must install all python setup
         if py_major == "2":
@@ -166,7 +163,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_vers
         ]  # required for python < 3.7
 
         base_setup = """
-FROM python:{py_image} as base
+FROM {py_image} as base
 """.format(
             py_image=python_base_image
         )
@@ -208,12 +205,12 @@ FROM python:{py_image} as base
         requirements_line = "RUN WANDB_DISABLE_CACHE=true "
     requirements_line += "pip install -r requirements.txt"
 
-    python_build_packages = (
-        ["python3-dev", "gcc"] if py_major == "3" else ["python-dev", "gcc"]
-    )
+    # put together entrypoint & args
+    # json format to ensure double quotes
+    entry_cmd = json.dumps(get_entry_point_command(entrypoint, launch_project.override_args)[0].split())
 
     dockerfile_contents = TEMPLATE.format(
-        py_version_image=python_base_image,
+        py_build_image=python_build_image,
         user=username,
         uid=userid,
         env_vars=env_vars_section,
@@ -221,7 +218,6 @@ FROM python:{py_image} as base
         command_arr=entry_cmd,
         requirements_line=requirements_line,
         base_setup=base_setup,
-        python_build_packages=" ".join(python_build_packages),
     )
     print(dockerfile_contents)  # tmp
 

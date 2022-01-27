@@ -81,9 +81,6 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-        entry_point = launch_project.get_single_entry_point()
-
-        entry_cmd = entry_point.command
 
         if launch_project.docker_image:
             # user has provided their own docker image
@@ -92,7 +89,7 @@ class LocalRunner(AbstractRunner):
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            generate_base_image_no_r2d(self._api, launch_project, image_uri, entry_cmd)
+            generate_base_image_no_r2d(self._api, launch_project, image_uri, launch_project.get_single_entry_point())
 
             command_str = " ".join(get_docker_command(image_uri, docker_args))
             sanitized_command_str = re.sub(
