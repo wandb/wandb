@@ -102,7 +102,26 @@ USER {user}
 ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT {command_arr}
+"""
 
+PYTHON_SETUP_TEMPLATE = """
+FROM {py_base_image} as base
+"""
+
+CUDA_SETUP_TEMPLATE = """
+FROM {cuda_base_image} as base
+RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
+
+# install python
+# todo support runtime.txt, setup.py
+RUN apt-get update -qq && apt-get install --no-install-recommends -y \
+    {python_packages} \
+    && apt-get -qq purge && apt-get -qq clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# make sure `python` points at the right version
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_version} 1 \
+    && update-alternatives --install /usr/local/bin/python python /usr/bin/python{py_version} 1
 """
 
 
@@ -125,6 +144,8 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
     python_build_image = "python:{}".format(py_version)     # use bigger image for package installation
     python_base_image = "python:{}-slim-buster".format(py_version)  # slim for running
     if launch_project.gpu:
+        cuda_version = launch_project.cuda_version or "10.0"
+
         # must install all python setup
         if py_major == "2":
             python_packages = [
@@ -139,22 +160,10 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
                 "python3-setuptools",
             ]
 
-        base_setup = """
-FROM nvidia/cuda:10.0-base as base
-RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
-
-# install python
-# todo support runtime.txt, setup.py
-RUN apt-get update -qq && apt-get install --no-install-recommends -y \
-    {python_packages} \
-    && apt-get -qq purge && apt-get -qq clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# make sure `python` points at the right version
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_version} 1 \
-    && update-alternatives --install /usr/local/bin/python python /usr/bin/python{py_version} 1
-""".format(
-            python_packages=" \\\n".join(python_packages), py_version=py_version
+        base_setup = CUDA_SETUP_TEMPLATE.format(
+            python_packages=" \\\n".join(python_packages),
+            py_version=py_version,
+            cuda_base_image="nvidia/cuda:{}-runtime".format(cuda_version)
         )
     else:
         python_packages = [
@@ -162,10 +171,8 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_vers
             "gcc",
         ]  # required for python < 3.7
 
-        base_setup = """
-FROM {py_image} as base
-""".format(
-            py_image=python_base_image
+        base_setup = PYTHON_SETUP_TEMPLATE.format(
+            py_base_image=python_base_image
         )
 
     username, userid = get_docker_user(launch_project)
