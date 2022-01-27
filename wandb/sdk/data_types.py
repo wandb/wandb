@@ -2685,7 +2685,9 @@ def _is_numpy_array(data: object) -> bool:
 def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
-    return "{}_{}_{}{}".format(str(key), str(step), str(id), extension)
+    sanitized_key = re.sub(r'[^a-zA-Z0-9_-]', '_', str(key))
+    disambiguator = hashlib.sha256(key.encode('utf8')).hexdigest()[:8]
+    return "{}_{}_{}_{}{}".format(disambiguator, sanitized_key, str(step), str(id), extension)
 
 
 def _numpy_arrays_to_lists(
