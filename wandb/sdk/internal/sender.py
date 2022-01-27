@@ -815,7 +815,7 @@ class SendManager:
         )
 
         # TODO: Vish delete
-        raise ValueError("test tag deployment local should show up")
+        raise ValueError("test tag colab should show up")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
