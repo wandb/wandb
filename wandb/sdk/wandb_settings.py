@@ -87,11 +87,10 @@ def _str_as_bool(val: Union[str, bool, None]) -> bool:
         return ret_val
     except (AttributeError, ValueError):
         pass
-    except Exception:
-        # all other uncaught exceptions
-        # fixme: remove this and raise error instead once we are confident
-        wandb.termwarn(f"Could not parse value {val} as a bool")
-        # raise UsageError(f"Could not parse value {val} as a bool")
+
+    # fixme: remove this and raise error instead once we are confident
+    wandb.termwarn(f"Could not parse value {val} as a bool")
+    # raise UsageError(f"Could not parse value {val} as a bool")
 
 
 def _redact_dict(
@@ -263,7 +262,7 @@ class Property:
             )
             for v in _validator:
                 if not v(value):
-                    # fixme: this is a temporary measure to bypass validation of certain settings
+                    # fixme: this is a temporary measure to bypass validation of certain settings.
                     #  remove this once we are confident
                     if self.name in self.__strict_validate_settings:
                         raise ValueError(
@@ -274,6 +273,7 @@ class Property:
                             f"Invalid value for property {self.name}: {value}. "
                             "This will cause an error in the future."
                         )
+                        break
         return value
 
     def update(self, value: Any, source: int = Source.OVERRIDE) -> None:
