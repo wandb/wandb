@@ -53,7 +53,7 @@ def test_launch_aws_sagemaker(
 ):
     def mock_create_metadata_file(*args, **kwargs):
         dockerfile_contents = args[2]
-        expected_entrypoint = 'ENTRYPOINT ["python", "train.py"]'
+        expected_entrypoint = 'ENTRYPOINT ["sh", "train"]'
         assert expected_entrypoint in dockerfile_contents, dockerfile_contents
         _project_spec.create_metadata_file(*args, **kwargs)
 
