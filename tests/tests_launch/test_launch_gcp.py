@@ -115,7 +115,7 @@ def test_launch_gcp_vertex(
     assert run.wait()
 
 
-def test_vertex_options(test_settings, monkeypatch):
+def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
