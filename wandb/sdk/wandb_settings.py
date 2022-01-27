@@ -228,6 +228,9 @@ class Property:
 
         self.__frozen = frozen
 
+        # fixme: this is a temporary measure to collect stats on failed validation
+        self.__failed_validation: bool = False
+
     @property
     def value(self) -> Any:
         """Apply the runtime modifier(s) (if any) and return the value."""
@@ -258,6 +261,7 @@ class Property:
         return value
 
     def _validate(self, value: Any) -> Any:
+        self.__failed_validation = False  # fixme: this is a temporary measure
         if value is not None and self._validator is not None:
             _validator = (
                 [self._validator] if callable(self._validator) else self._validator
@@ -275,6 +279,7 @@ class Property:
                             f"Invalid value for property {self.name}: {value}. "
                             "This will cause an error in the future."
                         )
+                        self.__failed_validation = True
                         break
         return value
 
@@ -670,6 +675,11 @@ class Settings:
         self.__frozen: bool = False
         self.__initialized: bool = False
 
+        # fixme: this is collect telemetry on validation errors and unexpected args
+        # values are stored as strings to avoid potential json serialization errors down the line
+        self.__validation_warnings: Dict[str, str] = dict()
+        self.__unexpected_args: Set[str] = set()
+
         # Set default settings values
         # We start off with the class attributes and `default_props`' dicts
         # and then create Property objects.
@@ -710,14 +720,21 @@ class Settings:
                     Property(name=prop, validator=validators, source=Source.BASE,),
                 )
 
+            # fixme: this is to collect stats on validation errors
+            if self.__dict__[prop].__dict__["_Property__failed_validation"]:
+                self.__validation_warnings[prop] = str(self.__dict__[prop]._value)
+
         # update overridden defaults from kwargs
         unexpected_arguments = [k for k in kwargs.keys() if k not in self.__dict__]
         # allow only explicitly defined arguments
         if unexpected_arguments:
+
             # fixme: remove this and raise error instead once we are confident
+            self.__unexpected_args.update(unexpected_arguments)
             wandb.termwarn(f"Got unexpected arguments: {unexpected_arguments}")
             for k in unexpected_arguments:
                 kwargs.pop(k)
+
             # raise TypeError(f"Got unexpected arguments: {unexpected_arguments}")
 
         for k, v in kwargs.items():
@@ -846,6 +863,12 @@ class Settings:
         # only if all keys are valid, update them
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
+
+            # fixme: this is to collect stats on validation errors
+            if self.__dict__[key].__dict__["_Property__failed_validation"]:
+                self.__validation_warnings[key] = str(self.__dict__[key]._value)
+            else:
+                self.__validation_warnings.pop(key, None)
 
     def freeze(self) -> None:
         object.__setattr__(self, "_Settings__frozen", True)
