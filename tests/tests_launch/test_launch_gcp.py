@@ -46,6 +46,8 @@ def mock_aiplatform_CustomContainerTrainingJob(display_name, container_uri, job_
 
 
 def setup_mock_aiplatform(monkeypatch):
+    # patch out fns that require gcp cli/api functionality or state
+
     do_nothing = lambda *args, **kwargs: None
     job_dict = {
         "name": "testid-12345",
@@ -116,6 +118,8 @@ def test_launch_gcp_vertex(
 
 
 def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
+    job_dict = setup_mock_aiplatform(monkeypatch)
+
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
