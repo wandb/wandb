@@ -1134,6 +1134,10 @@ class Settings:
         return convert
 
     @property
+    def _colab(self) -> bool:
+        return "google.colab" in sys.modules
+
+    @property
     def _jupyter(self) -> bool:
         return str(_get_python_type()) != "python"
 

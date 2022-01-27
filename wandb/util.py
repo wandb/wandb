@@ -85,17 +85,6 @@ def get_platform_name():
         return PLATFORM_UNKNOWN
 
 
-def get_python_runtime():
-    env_type = wandb.wandb_sdk.lib.ipython._get_python_type()
-
-    if env_type == "python":
-        return "python"
-    elif "google.colab" in sys.modules:
-        return "colab"
-    else:
-        return "jupyter"
-
-
 if error_reporting_enabled():
     sentry_sdk.init(
         # TODO: Vish delete the below line when merging to master
@@ -156,7 +145,18 @@ def sentry_reraise(exc):
     six.reraise(type(exc), exc, sys.exc_info()[2])
 
 
-def sentry_set_scope(**kwargs):
+def sentry_set_scope(
+    entity=None,
+    process_context=None,
+    email=None,
+    project=None,
+    url=None,
+    run_id=None,
+    sweep_id=None,
+    platform=None,
+    python_runtime=None,
+    deployment=None,
+):
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
 
@@ -164,33 +164,19 @@ def sentry_set_scope(**kwargs):
     # to be attached to the current sentry scope (and bound to any Sentry event
     # that gets sent).
 
-    # TODO: Vish does mypy/flake throw an error if you pass in a positional argument to this function?
     # TODO: Vish test in jupyter and colab
-
-    TAGS = [
-        "process_context",
-        "entity",
-        "email",
-        "project",
-        "url",
-        "run_id",
-        "sweep_id",
-        "platform",
-        "python_runtime",
-        "deployment",
-    ]
+    args = locals()
 
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("platform", get_platform_name())
-        scope.set_tag("python_runtime", get_python_runtime())
 
-        for tag, value in kwargs.items():
-            assert tag in TAGS
-            if tag == "email":
-                scope.user = {"email": value}
-                continue
+        for tag, value in args.items():
+            if value is not None and value != "":
+                # legacy
+                if tag == "email":
+                    scope.user = {"email": value}
+                    continue
 
-            if value != "":
                 scope.set_tag(tag, value)
 
 

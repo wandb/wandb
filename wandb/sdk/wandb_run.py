@@ -373,6 +373,9 @@ class Run(object):
             entity=self._entity,
             project=self._project,
             email=self._settings.email,
+            python_runtime="colab"
+            if self._settings._colab
+            else ("jupyter" if self._settings._jupyter else "python"),
         )
 
         # Returned from backend request_run(), set from wandb_init?

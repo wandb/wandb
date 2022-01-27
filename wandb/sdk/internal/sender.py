@@ -795,6 +795,7 @@ class SendManager:
             "output.log",
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state.output),
         )
+
         util.sentry_set_scope(
             entity=self._run.entity,
             project=self._run.project,
@@ -802,6 +803,9 @@ class SendManager:
             run_id=self._run.run_id,
             sweep_id=self._run.sweep_id,
             deployment="local" if self._settings.is_local else "cloud",
+            python_runtime="colab"
+            if self._settings._colab
+            else ("jupyter" if self._settings._jupyter else "python"),
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
