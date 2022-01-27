@@ -206,7 +206,7 @@ def build_docker_image_if_needed(
     if runner_type == "aws":
         # need to make user root for aws-sagemaker, so users have access to /opt/ml directories
         # that let users create artifacts and access input data
-        aws_line = f"USER root\n"
+        aws_line = "USER root\n"
     dockerfile_contents = (
         "FROM {imagename}\n"
         "{aws_line}"
@@ -248,9 +248,16 @@ def build_docker_image_if_needed(
     dockerfile_contents += env_vars + "\n"
 
     if runner_type == "aws":
-        dockerfile_contents += f"ENTRYPOINT {json.dumps(command_args)} \n"
-
-    print(dockerfile_contents)
+        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
+            fp.write(" ".join(command_args))
+        dockerfile_contents += f"COPY ./src/train {workdir}\n"
+        dockerfile_contents += f"RUN chmod +x {workdir}/train\n"
+        # sagemaker automatically appends train after the entrypoint
+        # by redirecting to running a train script we can avoid issues
+        # with argparse, and hopefully if the user intends for the train
+        # argument to be present it is captured in the original jobs
+        # command arguments
+        dockerfile_contents += 'ENTRYPOINT ["sh", "train"] \n'
 
     sanitized_dockerfile_contents = re.sub(
         API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents

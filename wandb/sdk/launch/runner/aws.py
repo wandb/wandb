@@ -300,8 +300,7 @@ def build_sagemaker_args(
     sagemaker_args[
         "AlgorithmSpecification"
     ] = merge_aws_tag_with_algorithm_specification(
-        resource_args.get("AlgorithmSpecification"),
-        aws_tag,
+        resource_args.get("AlgorithmSpecification"), aws_tag,
     )
     sagemaker_args["ResourceConfig"] = resource_args.get("ResourceConfig") or {
         "InstanceCount": 1,
