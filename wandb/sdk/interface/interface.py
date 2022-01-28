@@ -13,8 +13,9 @@ from abc import abstractmethod
 import json
 import logging
 import os
-from typing import Any, Iterable, Optional, Tuple, Union
+from typing import Any, Iterable, NewType, Optional, Sequence, Tuple, Union
 from typing import TYPE_CHECKING
+from typing_extensions import Literal, TypedDict
 
 import six
 from wandb import data_types
@@ -41,8 +42,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("wandb")
 
+PathGlob = NewType('PathGlob', str)
+PolicyName = Union[Literal['now'], Literal['end'], Literal['live']]
+FilePolicyDict = TypedDict('FilePolicyDict', {
+    'files': Sequence[Tuple[PathGlob, PolicyName]]
+})
 
-def file_policy_to_enum(policy: str) -> "pb.FilesItem.PolicyType.V":
+def file_policy_to_enum(policy: PolicyName) -> "pb.FilesItem.PolicyType.V":
     if policy == "now":
         enum = pb.FilesItem.PolicyType.NOW
     elif policy == "end":
@@ -337,7 +343,7 @@ class InterfaceBase(object):
     ) -> Optional[pb.SampledHistoryResponse]:
         raise NotImplementedError
 
-    def _make_files(self, files_dict: dict) -> pb.FilesRecord:
+    def _make_files(self, files_dict: FilePolicyDict) -> pb.FilesRecord:
         files = pb.FilesRecord()
         for path, policy in files_dict["files"]:
             f = files.files.add()
@@ -345,7 +351,7 @@ class InterfaceBase(object):
             f.policy = file_policy_to_enum(policy)
         return files
 
-    def publish_files(self, files_dict: dict) -> None:
+    def publish_files(self, files_dict: FilePolicyDict) -> None:
         files = self._make_files(files_dict)
         self._publish_files(files)
 

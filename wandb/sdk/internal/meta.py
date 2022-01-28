@@ -12,9 +12,11 @@ import os
 from shutil import copyfile
 import subprocess
 import sys
+from typing import MutableSequence, Tuple
 from urllib.parse import unquote
 
 from wandb import util
+from wandb.sdk.interface.interface import FilePolicyDict, PathGlob, PolicyName
 from wandb.vendor.pynvml import pynvml
 
 from ..lib.filenames import (
@@ -253,12 +255,12 @@ class Meta(object):
             f.write(s)
             f.write("\n")
         base_name = os.path.basename(self.fname)
-        files = dict(files=[(base_name, "now")])
+        file_policies: MutableSequence[Tuple[PathGlob, PolicyName]] = [(PathGlob(base_name), "now")]
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
-            files["files"].append((saved_program, "now"))
+            file_policies.append((PathGlob(saved_program), "now"))
         for patch in self._saved_patches:
-            files["files"].append((patch, "now"))
+            file_policies.append((PathGlob(patch), "now"))
 
-        self._interface.publish_files(files)
+        self._interface.publish_files(FilePolicyDict(files=file_policies))

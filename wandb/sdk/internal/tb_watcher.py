@@ -15,6 +15,7 @@ import six
 from six.moves import queue
 import wandb
 from wandb import util
+from wandb.sdk.interface.interface import FilePolicyDict, PathGlob
 from wandb.viz import custom_chart_panel_config, CustomChart
 
 from . import run as internal_run
@@ -54,7 +55,7 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(file_name, "live")]))
+    interface.publish_files(FilePolicyDict(files=[(PathGlob(file_name), "live")]))
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:
@@ -350,7 +351,7 @@ class TBEventConsumer(object):
         # process. Since we don't have a real run object, we have to define the
         # datatypes callback ourselves.
         def datatypes_cb(fname: str) -> None:
-            files = dict(files=[(fname, "now")])
+            files = FilePolicyDict(files=[(PathGlob(fname), "now")])
             self._tbwatcher._interface.publish_files(files)
 
         # this is only used for logging artifacts

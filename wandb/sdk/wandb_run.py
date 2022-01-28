@@ -66,7 +66,7 @@ from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
-from .interface.interface import InterfaceBase
+from .interface.interface import FilePolicyDict, InterfaceBase, PolicyName, PathGlob
 from .interface.summary_record import SummaryRecord
 from .lib import (
     apikey,
@@ -990,7 +990,7 @@ class Run(object):
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files = dict(files=[(fname, "now")])
+        files = FilePolicyDict(files=[(PathGlob(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
@@ -1354,7 +1354,7 @@ class Run(object):
         self,
         glob_str: Optional[str] = None,
         base_path: Optional[str] = None,
-        policy: str = "live",
+        policy: PolicyName = "live",
     ) -> Union[bool, List[str]]:
         """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
 
@@ -1437,7 +1437,7 @@ class Run(object):
                 )
                 % file_str
             )
-        files_dict = dict(files=[(wandb_glob_str, policy)])
+        files_dict = FilePolicyDict(files=[(PathGlob(wandb_glob_str), policy)])
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
         return files
