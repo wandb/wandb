@@ -34,7 +34,7 @@ jobs:
         if: |
           steps.mock_requests.outcome != 'success'
           || steps.mock_server.outcome != 'success'
-          || steps.artifact_emu.outcome == 'success'
+          || steps.artifact_emu.outcome != 'success'
         run: |
           echo "Mocks are not up to date with yea-wandb."
           echo "See https://github.com/wandb/client/blob/master/CONTRIBUTING.md#functional-testing for details."
