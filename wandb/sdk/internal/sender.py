@@ -819,9 +819,6 @@ class SendManager:
             self._run.start_time.ToSeconds(),
         )
 
-        # TODO: Vish delete
-        raise ValueError("test tag sanity check service")
-
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))

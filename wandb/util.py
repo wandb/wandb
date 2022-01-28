@@ -87,10 +87,7 @@ def get_platform_name():
 
 if error_reporting_enabled():
     sentry_sdk.init(
-        # TODO: Vish delete the below line when merging to master
-        # this sends events to sentry-robustness project.
-        dsn="https://5cd138b4087545cdbe296e6bd581d8aa@o151352.ingest.sentry.io/6133358",
-        # dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
+        dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
         release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
@@ -161,11 +158,7 @@ def sentry_set_scope(
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
 
-    # this function assumes that all keyword arguments passed to it are tags
-    # to be attached to the current sentry scope (and bound to any Sentry event
-    # that gets sent).
-
-    # TODO: Vish test in jupyter and colab
+    # get function arguments as dict
     args = locals()
 
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
