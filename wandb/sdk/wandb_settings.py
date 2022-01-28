@@ -70,7 +70,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
-        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory")
+        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory.")
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
     return os.path.expanduser(path)
@@ -90,7 +90,10 @@ def _str_as_bool(val: Union[str, bool, None]) -> Union[str, bool, None]:
         pass
 
     # fixme: remove this and raise error instead once we are confident.
-    wandb.termwarn(f"Could not parse value {val} as a bool")
+    wandb.termwarn(
+        f"Could not parse value {val} as a bool. "
+        "This will raise an error in the future."
+    )
     # raise UsageError(f"Could not parse value {val} as a bool")
     return val
 
@@ -277,7 +280,7 @@ class Property:
                     else:
                         wandb.termwarn(
                             f"Invalid value for property {self.name}: {value}. "
-                            "This will cause an error in the future."
+                            "This will raise an error in the future."
                         )
                         self.__failed_validation = True
                         break
@@ -731,7 +734,10 @@ class Settings:
 
             # fixme: remove this and raise error instead once we are confident
             self.__unexpected_args.update(unexpected_arguments)
-            wandb.termwarn(f"Got unexpected arguments: {unexpected_arguments}")
+            wandb.termwarn(
+                f"Ignoring unexpected arguments: {unexpected_arguments}. "
+                "This will raise an error in the future."
+            )
             for k in unexpected_arguments:
                 kwargs.pop(k)
 
@@ -1019,7 +1025,7 @@ class Settings:
         elif self._jupyter:
             wandb.termwarn(
                 "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
-                f"couldn't find {self.notebook_name}"
+                f"couldn't find {self.notebook_name}."
             )
 
         # host and username are populated by apply_env_vars if corresponding env
@@ -1103,7 +1109,7 @@ class Settings:
                 val = init_settings.pop(key, None)
                 if val:
                     wandb.termwarn(
-                        f"Ignored wandb.init() arg {key} when running a sweep"
+                        f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
             for key in ("project", "entity", "id"):
@@ -1111,7 +1117,7 @@ class Settings:
                 if val:
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
-                        f"Ignored wandb.init() arg {key} when running running from launch"
+                        f"Ignored wandb.init() arg {key} when running running from launch."
                     )
 
         # strip out items where value is None
