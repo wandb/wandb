@@ -18,9 +18,9 @@ class SettingsStatic:
     files_dir: str
     log_internal: str
     _internal_check_process: bool
-    is_local: bool
-    _colab: bool
-    _jupyter: bool
+    is_local: "Optional[bool]"
+    _colab: "Optional[bool]"
+    _jupyter: "Optional[bool]"
     _require_service: "Optional[str]"
     resume: "Optional[str]"
     program: "Optional[str]"

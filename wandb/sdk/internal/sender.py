@@ -820,7 +820,7 @@ class SendManager:
         )
 
         # TODO: Vish delete
-        raise ValueError("test tag service should show up")
+        raise ValueError("test tag sanity check service")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
