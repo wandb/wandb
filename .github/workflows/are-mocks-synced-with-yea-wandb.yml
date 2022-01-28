@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  are-mocks-synced:
+  check-mocks-synced:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
