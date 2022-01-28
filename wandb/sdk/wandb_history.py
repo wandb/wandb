@@ -16,9 +16,12 @@ By default, Summary is set to the final value of History.
 """
 
 import time
+from typing import Any, Callable, Mapping, MutableMapping, Optional
 
 from wandb.wandb_torch import TorchHistory
 
+Row = Mapping[str, Any]
+HistoryCallback = Callable[[Row, int], None]
 
 class History(object):
     """Time series data for Runs. This is essentially a list of dicts where each
@@ -28,27 +31,27 @@ class History(object):
     def __init__(self, run):
         self._run = run
         self._step = 0
-        self._data = dict()
-        self._callback = None
-        self._torch = None
+        self._data: MutableMapping[str, Any] = dict()
+        self._callback: Optional[HistoryCallback] = None
+        self._torch: Optional[TorchHistory] = None
         self.compute = True
 
-    def _set_callback(self, cb):
+    def _set_callback(self, cb: HistoryCallback) -> None:
         self._callback = cb
 
-    def _row_update(self, row):
+    def _row_update(self, row: Row) -> None:
         self._data.update(row)
 
-    def _row_add(self, row):
+    def _row_add(self, row: Row) -> None:
         self._data.update(row)
         self._flush()
         self._step += 1
 
-    def _update_step(self):
+    def _update_step(self) -> None:
         """Called after receiving the run from the internal process"""
         self._step = self._run.starting_step
 
-    def _flush(self):
+    def _flush(self) -> None:
         if len(self._data) > 0:
             self._data["_step"] = self._step
             self._data["_runtime"] = int(
