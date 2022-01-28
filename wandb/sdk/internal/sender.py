@@ -806,6 +806,7 @@ class SendManager:
             python_runtime="colab"
             if self._settings._colab
             else ("jupyter" if self._settings._jupyter else "python"),
+            service=self._settings._require_service,
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
@@ -819,7 +820,7 @@ class SendManager:
         )
 
         # TODO: Vish delete
-        raise ValueError("test tag colab should show up")
+        raise ValueError("test tag service should show up")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:

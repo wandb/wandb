@@ -376,6 +376,7 @@ class Run(object):
             python_runtime="colab"
             if self._settings._colab
             else ("jupyter" if self._settings._jupyter else "python"),
+            service=self._settings._require_service,
         )
 
         # Returned from backend request_run(), set from wandb_init?
