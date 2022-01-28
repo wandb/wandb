@@ -939,15 +939,6 @@ def _check_launch_imports():
     "are not in the list of arguments for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
-@click.option(  # todo: maybe take these out it's confusing with the docker image stuff
-    "--docker-args",
-    "-A",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="A `docker run` argument or flag, of the form -A name=value (e.g. -A gpus=all) "
-    "or -A name (e.g. -A t). The argument will then be passed as "
-    "`docker run --name value` or `docker run --name` respectively. ",
-)
 @click.option(
     "--name",
     envvar="WANDB_NAME",
@@ -1034,7 +1025,6 @@ def launch(
     entry_point,
     git_version,
     args_list,
-    docker_args,
     name,
     resource,
     entity,
@@ -1072,7 +1062,6 @@ def launch(
         )
 
     args_dict = util._user_args_to_dict(args_list)
-    docker_args_dict = util._user_args_to_dict(docker_args)
     resource_args_dict = util._user_args_to_dict(resource_args)
     if config is not None:
         if os.path.splitext(config)[-1] == ".json":
@@ -1101,7 +1090,6 @@ def launch(
                 docker_image=docker_image,
                 name=name,
                 parameters=args_dict,
-                docker_args=docker_args_dict,
                 resource=resource,
                 resource_args=resource_args_dict,
                 config=config,

@@ -41,7 +41,6 @@ def _run(
     entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
-    docker_args: Optional[Dict[str, Any]],
     resource: str,
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
@@ -71,7 +70,7 @@ def _run(
     # construct runner config.
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
-    runner_config[PROJECT_DOCKER_ARGS] = docker_args
+    runner_config[PROJECT_DOCKER_ARGS] = launch_config["docker"]
 
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
@@ -94,7 +93,6 @@ def run(
     entry_point: Optional[str] = None,
     version: Optional[str] = None,
     parameters: Optional[Dict[str, Any]] = None,
-    docker_args: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     resource: str = "local",
     resource_args: Optional[Dict[str, Any]] = None,
@@ -115,7 +113,6 @@ def run(
     version: For Git-based projects, either a commit hash or a branch name.
     parameters: Parameters (dictionary) for the entry point command. Defaults to using the
         the parameters used to run the original run.
-    docker_args: Arguments (dictionary) for the docker command.
     name: Name run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
     resource_args: Resource related arguments for launching runs onto a remote backend.
@@ -150,8 +147,7 @@ def run(
         `wandb.exceptions.ExecutionError` If a run launched in blocking mode
         is unsuccessful.
     """
-    if docker_args is None:
-        docker_args = {}
+    docker_args = {}
 
     if _is_wandb_local_uri(api.settings("base_url")):
         if sys.platform == "win32":
@@ -164,6 +160,10 @@ def run(
     if config is None:
         config = {}
 
+    if "docker" in config:
+        docker_args.update(config["docker"])  # userprovided args override
+    config["docker"] = docker_args
+
     submitted_run_obj = _run(
         uri=uri,
         name=name,
@@ -173,7 +173,6 @@ def run(
         entry_point=entry_point,
         version=version,
         parameters=parameters,
-        docker_args=docker_args,
         resource=resource,
         resource_args=resource_args,
         launch_config=config,
