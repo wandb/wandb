@@ -223,13 +223,13 @@ class Property:
         self._is_policy = is_policy
         self._source = source
 
+        # fixme: this is a temporary measure to collect stats on failed validation
+        self.__failed_validation: bool = False
+
         # preprocess and validate value
         self._value = self._validate(self._preprocess(value))
 
         self.__frozen = frozen
-
-        # fixme: this is a temporary measure to collect stats on failed validation
-        self.__failed_validation: bool = False
 
     @property
     def value(self) -> Any:

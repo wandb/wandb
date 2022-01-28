@@ -14,7 +14,6 @@ from __future__ import print_function
 
 import copy
 import datetime
-import json
 import logging
 import os
 import platform
@@ -538,13 +537,9 @@ class _WandbInit(object):
 
             # detected issues with settings
             if s.__dict__["_Settings__validation_warnings"]:
-                tel.issues.settings__validation_warnings = json.dumps(
-                    s.__dict__["_Settings__validation_warnings"]
-                )
+                tel.issues.settings__validation_warnings = True
             if s.__dict__["_Settings__unexpected_args"]:
-                tel.issues.settings__unexpected_args = json.dumps(
-                    s.__dict__["_Settings__unexpected_args"]
-                )
+                tel.issues.settings__unexpected_args = True
 
         if not s.label_disable:
             if self.notebook:

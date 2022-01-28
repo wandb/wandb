@@ -108,6 +108,6 @@ message Deprecated {
 }
 
 message Issues {
-  string settings__validation_warnings = 1; // dict of value validation warnings, json-dumped
-  string settings__unexpected_args = 2; // unexpected settings init args, json-dumped
+  bool settings__validation_warnings = 1; // validation warnings for settings?
+  bool settings__unexpected_args = 2; // unexpected settings init args?
 }
