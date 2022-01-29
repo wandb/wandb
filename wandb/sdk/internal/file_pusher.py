@@ -1,14 +1,13 @@
-#
-import os
 import logging
-import tempfile as builtin_tempfile
+import os
+from pathlib import Path
+import tempfile as tempfile
 import time
 from six.moves import queue
 import warnings
 
 import wandb
 import wandb.util
-from wandb.compat import tempfile
 
 from wandb.filesync import stats
 from wandb.filesync import step_checksum
@@ -16,19 +15,7 @@ from wandb.filesync import step_upload
 
 
 def resolve_path(path):
-    try:
-        from pathlib import Path
-
-        return str(Path(path).resolve())
-    except:
-        # Pathlib isn't present for python versions earlier than 3.3
-        return os.path.realpath(path)
-
-
-# Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings(
-    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-)
+    return str(Path(path).resolve())
 
 
 # Temporary directory for copies we make of some file types to
@@ -161,7 +148,7 @@ class FilePusher(object):
         # get a named temp file that the file pusher with hold a reference to so it
         # doesn't get gc'd. Obviously, we shouldn't do this very much :). It's currently
         # used for artifact metadata.
-        f = builtin_tempfile.NamedTemporaryFile(mode=mode, delete=False)
+        f = tempfile.NamedTemporaryFile(mode=mode, delete=False)
         self._temp_file_refs.append(f)
         return f
 
