@@ -77,7 +77,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
 
 # fixme: should either return bool or error out. fix once confident.
-def _str_as_bool(val: Union[str, bool, None]) -> Union[str, bool, None]:
+def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
     """
     Parse a string as a bool.
     """
@@ -91,11 +91,11 @@ def _str_as_bool(val: Union[str, bool, None]) -> Union[str, bool, None]:
 
     # fixme: remove this and raise error instead once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. "
+        f"Could not parse value {val} as a bool. Defaulting to None."
         "This will raise an error in the future."
     )
-    # raise UsageError(f"Could not parse value {val} as a bool")
-    return val
+    return None
+    # raise UsageError(f"Could not parse value {val} as a bool.")
 
 
 def _redact_dict(
