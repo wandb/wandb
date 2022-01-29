@@ -990,7 +990,7 @@ class Run(object):
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files = dict(files=[(fname, "now")])
+        files = dict(files=[(glob.escape(fname), "now")])
         self._backend.interface.publish_files(files)
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
