@@ -4,6 +4,7 @@ settings test.
 
 import copy
 import datetime
+import json
 import os
 import platform
 import sys
@@ -131,7 +132,7 @@ def test_property_str():
 
 def test_property_repr():
     p = Property(name="foo", value=2, hook=lambda x: x ** 2)
-    assert repr(p) == f"<Property foo: value=4 _value=2 source=1 is_policy=False>"
+    assert repr(p) == "<Property foo: value=4 _value=2 source=1 is_policy=False>"
 
 
 # test Settings class
@@ -848,3 +849,9 @@ def test_default_props_match_class_attributes():
     class_attributes = list(get_type_hints(Settings).keys())
     default_props = list(s._default_props().keys())
     assert set(default_props) - set(class_attributes) == set()
+
+
+def test_static_settings_json_dump():
+    s = Settings()
+    static_settings = s.make_static(include_properties=True)
+    assert json.dumps(static_settings)
