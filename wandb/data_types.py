@@ -25,7 +25,6 @@ import pprint
 import re
 import sys
 import tempfile
-import warnings
 
 import six
 import wandb
