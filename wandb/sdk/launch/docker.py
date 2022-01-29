@@ -56,6 +56,7 @@ def get_docker_user(launch_project):
 
 
 TEMPLATE = """
+##### stage 1: build
 FROM {py_build_image} as build
 
 # install in venv to copy
@@ -66,7 +67,7 @@ COPY src/requirements.txt .
 # different requirements line if we have buildx or not
 {requirements_line}
 
-# different base image for cpu/gpu
+##### stage 2: base
 {base_setup}
 
 COPY --from=build /opt/venv /opt/venv
@@ -132,21 +133,14 @@ def get_current_python_version():
     return version, major
 
 
-def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
-    if launch_project.python_version:
-        py_version, py_major = (
-            launch_project.python_version,
-            launch_project.python_version.split(".")[0],
-        )
-    else:
-        py_version, py_major = get_current_python_version()
+def get_base_setup(launch_project, py_version, py_major):
+    """Fill in the Dockerfile templates for stage 2 of build. CPU version is built on python:slim, GPU
+    version is built on nvidia:cuda"""
 
-    python_build_image = "python:{}".format(py_version)     # use bigger image for package installation
     python_base_image = "python:{}-slim-buster".format(py_version)  # slim for running
     if launch_project.gpu:
         cuda_version = launch_project.cuda_version or "10.0"
-
-        # must install all python setup
+        # cuda image doesn't come with python tooling
         if py_major == "2":
             python_packages = [
                 "python{}".format(py_version),
@@ -159,26 +153,25 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
                 "python3-pip",
                 "python3-setuptools",
             ]
-
         base_setup = CUDA_SETUP_TEMPLATE.format(
+            cuda_base_image="nvidia/cuda:{}-runtime".format(cuda_version),
             python_packages=" \\\n".join(python_packages),
             py_version=py_version,
-            cuda_base_image="nvidia/cuda:{}-runtime".format(cuda_version)
         )
     else:
         python_packages = [
             "python3-dev" if py_major == "3" else "python-dev",
             "gcc",
-        ]  # required for python < 3.7
-
+        ]  # gcc required for python < 3.7 for some reason
         base_setup = PYTHON_SETUP_TEMPLATE.format(
             py_base_image=python_base_image
         )
+    return base_setup
 
-    username, userid = get_docker_user(launch_project)
-    workdir = "/home/{user}".format(user=username)
 
-    # add env vars
+def get_env_vars_section(launch_project, api, workdir):
+    """Fill in wandb-specific environment variables"""
+
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
@@ -186,7 +179,7 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
         base_url = "http://host.docker.internal:9002"
     else:
         base_url = api.settings("base_url")
-    env_vars_section = "\n".join(
+    return "\n".join(
         [
             f"ENV WANDB_BASE_URL={base_url}",
             f"ENV WANDB_API_KEY={api.api_key}",
@@ -199,9 +192,22 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
         ]
     )
 
-    requirements_line = ""
 
+def generate_dockerfile(api, launch_project, image_uri, entrypoint):
+    if launch_project.python_version:
+        py_version, py_major = (
+            launch_project.python_version,
+            launch_project.python_version.split(".")[0],
+        )
+    else:
+        py_version, py_major = get_current_python_version()
+
+    ##### stage 1: build
+    python_build_image = "python:{}".format(py_version)     # use full python image for package installation
+
+    requirements_line = ""
     if docker.is_buildx_installed():
+        workdir = "/home/stephchen"     # @@@ todo tmp this doesn't make any sense, the user doesn't exit yet
         requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(  # todo: don't think this is working for partial caching
             workdir, launch_project.docker_user_id
         )
@@ -212,23 +218,38 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
         requirements_line = "RUN WANDB_DISABLE_CACHE=true "
     requirements_line += "pip install -r requirements.txt"
 
+    ##### stage 2: base
+    python_base_setup = get_base_setup(launch_project, py_version, py_major)
+
+    # setup user info
+    username, userid = get_docker_user(launch_project)
+    workdir = "/home/{user}".format(user=username)
+
+    # add env vars
+    env_vars_section = get_env_vars_section(launch_project, api, workdir)
+
     # put together entrypoint & args
     # json format to ensure double quotes
     entry_cmd = json.dumps(get_entry_point_command(entrypoint, launch_project.override_args)[0].split())
 
     dockerfile_contents = TEMPLATE.format(
         py_build_image=python_build_image,
+        requirements_line=requirements_line,
+        base_setup=python_base_setup,
         user=username,
         uid=userid,
-        env_vars=env_vars_section,
         workdir=workdir,
+        env_vars=env_vars_section,
         command_arr=entry_cmd,
-        requirements_line=requirements_line,
-        base_setup=base_setup,
     )
     print(dockerfile_contents)  # tmp
 
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
+    return dockerfile_contents
+
+
+def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):     # @@@ todo: rename this fn
+    dockerfile_str = generate_dockerfile(api, launch_project, image_uri, entrypoint)
+    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
 
     try:
@@ -248,7 +269,7 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):
     return image
 
 
-def generate_docker_base_image(
+def generate_docker_base_image(     # @@@ todo: delete
     launch_project: LaunchProject, entry_cmd: str
 ) -> Optional[str]:
     """Uses project and entry point to generate the docker image."""

@@ -163,7 +163,7 @@ class LaunchProject(object):
         return self.add_entry_point(entry_point)
 
     def _fetch_project_local(self, internal_api: Api) -> None:
-        """Fetch a project into a local directory, returning the path to the local project directory."""
+        """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
@@ -396,6 +396,19 @@ def fetch_and_validate_project(
             launch_project.add_entry_point("main.py")
     else:
         launch_project._fetch_project_local(internal_api=api)
+
+    # todo: user-specifiable deps filesname?
+    # @@@ todo: don't think this is the best way of doing this
+    deps_types = []
+    if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")):
+        deps_types += ["pip"]
+    if os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
+        deps_types += ["pip-frozen"] # @@@ todo: do conda projects also produce a requirements.frozen.txt in wandb?
+    if os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
+        deps_types += ["conda"]
+    launch_project.deps_types = deps_types
+
+
     first_entry_point = list(launch_project._entry_points.keys())[0]
     _logger.info("validating entrypoint parameters")
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
