@@ -375,7 +375,9 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
 
 
 # test that information about validation errors in wandb.Settings is included in telemetry
-def test_settings_validation_telemetry(live_mock_server, test_settings, parse_ctx, capsys):
+def test_settings_validation_telemetry(
+    live_mock_server, test_settings, parse_ctx, capsys
+):
     test_settings.update(api_key=123)
     captured = capsys.readouterr().err
     msg = "Invalid value for property api_key: 123"
