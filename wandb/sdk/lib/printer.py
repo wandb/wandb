@@ -462,7 +462,7 @@ class Printer:
         )
         if not self._quiet and self._offline:
             self._info.append("You can sync this run to the cloud by running:")
-            self._info.append(Formater(f"wandb sync {self._sync_dir}", self._html).name)
+            self._info.append(f"wandb sync {Formater({self._sync_dir}, self._html).name}")
 
     def _append_log_info(self) -> None:
         if self._quiet:
