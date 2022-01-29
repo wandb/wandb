@@ -137,6 +137,19 @@ def start_mock_server(worker_id):
 atexit.register(test_cleanup)
 
 
+@pytest.fixture(autouse=True)
+def finish_run():
+    """Always run this at the end of a test run"""
+    try:
+        yield
+    finally:
+        try:
+            if wandb.run is not None:
+                wandb.run.finish()
+        except Exception:
+            pass
+
+
 @pytest.fixture
 def test_name(request):
     # change "test[1]" to "test__1__"
@@ -230,8 +243,8 @@ def test_settings(test_dir, mocker, live_mock_server):
     )
     yield settings
     # Just in case someone forgets to join in tests. ...well, please don't!
-    if wandb.run is not None:
-        wandb.run.finish()
+    # if wandb.run is not None:
+    #     wandb.run.finish()
 
 
 @pytest.fixture
