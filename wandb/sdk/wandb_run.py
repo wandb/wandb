@@ -990,7 +990,7 @@ class Run(object):
     def _datatypes_callback(self, fname: str) -> None:
         if not self._backend or not self._backend.interface:
             return
-        files = dict(files=[(fname, "now")])
+        files = dict(files=[(glob.escape(fname), "now")])
         self._backend.interface.publish_files(files)
 
     # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
@@ -2138,10 +2138,7 @@ class Run(object):
             return logs
 
         # Only print sparklines if the terminal is utf-8
-        # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
-        #   which doesn't have the attribute 'encoding'
-        encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in ("UTF_8", "UTF-8",):
+        if not is_unicode_safe(sys.stdout):
             return logs
 
         logger.info("rendering history")
