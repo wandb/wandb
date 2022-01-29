@@ -1075,6 +1075,7 @@ class Run(object):
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
+        self._printer._set_run_obj(run_obj)
 
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
@@ -1728,7 +1729,6 @@ class Run(object):
             self._printer._display_on_init(self._backend.interface)
 
     def _on_start(self) -> None:
-
         if self._backend and self._backend.interface:
             self._printer._display_on_start(self._backend.interface)
 

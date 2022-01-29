@@ -198,6 +198,9 @@ class Printer:
         if self._quiet:
             return
 
+        if self._offline:
+            return
+
         try:
             check = interface.communicate_check_version(
                 current_version=wandb.__version__
