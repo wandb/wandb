@@ -603,7 +603,6 @@ class _WandbInit(object):
                 with telemetry.context(run=run) as tel:
                     tel.feature.resumed = True
             run._set_run_obj(run_result.run)
-            logger.info("communicating current version")
             run._on_init()
 
         logger.info("starting run threads in backend")

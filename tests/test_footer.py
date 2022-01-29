@@ -34,8 +34,8 @@ def check_keys(lines, start, end, exp_keys):
     assert start in lines
     start_idx = lines.index(start)
     end_idx = lines.index(end, start_idx)
-    found_lines = lines[start_idx + 1 : end_idx - 1]
-    found_keys = [l.split()[0] for l in found_lines]
+    found_lines = lines[start_idx + 1 : end_idx]
+    found_keys = [line.split()[0] for line in found_lines if line]
     assert found_keys == exp_keys
 
 

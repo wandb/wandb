@@ -40,7 +40,6 @@ from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
-    PollExitResponse,
     Record,
     RunRecord,
 )
@@ -264,11 +263,6 @@ class Run(object):
     ]
     _wl: Optional[_WandbSetup]
 
-    # _upgraded_version_message: Optional[str]
-    # _deleted_version_message: Optional[str]
-    # _yanked_version_message: Optional[str]
-    _check_version: Optional[Record]
-
     _out_redir: Optional[redirect.RedirectBase]
     _err_redir: Optional[redirect.RedirectBase]
     _redirect_cb: Optional[Callable[[str, str], None]]
@@ -342,17 +336,10 @@ class Run(object):
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._jupyter_progress = None
         self._quiet = self._settings._quiet
-        if self._settings._jupyter and ipython.in_jupyter():
-            self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
-        # self._upgraded_version_message = None
-        # self._deleted_version_message = None
-        # self._yanked_version_message = None
-        self._check_version = None
-        self._printer = wandb_print.Printer()
+        self._printer = wandb_print.PrinterManager()
         self._used_artifact_slots: List[str] = []
 
         # Pull info from settings
@@ -373,8 +360,6 @@ class Run(object):
 
         # Created when the run "starts".
         self._run_status_checker = None
-
-        self._poll_exit_response = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -1054,6 +1039,7 @@ class Run(object):
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
+        self._printer._set_run_obj(run_obj)
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -1083,6 +1069,7 @@ class Run(object):
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
+        self._printer._set_run_obj(run_obj)
 
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
@@ -1456,7 +1443,7 @@ class Run(object):
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info("finishing run %s", self.path)
+        logger.info(f"finishing run {self.path}")
         # detach jupyter hooks / others that needs to happen before backend shutdown
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
@@ -1505,15 +1492,6 @@ class Run(object):
             vega_spec_name, data_table, fields, string_fields or {}
         )
         return visualization
-
-    # def _set_upgraded_version_message(self, msg: str) -> None:
-    #     self._upgraded_version_message = msg
-
-    # def _set_deleted_version_message(self, msg: str) -> None:
-    #     self._deleted_version_message = msg
-
-    # def _set_yanked_version_message(self, msg: str) -> None:
-    #     self._yanked_version_message = msg
 
     def _add_panel(
         self, visualize_key: str, panel_type: str, panel_config: dict
@@ -1718,9 +1696,6 @@ class Run(object):
             if ipython._get_python_type() == "python":
                 os._exit(-1)
         else:
-            # if silent, skip this as it is used to output stuff
-            if self._settings._silent:
-                return
             self._on_final()
 
     def _console_start(self) -> None:
@@ -1753,17 +1728,7 @@ class Run(object):
     def _on_start(self) -> None:
 
         self._printer._display_on_start(
-            self._get_project_url(),
-            self._get_run_url(),
-            self._get_sweep_url(),
-            self._get_run_name(),
-            self._settings.sync_dir,
-            self._settings._offline,
-            self._settings._quiet,
-            self._settings._jupyter,
-            self._quiet,
-            self._run_obj,
-            self.resumed,
+            self._get_project_url(), self._get_run_url(), self._get_sweep_url(),
         )
 
         if self._settings.save_code and self._settings.code_dir is not None:
@@ -1802,12 +1767,7 @@ class Run(object):
 
         if self._backend and self._backend.interface:
             self._printer._display_on_finish(
-                self._settings._silent,
-                self._settings._jupyter,
-                self._exit_code,
-                self._settings._offline,
-                self._quiet,
-                self._backend.interface,
+                self._exit_code, self._quiet, self._backend.interface,
             )
 
         if self._backend:
@@ -1818,18 +1778,7 @@ class Run(object):
 
     def _on_final(self) -> None:
 
-        self._printer._display_on_final(
-            self._settings._jupyter,
-            self._quiet,
-            self._settings._silent,
-            self._get_run_url(),
-            self._get_run_name(),
-            self._settings._offline,
-            self._settings.log_user,
-            self._settings.log_internal,
-            self._settings.sync_dir,
-            self._settings.is_local,
-        )
+        self._printer._display_on_final(self._quiet, self._get_run_url())
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
