@@ -5,6 +5,7 @@ Implement ServiceInterface for socket transport.
 
 import logging
 from typing import TYPE_CHECKING
+from xml.etree.ElementInclude import include
 
 from wandb.proto import wandb_server_pb2 as spb
 
@@ -33,7 +34,7 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
-        settings_dict = settings.make_static()
+        settings_dict = settings.make_static(include_properties=True)
         settings_dict["_log_level"] = logging.DEBUG
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
 
