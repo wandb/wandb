@@ -165,13 +165,10 @@ class Source(enum.IntEnum):
 
 
 @enum.unique
-class SettingsConsole(enum.Enum):
+class SettingsConsole(enum.IntEnum):
     OFF = 0
     WRAP = 1
     REDIRECT = 2
-
-    def __repr__(self) -> str:
-        return str(self.value)
 
 
 class Property:
