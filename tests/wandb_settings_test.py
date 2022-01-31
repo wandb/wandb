@@ -5,6 +5,7 @@ settings test.
 import copy
 import datetime
 import inspect
+import json
 import os
 import platform
 import sys
@@ -162,7 +163,7 @@ def test_property_str():
 
 def test_property_repr():
     p = Property(name="foo", value=2, hook=lambda x: x ** 2)
-    assert repr(p) == f"<Property foo: value=4 _value=2 source=1 is_policy=False>"
+    assert repr(p) == "<Property foo: value=4 _value=2 source=1 is_policy=False>"
 
 
 # test Settings class
@@ -896,3 +897,9 @@ def test_settings_strict_validation(capsys):
     )
     for msg in msgs:
         assert msg in captured
+
+        
+def test_static_settings_json_dump():
+    s = Settings()
+    static_settings = s.make_static(include_properties=True)
+    assert json.dumps(static_settings)
