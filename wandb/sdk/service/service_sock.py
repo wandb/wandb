@@ -33,7 +33,7 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
-        settings_dict = dict(settings)
+        settings_dict = settings.make_static()
         settings_dict["_log_level"] = logging.DEBUG
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
 
