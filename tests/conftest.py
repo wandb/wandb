@@ -189,7 +189,9 @@ def git_repo_with_remote(runner):
 def git_repo_with_remote_and_port(runner):
     with runner.isolated_filesystem():
         with git.Repo.init(".") as repo:
-            repo.create_remote("origin", "https://foo:bar@github.com:8080/FooTest/Foo.git")
+            repo.create_remote(
+                "origin", "https://foo:bar@github.com:8080/FooTest/Foo.git"
+            )
             yield GitRepo(lazy=False)
 
 
