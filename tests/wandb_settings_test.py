@@ -898,7 +898,7 @@ def test_settings_strict_validation(capsys):
     for msg in msgs:
         assert msg in captured
 
-        
+
 def test_static_settings_json_dump():
     s = Settings()
     static_settings = s.make_static(include_properties=True)
