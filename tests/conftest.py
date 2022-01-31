@@ -169,7 +169,7 @@ def git_repo(runner):
         r = git.Repo.init(".")
         mkdir_exists_ok("wandb")
         # Because the forked process doesn't use my monkey patch above
-        with open("wandb/settings", "w") as f:
+        with open(os.path.join("wandb", "settings"), "w") as f:
             f.write("[default]\nproject: test")
         open("README", "wb").close()
         r.index.add(["README"])
