@@ -386,7 +386,24 @@ def test_settings_validation_telemetry(
     ctx_util = parse_ctx(live_mock_server.get_ctx())
     telemetry = ctx_util.telemetry
     # TelemetryRecord field 11 is Issues,
-    # whose fields 1 correspond to validation warnings in Settings
-    telemetry_deprecated = telemetry.get("11", [])
-    assert 1 in telemetry_deprecated
+    # whose field 1 corresponds to validation warnings in Settings
+    telemetry_issues = telemetry.get("11", [])
+    assert 1 in telemetry_issues
     run.finish()
+
+
+def test_settings_unexpected_args_telemetry(
+    runner, live_mock_server, parse_ctx, capsys
+):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=wandb.Settings(blah=3))
+        captured = capsys.readouterr().err
+        msg = "Ignoring unexpected arguments: ['blah']"
+        assert msg in captured
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+        # TelemetryRecord field 11 is Issues,
+        # whose field 2 corresponds to unexpected arguments in Settings
+        telemetry_issues = telemetry.get("11", [])
+        assert 2 in telemetry_issues
+        run.finish()
