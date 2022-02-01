@@ -532,6 +532,16 @@ class Api(object):
             entity = self.settings["entity"] or self.default_entity
         return Project(self.client, entity, name, {})
 
+    def report(self, path):
+        parts = path.split("/")
+        if len(parts) < 3:
+            raise ValueError("path must be team/project/report_name")
+
+        reports = self.reports("/".join(parts[:2]), parts[-1])
+        if len(reports) > 0:
+            return reports[0]
+        return None
+
     def reports(self, path="", name=None, per_page=50):
         """Get reports for a given project path.
 
