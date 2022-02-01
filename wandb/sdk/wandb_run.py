@@ -1,8 +1,3 @@
-#
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
-
 import atexit
 from datetime import timedelta
 from enum import IntEnum
@@ -572,6 +567,13 @@ class Run(object):
             return
 
         self._attach_id = _attach_id
+
+    @property
+    def settings(self) -> Settings:
+        """Returns a frozen copy of run's Settings object."""
+        cp = self._settings.copy()
+        cp.freeze()
+        return cp
 
     @property
     def dir(self) -> str:
@@ -1612,14 +1614,14 @@ class Run(object):
         project_url = self._get_project_url()
         run_url = self._get_run_url()
         sweep_url = self._get_sweep_url()
-        version_str = "Tracking run with wandb version {}".format(wandb.__version__)
+        version_str = f"Tracking run with wandb version {wandb.__version__}"
         if self.resumed:
             run_state_str = "Resuming run"
         else:
             run_state_str = "Syncing run"
         run_name = self._get_run_name()
 
-        sync_dir = self._settings._sync_dir
+        sync_dir = self._settings.sync_dir
         if self._settings._jupyter:
             sync_dir = "<code>{}</code>".format(sync_dir)
         dir_str = "Run data is saved locally in {}".format(sync_dir)
@@ -1711,7 +1713,7 @@ class Run(object):
 
         out_redir: redirect.RedirectBase
         err_redir: redirect.RedirectBase
-        if console == self._settings.Console.REDIRECT:
+        if console == SettingsConsole.REDIRECT:
             logger.info("Redirecting console.")
             out_redir = redirect.Redirect(
                 src="stdout",
@@ -1740,10 +1742,10 @@ class Run(object):
                         "wrapping stdout/err."
                     )
                     wandb.termlog(msg)
-                    self._redirect(None, None, console=self._settings.Console.WRAP)
+                    self._redirect(None, None, console=SettingsConsole.WRAP)
 
                 add_import_hook("tensorflow", wrap_fallback)
-        elif console == self._settings.Console.WRAP:
+        elif console == SettingsConsole.WRAP:
             logger.info("Wrapping output streams.")
             out_redir = redirect.StreamWrapper(
                 src="stdout",
@@ -1759,7 +1761,7 @@ class Run(object):
                     self._output_writer.write,  # type: ignore
                 ],
             )
-        elif console == self._settings.Console.OFF:
+        elif console == SettingsConsole.OFF:
             return
         else:
             raise ValueError("unhandled console")
@@ -2061,7 +2063,7 @@ class Run(object):
         if self._settings._offline and not self._quiet:
             final_logs += f"You can sync this run to the cloud by running:{lb}"
             final_logs += click.style(
-                f"wandb sync {self._settings._sync_dir}{lb}", fg="yellow"
+                f"wandb sync {self._settings.sync_dir}{lb}", fg="yellow"
             )
 
         if not self._quiet and (self._settings.log_user or self._settings.log_internal):
@@ -2147,13 +2149,7 @@ class Run(object):
             return logs
 
         # Only print sparklines if the terminal is utf-8
-        # In some python 2.7 tests sys.stdout is a 'cStringIO.StringO' object
-        #   which doesn't have the attribute 'encoding'
-        encoding = getattr(sys.stdout, "encoding", None)
-        if not encoding or encoding.upper() not in (
-            "UTF_8",
-            "UTF-8",
-        ):
+        if not is_unicode_safe(sys.stdout):
             return logs
 
         logger.info("rendering history")
