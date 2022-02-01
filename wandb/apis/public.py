@@ -2512,8 +2512,10 @@ class QueryGenerator(object):
         "NIN": "$nin",
         "REGEX": "$regex",
     }
+    MONGO_TO_INDIVIDUAL_OP = {v: k for k, v in INDIVIDUAL_OP_TO_MONGO.items()}
 
     GROUP_OP_TO_MONGO = {"AND": "$and", "OR": "$or"}
+    MONGO_TO_GROUP_OP = {v: k for k, v in GROUP_OP_TO_MONGO.items()}
 
     def __init__(self):
         pass
@@ -2561,6 +2563,18 @@ class QueryGenerator(object):
             return "tags." + key["name"]
         raise ValueError("Invalid key: %s" % key)
 
+    def server_path_to_key(self, path):
+        if path.startswith("config."):
+            return {"section": "config", "name": path.split("config.", 1)[0]}
+        elif path.startswith("summary_metrics."):
+            return {"section": "summary", "name": path.split("summary_metrics.", 1)[0]}
+        elif path.startswith("keys_info.keys."):
+            return {"section": "keys_info", "name": path.split("keys_info.keys.", 1)[0]}
+        elif path.startswith("tags."):
+            return {"section": "tags", "name": path.split("tags.", 1)[0]}
+        else:
+            return {"section": "run", "name": path}
+
     def _to_mongo_individual(self, filter):
         if filter["key"]["name"] == "":
             return None
@@ -2568,7 +2582,7 @@ class QueryGenerator(object):
         if filter.get("value") is None and filter["op"] != "=" and filter["op"] != "!=":
             return None
 
-        if filter.get("disabled") is None and filter["disabled"]:
+        if filter.get("disabled") is not None and filter["disabled"]:
             return None
 
         if filter["key"]["section"] == "tags":
@@ -2580,7 +2594,7 @@ class QueryGenerator(object):
                 }
             else:
                 return {"tags": filter["key"]["name"]}
-        path = self.key_to_server_path(filter.key)
+        path = self.key_to_server_path(filter["key"]["name"])
         if path is None:
             return path
         return {path: self._to_mongo_op_value(filter["op"], filter["value"])}
@@ -2595,24 +2609,229 @@ class QueryGenerator(object):
                 ]
             }
 
+    def mongo_to_filter(self, filter):
+        # Returns {"op": "OR", "filters": [{"op": "AND", "filters": []}]}
+        group_op = None
+        for key in filter.keys():
+            if self.MONGO_TO_GROUP_OP[key]:
+                group_op = key
+                break
+        if group_op is not None:
+            return {
+                "op": self.MONGO_TO_GROUP_OP[group_op],
+                "filters": [self.mongo_to_filter(f) for f in filter[group_op]],
+            }
+        else:
+            for k, v in filter.items():
+                if isinstance(v, dict):
+                    # TODO: do we always have one key in this case?
+                    op = v.keys()[0]
+                    return {
+                        "key": self.server_path_to_key(k),
+                        "op": self.MONGO_TO_INDIVIDUAL_OP[op],
+                        "value": v[op],
+                    }
+                else:
+                    return {"key": self.server_path_to_key(k), "op": "=", "value": v}
+
+
+class RunSet(object):
+    def __init__(self, panel_grid, spec, open, offset=0):
+        self.panel_grid = panel_grid
+        self._open = open
+        self.spec = spec
+        self.query_generator = QueryGenerator()
+        self.offset = offset
+        self.modified = False
+
+    @property
+    def runs(self, only_selected=True, per_page=50):
+        order = self.query_generator.key_to_server_path(self.spec["sort"]["key"])
+        if self.spec["sort"].get("ascending"):
+            order = "+" + order
+        else:
+            order = "-" + order
+        filters = self.query_generator.filter_to_mongo(self.spec["filters"])
+        if only_selected:
+            # TODO: handle this not always existing
+            filters["$or"][0]["$and"].append(
+                {"name": {"$in": self.spec["selections"]["tree"]}}
+            )
+        return Runs(
+            self.client,
+            self.entity,
+            self.project,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+        )
+
+    @runs.setter
+    def set_runs(self, runs):
+        self.modified = True
+        self.spec["filters"] = self.query_generator.mongo_to_filter(runs.filters)
+        self.panel_grid.callback(self)
+
+    @property
+    def visible(self):
+        return self.spec["selections"]["tree"]
+
+    # TODO: handle wild sub selection madness?
+    @visible.setter
+    def set_visible(self, run_ids):
+        self.modified = True
+        assert all([isinstance(run_id, str) for run_id in run_ids])
+        self.spec["selections"]["tree"] = run_ids
+        self.panel_grid.callback(self)
+
+    @property
+    def open(self):
+        return self._open
+
+    @open.setter
+    def set_open(self, is_open):
+        self._open = is_open
+        self.modified = True
+        self.panel_grid.callback(self)
+
+    @property
+    def enabled(self):
+        return self.spec["enabled"]
+
+    @enabled.setter
+    def set_enabled(self, enabled):
+        self.modified = True
+        self.spec["enabled"] = enabled
+        self.panel_grid.callback(self)
+
+
+class PanelGrid(object):
+    def __init__(self, report, spec, offset=0):
+        self.report = report
+        self.spec = spec
+        self.offset = offset
+        self.modifed = False
+
+    @property
+    def run_sets(self):
+        run_sets = []
+        for i, run_set in enumerate(self.spec["metadata"]["runSets"]):
+            run_sets.append(RunSet(self, run_set, i))
+        return run_sets
+
+    @property
+    def open(self):
+        return self.spec["panelBankSectionConfig"]["isOpen"]
+
+    @open.setter
+    def set_open(self, is_open):
+        self.modified = True
+        self.spec["panelBankSectionConfig"]["isOpen"] = is_open
+        self.report.callback(self)
+
+    @property
+    def open_run_set(self):
+        return self.spec["metadata"]["openRunSet"]
+
+    @open_run_set.setter
+    def set_open_run_set(self, idx):
+        total_run_sets = len(self.run_sets)
+        assert (
+            idx <= total_run_sets
+        ), f"There are only {total_run_sets} run sets available."
+        self.modified = True
+        self.spec["metadata"]["openRunSet"] = idx
+        self.report.callback(self)
+
+    def callback(self, run_set):
+        self.modified = True
+        self.spec["metadata"]["runSets"][run_set.offset] = run_set.spec
+        if run_set.open:
+            self.set_open_run_set(run_set.offset)
+        self.report.callback(self)
+
 
 class BetaReport(Attrs):
     """BetaReport is a class associated with reports created in wandb.
 
-    WARNING: this API will likely change in a future release
+    WARNING: this API will likely change in a future release.
+
+    Examples:
+
+        ```
+        api = wandb.Api()
+        report = api.report("team/username/Report-XXXXX")
+        run_set_named = report.run_sets["Run set 2"]
+        run_set_named.visible = ["XXXX", "YYYY"]
+
+        panel_grid = report.panel_grids[0]
+        panel_grid.open = False
+        run_set = panel_grid.run_sets[0]
+        run_set.runs = api.runs("vanpelt/foo", filters={"id": {"$in": [1,2,3,4]}})
+        run_set.enabled = False
+        run_set.open = True
+        report.save(draft=False, clone=False)
+        ```
 
     Attributes:
-        name (string): report name
-        description (string): report descirpiton;
+        display_name (string): report name
+        description (string): report description
         user (User): the user that created the report
-        spec (dict): the spec off the report;
+        spec (dict): the spec off the report
+        panel_grids (PanelGrid[]): The panel grid objects in a report
+        run_sets (dict): all run sets keyed by name in the report.
         updated_at (string): timestamp of last update
     """
+
+    mutation = gql(
+        """
+      mutation upsertView(
+            $id: ID
+            $entityName: String
+            $projectName: String
+            $type: String
+            $name: String
+            $displayName: String
+            $description: String
+            $spec: String!
+        ) {
+            upsertView(
+            input: {
+                id: $id
+                entityName: $entityName
+                projectName: $projectName
+                name: $name
+                displayName: $displayName
+                description: $description
+                type: $type
+                spec: $spec
+            }
+            ) {
+            view {
+                id
+                type
+                name
+                displayName
+                description
+                project {
+                    name
+                    entityName
+                }
+                spec
+                updatedAt
+            }
+            inserted
+            }
+        }
+    """
+    )
 
     def __init__(self, client, attrs, entity=None, project=None):
         self.client = client
         self.project = project
         self.entity = entity
+        self.modified = False
+        self._panel_grids = None
         self.query_generator = QueryGenerator()
         super(BetaReport, self).__init__(dict(attrs))
         self._attrs["spec"] = json.loads(self._attrs["spec"])
@@ -2620,6 +2839,34 @@ class BetaReport(Attrs):
     @property
     def sections(self):
         return self.spec["panelGroups"]
+
+    @property
+    def panel_grids(self):
+        if self._panel_grids is not None:
+            return self._panel_grids
+        if self.spec.get("version", 0) != 5:
+            raise ValueError(
+                "Only newer reports are supported, clone this report to migrate to the latest version."
+            )
+        self._panel_grids = []
+        for block in self.spec["blocks"]:
+            if block["type"] == "panel-grid":
+                self._panel_grids.append(PanelGrid(self, block))
+        return self._panel_grids
+
+    @property
+    def run_sets(self):
+        run_sets = {}
+        idx = 0
+        for panel_grid in self.panel_grids:
+            for run_set in panel_grid.run_sets:
+                name = run_set["name"]
+                if name.startswith("Run set"):
+                    idx += 1
+                if run_sets.get(name):
+                    name = f"Run set {idx}"
+                run_sets[name] = run_set
+        return run_sets
 
     def runs(self, section, per_page=50, only_selected=True):
         run_set_idx = section.get("openRunSet", 0)
@@ -2673,6 +2920,31 @@ class BetaReport(Attrs):
             style += "display:none;"
             prefix = ipython.toggle_button("report")
         return prefix + f'<iframe src="{url}" style="{style}"></iframe>'
+
+    def callback(self, panel_grid):
+        self.modified = True
+        self._panel_grids[panel_grid.offset] = panel_grid.spec
+
+    def save(self, name=None, draft=False, clone=True, project=None, entity=None):
+        if not self.modified:
+            wandb.termwarn("Report hasn't been modified")
+        view_type = "runs"
+        if draft:
+            view_type = "runs/draft"
+        # TODO: convert into report object
+        return self.client.execute(
+            self.mutation,
+            variable_values={
+                "id": None if clone else self.id,
+                "entityName": self.entity,
+                "projectName": project or self.project,
+                "description": entity or self.description,
+                "name": self.name,
+                "displayName": name or self.display_name,
+                "type": view_type,
+                "spec": json.dumps(self.spec),
+            },
+        )
 
     def _repr_html_(self) -> str:
         return self.to_html()
