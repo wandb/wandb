@@ -387,10 +387,15 @@ to provide a test environment for functional tests. Currently, we maintain a cop
 `yea-wandb/src/yea_wandb`, so they need to be in sync.
 
 If you update one of those files, you need to:
-- Make a new branch in `yea-wandb` with the new versions of the files.
-- Point the client branch you are working on to this `yea-wandb` branch.
-- Merge and release `yea-wandb`.
-- Point the client branch you are working on to the fresh release of `yea-wandb`.
+- While working on your contribution:
+  - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
+    Make sure to update the `yea-wandb` version.
+  - Point the client branch you are working on to this `yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and change it to 
+    `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
+- Once you are happy with your changes:
+  - Merge and release `yea-wandb` (with `make release`).
+  - Point the client branch you are working on to the fresh release of `yea-wandb`.
 
 ### Regression Testing
 
