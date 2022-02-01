@@ -915,12 +915,8 @@ class Settings:
 
         # fixme: this is to pass on info on unexpected args in settings
         if settings.__dict__["_Settings__unexpected_args"]:
-            object.__setattr__(
-                self,
-                "_Settings__unexpected_args",
-                self.__dict__["_Settings__unexpected_args"].update(
-                    settings.__dict__["_Settings__unexpected_args"]
-                ),
+            self.__dict__["_Settings__unexpected_args"].update(
+                settings.__dict__["_Settings__unexpected_args"]
             )
 
     @staticmethod
