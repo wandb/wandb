@@ -2260,7 +2260,7 @@ class Run(object):
                 Default aggregation is `copy`
                 Aggregation `best` defaults to `goal`==`minimize`
             goal: Specify direction for optimizing the metric.
-                Supported direections: "minimize,maximize"
+                Supported directions: "minimize,maximize"
 
         Returns:
             A metric object is returned that can be further specified.
