@@ -290,7 +290,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     """
     # We defer importing git until the last moment, because the import requires that the git
     # executable is available on the PATH, so we only want to fail if we actually need it.
-    import git  # type: ignore
+    import git
 
     _logger.info("Fetching git repo")
     repo = git.Repo.init(dst_dir)
@@ -299,7 +299,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     if version is not None:
         try:
             repo.git.checkout(version)
-        except git.exc.GitCommandError as e:
+        except git.exc.GitCommandError as e:  # type: ignore
             raise ExecutionError(
                 "Unable to checkout version '%s' of git repo %s"
                 "- please ensure that the version exists in the repo. "
