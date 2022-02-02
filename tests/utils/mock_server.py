@@ -534,6 +534,7 @@ def create_app(user_ctx=None):
                     return ret_val
                 return json.dumps({"data": {"project": {"run": run(ctx)}}})
         for query_name in [
+            "Model",  # backward compatible for 0.12.10 and below
             "RunConfigs",
             "RunResumeStatus",
             "RunStoppedStatus",
@@ -555,7 +556,8 @@ def create_app(user_ctx=None):
                 return json.dumps(
                     {"data": {project_field_name: {run_field_name: run_config}}}
                 )
-        if "query EntityProjects(" in body["query"]:
+        # Models() is backward compatible for 0.12.10 and below
+        if "query Models(" in body["query"] or "query EntityProjects(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
@@ -1052,6 +1054,15 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        # backward compatible for 0.12.10 and below
+        if "query RunArtifacts(" in body["query"]:
+            if "inputArtifacts" in body["query"]:
+                key = "inputArtifacts"
+            else:
+                key = "outputArtifacts"
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {"data": {"project": {"run": {key: artifacts}}}}
         if "query RunInputArtifacts(" in body["query"]:
             artifacts = paginated(artifact(ctx), ctx)
             artifacts["totalCount"] = ctx["page_times"]
@@ -1130,7 +1141,10 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
-        if "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]:
+        # Project() is backward compatible for 0.12.10 and below
+        if ("query Project(" in body["query"] and "runQueues" in body["query"]) or (
+            "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]
+        ):
             if ctx["run_queues_return_default"]:
                 return json.dumps(
                     {
