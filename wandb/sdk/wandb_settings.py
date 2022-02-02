@@ -913,6 +913,12 @@ class Settings:
             # note that only the same/higher priority settings are propagated
             self.update({k: v._value}, source=v.source)
 
+        # fixme: this is to pass on info on unexpected args in settings
+        if settings.__dict__["_Settings__unexpected_args"]:
+            self.__dict__["_Settings__unexpected_args"].update(
+                settings.__dict__["_Settings__unexpected_args"]
+            )
+
     @staticmethod
     def _load_config_file(file_name: str, section: str = "default") -> dict:
         parser = configparser.ConfigParser()
