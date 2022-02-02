@@ -1,6 +1,6 @@
-from math import inf
 from .lib import ipython, proto_util, sparkline
 
+from abc import abstractmethod
 import click
 import itertools
 import json
@@ -10,7 +10,7 @@ import os
 import platform
 import sys
 import time
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 import wandb
 from wandb.proto.wandb_internal_pb2 import (
     CheckVersionResponse,
@@ -22,23 +22,49 @@ from wandb.proto.wandb_internal_pb2 import (
 logger = logging.getLogger("wandb")
 
 
-RUN_NAME_COLOR = "#cdcd00"
-
-
-class Printer:
-    def __init__(self, html: Optional[bool] = None) -> None:
-        self._html = html
-        self._progress = ProgressPrinter(self._html)
+class _Printer:
+    def __init__(self) -> None:
         self._info = []
         self._warnings = []
         self._errors = []
 
-    def _display(self) -> None:
+    @abstractmethod
+    def display(self) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def code(self, text: str) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def name(self, text: str) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def link(self, link: str, text: Optional[str] = None) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def emoji(self, name: str) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def status(self, text: str, failure: Optional[bool] = None) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def files(self, text: str) -> str:
+        raise NotImplementedError
+
+
+class Printer(_Printer):
+    def __init__(self) -> None:
+        super().__init__()
+        self._progress = itertools.cycle(["-", "\\", "|", "/"])
+
+    def display(self) -> None:
         if self._info:
-            if self._html:
-                ipython.display_html("<br/>\n".join(self._info))
-            else:
-                wandb.termlog("\n".join(self._info))
+            wandb.termlog("\n".join(self._info))
             self._info = []
 
         if self._warnings:
@@ -49,26 +75,80 @@ class Printer:
             wandb.termerror("\n".join(self._errors))
             self._errors = []
 
+    def progress_update(self, text: str, precentage: Optional[float] = None) -> None:
+        wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
-class ProgressPrinter:
-    def __init__(self, html: Optional[bool] = None) -> None:
-        self._jupyter_progress = ipython.jupyter_progress_bar() if html else None
-        self._term_progress = itertools.cycle(["-", "\\", "|", "/"])
-        self._html = html
+    def progress_close(self) -> None:
+        wandb.termlog(" " * 79)
 
-    def update(self, line, percent_done=None) -> None:
-        if self._html:
-            if self._jupyter_progress:
-                self._jupyter_progress.update(percent_done, line)
-        else:
-            wandb.termlog(f"{next(self._term_progress)} {line}", newline=False)
+    def code(self, text: str) -> str:
+        return click.style(text, fg="yellow")
 
-    def close(self) -> None:
-        if self._html:
-            if self._jupyter_progress:
-                self._jupyter_progress.close()
-        else:
-            wandb.termlog(" " * 79)
+    def name(self, text: str) -> str:
+        return click.style(text, fg=(205, 205, 0))
+
+    def link(self, link: str, text: Optional[str] = None) -> str:
+        return click.style(link, fg="blue", underline=True)
+
+    def emoji(self, name: str) -> str:
+        emojis = dict()
+        if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
+            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
+
+        return emojis.get(name, "")
+
+    def status(self, text: str, failure: Optional[bool] = None) -> str:
+        color = "red" if failure else "green"
+        return click.style(text, fg=color)
+
+    def files(self, text: str) -> str:
+        return click.style(text, fg="magenta", bold=True)
+
+
+class PrinterJupyter(_Printer):
+    def __init__(self) -> None:
+        super().__init__()
+        self._progress = ipython.jupyter_progress_bar()
+
+    def display(self) -> None:
+        if self._info:
+            ipython.display_html("<br/>\n".join(self._info))
+            self._info = []
+
+        if self._warnings:
+            wandb.termwarn("\n".join(self._warnings))
+            self._warnings = []
+
+        if self._errors:
+            wandb.termerror("\n".join(self._errors))
+            self._errors = []
+
+    def code(self, text: str) -> str:
+        return f"<code>{text}<code>"
+
+    def name(self, text: str) -> str:
+        return f'<strong style="color:#cdcd00">{text}</strong>'
+
+    def link(self, link: str, text: Optional[str] = None) -> str:
+        return f'<a href="{link}" target="_blank">{text or link}</a>'
+
+    def emoji(self, name: str) -> str:
+        return ""
+
+    def status(self, text: str, failure: Optional[bool] = None) -> str:
+        color = "red" if failure else "green"
+        return f'<strong style="color:{color}">{text}</strong>'
+
+    def files(self, text: str) -> str:
+        return f"<code>{text}</code>"
+
+    def progress_update(self, text: str, percent_done: float) -> None:
+        if self._progress:
+            self._progress.update(percent_done, text)
+
+    def progress_close(self) -> None:
+        if self._progress:
+            self._progress.close()
 
 
 class PrinterManager:
@@ -87,7 +167,7 @@ class PrinterManager:
         self._final_summary = None
 
         self._printer = None
-        self._html = False
+        self._html = None
         self._reporter = None
 
     def _set_run_obj(self, run_obj) -> None:
@@ -95,9 +175,8 @@ class PrinterManager:
             item.key: json.loads(item.value_json) for item in run_obj.settings.item
         }
         self._run_obj = run_obj
-
         self._html = self._settings["_jupyter"] and ipython.in_jupyter()
-        self._printer = Printer(self._html)
+        self._printer = Printer() if not self._html else PrinterJupyter()
 
     def _display_on_init(self, interface) -> None:
         logger.info("communicating current version")
@@ -106,17 +185,24 @@ class PrinterManager:
             self._check_version = check
             logger.info(f"got version response {check}")
         self._append_version_check_info()
-        self._printer._display()
+        self._printer.display()
 
-    def _display_on_start(self, project_url, run_url, sweep_url,) -> None:
+    def _display_on_start(
+        self,
+        project_url,
+        run_url,
+        sweep_url,
+    ) -> None:
 
         self._append_sync_offline_info()
         self._append_wandb_version_info()
         self._append_run_info(
-            project_url, run_url, sweep_url,
+            project_url,
+            run_url,
+            sweep_url,
         )
         self._append_sync_dir_info()
-        self._printer._display()
+        self._printer.display()
         print("")
 
     def _display_on_finish(self, exit_code, quiet, interface) -> None:
@@ -137,7 +223,11 @@ class PrinterManager:
                     for item in sampled.item
                 }
 
-    def _display_on_final(self, quiet, run_url,) -> None:
+    def _display_on_final(
+        self,
+        quiet,
+        run_url,
+    ) -> None:
 
         self._append_reporter_info(quiet)
 
@@ -152,7 +242,7 @@ class PrinterManager:
             self._append_version_check_info(footer=True)
             self._append_local_warning()
 
-        self._printer._display()
+        self._printer.display()
 
     def _append_version_check_info(self, footer: bool = None) -> None:
         package_problem = False
@@ -193,14 +283,9 @@ class PrinterManager:
             return
 
         self._info.append("You can sync this run to the cloud by running:")
-        if self._html:
-            self._printer._info.append(
-                f'<code> wandb sync {self._settings["sync_dir"]}<code>'
-            )
-        else:
-            self._printer._info.append(
-                click.style(f'wandb sync {self._settings["sync_dir"]}', fg="yellow")
-            )
+        self._printer._info.append(
+            self._printer.code(f"wandb sync {self._settings['sync_dir']}")
+        )
 
     def _append_sync_dir_info(self):
 
@@ -208,13 +293,11 @@ class PrinterManager:
             return
 
         sync_dir = self._settings["sync_dir"]
-        format_str = "Run data is saved locally in {}"
-        if self._html:
-            self._printer._info.append(format_str.format(f"<code>{sync_dir}</code>"))
-        else:
-            self._printer._info.append(format_str.format(sync_dir))
-            if not self._settings["_offline"]:
-                self._printer._info.append("Run `wandb offline` to turn off syncing.")
+        self._printer._info.append(
+            f"Run data is saved locally in {self._printer.code(sync_dir)}"
+        )
+        if not self._settings["_offline"] and not self._html:
+            self._printer._info.append("Run `wandb offline` to turn off syncing.")
 
     def _append_file_sync_info(self) -> None:
 
@@ -235,16 +318,16 @@ class PrinterManager:
             return
 
         run_name = self._run_obj.display_name
+        self._printer._info.append(
+            f"Synced {self._printer.name(run_name)}: {self._printer.link(run_url)}"
+        )
 
-        if self._html:
-            run_name = f'<strong style="color:{RUN_NAME_COLOR}">{run_name}</strong>'
-            run_url = f'<a href="{run_url}" target="_blank">{run_url}</a>'
-        else:
-            run_name = click.style(run_name, fg="yellow")
-            run_url = click.style(run_url, fg="blue")
-        self._printer._info.append(f"Synced {run_name}: {run_url}")
-
-    def _append_run_info(self, project_url, run_url, sweep_url,) -> None:
+    def _append_run_info(
+        self,
+        project_url,
+        run_url,
+        sweep_url,
+    ) -> None:
 
         if self._settings["_offline"] or self._settings["_silent"]:
             return
@@ -255,46 +338,40 @@ class PrinterManager:
         if self._html:
             if not wandb.jupyter.maybe_display():
 
-                run_line = f'<strong><a href="{run_url}" target="_blank">{run_name}</a></strong>'
+                run_line = f"<strong>{self._printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 if not wandb.jupyter.quiet():  # TODO: make settings the source of truth
 
-                    doc_html = (
-                        f'<a href="https://wandb.me/run" target="_blank">docs</a>'
-                    )
-                    project_html = (
-                        f'<a href="{project_url}" target="_blank">Weights & Biases</a>'
-                    )
+                    doc_html = self._printer.link("https://wandb.me/run", "docs")
+
+                    project_html = self._printer.link(project_url, "Weights & Biases")
                     project_line = f"to {project_html} ({doc_html})"
 
                     if sweep_url:
-                        sweep_line = f'Sweep page: <a href="{sweep_url}" target="_blank">{sweep_url}</a><br/>\n'
+                        sweep_line = (
+                            f"Sweep page:  {self._printer.link(sweep_url, sweep_url)}"
+                        )
 
-                self._printer._info.append(
-                    f"{run_state_str} {run_line} {project_line}<br/>\n{sweep_line}"
+                self._printer._info.extend(
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
                 )
 
         else:
-            emojis = dict(star="", broom="", rocket="")
-            if platform.system() != "Windows" and wandb.util.is_unicode_safe(
-                sys.stdout
-            ):
-                emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
 
             self._printer._info.append(
-                f'{run_state_str} {click.style(run_name, fg="yellow")}'
+                f"{run_state_str} {self._printer.name(run_name)}"
             )
             if not self._settings["_quiet"]:
                 self._printer._info.append(
-                    f'{emojis["star"]} View project at {click.style(project_url, underline=True, fg="blue")}'
+                    f'{self._printer.emoji("star")} View project at {self._printer.link(project_url)}'
                 )
                 if sweep_url:
                     self._printer._info.append(
-                        f'{emojis["broom"]} View sweep at {click.style(sweep_url, underline=True, fg="blue")}'
+                        f'{self._printer.emoji("broom")} View sweep at {self._printer.link(sweep_url)}'
                     )
             self._printer._info.append(
-                f'{emojis["rocket"]} View run at {click.style(run_url, underline=True, fg="blue")}'
+                f'{self._printer.emoji("rocket")} View run at {self._printer.link(run_url)}'
             )
 
             api = wandb.apis.internal.Api()
@@ -308,25 +385,19 @@ class PrinterManager:
             return
 
         info = ["Waiting for W&B process to finish..."]
-        if not exit_code:
-            status = "(success)."
-            if self._html:
-                status = f'<strong style="color:green">{status}</strong>'
-            info.append(status)
-        else:
-            status = f"(failed {exit_code})."
-            if self._html:
-                status = f'<strong style="color:red">{status}</strong>'
-            info.append(status)
-            if not self._settings["_offline"]:
-                info.append("Press ctrl-c to abort syncing.")
+        status = "(success)." if not exit_code else f"(failed {exit_code})."
+        info.append(self._printer.status(status, exit_code))
 
-        sep = "<br/>" if not quiet and self._html else ""
-        self._printer._info.append(f'{sep}{" ".join(info)}')
-        self._printer._display()
+        if not self._settings["_offline"] and exit_code:
+            info.append("Press ctrl-c to abort syncing.")
+
+        self._printer._info.append(f'{" ".join(info)}')
+        self._printer.display()
 
     def _pusher_print_status(
-        self, progress: FilePusherStats, done: Optional[bool] = False,
+        self,
+        progress: FilePusherStats,
+        done: Optional[bool] = False,
     ) -> None:
 
         if self._settings["_offline"]:
@@ -341,9 +412,9 @@ class PrinterManager:
             else progress.uploaded_bytes / progress.total_bytes
         )
 
-        self._printer._progress.update(line, percent_done)
+        self._printer.progress_update(line, percent_done)
         if done:
-            self._printer._progress.close()
+            self._printer.progress_close()
 
             dedupe_fraction = (
                 progress.deduped_bytes / float(progress.total_bytes)
@@ -354,7 +425,7 @@ class PrinterManager:
                 self._printer._info.append(
                     f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
                 )
-            self._printer._display()
+            self._printer.display()
 
     def _wait_for_finish(self, interface) -> PollExitResponse:
         while True:
@@ -478,7 +549,7 @@ class PrinterManager:
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
                 self._printer._warnings.append(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: http://wandb.me/local-upgrade"
+                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {self._printer.link('http://wandb.me/local-upgrade')}"
                 )
 
     def _append_reporter_info(self, quiet) -> None:
@@ -510,9 +581,4 @@ class PrinterManager:
 
         log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
 
-        if self._html:
-            log_dir = f"<code>{log_dir}</code><br/>\n"
-        else:
-            log_dir = f"{log_dir}\n"
-
-        self._printer._info.append(f"Find logs at: {log_dir}")
+        self._printer._info.append(f"Find logs at: {self._printer.files(log_dir)}")

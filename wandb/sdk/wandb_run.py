@@ -433,7 +433,7 @@ class Run(object):
         if self._settings._require_service:
             self._attach_id = self._settings.run_id
 
-        self._printer = printer.Printer()
+        # self._printer = printer.Printer()
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid
@@ -1743,8 +1743,6 @@ class Run(object):
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         if self._backend and self._backend.interface:
-            self._printer._display_on_finish(self._exit_code, self._backend.interface)
-
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
