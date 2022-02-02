@@ -38,7 +38,6 @@ exclude =
     ./wandb/sdk/internal/file_pusher.py
     ./wandb/sdk/internal/file_stream.py
     ./wandb/keras/
-    ./wandb/compat/
     ./wandb/superagent/
     ./wandb/plots/
     ./wandb/sklearn/
