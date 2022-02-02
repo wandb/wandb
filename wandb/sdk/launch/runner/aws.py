@@ -29,6 +29,7 @@ from ..docker import (
 )
 from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
 
+AWS_SAGEMAKER_URL = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}"
 
 _logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
         region = get_region(launch_project)
 
-        access_key, secret_key = get_aws_credentials()
+        access_key, secret_key = get_aws_credentials(launch_project.resource_args)
 
         client = boto3.client(
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
@@ -350,6 +351,10 @@ def launch_sagemaker_job(
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
     wandb.termlog("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
+    url = AWS_SAGEMAKER_URL.format(
+        region=sagemaker_client.meta.region_name, job_name=launch_project.run_id
+    )
+    wandb.termlog(f"See training job status at: {url}")
     return run
 
 
@@ -358,7 +363,7 @@ def get_region(launch_project: LaunchProject) -> str:
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/config"))
-        section = launch_project.resource_args.get("config_section") or "default"
+        section = launch_project.resource_args.get("profile") or "default"
         try:
             region = config.get(section, "region")
         except (configparser.NoOptionError, configparser.NoSectionError):
@@ -376,7 +381,7 @@ def get_region(launch_project: LaunchProject) -> str:
     return region
 
 
-def get_aws_credentials() -> Tuple[str, str]:
+def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
     access_key = os.environ.get("AWS_ACCESS_KEY_ID")
     secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
     if (
@@ -384,10 +389,11 @@ def get_aws_credentials() -> Tuple[str, str]:
         or secret_key is None
         and os.path.exists(os.path.expanduser("~/.aws/credentials"))
     ):
+        profile = resource_args.get("profile") or "default"
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/credentials"))
-        access_key = config.get("default", "aws_access_key_id")
-        secret_key = config.get("default", "aws_secret_access_key")
+        access_key = config.get(profile, "aws_access_key_id")
+        secret_key = config.get(profile, "aws_secret_access_key")
     if access_key is None or secret_key is None:
         raise LaunchError("AWS credentials not found")
     return access_key, secret_key
@@ -395,8 +401,20 @@ def get_aws_credentials() -> Tuple[str, str]:
 
 def get_role_arn(resource_args: Dict[str, Any], account_id: str) -> Optional[str]:
     role_arn = resource_args.get("RoleArn") or resource_args.get("role_arn")
-    if role_arn is None:
-        return None
-    if role_arn.startswith("arn:aws:iam::"):
+    if role_arn is None and os.path.exists(os.path.expanduser("~/.aws/config")):
+        config = configparser.ConfigParser()
+        config.read(os.path.expanduser("~/.aws/config"))
+        section = resource_args.get("profile") or "default"
+        try:
+            role_arn = config.get(section, "role_arn")
+            return role_arn
+        except (configparser.NoOptionError, configparser.NoSectionError):
+            raise LaunchError(
+                "Unable to detemine default region from ~/.aws/config. "
+                "Please specify region in resource args or specify config "
+                "section as 'aws_config_section'"
+            )
+    elif role_arn.startswith("arn:aws:iam::"):
         return role_arn
+
     return f"arn:aws:iam::{account_id}:role/{role_arn}"
