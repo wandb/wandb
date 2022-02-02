@@ -84,7 +84,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "protocheck,mypy,black,flake8,docstrings,verify-sweeps"
+         toxenv: "protocheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
 # Disable python2.7 for good?
 #      - test:
 #         name: "Python 2.7"
