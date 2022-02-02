@@ -167,12 +167,15 @@ class Backend(object):
 
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
-        settings: Dict[str, Any] = dict(self._settings or ())
+        settings: Dict[str, Any] = dict()
+        if self._settings is not None:
+            settings = self._settings.make_static()
+
         settings["_log_level"] = self._log_level or logging.DEBUG
 
         # TODO: this is brittle and should likely be handled directly on the
-        # settings object.  Multi-processing blows up when it can't pickle
-        # objects.
+        #  settings object. Multi-processing blows up when it can't pickle
+        #  objects.
         if "_early_logger" in settings:
             del settings["_early_logger"]
 
