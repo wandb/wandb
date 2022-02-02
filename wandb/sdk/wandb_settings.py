@@ -71,8 +71,7 @@ def _get_wandb_dir(root_dir: str) -> str:
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
         wandb.termwarn(
-            f"Path {path} wasn't writable, using system temp directory.",
-            repeat=False,
+            f"Path {path} wasn't writable, using system temp directory.", repeat=False,
         )
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
@@ -94,8 +93,7 @@ def _str_as_bool(val: Union[str, bool]) -> bool:
 
     # fixme: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. ",
-        repeat=False,
+        f"Could not parse value {val} as a bool. ", repeat=False,
     )
     raise UsageError(f"Could not parse value {val} as a bool.")
 
@@ -768,7 +766,9 @@ class Settings:
         if os.environ.get(wandb.env.DIR) is None:
             # todo: double-check source, shouldn't it be Source.ENV?
             try:
-                self.update({"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE)
+                self.update(
+                    {"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE
+                )
             except FileNotFoundError:
                 wandb.termwarn("Can't get current working directory", repeat=False)
 

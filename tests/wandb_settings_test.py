@@ -903,3 +903,13 @@ def test_static_settings_json_dump():
     s = Settings()
     static_settings = s.make_static(include_properties=True)
     assert json.dumps(static_settings)
+
+
+# fixme: remove this once full validation is restored
+def test_no_repeat_warnings(capsys):
+    s = Settings(api_key=123)
+    assert s.api_key == 123
+    s.update(api_key=123)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 123"
+    assert captured.count(msg) == 1
