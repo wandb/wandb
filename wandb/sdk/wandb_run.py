@@ -27,6 +27,7 @@ from typing import (
 from typing import TYPE_CHECKING
 
 import requests
+from six import string_types
 from six.moves import _thread as thread
 from six.moves.collections_abc import Mapping
 from urllib.parse import quote as url_quote, urlencode
@@ -38,10 +39,10 @@ from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
-    PollExitResponse,
+    Record,
     RunRecord,
 )
-from wandb.sdk.lib import printer
+from wandb.sdk import wandb_print
 from wandb.util import (
     add_import_hook,
     sentry_set_scope,
@@ -285,7 +286,6 @@ class Run(object):
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
-    _final_summary: Optional[Dict[str, Any]]
 
     def __init__(
         self,
@@ -337,13 +337,10 @@ class Run(object):
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._final_summary = None
-        self._jupyter_progress = None
         self._quiet = self._settings._quiet
-        if self._settings._jupyter and ipython.in_jupyter():
-            self._jupyter_progress = ipython.jupyter_progress_bar()
 
         self._output_writer = None
+        self._printer = wandb_print.PrinterManager()
         self._used_artifact_slots: List[str] = []
 
         # Pull info from settings
@@ -1045,7 +1042,7 @@ class Run(object):
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
-        self._printer._set_run_obj(run_obj)  # TODO remove
+        self._printer._set_run_obj(run_obj)
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -1449,7 +1446,7 @@ class Run(object):
             self._quiet = quiet
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info("finishing run %s", self.path)
+        logger.info(f"finishing run {self.path}")
         # detach jupyter hooks / others that needs to happen before backend shutdown
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
@@ -1553,19 +1550,11 @@ class Run(object):
         if not self._run_obj.sweep_id:
             return None
 
-        app_url = wandb.util.app_url(self._settings.base_url)
-        entity = url_quote(self._run_obj.entity)
-        project = url_quote(self._run_obj.project)
-        sweep_id = url_quote(self._run_obj.sweep_id)
-
-        query = self._get_url_query_string()
-
-        return f"{app_url}/{entity}/{project}/sweeps/{sweep_id}{query}"
-
     def _get_run_name(self) -> str:
-        if not self._run_obj:
+        r = self._run_obj
+        if not r:
             return ""
-        return self._run_obj.display_name
+        return r.display_name
 
     def _redirect(
         self,
@@ -1695,9 +1684,6 @@ class Run(object):
             if ipython._get_python_type() == "python":
                 os._exit(-1)
         else:
-            # if silent, skip this as it is used to output stuff
-            if self._settings._silent:
-                return
             self._on_final()
 
     def _console_start(self) -> None:
@@ -1725,12 +1711,13 @@ class Run(object):
             self._output_writer = None
 
     def _on_init(self) -> None:
-        if self._backend and self._backend.interface:
-            self._printer._display_on_init(self._backend.interface)
+        self._printer._display_on_init(self._backend.interface)
 
     def _on_start(self) -> None:
-        if self._backend and self._backend.interface:
-            self._printer._display_on_start(self._backend.interface)
+
+        self._printer._display_on_start(
+            self._get_project_url(), self._get_run_url(), self._get_sweep_url(),
+        )
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -1758,13 +1745,14 @@ class Run(object):
         if self._backend and self._backend.interface:
             self._printer._display_on_finish(self._exit_code, self._backend.interface)
 
-        if self._backend and self._backend.interface:
-            # telemetry could have changed, publish final data
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
-
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
+
+        if self._backend and self._backend.interface:
+            self._printer._display_on_finish(
+                self._exit_code, self._quiet, self._backend.interface,
+            )
 
         if self._backend:
             self._backend.cleanup()
@@ -1773,9 +1761,8 @@ class Run(object):
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-        logger.info("logging synced files")
 
-        self._printer._display_on_final()
+        self._printer._display_on_final(self._quiet, self._get_run_url())
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
