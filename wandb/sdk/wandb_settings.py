@@ -70,9 +70,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
     path = os.path.join(root_dir, __stage_dir__)
     if not os.access(root_dir or ".", os.W_OK):
-        wandb.termwarn(
-            f"Path {path} wasn't writable, using system temp directory.", repeat=False,
-        )
+        wandb.termwarn(f"Path {path} wasn't writable, using system temp directory.")
         path = os.path.join(tempfile.gettempdir(), __stage_dir__ or ("wandb" + os.sep))
 
     return os.path.expanduser(path)
@@ -770,7 +768,7 @@ class Settings:
                     {"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE
                 )
             except FileNotFoundError:
-                wandb.termwarn("Can't get current working directory", repeat=False)
+                wandb.termwarn("Can't get current working directory")
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
@@ -1053,7 +1051,6 @@ class Settings:
             wandb.termwarn(
                 "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
                 f"couldn't find {self.notebook_name}.",
-                repeat=False,
             )
 
         # host and username are populated by apply_env_vars if corresponding env
@@ -1137,8 +1134,7 @@ class Settings:
                 val = init_settings.pop(key, None)
                 if val:
                     wandb.termwarn(
-                        f"Ignored wandb.init() arg {key} when running a sweep.",
-                        repeat=False,
+                        f"Ignored wandb.init() arg {key} when running a sweep."
                     )
         if self.launch:
             for key in ("project", "entity", "id"):
@@ -1147,7 +1143,6 @@ class Settings:
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
                         f"Ignored wandb.init() arg {key} when running running from launch.",
-                        repeat=False,
                     )
 
         # strip out items where value is None
@@ -1188,7 +1183,6 @@ class Settings:
                     wandb.termwarn(
                         "Tried to auto resume run with "
                         f"id {resume_run_id} but id {self.run_id} is set.",
-                        repeat=False,
                     )
         self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
         # persist our run id in case of failure
