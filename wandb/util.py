@@ -1449,7 +1449,7 @@ def check_windows_valid_filename(path):
 def artifact_to_json(artifact) -> Dict[str, Any]:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
-
+    print(type(artifact))
     if hasattr(artifact, "_sequence_name"):
         sequence_name = artifact._sequence_name
     else:
@@ -1487,3 +1487,7 @@ def _is_artifact_string_or_artifact(v):
         or isinstance(v, wandb.Artifact)
         or isinstance(v, wandb.apis.public.Artifact)
     )
+
+
+def _is_artifact_string(v):
+    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")

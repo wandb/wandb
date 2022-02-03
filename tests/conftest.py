@@ -33,6 +33,7 @@ from wandb.sdk.internal.sender import SendManager
 from wandb.sdk.lib.module import unset_globals
 from wandb.sdk.lib.git import GitRepo
 from wandb.util import mkdir_exists_ok
+from wandb import Api
 
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
@@ -941,3 +942,8 @@ def mock_tty(monkeypatch):
 
     del sys.stdin.isatty
     del sys.stdout.isatty
+
+
+@pytest.fixture
+def api(runner):
+    return Api()

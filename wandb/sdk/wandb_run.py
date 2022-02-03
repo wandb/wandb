@@ -975,7 +975,7 @@ class Run(object):
             public_api = self._public_api()
             artifact = public_api.artifact(name=artifact_string)
             return self.use_artifact(artifact, use_as=key)
-        elif isinstance(val, wandb.Artifact):
+        elif isinstance(val, wandb.Artifact) or isinstance(val, public.Artifact):
             return self.use_artifact(val, use_as=key)
 
     def _set_config_wandb(self, key: str, val: Any) -> None:
@@ -2464,12 +2464,15 @@ class Run(object):
                     is_user_created=True,
                     use_after_commit=True,
                 )
+                artifact.wait()
+                artifact._use_as = use_as or artifact_or_name
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                if self._launch_artifact_mapping is not None:
+                if self._launch_artifact_mapping:
                     wandb.termwarn(
                         f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
                     )
+                artifact._use_as = use_as or artifact.name
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
