@@ -406,7 +406,7 @@ def launch_sagemaker_job(
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
     wandb.termlog("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
     url = AWS_SAGEMAKER_URL.format(
-        region=sagemaker_client.meta.region_name, job_name=launch_project.run_id
+        region=sagemaker_client.meta.region_name, job_name=training_job_name
     )
     wandb.termlog(f"See training job status at: {url}")
     return run
@@ -435,7 +435,7 @@ def get_region(resource_args: Dict[str, Any]) -> str:
     return region
 
 
-def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
+def get_aws_credentials(resource_args: Dict[str, Any] = {}) -> Tuple[str, str]:
     access_key = os.environ.get("AWS_ACCESS_KEY_ID")
     secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
     if (
@@ -455,20 +455,11 @@ def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
 
 def get_role_arn(resource_args: Dict[str, Any], account_id: str) -> Optional[str]:
     role_arn = resource_args.get("RoleArn") or resource_args.get("role_arn")
-    if role_arn is None and os.path.exists(os.path.expanduser("~/.aws/config")):
-        config = configparser.ConfigParser()
-        config.read(os.path.expanduser("~/.aws/config"))
-        section = resource_args.get("profile") or "default"
-        try:
-            role_arn = config.get(section, "role_arn")
-            return role_arn
-        except (configparser.NoOptionError, configparser.NoSectionError):
-            raise LaunchError(
-                "Unable to detemine default region from ~/.aws/config. "
-                "Please specify region in resource args or specify config "
-                "section as 'aws_config_section'"
-            )
-    elif role_arn.startswith("arn:aws:iam::"):
+    if role_arn is None:
+        raise LaunchError(
+            "AWS sagemaker jobs, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+        )
+    if role_arn.startswith("arn:aws:iam::"):
         return role_arn
 
     return f"arn:aws:iam::{account_id}:role/{role_arn}"

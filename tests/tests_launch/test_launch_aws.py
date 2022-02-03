@@ -46,6 +46,12 @@ def mock_boto3_client(*args, **kwargs):
             ]
         }
         return ecr_client
+    elif args[0] == "sts":
+        sts_client = MagicMock()
+        sts_client.get_caller_identity.return_value = {
+            "Account": "123456789012",
+        }
+        return sts_client
 
 
 def test_launch_aws_sagemaker(
@@ -87,6 +93,12 @@ def test_launch_aws_sagemaker(
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
             "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     run = launch.run(**kwargs)
@@ -119,6 +131,12 @@ def test_launch_aws_sagemaker_launch_fail(
                 ]
             }
             return ecr_client
+        elif args[0] == "sts":
+            sts_client = MagicMock()
+            sts_client.get_caller_identity.return_value = {
+                "Account": "123456789012",
+            }
+            return sts_client
 
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
@@ -141,12 +159,18 @@ def test_launch_aws_sagemaker_launch_fail(
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
+            "region": "us-east-1",
             "ecr_repo_name": "my-test-repo",
+            "AlgorithmSpecification": {"TrainingInputMode": "File",},
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
             "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -184,6 +208,12 @@ def test_launch_aws_sagemaker_push_image_fail_none(
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
             "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -222,6 +252,12 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
             "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -259,6 +295,12 @@ def test_sagemaker_specified_image(
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
             "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     run = launch.run(**kwargs)
@@ -384,6 +426,12 @@ def test_failed_aws_cred_login(
                 "TrainingJobName": "test-job-1",
                 "region": "us-east-1",
                 "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+                "ResourceConfig": {
+                    "InstanceCount": 1,
+                    "InstanceType": "ml.c4.xlarge",
+                    "VolumeSizeInGB": 10,
+                },
             },
         )
 
@@ -412,7 +460,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
             overrides={},
             resource_args={},
         )
-        region = get_region(launch_project)
+        region = get_region(launch_project.resource_args)
         assert region == "us-east-1"
 
 
@@ -438,7 +486,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             resource_args={},
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
-            get_region(launch_project)
+            get_region(launch_project.resource_args)
         assert (
             str(e_info.value)
             == "Unable to detemine default region from ~/.aws/config. "
@@ -464,7 +512,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             resource_args={},
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
-            get_region(launch_project)
+            get_region(launch_project.resource_args)
         assert (
             str(e_info.value)
             == "AWS region not specified and ~/.aws/config not found. Configure AWS"
@@ -500,6 +548,12 @@ def test_aws_fail_build(
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
             "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -510,6 +564,9 @@ def test_aws_fail_build(
 def test_no_OuputDataConfig(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+    )
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
     )
@@ -526,40 +583,56 @@ def test_no_OuputDataConfig(
             "RoleArn": "arn:aws:iam::123456789012:role/test-role",
             "TrainingJobName": "test-job-1",
             "region": "us-east-1",
+            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            "ResourceConfig": {
+                "InstanceCount": 1,
+                "InstanceType": "ml.c4.xlarge",
+                "VolumeSizeInGB": 10,
+            },
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
         launch.run(**kwargs)
     assert (
         str(e_info.value)
-        == "AWS sagemaker jobs, set this using `resource_args OutputDataConfig=<output_data_config>`"
+        == "Sagemaker launcher requires an OutputDataConfig resource argument"
     )
 
 
 def test_no_RoleARN(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_repo_name": "my-test-repo",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-        },
-    }
-    with pytest.raises(wandb.errors.LaunchError) as e_info:
-        launch.run(**kwargs)
-    assert (
-        str(e_info.value)
-        == "AWS sagemaker jobs, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
-    )
+    with runner.isolated_filesystem():
+        monkeypatch.setattr(
+            wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+        )
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
+        )
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+        kwargs = {
+            "uri": uri,
+            "api": api,
+            "resource": "sagemaker",
+            "entity": "mock_server_entity",
+            "project": "test",
+            "resource_args": {
+                "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                "ecr_repo_name": "my-test-repo",
+                "TrainingJobName": "test-job-1",
+                "region": "us-east-1",
+                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+                "ResourceConfig": {
+                    "InstanceCount": 1,
+                    "InstanceType": "ml.c4.xlarge",
+                    "VolumeSizeInGB": 10,
+                },
+            },
+        }
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            launch.run(**kwargs)
+        assert (
+            str(e_info.value)
+            == "AWS sagemaker jobs, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+        )
