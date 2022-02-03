@@ -5,7 +5,7 @@ Data directory for telemetry records:
     https://github.com/wandb/analytics/tree/master/dbt/data
 
 Usage:
-    ./client/tools/telemetry-tool.py --output-dir analytics/dbt/data/
+    ./client/tools/telemetry-tool.py --output-dir analytics/dbt/seeds/
 """
 
 import argparse
@@ -16,7 +16,7 @@ from typing import Any, List
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
-DEFAULT_DIR: str = "analytics/dbt/data"
+DEFAULT_DIR: str = "analytics/dbt/seeds"
 parser = argparse.ArgumentParser()
 parser.add_argument(
     "--output-dir", default=DEFAULT_DIR if os.path.exists(DEFAULT_DIR) else ""
@@ -31,6 +31,7 @@ parser.add_argument("--output-labels", default="map_run_cli_labels.csv")
 parser.add_argument(
     "--output-deprecated-features", default="map_run_cli_deprecated.csv"
 )
+parser.add_argument("--output-issues", default="map_run_cli_issues.csv")
 args = parser.parse_args()
 
 
@@ -66,6 +67,9 @@ def main():
 
     deprecated_records = list(tpb.Deprecated.DESCRIPTOR.fields)
     write_csv(record="deprecated_feature", fields=deprecated_records)
+
+    issue_records = list(tpb.Issues.DESCRIPTOR.fields)
+    write_csv(record="issue", fields=issue_records)
 
 
 if __name__ == "__main__":
