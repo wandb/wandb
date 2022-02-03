@@ -887,14 +887,14 @@ def test_default_props_match_class_attributes():
 
 # fixme: remove this once full validation is restored
 def test_settings_strict_validation(capsys):
-    s = Settings(api_key=123, lol=True)
-    assert s.api_key == 123
+    s = Settings(api_key=271828, lol=True)
+    assert s.api_key == 271828
     with pytest.raises(AttributeError):
         s.lol
     captured = capsys.readouterr().err
     msgs = (
         "Ignoring unexpected arguments: ['lol']",
-        "Invalid value for property api_key: 123",
+        "Invalid value for property api_key: 271828",
     )
     for msg in msgs:
         assert msg in captured
