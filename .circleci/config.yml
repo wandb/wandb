@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  win: circleci/windows@2.4.0
+  win: circleci/windows@2.4.1
 
 parameters:
   manual:
@@ -256,7 +256,9 @@ jobs:
             xdist:
               type: integer
               default: 3
-        executor: win/default
+        executor:
+            name: win/default
+            size: large
         parallelism: << parameters.parallelism >>
         steps:
             - checkout
