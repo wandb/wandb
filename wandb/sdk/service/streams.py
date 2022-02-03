@@ -41,7 +41,7 @@ class StreamRecord:
     _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    _settings: "Settings"
+    # _settings: "Settings" #TODO
 
     def __init__(self) -> None:
         self._record_q = multiprocessing.Queue()

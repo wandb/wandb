@@ -1,4 +1,6 @@
+import _thread as thread
 import atexit
+from collections.abc import Mapping
 from datetime import timedelta
 from enum import IntEnum
 import glob
@@ -25,12 +27,9 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
+from urllib.parse import quote as url_quote, urlencode
 
 import requests
-from six import string_types
-from six.moves import _thread as thread
-from six.moves.collections_abc import Mapping
-from urllib.parse import quote as url_quote, urlencode
 import wandb
 from wandb import errors
 from wandb import trigger
@@ -39,7 +38,6 @@ from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
-    Record,
     RunRecord,
 )
 from wandb.sdk import wandb_print
@@ -82,7 +80,6 @@ from .wandb_artifacts import Artifact
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
-from wandb.proto.wandb_internal_pb2 import FilePusherStats
 
 if TYPE_CHECKING:
     from .data_types import WBValue

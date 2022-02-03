@@ -1,11 +1,10 @@
-from .lib import ipython, printer
-
 import json
 import logging
 import numbers
 import os
 import time
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Optional
+
 import wandb
 from wandb.proto.wandb_internal_pb2 import (
     CheckVersionResponse,
@@ -13,6 +12,8 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     RunRecord,
 )
+
+from .lib import ipython, printer
 
 logger = logging.getLogger("wandb")
 
@@ -232,8 +233,8 @@ class PrinterManager:
         if self._settings._offline:
             return
 
-        MB = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes/MB :.2f} MB of {progress.total_bytes/MB:.2f} MB uploaded ({progress.deduped_bytes/MB:.2f} MB deduped)\r"
+        megabyte = wandb.util.POW_2_BYTES[2][1]
+        line = f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded ({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
 
         percent_done = (
             1.0

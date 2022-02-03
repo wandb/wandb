@@ -1,12 +1,12 @@
 from abc import abstractmethod
-import click
 import itertools
 import platform
 import sys
-
 from typing import List, Optional, Union
 
+import click
 import wandb
+
 from . import ipython, sparkline
 
 
