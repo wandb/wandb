@@ -28,15 +28,12 @@ class PrinterManager:
         self._run_obj = None
 
         self._settings = settings
-        self._printer = printer.get_printer(self._settings["_jupyter"])
+        self._printer = printer.get_printer(self._settings._jupyter)
 
-        self._html = self._settings["_jupyter"] and ipython.in_jupyter()
+        self._html = self._settings._jupyter and ipython.in_jupyter()
         self._reporter = None
 
     def __call__(self, run_obj):
-        # self._settings.update(
-        #     {item.key: json.loads(item.value_json) for item in run_obj.settings.item}
-        # )
         self._run_obj = run_obj
 
     def _display_on_init(self, interface) -> None:
@@ -191,7 +188,6 @@ class PrinterManager:
                 )
 
         else:
-
             self._printer._info.append(
                 f"{run_state_str} {self._printer.name(run_name)}"
             )

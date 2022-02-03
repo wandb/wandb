@@ -128,11 +128,13 @@ class PrinterJupyter(_Printer):
             self._info = []
 
         if self._warnings:
-            wandb.termwarn("\n".join(self._warnings))
+            # wandb.termwarn("\n".join(self._warnings))
+            ipython.display_html("<br/>\n".join(self._warnings))
             self._warnings = []
 
         if self._errors:
-            wandb.termerror("\n".join(self._errors))
+            # wandb.termerror("\n".join(self._errors))
+            ipython.display_html("<br/>\n".join(self._errors))
             self._errors = []
 
     def code(self, text: str) -> str:
@@ -176,9 +178,7 @@ class PrinterJupyter(_Printer):
         return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
 
 
-def get_printer(
-    self, _jupyter: Optional[bool] = None
-) -> Union[PrinterTerm, PrinterJupyter]:
+def get_printer(_jupyter: Optional[bool] = None) -> Union[PrinterTerm, PrinterJupyter]:
     if _jupyter and ipython.in_jupyter():
         return PrinterJupyter()
     return PrinterTerm()
