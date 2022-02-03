@@ -1182,6 +1182,12 @@ class Settings:
                 _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
 
+    def _apply_run_start(
+        self, run_start_settings: Dict[str, Union[str, int, None]]
+    ) -> None:
+        # TODO add this
+        pass
+
     # computed properties
     @property
     def _console(self) -> SettingsConsole:

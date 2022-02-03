@@ -1,14 +1,9 @@
-from .lib import ipython, proto_util, sparkline
+from .lib import ipython, printer
 
-from abc import abstractmethod
-import click
-import itertools
 import json
 import logging
 import numbers
 import os
-import platform
-import sys
 import time
 from typing import Any, Dict, List, Optional, Sequence, Union
 import wandb
@@ -22,188 +17,27 @@ from wandb.proto.wandb_internal_pb2 import (
 logger = logging.getLogger("wandb")
 
 
-class _Printer:
-    def __init__(self) -> None:
-        self._info = []
-        self._warnings = []
-        self._errors = []
-
-    @abstractmethod
-    def display(self) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def code(self, text: str) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def name(self, text: str) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def link(self, link: str, text: Optional[str] = None) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def emoji(self, name: str) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def files(self, text: str) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def panel(self, columns: List[str]) -> str:
-        raise NotImplementedError
-
-
-class Printer(_Printer):
-    def __init__(self) -> None:
-        super().__init__()
-        self._progress = itertools.cycle(["-", "\\", "|", "/"])
-
-    def display(self) -> None:
-        if self._info:
-            wandb.termlog("\n".join(self._info))
-            self._info = []
-
-        if self._warnings:
-            wandb.termwarn("\n".join(self._warnings))
-            self._warnings = []
-
-        if self._errors:
-            wandb.termerror("\n".join(self._errors))
-            self._errors = []
-
-    def progress_update(self, text: str, precentage: Optional[float] = None) -> None:
-        wandb.termlog(f"{next(self._progress)} {text}", newline=False)
-
-    def progress_close(self) -> None:
-        wandb.termlog(" " * 79)
-
-    def code(self, text: str) -> str:
-        return click.style(text, fg="yellow")
-
-    def name(self, text: str) -> str:
-        return click.style(text, fg=(205, 205, 0))
-
-    def link(self, link: str, text: Optional[str] = None) -> str:
-        return click.style(link, fg="blue", underline=True)
-
-    def emoji(self, name: str) -> str:
-        emojis = dict()
-        if platform.system() != "Windows" and wandb.util.is_unicode_safe(sys.stdout):
-            emojis = dict(star="⭐️", broom="🧹", rocket="🚀")
-
-        return emojis.get(name, "")
-
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
-        color = "red" if failure else "green"
-        return click.style(text, fg=color)
-
-    def files(self, text: str) -> str:
-        return click.style(text, fg="magenta", bold=True)
-
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-        max_len = max([len(row[0]) for row in rows])
-        format_row = " ".join(["{:>{max_len}}", "{}" * (len(rows[0]) - 1)])
-        grid = "\n".join([format_row.format(*row, max_len=max_len) for row in rows])
-        if title:
-            return f"{title}\n{grid}\n"
-        return f"{grid}\n"
-
-    def panel(self, columns: List[str]) -> str:
-        return "\n".join(columns)
-
-
-class PrinterJupyter(_Printer):
-    def __init__(self) -> None:
-        super().__init__()
-        self._progress = ipython.jupyter_progress_bar()
-
-    def display(self) -> None:
-        if self._info:
-            ipython.display_html("<br/>\n".join(self._info))
-            self._info = []
-
-        if self._warnings:
-            wandb.termwarn("\n".join(self._warnings))
-            self._warnings = []
-
-        if self._errors:
-            wandb.termerror("\n".join(self._errors))
-            self._errors = []
-
-    def code(self, text: str) -> str:
-        return f"<code>{text}<code>"
-
-    def name(self, text: str) -> str:
-        return f'<strong style="color:#cdcd00">{text}</strong>'
-
-    def link(self, link: str, text: Optional[str] = None) -> str:
-        return f'<a href="{link}" target="_blank">{text or link}</a>'
-
-    def emoji(self, name: str) -> str:
-        return ""
-
-    def status(self, text: str, failure: Optional[bool] = None) -> str:
-        color = "red" if failure else "green"
-        return f'<strong style="color:{color}">{text}</strong>'
-
-    def files(self, text: str) -> str:
-        return f"<code>{text}</code>"
-
-    def progress_update(self, text: str, percent_done: float) -> None:
-        if self._progress:
-            self._progress.update(percent_done, text)
-
-    def progress_close(self) -> None:
-        if self._progress:
-            self._progress.close()
-
-    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
-
-        format_row = "".join(["<tr>", "<td>{}</td>" * len(rows[0]), "</tr>"])
-        grid = "".join([format_row.format(*row) for row in rows])
-        grid = f'<table class="wandb">{grid}</table>'
-        if title:
-            return f"<h3>{title}</h3><br/>{grid}<br/>"
-        return f"{grid}<br/>"
-
-    def panel(self, columns: List[str]) -> str:
-        row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
-        return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
-
-
 class PrinterManager:
     _poll_exit_response: Optional[PollExitResponse]
     _check_version: Optional[CheckVersionResponse]
     _run_obj: Optional[RunRecord]
 
-    def __init__(self) -> None:
+    def __init__(self, settings=None) -> None:
         self._check_version = None
         self._poll_exit_response = None
         self._run_obj = None
 
-        self._printer = None
-        self._html = None
+        self._settings = settings
+        self._printer = printer.get_printer(self._settings["_jupyter"])
+
+        self._html = self._settings["_jupyter"] and ipython.in_jupyter()
         self._reporter = None
 
-    def _set_run_obj(self, run_obj) -> None:
-        self._settings = {
-            item.key: json.loads(item.value_json) for item in run_obj.settings.item
-        }
+    def __call__(self, run_obj):
+        # self._settings.update(
+        #     {item.key: json.loads(item.value_json) for item in run_obj.settings.item}
+        # )
         self._run_obj = run_obj
-        self._html = self._settings["_jupyter"] and ipython.in_jupyter()
-        self._printer = Printer() if not self._html else PrinterJupyter()
 
     def _display_on_init(self, interface) -> None:
         logger.info("communicating current version")
@@ -215,7 +49,6 @@ class PrinterManager:
         self._printer.display()
 
     def _display_on_start(self, project_url, run_url, sweep_url,) -> None:
-
         self._append_sync_offline_info()
         self._append_wandb_version_info()
         self._append_run_info(
@@ -447,10 +280,6 @@ class PrinterManager:
         if not history:
             return
 
-        # Only print sparklines if the terminal is utf-8
-        if not wandb.util.is_unicode_safe(sys.stdout):
-            return
-
         history = {
             item.key: item.values_float or item.values_int for item in history.item
         }
@@ -465,7 +294,9 @@ class PrinterManager:
                 (not isinstance(value, numbers.Number) for value in downsampled_values)
             ):
                 continue
-            history_rows.append((key, sparkline.sparkify(downsampled_values)))
+            sparkline = self._printer.sparklines(downsampled_values)
+            if sparkline:
+                history_rows.append((key, sparkline))
         if not history_rows:
             return
         return self._printer.grid(history_rows, "Run history:")

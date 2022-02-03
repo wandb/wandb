@@ -540,12 +540,12 @@ class _WandbInit(object):
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
             # detected issues with settings
-            if s.__dict__["_Settings__validation_warnings"]:
+            if self.settings.__dict__["_Settings__validation_warnings"]:
                 tel.issues.settings__validation_warnings = True
-            if s.__dict__["_Settings__unexpected_args"]:
+            if self.settings.__dict__["_Settings__unexpected_args"]:
                 tel.issues.settings__unexpected_args = True
 
-        if not s.label_disable:
+        if not self.settings.label_disable:
             if self.notebook:
                 run._label_probe_notebook(self.notebook)
             else:
@@ -614,6 +614,12 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
+
+        # TODO add this logic
+        self.settings._apply_run_start(run_obj)
+        # if manager:
+        #     manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+
         assert backend.interface
         assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
@@ -661,8 +667,7 @@ def getcaller():
 
 
 def _attach(
-    attach_id: Optional[str] = None,
-    run_id: Optional[str] = None,
+    attach_id: Optional[str] = None, run_id: Optional[str] = None,
 ) -> Union[Run, RunDisabled, None]:
     """Attach to a run currently executing in another process/thread.
 

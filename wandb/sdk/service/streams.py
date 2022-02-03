@@ -41,6 +41,7 @@ class StreamRecord:
     _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
+    _settings: "Settings"
 
     def __init__(self) -> None:
         self._record_q = multiprocessing.Queue()
@@ -185,6 +186,7 @@ class StreamMux:
         )
         stream.start_thread(thread)
         with self._streams_lock:
+            # stream._settings = settings #TODO
             self._streams[action._stream_id] = stream
 
     def _process_del(self, action: StreamAction) -> None:

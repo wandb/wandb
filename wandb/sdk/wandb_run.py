@@ -340,7 +340,7 @@ class Run(object):
         self._quiet = self._settings._quiet
 
         self._output_writer = None
-        self._printer = wandb_print.PrinterManager()
+        self._printer = wandb_print.PrinterManager(self._settings)
         self._used_artifact_slots: List[str] = []
 
         # Pull info from settings
@@ -1042,7 +1042,7 @@ class Run(object):
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
-        self._printer._set_run_obj(run_obj)
+        self._printer(run_obj)
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -1072,7 +1072,7 @@ class Run(object):
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
-        self._printer._set_run_obj(run_obj)
+        self._printer(run_obj)
 
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
