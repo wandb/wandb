@@ -3,6 +3,7 @@
 tensor b watcher.
 """
 
+import glob
 import logging
 import os
 import socket
@@ -54,7 +55,7 @@ def _link_and_save_file(
     elif not os.path.exists(wandb_path):
         os.symlink(abs_path, wandb_path)
     # TODO(jhr): need to figure out policy, live/throttled?
-    interface.publish_files(dict(files=[(file_name, "live")]))
+    interface.publish_files(dict(files=[(glob.escape(file_name), "live")]))
 
 
 def is_tfevents_file_created_by(path: str, hostname: str, start_time: float) -> bool:

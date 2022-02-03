@@ -1328,7 +1328,7 @@ def is_unicode_safe(stream):
     """returns true if the stream supports UTF-8"""
     if not hasattr(stream, "encoding"):
         return False
-    return stream.encoding == "UTF-8"
+    return stream.encoding.lower() in {"utf-8", "utf_8"}
 
 
 def _has_internet():
