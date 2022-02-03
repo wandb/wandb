@@ -763,12 +763,9 @@ class Settings:
 
         if os.environ.get(wandb.env.DIR) is None:
             # todo: double-check source, shouldn't it be Source.ENV?
-            try:
-                self.update(
-                    {"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE
-                )
-            except FileNotFoundError:
-                wandb.termwarn("Can't get current working directory")
+            self.update(
+                {"root_dir": os.path.abspath(os.getcwd())}, source=Source.BASE
+            )
 
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
