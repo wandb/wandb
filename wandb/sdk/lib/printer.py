@@ -124,17 +124,17 @@ class PrinterJupyter(_Printer):
 
     def display(self) -> None:
         if self._info:
-            ipython.display_html("<br/>\n".join(self._info))
+            ipython.display_html("<br/>".join(self._info))
             self._info = []
 
         if self._warnings:
             # wandb.termwarn("\n".join(self._warnings))
-            ipython.display_html("<br/>\n".join(self._warnings))
+            ipython.display_html("<br/>".join(self._warnings))
             self._warnings = []
 
         if self._errors:
             # wandb.termerror("\n".join(self._errors))
-            ipython.display_html("<br/>\n".join(self._errors))
+            ipython.display_html("<br/>".join(self._errors))
             self._errors = []
 
     def code(self, text: str) -> str:

@@ -35,7 +35,7 @@ def test_one_cell(notebook):
         nb.execute_all()
         output = nb.cell_output(0)
         print(output)
-        assert "lovely-dawn-32" in output[-1]["data"]["text/html"]
+        assert "lovely-dawn-32" in output[-2]["data"]["text/html"]
         # assert "Failed to query for notebook name" not in text
 
 
@@ -221,7 +221,7 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     print(displayed_html)
     assert wandb.jupyter.__IFrame is None
-    assert len(displayed_html) == 3
+    assert len(displayed_html) == 4
     assert "<iframe" in displayed_html[0]
     magic.wandb("test/test/runs/test")
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
