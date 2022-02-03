@@ -40,7 +40,7 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     RunRecord,
 )
-from wandb.sdk import wandb_print
+from wandb.sdk.wandb_run_printer import RunPrinter
 from wandb.util import (
     add_import_hook,
     sentry_set_scope,
@@ -336,7 +336,7 @@ class Run(object):
         self._quiet = self._settings._quiet
 
         self._output_writer = None
-        self._printer = wandb_print.PrinterManager(self._settings)
+        self._printer = RunPrinter(self._settings)
         self._used_artifact_slots: List[str] = []
 
         # Pull info from settings
@@ -428,8 +428,6 @@ class Run(object):
         # for now, use runid as attach id, this could/should be versioned in the future
         if self._settings._require_service:
             self._attach_id = self._settings.run_id
-
-        # self._printer = printer.Printer()
 
     def _set_iface_pid(self, iface_pid: int) -> None:
         self._iface_pid = iface_pid

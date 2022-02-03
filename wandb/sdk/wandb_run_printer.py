@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("wandb")
 
 
-class PrinterManager:
+class RunPrinter:
     _poll_exit_response: Optional["PollExitResponse"]
     _check_version: Optional["CheckVersionResponse"]
     _run_obj: Optional["RunRecord"]
@@ -58,12 +58,12 @@ class PrinterManager:
     def _display_on_start(
         self, project_url: str, run_url: str, sweep_url: str,
     ) -> None:
-        self._append_sync_offline_info()
-        self._append_wandb_version_info()
-        self._append_run_info(
+        self._append_header_offline_sync_info()
+        self._append_header_wandb_version_info()
+        self._append_header_run_info(
             project_url, run_url, sweep_url,
         )
-        self._append_sync_dir_info()
+        self._append_header_sync_dir_info()
         self._printer.display()
         print("")
 
@@ -74,24 +74,24 @@ class PrinterManager:
         interface: "InterfaceBase",
     ) -> None:
 
-        self._display_exit_status(exit_code, quiet)
+        self._display_footer_exit_status(exit_code, quiet)
         # Wait for data to be synced
-        self._poll_exit_response = self._wait_for_finish(interface)
+        self._poll_exit_response = self._display_footer_file_upload_info(interface)
 
-        self._append_history_summary_info(interface, quiet)
+        self._append_footer_history_summary_info(interface, quiet)
 
     def _display_on_final(self, quiet: Optional[bool], run_url: str,) -> None:
 
-        self._append_reporter_info(quiet)
+        self._append_footer_reporter_warn_err(quiet)
 
-        self._append_file_sync_info()
-        self._append_run_sync_info(run_url)
-        self._append_offline_sync_info(quiet)
-        self._append_logging_dir_info(quiet)
+        self._append_footer_file_sync_info()
+        self._append_footer_run_sync_info(run_url)
+        self._append_footer_offline_sync_info(quiet)
+        self._append_footer_logging_dir_info(quiet)
 
         if not quiet and not self._settings._offline:
             self._append_version_check_info(footer=True)
-            self._append_local_warning()
+            self._append_footer_local_warn()
 
         self._printer.display()
 
@@ -111,7 +111,7 @@ class PrinterManager:
             if self._check_version.upgrade_message:
                 self._printer._info.append(self._check_version.upgrade_message)
 
-    def _append_wandb_version_info(self) -> None:
+    def _append_header_wandb_version_info(self) -> None:
 
         if self._settings._quiet or self._settings._silent:
             return
@@ -120,7 +120,7 @@ class PrinterManager:
             f"Tracking run with wandb version {wandb.__version__}"
         )
 
-    def _append_sync_offline_info(self) -> None:
+    def _append_header_offline_sync_info(self) -> None:
         if self._settings._quiet or not self._settings._offline:
             return
 
@@ -132,30 +132,31 @@ class PrinterManager:
             ]
         )
 
-    def _append_offline_sync_info(self, quiet: Optional[bool]) -> None:
+    def _append_footer_offline_sync_info(self, quiet: Optional[bool]) -> None:
         if quiet or not self._settings._offline:
             return
 
-        self._printer._info.append("You can sync this run to the cloud by running:")
-        self._printer._info.append(
-            self._printer.code(f"wandb sync {self._settings['sync_dir']}")
+        self._printer._info.extend(
+            [
+                "You can sync this run to the cloud by running:",
+                self._printer.code(f"wandb sync {self._settings['sync_dir']}"),
+            ]
         )
 
-    def _append_sync_dir_info(self) -> None:
+    def _append_header_sync_dir_info(self) -> None:
 
         if self._settings._quiet or self._settings._silent:
             return
 
-        sync_dir = self._settings["sync_dir"]
         self._printer._info.append(
-            f"Run data is saved locally in {self._printer.files(sync_dir)}"
+            f"Run data is saved locally in {self._printer.files(self._settings.sync_dir)}"
         )
         if not self._settings._offline and not self._html:
             self._printer._info.append(
                 f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
             )
 
-    def _append_file_sync_info(self) -> None:
+    def _append_footer_file_sync_info(self) -> None:
 
         if self._settings._silent or self._settings._offline:
             return
@@ -169,7 +170,7 @@ class PrinterManager:
             f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)"
         )
 
-    def _append_run_sync_info(self, run_url: str) -> None:
+    def _append_footer_run_sync_info(self, run_url: str) -> None:
         if not run_url:
             return
 
@@ -179,7 +180,9 @@ class PrinterManager:
                 f"Synced {self._printer.name(run_name)}: {self._printer.link(run_url)}"
             )
 
-    def _append_run_info(self, project_url: str, run_url: str, sweep_url: str,) -> None:
+    def _append_header_run_info(
+        self, project_url: str, run_url: str, sweep_url: str,
+    ) -> None:
 
         if self._settings._offline or self._settings._silent:
             return
@@ -234,7 +237,7 @@ class PrinterManager:
                     "Do NOT share these links with anyone. They can be used to claim your runs."
                 )
 
-    def _display_exit_status(
+    def _display_footer_exit_status(
         self, exit_code: Optional[int], quiet: Optional[bool]
     ) -> None:
         if self._settings._silent:
@@ -250,7 +253,7 @@ class PrinterManager:
         self._printer._info.append(f'{" ".join(info)}')
         self._printer.display()
 
-    def _pusher_print_status(
+    def _dispaly_file_pusher_status_info(
         self, progress: "FilePusherStats", done: Optional[bool] = False,
     ) -> None:
 
@@ -281,7 +284,9 @@ class PrinterManager:
                 )
             self._printer.display()
 
-    def _wait_for_finish(self, interface: "InterfaceBase") -> "PollExitResponse":
+    def _display_footer_file_upload_info(
+        self, interface: "InterfaceBase"
+    ) -> "PollExitResponse":
         while True:
             if interface:
                 poll_exit_resp = interface.communicate_poll_exit()
@@ -291,7 +296,7 @@ class PrinterManager:
                 done = poll_exit_resp.done
                 pusher_stats = poll_exit_resp.pusher_stats
                 if pusher_stats:
-                    self._pusher_print_status(pusher_stats, done=done)
+                    self._dispaly_file_pusher_status_info(pusher_stats, done=done)
                 if done:
                     return poll_exit_resp
             time.sleep(0.1)
@@ -352,7 +357,7 @@ class PrinterManager:
 
         return self._printer.grid(summary_rows, "Run summary:")
 
-    def _append_history_summary_info(
+    def _append_footer_history_summary_info(
         self, interface: "InterfaceBase", quiet: Optional[bool]
     ) -> None:
 
@@ -373,7 +378,7 @@ class PrinterManager:
 
         self._printer._info.append(self._printer.panel(panel))
 
-    def _append_local_warning(self) -> None:
+    def _append_footer_local_warn(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.local_info:
             return
 
@@ -385,28 +390,26 @@ class PrinterManager:
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {self._printer.link('http://wandb.me/local-upgrade')}"
                 )
 
-    def _append_reporter_info(self, quiet: Optional[bool]) -> None:
+    def _append_footer_reporter_warn_err(self, quiet: Optional[bool]) -> None:
 
         if quiet or not self._reporter:
             return
 
         warning_lines = self._reporter.warning_lines
         if warning_lines:
-            self._printer._info.append("Warnings:")
-            for line in warning_lines:
-                self._printer._info.append(f"{line}")
+            self._printer._warnings.append("Warnings:")
+            self._printer._warnings.extend([f"{line}" for line in warning_lines])
             if len(warning_lines) < self._reporter.warning_count:
-                self._printer._info.append("More warnings...")
+                self._printer._warnings.append("More warnings...")
 
         error_lines = self._reporter.error_lines
         if error_lines:
-            self._printer._info.append("Errors:")
-            for line in error_lines:
-                self._printer._info.append(f"{line}")
+            self._printer._errors.append("Errors:")
+            self._printer._errors.append([f"{line}" for line in error_lines])
             if len(error_lines) < self._reporter.error_count:
-                self._printer._info.append("More errors...")
+                self._printer._errors.append("More errors...")
 
-    def _append_logging_dir_info(self, quiet: Optional[bool]) -> None:
+    def _append_footer_logging_dir_info(self, quiet: Optional[bool]) -> None:
 
         log_dir = self._settings.log_user or self._settings.log_internal
 

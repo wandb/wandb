@@ -45,7 +45,7 @@ def termlog(
     )
 
 
-def termwarn(string, **kwargs: Any) -> None:
+def termwarn(string: str, **kwargs: Any) -> None:
     string = "\n".join(["{} {}".format(WARN_STRING, s) for s in string.split("\n")])
     _log(
         string=string,
@@ -56,7 +56,7 @@ def termwarn(string, **kwargs: Any) -> None:
     )
 
 
-def termerror(string, **kwargs: Any) -> None:
+def termerror(string: str, **kwargs: Any) -> None:
     string = "\n".join(["{} {}".format(ERROR_STRING, s) for s in string.split("\n")])
     _log(
         string=string,
