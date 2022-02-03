@@ -56,6 +56,14 @@ class _Printer:
     def files(self, text: str) -> str:
         raise NotImplementedError
 
+    @abstractmethod
+    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def panel(self, columns: List[str]) -> str:
+        raise NotImplementedError
+
 
 class Printer(_Printer):
     def __init__(self) -> None:
@@ -104,6 +112,17 @@ class Printer(_Printer):
     def files(self, text: str) -> str:
         return click.style(text, fg="magenta", bold=True)
 
+    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
+        max_len = max([len(row[0]) for row in rows])
+        format_row = " ".join(["{:>{max_len}}", "{}" * (len(rows[0]) - 1)])
+        grid = "\n".join([format_row.format(*row, max_len=max_len) for row in rows])
+        if title:
+            return f"{title}\n{grid}\n"
+        return f"{grid}\n"
+
+    def panel(self, columns: List[str]) -> str:
+        return "\n".join(columns)
+
 
 class PrinterJupyter(_Printer):
     def __init__(self) -> None:
@@ -150,10 +169,21 @@ class PrinterJupyter(_Printer):
         if self._progress:
             self._progress.close()
 
+    def grid(self, rows: List[List[str]], title: Optional[str] = None) -> str:
+
+        format_row = "".join(["<tr>", "<td>{}</td>" * len(rows[0]), "</tr>"])
+        grid = "".join([format_row.format(*row) for row in rows])
+        grid = f'<table class="wandb">{grid}</table>'
+        if title:
+            return f"<h3>{title}</h3><br/>{grid}<br/>"
+        return f"{grid}<br/>"
+
+    def panel(self, columns: List[str]) -> str:
+        row = "".join([f'<div class="wandb-col">{col}</div>' for col in columns])
+        return f'{ipython.TABLE_STYLES}<div class="wandb-row">{row}</div>'
+
 
 class PrinterManager:
-    _sampled_history: Optional[Dict[str, Union[Sequence[int], Sequence[float]]]]
-    _final_summary: Optional[Dict[str, Any]]
     _poll_exit_response: Optional[PollExitResponse]
     _check_version: Optional[CheckVersionResponse]
     _run_obj: Optional[RunRecord]
@@ -162,9 +192,6 @@ class PrinterManager:
         self._check_version = None
         self._poll_exit_response = None
         self._run_obj = None
-
-        self._sampled_history = None
-        self._final_summary = None
 
         self._printer = None
         self._html = None
@@ -187,19 +214,12 @@ class PrinterManager:
         self._append_version_check_info()
         self._printer.display()
 
-    def _display_on_start(
-        self,
-        project_url,
-        run_url,
-        sweep_url,
-    ) -> None:
+    def _display_on_start(self, project_url, run_url, sweep_url,) -> None:
 
         self._append_sync_offline_info()
         self._append_wandb_version_info()
         self._append_run_info(
-            project_url,
-            run_url,
-            sweep_url,
+            project_url, run_url, sweep_url,
         )
         self._append_sync_dir_info()
         self._printer.display()
@@ -211,27 +231,11 @@ class PrinterManager:
         # Wait for data to be synced
         self._poll_exit_response = self._wait_for_finish(interface)
 
-        if interface:
-            summary = interface.communicate_get_summary()
-            if summary:
-                self._final_summary = proto_util.dict_from_proto_list(summary.item)
+        self._append_history_summary_info(interface, quiet)
 
-            sampled = interface.communicate_sampled_history()
-            if sampled:
-                self._sampled_history = {
-                    item.key: item.values_float or item.values_int
-                    for item in sampled.item
-                }
-
-    def _display_on_final(
-        self,
-        quiet,
-        run_url,
-    ) -> None:
+    def _display_on_final(self, quiet, run_url,) -> None:
 
         self._append_reporter_info(quiet)
-
-        self._append_history_summary_info(quiet)
 
         self._append_file_sync_info()
         self._append_run_sync_info(run_url)
@@ -294,7 +298,7 @@ class PrinterManager:
 
         sync_dir = self._settings["sync_dir"]
         self._printer._info.append(
-            f"Run data is saved locally in {self._printer.code(sync_dir)}"
+            f"Run data is saved locally in {self._printer.files(sync_dir)}"
         )
         if not self._settings["_offline"] and not self._html:
             self._printer._info.append("Run `wandb offline` to turn off syncing.")
@@ -322,12 +326,7 @@ class PrinterManager:
             f"Synced {self._printer.name(run_name)}: {self._printer.link(run_url)}"
         )
 
-    def _append_run_info(
-        self,
-        project_url,
-        run_url,
-        sweep_url,
-    ) -> None:
+    def _append_run_info(self, project_url, run_url, sweep_url,) -> None:
 
         if self._settings["_offline"] or self._settings["_silent"]:
             return
@@ -341,7 +340,8 @@ class PrinterManager:
                 run_line = f"<strong>{self._printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
-                if not wandb.jupyter.quiet():  # TODO: make settings the source of truth
+                # TODO(settings): make settings the source of truth
+                if not wandb.jupyter.quiet():
 
                     doc_html = self._printer.link("https://wandb.me/run", "docs")
 
@@ -395,16 +395,14 @@ class PrinterManager:
         self._printer.display()
 
     def _pusher_print_status(
-        self,
-        progress: FilePusherStats,
-        done: Optional[bool] = False,
+        self, progress: FilePusherStats, done: Optional[bool] = False,
     ) -> None:
 
         if self._settings["_offline"]:
             return
 
         MB = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes/MB :.2f}MB of {progress.total_bytes/MB:.2f}MB uploaded ({progress.deduped_bytes/MB:.2f}MB deduped)\r"
+        line = f"{progress.uploaded_bytes/MB :.2f} MB of {progress.total_bytes/MB:.2f} MB uploaded ({progress.deduped_bytes/MB:.2f} MB deduped)\r"
 
         percent_done = (
             1.0
@@ -442,17 +440,24 @@ class PrinterManager:
                     return poll_exit_resp
             time.sleep(0.1)
 
-    def _render_history_info(self, as_html: bool = False) -> Optional[str]:
-        if not self._sampled_history:
+    def _render_history_info(self, interface) -> Optional[str]:
+
+        history = interface.communicate_sampled_history()
+
+        if not history:
             return
 
         # Only print sparklines if the terminal is utf-8
         if not wandb.util.is_unicode_safe(sys.stdout):
             return
 
+        history = {
+            item.key: item.values_float or item.values_int for item in history.item
+        }
+
         logger.info("rendering history")
-        max_len, history_rows = 0, []
-        for key, values in sorted(self._sampled_history.items()):
+        history_rows = []
+        for key, values in sorted(history.items()):
             if key.startswith("_"):
                 continue
             downsampled_values = wandb.util.downsample(values, 40)
@@ -461,31 +466,22 @@ class PrinterManager:
             ):
                 continue
             history_rows.append((key, sparkline.sparkify(downsampled_values)))
-            max_len = max(max_len, len(key))
         if not history_rows:
             return
-        if as_html:
-            history_title = "<h3>Run history:</h3>"
-            history_table = "".join(
-                ["<tr><td>{}</td><td>{}</td></tr>".format(*row) for row in history_rows]
-            )
-            history_table = f'<table class="wandb">{history_table}</table>'
-            return f"{history_title}<br/>{history_table}<br/>"
-        else:
-            history_title = "Run history:"
-            history_table = "\n".join(
-                [("  {:>%s} {}" % max_len).format(*row) for row in history_rows]
-            )
-            history_table = f"{history_table.rstrip()}\n"
-            return f"{history_title}\n{history_table}\n"
+        return self._printer.grid(history_rows, "Run history:")
 
-    def _render_summary_info(self, as_html: bool = False) -> Optional[str]:
-        if not self._final_summary:
+    def _render_summary_info(self, interface) -> Optional[str]:
+
+        summary = interface.communicate_get_summary()
+
+        if not summary:
             return
+
+        summary = {item.key: json.loads(item.value_json) for item in summary.item}
 
         logger.info("rendering summary")
         max_len, summary_rows = 0, []
-        for key, value in sorted(self._final_summary.items()):
+        for key, value in sorted(summary.items()):
             # arrays etc. might be too large. for now we just don't print them
             if key.startswith("_"):
                 continue
@@ -499,46 +495,27 @@ class PrinterManager:
             max_len = max(max_len, len(key))
         if not summary_rows:
             return
-        if as_html:
-            summary_table = "".join(
-                ["<tr><td>{}</td><td>{}</td></tr>".format(*row) for row in summary_rows]
-            )
-            summary_table = f'<table class="wandb">{summary_table}</table>\n'
-            return f"<h3>Run summary:</h3><br/>{summary_table}"
-        else:
-            summary_table = "\n".join(
-                [("  {:>%s} {}" % max_len).format(*row) for row in summary_rows]
-            )
-            return f"Run summary:\n{summary_table}\n"
 
-    def _append_history_summary_info(self, quiet) -> str:
+        return self._printer.grid(summary_rows, "Run summary:")
 
-        if quiet:
+    def _append_history_summary_info(self, interface, quiet) -> str:
+
+        if quiet or not interface:
             return
 
-        as_html = self._html
-
-        history = self._render_history_info(as_html)
-        summary = self._render_summary_info(as_html)
-
-        if not history and not summary:
-            return
-
-        if as_html:
-            col_format = '<div class="wandb-col">{}</div>\n'
-            row_format = '<div class="wandb-row">{}</div>\n'
-            table_style = ipython.TABLE_STYLES
-        else:
-            col_format = row_format = "{}"
-            table_style = ""
-
-        row = ""
+        panel = []
+        history = self._render_history_info(interface)
         if history:
-            row += col_format.format(history)
-        if summary:
-            row += col_format.format(summary)
+            panel.append(history)
 
-        self._printer._info.append(table_style + row_format.format(row))
+        summary = self._render_summary_info(interface)
+        if summary:
+            panel.append(summary)
+
+        if not panel:
+            return
+
+        self._printer._info.append(self._printer.panel(panel))
 
     def _append_local_warning(self) -> None:
         if not self._poll_exit_response or not self._poll_exit_response.local_info:
