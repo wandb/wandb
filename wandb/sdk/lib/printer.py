@@ -12,14 +12,15 @@ from . import ipython, sparkline
 
 class _Printer:
     def __init__(self) -> None:
-        self._info = []
-        self._warnings = []
-        self._errors = []
+        self._info: List[str] = []
+        self._warnings: List[str] = []
+        self._errors: List[str] = []
 
-    def sparklines(self, series: List[Union[int, float]]) -> str:
+    def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
         # Only print sparklines if the terminal is utf-8
         if wandb.util.is_unicode_safe(sys.stdout):
             return sparkline.sparkify(series)
+        return None
 
     @abstractmethod
     def display(self) -> None:

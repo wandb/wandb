@@ -306,7 +306,6 @@ class Run(object):
 
         self._settings = settings
         self._wl = None
-        self._reporter: Optional[Reporter] = None
 
         self._entity = None
         self._project = None
@@ -1033,7 +1032,7 @@ class Run(object):
         self._internal_run_interface = interface
 
     def _set_reporter(self, reporter: Reporter) -> None:
-        self._reporter = reporter
+        self._printer._reporter = reporter
 
     def _set_teardown_hooks(self, hooks: List[TeardownHook]) -> None:
         self._teardown_hooks = hooks
@@ -1534,7 +1533,7 @@ class Run(object):
 
         return f"{app_url}/{entity}/{project}/runs/{run_id}{query}"
 
-    def _get_sweep_url(self) -> Optional[str]:
+    def _get_sweep_url(self) -> str:
         """Generate a url for a sweep.
 
         Returns:
@@ -1542,10 +1541,18 @@ class Run(object):
             (None): if the run is not part of the sweep
         """
         if not self._run_obj:
-            return None
+            return ""
 
         if not self._run_obj.sweep_id:
-            return None
+            return ""
+
+        app_url = wandb.util.app_url(self._settings.base_url)
+        entity = url_quote(self._run_obj.entity)
+        project = url_quote(self._run_obj.project)
+        sweep_id = url_quote(self._run_obj.sweep_id)
+        query = self._get_url_query_string()
+
+        return f"{app_url}/{entity}/{project}/sweeps/{sweep_id}{query}"
 
     def _get_run_name(self) -> str:
         r = self._run_obj
@@ -1708,7 +1715,8 @@ class Run(object):
             self._output_writer = None
 
     def _on_init(self) -> None:
-        self._printer._display_on_init(self._backend.interface)
+        if self._backend and self._backend.interface:
+            self._printer._display_on_init(self._backend.interface)
 
     def _on_start(self) -> None:
 
@@ -1838,7 +1846,7 @@ class Run(object):
             ("overwrite", overwrite, bool),
         ):
             # NOTE: type checking is broken for isinstance and str
-            if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
+            if arg_val is not None and not isinstance(arg_val, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
                     "Unhandled define_metric() arg: {} type: {}".format(

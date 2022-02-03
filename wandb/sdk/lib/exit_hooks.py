@@ -46,7 +46,7 @@ class ExitHooks(object):
         self.exit_code = 1
         self.exception = exc
         if issubclass(exc_type, Error):
-            wandb.termerror(str(exc))  # type: ignore
+            wandb.termerror(str(exc))
 
         if self.was_ctrl_c():
             self.exit_code = 255

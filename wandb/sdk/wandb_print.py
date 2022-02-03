@@ -3,27 +3,36 @@ import logging
 import numbers
 import os
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import wandb
-from wandb.proto.wandb_internal_pb2 import (
-    CheckVersionResponse,
-    FilePusherStats,
-    PollExitResponse,
-    RunRecord,
-)
+from wandb.apis.internal import Api
 
 from .lib import ipython, printer
+
+
+if TYPE_CHECKING:
+    from .wandb_settings import Settings
+    from wandb.sdk.interface.interface import InterfaceBase
+    from wandb.proto.wandb_internal_pb2 import (
+        CheckVersionResponse,
+        FilePusherStats,
+        PollExitResponse,
+        RunRecord,
+    )
+    from .lib.reporting import Reporter
+
 
 logger = logging.getLogger("wandb")
 
 
 class PrinterManager:
-    _poll_exit_response: Optional[PollExitResponse]
-    _check_version: Optional[CheckVersionResponse]
-    _run_obj: Optional[RunRecord]
+    _poll_exit_response: Optional["PollExitResponse"]
+    _check_version: Optional["CheckVersionResponse"]
+    _run_obj: Optional["RunRecord"]
+    _reporter: Optional["Reporter"]
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings: "Settings") -> None:
         self._check_version = None
         self._poll_exit_response = None
         self._run_obj = None
@@ -34,10 +43,10 @@ class PrinterManager:
         self._html = self._settings._jupyter and ipython.in_jupyter()
         self._reporter = None
 
-    def __call__(self, run_obj):
+    def __call__(self, run_obj: "RunRecord") -> None:
         self._run_obj = run_obj
 
-    def _display_on_init(self, interface) -> None:
+    def _display_on_init(self, interface: "InterfaceBase") -> None:
         logger.info("communicating current version")
         check = interface.communicate_check_version(current_version=wandb.__version__)
         if check:
@@ -46,7 +55,9 @@ class PrinterManager:
         self._append_version_check_info()
         self._printer.display()
 
-    def _display_on_start(self, project_url, run_url, sweep_url,) -> None:
+    def _display_on_start(
+        self, project_url: str, run_url: str, sweep_url: str,
+    ) -> None:
         self._append_sync_offline_info()
         self._append_wandb_version_info()
         self._append_run_info(
@@ -56,7 +67,12 @@ class PrinterManager:
         self._printer.display()
         print("")
 
-    def _display_on_finish(self, exit_code, quiet, interface) -> None:
+    def _display_on_finish(
+        self,
+        exit_code: Optional[int],
+        quiet: Optional[bool],
+        interface: "InterfaceBase",
+    ) -> None:
 
         self._display_exit_status(exit_code, quiet)
         # Wait for data to be synced
@@ -64,7 +80,7 @@ class PrinterManager:
 
         self._append_history_summary_info(interface, quiet)
 
-    def _display_on_final(self, quiet, run_url,) -> None:
+    def _display_on_final(self, quiet: Optional[bool], run_url: str,) -> None:
 
         self._append_reporter_info(quiet)
 
@@ -80,6 +96,9 @@ class PrinterManager:
         self._printer.display()
 
     def _append_version_check_info(self, footer: bool = None) -> None:
+        if not self._check_version:
+            return
+
         package_problem = False
         if self._check_version.delete_message:
             self._printer._errors.append(self._check_version.delete_message)
@@ -92,7 +111,7 @@ class PrinterManager:
             if self._check_version.upgrade_message:
                 self._printer._info.append(self._check_version.upgrade_message)
 
-    def _append_wandb_version_info(self):
+    def _append_wandb_version_info(self) -> None:
 
         if self._settings._quiet or self._settings._silent:
             return
@@ -113,7 +132,7 @@ class PrinterManager:
             ]
         )
 
-    def _append_offline_sync_info(self, quiet) -> None:
+    def _append_offline_sync_info(self, quiet: Optional[bool]) -> None:
         if quiet or not self._settings._offline:
             return
 
@@ -122,7 +141,7 @@ class PrinterManager:
             self._printer.code(f"wandb sync {self._settings['sync_dir']}")
         )
 
-    def _append_sync_dir_info(self):
+    def _append_sync_dir_info(self) -> None:
 
         if self._settings._quiet or self._settings._silent:
             return
@@ -150,18 +169,22 @@ class PrinterManager:
             f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)"
         )
 
-    def _append_run_sync_info(self, run_url) -> None:
+    def _append_run_sync_info(self, run_url: str) -> None:
         if not run_url:
             return
 
-        run_name = self._run_obj.display_name
-        self._printer._info.append(
-            f"Synced {self._printer.name(run_name)}: {self._printer.link(run_url)}"
-        )
+        if self._run_obj is not None:
+            run_name = self._run_obj.display_name
+            self._printer._info.append(
+                f"Synced {self._printer.name(run_name)}: {self._printer.link(run_url)}"
+            )
 
-    def _append_run_info(self, project_url, run_url, sweep_url,) -> None:
+    def _append_run_info(self, project_url: str, run_url: str, sweep_url: str,) -> None:
 
         if self._settings._offline or self._settings._silent:
+            return
+
+        if self._run_obj is None:
             return
 
         run_state_str = "Resuming run" if self._run_obj.resumed else "Syncing run"
@@ -206,19 +229,20 @@ class PrinterManager:
                 f'{self._printer.emoji("rocket")} View run at {self._printer.link(run_url)}'
             )
 
-            api = wandb.apis.internal.Api()
-            if api.settings().get("anonymous") == "true":
+            if Api().settings().get("anonymous") == "true":  # type: ignore[no-untyped-call]
                 self._printer._warnings.append(
                     "Do NOT share these links with anyone. They can be used to claim your runs."
                 )
 
-    def _display_exit_status(self, exit_code, quiet) -> None:
+    def _display_exit_status(
+        self, exit_code: Optional[int], quiet: Optional[bool]
+    ) -> None:
         if self._settings._silent:
             return
 
         info = ["Waiting for W&B process to finish..."]
         status = "(success)." if not exit_code else f"(failed {exit_code})."
-        info.append(self._printer.status(status, exit_code))
+        info.append(self._printer.status(status, bool(exit_code)))
 
         if not self._settings._offline and exit_code:
             info.append("Press ctrl-c to abort syncing.")
@@ -227,7 +251,7 @@ class PrinterManager:
         self._printer.display()
 
     def _pusher_print_status(
-        self, progress: FilePusherStats, done: Optional[bool] = False,
+        self, progress: "FilePusherStats", done: Optional[bool] = False,
     ) -> None:
 
         if self._settings._offline:
@@ -257,7 +281,7 @@ class PrinterManager:
                 )
             self._printer.display()
 
-    def _wait_for_finish(self, interface) -> PollExitResponse:
+    def _wait_for_finish(self, interface: "InterfaceBase") -> "PollExitResponse":
         while True:
             if interface:
                 poll_exit_resp = interface.communicate_poll_exit()
@@ -272,20 +296,20 @@ class PrinterManager:
                     return poll_exit_resp
             time.sleep(0.1)
 
-    def _render_history_info(self, interface) -> Optional[str]:
+    def _render_history_info(self, interface: "InterfaceBase") -> Optional[str]:
 
         history = interface.communicate_sampled_history()
 
         if not history:
-            return
+            return None
 
-        history = {
+        sampled_history = {
             item.key: item.values_float or item.values_int for item in history.item
         }
 
         logger.info("rendering history")
         history_rows = []
-        for key, values in sorted(history.items()):
+        for key, values in sorted(sampled_history.items()):
             if key.startswith("_"):
                 continue
             downsampled_values = wandb.util.downsample(values, 40)
@@ -295,40 +319,42 @@ class PrinterManager:
                 continue
             sparkline = self._printer.sparklines(downsampled_values)
             if sparkline:
-                history_rows.append((key, sparkline))
+                history_rows.append([key, sparkline])
         if not history_rows:
-            return
+            return None
         return self._printer.grid(history_rows, "Run history:")
 
-    def _render_summary_info(self, interface) -> Optional[str]:
+    def _render_summary_info(self, interface: "InterfaceBase") -> Optional[str]:
 
         summary = interface.communicate_get_summary()
 
         if not summary:
-            return
+            return None
 
-        summary = {item.key: json.loads(item.value_json) for item in summary.item}
+        final_summary = {item.key: json.loads(item.value_json) for item in summary.item}
 
         logger.info("rendering summary")
-        max_len, summary_rows = 0, []
-        for key, value in sorted(summary.items()):
+        summary_rows = []
+        for key, value in sorted(final_summary.items()):
             # arrays etc. might be too large. for now we just don't print them
             if key.startswith("_"):
                 continue
             if isinstance(value, str):
                 value = value[:20] + "..." * (len(value) >= 20)
-                summary_rows.append((key, value))
+                summary_rows.append([key, value])
             elif isinstance(value, numbers.Number):
-                summary_rows.append((key, round(value, 5)))
+                value = round(value, 5) if isinstance(value, float) else value
+                summary_rows.append([key, str(value)])
             else:
                 continue
-            max_len = max(max_len, len(key))
         if not summary_rows:
-            return
+            return None
 
         return self._printer.grid(summary_rows, "Run summary:")
 
-    def _append_history_summary_info(self, interface, quiet) -> str:
+    def _append_history_summary_info(
+        self, interface: "InterfaceBase", quiet: Optional[bool]
+    ) -> None:
 
         if quiet or not interface:
             return
@@ -359,7 +385,8 @@ class PrinterManager:
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {self._printer.link('http://wandb.me/local-upgrade')}"
                 )
 
-    def _append_reporter_info(self, quiet) -> None:
+    def _append_reporter_info(self, quiet: Optional[bool]) -> None:
+
         if quiet or not self._reporter:
             return
 
@@ -379,7 +406,7 @@ class PrinterManager:
             if len(error_lines) < self._reporter.error_count:
                 self._printer._info.append("More errors...")
 
-    def _append_logging_dir_info(self, quiet) -> None:
+    def _append_logging_dir_info(self, quiet: Optional[bool]) -> None:
 
         log_dir = self._settings.log_user or self._settings.log_internal
 

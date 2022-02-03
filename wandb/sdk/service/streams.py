@@ -206,7 +206,7 @@ class StreamMux:
             return
 
         for sid, stream in streams.items():
-            wandb.termlog(f"Finishing run: {sid}...")  # type: ignore
+            wandb.termlog(f"Finishing run: {sid}...")
             stream.interface.publish_exit(exit_code)
 
         streams_to_join = []
@@ -223,7 +223,7 @@ class StreamMux:
         for stream in streams_to_join:
             stream.join()
 
-        wandb.termlog("Done!")  # type: ignore
+        wandb.termlog("Done!")
 
     def _process_teardown(self, action: StreamAction) -> None:
         exit_code: int = action._data
