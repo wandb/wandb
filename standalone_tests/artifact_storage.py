@@ -4,7 +4,6 @@ import sys
 import tempfile
 
 import wandb
-from wandb.compat import tempfile
 
 def artifact_with_various_paths():
     art = wandb.Artifact(type='artsy', name='my-artys')
