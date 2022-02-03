@@ -1743,6 +1743,9 @@ class Run(object):
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         if self._backend and self._backend.interface:
+            # telemetry could have changed, publish final data
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
+
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
