@@ -162,6 +162,7 @@ class Source(enum.IntEnum):
     INIT: int = 11
     SETTINGS: int = 12
     ARGS: int = 13
+    RUN: int = 14
 
 
 @enum.unique
@@ -399,6 +400,7 @@ class Settings:
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
+    resumed: bool  # indication from the server about the state of the run (differnt from resume - user provided flag)
     root_dir: str
     run_group: str
     run_id: str
@@ -503,6 +505,7 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
+            resumed={"value": "False", "preprocessor": _str_as_bool},
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
@@ -1182,11 +1185,31 @@ class Settings:
                 _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
 
-    def _apply_run_start(
-        self, run_start_settings: Dict[str, Union[str, int, None]]
-    ) -> None:
-        # TODO add this
-        pass
+    def _apply_run_start(self, run_obj) -> None:
+        # TODO should we only have display_name and resumed?
+        param_map = {
+            "run_id": "run_id",
+            "entity": "entity",
+            "project": "project",
+            "run_group": "run_group",
+            "job_type": "run_job_type",
+            "display_name": "run_name",
+            "notes": "run_notes",
+            "tags": "run_tags",
+            "sweep_id": "sweep_id",
+            "host": "host",
+            "resumed": "resumed",
+            "git.remote_url": "git_remote",
+        }
+        import functools  # TODO move to top
+
+        run_settings = {
+            name: functools.reduce(getattr, attr.split("."), run_obj)
+            for attr, name in param_map.items()
+        }
+        run_settings = {key: value for key, value in run_settings.items() if value}
+        if run_settings:
+            self.update(run_settings, source=Source.RUN)
 
     # computed properties
     @property

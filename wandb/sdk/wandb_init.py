@@ -614,9 +614,8 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
-
-        # TODO add this logic
         self.settings._apply_run_start(run_obj)
+        # TODO do we need to update settings for the run?
         # if manager:
         #     manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
