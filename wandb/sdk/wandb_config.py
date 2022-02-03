@@ -8,7 +8,11 @@ import logging
 
 import six
 import wandb
-from wandb.util import check_dict_contains_nested_artifact, json_friendly_val
+from wandb.util import (
+    _is_artifact_string_or_artifact,
+    check_dict_contains_nested_artifact,
+    json_friendly_val,
+)
 
 from . import wandb_helper
 from .lib import config_util
@@ -143,8 +147,8 @@ class Config(object):
         with wandb.sdk.lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
-        if self._is_artifact_string_or_artifact(val):
-            val = self._artifact_callback(val)
+        if _is_artifact_string_or_artifact(val):
+            val = self._artifact_callback(key, val)
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -235,6 +239,8 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
+        if _is_artifact_string_or_artifact(val):
+            val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (
             isinstance(val, wandb.Artifact)
@@ -261,16 +267,6 @@ class Config(object):
                 "Instances of wandb.Artifact and wandb.apis.public.Artifact"
                 " can only be top level keys in wandb.config"
             )
-        elif self._is_artifact_string_or_artifact(v) and nested:
-            raise ValueError(
-                "Instances of wandb.Artifact and wandb.apis.public.Artifact"
-                " can only be top level keys in wandb.config"
-            )
-
-    def _is_artifact_string_or_artifact(self, v):
-        return (
-            isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
-        ) or isinstance(v, wandb.Artifact)
 
 
 class ConfigStatic(object):

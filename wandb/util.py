@@ -1474,6 +1474,16 @@ def check_dict_contains_nested_artifact(d, nested=False):
         elif (
             isinstance(item, wandb.Artifact)
             or isinstance(item, wandb.apis.public.Artifact)
+            or isinstance(item, six.string_types)
+            and item.startswith("wandb-artifact://")
         ) and nested:
             return True
     return False
+
+
+def _is_artifact_string_or_artifact(v):
+    return (
+        (isinstance(v, six.string_types) and v.startswith("wandb-artifact://"))
+        or isinstance(v, wandb.Artifact)
+        or isinstance(v, wandb.apis.public.Artifact)
+    )

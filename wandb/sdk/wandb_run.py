@@ -969,7 +969,7 @@ class Run(object):
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
-    def _config_artifact_callback(self, key: str, val: Union[str, wandb.Artifact]):
+    def _config_artifact_callback(self, key: str, val: Union[str, "Artifact"]):
         if isinstance(val, string_types) and val.startswith("wandb-artifact://"):
             artifact_string = val[len("wandb-artifact://") :]
             public_api = self._public_api()

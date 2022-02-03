@@ -30,7 +30,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import sentry_exc
+from wandb.util import _is_artifact_string_or_artifact, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -158,11 +158,15 @@ class _WandbInit(object):
         # merge config with sweep or sagemaker (or config file)
         self.sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
+        self.init_artifact_config = dict()
         for config_data in sagemaker_config, self._wl._config, init_config:
             if not config_data:
                 continue
             for k, v in config_data.items():
-                self.config.setdefault(k, v)
+                if _is_artifact_string_or_artifact(v):
+                    self.init_artifact_config[k] = v
+                else:
+                    self.config.setdefault(k, v)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -423,8 +427,8 @@ class _WandbInit(object):
         sweep_config = self.sweep_config
         config = self.config
         logger.info(
-            "wandb.init called with sweep_config: {}\nconfig: {}".format(
-                sweep_config, config
+            "wandb.init called with sweep_config: {}\nconfig: {}\nartifact_config{}".format(
+                sweep_config, config, self.init_artifact_config
             )
         )
         if s._noop:
@@ -624,6 +628,11 @@ class _WandbInit(object):
 
         self._wl._global_run_stack.append(run)
         self.run = run
+
+        # put artifacts in run config
+        for k, v in self.init_artifact_config.items():
+            run.config.update({k: v}, allow_val_change=True)
+
         self.backend = backend
         module.set_global(
             run=run,
