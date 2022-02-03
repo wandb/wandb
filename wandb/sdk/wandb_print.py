@@ -119,7 +119,7 @@ class PrinterManager:
         if quiet or not self._settings["_offline"]:
             return
 
-        self._info.append("You can sync this run to the cloud by running:")
+        self._printer._info.append("You can sync this run to the cloud by running:")
         self._printer._info.append(
             self._printer.code(f"wandb sync {self._settings['sync_dir']}")
         )
