@@ -6,6 +6,8 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from wandb.integration import sagemaker
+
 if False:
     import boto3  # type: ignore
 import wandb
@@ -92,14 +94,8 @@ class AWSSagemakerRunner(AbstractRunner):
             raise LaunchError(
                 "AWS Sagemaker jobs require an ecr repository name, set this using `resource_args ecr_repo_name=<ecr_repo_name>`"
             )
-        if (
-            launch_project.resource_args.get("OutputDataConfig") is None
-            and launch_project.resource_args.get("output_data_config") is None
-        ):
-            raise LaunchError(
-                "AWS sagemaker jobs require an output config, set this using `resource_args OutputDataConfig=<output_data_config>`"
-            )
-        region = get_region(launch_project)
+
+        region = get_region(launch_project.resource_args)
 
         access_key, secret_key = get_aws_credentials(launch_project.resource_args)
 
@@ -107,11 +103,6 @@ class AWSSagemakerRunner(AbstractRunner):
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
         )
         account_id = client.get_caller_identity()["Account"]
-
-        if get_role_arn(launch_project.resource_args, account_id) is None:
-            raise LaunchError(
-                "AWS sagemaker jobs require a Sagemaker role, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
-            )
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
@@ -129,7 +120,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-            sagemaker_args = build_sagemaker_args(launch_project)
+            sagemaker_args = build_sagemaker_args(launch_project, account_id=account_id)
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -219,7 +210,8 @@ class AWSSagemakerRunner(AbstractRunner):
 
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
         docker.tag(image, aws_tag)
-        _logger.info(f"Pushing image {image} to registry {aws_registry}")
+
+        wandb.termlog(f"Pushing image {image} to registry {aws_registry}")
         push_resp = docker.push(aws_registry, launch_project.run_id)
         if push_resp is None:
             raise LaunchError("Failed to push image to repository")
@@ -313,27 +305,89 @@ def build_sagemaker_args(
     sagemaker_args["TrainingJobName"] = (
         resource_args.get("TrainingJobName") or launch_project.run_id
     )
+
     sagemaker_args[
         "AlgorithmSpecification"
     ] = merge_aws_tag_with_algorithm_specification(
         resource_args.get("AlgorithmSpecification"), aws_tag,
     )
-    sagemaker_args["ResourceConfig"] = resource_args.get("ResourceConfig") or {
-        "InstanceCount": 1,
-        "InstanceType": "ml.m4.xlarge",
-        "VolumeSizeInGB": 2,
-    }
+    # required
+    sagemaker_args["OutputDataConfig"] = resource_args.get(
+        "OutputDataConfig", resource_args.get("output_data_config")
+    )
+    if sagemaker_args["OutputDataConfig"] is None:
+        raise LaunchError(
+            "Sagemaker launcher requires an OutputDataConfig resource argument"
+        )
 
-    sagemaker_args["StoppingCondition"] = resource_args.get("StoppingCondition") or {
-        "MaxRuntimeInSeconds": resource_args.get("MaxRuntimeInSeconds") or 3600
-    }
-    output_data_config = resource_args.get("OutputDataConfig") or resource_args.get(
-        "output_data_config"
+    sagemaker_args["ResourceConfig"] = resource_args.get(
+        "ResourceConfig", resource_args.get("resource_config")
+    )
+    if sagemaker_args["ResourceConfig"] is None:
+        raise LaunchError("Sagemaker launcher requires a ResourceConfig.")
+
+    sagemaker_args["StoppingCondition"] = resource_args.get("StoppingCondition")
+    if sagemaker_args["StoppingCondition"] is None:
+        raise LaunchError("Sagemaker launcher requires a StoppingCondition.")
+
+    sagemaker_args["RoleArn"] = get_role_arn(resource_args, account_id)
+
+    # optional
+    sagemaker_args["InputDataConfig"] = resource_args.get(
+        "InputDataConfig", resource_args.get("input_data_config")
     )
 
-    sagemaker_args["OutputDataConfig"] = output_data_config
-    sagemaker_args["RoleArn"] = get_role_arn(resource_args, account_id)
-    return sagemaker_args
+    sagemaker_args["HyperParameters"] = resource_args.get(
+        "HyperParameters", resource_args.get("hyper_parameters")
+    )
+    sagemaker_args["VpcConfig"] = resource_args.get(
+        "VpcConfig", resource_args.get("vpc_config")
+    )
+    sagemaker_args["Tags"] = resource_args.get("Tags", resource_args.get("tags"))
+    sagemaker_args["EnableNetworkIsolation"] = resource_args.get(
+        "EnableNetworkIsolation", resource_args.get("enable_network_isolation", None)
+    )
+    sagemaker_args["EnableInterContainerTrafficEncryption"] = resource_args.get(
+        "EnableInterContainerTrafficEncryption",
+        resource_args.get("enable_inter_container_traffic_encryption", None),
+    )
+    sagemaker_args["EnableManagedSpotTraining"] = resource_args.get(
+        "EnableManagedSpotTraining",
+        resource_args.get("enable_managed_spot_training", None),
+    )
+    sagemaker_args["CheckpointConfig"] = resource_args.get(
+        "CheckpointConfig", resource_args.get("checkpoint_config", None)
+    )
+    sagemaker_args["DebugHookConfig"] = resource_args.get(
+        "DebugHookConfig", resource_args.get("debug_hook_config", None)
+    )
+    sagemaker_args["DebugRuleConfigurations"] = resource_args.get(
+        "DebugRuleConfigurations", resource_args.get("debug_rule_configurations", None)
+    )
+    sagemaker_args["TensorBoardOutputConfig"] = resource_args.get(
+        "TensoBoardOutputConfig", resource_args.get("tensor_board_output_config", None)
+    )
+    sagemaker_args["ExperimentConfig"] = resource_args.get(
+        "ExperimentConfig", resource_args.get("experiment_config", None)
+    )
+    sagemaker_args["ProfilerConfig"] = resource_args.get(
+        "ProfilerConfig", resource_args.get("profiler_config", None)
+    )
+    sagemaker_args["ProfilerRuleConfigurations"] = resource_args.get(
+        "ProfilerRuleConfigurations",
+        resource_args.get("profiler_rule_configurations", None),
+    )
+    sagemaker_args["Environment"] = resource_args.get(
+        "Environment", resource_args.get("environment")
+    )
+    sagemaker_args["RetryStrategy"] = resource_args.get(
+        "RetryStrategy", resource_args.get("retry_strategy")
+    )
+
+    # clear the args that are None so they are not passed
+    filtered_args = {k: v for k, v in sagemaker_args.items() if v is not None}
+
+    return filtered_args
 
 
 def launch_sagemaker_job(
@@ -358,12 +412,12 @@ def launch_sagemaker_job(
     return run
 
 
-def get_region(launch_project: LaunchProject) -> str:
-    region = launch_project.resource_args.get("region")
+def get_region(resource_args: Dict[str, Any]) -> str:
+    region = resource_args.get("region")
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/config"))
-        section = launch_project.resource_args.get("profile") or "default"
+        section = resource_args.get("profile") or "default"
         try:
             region = config.get(section, "region")
         except (configparser.NoOptionError, configparser.NoSectionError):

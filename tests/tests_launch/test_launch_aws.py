@@ -77,7 +77,7 @@ def test_launch_aws_sagemaker(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -137,7 +137,7 @@ def test_launch_aws_sagemaker_launch_fail(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -174,7 +174,7 @@ def test_launch_aws_sagemaker_push_image_fail_none(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -212,7 +212,7 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -246,7 +246,7 @@ def test_sagemaker_specified_image(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -374,7 +374,7 @@ def test_failed_aws_cred_login(
         launch.run(
             uri="https://wandb.ai/mock_server_entity/test/runs/1",
             api=api,
-            resource="aws-sagemaker",
+            resource="sagemaker",
             entity="mock_server_entity",
             project="test",
             resource_args={
@@ -405,7 +405,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
             {},
             "test",
             "test",
-            resource="aws-sagemaker",
+            resource="sagemaker",
             name="test",
             docker_config={},
             git_info={},
@@ -430,7 +430,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             {},
             "test",
             "test",
-            resource="aws-sagemaker",
+            resource="sagemaker",
             name="test",
             docker_config={},
             git_info={},
@@ -456,7 +456,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             {},
             "test",
             "test",
-            resource="aws-sagemaker",
+            resource="sagemaker",
             name="test",
             docker_config={},
             git_info={},
@@ -490,7 +490,7 @@ def test_aws_fail_build(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -517,7 +517,7 @@ def test_no_OuputDataConfig(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
@@ -546,7 +546,7 @@ def test_no_RoleARN(
     kwargs = {
         "uri": uri,
         "api": api,
-        "resource": "aws-sagemaker",
+        "resource": "sagemaker",
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {

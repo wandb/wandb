@@ -204,7 +204,7 @@ def build_docker_image_if_needed(
         name_line = "ENV WANDB_NAME={wandb_name}\n"
     aws_line = ""
     if runner_type == "aws":
-        # need to make user root for aws-sagemaker, so users have access to /opt/ml directories
+        # need to make user root for sagemaker, so users have access to /opt/ml directories
         # that let users create artifacts and access input data
         aws_line = "USER root\n"
     dockerfile_contents = (

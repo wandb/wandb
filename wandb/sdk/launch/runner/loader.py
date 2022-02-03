@@ -13,7 +13,7 @@ __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-WANDB_RUNNERS = {"local": LocalRunner, "aws-sagemaker": AWSSagemakerRunner}
+WANDB_RUNNERS = {"local": LocalRunner, "sagemaker": AWSSagemakerRunner}
 
 
 def load_backend(

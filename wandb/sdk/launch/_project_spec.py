@@ -24,7 +24,7 @@ _logger = logging.getLogger(__name__)
 
 DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
-RESOURCE_UID_MAP = {"local": 1000, "aws-sagemaker": 0}
+RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
 
 
 class LaunchSource(enum.IntEnum):
