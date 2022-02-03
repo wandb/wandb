@@ -83,10 +83,10 @@ class PrinterTerm(_Printer):
         wandb.termlog(" " * 79)
 
     def code(self, text: str) -> str:
-        return click.style(text, fg="yellow")
+        return click.style(text, bold=True)
 
     def name(self, text: str) -> str:
-        return click.style(text, fg=(205, 205, 0))
+        return click.style(text, fg="yellow")
 
     def link(self, link: str, text: Optional[str] = None) -> str:
         return click.style(link, fg="blue", underline=True)
@@ -114,7 +114,7 @@ class PrinterTerm(_Printer):
         return f"{grid}\n"
 
     def panel(self, columns: List[str]) -> str:
-        return "\n".join(columns)
+        return "\n" + "\n".join(columns)
 
 
 class PrinterJupyter(_Printer):

@@ -72,7 +72,7 @@ class PrinterManager:
         self._append_offline_sync_info(quiet)
         self._append_logging_dir_info(quiet)
 
-        if not quiet and not self._settings["_offline"]:
+        if not quiet and not self._settings._offline:
             self._append_version_check_info(footer=True)
             self._append_local_warning()
 
@@ -93,7 +93,7 @@ class PrinterManager:
 
     def _append_wandb_version_info(self):
 
-        if self._settings["_quiet"] or self._settings["_silent"]:
+        if self._settings._quiet or self._settings._silent:
             return
 
         self._printer._info.append(
@@ -101,19 +101,19 @@ class PrinterManager:
         )
 
     def _append_sync_offline_info(self) -> None:
-        if self._settings["_quiet"] or not self._settings["_offline"]:
+        if self._settings._quiet or not self._settings._offline:
             return
 
         # TODO: make offline mode in jupyter use HTML
         self._printer._info.extend(
             [
-                "W&B syncing is set to `offline` in this directory.  ",
-                "Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.",
+                f"W&B syncing is set to {self._printer.code('`offline`')} in this directory.  ",
+                f"Run {self._printer.code('`wandb online`')} or set {self._printer.code('WANDB_MODE=online')} to enable cloud syncing.",
             ]
         )
 
     def _append_offline_sync_info(self, quiet) -> None:
-        if quiet or not self._settings["_offline"]:
+        if quiet or not self._settings._offline:
             return
 
         self._printer._info.append("You can sync this run to the cloud by running:")
@@ -123,19 +123,21 @@ class PrinterManager:
 
     def _append_sync_dir_info(self):
 
-        if self._settings["_quiet"] or self._settings["_silent"]:
+        if self._settings._quiet or self._settings._silent:
             return
 
         sync_dir = self._settings["sync_dir"]
         self._printer._info.append(
             f"Run data is saved locally in {self._printer.files(sync_dir)}"
         )
-        if not self._settings["_offline"] and not self._html:
-            self._printer._info.append("Run `wandb offline` to turn off syncing.")
+        if not self._settings._offline and not self._html:
+            self._printer._info.append(
+                f"Run {self._printer.code('`wandb offline`')} to turn off syncing."
+            )
 
     def _append_file_sync_info(self) -> None:
 
-        if self._settings["_silent"] or self._settings["_offline"]:
+        if self._settings._silent or self._settings._offline:
             return
 
         if not self._poll_exit_response or not self._poll_exit_response.file_counts:
@@ -158,7 +160,7 @@ class PrinterManager:
 
     def _append_run_info(self, project_url, run_url, sweep_url,) -> None:
 
-        if self._settings["_offline"] or self._settings["_silent"]:
+        if self._settings._offline or self._settings._silent:
             return
 
         run_state_str = "Resuming run" if self._run_obj.resumed else "Syncing run"
@@ -191,7 +193,7 @@ class PrinterManager:
             self._printer._info.append(
                 f"{run_state_str} {self._printer.name(run_name)}"
             )
-            if not self._settings["_quiet"]:
+            if not self._settings._quiet:
                 self._printer._info.append(
                     f'{self._printer.emoji("star")} View project at {self._printer.link(project_url)}'
                 )
@@ -210,14 +212,14 @@ class PrinterManager:
                 )
 
     def _display_exit_status(self, exit_code, quiet) -> None:
-        if self._settings["_silent"]:
+        if self._settings._silent:
             return
 
         info = ["Waiting for W&B process to finish..."]
         status = "(success)." if not exit_code else f"(failed {exit_code})."
         info.append(self._printer.status(status, exit_code))
 
-        if not self._settings["_offline"] and exit_code:
+        if not self._settings._offline and exit_code:
             info.append("Press ctrl-c to abort syncing.")
 
         self._printer._info.append(f'{" ".join(info)}')
@@ -227,7 +229,7 @@ class PrinterManager:
         self, progress: FilePusherStats, done: Optional[bool] = False,
     ) -> None:
 
-        if self._settings["_offline"]:
+        if self._settings._offline:
             return
 
         MB = wandb.util.POW_2_BYTES[2][1]
@@ -348,7 +350,7 @@ class PrinterManager:
         if not self._poll_exit_response or not self._poll_exit_response.local_info:
             return
 
-        if self._settings["is_local"]:
+        if self._settings.is_local:
             local_info = self._poll_exit_response.local_info
             latest_version, out_of_date = local_info.version, local_info.out_of_date
             if out_of_date:
@@ -378,7 +380,7 @@ class PrinterManager:
 
     def _append_logging_dir_info(self, quiet) -> None:
 
-        log_dir = self._settings["log_user"] or self._settings["log_internal"]
+        log_dir = self._settings.log_user or self._settings.log_internal
 
         if quiet or not log_dir:
             return
