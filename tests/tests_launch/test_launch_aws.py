@@ -611,6 +611,94 @@ def test_no_OuputDataConfig(
         )
 
 
+def test_no_StoppingCondition(
+    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+    )
+    with runner.isolated_filesystem():
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
+        )
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+        kwargs = {
+            "uri": uri,
+            "api": api,
+            "resource": "sagemaker",
+            "entity": "mock_server_entity",
+            "project": "test",
+            "resource_args": {
+                "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                "ecr_repo_name": "my-test-repo",
+                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+                "TrainingJobName": "test-job-1",
+                "region": "us-east-1",
+                "ResourceConfig": {
+                    "InstanceCount": 1,
+                    "InstanceType": "ml.c4.xlarge",
+                    "VolumeSizeInGB": 10,
+                },
+                "region": "us-west-2",
+                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+            },
+        }
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            launch.run(**kwargs)
+        assert (
+            str(e_info.value)
+            == "Sagemaker launcher requires a ResourceConfig resource argument"
+        )
+
+
+def test_no_ResourceCondig(
+    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+    )
+    with runner.isolated_filesystem():
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
+        )
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+        kwargs = {
+            "uri": uri,
+            "api": api,
+            "resource": "sagemaker",
+            "entity": "mock_server_entity",
+            "project": "test",
+            "resource_args": {
+                "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                "ecr_repo_name": "my-test-repo",
+                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+                "TrainingJobName": "test-job-1",
+                "region": "us-east-1",
+                "region": "us-west-2",
+                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+            },
+        }
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            launch.run(**kwargs)
+        assert (
+            str(e_info.value)
+            == "Sagemaker launcher requires an StoppingCondition resource argument"
+        )
+
+
 def test_no_RoleARN(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):

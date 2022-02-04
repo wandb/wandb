@@ -320,11 +320,15 @@ def build_sagemaker_args(
         "ResourceConfig", resource_args.get("resource_config")
     )
     if sagemaker_args["ResourceConfig"] is None:
-        raise LaunchError("Sagemaker launcher requires a ResourceConfig.")
+        raise LaunchError(
+            "Sagemaker launcher requires a ResourceConfig resource argument"
+        )
 
     sagemaker_args["StoppingCondition"] = resource_args.get("StoppingCondition")
     if sagemaker_args["StoppingCondition"] is None:
-        raise LaunchError("Sagemaker launcher requires a StoppingCondition.")
+        raise LaunchError(
+            "Sagemaker launcher requires a StoppingCondition resource argument"
+        )
 
     sagemaker_args["RoleArn"] = get_role_arn(resource_args, account_id)
 

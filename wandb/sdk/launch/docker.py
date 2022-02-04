@@ -209,9 +209,9 @@ def build_docker_image_if_needed(
         aws_line = "USER root\n"
     dockerfile_contents = (
         "FROM {imagename}\n"
-        "{aws_line}"
         # need to chown this directory for artifacts caching
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
+        "{aws_line}"
         "{copy_code_line}"
         "{requirements_line}"
         "{name_line}"
