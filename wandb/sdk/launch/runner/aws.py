@@ -6,8 +6,6 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from wandb.integration import sagemaker
-
 if False:
     import boto3  # type: ignore
 import wandb
@@ -120,7 +118,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             )
-            sagemaker_args = build_sagemaker_args(launch_project, account_id=account_id)
+            sagemaker_args = build_sagemaker_args(launch_project, account_id)
             _logger.info(
                 f"Launching sagemaker job on user supplied image with args: {sagemaker_args}"
             )
@@ -242,7 +240,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
         )
 
-        sagemaker_args = build_sagemaker_args(launch_project, aws_tag, account_id)
+        sagemaker_args = build_sagemaker_args(launch_project, account_id, aws_tag)
         _logger.info(f"Launching sagemaker job with args: {sagemaker_args}")
         run = launch_sagemaker_job(launch_project, sagemaker_args, sagemaker_client)
         if self.backend_config[PROJECT_SYNCHRONOUS]:
@@ -296,9 +294,7 @@ def merge_aws_tag_with_algorithm_specification(
 
 
 def build_sagemaker_args(
-    launch_project: LaunchProject,
-    aws_tag: Optional[str] = None,
-    account_id: Optional[str] = None,
+    launch_project: LaunchProject, account_id: str, aws_tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args = {}
     resource_args = launch_project.resource_args
@@ -414,6 +410,8 @@ def launch_sagemaker_job(
 
 def get_region(resource_args: Dict[str, Any]) -> str:
     region = resource_args.get("region")
+    if region is None:
+        region = os.environ.get("AWS_DEFAULT_REGION")
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/config"))
@@ -435,7 +433,7 @@ def get_region(resource_args: Dict[str, Any]) -> str:
     return region
 
 
-def get_aws_credentials(resource_args: Dict[str, Any] = {}) -> Tuple[str, str]:
+def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
     access_key = os.environ.get("AWS_ACCESS_KEY_ID")
     secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
     if (
@@ -453,11 +451,11 @@ def get_aws_credentials(resource_args: Dict[str, Any] = {}) -> Tuple[str, str]:
     return access_key, secret_key
 
 
-def get_role_arn(resource_args: Dict[str, Any], account_id: str) -> Optional[str]:
+def get_role_arn(resource_args: Dict[str, Any], account_id: str) -> str:
     role_arn = resource_args.get("RoleArn") or resource_args.get("role_arn")
-    if role_arn is None:
+    if role_arn is None or not isinstance(role_arn, str):
         raise LaunchError(
-            "AWS sagemaker jobs, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+            "AWS sagemaker require a string RoleArn set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
         )
     if role_arn.startswith("arn:aws:iam::"):
         return role_arn

@@ -395,7 +395,7 @@ def test_aws_get_aws_credentials_file_success(runner, monkeypatch):
     monkeypatch.setattr(configparser.ConfigParser, "get", mock_get_creds)
 
     with runner.isolated_filesystem():
-        key, secret = get_aws_credentials()
+        key, secret = get_aws_credentials({})
         assert key == "test-key"
         assert secret == "test-secret"
 
@@ -634,5 +634,5 @@ def test_no_RoleARN(
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "AWS sagemaker jobs, set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+            == "AWS sagemaker require a string RoleArn set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
         )
