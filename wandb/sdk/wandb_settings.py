@@ -2,6 +2,7 @@ import configparser
 from datetime import datetime
 from distutils.util import strtobool
 import enum
+from functools import reduce
 import getpass
 import json
 import multiprocessing
@@ -27,6 +28,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
+from urllib.parse import quote, urlencode
 
 import wandb
 from wandb import util
@@ -37,7 +39,6 @@ from wandb.sdk.wandb_setup import _EarlyLogger
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
-
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
@@ -395,6 +396,7 @@ class Settings:
     program: str
     program_relpath: str
     project: str
+    # project_url: str
     quiet: bool
     reinit: bool
     relogin: bool
@@ -408,6 +410,7 @@ class Settings:
     run_name: str
     run_notes: str
     run_tags: Tuple[str]
+    # run_url: str
     sagemaker_disable: bool
     save_code: bool
     settings_system: str
@@ -424,6 +427,7 @@ class Settings:
     summary_warnings: int
     sweep_id: str
     sweep_param_path: str
+    # sweep_url: str
     symlink: bool
     sync_dir: str
     sync_file: str
@@ -498,6 +502,7 @@ class Settings:
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
             project={"validator": self._validate_project},
+            # project_url={"hook": lambda x: self._project_url()},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
@@ -509,6 +514,7 @@ class Settings:
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            # run_url={"hook": lambda x: self._run_url()},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool, "is_policy": True},
             settings_system={
@@ -554,6 +560,7 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            # sweep_url={"hook": lambda x: self._sweep_url()},
             tmp_dir={
                 "value": "tmp",
                 "hook": lambda x: (
@@ -667,6 +674,46 @@ class Settings:
         Join path and apply os.path.expanduser to it.
         """
         return os.path.expanduser(os.path.join(*args))
+
+    def _get_url_query_string(self) -> str:
+        if self.anonymous != "true":
+            return ""
+        return f"?{urlencode({'apiKey': self.api_key})}"
+
+    def _project_url_base(self) -> str:
+        if not all([self.entity, self.project]):
+            return ""
+
+        app_url = wandb.util.app_url(self.base_url)
+        return f"{app_url}/{quote(self.entity)}/{quote(self.project)}"
+
+    @property
+    def project_url(self) -> str:
+        project_url = self._project_url_base()
+        if not project_url:
+            return ""
+
+        query = self._get_url_query_string()
+
+        return f"{project_url}{query}"
+
+    @property
+    def run_url(self) -> str:
+        project_url = self._project_url_base()
+        if not all([project_url, self.run_id]):
+            return ""
+
+        query = self._get_url_query_string()
+        return f"{project_url}/runs/{quote(self.run_id)}{query}"
+
+    @property
+    def sweep_url(self) -> str:
+        project_url = self._project_url_base()
+        if not all([project_url, self.sweep_id]):
+            return ""
+
+        query = self._get_url_query_string()
+        return f"{project_url}/sweeps/{quote(self.sweep_id)}{query}"
 
     def _start_run(self) -> None:
         time_stamp: float = time.time()
@@ -1185,8 +1232,10 @@ class Settings:
                 _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
 
-    def _apply_run_start(self, run_obj) -> None:
-        # TODO should we only have display_name and resumed?
+    def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
+
+        # This dictionary maps from the "run message dict" to relevant fields in settings
+        # Note: that config is missing
         param_map = {
             "run_id": "run_id",
             "entity": "entity",
@@ -1201,10 +1250,8 @@ class Settings:
             "resumed": "resumed",
             "git.remote_url": "git_remote",
         }
-        import functools  # TODO move to top
-
         run_settings = {
-            name: functools.reduce(getattr, attr.split("."), run_obj)
+            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
             for attr, name in param_map.items()
         }
         run_settings = {key: value for key, value in run_settings.items() if value}

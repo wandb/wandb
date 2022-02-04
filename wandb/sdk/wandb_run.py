@@ -27,7 +27,6 @@ from typing import (
     Union,
 )
 from typing import TYPE_CHECKING
-from urllib.parse import quote as url_quote, urlencode
 
 import requests
 import wandb
@@ -62,7 +61,6 @@ from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
-    apikey,
     config_util,
     deprecate,
     filenames,
@@ -468,6 +466,7 @@ class Run:
     def _update_settings(self, settings: Settings) -> None:
         self._settings = settings
         self._init_from_settings(settings)
+        self._printer(settings)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -789,27 +788,27 @@ class Run:
 
         Offline runs will not have a url.
         """
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_run_url()
+        return self._settings.run_url
 
     def get_project_url(self) -> Optional[str]:
         """Returns the url for the W&B project associated with the run, if there is one.
 
         Offline runs will not have a project url.
         """
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_project_url()
+        return self._settings.project_url
 
     def get_sweep_url(self) -> Optional[str]:
         """Returns the url for the sweep associated with the run, if there is one."""
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_sweep_url()
+        return self._settings.sweep_url
 
     @property
     def url(self) -> Optional[str]:
@@ -921,7 +920,7 @@ class Run:
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
-        url = self._get_run_url() + "?jupyter=true"
+        url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
         if hidden:
@@ -1040,7 +1039,6 @@ class Run:
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
-        self._printer(run_obj)
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -1065,12 +1063,11 @@ class Run:
             entity=run_obj.entity,
             project=run_obj.project,
             email=self._settings.email,
-            url=self._get_run_url(),
+            url=self._settings.run_url,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
-        self._printer(run_obj)
 
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
@@ -1503,65 +1500,6 @@ class Run:
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
-    def _get_url_query_string(self) -> str:
-        # TODO(jhr): migrate to new settings, but for now this is safer
-        api = internal.Api()
-        if api.settings().get("anonymous") != "true":
-            return ""
-
-        api_key = apikey.api_key(settings=self._settings)
-        return f'?{urlencode({"apiKey": api_key})}'
-
-    def _get_project_url(self) -> str:
-        if not self._run_obj:
-            return ""
-
-        app_url = wandb.util.app_url(self._settings.base_url)
-        entity = url_quote(self._run_obj.entity)
-        project = url_quote(self._run_obj.project)
-        query = self._get_url_query_string()
-
-        return f"{app_url}/{entity}/{project}{query}"
-
-    def _get_run_url(self) -> str:
-        if not self._run_obj:
-            return ""
-
-        app_url = wandb.util.app_url(self._settings.base_url)
-        entity = url_quote(self._run_obj.entity)
-        project = url_quote(self._run_obj.project)
-        run_id = url_quote(self._run_obj.run_id)
-        query = self._get_url_query_string()
-
-        return f"{app_url}/{entity}/{project}/runs/{run_id}{query}"
-
-    def _get_sweep_url(self) -> str:
-        """Generate a url for a sweep.
-
-        Returns:
-            (str): url if the run is part of a sweep
-            (None): if the run is not part of the sweep
-        """
-        if not self._run_obj:
-            return ""
-
-        if not self._run_obj.sweep_id:
-            return ""
-
-        app_url = wandb.util.app_url(self._settings.base_url)
-        entity = url_quote(self._run_obj.entity)
-        project = url_quote(self._run_obj.project)
-        sweep_id = url_quote(self._run_obj.sweep_id)
-        query = self._get_url_query_string()
-
-        return f"{app_url}/{entity}/{project}/sweeps/{sweep_id}{query}"
-
-    def _get_run_name(self) -> str:
-        r = self._run_obj
-        if not r:
-            return ""
-        return r.display_name
-
     def _redirect(
         self,
         stdout_slave_fd: Optional[int],
@@ -1722,9 +1660,7 @@ class Run:
 
     def _on_start(self) -> None:
 
-        self._printer._display_on_start(
-            self._get_project_url(), self._get_run_url(), self._get_sweep_url(),
-        )
+        self._printer._display_on_start()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -1770,7 +1706,7 @@ class Run:
 
     def _on_final(self) -> None:
 
-        self._printer._display_on_final(self._quiet, self._get_run_url())
+        self._printer._display_on_final(self._quiet)
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)

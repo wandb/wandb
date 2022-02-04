@@ -6,7 +6,6 @@ import time
 from typing import Optional, TYPE_CHECKING
 
 import wandb
-from wandb.apis.internal import Api
 
 from .lib import ipython, printer
 
@@ -18,7 +17,6 @@ if TYPE_CHECKING:
         CheckVersionResponse,
         FilePusherStats,
         PollExitResponse,
-        RunRecord,
     )
     from .lib.reporting import Reporter
 
@@ -29,13 +27,12 @@ logger = logging.getLogger("wandb")
 class RunPrinter:
     _poll_exit_response: Optional["PollExitResponse"]
     _check_version: Optional["CheckVersionResponse"]
-    _run_obj: Optional["RunRecord"]
+    _settings: "Settings"
     _reporter: Optional["Reporter"]
 
     def __init__(self, settings: "Settings") -> None:
         self._check_version = None
         self._poll_exit_response = None
-        self._run_obj = None
 
         self._settings = settings
         self._printer = printer.get_printer(self._settings._jupyter)
@@ -43,8 +40,8 @@ class RunPrinter:
         self._html = self._settings._jupyter and ipython.in_jupyter()
         self._reporter = None
 
-    def __call__(self, run_obj: "RunRecord") -> None:
-        self._run_obj = run_obj
+    def __call__(self, settings: "Settings") -> None:
+        self._settings = settings
 
     def _display_on_init(self, interface: "InterfaceBase") -> None:
         logger.info("communicating current version")
@@ -55,14 +52,10 @@ class RunPrinter:
         self._append_version_check_info()
         self._printer.display()
 
-    def _display_on_start(
-        self, project_url: str, run_url: str, sweep_url: str,
-    ) -> None:
+    def _display_on_start(self,) -> None:
         self._append_header_offline_sync_info()
         self._append_header_wandb_version_info()
-        self._append_header_run_info(
-            project_url, run_url, sweep_url,
-        )
+        self._append_header_run_info()
         self._append_header_sync_dir_info()
         self._printer.display()
         print("")
@@ -80,12 +73,12 @@ class RunPrinter:
 
         self._append_footer_history_summary_info(interface, quiet)
 
-    def _display_on_final(self, quiet: Optional[bool], run_url: str,) -> None:
+    def _display_on_final(self, quiet: Optional[bool],) -> None:
 
         self._append_footer_reporter_warn_err(quiet)
 
         self._append_footer_file_sync_info()
-        self._append_footer_run_sync_info(run_url)
+        self._append_footer_run_sync_info()
         self._append_footer_offline_sync_info(quiet)
         self._append_footer_logging_dir_info(quiet)
 
@@ -170,28 +163,25 @@ class RunPrinter:
             f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)"
         )
 
-    def _append_footer_run_sync_info(self, run_url: str) -> None:
-        if not run_url:
+    def _append_footer_run_sync_info(self) -> None:
+        if not (self._settings.run_url and self._settings.run_name):
             return
 
-        if self._run_obj is not None:
-            run_name = self._run_obj.display_name
-            self._printer._info.append(
-                f"Synced {self._printer.name(run_name)}: {self._printer.link(run_url)}"
-            )
+        self._printer._info.append(
+            f"Synced {self._printer.name(self._settings.run_name)}: {self._printer.link(self._settings.run_url)}"
+        )
 
-    def _append_header_run_info(
-        self, project_url: str, run_url: str, sweep_url: str,
-    ) -> None:
+    def _append_header_run_info(self,) -> None:
 
         if self._settings._offline or self._settings._silent:
             return
 
-        if self._run_obj is None:
-            return
+        run_url = self._settings.run_url
+        project_url = self._settings.project_url
+        sweep_url = self._settings.sweep_url
 
-        run_state_str = "Resuming run" if self._run_obj.resumed else "Syncing run"
-        run_name = self._run_obj.display_name
+        run_state_str = "Resuming run" if self._settings.resumed else "Syncing run"
+        run_name = self._settings.run_name
 
         if self._html:
             if not wandb.jupyter.maybe_display():
@@ -232,7 +222,7 @@ class RunPrinter:
                 f'{self._printer.emoji("rocket")} View run at {self._printer.link(run_url)}'
             )
 
-            if Api().settings().get("anonymous") == "true":  # type: ignore[no-untyped-call]
+            if self._settings.anonymous == "true":
                 self._printer._warnings.append(
                     "Do NOT share these links with anyone. They can be used to claim your runs."
                 )
@@ -405,7 +395,7 @@ class RunPrinter:
         error_lines = self._reporter.error_lines
         if error_lines:
             self._printer._errors.append("Errors:")
-            self._printer._errors.append([f"{line}" for line in error_lines])
+            self._printer._errors.extend([f"{line}" for line in error_lines])
             if len(error_lines) < self._reporter.error_count:
                 self._printer._errors.append("More errors...")
 

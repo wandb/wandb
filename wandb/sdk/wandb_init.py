@@ -36,6 +36,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.proto_util import message_to_dict
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
@@ -615,9 +616,8 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
-        self.settings._apply_run_start(run_obj)
 
-        # TODO do we need to update settings for the run?
+        self.settings._apply_run_start(message_to_dict(run_obj))
         run._update_settings(self.settings)
         if manager:
             manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
