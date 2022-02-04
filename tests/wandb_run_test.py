@@ -319,7 +319,7 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact._sequence_name,
-        "usedAs": "boom-data",
+        "usedAs": "dataset",
     }
 
     assert ctx.config_user["myarti"] == {

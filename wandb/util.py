@@ -1487,7 +1487,3 @@ def _is_artifact_string_or_artifact(v):
         or isinstance(v, wandb.Artifact)
         or isinstance(v, wandb.apis.public.Artifact)
     )
-
-
-def _is_artifact_string(v):
-    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")

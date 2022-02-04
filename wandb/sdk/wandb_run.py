@@ -362,7 +362,7 @@ class Run(object):
         self._upgraded_version_message = None
         self._deleted_version_message = None
         self._yanked_version_message = None
-        self._used_artifact_slots: List[str] = []
+        self._used_artifact_slots: Dict[str, str] = {}
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -2417,14 +2417,6 @@ class Run(object):
         """
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-        if use_as:
-            if use_as in self._used_artifact_slots:
-                raise ValueError(
-                    "Cannot call use_artifact with the same use_as argument more than once"
-                )
-            elif ":" in use_as or "/" in use_as:
-                raise ValueError("use_as cannot contain special characters ':' or '/'")
-            self._used_artifact_slots.append(use_as)
         r = self._run_obj
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
@@ -2443,6 +2435,19 @@ class Run(object):
                     )
                 )
             artifact._use_as = use_as or artifact_or_name
+            if use_as:
+                if (
+                    use_as in self._used_artifact_slots.keys()
+                    and self._used_artifact_slots[use_as] != artifact.id
+                ):
+                    raise ValueError(
+                        "Cannot call use_artifact with the same use_as argument more than once"
+                    )
+                elif ":" in use_as or "/" in use_as:
+                    raise ValueError(
+                        "use_as cannot contain special characters ':' or '/'"
+                    )
+                self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id, use_as=use_as or artifact_or_name,
             )
@@ -2468,9 +2473,12 @@ class Run(object):
                 artifact._use_as = use_as or artifact_or_name
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                if self._launch_artifact_mapping:
+                if (
+                    self._launch_artifact_mapping
+                    and artifact.name in self._launch_artifact_mapping.keys()
+                ):
                     wandb.termwarn(
-                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                        f"Swapping artifacts is not supported when using an instance of `public.Artifact`. Using {artifact.name}"
                     )
                 artifact._use_as = use_as or artifact.name
                 api.use_artifact(
