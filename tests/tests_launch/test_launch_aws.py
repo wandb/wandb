@@ -401,7 +401,7 @@ def test_aws_get_aws_credentials_file_success(runner, monkeypatch):
 
 
 def test_failed_aws_cred_login(
-    live_mock_server, monkeypatch, test_settings, mocked_fetchable_git_repo
+    runner, live_mock_server, monkeypatch, test_settings, mocked_fetchable_git_repo
 ):
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
@@ -409,31 +409,34 @@ def test_failed_aws_cred_login(
     monkeypatch.setattr(
         wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Failed\n"
     )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    with pytest.raises(wandb.errors.LaunchError):
-        launch.run(
-            uri="https://wandb.ai/mock_server_entity/test/runs/1",
-            api=api,
-            resource="sagemaker",
-            entity="mock_server_entity",
-            project="test",
-            resource_args={
-                "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_repo_name": "my-test-repo",
-                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-                "TrainingJobName": "test-job-1",
-                "region": "us-east-1",
-                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-                "ResourceConfig": {
-                    "InstanceCount": 1,
-                    "InstanceType": "ml.c4.xlarge",
-                    "VolumeSizeInGB": 10,
-                },
-            },
+    with runner.isolated_filesystem():
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
         )
+        with pytest.raises(wandb.errors.LaunchError):
+            launch.run(
+                uri="https://wandb.ai/mock_server_entity/test/runs/1",
+                api=api,
+                resource="sagemaker",
+                entity="mock_server_entity",
+                project="test",
+                resource_args={
+                    "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                    "ecr_repo_name": "my-test-repo",
+                    "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+                    "TrainingJobName": "test-job-1",
+                    "region": "us-east-1",
+                    "OutputDataConfig": {
+                        "S3OutputPath": "s3://test-bucket/test-output",
+                    },
+                    "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+                    "ResourceConfig": {
+                        "InstanceCount": 1,
+                        "InstanceType": "ml.c4.xlarge",
+                        "VolumeSizeInGB": 10,
+                    },
+                },
+            )
 
 
 def test_aws_get_region_file_success(runner, monkeypatch):
@@ -491,7 +494,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             str(e_info.value)
             == "Unable to detemine default region from ~/.aws/config. "
             "Please specify region in resource args or specify config "
-            "section as 'aws_config_section'"
+            "section as 'profile'"
         )
 
 
@@ -520,92 +523,105 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
 
 
 def test_aws_fail_build(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
-    monkeypatch.setattr(boto3, "client", mock_boto3_client)
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
-    )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_repo_name": "my-test-repo",
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
+    with runner.isolated_filesystem():
+        monkeypatch.setattr(boto3, "client", mock_boto3_client)
+        monkeypatch.setattr(
+            wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
+        )
+        monkeypatch.setattr(
+            wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
+        )
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
+        )
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+        kwargs = {
+            "uri": uri,
+            "api": api,
+            "resource": "sagemaker",
+            "entity": "mock_server_entity",
+            "project": "test",
+            "resource_args": {
+                "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                "ecr_repo_name": "my-test-repo",
+                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+                "TrainingJobName": "test-job-1",
+                "region": "us-east-1",
+                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
+                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+                "ResourceConfig": {
+                    "InstanceCount": 1,
+                    "InstanceType": "ml.c4.xlarge",
+                    "VolumeSizeInGB": 10,
+                },
             },
-        },
-    }
-    with pytest.raises(wandb.errors.LaunchError) as e_info:
-        launch.run(**kwargs)
-    assert str(e_info.value) == "Unable to build base image"
+        }
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            launch.run(**kwargs)
+        assert str(e_info.value) == "Unable to build base image"
 
 
 def test_no_OuputDataConfig(
-    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_repo_name": "my-test-repo",
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
+    with runner.isolated_filesystem():
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
+        )
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+        kwargs = {
+            "uri": uri,
+            "api": api,
+            "resource": "sagemaker",
+            "entity": "mock_server_entity",
+            "project": "test",
+            "resource_args": {
+                "AlgorithmSpecification": {"TrainingInputMode": "File",},
+                "ecr_repo_name": "my-test-repo",
+                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
+                "TrainingJobName": "test-job-1",
+                "region": "us-east-1",
+                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
+                "ResourceConfig": {
+                    "InstanceCount": 1,
+                    "InstanceType": "ml.c4.xlarge",
+                    "VolumeSizeInGB": 10,
+                },
+                "region": "us-west-2",
             },
-        },
-    }
-    with pytest.raises(wandb.errors.LaunchError) as e_info:
-        launch.run(**kwargs)
-    assert (
-        str(e_info.value)
-        == "Sagemaker launcher requires an OutputDataConfig resource argument"
-    )
+        }
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            launch.run(**kwargs)
+        assert (
+            str(e_info.value)
+            == "Sagemaker launcher requires an OutputDataConfig resource argument"
+        )
 
 
 def test_no_RoleARN(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+    )
     with runner.isolated_filesystem():
-        monkeypatch.setattr(
-            wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
-        )
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )

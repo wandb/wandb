@@ -422,7 +422,7 @@ def get_region(resource_args: Dict[str, Any]) -> str:
             raise LaunchError(
                 "Unable to detemine default region from ~/.aws/config. "
                 "Please specify region in resource args or specify config "
-                "section as 'aws_config_section'"
+                "section as 'profile'"
             )
 
     if region is None:
@@ -444,8 +444,17 @@ def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
         profile = resource_args.get("profile") or "default"
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/credentials"))
-        access_key = config.get(profile, "aws_access_key_id")
-        secret_key = config.get(profile, "aws_secret_access_key")
+        try:
+            access_key = config.get(profile, "aws_access_key_id")
+            secret_key = config.get(profile, "aws_secret_access_key")
+        except (configparser.NoOptionError, configparser.NoSectionError):
+            raise LaunchError(
+                "Unable to get aws credentials from ~/.aws/credentials. "
+                "Please set aws credentials in environments variables, or "
+                "check your credentials in ~/.aws/credentials. Use resource "
+                "args to specify the profile using 'profile'"
+            )
+
     if access_key is None or secret_key is None:
         raise LaunchError("AWS credentials not found")
     return access_key, secret_key
