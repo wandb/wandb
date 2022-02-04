@@ -17,6 +17,7 @@ from __future__ import print_function
 import base64
 import binascii
 import codecs
+import datetime
 import hashlib
 import json
 import logging
@@ -25,7 +26,6 @@ import pprint
 import re
 import sys
 import tempfile
-import datetime
 
 import six
 import wandb

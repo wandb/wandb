@@ -1,7 +1,7 @@
+import datetime
 import math
 import sys
 import typing as t
-import datetime
 
 from wandb.util import get_module, is_numpy_array
 
@@ -385,12 +385,15 @@ if np:
     NumberType.types.append(np.complex128)
     NumberType.types.append(np.complex_)
 
+
 class TimestampType(Type):
     name = "timestamp"
     types: t.ClassVar[t.List[type]] = [datetime.datetime, datetime.date]
 
+
 if np:
     TimestampType.types.append(np.datetime64)
+
 
 class BooleanType(Type):
     name = "boolean"
