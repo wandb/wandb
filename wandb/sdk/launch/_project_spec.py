@@ -156,7 +156,7 @@ class LaunchProject(object):
             )
         )
 
-    def _update_base_image_uid(self):
+    def _update_base_image_uid(self) -> None:
         uid = docker.get_image_uid(self.base_image)
         self.docker_user_id = uid
 
