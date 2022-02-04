@@ -259,7 +259,7 @@ class Run(object):
 
     _run_obj: Optional[RunRecord]
     _run_obj_offline: Optional[RunRecord]
-    # Use string literal anotation because of type reference loop
+    # Use string literal annotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _internal_run_interface: Optional[
         Union[

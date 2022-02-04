@@ -8,13 +8,13 @@ import datetime
 import fnmatch
 import os
 import sys
+import tempfile
 import threading
 import time
 
 from six.moves import queue
 from six.moves.urllib.parse import quote as url_quote
 import wandb
-from wandb.compat import tempfile
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import datastore
