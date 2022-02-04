@@ -523,8 +523,8 @@ The `Settings` object:
 
 #### Adding a new setting
 
-- For any setting that is only computed from other settings and should not be set/updated (and so does not require any assignment validation etc.), make it a `@property`.
-- For everything else, make it a `Property` object and define in `Settings`' class attributes + optionally default props:
+- For any setting that is only computed (from other settings) and should not be set/updated (and so does not require any validation etc.), make it a `@property`.
+- In all other cases:
   - Add a new type-annotated `Settings` class attribute.
   - If setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
     the template dictionary that the `Settings._default_props` method returns, using the same key name as 
