@@ -525,14 +525,16 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
 def test_aws_fail_build(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
+    )
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
     with runner.isolated_filesystem():
-        monkeypatch.setattr(boto3, "client", mock_boto3_client)
-        monkeypatch.setattr(
-            wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
-        )
-        monkeypatch.setattr(
-            wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
-        )
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
