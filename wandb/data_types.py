@@ -25,6 +25,7 @@ import pprint
 import re
 import sys
 import tempfile
+import datetime
 
 import six
 import wandb
@@ -104,6 +105,10 @@ def _json_helper(val, artifact):
         return res
     elif hasattr(val, "tolist"):
         return util.json_friendly(val.tolist())[0]
+    elif isinstance(val, datetime.datetime):
+        return int(val.timestamp() * 1000)
+    elif isinstance(val, datetime.date):
+        return int(datetime.datetime(val.year, val.month, val.day).timestamp() * 1000)
     else:
         return util.json_friendly(val)[0]
 
