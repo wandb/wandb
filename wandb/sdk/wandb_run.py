@@ -969,13 +969,15 @@ class Run(object):
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
-    def _config_artifact_callback(self, key: str, val: Union[str, "Artifact"]):
+    def _config_artifact_callback(
+        self, key: str, val: Union[str, Artifact]
+    ) -> Union[Artifact, public.Artifact]:
         if isinstance(val, string_types) and val.startswith("wandb-artifact://"):
             artifact_string = val[len("wandb-artifact://") :]
             public_api = self._public_api()
             artifact = public_api.artifact(name=artifact_string)
             return self.use_artifact(artifact, use_as=key)
-        elif isinstance(val, wandb.Artifact) or isinstance(val, public.Artifact):
+        else:
             return self.use_artifact(val, use_as=key)
 
     def _set_config_wandb(self, key: str, val: Any) -> None:
@@ -2394,8 +2396,13 @@ class Run(object):
     def _detach(self) -> None:
         pass
 
-    # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
+    def use_artifact(
+        self,
+        artifact_or_name: Union[str, public.Artifact, Artifact],
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        use_as: Optional[str] = None,
+    ) -> Union[public.Artifact, Artifact]:
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -2418,6 +2425,7 @@ class Run(object):
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
         r = self._run_obj
+        assert r is not None
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 

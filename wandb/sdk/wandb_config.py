@@ -9,7 +9,6 @@ import logging
 import six
 import wandb
 from wandb.util import (
-    _is_artifact_string,
     _is_artifact_string_or_artifact,
     check_dict_contains_nested_artifact,
     json_friendly_val,
