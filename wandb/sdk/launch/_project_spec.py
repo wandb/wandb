@@ -156,6 +156,10 @@ class LaunchProject(object):
             )
         )
 
+    def _update_base_image_uid(self):
+        uid = docker.get_image_uid(self.base_image)
+        self.docker_user_id = uid
+
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
         """Gets the entrypoint if its set, or adds it and returns the entrypoint."""
         if entry_point in self._entry_points:

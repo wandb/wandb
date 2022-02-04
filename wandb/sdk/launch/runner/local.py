@@ -96,6 +96,7 @@ class LocalRunner(AbstractRunner):
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
+                launch_project._update_base_image_uid()
 
         command_separator = " "
         command_args = []

@@ -258,6 +258,7 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
                 "InstanceType": "ml.c4.xlarge",
                 "VolumeSizeInGB": 10,
             },
+            "region": "us-east-1",
         },
     }
     with pytest.raises(wandb.errors.LaunchError) as e_info:
@@ -647,18 +648,17 @@ def test_no_StoppingCondition(
                 },
                 "region": "us-west-2",
                 "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
             },
         }
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "Sagemaker launcher requires a ResourceConfig resource argument"
+            == "Sagemaker launcher requires a StoppingCondition resource argument"
         )
 
 
-def test_no_ResourceCondig(
+def test_no_ResourceConfig(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
     monkeypatch.setattr(boto3, "client", mock_boto3_client)
@@ -695,7 +695,7 @@ def test_no_ResourceCondig(
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "Sagemaker launcher requires an StoppingCondition resource argument"
+            == "Sagemaker launcher requires a ResourceConfig resource argument"
         )
 
 
