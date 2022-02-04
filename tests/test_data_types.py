@@ -1089,3 +1089,30 @@ def test_fail_to_make_file(mocked_run):
             assert False
     except ValueError as e:
         assert " is invalid. Please remove invalid filename characters" in str(e)
+
+
+runbindable_media = [
+    wandb.Image(image, masks={"overlay": standard_mask}),
+    wandb.data_types.ImageMask(
+        {"mask_data": np.random.randint(0, 10, (300, 300))}, key="test"
+    ),
+    wandb.Table(data=[[1, 2, 3], [4, 5, 6]]),
+    wandb.Graph(),
+    wandb.Audio(np.random.uniform(-1, 1, 44100), sample_rate=44100),
+]
+
+
+@pytest.mark.parametrize("media", runbindable_media)
+def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
+    weird_key = "[weirdkey]"
+    media.bind_to_run(mocked_run, weird_key, 0)
+    published_globs = [
+        g
+        for (
+            [files_dict],
+            [],
+        ) in mocked_run._backend.interface.publish_files.call_args_list
+        for g, _ in files_dict["files"]
+    ]
+    assert not any(weird_key in g for g in published_globs), published_globs
+    assert any(glob.escape(weird_key) in g for g in published_globs), published_globs

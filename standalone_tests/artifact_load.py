@@ -33,11 +33,12 @@ import os
 import queue
 import string
 import sys
+import tempfile
 import time
+
 from tqdm import tqdm
 
 import wandb
-from wandb.compat import tempfile
 
 parser = argparse.ArgumentParser(description='artifacts load test')
 

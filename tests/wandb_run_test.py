@@ -558,3 +558,56 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
         and (4 in telemetry_deprecated)
     )
     run.finish()
+
+
+# test that information about validation errors in wandb.Settings is included in telemetry
+def test_settings_validation_telemetry(
+    live_mock_server, test_settings, parse_ctx, capsys
+):
+    test_settings.update(api_key=123)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 123"
+    assert msg in captured
+    run = wandb.init(settings=test_settings)
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    # TelemetryRecord field 11 is Issues,
+    # whose field 1 corresponds to validation warnings in Settings
+    telemetry_issues = telemetry.get("11", [])
+    assert 1 in telemetry_issues
+    run.finish()
+
+
+# test that information about validation errors in wandb.Settings is included in telemetry
+def test_settings_preprocessing_telemetry(
+    live_mock_server, test_settings, parse_ctx, capsys
+):
+    with mock.patch.dict("os.environ", WANDB_QUIET="cat"):
+        run = wandb.init(settings=test_settings)
+        captured = capsys.readouterr().err
+        msg = "Unable to preprocess value for property quiet: cat"
+        assert msg in captured and "This will raise an error in the future" in captured
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+        # TelemetryRecord field 11 is Issues,
+        # whose field 3 corresponds to preprocessing warnings in Settings
+        telemetry_issues = telemetry.get("11", [])
+        assert 3 in telemetry_issues
+        run.finish()
+
+
+def test_settings_unexpected_args_telemetry(
+    runner, live_mock_server, parse_ctx, capsys
+):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=wandb.Settings(blah=3))
+        captured = capsys.readouterr().err
+        msg = "Ignoring unexpected arguments: ['blah']"
+        assert msg in captured
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+        # TelemetryRecord field 11 is Issues,
+        # whose field 2 corresponds to unexpected arguments in Settings
+        telemetry_issues = telemetry.get("11", [])
+        assert 2 in telemetry_issues
+        run.finish()

@@ -5,6 +5,7 @@ meta.
 """
 
 from datetime import datetime
+import glob
 import json
 import logging
 import multiprocessing
@@ -257,8 +258,8 @@ class Meta(object):
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
-            files["files"].append((saved_program, "now"))
+            files["files"].append((glob.escape(saved_program), "now"))
         for patch in self._saved_patches:
-            files["files"].append((patch, "now"))
+            files["files"].append((glob.escape(patch), "now"))
 
         self._interface.publish_files(files)

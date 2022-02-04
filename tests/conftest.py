@@ -167,39 +167,41 @@ def disable_git_save():
 @pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        mkdir_exists_ok("wandb")
-        # Because the forked process doesn't use my monkey patch above
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject: test")
-        open("README", "wb").close()
-        r.index.add(["README"])
-        r.index.commit("Initial commit")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            mkdir_exists_ok("wandb")
+            # Because the forked process doesn't use my monkey patch above
+            with open(os.path.join("wandb", "settings"), "w") as f:
+                f.write("[default]\nproject: test")
+            open("README", "wb").close()
+            repo.index.add(["README"])
+            repo.index.commit("Initial commit")
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
 def git_repo_with_remote(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        r.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            repo.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
 def git_repo_with_remote_and_port(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        r.create_remote("origin", "https://foo:bar@github.com:8080/FooTest/Foo.git")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            repo.create_remote(
+                "origin", "https://foo:bar@github.com:8080/FooTest/Foo.git"
+            )
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
 def git_repo_with_remote_and_empty_pass(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        r.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            repo.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
