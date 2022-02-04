@@ -173,7 +173,7 @@ class RunStatusChecker(object):
         self._retry_thread.join()
 
 
-class Run(object):
+class Run:
     """A unit of computation logged by wandb. Typically this is an ML experiment.
 
     Create a run with `wandb.init()`:
@@ -339,6 +339,19 @@ class Run(object):
         self._printer = RunPrinter(self._settings)
         self._used_artifact_slots: List[str] = []
 
+        # Returned from backend request_run(), set from wandb_init?
+        self._run_obj = None
+        self._run_obj_offline = None
+
+        # Created when the run "starts".
+        self._run_status_checker = None
+
+        # Initialize telemetry object
+        self._telemetry_obj = telemetry.TelemetryRecord()
+
+        self._atexit_cleanup_called = False
+        self._use_redirect = True
+
         # Pull info from settings
         self._init_from_settings(settings)
 
@@ -350,16 +363,6 @@ class Run(object):
             project=self._project,
             email=self._settings.email,
         )
-
-        # Returned from backend request_run(), set from wandb_init?
-        self._run_obj = None
-        self._run_obj_offline = None
-
-        # Created when the run "starts".
-        self._run_status_checker = None
-
-        # Initialize telemetry object
-        self._telemetry_obj = telemetry.TelemetryRecord()
 
         # Populate config
         config = config or dict()
@@ -413,9 +416,6 @@ class Run(object):
                 )
         self._config._update(config, ignore_locked=True)
 
-        self._atexit_cleanup_called = False
-        self._use_redirect = True
-
         # pid is set so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
 
@@ -464,6 +464,10 @@ class Run(object):
         mods_set = set(sys.modules)
         for mod in mods_set.intersection(mod_map):
             setattr(imp, mod_map[mod], True)
+
+    def _update_settings(self, settings: Settings) -> None:
+        self._settings = settings
+        self._init_from_settings(settings)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:

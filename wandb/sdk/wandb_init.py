@@ -178,10 +178,11 @@ class _WandbInit(object):
             magic_install(kwargs)
 
         # handle login related parameters as these are applied to global state
-        init_settings = dict()
-        for key in ["anonymous", "force", "mode", "resume"]:
-            if kwargs.get(key, None) is not None:
-                init_settings[key] = kwargs.get(key)
+        init_settings = {
+            key: kwargs[key]
+            for key in ["anonymous", "force", "mode", "resume"]
+            if kwargs.get(key, None) is not None
+        }
         if init_settings:
             settings.update(init_settings, source=Source.INIT)
 
@@ -615,9 +616,11 @@ class _WandbInit(object):
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
         self.settings._apply_run_start(run_obj)
+
         # TODO do we need to update settings for the run?
-        # if manager:
-        #     manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+        run._update_settings(self.settings)
+        if manager:
+            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
 
         assert backend.interface
         assert run_obj

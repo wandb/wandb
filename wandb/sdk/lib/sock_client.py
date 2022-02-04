@@ -68,6 +68,7 @@ class SockClient:
         self,
         *,
         inform_init: spb.ServerInformInitRequest = None,
+        inform_start: spb.ServerInformStartRequest = None,
         inform_attach: spb.ServerInformAttachRequest = None,
         inform_finish: spb.ServerInformFinishRequest = None,
         inform_teardown: spb.ServerInformTeardownRequest = None
@@ -75,6 +76,8 @@ class SockClient:
         server_req = spb.ServerRequest()
         if inform_init:
             server_req.inform_init.CopyFrom(inform_init)
+        elif inform_start:
+            server_req.inform_start.CopyFrom(inform_start)
         elif inform_attach:
             server_req.inform_attach.CopyFrom(inform_attach)
         elif inform_finish:

@@ -5,7 +5,7 @@ StreamRecord: All the external state for the internal thread (queues, etc)
 StreamAction: Lightweight record for stream ops for thread safety with grpc
 StreamMux: Container for dictionary of stream threads per runid
 """
-
+import logging
 import multiprocessing
 import queue
 import threading
@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.wandb_settings import Settings
 
 from ..interface.interface_relay import InterfaceRelay
 
@@ -41,7 +42,7 @@ class StreamRecord:
     _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    # _settings: "Settings" #TODO
+    _settings: Settings
 
     def __init__(self) -> None:
         self._record_q = multiprocessing.Queue()
@@ -80,6 +81,10 @@ class StreamRecord:
     @property
     def interface(self) -> InterfaceRelay:
         return self._iface
+
+    def update(self, settings: Dict[str, Any]) -> None:
+        self._settings = Settings()
+        self._settings.update(settings)
 
 
 class StreamAction:
@@ -141,6 +146,11 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
+    def update_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+        action = StreamAction(action="update", stream_id=stream_id, data=settings)
+        self._action_q.put(action)
+        action.wait_handled()
+
     def del_stream(self, stream_id: str) -> None:
         action = StreamAction(action="del", stream_id=stream_id)
         self._action_q.put(action)
@@ -173,11 +183,12 @@ class StreamMux:
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord()
         # run_id = action.stream_id  # will want to fix if a streamid != runid
-        settings = action._data
+        settings_dict = action._data
+        settings_dict["_log_level"] = logging.DEBUG
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
-                settings=settings,
+                settings=settings_dict,
                 record_q=stream._record_q,
                 result_q=stream._result_q,
                 port=self._port,
@@ -186,8 +197,11 @@ class StreamMux:
         )
         stream.start_thread(thread)
         with self._streams_lock:
-            # stream._settings = settings #TODO
             self._streams[action._stream_id] = stream
+
+    def _process_update(self, action: StreamAction) -> None:
+        with self._streams_lock:
+            self._streams[action._stream_id].update(action._data)
 
     def _process_del(self, action: StreamAction) -> None:
         with self._streams_lock:
@@ -238,6 +252,9 @@ class StreamMux:
     def _process_action(self, action: StreamAction) -> None:
         if action._action == "add":
             self._process_add(action)
+            return
+        if action._action == "update":
+            self._process_update(action)
             return
         if action._action == "del":
             self._process_del(action)
