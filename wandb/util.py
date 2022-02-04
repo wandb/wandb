@@ -143,35 +143,76 @@ def sentry_reraise(exc):
 
 
 def sentry_set_scope(
-    entity=None,
+    settings_dict=None,
     process_context=None,
-    email=None,
+    entity=None,
     project=None,
     url=None,
     run_id=None,
     sweep_id=None,
-    platform=None,
-    python_runtime=None,
-    deployment=None,
-    service=None,
 ):
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
 
-    # get function arguments as dict
     args = locals()
+    del args["settings_dict"]
 
+    s = settings_dict
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("platform", get_platform_name())
 
+        if s is not None:
+            if hasattr(s, "is_local"):
+                deployment = ("local" if s.is_local else "cloud",)
+                scope.set_tag("deployment", deployment)
+
+            if hasattr(s, "_colab") and hasattr(s, "_jupyter"):
+                python_runtime = (
+                    "colab" if s._colab else ("jupyter" if s._jupyter else "python")
+                )
+                scope.set_tag("python_runtime", python_runtime)
+
+            if hasattr(s, "_require_service"):
+                scope.set_tag("service", s._require_service)
+
+            if hasattr(s, "email"):
+                scope.user = {"email": s.email}
+
         for tag, value in args.items():
             if value is not None and value != "":
-                # legacy
-                if tag == "email":
-                    scope.user = {"email": value}
-                    continue
-
                 scope.set_tag(tag, value)
+
+
+# def sentry_set_scope(
+#     entity=None,
+#     process_context=None,
+#     email=None,
+#     project=None,
+#     url=None,
+#     run_id=None,
+#     sweep_id=None,
+#     platform=None,
+#     python_runtime=None,
+#     deployment=None,
+#     service=None,
+# ):
+#     # Using GLOBAL_HUB means these tags will persist between threads.
+#     # Normally there is one hub per thread.
+
+#     # get function arguments as dict
+#     args = locals()
+
+#     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
+#         scope.set_tag("platform", get_platform_name())
+
+#         for tag, value in args.items():
+#             if value is not None and value != "":
+#                 # legacy
+#                 if tag == "email":
+#                     scope.user = {"email": value}
+#                     continue
+
+#                 scope.set_tag(tag, value)
 
 
 def vendor_setup():

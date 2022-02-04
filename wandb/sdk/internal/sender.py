@@ -797,16 +797,17 @@ class SendManager:
         )
 
         util.sentry_set_scope(
+            settings_dict=self._settings,
             entity=self._run.entity,
             project=self._run.project,
-            email=self._settings.email,
+            # email=self._settings.email,
             run_id=self._run.run_id,
             sweep_id=self._run.sweep_id,
-            deployment="local" if self._settings.is_local else "cloud",
-            python_runtime="colab"
-            if self._settings._colab
-            else ("jupyter" if self._settings._jupyter else "python"),
-            service=self._settings._require_service,
+            # deployment="local" if self._settings.is_local else "cloud",
+            # python_runtime="colab"
+            # if self._settings._colab
+            # else ("jupyter" if self._settings._jupyter else "python"),
+            # service=self._settings._require_service,
         )
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)

@@ -369,14 +369,15 @@ class Run(object):
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
+            settings_dict=self._settings,
             process_context="user",
             entity=self._entity,
             project=self._project,
-            email=self._settings.email,
-            python_runtime="colab"
-            if self._settings._colab
-            else ("jupyter" if self._settings._jupyter else "python"),
-            service=self._settings._require_service,
+            # email=self._settings.email,
+            # python_runtime="colab"
+            # if self._settings._colab
+            # else ("jupyter" if self._settings._jupyter else "python"),
+            # service=self._settings._require_service,
         )
 
         # Returned from backend request_run(), set from wandb_init?
@@ -1090,7 +1091,7 @@ class Run(object):
             process_context="user",
             entity=run_obj.entity,
             project=run_obj.project,
-            email=self._settings.email,
+            # email=self._settings.email,
             url=self._get_run_url(),
         )
 
