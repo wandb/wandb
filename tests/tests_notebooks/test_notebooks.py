@@ -94,6 +94,7 @@ def test_notebook_not_exists(mocked_ipython, live_mock_server, capsys, test_sett
     _, err = capsys.readouterr()
     assert "WANDB_NOTEBOOK_NAME should be a path" in err
     del os.environ["WANDB_NOTEBOOK_NAME"]
+    wandb.finish()
 
 
 def test_notebook_metadata_jupyter(mocker, mocked_module, live_mock_server):
@@ -173,6 +174,7 @@ def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ip
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
     with wandb.init(settings=test_settings) as run:
         run.log({"acc": 99, "loss": 0})
+        run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     print(displayed_html)
     assert len(displayed_html) == 3
@@ -196,6 +198,7 @@ def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipyt
 def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipython):
     with wandb.init(settings=test_settings) as run:
         run.display()
+        run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     print(displayed_html)
     assert len(displayed_html) == 4
@@ -214,6 +217,7 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
         wandb.log({"a": 1})"""
         % basic_settings,
     )
+    wandb.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     print(displayed_html)
     assert wandb.jupyter.__IFrame is None

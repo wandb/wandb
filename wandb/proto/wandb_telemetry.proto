@@ -18,6 +18,7 @@ message TelemetryRecord {
   Env     env = 8;
   Labels  label = 9;
   Deprecated deprecated = 10;
+  Issues issues = 11;
   _RecordInfo _info = 200;
 }
 
@@ -104,4 +105,10 @@ message Deprecated {
   bool run__save_no_args = 3; // wandb.run.save() called without arguments
   bool run__join = 4; // wandb.run.join() called
   bool plots = 5; // wandb.plots.* called
+}
+
+message Issues {
+  bool settings__validation_warnings = 1; // validation warnings for settings?
+  bool settings__unexpected_args = 2; // unexpected settings init args?
+  bool settings__preprocessing_warnings = 3; // preprocessing warnings for settings?
 }

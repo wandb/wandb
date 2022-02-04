@@ -69,7 +69,6 @@ SYMBOLS_ROOT_OTHER = {
     "alert",
     "api",
     "apis",
-    "compat",
     "data_types",
     "division",
     "docker",
@@ -175,6 +174,7 @@ SYMBOLS_RUN = {
     "mark_preempting",
     "to_html",
     "display",
+    "settings",
 }
 
 # symbols having to do with resuming, we should clean this up
