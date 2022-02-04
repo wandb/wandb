@@ -27,6 +27,7 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
+from urllib.parse import quote as url_quote, urlencode
 
 import wandb
 from wandb import util
@@ -359,6 +360,7 @@ class Settings:
     _jupyter_path: str
     _jupyter_root: str
     _os: str
+    _platform: str
     _python: str
     _require_service: str
     _runqueue_item_id: str
@@ -415,6 +417,7 @@ class Settings:
     run_name: str
     run_notes: str
     run_tags: Tuple[str]
+    run_url: str
     sagemaker_disable: bool
     save_code: bool
     settings_system: str
@@ -449,6 +452,7 @@ class Settings:
         return dict(
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
+            _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True},
             _tmp_code_dir={
                 "value": "code",
@@ -515,6 +519,7 @@ class Settings:
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            run_url={"value": "<run_url>", "hook": lambda x: self._get_run_url(),},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool, "is_policy": True},
             settings_system={
@@ -673,6 +678,27 @@ class Settings:
         Join path and apply os.path.expanduser to it.
         """
         return os.path.expanduser(os.path.join(*args))
+
+    def _get_url_query_string(self) -> str:
+        if self.anonymous != "true":
+            return ""
+        return "?" + urlencode({"apiKey": self.api_key})
+
+    def _get_run_url(self) -> str:
+        values = [self.entity, self.project, self.run_id]
+        if not all(values):
+            return ""
+
+        app_url = util.app_url(self.base_url)
+        qs = self._get_url_query_string()
+        url = "{}/{}/{}/runs/{}{}".format(
+            app_url,
+            url_quote(self.entity),
+            url_quote(self.project),
+            url_quote(self.run_id),
+            qs,
+        )
+        return url
 
     def _start_run(self) -> None:
         time_stamp: float = time.time()

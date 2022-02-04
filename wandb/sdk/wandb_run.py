@@ -85,7 +85,7 @@ from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
-from .wandb_settings import Settings, SettingsConsole
+from .wandb_settings import Settings, SettingsConsole, Source
 from .wandb_setup import _WandbSetup
 
 if TYPE_CHECKING:
@@ -1071,6 +1071,9 @@ class Run(object):
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
+        self._settings.update(
+            entity=run_obj.entity, project=run_obj.project, source=Source.INIT
+        )
         # Grab the config from resuming
         if run_obj.config:
             c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
@@ -1089,6 +1092,7 @@ class Run(object):
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             process_context="user",
+            settings_dict=self.settings,
             entity=run_obj.entity,
             project=run_obj.project,
             # email=self._settings.email,

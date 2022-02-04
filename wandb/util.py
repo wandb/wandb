@@ -34,7 +34,7 @@ import yaml
 from datetime import date, datetime
 import platform
 from six.moves import urllib
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import requests
 import six
@@ -46,6 +46,8 @@ import sentry_sdk
 from sentry_sdk import capture_exception
 from sentry_sdk import capture_message
 from wandb.env import error_reporting_enabled, get_app_url
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.wandb_settings import Settings
 
 import wandb
 from wandb import env
@@ -72,7 +74,7 @@ PLATFORM_DARWIN = "darwin"
 PLATFORM_UNKNOWN = "unknown"
 
 
-def get_platform_name():
+def get_platform_name() -> str:
     if sys.platform.startswith("win"):
         return PLATFORM_WINDOWS
     elif sys.platform.startswith("darwin"):
@@ -143,14 +145,9 @@ def sentry_reraise(exc):
 
 
 def sentry_set_scope(
-    settings_dict=None,
-    process_context=None,
-    entity=None,
-    project=None,
-    url=None,
-    run_id=None,
-    sweep_id=None,
-):
+    settings_dict: Union[Settings, SettingsStatic, Dict, None] = None,
+    process_context: Optional[str] = None,
+) -> None:
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
 
@@ -162,6 +159,18 @@ def sentry_set_scope(
         scope.set_tag("platform", get_platform_name())
 
         if s is not None:
+            if hasattr(s, "entity"):
+                scope.set_tag("entity", s.entity)
+
+            if hasattr(s, "project"):
+                scope.set_tag("project", s.project)
+
+            if hasattr(s, "run_id"):
+                scope.set_tag("run_id", s.run_id)
+
+            if hasattr(s, "sweep_id"):
+                scope.set_tag("sweep_id", s.sweep_id)
+
             if hasattr(s, "is_local"):
                 deployment = ("local" if s.is_local else "cloud",)
                 scope.set_tag("deployment", deployment)
