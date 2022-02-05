@@ -1552,18 +1552,10 @@ class Api:
 
     def upload_file_azure(self, url, file, extra_headers):
         from azure.core.exceptions import HttpResponseError
-        from azure.core.pipeline.policies import HTTPPolicy
 
-        # Disable retries
-        class NoRetry(HTTPPolicy):
-            def send(self, request):
-                return self.next.send(request)
-
-            def increment(self, *args, **kwargs):
-                return 0
-
+        # Configure the client with a single retry
         client = self._azure_blob_module.BlobClient.from_blob_url(
-            url, retry_policy=NoRetry()
+            url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=1)
         )
         try:
             if extra_headers.get("Content-MD5") is not None:
