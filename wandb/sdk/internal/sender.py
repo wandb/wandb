@@ -33,7 +33,7 @@ from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
-from ..lib import debug_log
+from ..lib import tracelog
 
 
 if TYPE_CHECKING:
@@ -251,7 +251,7 @@ class SendManager:
         send_handler(record)
 
     def _respond_result(self, result: "Result") -> None:
-        debug_log.log_message_queue(result, self._result_q)
+        tracelog.log_message_queue(result, self._result_q)
         self._result_q.put(result)
 
     def _flatten(self, dictionary: Dict) -> None:

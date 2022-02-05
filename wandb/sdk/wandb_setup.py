@@ -26,7 +26,7 @@ import wandb
 
 from . import wandb_manager
 from . import wandb_settings
-from .lib import config_util, debug_log, server
+from .lib import config_util, tracelog, server
 
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -111,9 +111,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._check()
         self._setup()
 
-        debug_log_mode = self._settings._debug_log
-        if debug_log_mode:
-            debug_log.enable(debug_log_mode)
+        tracelog_mode = self._settings._tracelog
+        if tracelog_mode:
+            tracelog.enable(tracelog_mode)
 
     def _settings_setup(
         self,
