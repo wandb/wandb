@@ -36,7 +36,8 @@ def test_str_as_bool():
         assert wandb_settings._str_as_bool(val)
     for val in ("n", "no", "f", "false", "off", "0", "False", "FALSE"):
         assert not wandb_settings._str_as_bool(val)
-    assert wandb_settings._str_as_bool("LOL") is None
+    with pytest.raises(UsageError):
+        wandb_settings._str_as_bool("rubbish")
 
 
 # test Property class
@@ -103,9 +104,9 @@ def test_property_strict_validation(capsys):
             p.update(value="rubbish")
 
     p = Property(name="api_key", validator=lambda x: isinstance(x, str))
-    p.update(value=123)
+    p.update(value=31415926)
     captured = capsys.readouterr().err
-    msg = "Invalid value for property api_key: 123"
+    msg = "Invalid value for property api_key: 31415926"
     assert msg in captured
 
 
@@ -886,14 +887,14 @@ def test_default_props_match_class_attributes():
 
 # fixme: remove this once full validation is restored
 def test_settings_strict_validation(capsys):
-    s = Settings(api_key=123, lol=True)
-    assert s.api_key == 123
+    s = Settings(api_key=271828, lol=True)
+    assert s.api_key == 271828
     with pytest.raises(AttributeError):
         s.lol
     captured = capsys.readouterr().err
     msgs = (
         "Ignoring unexpected arguments: ['lol']",
-        "Invalid value for property api_key: 123",
+        "Invalid value for property api_key: 271828",
     )
     for msg in msgs:
         assert msg in captured
@@ -903,3 +904,13 @@ def test_static_settings_json_dump():
     s = Settings()
     static_settings = s.make_static(include_properties=True)
     assert json.dumps(static_settings)
+
+
+# fixme: remove this once full validation is restored
+def test_no_repeat_warnings(capsys):
+    s = Settings(api_key=234)
+    assert s.api_key == 234
+    s.update(api_key=234)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 234"
+    assert captured.count(msg) == 1

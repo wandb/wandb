@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """Defines wandb.init() and associated classes and methods.
 
 `wandb.init()` indicates the beginning of a new run. In an ML training pipeline,
@@ -9,9 +7,6 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
-
-from __future__ import print_function
-
 import copy
 import datetime
 import logging
@@ -541,7 +536,9 @@ class _WandbInit(object):
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
-            # detected issues with settings
+            # fixme: detected issues with settings
+            if self.settings.__dict__["_Settings__preprocessing_warnings"]:
+                tel.issues.settings__preprocessing_warnings = True
             if self.settings.__dict__["_Settings__validation_warnings"]:
                 tel.issues.settings__validation_warnings = True
             if self.settings.__dict__["_Settings__unexpected_args"]:

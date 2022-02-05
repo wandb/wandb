@@ -78,7 +78,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
 
 # fixme: should either return bool or error out. fix once confident.
-def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
+def _str_as_bool(val: Union[str, bool]) -> bool:
     """
     Parse a string as a bool.
     """
@@ -90,13 +90,11 @@ def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
     except (AttributeError, ValueError):
         pass
 
-    # fixme: remove this and raise error instead once we are confident.
+    # fixme: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. Defaulting to None."
-        "This will raise an error in the future."
+        f"Could not parse value {val} as a bool. ", repeat=False,
     )
-    return None
-    # raise UsageError(f"Could not parse value {val} as a bool.")
+    raise UsageError(f"Could not parse value {val} as a bool.")
 
 
 def _redact_dict(
@@ -225,7 +223,8 @@ class Property:
         self._is_policy = is_policy
         self._source = source
 
-        # fixme: this is a temporary measure to collect stats on failed validation
+        # fixme: this is a temporary measure to collect stats on failed preprocessing and validation
+        self.__failed_preprocessing: bool = False
         self.__failed_validation: bool = False
 
         # preprocess and validate value
@@ -259,7 +258,16 @@ class Property:
                 else self._preprocessor
             )
             for p in _preprocessor:
-                value = p(value)
+                try:
+                    value = p(value)
+                except (UsageError, ValueError):
+                    wandb.termwarn(
+                        f"Unable to preprocess value for property {self.name}: {value}. "
+                        "This will raise an error in the future.",
+                        repeat=False,
+                    )
+                    self.__failed_preprocessing = True
+                    break
         return value
 
     def _validate(self, value: Any) -> Any:
@@ -279,7 +287,8 @@ class Property:
                     else:
                         wandb.termwarn(
                             f"Invalid value for property {self.name}: {value}. "
-                            "This will raise an error in the future."
+                            "This will raise an error in the future.",
+                            repeat=False,
                         )
                         self.__failed_validation = True
                         break
@@ -727,6 +736,7 @@ class Settings:
 
         # fixme: this is collect telemetry on validation errors and unexpected args
         # values are stored as strings to avoid potential json serialization errors down the line
+        self.__preprocessing_warnings: Dict[str, str] = dict()
         self.__validation_warnings: Dict[str, str] = dict()
         self.__unexpected_args: Set[str] = set()
 
@@ -770,7 +780,9 @@ class Settings:
                     Property(name=prop, validator=validators, source=Source.BASE,),
                 )
 
-            # fixme: this is to collect stats on validation errors
+            # fixme: this is to collect stats on preprocessing and validation errors
+            if self.__dict__[prop].__dict__["_Property__failed_preprocessing"]:
+                self.__preprocessing_warnings[prop] = str(self.__dict__[prop]._value)
             if self.__dict__[prop].__dict__["_Property__failed_validation"]:
                 self.__validation_warnings[prop] = str(self.__dict__[prop]._value)
 
@@ -917,7 +929,12 @@ class Settings:
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
-            # fixme: this is to collect stats on validation errors
+            # fixme: this is to collect stats on preprocessing and validation errors
+            if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
+                self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
+            else:
+                self.__preprocessing_warnings.pop(key, None)
+
             if self.__dict__[key].__dict__["_Property__failed_validation"]:
                 self.__validation_warnings[key] = str(self.__dict__[key]._value)
             else:
@@ -1078,7 +1095,7 @@ class Settings:
         elif self._jupyter:
             wandb.termwarn(
                 "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
-                f"couldn't find {self.notebook_name}."
+                f"couldn't find {self.notebook_name}.",
             )
 
         # host and username are populated by apply_env_vars if corresponding env
@@ -1170,7 +1187,7 @@ class Settings:
                 if val:
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
-                        f"Ignored wandb.init() arg {key} when running running from launch."
+                        f"Ignored wandb.init() arg {key} when running running from launch.",
                     )
 
         # strip out items where value is None
@@ -1210,7 +1227,7 @@ class Settings:
                 elif self.run_id != resume_run_id:
                     wandb.termwarn(
                         "Tried to auto resume run with "
-                        f"id {resume_run_id} but id {self.run_id} is set."
+                        f"id {resume_run_id} but id {self.run_id} is set.",
                     )
         self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
         # persist our run id in case of failure
