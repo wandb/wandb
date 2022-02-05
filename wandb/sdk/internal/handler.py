@@ -33,8 +33,8 @@ from . import meta, sample, stats
 from . import tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import tracelog
 from ..lib import handler_util, proto_util
+from ..lib import tracelog
 
 SummaryDict = Dict[str, Any]
 

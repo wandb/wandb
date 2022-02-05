@@ -26,7 +26,7 @@ import wandb
 
 from . import wandb_manager
 from . import wandb_settings
-from .lib import config_util, tracelog, server
+from .lib import config_util, server, tracelog
 
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
