@@ -55,7 +55,7 @@ def _log(
     result: "pb.Result" = None,
     resource: str = None,
 ) -> None:
-    prefix = "DEBUG_LOG(1)"
+    prefix = "TRACELOG(1)"
     tname = threading.currentThread().getName()
     now = datetime.datetime.now()
     ts = now.strftime("%H%M%S.%f")
