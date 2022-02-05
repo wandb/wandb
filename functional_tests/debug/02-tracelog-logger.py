@@ -2,7 +2,7 @@
 """Enable tracelog to logger, make sure there are logs.
 
 ---
-id: 0.tracelog.01-simple
+id: 0.debug.02-tracelog-logger
 plugin:
   - wandb
 assert:
