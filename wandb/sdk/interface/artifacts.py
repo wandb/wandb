@@ -5,7 +5,6 @@ import contextlib
 import hashlib
 import os
 import random
-import sqlite3
 from typing import (
     Callable,
     Dict,
@@ -21,6 +20,7 @@ import wandb
 from wandb import env
 from wandb import util
 from wandb.data_types import WBValue
+from wandb.sdk.lib import sqlite
 
 
 if TYPE_CHECKING:
@@ -825,6 +825,23 @@ class ArtifactsCache(object):
 
     _TMP_PREFIX = "tmp"
 
+    MIGRATIONS = [
+        # Bootstrap the checksums table.
+        [
+            """
+            CREATE TABLE checksums(
+                path TEXT PRIMARY KEY,
+                size INT,
+                updated_at REAL,
+                checksum TEXT
+            )
+            """,
+            """
+            CREATE INDEX checksums_by_updated ON checksums (updated_at DESC)
+            """,
+        ]
+    ]
+
     def __init__(self, cache_dir):
         self._cache_dir = cache_dir
         util.mkdir_exists_ok(self._cache_dir)
@@ -834,16 +851,19 @@ class ArtifactsCache(object):
         self._random = random.Random()
         self._random.seed()
         self._artifacts_by_client_id = {}
-        self._init_checksum_db()
+        self._db_path = os.path.join(self._cache_dir, "checksum.db")
+
+        with sqlite.open_db(self._db_path) as conn:
+            sqlite.migrate(conn, self.MIGRATIONS)
 
     def get_cached_checksum(
         self, path: str, size: int, updated_at: float, checksum_getter: Callable
     ) -> str:
-        with self._db() as conn:
+        with sqlite.open_db(self._db_path) as conn:
             try:
-                with self._txn(conn):
-                    cur = conn.cursor()
-                    cur.execute(
+                with sqlite.txn(conn):
+                    result = sqlite.fetch_one(
+                        conn,
                         """
                         SELECT path, size, updated_at, checksum
                         FROM checksums
@@ -851,14 +871,14 @@ class ArtifactsCache(object):
                     """,
                         (path,),
                     )
-                    row = cur.fetchone()
-                    if row:
-                        _, cache_size, cache_updated_at, cache_checksum = row
+
+                    if result:
+                        _, cache_size, cache_updated_at, cache_checksum = result
                         if size == cache_size and updated_at == cache_updated_at:
                             return cache_checksum
 
                     checksum = checksum_getter()
-                    cur.execute(
+                    conn.execute(
                         """
                         INSERT OR REPLACE INTO checksums(
                             path,
@@ -870,7 +890,7 @@ class ArtifactsCache(object):
                         (path, size, updated_at, checksum),
                     )
                     return checksum
-            except sqlite3.Error:
+            except sqlite.Error:
                 # If for whatever reason the sqlite cache errors out,
                 # just naively populate the checksum.
                 return checksum_getter()
@@ -937,64 +957,6 @@ class ArtifactsCache(object):
             total_size -= stat.st_size
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
-
-    def _init_checksum_db(self):
-        with self._db() as conn:
-            with self._txn(conn, is_exclusive=True):
-                # Primitive schema management, could eventually do something
-                # more sophisticated.
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS schema_migrations(
-                        version INTEGER PRIMARY KEY,
-                        dirty BOOLEAN
-                    )
-                """
-                )
-
-                version = 0
-                for row in conn.execute("SELECT version FROM schema_migrations"):
-                    version = row
-
-                if version == 0:
-                    conn.execute(
-                        """
-                        CREATE TABLE checksums(
-                            path TEXT PRIMARY KEY,
-                            size INT,
-                            updated_at REAL,
-                            checksum TEXT
-                        )
-                    """
-                    )
-
-                    conn.execute(
-                        """
-                        CREATE INDEX checksums_by_updated ON checksums (updated_at DESC)
-                    """
-                    )
-
-                    conn.execute(
-                        "INSERT INTO schema_migrations (version) VALUES (?)", (1,)
-                    )
-
-    @contextlib.contextmanager
-    def _db(self):
-        with sqlite3.connect(os.path.join(self._cache_dir, "checksum.db")) as db:
-            yield db
-
-    @contextlib.contextmanager
-    def _txn(self, conn, is_exclusive=False):
-        conn.execute(
-            "BEGIN TRANSACTION" if not is_exclusive else "BEGIN EXCLUSIVE TRANSACTION"
-        )
-        try:
-            yield
-        except Exception:
-            conn.rollback()
-            raise
-        else:
-            conn.commit()
 
     def _cache_opener(self, path):
         @contextlib.contextmanager
