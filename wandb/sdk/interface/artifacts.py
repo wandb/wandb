@@ -837,7 +837,7 @@ class ArtifactsCache(object):
         self._init_checksum_db()
 
     def get_cached_checksum(
-        self, path: str, size: int, updated_at: int, checksum_getter: Callable
+        self, path: str, size: int, updated_at: float, checksum_getter: Callable
     ) -> str:
         with self._db() as conn:
             try:
@@ -962,7 +962,7 @@ class ArtifactsCache(object):
                         CREATE TABLE checksums(
                             path TEXT PRIMARY KEY,
                             size INT,
-                            updated_at INT,
+                            updated_at REAL,
                             checksum TEXT
                         )
                     """
