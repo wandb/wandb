@@ -874,7 +874,7 @@ class ArtifactsCache(object):
                     )
 
                     if result:
-                        _, cache_size, cache_updated_at, cache_checksum = result
+                        (_, cache_size, cache_updated_at, cache_checksum) = result
                         if size == cache_size and updated_at == cache_updated_at:
                             return cache_checksum
 
@@ -933,6 +933,12 @@ class ArtifactsCache(object):
             for file in files:
                 path = os.path.join(root, file)
                 stat = os.stat(path)
+
+                # Ignore the cache db for now.
+                # TODO: Would be good to prune entries here to trim
+                # down the cache size.
+                if path == self._db_path:
+                    continue
 
                 if file.startswith(ArtifactsCache._TMP_PREFIX):
                     try:
@@ -1012,6 +1018,10 @@ def get_artifacts_cache() -> ArtifactsCache:
     # The cache connects to sqlite and applies migrations. To
     # avoid multiply migrating the database (which takes an exclusive
     # lock), use a per-process lock.
+    #
+    # There isn't a risk of the db becoming inconsistent due to the
+    # exclusive locks, but operations might fail due to other threads
+    # holding an exclusive lock on the db.
     with _artifacts_cache_lock:
         if _artifacts_cache is None:
             cache_dir = os.path.join(env.get_cache_dir(), "artifacts")

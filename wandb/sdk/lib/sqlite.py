@@ -8,10 +8,9 @@ from typing import (
     Tuple,
 )
 
+Error = sqlite3.Error
 Migration = List[str]
 Migrations = List[Migration]
-
-Error = sqlite3.Error
 
 
 @contextlib.contextmanager
