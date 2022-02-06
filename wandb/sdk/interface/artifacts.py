@@ -181,7 +181,7 @@ class ArtifactManifest(object):
         return self[path]
 
     def get_entries_in_directory(self, directory):
-        return [self[path] for path, entry in self if path.startswith(directory + "/")]
+        return [self[path] for path in self if path.startswith(directory + "/")]
 
 
 class ArtifactEntry(object):
