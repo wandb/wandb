@@ -7,6 +7,7 @@ from typing import Optional, TYPE_CHECKING
 
 import wandb
 from wandb.apis.internal import Api
+
 from .lib import ipython, printer
 
 
@@ -216,8 +217,8 @@ class RunPrinter:
                 f'{self._printer.emoji("rocket")} View run at {self._printer.link(run_url)}'
             )
 
-            # if self._settings.anonymous == "true":
-            if Api().settings().get("anonymous") == "true":
+            # TODO(settings) use `wandb_settings` (if self._settings.anonymous == "true":)
+            if Api().api.settings().get("anonymous") == "true":  # type: ignore
                 self._printer.display(
                     "Do NOT share these links with anyone. They can be used to claim your runs.",
                     status="warn",

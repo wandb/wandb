@@ -687,9 +687,8 @@ class Settings:
         return os.path.expanduser(os.path.join(*args))
 
     def _get_url_query_string(self) -> str:
-        # if self.anonymous != "true":
-        #     return ""
-        if Api().settings().get("anonymous") != "true":
+        # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
+        if Api().settings().get("anonymous") != "true":  # type: ignore
             return ""
 
         api_key = apikey.api_key(settings=self)
