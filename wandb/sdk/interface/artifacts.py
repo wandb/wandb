@@ -4,8 +4,8 @@ import codecs
 import contextlib
 import hashlib
 import os
-import sqlite3
 import random
+import sqlite3
 from typing import (
     Callable,
     Dict,
