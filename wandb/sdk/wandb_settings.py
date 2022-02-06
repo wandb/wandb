@@ -859,6 +859,7 @@ class Settings:
         self,
         settings: Optional[Dict[str, Any]] = None,
         source: int = Source.OVERRIDE,
+        ignore_properties: bool = True,
         **kwargs: Any,
     ) -> None:
         """Update individual settings using the Property.update() method."""
@@ -868,6 +869,16 @@ class Settings:
         settings = settings or dict()
         # explicit kwargs take precedence over settings
         settings = {**settings, **kwargs}
+        # ignore @property-based settings (which are read-only) if requested
+        if ignore_properties:
+            # @property-based settings:
+            properties = {
+                property_name
+                for property_name, obj in self.__class__.__dict__.items()
+                if isinstance(obj, property)
+            }
+            # remove @property-based settings from settings:
+            settings = {k: v for k, v in settings.items() if k not in properties}
         unknown_properties = []
         for key in settings.keys():
             # only allow updating known Properties

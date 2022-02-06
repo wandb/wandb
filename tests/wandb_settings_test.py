@@ -403,6 +403,14 @@ def test_priority_update_policy_smaller_source():
     assert s.summary_warnings == 42
 
 
+def test_update_ignore_properties():
+    s = Settings()
+    s.update(is_local="lol", ignore_properties=True)
+    assert s.is_local is False
+    with pytest.raises(KeyError):
+        s.update(is_local="lol", ignore_properties=False)
+
+
 def test_validate_base_url():
     s = Settings()
     with pytest.raises(UsageError):
