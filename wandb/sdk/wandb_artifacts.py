@@ -13,6 +13,8 @@ from typing import (
     Dict,
     Generator,
     IO,
+    Iterator,
+    Iterable,
     List,
     Mapping,
     Optional,
@@ -247,10 +249,9 @@ class Artifact(ArtifactInterface):
     def size(self) -> int:
         if self._logged_artifact:
             return self._logged_artifact.size
-        sizes: List[int]
-        sizes = []
-        for entry in self._manifest.entries:
-            e_size = self._manifest.entries[entry].size
+        sizes: List[int] = []
+        for _, entry in self._manifest.items():
+            e_size = entry.size
             if e_size is not None:
                 sizes.append(e_size)
         return sum(sizes)
@@ -713,6 +714,9 @@ class Artifact(ArtifactInterface):
 
 
 class ArtifactManifestV1(ArtifactManifest):
+
+    entries: Dict[str, "ArtifactManifestEntry"] = {}
+
     @classmethod
     def version(cls) -> int:
         return 1
@@ -732,8 +736,7 @@ class ArtifactManifestV1(ArtifactManifest):
         if storage_policy_cls is None:
             raise ValueError('Failed to find storage policy "%s"' % storage_policy_name)
 
-        entries: Mapping[str, ArtifactManifestEntry]
-        entries = {
+        entries: Mapping[str, ArtifactManifestEntry] = {
             name: ArtifactManifestEntry(
                 path=name,
                 digest=val["digest"],
@@ -756,9 +759,44 @@ class ArtifactManifestV1(ArtifactManifest):
         storage_policy: StoragePolicy,
         entries: Optional[Mapping[str, ArtifactEntry]] = None,
     ) -> None:
+        self.entries = {}
         super(ArtifactManifestV1, self).__init__(
             artifact, storage_policy, entries=entries
         )
+
+    def __contains__(self, path: str) -> bool:
+        return path in self.entries
+
+    def __getitem__(self, path: str) -> "ArtifactEntry":
+        return self.entries[path]
+
+    def __setitem__(self, path: str, entry: "ArtifactEntry") -> None:
+        self.entries[path] = ArtifactManifestEntry(
+            path=entry.path,
+            ref=entry.ref,
+            digest=entry.digest,
+            birth_artifact_id=entry.birth_artifact_id,
+            size=entry.size,
+            extra=entry.extra,
+            local_path=entry.local_path,
+        )
+
+    def __iter__(self) -> Iterator[str]:
+        for path in self.entries:
+            yield path
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+    def items(self) -> Iterable[Tuple[str, "ArtifactEntry"]]:
+        for path, entry in self.entries.items():
+            yield (path, entry)
+
+    def keys(self) -> Iterable[str]:
+        return self.entries.keys()
+
+    def values(self) -> Iterable["ArtifactEntry"]:
+        return self.entries.values()
 
     def to_manifest_json(self) -> Dict:
         """This is the JSON that's stored in wandb_manifest.json
@@ -769,7 +807,7 @@ class ArtifactManifestV1(ArtifactManifest):
         contents.
         """
         contents = {}
-        for entry in sorted(self.entries.values(), key=lambda k: k.path):
+        for entry in sorted(self.values(), key=lambda k: k.path):
             json_entry: Dict[str, Any] = {
                 "digest": entry.digest,
             }
@@ -792,7 +830,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def digest(self) -> str:
         hasher = hashlib.md5()
         hasher.update("wandb-artifact-manifest-v1\n".encode())
-        for (name, entry) in sorted(self.entries.items(), key=lambda kv: kv[0]):
+        for (name, entry) in sorted(self.items(), key=lambda kv: kv[0]):
             hasher.update("{}:{}\n".format(name, entry.digest).encode())
         return hasher.hexdigest()
 
@@ -826,14 +864,6 @@ class ArtifactManifestEntry(ArtifactEntry):
         if self.ref is None:
             raise ValueError("Only reference entries support ref_target().")
         return self.ref
-
-    def __repr__(self) -> str:
-        if self.ref is not None:
-            summary = "ref: %s/%s" % (self.ref, self.path)
-        else:
-            summary = "digest: %s" % self.digest
-
-        return "<ManifestEntry %s>" % summary
 
 
 class WandbStoragePolicy(StoragePolicy):

@@ -644,7 +644,7 @@ def test_duplicate_wbimage_from_file(runner):
         wb_image_2 = wandb.Image(im_path_2)
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
-        assert len(artifact.manifest.entries) == 4
+        assert len(artifact.manifest) == 4
 
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="artifact")
@@ -652,7 +652,7 @@ def test_duplicate_wbimage_from_file(runner):
         wb_image_2 = wandb.Image(im_path_1)
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
-        assert len(artifact.manifest.entries) == 3
+        assert len(artifact.manifest) == 3
 
 
 def test_deduplicate_wbimage_from_array(runner):
@@ -665,7 +665,7 @@ def test_deduplicate_wbimage_from_array(runner):
         wb_image_2 = wandb.Image(im_data_2)
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
-        assert len(artifact.manifest.entries) == 4
+        assert len(artifact.manifest) == 4
 
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="artifact")
@@ -675,7 +675,7 @@ def test_deduplicate_wbimage_from_array(runner):
         artifact.add(wb_image_1, "my-image_1")
         artifact.add(wb_image_2, "my-image_2")
         artifact.add(wb_image_3, "my-image_3")
-        assert len(artifact.manifest.entries) == 5
+        assert len(artifact.manifest) == 5
 
 
 def test_deduplicate_wbimagemask_from_array(runner):
@@ -688,7 +688,7 @@ def test_deduplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_2}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
-        assert len(artifact.manifest.entries) == 4
+        assert len(artifact.manifest) == 4
 
     with runner.isolated_filesystem():
         artifact = wandb.Artifact(type="dataset", name="artifact")
@@ -696,7 +696,7 @@ def test_deduplicate_wbimagemask_from_array(runner):
         wb_imagemask_2 = data_types.ImageMask({"mask_data": im_data_1}, key="test2")
         artifact.add(wb_imagemask_1, "my-imagemask_1")
         artifact.add(wb_imagemask_2, "my-imagemask_2")
-        assert len(artifact.manifest.entries) == 3
+        assert len(artifact.manifest) == 3
 
 
 def test_add_obj_wbimage_classes_obj(runner):
@@ -1013,11 +1013,11 @@ def test_local_references(runner, live_mock_server, test_settings):
         t1 = make_table()
         artifact1 = wandb.Artifact("test_local_references", "dataset")
         artifact1.add(t1, "t1")
-        assert artifact1.manifest.entries["t1.table.json"].ref is None
+        assert artifact1.manifest["t1.table.json"].ref is None
         run.log_artifact(artifact1)
         artifact2 = wandb.Artifact("test_local_references_2", "dataset")
         artifact2.add(t1, "t2")
-        assert artifact2.manifest.entries["t2.table.json"].ref is not None
+        assert artifact2.manifest["t2.table.json"].ref is not None
         run.finish()
 
 

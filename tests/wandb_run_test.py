@@ -133,7 +133,8 @@ def test_log_code(test_settings):
     with open("big_file.h5", "w") as f:
         f.write("Not that big")
     art = run.log_code()
-    assert sorted(art.manifest.entries.keys()) == ["test.py"]
+
+    assert sorted(art.manifest.keys()) == ["test.py"]
     run.finish()
 
 
@@ -144,7 +145,7 @@ def test_log_code_include(test_settings):
     with open("test.cc", "w") as f:
         f.write("Not that big")
     art = run.log_code(include_fn=lambda p: p.endswith(".py") or p.endswith(".cc"))
-    assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
+    assert sorted(art.manifest.keys()) == ["test.cc", "test.py"]
     run.finish()
 
 
@@ -157,7 +158,7 @@ def test_log_code_custom_root(test_settings):
         f.write('print("test")')
     run = wandb.init(mode="offline", settings=test_settings)
     art = run.log_code(root="../")
-    assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
+    assert sorted(art.manifest.keys()) == ["custom/test.py", "test.py"]
     run.finish()
 
 

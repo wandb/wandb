@@ -3703,13 +3703,14 @@ class Artifact(artifacts.Artifact):
 
     def get_path(self, name):
         manifest = self._load_manifest()
-        entry = manifest.entries.get(name)
-        if entry is None:
+        if name not in manifest:
             entry = self._get_obj_entry(name)[0]
             if entry is None:
                 raise KeyError("Path not contained in artifact: %s" % name)
             else:
                 name = entry.path
+        else:
+            entry = manifest[name]
 
         return _DownloadedArtifactEntry(name, entry, self)
 
@@ -3745,8 +3746,8 @@ class Artifact(artifacts.Artifact):
         dirpath = root or self._default_root()
         self._add_download_root(dirpath)
         manifest = self._load_manifest()
-        nfiles = len(manifest.entries)
-        size = sum(e.size for e in manifest.entries.values())
+        nfiles = len(manifest)
+        size = sum(e.size for e in manifest.values())
         log = False
         if nfiles > 5000 or size > 50 * 1024 * 1024:
             log = True
@@ -3762,7 +3763,7 @@ class Artifact(artifacts.Artifact):
         import multiprocessing.dummy  # this uses threads
 
         pool = multiprocessing.dummy.Pool(32)
-        pool.map(partial(self._download_file, root=dirpath), manifest.entries)
+        pool.map(partial(self._download_file, root=dirpath), manifest)
         if recursive:
             pool.map(lambda artifact: artifact.download(), self._dependent_artifacts)
         pool.close()
@@ -3815,7 +3816,7 @@ class Artifact(artifacts.Artifact):
                         )
                     )
 
-        for entry in manifest.entries.values():
+        for entry in manifest.values():
             if entry.ref is None:
                 if (
                     artifacts.md5_file_b64(os.path.join(dirpath, entry.path))
@@ -3841,14 +3842,14 @@ class Artifact(artifacts.Artifact):
             root = os.path.join(".", "artifacts", self.name)
 
         manifest = self._load_manifest()
-        nfiles = len(manifest.entries)
+        nfiles = len(manifest)
         if nfiles > 1:
             raise ValueError(
                 "This artifact contains more than one file, call `.download()` to get all files or call "
                 '.get_path("filename").download()'
             )
 
-        return self._download_file(list(manifest.entries)[0], root=root)
+        return self._download_file(list(manifest)[0], root=root)
 
     def _download_file(self, name, root):
         # download file into cache and copy to target dir
@@ -3914,7 +3915,7 @@ class Artifact(artifacts.Artifact):
     # TODO: not yet public, but we probably want something like this.
     def _list(self):
         manifest = self._load_manifest()
-        return manifest.entries.keys()
+        return manifest.keys()
 
     def __repr__(self):
         return "<Artifact {}>".format(self.id)

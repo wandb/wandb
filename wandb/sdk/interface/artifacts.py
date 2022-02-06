@@ -8,7 +8,10 @@ import random
 from typing import (
     Callable,
     Dict,
+    Iterable,
+    Iterator,
     List,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -58,8 +61,6 @@ def bytes_to_hex(bytestr):
 
 
 class ArtifactManifest(object):
-    entries: Dict[str, "ArtifactEntry"]
-
     @classmethod
     # TODO: we don't need artifact here.
     def from_manifest_json(cls, artifact, manifest_json) -> "ArtifactManifest":
@@ -75,10 +76,95 @@ class ArtifactManifest(object):
     def version(cls):
         pass
 
-    def __init__(self, artifact, storage_policy, entries=None):
+    def __init__(
+        self, artifact, storage_policy, entries: Mapping[str, "ArtifactEntry"] = None
+    ):
         self.artifact = artifact
         self.storage_policy = storage_policy
-        self.entries = entries or {}
+        for path, entry in entries:
+            self[path] = entry
+
+    def __contains__(self, path: str) -> bool:
+        """
+        Checks if the artifact manifest contains an entry for a given path.
+
+        Args:
+            path: (str) The path to check.
+
+        Returns:
+            (bool): True if the path has an entry in the manifest, False otherwise.
+        """
+        raise NotImplementedError()
+
+    def __getitem__(self, path: str) -> "ArtifactEntry":
+        """
+        Gets the given path's entry metadata.
+
+        Arguments:
+            path: (str) The path in the artifact.
+
+        Returns:
+            (ArtifactEntry): The path's entry metadata.
+        """
+        raise NotImplementedError()
+
+    def __setitem__(self, path: str, entry: "ArtifactEntry") -> None:
+        """
+        Updates the given path with the provided entry metadata.
+
+        Arguments:
+            path: (str) The path in the artifact to set.
+            entry: (ArtifactEntry) The updated entry metadata to associate with the path.
+        """
+        raise NotImplementedError()
+
+    def __iter__(self) -> Iterator[str]:
+        """
+        Iterate over the paths in this manifest.
+
+        Returns:
+            (Iterable[str]): An iterator over the paths in this manifest.
+        """
+        raise NotImplementedError()
+
+    def __len__(self) -> int:
+        """
+        The number of paths contained in this manifest.
+
+        Returns:
+            (int): The number of paths contained in this manifest.
+        """
+        raise NotImplementedError()
+
+    def items(self) -> Iterable[Tuple[str, "ArtifactEntry"]]:
+        """
+        The items (path, entry metadata) in this manifest.
+
+        Returns:
+            (Tuple[str, ArtifactEntry]): The paths and corresponding entry metadata in this manifest.
+
+        """
+        raise NotImplementedError()
+
+    def keys(self) -> Iterable[str]:
+        """
+        The paths in this manifest.
+
+        Returns:
+            (Iterable[str]): The paths in this manifest.
+
+        """
+        raise NotImplementedError()
+
+    def values(self) -> Iterable["ArtifactEntry"]:
+        """
+        The entry metadata in this manifest.
+
+        Returns:
+             (Iterable[ArtifactEntry]): The entry metadata in this manifest.
+
+        """
+        raise NotImplementedError()
 
     def to_manifest_json(self):
         raise NotImplementedError()
@@ -86,25 +172,16 @@ class ArtifactManifest(object):
     def digest(self):
         raise NotImplementedError()
 
-    def add_entry(self, entry):
-        if (
-            entry.path in self.entries
-            and entry.digest != self.entries[entry.path].digest
-        ):
+    def add_entry(self, entry: "ArtifactEntry"):
+        if entry.path in self and entry.digest != self[entry.path].digest:
             raise ValueError("Cannot add the same path twice: %s" % entry.path)
-        self.entries[entry.path] = entry
+        self[entry.path] = entry
 
     def get_entry_by_path(self, path: str) -> Optional["ArtifactEntry"]:
-        return self.entries.get(path)
+        return self[path]
 
     def get_entries_in_directory(self, directory):
-        return [
-            self.entries[entry_key]
-            for entry_key in self.entries
-            if entry_key.startswith(
-                directory + "/"
-            )  # entries use forward slash even for windows
-        ]
+        return [self[path] for path, entry in self if path.startswith(directory + "/")]
 
 
 class ArtifactEntry(object):
@@ -115,6 +192,14 @@ class ArtifactEntry(object):
     size: Optional[int]
     extra: Dict
     local_path: Optional[str]
+
+    def __repr__(self) -> str:
+        if self.ref is not None:
+            summary = "ref: %s/%s" % (self.ref, self.path)
+        else:
+            summary = "digest: %s" % self.digest
+
+        return "<ManifestEntry %s>" % summary
 
     def parent_artifact(self) -> "Artifact":
         """

@@ -382,7 +382,7 @@ class InterfaceBase(object):
             cfg.key = k
             cfg.value_json = json.dumps(v)
 
-        for entry in sorted(artifact_manifest.entries.values(), key=lambda k: k.path):
+        for entry in sorted(artifact_manifest.values(), key=lambda k: k.path):
             proto_entry = proto_manifest.contents.add()
             proto_entry.path = entry.path
             proto_entry.digest = entry.digest

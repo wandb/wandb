@@ -234,8 +234,8 @@ class ArtifactSaver(object):
         return self._server_artifact
 
     def _resolve_client_id_manifest_references(self) -> None:
-        for entry_path in self._manifest.entries:
-            entry = self._manifest.entries[entry_path]
+        for entry_path in self._manifest:
+            entry = self._manifest[entry_path]
             if entry.ref is not None:
                 if entry.ref.startswith("wandb-client-artifact:"):
                     client_id = util.host_from_path(entry.ref)
