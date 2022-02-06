@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import os
 import random
+import threading
 from typing import (
     Callable,
     Dict,
@@ -998,11 +999,21 @@ class ArtifactsCache(object):
 
 
 _artifacts_cache = None
+_artifacts_cache_lock = threading.Lock()
 
 
 def get_artifacts_cache() -> ArtifactsCache:
     global _artifacts_cache
-    if _artifacts_cache is None:
-        cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
-        _artifacts_cache = ArtifactsCache(cache_dir)
-    return _artifacts_cache
+    global _artifacts_cache_lock
+
+    if _artifacts_cache is not None:
+        return _artifacts_cache
+
+    # The cache connects to sqlite and applies migrations. To
+    # avoid multiply migrating the database (which takes an exclusive
+    # lock), use a per-process lock.
+    with _artifacts_cache_lock:
+        if _artifacts_cache is None:
+            cache_dir = os.path.join(env.get_cache_dir(), "artifacts")
+            _artifacts_cache = ArtifactsCache(cache_dir)
+        return _artifacts_cache

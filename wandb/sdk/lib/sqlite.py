@@ -5,7 +5,6 @@ from typing import (
     Any,
     Iterator,
     List,
-    Optional,
     Tuple,
 )
 
@@ -16,13 +15,13 @@ Error = sqlite3.Error
 
 
 @contextlib.contextmanager
-def open_db(path: str) -> sqlite3.Connection:
+def open_db(path: str) -> Iterator[sqlite3.Connection]:
     with sqlite3.connect(os.path.join(path)) as db:
         yield db
 
 
 @contextlib.contextmanager
-def txn(conn: sqlite3.Connection, is_exclusive=False):
+def txn(conn: sqlite3.Connection, is_exclusive: bool = False) -> Iterator[None]:
     conn.execute(
         "BEGIN TRANSACTION" if not is_exclusive else "BEGIN EXCLUSIVE TRANSACTION"
     )
@@ -49,13 +48,17 @@ def fetch_one(conn: sqlite3.Connection, sql: str, args: Tuple = ()) -> Any:
 
 def migrate(conn: sqlite3.Connection, migrations: Migrations) -> None:
     with txn(conn, is_exclusive=True):
-        (count,) = fetch_one(conn, """
+        (count,) = fetch_one(
+            conn,
+            """
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE
                 type ='table' AND
                 name = ?
-        """, ("schema_migrations",))
+        """,
+            ("schema_migrations",),
+        )
         if count == 0:
             # Primitive schema management, could eventually do something
             # more sophisticated.
@@ -68,9 +71,11 @@ def migrate(conn: sqlite3.Connection, migrations: Migrations) -> None:
             """
             )
 
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO schema_migrations (version) VALUES (0);
-            """)
+            """
+            )
 
     with txn(conn, is_exclusive=True):
         (version,) = fetch_one(conn, "SELECT version FROM schema_migrations") or (0,)
