@@ -347,7 +347,6 @@ class Settings:
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
     _cuda: str
-    _tracelog: str
     _disable_meta: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
@@ -367,6 +366,7 @@ class Settings:
     _start_datetime: datetime
     _start_time: float
     _tmp_code_dir: str
+    _tracelog: str
     _unsaved_keys: Sequence[str]
     allow_val_change: bool
     anonymous: str
