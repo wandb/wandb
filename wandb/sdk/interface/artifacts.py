@@ -943,33 +943,40 @@ class ArtifactsCache(object):
             with self._txn(conn, is_exclusive=True):
                 # Primitive schema management, could eventually do something
                 # more sophisticated.
-                conn.execute("""
+                conn.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS schema_migrations(
                         version INTEGER PRIMARY KEY,
                         dirty BOOLEAN
                     )
-                """)
+                """
+                )
 
-            with self._txn(conn, is_exclusive=True):
                 version = 0
                 for row in conn.execute("SELECT version FROM schema_migrations"):
                     version = row
 
                 if version == 0:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         CREATE TABLE checksums(
                             path TEXT PRIMARY KEY,
                             size INT,
                             updated_at INT,
                             checksum TEXT
                         )
-                    """)
+                    """
+                    )
 
-                    conn.execute("""
+                    conn.execute(
+                        """
                         CREATE INDEX checksums_by_updated ON checksums (updated_at DESC)
-                    """)
+                    """
+                    )
 
-                    conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (1,))
+                    conn.execute(
+                        "INSERT INTO schema_migrations (version) VALUES (?)", (1,)
+                    )
 
     @contextlib.contextmanager
     def _db(self):
@@ -978,10 +985,12 @@ class ArtifactsCache(object):
 
     @contextlib.contextmanager
     def _txn(self, conn, is_exclusive=False):
-        conn.execute('BEGIN TRANSACTION' if not is_exclusive else 'BEGIN EXCLUSIVE TRANSACTION')
+        conn.execute(
+            "BEGIN TRANSACTION" if not is_exclusive else "BEGIN EXCLUSIVE TRANSACTION"
+        )
         try:
             yield
-        except:
+        except Exception:
             conn.rollback()
             raise
         else:
