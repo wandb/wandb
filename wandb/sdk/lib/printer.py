@@ -1,8 +1,9 @@
 from abc import abstractmethod
+from argparse import OPTIONAL
 import itertools
 import platform
 import sys
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import click
 import wandb
@@ -12,9 +13,7 @@ from . import ipython, sparkline
 
 class _Printer:
     def __init__(self) -> None:
-        self._info: List[str] = []
-        self._warnings: List[str] = []
-        self._errors: List[str] = []
+        pass
 
     def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
         # Only print sparklines if the terminal is utf-8
@@ -23,7 +22,9 @@ class _Printer:
         return None
 
     @abstractmethod
-    def display(self) -> None:
+    def display(
+        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
+    ) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -64,18 +65,18 @@ class PrinterTerm(_Printer):
         super().__init__()
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
-    def display(self) -> None:
-        if self._info:
-            wandb.termlog("\n".join(self._info))
-            self._info = []
-
-        if self._warnings:
-            wandb.termwarn("\n".join(self._warnings))
-            self._warnings = []
-
-        if self._errors:
-            wandb.termerror("\n".join(self._errors))
-            self._errors = []
+    def display(
+        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
+    ) -> None:
+        text = "\n".join(text) if isinstance(text, (list, tuple)) else text
+        if status == "info" or status is None:
+            wandb.termlog(text)
+        elif status == "warn":
+            wandb.termwarn(text)
+        elif status == "error":
+            wandb.termerror(text)
+        else:
+            raise
 
     def progress_update(self, text: str, precentage: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
@@ -123,20 +124,19 @@ class PrinterJupyter(_Printer):
         super().__init__()
         self._progress = ipython.jupyter_progress_bar()
 
-    def display(self) -> None:
-        if self._info:
-            ipython.display_html("<br/>".join(self._info))
-            self._info = []
+    def display(
+        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
+    ) -> None:
+        text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
 
-        if self._warnings:
-            # wandb.termwarn("\n".join(self._warnings))
-            ipython.display_html("<br/>".join(self._warnings))
-            self._warnings = []
-
-        if self._errors:
-            # wandb.termerror("\n".join(self._errors))
-            ipython.display_html("<br/>".join(self._errors))
-            self._errors = []
+        if status == "info" or status is None:
+            ipython.display_html(text)
+        elif status == "warn":
+            ipython.display_html(text)
+        elif status == "error":
+            ipython.display_html(text)
+        else:
+            raise
 
     def code(self, text: str) -> str:
         return f"<code>{text}<code>"

@@ -32,10 +32,12 @@ from urllib.parse import quote, urlencode
 
 import wandb
 from wandb import util
+from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
+from .lib import apikey
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
@@ -685,9 +687,14 @@ class Settings:
         return os.path.expanduser(os.path.join(*args))
 
     def _get_url_query_string(self) -> str:
-        if self.anonymous != "true":
+        # if self.anonymous != "true":
+        #     return ""
+        if Api().settings().get("anonymous") != "true":
             return ""
-        return f"?{urlencode({'apiKey': self.api_key})}"
+
+        api_key = apikey.api_key(settings=self)
+
+        return f"?{urlencode({'apiKey': api_key})}"
 
     def _project_url_base(self) -> str:
         if not all([self.entity, self.project]):
