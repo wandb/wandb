@@ -688,9 +688,13 @@ class Artifact(ArtifactInterface):
     def _add_local_file(
         self, name: str, path: str, digest: Optional[str] = None
     ) -> ArtifactEntry:
-        digest = digest or md5_file_b64(path)
-        size = os.path.getsize(path)
         name = util.to_forward_slash_path(name)
+        stat = os.stat(path)
+        size = stat.st_size
+        updated_at = stat.st_mtime
+        digest = self._cache.get_cached_checksum(
+            path, size, updated_at, lambda: digest or md5_file_b64(path)
+        )
 
         cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
         if not hit:

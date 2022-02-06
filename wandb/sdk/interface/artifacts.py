@@ -4,6 +4,7 @@ import codecs
 import contextlib
 import hashlib
 import os
+import sqlite3
 import random
 from typing import (
     Callable,
@@ -833,6 +834,40 @@ class ArtifactsCache(object):
         self._random = random.Random()
         self._random.seed()
         self._artifacts_by_client_id = {}
+        self._checksum_db = self._init_checksum_db()
+
+    def get_cached_checksum(
+        self, path: str, size: int, updated_at: int, checksum_getter: Callable
+    ) -> str:
+        with self._checksum_db as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT path, size, updated_at, checksum
+                FROM checksums
+                WHERE path = ?
+            """,
+                (path,),
+            )
+            row = cur.fetchone()
+            if row:
+                _, cache_size, cache_updated_at, cache_checksum = row
+                if size == cache_size and updated_at == cache_updated_at:
+                    return cache_checksum
+
+            checksum = checksum_getter()
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO checksums(
+                    path,
+                    size,
+                    updated_at,
+                    checksum
+                ) VALUES (?,?,?,?)
+            """,
+                (path, size, updated_at, checksum),
+            )
+            return checksum
 
     def check_md5_obj_path(self, b64_md5: str, size: int) -> Tuple[str, bool, Callable]:
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -896,6 +931,47 @@ class ArtifactsCache(object):
             total_size -= stat.st_size
             bytes_reclaimed += stat.st_size
         return bytes_reclaimed
+
+    def _init_checksum_db(self):
+        conn = sqlite3.connect(os.path.join(self._cache_dir, "checksum.db"))
+
+        # This creates a new sqlite transaction.
+        with conn:
+            # Primitive schema management, could eventually do something
+            # more sophisticated.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS schema_migrations(
+                    version INTEGER PRIMARY KEY,
+                    dirty BOOLEAN
+                )
+            """
+            )
+
+            version = 0
+            for row in conn.execute("SELECT version FROM schema_migrations"):
+                version = row
+
+            if version == 0:
+                conn.execute(
+                    """
+                    CREATE TABLE checksums(
+                        path TEXT PRIMARY KEY,
+                        size INT,
+                        updated_at INT,
+                        checksum TEXT
+                    )
+                """
+                )
+
+                conn.execute(
+                    """
+                    CREATE INDEX checksums_by_updated ON checksums (updated_at DESC)
+                """
+                )
+
+                conn.execute("UPDATE schema_migrations set version = 1")
+        return conn
 
     def _cache_opener(self, path):
         @contextlib.contextmanager

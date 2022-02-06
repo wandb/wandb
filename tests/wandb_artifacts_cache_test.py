@@ -15,6 +15,29 @@ def _cache_writer(cache_path):
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
+def test_get_cached_checksum(runner):
+    with runner.isolated_filesystem():
+        os.mkdir("cache")
+        cache = wandb_sdk.wandb_artifacts.ArtifactsCache("cache")
+
+        path = os.path.join("test")
+        with open(path, "w") as f:
+            f.write("hi")
+
+        stat = os.stat(path)
+
+        expected_digest = "abc"
+        cold_digest = cache.get_cached_checksum(
+            path, stat.st_size, stat.st_mtime, lambda: expected_digest
+        )
+        warm_digest = cache.get_cached_checksum(
+            path, stat.st_size, stat.st_mtime, lambda: "wrong"
+        )
+
+        assert cold_digest == expected_digest
+        assert warm_digest == expected_digest
+
+
 def test_check_md5_obj_path(runner):
     with runner.isolated_filesystem():
         os.mkdir("cache")
