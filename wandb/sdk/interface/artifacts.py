@@ -834,40 +834,46 @@ class ArtifactsCache(object):
         self._random = random.Random()
         self._random.seed()
         self._artifacts_by_client_id = {}
-        self._checksum_db = self._init_checksum_db()
+        self._init_checksum_db()
 
     def get_cached_checksum(
         self, path: str, size: int, updated_at: int, checksum_getter: Callable
     ) -> str:
-        with self._checksum_db as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT path, size, updated_at, checksum
-                FROM checksums
-                WHERE path = ?
-            """,
-                (path,),
-            )
-            row = cur.fetchone()
-            if row:
-                _, cache_size, cache_updated_at, cache_checksum = row
-                if size == cache_size and updated_at == cache_updated_at:
-                    return cache_checksum
+        with self._db() as conn:
+            try:
+                with self._txn(conn):
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        SELECT path, size, updated_at, checksum
+                        FROM checksums
+                        WHERE path = ?
+                    """,
+                        (path,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        _, cache_size, cache_updated_at, cache_checksum = row
+                        if size == cache_size and updated_at == cache_updated_at:
+                            return cache_checksum
 
-            checksum = checksum_getter()
-            cur.execute(
-                """
-                INSERT OR REPLACE INTO checksums(
-                    path,
-                    size,
-                    updated_at,
-                    checksum
-                ) VALUES (?,?,?,?)
-            """,
-                (path, size, updated_at, checksum),
-            )
-            return checksum
+                    checksum = checksum_getter()
+                    cur.execute(
+                        """
+                        INSERT OR REPLACE INTO checksums(
+                            path,
+                            size,
+                            updated_at,
+                            checksum
+                        ) VALUES (?,?,?,?)
+                    """,
+                        (path, size, updated_at, checksum),
+                    )
+                    return checksum
+            except sqlite3.Error:
+                # If for whatever reason the sqlite cache errors out,
+                # just naively populate the checksum.
+                return checksum_getter()
 
     def check_md5_obj_path(self, b64_md5: str, size: int) -> Tuple[str, bool, Callable]:
         hex_md5 = util.bytes_to_hex(base64.b64decode(b64_md5))
@@ -933,45 +939,53 @@ class ArtifactsCache(object):
         return bytes_reclaimed
 
     def _init_checksum_db(self):
-        conn = sqlite3.connect(os.path.join(self._cache_dir, "checksum.db"))
-
-        # This creates a new sqlite transaction.
-        with conn:
-            # Primitive schema management, could eventually do something
-            # more sophisticated.
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations(
-                    version INTEGER PRIMARY KEY,
-                    dirty BOOLEAN
-                )
-            """
-            )
-
-            version = 0
-            for row in conn.execute("SELECT version FROM schema_migrations"):
-                version = row
-
-            if version == 0:
-                conn.execute(
-                    """
-                    CREATE TABLE checksums(
-                        path TEXT PRIMARY KEY,
-                        size INT,
-                        updated_at INT,
-                        checksum TEXT
+        with self._db() as conn:
+            with self._txn(conn, is_exclusive=True):
+                # Primitive schema management, could eventually do something
+                # more sophisticated.
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS schema_migrations(
+                        version INTEGER PRIMARY KEY,
+                        dirty BOOLEAN
                     )
-                """
-                )
+                """)
 
-                conn.execute(
-                    """
-                    CREATE INDEX checksums_by_updated ON checksums (updated_at DESC)
-                """
-                )
+            with self._txn(conn, is_exclusive=True):
+                version = 0
+                for row in conn.execute("SELECT version FROM schema_migrations"):
+                    version = row
 
-                conn.execute("UPDATE schema_migrations set version = 1")
-        return conn
+                if version == 0:
+                    conn.execute("""
+                        CREATE TABLE checksums(
+                            path TEXT PRIMARY KEY,
+                            size INT,
+                            updated_at INT,
+                            checksum TEXT
+                        )
+                    """)
+
+                    conn.execute("""
+                        CREATE INDEX checksums_by_updated ON checksums (updated_at DESC)
+                    """)
+
+                    conn.execute("INSERT INTO schema_migrations (version) VALUES (?)", (1,))
+
+    @contextlib.contextmanager
+    def _db(self):
+        with sqlite3.connect(os.path.join(self._cache_dir, "checksum.db")) as db:
+            yield db
+
+    @contextlib.contextmanager
+    def _txn(self, conn, is_exclusive=False):
+        conn.execute('BEGIN TRANSACTION' if not is_exclusive else 'BEGIN EXCLUSIVE TRANSACTION')
+        try:
+            yield
+        except:
+            conn.rollback()
+            raise
+        else:
+            conn.commit()
 
     def _cache_opener(self, path):
         @contextlib.contextmanager

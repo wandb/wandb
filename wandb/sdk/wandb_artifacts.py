@@ -375,7 +375,12 @@ class Artifact(ArtifactInterface):
             raise ValueError("Path is not a file: %s" % local_path)
 
         name = util.to_forward_slash_path(name or os.path.basename(local_path))
-        digest = md5_file_b64(local_path)
+        stat = os.stat(local_path)
+        size = stat.st_size
+        updated_at = stat.st_mtime
+        digest = self._cache.get_cached_checksum(
+            local_path, size, updated_at, lambda: md5_file_b64(local_path)
+        )
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -383,7 +388,18 @@ class Artifact(ArtifactInterface):
             file_name_parts[0] = b64_string_to_hex(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest)
+        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
+        if not hit:
+            with cache_open() as f:
+                shutil.copyfile(local_path, f.name)
+
+        entry = ArtifactManifestEntry(
+            name, None, digest=digest, size=size, local_path=cache_path,
+        )
+
+        self._manifest.add_entry(entry)
+        self._added_local_paths[local_path] = entry
+        return entry
 
     def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
         self._ensure_can_add()
@@ -408,7 +424,7 @@ class Artifact(ArtifactInterface):
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self.add_file(physical_path, name=logical_path)
 
         import multiprocessing.dummy  # this uses threads
 
@@ -684,30 +700,6 @@ class Artifact(ArtifactInterface):
     def _ensure_can_add(self) -> None:
         if self._final:
             raise ValueError("Can't add to finalized artifact.")
-
-    def _add_local_file(
-        self, name: str, path: str, digest: Optional[str] = None
-    ) -> ArtifactEntry:
-        name = util.to_forward_slash_path(name)
-        stat = os.stat(path)
-        size = stat.st_size
-        updated_at = stat.st_mtime
-        digest = self._cache.get_cached_checksum(
-            path, size, updated_at, lambda: digest or md5_file_b64(path)
-        )
-
-        cache_path, hit, cache_open = self._cache.check_md5_obj_path(digest, size)
-        if not hit:
-            with cache_open() as f:
-                shutil.copyfile(path, f.name)
-
-        entry = ArtifactManifestEntry(
-            name, None, digest=digest, size=size, local_path=cache_path,
-        )
-
-        self._manifest.add_entry(entry)
-        self._added_local_paths[path] = entry
-        return entry
 
     def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactEntry:
         return self.add(item, name)
