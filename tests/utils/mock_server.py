@@ -9,6 +9,7 @@ import json
 import platform
 import yaml
 import six
+import gzip
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -85,6 +86,7 @@ def default_ctx():
         "invalid_launch_spec_project": False,
         "n_sweep_runs": 0,
         "code_saving_enabled": True,
+        "sentry_events": [],
     }
 
 
@@ -1847,6 +1849,16 @@ index 30d74d2..9a2c773 100644
             }
         )
 
+    @app.route("/api/5288891/store/", methods=["POST"])
+    def sentry_put():
+        ctx = get_ctx()
+        data = request.get_data()
+        data = gzip.decompress(data)
+        data = str(data, "utf-8")
+        data = json.loads(data)
+        ctx["sentry_events"].append(data)
+        return ""
+
     @app.errorhandler(404)
     def page_not_found(e):
         print("Got request to: %s (%s)" % (request.url, request.method))
@@ -2059,6 +2071,10 @@ class ParseCTX(object):
     @property
     def alerts(self):
         return self._ctx.get("alerts") or []
+
+    @property
+    def sentry_events(self):
+        return self._ctx.get("sentry_events") or []
 
     def _debug(self):
         if not self._run_id:
