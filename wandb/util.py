@@ -37,7 +37,7 @@ from sentry_sdk import capture_exception, capture_message
 import shortuuid
 import six
 import wandb
-from wandb.env import error_reporting_enabled, get_app_url
+from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term
 import yaml
 
@@ -60,7 +60,7 @@ if error_reporting_enabled():
     default_dsn = (
         "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
     )
-    sentry_dsn = os.environ.get(env.SENTRY_DSN, default_dsn)
+    sentry_dsn = os.environ.get(SENTRY_DSN, default_dsn)
     sentry_sdk.init(
         dsn=sentry_dsn,
         release=wandb.__version__,
