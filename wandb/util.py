@@ -64,9 +64,15 @@ if IS_GIT:
 else:
     SENTRY_ENV = "production"
 
+# TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
+# side effect of loading a module.
 if error_reporting_enabled():
+    default_dsn = (
+        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+    )
+    sentry_dsn = os.environ.get(env.SENTRY_DSN, default_dsn)
     sentry_sdk.init(
-        dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
+        dsn=sentry_dsn,
         release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
