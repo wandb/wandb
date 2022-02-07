@@ -8,7 +8,9 @@ import inspect
 import json
 import os
 import platform
+import subprocess
 import sys
+import tempfile
 from unittest import mock
 
 import pytest  # type: ignore
@@ -914,3 +916,18 @@ def test_no_repeat_warnings(capsys):
     captured = capsys.readouterr().err
     msg = "Invalid value for property api_key: 234"
     assert captured.count(msg) == 1
+
+
+def test_program_python_m():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path_module = os.path.join(tmpdir, "module")
+        os.mkdir(path_module)
+        with open(os.path.join(path_module, "lib.py"), "w") as f:
+            f.write(
+                "import wandb\n\n\n"
+                "if __name__ == '__main__':\n"
+                "    run = wandb.init(mode='offline')\n"
+                "    print(run.settings.program)\n"
+            )
+        output = subprocess.check_output([sys.executable, "-m", "module.lib"], cwd=tmpdir)
+        assert "python -m module.lib" in output.decode("utf-8")

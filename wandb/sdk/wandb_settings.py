@@ -115,8 +115,11 @@ def _get_program() -> Optional[Any]:
         return program
     try:
         import __main__  # type: ignore
-
-        return __main__.__file__
+        if __main__.__spec__ is None:
+            return __main__.__file__
+        # likely run as `python -m ...`
+        program = [sys.executable, "-m", __main__.__spec__.name]
+        return " ".join(program)
     except (ImportError, AttributeError):
         return None
 
@@ -1004,7 +1007,7 @@ class Settings:
 
         self.update(env, source=Source.ENV)
 
-    def infer_settings_from_environment(
+    def _infer_settings_from_environment(
         self, _logger: Optional[_EarlyLogger] = None
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
@@ -1083,7 +1086,7 @@ class Settings:
 
         self.update(settings, source=Source.ENV)
 
-    def infer_run_settings_from_environment(
+    def _infer_run_settings_from_environment(
         self, _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""

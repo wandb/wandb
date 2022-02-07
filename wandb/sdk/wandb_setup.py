@@ -130,9 +130,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             # if passed settings arg is a mapping, update the settings with it
             s._apply_setup(settings, _logger=early_logger)
 
-        s.infer_settings_from_environment()
+        s._infer_settings_from_environment()
         if not s._cli_only_mode:
-            s.infer_run_settings_from_environment(_logger=early_logger)
+            s._infer_run_settings_from_environment(_logger=early_logger)
 
         return s
 
