@@ -1,62 +1,52 @@
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
 import base64
 import binascii
+import codecs
 import colorsys
 import contextlib
-import codecs
+from datetime import date, datetime
 import errno
 import functools
 import gzip
 import hashlib
+import importlib
+from importlib import import_module
 import json
 import logging
 import math
 import numbers
-import traceback
 import os
+import platform
+import queue
+import random
 import re
 import shlex
 import socket
 import sys
-import threading
-import time
-import random
-import shortuuid
-import importlib
+from sys import getsizeof
 import tarfile
 import tempfile
-import types
-from typing import Optional
-import yaml
-from datetime import date, datetime
-import platform
-from six.moves import urllib
-from typing import Any, Dict
+import threading
+import time
+import traceback
+from typing import Any, Dict, Mapping, Optional, Sequence
+import urllib
 
 import requests
-import six
-from six.moves import queue, input
-from sys import getsizeof
-from six.moves.collections_abc import Mapping, Sequence
-from importlib import import_module
 import sentry_sdk
-from sentry_sdk import capture_exception
-from sentry_sdk import capture_message
-from wandb.env import error_reporting_enabled, get_app_url
-
+from sentry_sdk import capture_exception, capture_message
+import shortuuid
+import six
 import wandb
-from wandb import env
+from wandb.env import error_reporting_enabled, get_app_url
 from wandb.errors import CommError, term
+import yaml
 
 logger = logging.getLogger(__name__)
 _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile('[<>:"/\?*]')
+RE_WINFNAMES = re.compile('[<>:"/?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -106,7 +96,7 @@ def sentry_message(message):
 
 def sentry_exc(exc, delay=False):
     if error_reporting_enabled():
-        if isinstance(exc, six.string_types):
+        if isinstance(exc, str):
             capture_exception(Exception(exc))
         else:
             capture_exception(exc)
@@ -186,9 +176,9 @@ def get_module(name, required=None):
     if name not in _not_importable:
         try:
             return import_module(name)
-        except Exception as e:
+        except Exception:
             _not_importable.add(name)
-            msg = "Error importing optional module {}".format(name)
+            msg = f"Error importing optional module {name}"
             if required:
                 logger.exception(msg)
     if required and name in _not_importable:
@@ -197,80 +187,6 @@ def get_module(name, required=None):
 
 def get_optional_module(name) -> Optional["importlib.ModuleInterface"]:
     return get_module(name)
-
-
-class LazyLoader(types.ModuleType):
-    """Lazily import a module, mainly to avoid pulling in large dependencies.
-    we use this for tensorflow and other optional libraries primarily at the top module level
-    """
-
-    # The lint error here is incorrect.
-    def __init__(
-        self, local_name, parent_module_globals, name, warning=None
-    ):  # pylint: disable=super-on-old-class
-        self._local_name = local_name
-        self._parent_module_globals = parent_module_globals
-        self._warning = warning
-
-        super(LazyLoader, self).__init__(name)
-
-    def _load(self):
-        """Load the module and insert it into the parent's globals."""
-        # Import the target module and insert it into the parent's namespace
-        module = importlib.import_module(self.__name__)
-        self._parent_module_globals[self._local_name] = module
-
-        # Emit a warning if one was specified
-        if self._warning:
-            print(self._warning)
-            # Make sure to only warn once.
-            self._warning = None
-
-        # Update this object's dict so that if someone keeps a reference to the
-        #   LazyLoader, lookups are efficient (__getattr__ is only called on lookups
-        #   that fail).
-        self.__dict__.update(module.__dict__)
-
-        return module
-
-    def __getattr__(self, item):
-        module = self._load()
-        return getattr(module, item)
-
-    def __dir__(self):
-        module = self._load()
-        return dir(module)
-
-
-class PreInitObject(object):
-    def __init__(self, name):
-        self._name = name
-
-    def __getitem__(self, key):
-        raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
-        )
-
-    def __setitem__(self, key, value):
-        raise wandb.Error(
-            'You must call wandb.init() before {}["{}"]'.format(self._name, key)
-        )
-
-    def __setattr__(self, key, value):
-        if not key.startswith("_"):
-            raise wandb.Error(
-                "You must call wandb.init() before {}.{}".format(self._name, key)
-            )
-        else:
-            return object.__setattr__(self, key, value)
-
-    def __getattr__(self, key):
-        if not key.startswith("_"):
-            raise wandb.Error(
-                "You must call wandb.init() before {}.{}".format(self._name, key)
-            )
-        else:
-            raise AttributeError()
 
 
 np = get_module("numpy")
@@ -469,31 +385,6 @@ def ensure_matplotlib_figure(obj):
     import matplotlib
     from matplotlib.figure import Figure
 
-    # plotly and matplotlib broke in recent releases,
-    # this patches matplotlib to add a removed method that plotly assumes exists
-    from matplotlib.spines import Spine
-
-    def is_frame_like(self):
-        """Return True if directly on axes frame.
-
-        This is useful for determining if a spine is the edge of an
-        old style MPL plot. If so, this function will return True.
-        """
-        position = self._position or ("outward", 0.0)
-        if isinstance(position, str):
-            if position == "center":
-                position = ("axes", 0.5)
-            elif position == "zero":
-                position = ("data", 0)
-        if len(position) != 2:
-            raise ValueError("position should be 2-tuple")
-        position_type, amount = position
-        if position_type == "outward" and amount == 0:
-            return True
-        else:
-            return False
-
-    Spine.is_frame_like = is_frame_like
     if obj == matplotlib.pyplot:
         obj = obj.gcf()
     elif not isinstance(obj, Figure):
@@ -511,7 +402,10 @@ def matplotlib_to_plotly(obj):
     obj = ensure_matplotlib_figure(obj)
     tools = get_module(
         "plotly.tools",
-        required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`",
+        required=(
+            "plotly is required to log interactive plots, install with: "
+            "`pip install plotly` or convert the plot to an image with `wandb.Image(plt)`"
+        ),
     )
     return tools.mpl_to_plotly(obj)
 
@@ -521,7 +415,7 @@ def matplotlib_contains_images(obj):
     return any(len(ax.images) > 0 for ax in obj.axes)
 
 
-def json_friendly(obj):
+def json_friendly(obj):  # noqa: C901
     """Convert an object into something that's more becoming of JSON"""
     converted = True
     typename = get_full_typename(obj)
@@ -595,7 +489,7 @@ def json_friendly_val(val):
     """Make any value (including dict, slice, sequence, etc) JSON friendly"""
     if isinstance(val, dict):
         converted = {}
-        for key, value in six.iteritems(val):
+        for key, value in val.items():
             converted[key] = json_friendly_val(value)
         return converted
     if isinstance(val, slice):
@@ -604,7 +498,7 @@ def json_friendly_val(val):
         )
         return converted
     val, _ = json_friendly(val)
-    if isinstance(val, Sequence) and not isinstance(val, six.string_types):
+    if isinstance(val, Sequence) and not isinstance(val, str):
         converted = []
         for value in val:
             converted.append(json_friendly_val(value))
@@ -619,7 +513,10 @@ def convert_plots(obj):
     if is_matplotlib_typename(get_full_typename(obj)):
         tools = get_module(
             "plotly.tools",
-            required="plotly is required to log interactive plots, install with: pip install plotly or convert the plot to an image with `wandb.Image(plt)`",
+            required=(
+                "plotly is required to log interactive plots, install with: "
+                "`pip install plotly` or convert the plot to an image with `wandb.Image(plt)`"
+            ),
         )
         obj = tools.mpl_to_plotly(obj)
 
@@ -659,20 +556,20 @@ def maybe_compress_summary(obj, h5_typename):
 
 def launch_browser(attempt_launch_browser=True):
     """Decide if we should launch a browser"""
-    _DISPLAY_VARIABLES = ["DISPLAY", "WAYLAND_DISPLAY", "MIR_SOCKET"]
-    _WEBBROWSER_NAMES_BLACKLIST = ["www-browser", "lynx", "links", "elinks", "w3m"]
+    _display_variables = ["DISPLAY", "WAYLAND_DISPLAY", "MIR_SOCKET"]
+    _webbrowser_names_blocklist = ["www-browser", "lynx", "links", "elinks", "w3m"]
 
     import webbrowser
 
     launch_browser = attempt_launch_browser
     if launch_browser:
         if "linux" in sys.platform and not any(
-            os.getenv(var) for var in _DISPLAY_VARIABLES
+            os.getenv(var) for var in _display_variables
         ):
             launch_browser = False
         try:
             browser = webbrowser.get()
-            if hasattr(browser, "name") and browser.name in _WEBBROWSER_NAMES_BLACKLIST:
+            if hasattr(browser, "name") and browser.name in _webbrowser_names_blocklist:
                 launch_browser = False
         except webbrowser.Error:
             launch_browser = False
@@ -946,7 +843,7 @@ def image_from_docker_args(args):
         if ":" in img or "@" in img or "/" in img:
             most_likely = img
             break
-    if most_likely == None and len(possible_images) > 0:
+    if most_likely is None and len(possible_images) > 0:
         most_likely = possible_images[0]
     return most_likely
 
@@ -988,7 +885,9 @@ def image_id_from_k8s():
         except requests.RequestException:
             return None
         try:
-            return res.json()["status"]["containerStatuses"][0]["imageID"].strip(
+            return res.json()["status"]["containerStatuses"][0][
+                "imageID"
+            ].strip(  # noqa: B005
                 "docker-pullable://"
             )
         except (ValueError, KeyError, IndexError):
@@ -1035,7 +934,7 @@ def read_many_from_queue(q, max_items, queue_timeout):
     except queue.Empty:
         return []
     items = [item]
-    for i in range(max_items):
+    for _ in range(max_items):
         try:
             item = q.get_nowait()
         except queue.Empty:
@@ -1045,15 +944,11 @@ def read_many_from_queue(q, max_items, queue_timeout):
 
 
 def stopwatch_now():
-    """Get a timevalue for interval comparisons
+    """Get a time value for interval comparisons
 
     When possible it is a monotonic clock to prevent backwards time issues.
     """
-    if six.PY2:
-        now = time.time()
-    else:
-        now = time.monotonic()
-    return now
+    return time.monotonic()
 
 
 def class_colors(class_count):

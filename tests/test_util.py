@@ -1,17 +1,19 @@
-import itertools
-import sys
 import os
-import pytest
-import numpy
 import platform
 import random
+import sys
+import tarfile
+import tempfile
+
+import pytest
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
-import tensorflow
+import tensorflow as tf
 
-import plotly
 import matplotlib.pyplot as plt
+import numpy
+import plotly
 
 from . import utils
 from wandb import util
@@ -51,117 +53,99 @@ def json_friendly_test(orig_data, obj):
 
 
 def tensorflow_json_friendly_test(orig_data):
-    json_friendly_test(orig_data, tensorflow.convert_to_tensor(orig_data))
-    v = tensorflow.Variable(tensorflow.convert_to_tensor(orig_data))
+    json_friendly_test(orig_data, tf.convert_to_tensor(orig_data))
+    v = tf.Variable(tf.convert_to_tensor(orig_data))
     json_friendly_test(orig_data, v)
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_0d():
     a = nested_list()
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_1d_1x1():
     a = nested_list(1)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_1d():
     a = nested_list(3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_1d_large():
     a = nested_list(300)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_2d():
     a = nested_list(3, 3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_2d_large():
     a = nested_list(300, 300)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_3d():
     a = nested_list(3, 3, 3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_4d():
     a = nested_list(1, 1, 1, 1)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_nd():
     a = nested_list(1, 1, 1, 1, 1, 1, 1, 1)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="PyTorch no longer supports py2")
 def test_pytorch_json_nd_large():
     a = nested_list(3, 3, 3, 3, 3, 3, 3, 3)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_0d():
     tensorflow_json_friendly_test(nested_list())
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_1d_1x1():
     tensorflow_json_friendly_test(nested_list(1))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_1d():
     tensorflow_json_friendly_test(nested_list(3))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_1d_large():
     tensorflow_json_friendly_test(nested_list(300))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_2d():
     tensorflow_json_friendly_test(nested_list(3, 3))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_2d_large():
     tensorflow_json_friendly_test(nested_list(300, 300))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_nd():
     tensorflow_json_friendly_test(nested_list(1, 1, 1, 1, 1, 1, 1, 1))
 
 
-@pytest.mark.skipif(sys.version_info < (3, 5), reason="TF has sketchy support for py2")
 def test_tensorflow_json_nd_large():
     tensorflow_json_friendly_test(nested_list(3, 3, 3, 3, 3, 3, 3, 3))
 
@@ -315,3 +299,75 @@ def test_matplotlib_to_plotly():
     fig = utils.matplotlib_without_image()
     assert type(util.matplotlib_to_plotly(plt)) == plotly.graph_objs._figure.Figure
     plt.close()
+
+
+def test_apple_gpu_stats_binary():
+    assert util.apple_gpu_stats_binary().endswith(
+        os.path.join("bin", "apple_gpu_stats")
+    )
+
+
+def test_is_uri():
+    assert util.is_uri("http://foo.com")
+    assert util.is_uri("https://foo.com")
+    assert util.is_uri("file:///foo.com")
+    assert util.is_uri("s3://foo.com")
+    assert util.is_uri("gs://foo.com")
+    assert util.is_uri("foo://foo.com")
+    assert not util.is_uri("foo.com")
+    assert not util.is_uri("foo")
+
+
+def test_local_file_uri_to_path():
+    assert util.local_file_uri_to_path("file:///foo.com") == "/foo.com"
+    assert util.local_file_uri_to_path("file://foo.com") == ""
+    assert util.local_file_uri_to_path("file:///foo") == "/foo"
+    assert util.local_file_uri_to_path("file://foo") == ""
+    assert util.local_file_uri_to_path("file:///") == "/"
+    assert util.local_file_uri_to_path("file://") == ""
+    assert util.get_local_path_or_none("https://foo.com") is None
+
+
+def test_get_local_path_or_none():
+    assert util.get_local_path_or_none("file:///foo.com") == "/foo.com"
+    assert util.get_local_path_or_none("file://foo.com") is None
+    assert util.get_local_path_or_none("file:///foo") == "/foo"
+    assert util.get_local_path_or_none("file://foo") is None
+    assert util.get_local_path_or_none("file:///") == "/"
+    assert util.get_local_path_or_none("file://") == ""
+    assert util.get_local_path_or_none("/foo.com") == "/foo.com"
+    assert util.get_local_path_or_none("foo.com") == "foo.com"
+    assert util.get_local_path_or_none("/foo") == "/foo"
+    assert util.get_local_path_or_none("foo") == "foo"
+    assert util.get_local_path_or_none("/") == "/"
+    assert util.get_local_path_or_none("") == ""
+
+
+def test_make_tarfile():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpfile = os.path.join(tmpdir, "foo.tar.gz")
+        util.make_tarfile(
+            output_filename=tmpfile, source_dir=tmpdir, archive_name="lol",
+        )
+        assert os.path.exists(tmpfile)
+        assert tarfile.is_tarfile(tmpfile)
+
+
+def test_is_tf_tensor():
+    assert util.is_tf_tensor(tf.constant(1))
+    assert not util.is_tf_tensor(tf.Variable(1))
+    assert not util.is_tf_tensor(1)
+    assert not util.is_tf_tensor(None)
+
+
+def test_is_pytorch_tensor():
+    assert util.is_pytorch_tensor(torch.tensor(1))
+    assert not util.is_pytorch_tensor(1)
+    assert not util.is_pytorch_tensor(None)
+
+
+def test_convert_plots():
+    fig = utils.matplotlib_without_image()
+    obj = util.convert_plots(fig)
+    assert obj.get("plot")
+    assert obj.get("_type") == "plotly"
