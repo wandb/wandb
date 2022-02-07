@@ -16,8 +16,9 @@ assert:
   - :yea:exit: 1
 """
 
-import wandb
 from unittest import mock
+
+import wandb
 
 with mock.patch("wandb.sdk.wandb_init._WandbInit.init", side_effect=Exception("injected")) as m:
     run = wandb.init()
