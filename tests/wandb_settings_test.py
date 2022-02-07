@@ -929,5 +929,7 @@ def test_program_python_m():
                 "    run = wandb.init(mode='offline')\n"
                 "    print(run.settings.program)\n"
             )
-        output = subprocess.check_output([sys.executable, "-m", "module.lib"], cwd=tmpdir)
+        output = subprocess.check_output(
+            [sys.executable, "-m", "module.lib"], cwd=tmpdir
+        )
         assert "python -m module.lib" in output.decode("utf-8")

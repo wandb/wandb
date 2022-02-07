@@ -115,6 +115,7 @@ def _get_program() -> Optional[Any]:
         return program
     try:
         import __main__  # type: ignore
+
         if __main__.__spec__ is None:
             return __main__.__file__
         # likely run as `python -m ...`
