@@ -17,9 +17,19 @@ class _Printer:
             return sparkline.sparkify(series)
         return None
 
-    @abstractmethod
     def display(
-        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
+        self,
+        text: Union[str, List[str], Tuple[str]],
+        *,
+        status: Optional[str] = None,
+        off: Optional[bool] = None,
+    ) -> None:
+        if not off:
+            self._display(text, status=status)
+
+    @abstractmethod
+    def _display(
+        self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None,
     ) -> None:
         raise NotImplementedError
 
@@ -62,7 +72,7 @@ class PrinterTerm(_Printer):
         self._html = False
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
-    def display(
+    def _display(
         self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
     ) -> None:
         text = "\n".join(text) if isinstance(text, (list, tuple)) else text
@@ -122,7 +132,7 @@ class PrinterJupyter(_Printer):
         self._html = True
         self._progress = ipython.jupyter_progress_bar()
 
-    def display(
+    def _display(
         self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
     ) -> None:
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text

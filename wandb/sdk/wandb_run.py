@@ -1671,9 +1671,7 @@ class Run:
             )
         logger.info(f"got version response {self._check_version}")
         with run_printer(self) as printer:
-            printer._version_check_info(
-                check_version=self._check_version, footer=False, quiet=self._quiet
-            )
+            printer._header_version_check_info(check_version=self._check_version)
 
     def _on_start(self) -> None:
 
@@ -1717,25 +1715,21 @@ class Run:
             print("")
             printer._footer_exit_status_info(self._exit_code)
 
-            history = summary = None
-            if self._backend and self._backend.interface:
-                history = self._backend.interface.communicate_sampled_history()
-                summary = self._backend.interface.communicate_get_summary()
-
-            done = False
-            while not done:
+            while not (self._poll_exit_response and self._poll_exit_response.done):
                 if self._backend and self._backend.interface:
-                    poll_exit_response = self._backend.interface.communicate_poll_exit()
-                    logger.info(f"got exit ret: {poll_exit_response}")
-                    if poll_exit_response:
-                        printer._footer_file_pusher_status_info(poll_exit_response)
-                        done = poll_exit_response.done
-                        if done:
-                            self._poll_exit_response = poll_exit_response
+                    self._poll_exit_response = (
+                        self._backend.interface.communicate_poll_exit()
+                    )
+                    logger.info(f"got exit ret: {self._poll_exit_response}")
+                    printer._footer_file_pusher_status_info(self._poll_exit_response)
                 time.sleep(0.1)
 
-            if history or summary:
-                printer._footer_history_summary_info(history, summary, self._quiet)
+            if self._backend and self._backend.interface:
+                sampled_history = self._backend.interface.communicate_sampled_history()
+                final_summary = self._backend.interface.communicate_get_summary()
+                printer._footer_history_summary_info(
+                    history=sampled_history, summary=final_summary, quiet=self._quiet
+                )
 
         if self._backend:
             self._backend.cleanup()
@@ -1745,14 +1739,18 @@ class Run:
 
     def _on_final(self) -> None:
         with run_printer(self) as printer:
-            printer._footer_sync_info(self._poll_exit_response)
-            printer._footer_log_dir_info(self._quiet)
-            printer._version_check_info(
-                check_version=self._check_version, footer=True, quiet=self._quiet
+            printer._footer_sync_info(
+                pool_exit_response=self._poll_exit_response, quiet=self._quiet
             )
-            printer._footer_local_warn(self._poll_exit_response, self._quiet)
+            printer._footer_log_dir_info(quiet=self._quiet)
+            printer._footer_version_check_info(
+                check_version=self._check_version, quiet=self._quiet
+            )
+            printer._footer_local_warn(
+                poll_exit_response=self._poll_exit_response, quiet=self._quiet
+            )
             printer._footer_reporter_warn_err(
-                quiet=self._quiet, reporter=self._reporter
+                reporter=self._reporter, quiet=self._quiet
             )
 
     def _save_job_spec(self) -> None:
