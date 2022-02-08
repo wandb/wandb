@@ -2591,6 +2591,7 @@ class Plotly(Media):
 
 # Consider doing class-specific here and having the proxy on the outside.
 class SavedModel(Media):
+    # TODO: Make this work 
     _log_type = "saved-model"
 
     def __init__(self, model_obj:any):
@@ -2601,6 +2602,12 @@ class SavedModel(Media):
         res = super().to_json(run)
         res["val"] = self.model_obj
         return res
+
+    @classmethod
+    def from_json(
+        cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "Media":
+        return cls(json_obj["val"])
 
     # TODO: this whole game...
     def as_pytorch(self):

@@ -12,72 +12,7 @@ from wandb.sdk.interface.artifacts import (
     Artifact as ArtifactInterface,
 )
 import wandb
-
-def _log_artifact_version(
-    name: str,
-    type: str,
-    entries:Dict[str, Union[str,ArtifactEntry,data_types.WBValue]],
-    aliases: Optional[Union[str, List[str]]]=None,
-    description: Optional[str] = None,
-    metadata: Optional[dict] = None,
-    project: Optional[str] = None,
-    project_scope: Optional[bool] = None,
-    job_type: str = "auto"
-) -> ArtifactEntry:
-    """
-    Quickly create a new Artifact Version in a single method. If a run is already
-    created, then the artifact will be logged to the currently running run. If no
-    run is actively running, then a new run will be created automatically. Note:
-    the run will NOT be automatically finished - meaning successive calls to this
-    function with the same artifact name will result in new versions under the same
-    artifact.
-
-    Arguments:
-        name: (str) A human-readable name for this artifact, which is how you
-            can identify this artifact in the UI or reference it in `use_artifact`
-            calls. Names can contain letters, numbers, underscores, hyphens, and
-            dots. The name must be unique across a project.
-        type: (str) The type of the artifact, which is used to organize and differentiate
-            artifacts. Common types include `dataset` or `model`, but you can use any string
-            containing letters, numbers, underscores, hyphens, and dots.
-        entries: (dict) Dictionary keyed by the target path with values of either `str`, `ArtifactEntry`.
-            or `WBValue`.
-        aliases: (list, optional) Optional list of aliases to apply to the Artifact version.
-        description: (str, optional) Free text that offers a description of the artifact. The
-            description is markdown rendered in the UI, so this is a good place to place tables,
-            links, etc.
-        metadata: (dict, optional) Structured data associated with the artifact,
-            for example class distribution of a dataset. This will eventually be queryable
-            and plottable in the UI. There is a hard limit of 100 total keys.
-        project: (str) the project name to use if a current run is not already created.
-        project_scope: (bool, optional) If False (default), then the artifact name will be suffixed with
-            `-<run_id>`. If True, the suffix will NOT be added.
-        job_type: (str) Job type to use for the run.
-
-
-    Returns:
-        An `ArtifactEntry` object.
-    """
-    if wandb.run is None:
-        run = wandb.init(project=project, job_type=job_type, settings=wandb.Settings(silent="true"))
-    else:
-        run = wandb.run
-
-    if not project_scope:
-        name = f'{name}-{run.id}'
-
-    art = wandb.Artifact(name, type, description, metadata, False, None)
-
-    for path in entries:
-        _add_any(art, entries[path], path)
-    
-    # Double check that "latest" isn't getting killed.
-    if isinstance(aliases, str):
-        aliases = [aliases]
-
-    run.log_artifact(art, aliases=aliases)
-
-    return art
+from wandb.util import get_module
 
 def log_model(
     model_obj: Any, 
@@ -104,24 +39,26 @@ def log_model(
             job_type = "log_model"
         )
 
-# Should we do some sort of def watch_model? Maybe we can just beef up standard wandb.watch?
+def model_versions(model_name: str):
+    return wandb.Api().artifact_collection(model_name, "model").versions()
 
-def _entry_is_root_file(path: str):
-    return False
+def link_model(model_artifact: Union[str, ArtifactEntry], registered_model: str):
+    # TODO: implement this.
+    pass
 
-def _load_artifact(name: str):
-    if ":" not in name:
-        name = name + ":latest"
-    # TODO: workout what happens without runs.
-    art = wandb.run.use_artifact(name)
-    # Fix this ; this is just showing the idea - not actually good implementation.
-    if "index" in art.manifest.entries:
-        return art.get("index")
-    keys = art.manifest.entries.keys()
-    keys.sort()
-    for key in art.manifest.entries.keys():
-        if _entry_is_root_file(key):
-            return art.get(key)
+def use_model(model_name: str,
+    project: Optional[str] = None,
+    job_type: str = "auto"
+):
+    if wandb.run is None:
+        wandb.init(project=project, job_type=job_type, settings=wandb.Settings(silent="true"))
+
+    if ":" not in model_name:
+        model_name = f"{model_name}:latest"
+    
+    art = wandb.run.use_artifact(model_name, type="model")
+
+    return art.get("index")
 
 
 def _add_any(artifact: ArtifactInterface, 
@@ -147,8 +84,86 @@ def _add_any(artifact: ArtifactInterface,
     else:
         raise ValueError(f'Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(path_or_obj)}')
 
-def model_versions(model_name: str):
-    return wandb.Api().artifact_collection(model_name, "model").versions()
+def _log_artifact_version(
+    name: str,
+    type: str,
+    entries:Dict[str, Union[str,ArtifactEntry,data_types.WBValue]],
+    aliases: Optional[Union[str, List[str]]]=None,
+    description: Optional[str] = None,
+    metadata: Optional[dict] = None,
+    project: Optional[str] = None,
+    project_scope: Optional[bool] = None,
+    job_type: str = "auto"
+) -> ArtifactEntry:
+    if wandb.run is None:
+        run = wandb.init(project=project, job_type=job_type, settings=wandb.Settings(silent="true"))
+    else:
+        run = wandb.run
+
+    if not project_scope:
+        name = f'{name}-{run.id}'
+
+    art = wandb.Artifact(name, type, description, metadata, False, None)
+
+    for path in entries:
+        _add_any(art, entries[path], path)
+    
+    # Double check that "latest" isn't getting killed.
+    if isinstance(aliases, str):
+        aliases = [aliases]
+
+    run.log_artifact(art, aliases=aliases)
+
+    return art
+
+
+def example_pytorch_model(num_classes=10):
+    # From https://pytorch.org/tutorials/beginner/saving_loading_models.html
+    torch = get_module("torch")
+    nn = torch.nn
+    optim = torch.optim
+    F = nn.functional
+
+    class TheModelClass(nn.Module):
+        def __init__(self, num_classes=10):
+            super(TheModelClass, self).__init__()
+            self.conv1 = nn.Conv2d(3, 6, 5)
+            self.pool = nn.MaxPool2d(2, 2)
+            self.conv2 = nn.Conv2d(6, 16, 5)
+            self.fc1 = nn.Linear(16 * 5 * 5, 120)
+            self.fc2 = nn.Linear(120, 84)
+            self.fc3 = nn.Linear(84, num_classes)
+
+        def forward(self, x):
+            x = self.pool(F.relu(self.conv1(x)))
+            x = self.pool(F.relu(self.conv2(x)))
+            x = x.view(-1, 16 * 5 * 5)
+            x = F.relu(self.fc1(x))
+            x = F.relu(self.fc2(x))
+            x = self.fc3(x)
+            return x
+    
+    model = TheModelClass(num_classes)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9) 
+
+    return model
+
+# def _entry_is_root_file(path: str):
+#     return False
+
+# def _load_artifact(name: str):
+#     if ":" not in name:
+#         name = name + ":latest"
+#     # TODO: workout what happens without runs.
+#     art = wandb.run.use_artifact(name)
+#     # Fix this ; this is just showing the idea - not actually good implementation.
+#     if "index" in art.manifest.entries:
+#         return art.get("index")
+#     keys = art.manifest.entries.keys()
+#     keys.sort()
+#     for key in art.manifest.entries.keys():
+#         if _entry_is_root_file(key):
+#             return art.get(key)
 
 finish = wandb.finish
 
