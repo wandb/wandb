@@ -2589,6 +2589,18 @@ class Plotly(Media):
         return json_dict
 
 
+# Consider doing class-specific here and having the proxy on the outside.
+class SavedModel(Media):
+    _log_type = "saved-model"
+
+    def __init__(self, model_obj:any):
+        pass
+
+    # TODO: this whole game...
+    def as_pytorch(self):
+        pass
+
+
 def history_dict_to_json(
     run: "Optional[LocalRun]", payload: dict, step: Optional[int] = None
 ) -> dict:
@@ -2958,6 +2970,7 @@ __all__ = [
     "Classes",
     "Image",
     "Plotly",
+    "SavedModel",
     "history_dict_to_json",
     "val_to_json",
 ]
