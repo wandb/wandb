@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .lib.reporting import Reporter
     from .service.streams import StreamRecord
     from .wandb_run import Run
+
     from .wandb_settings import Settings
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
@@ -36,10 +37,13 @@ logger = logging.getLogger("wandb")
 
 @contextmanager
 def run_printer(
-    run: Optional[Union["Run", "StreamRecord"]] = None,
-    streams: Optional[Dict[str, "StreamRecord"]] = None,
+    runs: Union["Run", "StreamRecord", Dict[str, "StreamRecord"]],
 ) -> Generator:
-    printer = RunPrinter(run=run, streams=streams)
+    if isinstance(runs, dict):
+        runs = [run for run in runs.values()]
+    else:
+        runs = [runs]
+    printer = RunPrinter(runs)
     yield printer
 
 
@@ -48,23 +52,13 @@ class RunPrinter:
     _printer: Union["PrinterJupyter", "PrinterTerm"]
     _run_id: Optional[str]
 
-    def __init__(
-        self,
-        run: Optional[Union["Run", "StreamRecord"]] = None,
-        streams: Optional[Dict[str, "StreamRecord"]] = None,
-    ) -> None:
-        self._multiple_runs = False
-        if run:
-            self._printer = printer.get_printer(run._settings._jupyter)
-            self._settings = {run._settings.run_id: run._settings}
-            self._run_id = run._settings.run_id
-        elif streams:
-            jupyter = all([stream._settings._jupyter for stream in streams.values()])
-            self._printer = printer.get_printer(jupyter)
-            self._settings = {sid: stream._settings for sid, stream in streams.items()}
-            self._run_id = None if len(streams) > 1 else list(streams.keys())[0]
-        else:
-            raise
+    def __init__(self, runs: Union[List["Run"], List["StreamRecord"]],) -> None:
+        jupyter = all(
+            [run._settings._jupyter for run in runs]
+        )  # Temporary solution until we use rich
+        self._printer = printer.get_printer(jupyter)
+        self._settings = {run._settings.run_id: run._settings for run in runs}
+        self._run_id = None if len(runs) > 1 else runs[0]._settings.run_id
 
     @property
     def settings(self) -> "Settings":
@@ -210,10 +204,9 @@ class RunPrinter:
 
         if self.settings._silent:
             return
-
         status = "(success)." if not exit_code else f"(failed {exit_code})."
         info = [
-            f"[{self._printer.name(self.settings.run_name)}] Waiting for W&B process to finish... {self._printer.status(status, bool(exit_code))}"
+            f"Waiting for W&B process to finish... {self._printer.status(status, bool(exit_code))}"
         ]
 
         if not self.settings._offline and exit_code:

@@ -1670,14 +1670,14 @@ class Run:
                 current_version=wandb.__version__
             )
         logger.info(f"got version response {self._check_version}")
-        with run_printer(run=self) as printer:
+        with run_printer(self) as printer:
             printer._version_check_info(
                 check_version=self._check_version, footer=False, quiet=self._quiet
             )
 
     def _on_start(self) -> None:
 
-        with run_printer(run=self) as printer:
+        with run_printer(self) as printer:
             printer._header_wandb_version_info(self._quiet)
             printer._header_sync_info(self._quiet)
             printer._header_run_info()
@@ -1713,7 +1713,7 @@ class Run:
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        with run_printer(run=self) as printer:
+        with run_printer(self) as printer:
             print("")
             printer._footer_exit_status_info(self._exit_code)
 
@@ -1744,7 +1744,7 @@ class Run:
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-        with run_printer(run=self) as printer:
+        with run_printer(self) as printer:
             printer._footer_sync_info(self._poll_exit_response)
             printer._footer_log_dir_info(self._quiet)
             printer._version_check_info(
