@@ -888,9 +888,7 @@ def image_id_from_k8s():
         try:
             return res.json()["status"]["containerStatuses"][0][  # noqa: B005
                 "imageID"
-            ].strip(
-                "docker-pullable://"
-            )
+            ].strip("docker-pullable://")
         except (ValueError, KeyError, IndexError):
             logger.exception("Error checking kubernetes for image id")
             return None

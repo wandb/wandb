@@ -381,6 +381,7 @@ def test_launch_browser():
     with mock.patch("sys.platform", "linux"):
         with mock.patch.dict("sys.modules", {"webbrowser": mock.MagicMock()}):
             import webbrowser
+
             webbrowser.get().name = mock.MagicMock(return_value="lynx")
             assert not util.launch_browser()
             webbrowser.get().name = mock.MagicMock(side_effect=webbrowser.Error)
@@ -388,9 +389,11 @@ def test_launch_browser():
 
 
 def test_parse_tfjob_config():
-    with mock.patch.dict("os.environ", {"TF_CONFIG": '{"cluster": {"master": ["foo"]}}'}):
+    with mock.patch.dict(
+        "os.environ", {"TF_CONFIG": '{"cluster": {"master": ["foo"]}}'}
+    ):
         assert util.parse_tfjob_config() == {"cluster": {"master": ["foo"]}}
-    with mock.patch.dict("os.environ", {"TF_CONFIG": 'LOL'}):
+    with mock.patch.dict("os.environ", {"TF_CONFIG": "LOL"}):
         assert util.parse_tfjob_config() is False
     assert util.parse_tfjob_config() is False
 
