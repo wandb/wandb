@@ -38,7 +38,7 @@ import shortuuid
 import six
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
-from wandb.errors import CommError, term
+from wandb.errors import CommError, term, UsageError
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -717,9 +717,9 @@ def no_retry_auth(e):
         return True
     # Crash w/message on forbidden/unauthorized errors.
     if e.response.status_code == 401:
-        raise CommError("Invalid or missing api_key.  Run wandb login")
+        raise CommError("Invalid or missing api_key. Run `wandb login`")
     elif wandb.run:
-        raise CommError("Permission denied to access {}".format(wandb.run.path))
+        raise CommError(f"Permission denied to access {wandb.run.path}")
     else:
         raise CommError("Permission denied, ask the project owner to grant you access")
 
@@ -753,7 +753,8 @@ def downsample(values, target_length):
 
     Values can be any sequence, including a generator.
     """
-    assert target_length > 1
+    if not target_length > 1:
+        raise UsageError("target_length must be > 1")
     values = list(values)
     if len(values) < target_length:
         return values
@@ -885,9 +886,9 @@ def image_id_from_k8s():
         except requests.RequestException:
             return None
         try:
-            return res.json()["status"]["containerStatuses"][0][
+            return res.json()["status"]["containerStatuses"][0][  # noqa: B005
                 "imageID"
-            ].strip(  # noqa: B005
+            ].strip(
                 "docker-pullable://"
             )
         except (ValueError, KeyError, IndexError):

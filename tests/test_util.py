@@ -4,8 +4,11 @@ import random
 import sys
 import tarfile
 import tempfile
+from unittest import mock
 
 import pytest
+
+import wandb
 
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
@@ -14,6 +17,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy
 import plotly
+import requests
 
 from . import utils
 from wandb import util
@@ -371,3 +375,92 @@ def test_convert_plots():
     obj = util.convert_plots(fig)
     assert obj.get("plot")
     assert obj.get("_type") == "plotly"
+
+
+def test_launch_browser():
+    with mock.patch("sys.platform", "linux"):
+        with mock.patch.dict("sys.modules", {"webbrowser": mock.MagicMock()}):
+            import webbrowser
+            webbrowser.get().name = mock.MagicMock(return_value="lynx")
+            assert not util.launch_browser()
+            webbrowser.get().name = mock.MagicMock(side_effect=webbrowser.Error)
+            assert not util.launch_browser()
+
+
+def test_parse_tfjob_config():
+    with mock.patch.dict("os.environ", {"TF_CONFIG": '{"cluster": {"master": ["foo"]}}'}):
+        assert util.parse_tfjob_config() == {"cluster": {"master": ["foo"]}}
+    with mock.patch.dict("os.environ", {"TF_CONFIG": 'LOL'}):
+        assert util.parse_tfjob_config() is False
+    assert util.parse_tfjob_config() is False
+
+
+def test_make_json_if_not_number():
+    assert util.make_json_if_not_number(1) == 1
+    assert util.make_json_if_not_number(1.0) == 1.0
+    assert util.make_json_if_not_number("1") == '"1"'
+    assert util.make_json_if_not_number("1.0") == '"1.0"'
+    assert util.make_json_if_not_number({"a": 1}) == '{"a": 1}'
+    assert util.make_json_if_not_number({"a": 1.0}) == '{"a": 1.0}'
+    assert util.make_json_if_not_number({"a": "1"}) == '{"a": "1"}'
+    assert util.make_json_if_not_number({"a": "1.0"}) == '{"a": "1.0"}'
+
+
+def test_no_retry_auth():
+    e = mock.MagicMock(spec=requests.HTTPError)
+    e.response = mock.MagicMock(spec=requests.Response)
+    for status_code in (400, 409):
+        e.response.status_code = status_code
+        assert not util.no_retry_auth(e)
+    e.response.status_code = 401
+    with pytest.raises(wandb.CommError):
+        util.no_retry_auth(e)
+    e.response.status_code = 403
+    with mock.patch("wandb.run", mock.MagicMock()):
+        with pytest.raises(wandb.CommError):
+            util.no_retry_auth(e)
+    e.response.status_code = 404
+    with pytest.raises(wandb.CommError):
+        util.no_retry_auth(e)
+
+    e.response = None
+    assert util.no_retry_auth(e)
+    e = ValueError("foo")
+    assert util.no_retry_auth(e)
+
+
+def test_downsample():
+    with pytest.raises(wandb.UsageError):
+        util.downsample([1, 2, 3], 1)
+    assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
+
+
+def test_get_log_file_path(live_mock_server, test_settings):
+    assert util.get_log_file_path() == os.path.join("wandb", "debug-internal.log")
+    run = wandb.init(settings=test_settings)
+    assert util.get_log_file_path() == wandb.run._settings.log_internal
+    run.finish()
+
+
+def test_stopwatch_now():
+    t_1 = util.stopwatch_now()
+    t_2 = util.stopwatch_now()
+    assert t_2 > t_1
+
+
+def test_class_colors():
+    assert util.class_colors(3) == [[0, 0, 0], (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)]
+
+
+def test_check_and_warn_old():
+    assert util.check_and_warn_old(["wandb-metadata.json"])
+
+
+def test_is_databricks():
+    assert not util._is_databricks()
+    with mock.patch.dict("sys.modules", {"dbutils": mock.MagicMock()}):
+        dbutils = sys.modules["dbutils"]
+        dbutils.shell = mock.MagicMock()
+        dbutils.shell.sc = mock.MagicMock()
+        dbutils.shell.sc.appName = "Databricks Shell"
+        assert util._is_databricks()
