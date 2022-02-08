@@ -835,7 +835,7 @@ def get_log_file_path() -> str:
     return os.path.join("wandb", "debug-internal.log")
 
 
-def docker_image_regex(image: str) -> Optional[Union["re.Match", str]]:
+def docker_image_regex(image: str) -> Any:
     """regex for valid docker image names"""
     if image:
         return re.match(
