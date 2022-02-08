@@ -11,9 +11,6 @@ from . import ipython, sparkline
 
 
 class _Printer:
-    def __init__(self) -> None:
-        pass
-
     def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
         # Only print sparklines if the terminal is utf-8
         if wandb.util.is_unicode_safe(sys.stdout):
@@ -62,6 +59,7 @@ class _Printer:
 class PrinterTerm(_Printer):
     def __init__(self) -> None:
         super().__init__()
+        self._html = False
         self._progress = itertools.cycle(["-", "\\", "|", "/"])
 
     def display(
@@ -121,13 +119,13 @@ class PrinterTerm(_Printer):
 class PrinterJupyter(_Printer):
     def __init__(self) -> None:
         super().__init__()
+        self._html = True
         self._progress = ipython.jupyter_progress_bar()
 
     def display(
         self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
     ) -> None:
         text = "<br/>".join(text) if isinstance(text, (list, tuple)) else text
-
         if status == "info" or status is None:
             ipython.display_html(text)
         elif status == "warn":

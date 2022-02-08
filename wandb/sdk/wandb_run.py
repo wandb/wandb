@@ -39,7 +39,6 @@ from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     RunRecord,
 )
-from wandb.sdk.wandb_run_printer import RunPrinter
 from wandb.util import (
     add_import_hook,
     sentry_set_scope,
@@ -75,6 +74,7 @@ from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
+from .wandb_run_printer import run_printer
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
@@ -86,6 +86,10 @@ if TYPE_CHECKING:
     from .interface.artifacts import (
         ArtifactEntry,
         ArtifactManifest,
+    )
+    from wandb.proto.wandb_internal_pb2 import (
+        CheckVersionResponse,
+        PollExitResponse,
     )
 
 
@@ -270,6 +274,8 @@ class Run:
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
+    _check_version: Optional["CheckVersionResponse"]
+    _poll_exit_response: Optional["PollExitResponse"]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
@@ -304,6 +310,7 @@ class Run:
 
         self._settings = settings
         self._wl = None
+        self._reporter: Optional[Reporter] = None
 
         self._entity = None
         self._project = None
@@ -331,10 +338,9 @@ class Run:
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._quiet = self._settings._quiet
+        self._quiet = self._settings._quiet  # TODO(settings) unify with settings
 
         self._output_writer = None
-        self._printer = RunPrinter(self._settings)
         self._used_artifact_slots: List[str] = []
 
         # Returned from backend request_run(), set from wandb_init?
@@ -343,6 +349,9 @@ class Run:
 
         # Created when the run "starts".
         self._run_status_checker = None
+
+        self._check_version = None
+        self._poll_exit_response = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -466,7 +475,6 @@ class Run:
     def _update_settings(self, settings: Settings) -> None:
         self._settings = settings
         self._init_from_settings(settings)
-        self._printer(settings)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -1033,7 +1041,7 @@ class Run:
         self._internal_run_interface = interface
 
     def _set_reporter(self, reporter: Reporter) -> None:
-        self._printer._reporter = reporter
+        self._reporter = reporter
 
     def _set_teardown_hooks(self, hooks: List[TeardownHook]) -> None:
         self._teardown_hooks = hooks
@@ -1655,12 +1663,22 @@ class Run:
             self._output_writer = None
 
     def _on_init(self) -> None:
+
         if self._backend and self._backend.interface:
-            self._printer._display_on_init(self._backend.interface)
+            logger.info("communicating current version")
+            self._check_version = self._backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
+        logger.info(f"got version response {self._check_version}")
+        with run_printer(run=self) as printer:
+            printer._version_check_info()
 
     def _on_start(self) -> None:
 
-        self._printer._display_on_start()
+        with run_printer(run=self) as printer:
+            printer._header_wandb_version_info(self._quiet)
+            printer._header_sync_info(self._quiet)
+            printer._header_run_info()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -1693,10 +1711,27 @@ class Run:
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        if self._backend and self._backend.interface:
-            self._printer._display_on_finish(
-                self._exit_code, self._quiet, self._backend.interface,
-            )
+        with run_printer(run=self) as printer:
+            print("")
+            printer._footer_exit_status_info(self._exit_code)
+
+            if self._backend and self._backend.interface:
+                history = self._backend.interface.communicate_sampled_history()
+                summary = self._backend.interface.communicate_get_summary()
+
+                printer._footer_history_summary_info(history, summary)
+
+            done = False
+            while not done:
+                if self._backend and self._backend.interface:
+                    poll_exit_response = self._backend.interface.communicate_poll_exit()
+                    logger.info(f"got exit ret: {poll_exit_response}")
+                    if poll_exit_response:
+                        printer._footer_file_pusher_status_info(poll_exit_response)
+                        done = poll_exit_response.done
+                        if done:
+                            self._poll_exit_response = poll_exit_response
+                time.sleep(0.1)
 
         if self._backend:
             self._backend.cleanup()
@@ -1705,8 +1740,16 @@ class Run:
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-
-        self._printer._display_on_final(self._quiet)
+        with run_printer(run=self) as printer:
+            printer._footer_sync_info(self._poll_exit_response)
+            printer._footer_log_dir_info(self._quiet)
+            printer._version_check_info(
+                check_version=self._check_version, footer=True, quiet=self._quiet
+            )
+            printer._footer_local_warn(self._poll_exit_response, self._quiet)
+            printer._footer_reporter_warn_err(
+                quiet=self._quiet, reporter=self._reporter
+            )
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)

@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk import wandb_run_printer
 from wandb.sdk.wandb_settings import Settings
 
 from ..interface.interface_relay import InterfaceRelay
@@ -219,25 +220,38 @@ class StreamMux:
         if not streams:
             return
 
-        for sid, stream in streams.items():
-            wandb.termlog(f"Finishing run: {sid}...")
-            stream.interface.publish_exit(exit_code)
+        print("")
+        for stream in streams.values():
+            with wandb_run_printer.run_printer(run=stream) as printer:
+                stream.interface.publish_exit(exit_code)
+                printer._footer_exit_status_info(exit_code)
+                if stream.interface:
+                    history = stream.interface.communicate_sampled_history()
+                    summary = stream.interface.communicate_get_summary()
+                    printer._footer_history_summary_info(history, summary)
 
-        streams_to_join = []
-        while streams:
-            # Note that we materialize the generator so we can modify the underlying list
-            for sid, stream in list(streams.items()):
-                poll_exit_resp = stream.interface.communicate_poll_exit()
-                if poll_exit_resp and poll_exit_resp.done:
-                    streams.pop(sid)
-                    streams_to_join.append(stream)
+        with wandb_run_printer.run_printer(streams=streams) as printer:
+            streams_to_join, poll_exit_responses = {}, {}
+            while streams:
+                # Note that we materialize the generator so we can modify the underlying list
+                for sid, stream in list(streams.items()):
+                    poll_exit_response = stream.interface.communicate_poll_exit()
+                    poll_exit_responses[sid] = poll_exit_response
+                    if poll_exit_response and poll_exit_response.done:
+                        streams.pop(sid)
+                        streams_to_join[sid] = stream
+                printer._footer_streams_file_pusher_status_info(poll_exit_responses)
                 time.sleep(0.1)
 
         # TODO: this would be nice to do in parallel
-        for stream in streams_to_join:
-            stream.join()
-
-        wandb.termlog("Done!")
+        for sid, stream in streams_to_join.items():
+            with wandb_run_printer.run_printer(run=stream) as printer:
+                pool_exit_response = poll_exit_responses[sid]
+                printer._footer_sync_info(pool_exit_response)
+                printer._footer_log_dir_info()
+                # printer._version_check_info(check_version=check_version, footer=True)
+                printer._footer_local_warn(pool_exit_response)
+                stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:
         exit_code: int = action._data
