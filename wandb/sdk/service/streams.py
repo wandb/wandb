@@ -221,14 +221,16 @@ class StreamMux:
             return
 
         print("")
-        for stream in streams.values():
+        history, summary = {}, {}
+        for sid, stream in streams.items():
             with wandb_run_printer.run_printer(run=stream) as printer:
                 stream.interface.publish_exit(exit_code)
                 printer._footer_exit_status_info(exit_code)
                 if stream.interface:
-                    history = stream.interface.communicate_sampled_history()
-                    summary = stream.interface.communicate_get_summary()
-                    printer._footer_history_summary_info(history, summary)
+                    history[sid] = stream.interface.communicate_sampled_history()
+                    summary[sid] = stream.interface.communicate_get_summary()
+                else:
+                    history[sid] = summary[sid] = None
 
         with wandb_run_printer.run_printer(streams=streams) as printer:
             streams_to_join, poll_exit_responses = {}, {}
@@ -246,6 +248,7 @@ class StreamMux:
         # TODO: this would be nice to do in parallel
         for sid, stream in streams_to_join.items():
             with wandb_run_printer.run_printer(run=stream) as printer:
+                printer._footer_history_summary_info(history[sid], summary[sid])
                 pool_exit_response = poll_exit_responses[sid]
                 printer._footer_sync_info(pool_exit_response)
                 printer._footer_log_dir_info()

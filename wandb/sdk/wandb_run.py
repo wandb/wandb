@@ -1715,11 +1715,10 @@ class Run:
             print("")
             printer._footer_exit_status_info(self._exit_code)
 
+            history = summary = None
             if self._backend and self._backend.interface:
                 history = self._backend.interface.communicate_sampled_history()
                 summary = self._backend.interface.communicate_get_summary()
-
-                printer._footer_history_summary_info(history, summary)
 
             done = False
             while not done:
@@ -1732,6 +1731,9 @@ class Run:
                         if done:
                             self._poll_exit_response = poll_exit_response
                 time.sleep(0.1)
+
+            if history or summary:
+                printer._footer_history_summary_info(history, summary)
 
         if self._backend:
             self._backend.cleanup()

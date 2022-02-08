@@ -213,7 +213,7 @@ class RunPrinter:
 
         status = "(success)." if not exit_code else f"(failed {exit_code})."
         info = [
-            f"Waiting for W&B process to finish... {self._printer.status(status, bool(exit_code))}"
+            f"[{self._printer.name(self.settings.run_name)}] Waiting for W&B process to finish... {self._printer.status(status, bool(exit_code))}"
         ]
 
         if not self.settings._offline and exit_code:
@@ -379,18 +379,12 @@ class RunPrinter:
         panel = []
         history_rows = self._render_history_info(history)
         if history_rows:
-            history_grid = self._printer.grid(
-                history_rows,
-                f"Run({self._printer.name(self.settings.run_name)}) history:",
-            )
+            history_grid = self._printer.grid(history_rows, "Run history:",)
             panel.append(history_grid)
 
         summary_rows = self._render_summary_info(summary)
         if summary_rows:
-            summary_grid = self._printer.grid(
-                summary_rows,
-                f"Run({self._printer.name(self.settings.run_name)}) summary:",
-            )
+            summary_grid = self._printer.grid(summary_rows, "Run summary:",)
             panel.append(summary_grid)
 
         if panel:
