@@ -48,7 +48,7 @@ class WandbServer:
         self._sock_server = None
 
         if grpc_port:
-            _ = wandb.util.get_module(  # type: ignore
+            _ = wandb.util.get_module(
                 "grpc",
                 required="grpc port requires the grpcio library, run pip install wandb[grpc]",
             )
