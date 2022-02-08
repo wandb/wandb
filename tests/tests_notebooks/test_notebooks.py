@@ -193,7 +193,7 @@ def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipyt
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 7
+    assert len(displayed_html) == 6
     assert "lovely-dawn-32" in displayed_html[2]
     assert "(success)" in displayed_html[3]
     assert "Run history:" not in displayed_html[4]

@@ -1733,7 +1733,7 @@ class Run:
                 time.sleep(0.1)
 
             if history or summary:
-                printer._footer_history_summary_info(history, summary)
+                printer._footer_history_summary_info(history, summary, self._quiet)
 
         if self._backend:
             self._backend.cleanup()
