@@ -8,6 +8,7 @@ from typing import (
     Generator,
     List,
     Optional,
+    Tuple,
     TYPE_CHECKING,
     Union,
 )
@@ -22,7 +23,6 @@ if TYPE_CHECKING:
     from .lib.reporting import Reporter
     from .service.streams import StreamRecord
     from .wandb_run import Run
-
     from .wandb_settings import Settings
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
@@ -39,11 +39,10 @@ logger = logging.getLogger("wandb")
 def run_printer(
     runs: Union["Run", "StreamRecord", Dict[str, "StreamRecord"]],
 ) -> Generator:
-    if isinstance(runs, dict):
-        runs = [run for run in runs.values()]
-    else:
-        runs = [runs]
-    printer = RunPrinter(runs)
+    _runs = (
+        (runs,) if not isinstance(runs, dict) else tuple(run for run in runs.values())
+    )
+    printer = RunPrinter(_runs)  # type: ignore
     yield printer
 
 
@@ -52,7 +51,7 @@ class RunPrinter:
     _printer: Union["PrinterJupyter", "PrinterTerm"]
     _run_id: Optional[str]
 
-    def __init__(self, runs: Union[List["Run"], List["StreamRecord"]],) -> None:
+    def __init__(self, runs: Tuple[Union["Run", "StreamRecord"]],) -> None:
         jupyter = all(
             [run._settings._jupyter for run in runs]
         )  # Temporary solution until we use rich
