@@ -351,7 +351,6 @@ class Settings:
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
     _cuda: str
-    _debug_log: str
     _disable_meta: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
@@ -371,6 +370,7 @@ class Settings:
     _start_datetime: datetime
     _start_time: float
     _tmp_code_dir: str
+    _tracelog: str
     _unsaved_keys: Sequence[str]
     allow_val_change: bool
     anonymous: str
@@ -1026,7 +1026,7 @@ class Settings:
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
-            "WANDB_DEBUG_LOG": "_debug_log",
+            "WANDB_TRACELOG": "_tracelog",
             "WANDB_REQUIRE_SERVICE": "_require_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",
