@@ -9,7 +9,7 @@ import os
 import wandb.data_types as data_types
 from wandb.sdk.interface.artifacts import (
     ArtifactEntry,
-    ArtifactInterface
+    Artifact as ArtifactInterface,
 )
 import wandb
 
@@ -60,17 +60,19 @@ def _log_artifact_version(
     """
     if wandb.run is None:
         run = wandb.init(project=project, job_type=job_type, settings=wandb.Settings(silent="true"))
-    
+    else:
+        run = wandb.run
+
     if not project_scope:
-        name = f'{name}-${run.id}'
+        name = f'{name}-{run.id}'
 
     art = wandb.Artifact(name, type, description, metadata, False, None)
 
     for path in entries:
-        art._add_any(entries[path], path)
+        _add_any(art, entries[path], path)
     
     # Double check that "latest" isn't getting killed.
-    if type(aliases) == 'string':
+    if isinstance(aliases, str):
         aliases = [aliases]
 
     run.log_artifact(art, aliases=aliases)
@@ -89,7 +91,7 @@ def log_model(
     # link_to_registry=True
     ):
         return _log_artifact_version(
-            name=name,
+            name=name if name is not None else 'model',
             type="model",
             entries={
                 "index": data_types.SavedModel(model_obj),
@@ -104,10 +106,10 @@ def log_model(
 
 # Should we do some sort of def watch_model? Maybe we can just beef up standard wandb.watch?
 
-def entry_is_root_file(path: str):
+def _entry_is_root_file(path: str):
     return False
 
-def load_artifact(name: str):
+def _load_artifact(name: str):
     if ":" not in name:
         name = name + ":latest"
     # TODO: workout what happens without runs.
@@ -118,7 +120,7 @@ def load_artifact(name: str):
     keys = art.manifest.entries.keys()
     keys.sort()
     for key in art.manifest.entries.keys():
-        if entry_is_root_file(key):
+        if _entry_is_root_file(key):
             return art.get(key)
 
 
@@ -144,6 +146,11 @@ def _add_any(artifact: ArtifactInterface,
                 f.write(json.dumps(path_or_obj, sort_keys=True))
     else:
         raise ValueError(f'Expected `path_or_obj` to be instance of `ArtifactEntry`, `WBValue`, or `str, found {type(path_or_obj)}')
+
+def model_versions(model_name: str):
+    return wandb.Api().artifact_collection(model_name, "model").versions()
+
+finish = wandb.finish
 
 # # I think we can punt on the table edges and use run lookups....
 
@@ -316,6 +323,5 @@ def _add_any(artifact: ArtifactInterface,
 ## Select second model, default to logically appropriate table, else show options
 
 # wandb.use_model("model-name:alias")
-
 
 

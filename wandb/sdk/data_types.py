@@ -2594,7 +2594,13 @@ class SavedModel(Media):
     _log_type = "saved-model"
 
     def __init__(self, model_obj:any):
-        pass
+        super(SavedModel, self).__init__()
+        self.model_obj = model_obj
+
+    def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
+        res = super().to_json(run)
+        res["val"] = self.model_obj
+        return res
 
     # TODO: this whole game...
     def as_pytorch(self):

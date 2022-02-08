@@ -741,6 +741,11 @@ class Api(object):
         return artifact_type.collection(collection_name).versions(per_page=per_page)
 
     @normalize_exceptions
+    def artifact_collection(self, name, type_name):
+        entity, project, art_name = self._parse_artifact_path(name)
+        return ArtifactCollection(self.client, entity, project, art_name, type_name)
+
+    @normalize_exceptions
     def artifact(self, name, type=None):
         """
         Returns a single artifact by parsing path in the form `entity/project/run_id`.
