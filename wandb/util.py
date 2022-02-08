@@ -1215,7 +1215,7 @@ class ImportMetaHook:
     def uninstall(self) -> None:
         sys.meta_path.remove(self)  # type: ignore
 
-    def find_module(self, fullname: str) -> Optional["ImportMetaHook"]:
+    def find_module(self, fullname: str, path: Optional[str] = None) -> Optional["ImportMetaHook"]:
         if fullname in self.on_import:
             return self
         return None
