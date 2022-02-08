@@ -1671,7 +1671,9 @@ class Run:
             )
         logger.info(f"got version response {self._check_version}")
         with run_printer(run=self) as printer:
-            printer._version_check_info()
+            printer._version_check_info(
+                check_version=self._check_version, footer=False, quiet=self._quiet
+            )
 
     def _on_start(self) -> None:
 
