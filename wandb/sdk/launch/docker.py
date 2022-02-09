@@ -55,7 +55,7 @@ def get_docker_user(launch_project):
     return username, userid
 
 
-TEMPLATE = """
+DOCKERFILE_TEMPLATE = """
 ##### stage 1: build
 FROM {py_build_image} as build
 
@@ -117,15 +117,20 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_vers
     && update-alternatives --install /usr/local/bin/python python /usr/bin/python{py_version} 1
 """
 
+# this goes into requirements_section in TEMPLATE
 PIP_TEMPLATE = """
-COPY src/requirements.txt .
 RUN python -m venv /env
+ENV PATH="/env/bin:$PATH"   # make sure we install into the env
+COPY src/requirements.txt .
+{buildx_optional_prefix} pip install -r requirements.txt
 """
 
 # this goes into requirements_section in TEMPLATE
 CONDA_TEMPLATE = """
 COPY src/environment.yml .
 RUN conda env create -f environment.yml -n env
+
+# pack the environment so that we can transfer to the base image
 RUN conda install -c conda-forge conda-pack
 RUN conda pack -n env -o /tmp/env.tar && \
     mkdir /env && cd /env && tar xf /tmp/env.tar && \
@@ -146,7 +151,7 @@ def get_base_setup(launch_project, py_version, py_major):
     version is built on nvidia:cuda"""
 
     python_base_image = "python:{}-slim-buster".format(py_version)  # slim for running
-    if launch_project.gpu:
+    if launch_project.cuda:
         cuda_version = launch_project.cuda_version or "10.0"
         # cuda image doesn't come with python tooling
         if py_major == "2":
@@ -203,18 +208,17 @@ def get_env_vars_section(launch_project, api, workdir):
 
 def get_requirements_section(launch_project):
     if launch_project.deps_type == "pip":
-        requirements_line = PIP_TEMPLATE
         if docker.is_buildx_installed():
             workdir = "/home/stephchen"     # @@@ todo tmp this doesn't make any sense, the user doesn't exist yet
-            requirements_line += "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0\n".format(  # todo: don't think this is working for partial caching
+            prefix = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0".format(  # todo: don't think this is working for partial caching
                 workdir, launch_project.docker_user_id
             )
         else:
             wandb.termwarn(
                 "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
             )
-            requirements_line += "RUN WANDB_DISABLE_CACHE=true\n"
-        requirements_line += "pip install -r requirements.txt"
+            prefix = "RUN WANDB_DISABLE_CACHE=true"
+        requirements_line = PIP_TEMPLATE.format(buildx_optional_prefix=prefix)
     elif launch_project.deps_type == "conda":
         requirements_line = CONDA_TEMPLATE
         # @@@ todo: buildkit?
@@ -253,7 +257,7 @@ def generate_dockerfile(api, launch_project, entrypoint):
     # json format to ensure argslist is formatted with double quotes
     entry_cmd = json.dumps(get_entry_point_command(entrypoint, launch_project.override_args)[0].split())
 
-    dockerfile_contents = TEMPLATE.format(
+    dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
         requirements_section=requirements_section,
         base_setup=python_base_setup,

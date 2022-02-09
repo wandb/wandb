@@ -45,7 +45,7 @@ def _run(
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
-    gpu: Optional[bool],
+    cuda: Optional[bool],
     api: Api,
 ) -> AbstractRun:
     """Helper that delegates to the project-running method corresponding to the passed-in backend."""
@@ -62,7 +62,7 @@ def _run(
         parameters,
         resource_args,
         launch_config,
-        gpu,
+        cuda,
     )
     launch_project = create_project_from_spec(launch_spec, api)
     launch_project = fetch_and_validate_project(launch_project, api)
@@ -101,7 +101,7 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
-    gpu: Optional[bool] = False,
+    cuda: Optional[bool] = False,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
@@ -127,6 +127,7 @@ def run(
         asynchronous runs launched via this method will be terminated. If
         ``synchronous`` is True and the run fails, the current process will
         error out as well.
+    cuda: Whether to build a CUDA-enabled docker image or not
 
 
     Example:
@@ -177,7 +178,7 @@ def run(
         resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
-        gpu=gpu,
+        cuda=cuda,
         api=api,
     )
 
