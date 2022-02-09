@@ -167,7 +167,6 @@ class AWSSagemakerRunner(AbstractRunner):
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
-                copy_code = False
 
         command_args = []
 
