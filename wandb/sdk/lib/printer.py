@@ -10,13 +10,14 @@ import wandb
 from . import ipython, sparkline
 
 
-class _Printer:
-    def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
-        # Only print sparklines if the terminal is utf-8
-        if wandb.util.is_unicode_safe(sys.stdout):
-            return sparkline.sparkify(series)
-        return None
+def sparklines(series: List[Union[int, float]]) -> Optional[str]:
+    # Only print sparklines if the terminal is utf-8
+    # if wandb.util.is_unicode_safe(sys.stdout):
+    return sparkline.sparkify(series)
+    # return None
 
+
+class _Printer:
     def display(
         self,
         text: Union[str, List[str], Tuple[str]],

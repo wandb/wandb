@@ -36,8 +36,10 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
+    GetSummaryResponse,
     MetricRecord,
     RunRecord,
+    SampledHistoryResponse,
 )
 from wandb.util import (
     add_import_hook,
@@ -276,6 +278,8 @@ class Run:
     _run_status_checker: Optional[RunStatusChecker]
     _check_version: Optional["CheckVersionResponse"]
     _poll_exit_response: Optional["PollExitResponse"]
+    _sampled_history: Optional["SampledHistoryResponse"]
+    _final_summary: Optional["GetSummaryResponse"]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
@@ -352,6 +356,8 @@ class Run:
 
         self._check_version = None
         self._poll_exit_response = None
+        self._final_summary = None
+        self._sampled_history = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -1710,7 +1716,7 @@ class Run:
 
         with run_printer(self) as printer:
             print("")
-            printer._footer_exit_status_info(self._exit_code)
+            # printer._footer_exit_status_info(self._exit_code)
 
             while not (self._poll_exit_response and self._poll_exit_response.done):
                 if self._backend and self._backend.interface:
@@ -1718,15 +1724,17 @@ class Run:
                         self._backend.interface.communicate_poll_exit()
                     )
                     logger.info(f"got exit ret: {self._poll_exit_response}")
-                    printer._footer_file_pusher_status_info(self._poll_exit_response)
+                    # printer._footer_file_pusher_status_info(self._poll_exit_response)
                 time.sleep(0.1)
 
             if self._backend and self._backend.interface:
-                sampled_history = self._backend.interface.communicate_sampled_history()
-                final_summary = self._backend.interface.communicate_get_summary()
-                printer._footer_history_summary_info(
-                    history=sampled_history, summary=final_summary, quiet=self._quiet
+                self._sampled_history = (
+                    self._backend.interface.communicate_sampled_history()
                 )
+                self._final_summary = self._backend.interface.communicate_get_summary()
+                # printer._footer_history_summary_info(
+                #     history=sampled_history, summary=final_summary, quiet=self._quiet
+                # )
 
         if self._backend:
             self._backend.cleanup()
@@ -1736,7 +1744,14 @@ class Run:
 
     def _on_final(self) -> None:
         with run_printer(self) as printer:
-            printer.footer(self._poll_exit_response, self._check_version, self._quiet)
+            printer.footer(
+                self._exit_code,
+                self._sampled_history,
+                self._final_summary,
+                self._poll_exit_response,
+                self._check_version,
+                self._quiet,
+            )
             # printer._footer_sync_info(
             #     pool_exit_response=self._poll_exit_response, quiet=self._quiet
             # )

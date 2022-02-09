@@ -861,9 +861,7 @@ def downsample(values: "Sequence[Any]", target_length: int) -> List[Any]:
     if len(values) < target_length:
         return values
     ratio = float(len(values) - 1) / (target_length - 1)
-    result = []
-    for i in range(target_length):
-        result.append(values[int(i * ratio)])
+    result = [values[int(i * ratio)] for i in range(target_length)]
     return result
 
 
@@ -1064,7 +1062,10 @@ def class_colors(class_count):
     ]
 
 
-def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
+def _prompt_choice(
+    input_timeout: int = None,
+    jupyter: bool = False,
+) -> str:
     input_fn = input
     prompt = term.LOG_STRING
     if input_timeout:
@@ -1085,7 +1086,10 @@ def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
 
 
 def prompt_choices(
-    choices, allow_manual=False, input_timeout: int = None, jupyter: bool = False,
+    choices,
+    allow_manual=False,
+    input_timeout: int = None,
+    jupyter: bool = False,
 ):
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
