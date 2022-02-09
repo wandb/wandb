@@ -24,6 +24,8 @@ _logger = logging.getLogger(__name__)
 
 DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
+# need to make user root for sagemaker, so users have access to /opt/ml directories
+# that let users create artifacts and access input data
 RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
 
 
@@ -156,7 +158,7 @@ class LaunchProject(object):
             )
         )
 
-    def _update_base_image_uid(self) -> None:
+    def _update_uid_to_base_image_uid(self) -> None:
         uid = docker.get_image_uid(self.base_image)
         self.docker_user_id = uid
 

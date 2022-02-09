@@ -1,4 +1,5 @@
 import configparser
+import json
 import os
 from unittest.mock import MagicMock
 
@@ -18,6 +19,7 @@ import wandb.sdk.launch.launch as launch
 import wandb.sdk.launch._project_spec as _project_spec
 
 from .test_launch import mocked_fetchable_git_repo  # noqa: F401
+from ..utils import fixture_open
 
 import pytest
 
@@ -80,27 +82,9 @@ def test_launch_aws_sagemaker(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_repo_name": "my-test-repo",
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
-            },
-        },
-    }
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs["uri"] = uri
+    kwargs["api"] = api
     run = launch.run(**kwargs)
     assert run.training_job_name == "test-job-1"
 
@@ -152,27 +136,10 @@ def test_launch_aws_sagemaker_launch_fail(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "region": "us-east-1",
-            "ecr_repo_name": "my-test-repo",
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
-            },
-        },
-    }
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs["uri"] = uri
+    kwargs["api"] = api
+
     with pytest.raises(wandb.errors.LaunchError) as e_info:
         launch.run(**kwargs)
     assert "Unable to create training job" in str(e_info.value)
@@ -195,27 +162,10 @@ def test_launch_aws_sagemaker_push_image_fail_none(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_repo_name": "my-test-repo",
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
-            },
-        },
-    }
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs["uri"] = uri
+    kwargs["api"] = api
+
     with pytest.raises(wandb.errors.LaunchError) as e_info:
         launch.run(**kwargs)
     assert "Failed to push image to repository" in str(e_info.value)
@@ -239,28 +189,10 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {"TrainingInputMode": "File",},
-            "ecr_repo_name": "my-test-repo",
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
-            },
-            "region": "us-east-1",
-        },
-    }
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs["uri"] = uri
+    kwargs["api"] = api
+
     with pytest.raises(wandb.errors.LaunchError) as e_info:
         launch.run(**kwargs)
     assert "I regret to inform you, that I have failed" in str(e_info.value)
@@ -280,30 +212,11 @@ def test_sagemaker_specified_image(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = {
-        "uri": uri,
-        "api": api,
-        "resource": "sagemaker",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "resource_args": {
-            "AlgorithmSpecification": {
-                "TrainingImage": "my-test-image",
-                "TrainingInputMode": "File",
-            },
-            "ecr_repo_name": "my-test-repo",
-            "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-            "TrainingJobName": "test-job-1",
-            "region": "us-east-1",
-            "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-            "ResourceConfig": {
-                "InstanceCount": 1,
-                "InstanceType": "ml.c4.xlarge",
-                "VolumeSizeInGB": 10,
-            },
-        },
-    }
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs["uri"] = uri
+    kwargs["api"] = api
+    kwargs["resource_args"]["AlgorithmSpecification"]["TrainingImage"] = "my-test_image"
+    kwargs["resource_args"]["AlgorithmSpecification"]["TrainingInputMode"] = "File"
     run = launch.run(**kwargs)
     stderr = capsys.readouterr().err
     assert (
@@ -410,34 +323,17 @@ def test_failed_aws_cred_login(
     monkeypatch.setattr(
         wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Failed\n"
     )
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+
         with pytest.raises(wandb.errors.LaunchError):
-            launch.run(
-                uri="https://wandb.ai/mock_server_entity/test/runs/1",
-                api=api,
-                resource="sagemaker",
-                entity="mock_server_entity",
-                project="test",
-                resource_args={
-                    "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                    "ecr_repo_name": "my-test-repo",
-                    "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-                    "TrainingJobName": "test-job-1",
-                    "region": "us-east-1",
-                    "OutputDataConfig": {
-                        "S3OutputPath": "s3://test-bucket/test-output",
-                    },
-                    "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-                    "ResourceConfig": {
-                        "InstanceCount": 1,
-                        "InstanceType": "ml.c4.xlarge",
-                        "VolumeSizeInGB": 10,
-                    },
-                },
-            )
+            launch.run(**kwargs)
 
 
 def test_aws_get_region_file_success(runner, monkeypatch):
@@ -535,32 +431,15 @@ def test_aws_fail_build(
     )
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
         uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs = {
-            "uri": uri,
-            "api": api,
-            "resource": "sagemaker",
-            "entity": "mock_server_entity",
-            "project": "test",
-            "resource_args": {
-                "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_repo_name": "my-test-repo",
-                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-                "TrainingJobName": "test-job-1",
-                "region": "us-east-1",
-                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-                "ResourceConfig": {
-                    "InstanceCount": 1,
-                    "InstanceType": "ml.c4.xlarge",
-                    "VolumeSizeInGB": 10,
-                },
-            },
-        }
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert str(e_info.value) == "Unable to build base image"
@@ -578,32 +457,15 @@ def test_no_OuputDataConfig(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
-        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs = {
-            "uri": uri,
-            "api": api,
-            "resource": "sagemaker",
-            "entity": "mock_server_entity",
-            "project": "test",
-            "resource_args": {
-                "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_repo_name": "my-test-repo",
-                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-                "TrainingJobName": "test-job-1",
-                "region": "us-east-1",
-                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-                "ResourceConfig": {
-                    "InstanceCount": 1,
-                    "InstanceType": "ml.c4.xlarge",
-                    "VolumeSizeInGB": 10,
-                },
-                "region": "us-west-2",
-            },
-        }
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+        kwargs["resource_args"].pop("OutputDataConfig", None)
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert (
@@ -624,32 +486,16 @@ def test_no_StoppingCondition(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
-        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs = {
-            "uri": uri,
-            "api": api,
-            "resource": "sagemaker",
-            "entity": "mock_server_entity",
-            "project": "test",
-            "resource_args": {
-                "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_repo_name": "my-test-repo",
-                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-                "TrainingJobName": "test-job-1",
-                "region": "us-east-1",
-                "ResourceConfig": {
-                    "InstanceCount": 1,
-                    "InstanceType": "ml.c4.xlarge",
-                    "VolumeSizeInGB": 10,
-                },
-                "region": "us-west-2",
-                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            },
-        }
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+        kwargs["resource_args"].pop("StoppingCondition", None)
+
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert (
@@ -670,27 +516,16 @@ def test_no_ResourceConfig(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
-        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs = {
-            "uri": uri,
-            "api": api,
-            "resource": "sagemaker",
-            "entity": "mock_server_entity",
-            "project": "test",
-            "resource_args": {
-                "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_repo_name": "my-test-repo",
-                "RoleArn": "arn:aws:iam::123456789012:role/test-role",
-                "TrainingJobName": "test-job-1",
-                "region": "us-east-1",
-                "region": "us-west-2",
-                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-            },
-        }
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+        kwargs["resource_args"].pop("ResourceConfig", None)
+
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert (
@@ -711,31 +546,16 @@ def test_no_RoleARN(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
+    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
         )
-        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs = {
-            "uri": uri,
-            "api": api,
-            "resource": "sagemaker",
-            "entity": "mock_server_entity",
-            "project": "test",
-            "resource_args": {
-                "AlgorithmSpecification": {"TrainingInputMode": "File",},
-                "ecr_repo_name": "my-test-repo",
-                "TrainingJobName": "test-job-1",
-                "region": "us-east-1",
-                "OutputDataConfig": {"S3OutputPath": "s3://test-bucket/test-output",},
-                "StoppingCondition": {"MaxRuntimeInSeconds": "60",},
-                "ResourceConfig": {
-                    "InstanceCount": 1,
-                    "InstanceType": "ml.c4.xlarge",
-                    "VolumeSizeInGB": 10,
-                },
-            },
-        }
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+        kwargs["resource_args"].pop("RoleArn", None)
+
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert (

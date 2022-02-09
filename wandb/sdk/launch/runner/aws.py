@@ -27,9 +27,8 @@ from ..docker import (
     pull_docker_image,
     validate_docker_installation,
 )
-from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS
+from ..utils import PROJECT_DOCKER_ARGS, PROJECT_SYNCHRONOUS, run_shell, to_camel_case
 
-AWS_SAGEMAKER_URL = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}"
 
 _logger = logging.getLogger(__name__)
 
@@ -88,9 +87,14 @@ class AWSSagemakerRunner(AbstractRunner):
         boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
 
         validate_docker_installation()
-        if launch_project.resource_args.get("ecr_repo_name") is None:
+        if (
+            launch_project.resource_args.get(
+                "EcrRepoName", launch_project.resource_args.get("ecr_repo_name")
+            )
+            is None
+        ):
             raise LaunchError(
-                "AWS Sagemaker jobs require an ecr repository name, set this using `resource_args ecr_repo_name=<ecr_repo_name>`"
+                "Sagemaker jobs require an ecr repository name, set this using `resource_args ecr_repo_name=<ecr_repo_name>`"
             )
 
         region = get_region(launch_project.resource_args)
@@ -143,7 +147,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         if self.backend_config[PROJECT_DOCKER_ARGS]:
             wandb.termwarn(
-                "Docker args are not supported for AWS. Not using docker args"
+                "Docker args are not supported for Sagemaker Resource. Not using docker args"
             )
 
         entry_point = launch_project.get_single_entry_point()
@@ -158,18 +162,17 @@ class AWSSagemakerRunner(AbstractRunner):
             if not docker_image_exists(launch_project.base_image):
                 if generate_docker_base_image(launch_project, entry_cmd) is None:
                     raise LaunchError("Unable to build base image")
+                copy_code = False
             else:
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
-                launch_project._update_base_image_uid()
+                copy_code = False
 
         command_args = []
 
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
-        # print(container_workdir)
-        # container_workdir = "/opt/program"
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
 
         if launch_project.docker_image is None or launch_project.build_image:
@@ -188,7 +191,7 @@ class AWSSagemakerRunner(AbstractRunner):
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
-                runner_type="aws",
+                runner_type="sagemaker",
                 image_uri=image_uri,
                 command_args=command_args,
             )
@@ -202,7 +205,7 @@ class AWSSagemakerRunner(AbstractRunner):
             image_uri = launch_project.docker_image
         _logger.info("Logging in to AWS ECR")
         login_resp = aws_ecr_login(region, aws_registry)
-        if "Login Succeeded" not in login_resp:
+        if login_resp is None or "Login Succeeded" not in login_resp:
             raise LaunchError(f"Unable to login to ECR, response: {login_resp}")
 
         aws_tag = f"{aws_registry}:{launch_project.run_id}"
@@ -247,28 +250,19 @@ class AWSSagemakerRunner(AbstractRunner):
         return run
 
 
-def aws_ecr_login(region: str, registry: str) -> str:
-    pw_command = f"aws ecr get-login-password --region {region}".split(" ")
+def aws_ecr_login(region: str, registry: str) -> Optional[str]:
+    pw_command = ["aws", "ecr", "get-login-password", "--region", region]
     try:
-        pw_process = subprocess.run(
-            pw_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
-        )
+        pw = run_shell(pw_command)
     except subprocess.CalledProcessError:
         raise LaunchError(
             "Unable to get login password. Please ensure you have AWS credentials configured"
         )
-
     try:
-        login_process = subprocess.run(
-            f"docker login --username AWS --password-stdin {registry}".split(" "),
-            input=pw_process.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-        )
-    except subprocess.CalledProcessError:
-        raise LaunchError("Failed to login to ECR")
-    return login_process.stdout.decode("utf-8")
+        docker_login_process = docker.login("AWS", pw, registry)
+    except Exception:
+        raise LaunchError(f"Failed to login to ECR {registry}")
+    return docker_login_process
 
 
 def merge_aws_tag_with_algorithm_specification(
@@ -304,84 +298,35 @@ def build_sagemaker_args(
     sagemaker_args[
         "AlgorithmSpecification"
     ] = merge_aws_tag_with_algorithm_specification(
-        resource_args.get("AlgorithmSpecification"), aws_tag,
+        resource_args.get(
+            "AlgorithmSpecification", resource_args.get("algorithm_specification"),
+        ),
+        aws_tag,
     )
-    # required
-    sagemaker_args["OutputDataConfig"] = resource_args.get(
-        "OutputDataConfig", resource_args.get("output_data_config")
-    )
-    if sagemaker_args["OutputDataConfig"] is None:
+
+    sagemaker_args["RoleArn"] = get_role_arn(resource_args, account_id)
+
+    camel_case_args = {to_camel_case(key): item for key, item in resource_args.items()}
+    sagemaker_args = {
+        **camel_case_args,
+        **sagemaker_args,
+    }
+
+    sagemaker_args.pop("EcrRepoName", None)
+    if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
             "Sagemaker launcher requires an OutputDataConfig resource argument"
         )
 
-    sagemaker_args["ResourceConfig"] = resource_args.get(
-        "ResourceConfig", resource_args.get("resource_config")
-    )
-    if sagemaker_args["ResourceConfig"] is None:
+    if sagemaker_args.get("ResourceConfig") is None:
         raise LaunchError(
             "Sagemaker launcher requires a ResourceConfig resource argument"
         )
 
-    sagemaker_args["StoppingCondition"] = resource_args.get("StoppingCondition")
-    if sagemaker_args["StoppingCondition"] is None:
+    if sagemaker_args.get("StoppingCondition") is None:
         raise LaunchError(
             "Sagemaker launcher requires a StoppingCondition resource argument"
         )
-
-    sagemaker_args["RoleArn"] = get_role_arn(resource_args, account_id)
-
-    # optional
-    sagemaker_args["InputDataConfig"] = resource_args.get(
-        "InputDataConfig", resource_args.get("input_data_config")
-    )
-
-    sagemaker_args["HyperParameters"] = resource_args.get(
-        "HyperParameters", resource_args.get("hyper_parameters")
-    )
-    sagemaker_args["VpcConfig"] = resource_args.get(
-        "VpcConfig", resource_args.get("vpc_config")
-    )
-    sagemaker_args["Tags"] = resource_args.get("Tags", resource_args.get("tags"))
-    sagemaker_args["EnableNetworkIsolation"] = resource_args.get(
-        "EnableNetworkIsolation", resource_args.get("enable_network_isolation", None)
-    )
-    sagemaker_args["EnableInterContainerTrafficEncryption"] = resource_args.get(
-        "EnableInterContainerTrafficEncryption",
-        resource_args.get("enable_inter_container_traffic_encryption", None),
-    )
-    sagemaker_args["EnableManagedSpotTraining"] = resource_args.get(
-        "EnableManagedSpotTraining",
-        resource_args.get("enable_managed_spot_training", None),
-    )
-    sagemaker_args["CheckpointConfig"] = resource_args.get(
-        "CheckpointConfig", resource_args.get("checkpoint_config", None)
-    )
-    sagemaker_args["DebugHookConfig"] = resource_args.get(
-        "DebugHookConfig", resource_args.get("debug_hook_config", None)
-    )
-    sagemaker_args["DebugRuleConfigurations"] = resource_args.get(
-        "DebugRuleConfigurations", resource_args.get("debug_rule_configurations", None)
-    )
-    sagemaker_args["TensorBoardOutputConfig"] = resource_args.get(
-        "TensoBoardOutputConfig", resource_args.get("tensor_board_output_config", None)
-    )
-    sagemaker_args["ExperimentConfig"] = resource_args.get(
-        "ExperimentConfig", resource_args.get("experiment_config", None)
-    )
-    sagemaker_args["ProfilerConfig"] = resource_args.get(
-        "ProfilerConfig", resource_args.get("profiler_config", None)
-    )
-    sagemaker_args["ProfilerRuleConfigurations"] = resource_args.get(
-        "ProfilerRuleConfigurations",
-        resource_args.get("profiler_rule_configurations", None),
-    )
-    sagemaker_args["Environment"] = resource_args.get(
-        "Environment", resource_args.get("environment")
-    )
-    sagemaker_args["RetryStrategy"] = resource_args.get(
-        "RetryStrategy", resource_args.get("retry_strategy")
-    )
 
     # clear the args that are None so they are not passed
     filtered_args = {k: v for k, v in sagemaker_args.items() if v is not None}
@@ -404,7 +349,7 @@ def launch_sagemaker_job(
 
     run = SagemakerSubmittedRun(training_job_name, sagemaker_client)
     wandb.termlog("Run job submitted with arn: {}".format(resp.get("TrainingJobArn")))
-    url = AWS_SAGEMAKER_URL.format(
+    url = "https://{region}.console.aws.amazon.com/sagemaker/home?region={region}#/jobs/{job_name}".format(
         region=sagemaker_client.meta.region_name, job_name=training_job_name
     )
     wandb.termlog(f"See training job status at: {url}")

@@ -202,21 +202,21 @@ def build_docker_image_if_needed(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
-    aws_line = ""
-    if runner_type == "aws":
+    sagemaker_line = ""
+    if runner_type == "sagemaker":
         # need to make user root for sagemaker, so users have access to /opt/ml directories
         # that let users create artifacts and access input data
-        aws_line = "USER root\n"
+        sagemaker_line = "USER root\n"
     dockerfile_contents = (
         "FROM {imagename}\n"
         # need to chown this directory for artifacts caching
+        "{sagemaker_line}"
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
-        "{aws_line}"
         "{copy_code_line}"
         "{requirements_line}"
         "{name_line}"
     ).format(
-        aws_line=aws_line,
+        sagemaker_line=sagemaker_line,
         imagename=launch_project.base_image,
         uid=launch_project.docker_user_id,
         homedir=homedir,
@@ -247,7 +247,7 @@ def build_docker_image_if_needed(
     )
     dockerfile_contents += env_vars + "\n"
 
-    if runner_type == "aws":
+    if runner_type == "sagemaker":
         with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
             fp.write(" ".join(command_args))
         dockerfile_contents += f"COPY ./src/train {workdir}\n"

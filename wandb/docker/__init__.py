@@ -219,9 +219,7 @@ def push(repo: str, tag: str) -> Optional[str]:
 
 def login(username: str, password: str, registry: str) -> Optional[str]:
     """Login to a registry"""
-    return shell(
-        ["login", "--username", username, "--password-stdin", password, registry]
-    )
+    return shell(["login", "--username", username, "--password", password, registry])
 
 
 def tag(image_name: str, tag: str) -> Optional[str]:
