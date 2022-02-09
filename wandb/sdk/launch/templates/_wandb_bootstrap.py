@@ -52,7 +52,6 @@ def install_deps(deps, failed=None):
         else:
             return failed
 
-# @@@ todo: we should let the user know when real requirements != stated requirements
 def main():
     """Install deps in requirements.frozen.txt"""
     if os.path.exists("requirements.frozen.txt"):

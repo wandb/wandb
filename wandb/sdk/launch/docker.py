@@ -120,9 +120,10 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_vers
 # this goes into requirements_section in TEMPLATE
 PIP_TEMPLATE = """
 RUN python -m venv /env
-ENV PATH="/env/bin:$PATH"   # make sure we install into the env
-COPY src/requirements.txt .
-{buildx_optional_prefix} pip install -r requirements.txt
+# make sure we install into the env
+ENV PATH="/env/bin:$PATH"
+COPY {requirements_files} .
+{buildx_optional_prefix} {pip_install}
 """
 
 # this goes into requirements_section in TEMPLATE
@@ -208,6 +209,13 @@ def get_env_vars_section(launch_project, api, workdir):
 
 def get_requirements_section(launch_project):
     if launch_project.deps_type == "pip":
+        requirements_files = ["src/requirements.txt"]
+        pip_install_line = "pip install -r requirements.txt"
+        if os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
+            # if we have frozen requirements stored, copy those over and have them take precedence
+            requirements_files += ["src/requirements.frozen.txt", "_wandb_bootstrap.py"]
+            pip_install_line = _parse_existing_requirements(launch_project) + "python _wandb_bootstrap.py"
+
         if docker.is_buildx_installed():
             workdir = "/home/stephchen"     # @@@ todo tmp this doesn't make any sense, the user doesn't exist yet
             prefix = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0".format(  # todo: don't think this is working for partial caching
@@ -218,7 +226,12 @@ def get_requirements_section(launch_project):
                 "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
             )
             prefix = "RUN WANDB_DISABLE_CACHE=true"
-        requirements_line = PIP_TEMPLATE.format(buildx_optional_prefix=prefix)
+
+        requirements_line = PIP_TEMPLATE.format(
+            buildx_optional_prefix=prefix,
+            requirements_files=" ".join(requirements_files),
+            pip_install=pip_install_line,
+        )
     elif launch_project.deps_type == "conda":
         requirements_line = CONDA_TEMPLATE
         # @@@ todo: buildkit?
@@ -227,11 +240,10 @@ def get_requirements_section(launch_project):
 
 
 def generate_dockerfile(api, launch_project, entrypoint):
+    # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
-        py_version, py_major = (
-            launch_project.python_version,
-            launch_project.python_version.split(".")[0],
-        )
+        spl = launch_project.python_version.split(".")[:2]
+        py_version, py_major = (".".join(spl), spl[0])
     else:
         py_version, py_major = get_current_python_version()
 
@@ -597,6 +609,10 @@ def _create_docker_build_ctx(
     dst_path = os.path.join(directory, "src")
     shutil.copytree(
         src=launch_project.project_dir, dst=dst_path, symlinks=True,
+    )
+    shutil.copy(
+        os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
+        os.path.join(directory),
     )
     if launch_project.python_version:
         runtime_path = os.path.join(dst_path, "runtime.txt")

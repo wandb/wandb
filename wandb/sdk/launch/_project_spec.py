@@ -398,11 +398,12 @@ def fetch_and_validate_project(
     else:
         launch_project._fetch_project_local(internal_api=api)
 
-    # todo: user-specifiable deps filesname?
+    # this prioritizes pip and we don't support any cases where both are present
+    # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
     if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")) or os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
-        launch_project.deps_type = "pip" # @@@ todo: do conda projects also produce a requirements.frozen.txt in wandb?
+        launch_project.deps_type = "pip"
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
-        launch_project.deps_type = "conda" # todo: this prioritizes pip, do we want that
+        launch_project.deps_type = "conda"
 
 
     first_entry_point = list(launch_project._entry_points.keys())[0]
