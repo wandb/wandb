@@ -932,4 +932,4 @@ def test_program_python_m():
         output = subprocess.check_output(
             [sys.executable, "-m", "module.lib"], cwd=tmpdir
         )
-        assert "python -m module.lib" in output.decode("utf-8")
+        assert "-m module.lib" in output.decode("utf-8")

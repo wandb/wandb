@@ -119,7 +119,7 @@ def _get_program() -> Optional[Any]:
         if __main__.__spec__ is None:
             return __main__.__file__
         # likely run as `python -m ...`
-        return f"{sys.executable} -m {__main__.__spec__.name}"
+        return f"-m {__main__.__spec__.name}"
     except (ImportError, AttributeError):
         return None
 
