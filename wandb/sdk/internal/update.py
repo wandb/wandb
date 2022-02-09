@@ -74,15 +74,11 @@ def check_available(current_version):
         return
 
     latest_version, pip_prerelease, deleted, yanked, yanked_reason = package_info
-    upgrade_message = (
-        "%s version %s is available!  To upgrade, please run:\n"
-        " $ pip install %s --upgrade%s"
-        % (
-            wandb._wandb_module,
-            latest_version,
-            wandb._wandb_module,
-            " --pre" if pip_prerelease else "",
-        )
+    upgrade_message = " ".join(
+        [
+            f"{wandb._wandb_module} version {latest_version} is available!  To upgrade, please run:",
+            f"[code]pip install {wandb._wandb_module} --upgrade {'--pre' if pip_prerelease else ''}[/]",
+        ]
     )
 
     delete_message = None

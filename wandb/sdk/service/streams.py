@@ -224,7 +224,7 @@ class StreamMux:
         for stream in streams.values():
             with wandb_run_printer.run_printer(stream) as printer:
                 stream.interface.publish_exit(exit_code)
-                printer._footer_exit_status_info(exit_code)
+                # printer._footer_exit_status_info(exit_code)
 
         with wandb_run_printer.run_printer(streams) as printer:
             streams_to_join, poll_exit_responses = {}, {}
@@ -245,16 +245,17 @@ class StreamMux:
                 if stream.interface:
                     history = stream.interface.communicate_sampled_history()
                     summary = stream.interface.communicate_get_summary()
-                    printer._footer_history_summary_info(history, summary)
+                    # printer._footer_history_summary_info(history, summary)
                     # check_version = stream.interface.communicate_check_version(
                     #     wandb.__version__
                     # )
-                printer._footer_sync_info(pool_exit_response=poll_exit_responses[sid])
-                printer._footer_log_dir_info()
-                # printer._footer_version_check_info(
-                #     check_version=check_version,
-                # )
-                printer._footer_local_warn(poll_exit_response=poll_exit_responses[sid])
+                # printer._footer_sync_info(pool_exit_response=poll_exit_responses[sid])
+                # printer._footer_log_dir_info()
+                # # printer._footer_version_check_info(
+                # #     check_version=check_version,
+                # # )
+                # printer._footer_local_warn(poll_exit_response=poll_exit_responses[sid])
+                printer.footer(exit_code, history, summary, poll_exit_responses[sid])
                 stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:
