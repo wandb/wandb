@@ -29,7 +29,7 @@ import importlib
 import tarfile
 import tempfile
 import types
-from typing import Optional
+from typing import List, Optional, Sequence
 import yaml
 from datetime import date, datetime
 import platform
@@ -64,9 +64,15 @@ if IS_GIT:
 else:
     SENTRY_ENV = "production"
 
+# TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
+# side effect of loading a module.
 if error_reporting_enabled():
+    default_dsn = (
+        "https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891"
+    )
+    sentry_dsn = os.environ.get(env.SENTRY_DSN, default_dsn)
     sentry_sdk.init(
-        dsn="https://a2f1d701163c42b097b9588e56b1c37e@o151352.ingest.sentry.io/5288891",
+        dsn=sentry_dsn,
         release=wandb.__version__,
         default_integrations=False,
         environment=SENTRY_ENV,
@@ -843,7 +849,7 @@ def find_runner(program):
     return None
 
 
-def downsample(values, target_length):
+def downsample(values: "Sequence[Any]", target_length: int) -> List[Any]:
     """Downsamples 1d values to target_length, including start and end.
 
     Algorithm just rounds index down.
@@ -1314,7 +1320,7 @@ def uri_from_path(path):
     return url.path if url.path[0] != "/" else url.path[1:]
 
 
-def is_unicode_safe(stream):
+def is_unicode_safe(stream: "_io.TextIOWrapper") -> bool:
     """returns true if the stream supports UTF-8"""
     if not hasattr(stream, "encoding"):
         return False

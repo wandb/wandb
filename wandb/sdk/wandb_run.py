@@ -1,4 +1,6 @@
+import _thread as thread
 import atexit
+from collections.abc import Mapping
 from datetime import timedelta
 from enum import IntEnum
 import glob
@@ -27,11 +29,6 @@ from typing import (
 from typing import TYPE_CHECKING
 
 import requests
-from six import string_types
-from six.moves import _thread as thread
-from six.moves.collections_abc import Mapping
-from six.moves.urllib.parse import quote as url_quote
-from six.moves.urllib.parse import urlencode
 import wandb
 from wandb import errors
 from wandb import trigger
@@ -40,10 +37,8 @@ from wandb.apis import internal, public
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
-    Record,
     RunRecord,
 )
-from wandb.sdk import wandb_print
 from wandb.util import (
     add_import_hook,
     sentry_set_scope,
@@ -65,7 +60,6 @@ from .interface.artifacts import Artifact as ArtifactInterface
 from .interface.interface import InterfaceBase
 from .interface.summary_record import SummaryRecord
 from .lib import (
-    apikey,
     config_util,
     deprecate,
     filenames,
@@ -80,8 +74,10 @@ from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
+from .wandb_run_printer import run_printer
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
+
 
 if TYPE_CHECKING:
     from .data_types import WBValue
@@ -90,6 +86,10 @@ if TYPE_CHECKING:
     from .interface.artifacts import (
         ArtifactEntry,
         ArtifactManifest,
+    )
+    from wandb.proto.wandb_internal_pb2 import (
+        CheckVersionResponse,
+        PollExitResponse,
     )
 
 
@@ -175,7 +175,7 @@ class RunStatusChecker(object):
         self._retry_thread.join()
 
 
-class Run(object):
+class Run:
     """A unit of computation logged by wandb. Typically this is an ML experiment.
 
     Create a run with `wandb.init()`:
@@ -253,7 +253,7 @@ class Run(object):
 
     _run_obj: Optional[RunRecord]
     _run_obj_offline: Optional[RunRecord]
-    # Use string literal anotation because of type reference loop
+    # Use string literal annotation because of type reference loop
     _backend: Optional["wandb.sdk.backend.backend.Backend"]
     _internal_run_interface: Optional[
         Union[
@@ -274,6 +274,8 @@ class Run(object):
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
+    _check_version: Optional["CheckVersionResponse"]
+    _poll_exit_response: Optional["PollExitResponse"]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
@@ -336,11 +338,26 @@ class Run(object):
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._quiet = self._settings._quiet
+        self._quiet = self._settings._quiet  # TODO(settings) unify with settings
 
         self._output_writer = None
-        self._printer = wandb_print.PrinterManager()
         self._used_artifact_slots: List[str] = []
+
+        # Returned from backend request_run(), set from wandb_init?
+        self._run_obj = None
+        self._run_obj_offline = None
+
+        # Created when the run "starts".
+        self._run_status_checker = None
+
+        self._check_version = None
+        self._poll_exit_response = None
+
+        # Initialize telemetry object
+        self._telemetry_obj = telemetry.TelemetryRecord()
+
+        self._atexit_cleanup_called = False
+        self._use_redirect = True
 
         # Pull info from settings
         self._init_from_settings(settings)
@@ -353,16 +370,6 @@ class Run(object):
             project=self._project,
             email=self._settings.email,
         )
-
-        # Returned from backend request_run(), set from wandb_init?
-        self._run_obj = None
-        self._run_obj_offline = None
-
-        # Created when the run "starts".
-        self._run_status_checker = None
-
-        # Initialize telemetry object
-        self._telemetry_obj = telemetry.TelemetryRecord()
 
         # Populate config
         config = config or dict()
@@ -416,9 +423,6 @@ class Run(object):
                 )
         self._config._update(config, ignore_locked=True)
 
-        self._atexit_cleanup_called = False
-        self._use_redirect = True
-
         # pid is set so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
 
@@ -467,6 +471,10 @@ class Run(object):
         mods_set = set(sys.modules)
         for mod in mods_set.intersection(mod_map):
             setattr(imp, mod_map[mod], True)
+
+    def _update_settings(self, settings: Settings) -> None:
+        self._settings = settings
+        self._init_from_settings(settings)
 
     def _init_from_settings(self, settings: Settings) -> None:
         if settings.entity is not None:
@@ -788,27 +796,27 @@ class Run(object):
 
         Offline runs will not have a url.
         """
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_run_url()
+        return self._settings.run_url
 
     def get_project_url(self) -> Optional[str]:
         """Returns the url for the W&B project associated with the run, if there is one.
 
         Offline runs will not have a project url.
         """
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_project_url()
+        return self._settings.project_url
 
     def get_sweep_url(self) -> Optional[str]:
         """Returns the url for the sweep associated with the run, if there is one."""
-        if not self._run_obj:
+        if self._settings._offline:
             wandb.termwarn("URL not available in offline run")
             return None
-        return self._get_sweep_url()
+        return self._settings.sweep_url
 
     @property
     def url(self) -> Optional[str]:
@@ -920,7 +928,7 @@ class Run(object):
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generates HTML containing an iframe displaying the current run."""
-        url = self._get_run_url() + "?jupyter=true"
+        url = self._settings.run_url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
         prefix = ""
         if hidden:
@@ -1039,7 +1047,6 @@ class Run(object):
         self._teardown_hooks = hooks
 
     def _set_run_obj(self, run_obj: RunRecord) -> None:
-        self._printer._set_run_obj(run_obj)
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
@@ -1064,12 +1071,11 @@ class Run(object):
             entity=run_obj.entity,
             project=run_obj.project,
             email=self._settings.email,
-            url=self._get_run_url(),
+            url=self._settings.run_url,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
         self._run_obj_offline = run_obj
-        self._printer._set_run_obj(run_obj)
 
     def _add_singleton(
         self, data_type: str, key: str, value: Dict[Union[int, str], str]
@@ -1295,7 +1301,7 @@ class Run(object):
         if not isinstance(data, Mapping):
             raise ValueError("wandb.log must be passed a dictionary")
 
-        if any(not isinstance(key, string_types) for key in data.keys()):
+        if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
@@ -1361,7 +1367,7 @@ class Run(object):
             )
         if isinstance(glob_str, bytes):
             glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, string_types):
+        if not isinstance(glob_str, str):
             raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
 
         if base_path is None:
@@ -1502,72 +1508,6 @@ class Run(object):
         }
         self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
-    def _get_url_query_string(self) -> str:
-        s = self._settings
-
-        # TODO(jhr): migrate to new settings, but for now this is safer
-        api = internal.Api()
-        if api.settings().get("anonymous") != "true":
-            return ""
-
-        api_key = apikey.api_key(settings=s)
-        return "?" + urlencode({"apiKey": api_key})
-
-    def _get_project_url(self) -> str:
-        s = self._settings
-        r = self._run_obj
-        if not r:
-            return ""
-        app_url = wandb.util.app_url(s.base_url)
-        qs = self._get_url_query_string()
-        url = "{}/{}/{}{}".format(
-            app_url, url_quote(r.entity), url_quote(r.project), qs
-        )
-        return url
-
-    def _get_run_url(self) -> str:
-        s = self._settings
-        r = self._run_obj
-        if not r:
-            return ""
-        app_url = wandb.util.app_url(s.base_url)
-        qs = self._get_url_query_string()
-        url = "{}/{}/{}/runs/{}{}".format(
-            app_url, url_quote(r.entity), url_quote(r.project), url_quote(r.run_id), qs
-        )
-        return url
-
-    def _get_sweep_url(self) -> str:
-        """Generate a url for a sweep.
-
-        Returns:
-            (str): url if the run is part of a sweep
-            (None): if the run is not part of the sweep
-        """
-        r = self._run_obj
-        if not r:
-            return ""
-        sweep_id = r.sweep_id
-        if not sweep_id:
-            return ""
-
-        app_url = wandb.util.app_url(self._settings.base_url)
-        qs = self._get_url_query_string()
-
-        return "{base}/{entity}/{project}/sweeps/{sweepid}{qs}".format(
-            base=app_url,
-            entity=url_quote(r.entity),
-            project=url_quote(r.project),
-            sweepid=url_quote(sweep_id),
-            qs=qs,
-        )
-
-    def _get_run_name(self) -> str:
-        r = self._run_obj
-        if not r:
-            return ""
-        return r.display_name
-
     def _redirect(
         self,
         stdout_slave_fd: Optional[int],
@@ -1672,7 +1612,7 @@ class Run(object):
         self._atexit_cleanup_called = True
 
         exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
-        logger.info("got exitcode: %d", exit_code)
+        logger.info(f"got exitcode: {exit_code}")
         if exit_code == 0:
             # Cleanup our resume file on a clean exit
             if os.path.exists(self._settings.resume_fname):
@@ -1723,13 +1663,22 @@ class Run(object):
             self._output_writer = None
 
     def _on_init(self) -> None:
-        self._printer._display_on_init(self._backend.interface)
+
+        if self._backend and self._backend.interface:
+            logger.info("communicating current version")
+            self._check_version = self._backend.interface.communicate_check_version(
+                current_version=wandb.__version__
+            )
+        logger.info(f"got version response {self._check_version}")
+        with run_printer(self) as printer:
+            printer._header_version_check_info(check_version=self._check_version)
 
     def _on_start(self) -> None:
 
-        self._printer._display_on_start(
-            self._get_project_url(), self._get_run_url(), self._get_sweep_url(),
-        )
+        with run_printer(self) as printer:
+            printer._header_wandb_version_info(self._quiet)
+            printer._header_sync_info(self._quiet)
+            printer._header_run_info()
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -1738,9 +1687,6 @@ class Run(object):
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
-
-    # def _on_finish_progress(self, progress: FilePusherStats, done: bool = None) -> None:
-    # self._pusher_print_status(progress, done=done)
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -1757,18 +1703,33 @@ class Run(object):
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
-        # telemetry could have changed, publish final data
         if self._backend and self._backend.interface:
+            # telemetry could have changed, publish final data
             self._backend.interface._publish_telemetry(self._telemetry_obj)
 
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        if self._backend and self._backend.interface:
-            self._printer._display_on_finish(
-                self._exit_code, self._quiet, self._backend.interface,
-            )
+        with run_printer(self) as printer:
+            print("")
+            printer._footer_exit_status_info(self._exit_code)
+
+            while not (self._poll_exit_response and self._poll_exit_response.done):
+                if self._backend and self._backend.interface:
+                    self._poll_exit_response = (
+                        self._backend.interface.communicate_poll_exit()
+                    )
+                    logger.info(f"got exit ret: {self._poll_exit_response}")
+                    printer._footer_file_pusher_status_info(self._poll_exit_response)
+                time.sleep(0.1)
+
+            if self._backend and self._backend.interface:
+                sampled_history = self._backend.interface.communicate_sampled_history()
+                final_summary = self._backend.interface.communicate_get_summary()
+                printer._footer_history_summary_info(
+                    history=sampled_history, summary=final_summary, quiet=self._quiet
+                )
 
         if self._backend:
             self._backend.cleanup()
@@ -1777,8 +1738,20 @@ class Run(object):
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-
-        self._printer._display_on_final(self._quiet, self._get_run_url())
+        with run_printer(self) as printer:
+            printer._footer_sync_info(
+                pool_exit_response=self._poll_exit_response, quiet=self._quiet
+            )
+            printer._footer_log_dir_info(quiet=self._quiet)
+            printer._footer_version_check_info(
+                check_version=self._check_version, quiet=self._quiet
+            )
+            printer._footer_local_warn(
+                poll_exit_response=self._poll_exit_response, quiet=self._quiet
+            )
+            printer._footer_reporter_warn_err(
+                reporter=self._reporter, quiet=self._quiet
+            )
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
@@ -1834,7 +1807,7 @@ class Run(object):
                 Default aggregation is `copy`
                 Aggregation `best` defaults to `goal`==`minimize`
             goal: Specify direction for optimizing the metric.
-                Supported direections: "minimize,maximize"
+                Supported directions: "minimize,maximize"
 
         Returns:
             A metric object is returned that can be further specified.
@@ -1847,16 +1820,16 @@ class Run(object):
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
-            ("name", name, string_types),
-            ("step_metric", step_metric, string_types),
+            ("name", name, str),
+            ("step_metric", step_metric, str),
             ("step_sync", step_sync, bool),
             ("hidden", hidden, bool),
-            ("summary", summary, string_types),
-            ("goal", goal, string_types),
+            ("summary", summary, str),
+            ("goal", goal, str),
             ("overwrite", overwrite, bool),
         ):
-            # NOTE: type checking is broken for isinstance and string_types
-            if arg_val is not None and not isinstance(arg_val, exp_type):  # type: ignore
+            # NOTE: type checking is broken for isinstance and str
+            if arg_val is not None and not isinstance(arg_val, exp_type):
                 arg_type = type(arg_val).__name__
                 raise wandb.Error(
                     "Unhandled define_metric() arg: {} type: {}".format(

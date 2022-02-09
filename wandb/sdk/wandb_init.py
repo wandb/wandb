@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """Defines wandb.init() and associated classes and methods.
 
 `wandb.init()` indicates the beginning of a new run. In an ML training pipeline,
@@ -9,9 +7,6 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
-
-from __future__ import print_function
-
 import copy
 import datetime
 import logging
@@ -36,6 +31,7 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.proto_util import message_to_dict
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
@@ -178,10 +174,11 @@ class _WandbInit(object):
             magic_install(kwargs)
 
         # handle login related parameters as these are applied to global state
-        init_settings = dict()
-        for key in ["anonymous", "force", "mode", "resume"]:
-            if kwargs.get(key, None) is not None:
-                init_settings[key] = kwargs.get(key)
+        init_settings = {
+            key: kwargs[key]
+            for key in ["anonymous", "force", "mode", "resume"]
+            if kwargs.get(key, None) is not None
+        }
         if init_settings:
             settings.update(init_settings, source=Source.INIT)
 
@@ -539,6 +536,14 @@ class _WandbInit(object):
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
+            # fixme: detected issues with settings
+            if self.settings.__dict__["_Settings__preprocessing_warnings"]:
+                tel.issues.settings__preprocessing_warnings = True
+            if self.settings.__dict__["_Settings__validation_warnings"]:
+                tel.issues.settings__validation_warnings = True
+            if self.settings.__dict__["_Settings__unexpected_args"]:
+                tel.issues.settings__unexpected_args = True
+
         if not self.settings.label_disable:
             if self.notebook:
                 run._label_probe_notebook(self.notebook)
@@ -608,6 +613,12 @@ class _WandbInit(object):
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
+
+        self.settings._apply_run_start(message_to_dict(run_obj))
+        run._update_settings(self.settings)
+        if manager:
+            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+
         assert backend.interface
         assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)

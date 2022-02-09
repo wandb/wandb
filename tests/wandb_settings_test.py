@@ -4,6 +4,7 @@ settings test.
 
 import copy
 import datetime
+import inspect
 import json
 import os
 import platform
@@ -28,6 +29,15 @@ else:
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
 Source = wandb_settings.Source
+
+
+def test_str_as_bool():
+    for val in ("y", "yes", "t", "true", "on", "1", "True", "TRUE"):
+        assert wandb_settings._str_as_bool(val)
+    for val in ("n", "no", "f", "false", "off", "0", "False", "FALSE"):
+        assert not wandb_settings._str_as_bool(val)
+    with pytest.raises(UsageError):
+        wandb_settings._str_as_bool("rubbish")
 
 
 # test Property class
@@ -66,6 +76,10 @@ def test_property_preprocess_validate_hook():
     assert not p._is_policy
 
 
+# fixme:
+@pytest.mark.skip(
+    reason="For now, we don't enforce validation on properties that are not in __strict_validate_settings"
+)
 def test_property_multiple_validators():
     def meaning_of_life(x):
         return x == 42
@@ -76,6 +90,24 @@ def test_property_multiple_validators():
     assert p.value == 42
     with pytest.raises(ValueError):
         p.update(value=43)
+
+
+# fixme: remove this once full validation is restored
+def test_property_strict_validation(capsys):
+    attributes = inspect.getmembers(Property, lambda a: not (inspect.isroutine(a)))
+    strict_validate_settings = [
+        a for a in attributes if a[0] == "_Property__strict_validate_settings"
+    ][0][1]
+    for name in strict_validate_settings:
+        p = Property(name=name, validator=lambda x: isinstance(x, int))
+        with pytest.raises(ValueError):
+            p.update(value="rubbish")
+
+    p = Property(name="api_key", validator=lambda x: isinstance(x, str))
+    p.update(value=31415926)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 31415926"
+    assert msg in captured
 
 
 def test_property_update():
@@ -811,6 +843,8 @@ def test_start_run():
     assert s._Settings_start_datetime is not None
 
 
+# fixme:
+@pytest.mark.skip(reason="For now, we don't raise an error and simply ignore it")
 def test_unexpected_arguments():
     with pytest.raises(TypeError):
         Settings(lol=False)
@@ -851,7 +885,32 @@ def test_default_props_match_class_attributes():
     assert set(default_props) - set(class_attributes) == set()
 
 
+# fixme: remove this once full validation is restored
+def test_settings_strict_validation(capsys):
+    s = Settings(api_key=271828, lol=True)
+    assert s.api_key == 271828
+    with pytest.raises(AttributeError):
+        s.lol
+    captured = capsys.readouterr().err
+    msgs = (
+        "Ignoring unexpected arguments: ['lol']",
+        "Invalid value for property api_key: 271828",
+    )
+    for msg in msgs:
+        assert msg in captured
+
+
 def test_static_settings_json_dump():
     s = Settings()
     static_settings = s.make_static(include_properties=True)
     assert json.dumps(static_settings)
+
+
+# fixme: remove this once full validation is restored
+def test_no_repeat_warnings(capsys):
+    s = Settings(api_key=234)
+    assert s.api_key == 234
+    s.update(api_key=234)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 234"
+    assert captured.count(msg) == 1

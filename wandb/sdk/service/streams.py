@@ -5,7 +5,7 @@ StreamRecord: All the external state for the internal thread (queues, etc)
 StreamAction: Lightweight record for stream ops for thread safety with grpc
 StreamMux: Container for dictionary of stream threads per runid
 """
-
+import logging
 import multiprocessing
 import queue
 import threading
@@ -16,6 +16,8 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk import wandb_run_printer
+from wandb.sdk.wandb_settings import Settings
 
 from ..interface.interface_relay import InterfaceRelay
 
@@ -41,6 +43,7 @@ class StreamRecord:
     _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
+    _settings: Settings
 
     def __init__(self) -> None:
         self._record_q = multiprocessing.Queue()
@@ -79,6 +82,10 @@ class StreamRecord:
     @property
     def interface(self) -> InterfaceRelay:
         return self._iface
+
+    def update(self, settings: Dict[str, Any]) -> None:
+        self._settings = Settings()
+        self._settings.update(settings)
 
 
 class StreamAction:
@@ -140,6 +147,11 @@ class StreamMux:
         self._action_q.put(action)
         action.wait_handled()
 
+    def update_stream(self, stream_id: str, settings: Dict[str, Any]) -> None:
+        action = StreamAction(action="update", stream_id=stream_id, data=settings)
+        self._action_q.put(action)
+        action.wait_handled()
+
     def del_stream(self, stream_id: str) -> None:
         action = StreamAction(action="del", stream_id=stream_id)
         self._action_q.put(action)
@@ -172,11 +184,12 @@ class StreamMux:
     def _process_add(self, action: StreamAction) -> None:
         stream = StreamRecord()
         # run_id = action.stream_id  # will want to fix if a streamid != runid
-        settings = action._data
+        settings_dict = action._data
+        settings_dict["_log_level"] = logging.DEBUG
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
-                settings=settings,
+                settings=settings_dict,
                 record_q=stream._record_q,
                 result_q=stream._result_q,
                 port=self._port,
@@ -186,6 +199,10 @@ class StreamMux:
         stream.start_thread(thread)
         with self._streams_lock:
             self._streams[action._stream_id] = stream
+
+    def _process_update(self, action: StreamAction) -> None:
+        with self._streams_lock:
+            self._streams[action._stream_id].update(action._data)
 
     def _process_del(self, action: StreamAction) -> None:
         with self._streams_lock:
@@ -203,25 +220,42 @@ class StreamMux:
         if not streams:
             return
 
-        for sid, stream in streams.items():
-            wandb.termlog(f"Finishing run: {sid}...")  # type: ignore
-            stream.interface.publish_exit(exit_code)
+        print("")
+        for stream in streams.values():
+            with wandb_run_printer.run_printer(stream) as printer:
+                stream.interface.publish_exit(exit_code)
+                printer._footer_exit_status_info(exit_code)
 
-        streams_to_join = []
-        while streams:
-            # Note that we materialize the generator so we can modify the underlying list
-            for sid, stream in list(streams.items()):
-                poll_exit_resp = stream.interface.communicate_poll_exit()
-                if poll_exit_resp and poll_exit_resp.done:
-                    streams.pop(sid)
-                    streams_to_join.append(stream)
+        with wandb_run_printer.run_printer(streams) as printer:
+            streams_to_join, poll_exit_responses = {}, {}
+            while streams:
+                # Note that we materialize the generator so we can modify the underlying list
+                for sid, stream in list(streams.items()):
+                    poll_exit_response = stream.interface.communicate_poll_exit()
+                    poll_exit_responses[sid] = poll_exit_response
+                    if poll_exit_response and poll_exit_response.done:
+                        streams.pop(sid)
+                        streams_to_join[sid] = stream
+                printer._footer_streams_file_pusher_status_info(poll_exit_responses)
                 time.sleep(0.1)
 
         # TODO: this would be nice to do in parallel
-        for stream in streams_to_join:
-            stream.join()
-
-        wandb.termlog("Done!")  # type: ignore
+        for sid, stream in streams_to_join.items():
+            with wandb_run_printer.run_printer(stream) as printer:
+                if stream.interface:
+                    history = stream.interface.communicate_sampled_history()
+                    summary = stream.interface.communicate_get_summary()
+                    printer._footer_history_summary_info(history, summary)
+                    # check_version = stream.interface.communicate_check_version(
+                    #     wandb.__version__
+                    # )
+                printer._footer_sync_info(pool_exit_response=poll_exit_responses[sid])
+                printer._footer_log_dir_info()
+                # printer._footer_version_check_info(
+                #     check_version=check_version,
+                # )
+                printer._footer_local_warn(poll_exit_response=poll_exit_responses[sid])
+                stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:
         exit_code: int = action._data
@@ -236,6 +270,9 @@ class StreamMux:
     def _process_action(self, action: StreamAction) -> None:
         if action._action == "add":
             self._process_add(action)
+            return
+        if action._action == "update":
+            self._process_update(action)
             return
         if action._action == "del":
             self._process_del(action)

@@ -13,7 +13,7 @@ from abc import abstractmethod
 import json
 import logging
 import os
-from typing import Any, Dict, Iterable, Optional, Tuple, Union
+from typing import Any, Iterable, Optional, Tuple, Union
 from typing import TYPE_CHECKING
 
 import six
@@ -154,14 +154,6 @@ class InterfaceBase(object):
             update.value_json = json_dumps_safer(json_friendly(val)[0])  # type: ignore
         return config
 
-    def _make_settings(self, settings: Dict[str, Any], record):
-        # TODO merge exisiting arguments in run
-        for key, value in settings.items():
-            # if value is not None:
-            item = record.item.add()
-            item.key = key
-            item.value_json = json_dumps_safer(json_friendly(value)[0])
-
     def _make_run(self, run: "Run") -> pb.RunRecord:
         proto_run = pb.RunRecord()
         run._make_proto_run(proto_run)
@@ -172,8 +164,6 @@ class InterfaceBase(object):
             self._make_config(data=config_dict, obj=proto_run.config)
         if run._telemetry_obj:
             proto_run.telemetry.MergeFrom(run._telemetry_obj)
-        if run._settings:
-            self._make_settings(run._settings.make_static(), proto_run.settings)
         return proto_run
 
     def publish_run(self, run_obj: "Run") -> None:
