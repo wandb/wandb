@@ -99,8 +99,9 @@ def check_cors_configuration(url: str, origin: str) -> None:
     )
 
     if res_get.headers.get("Access-Control-Allow-Origin") is None:
-        fail_string = "Your object store does not have a valid CORs configuration, you must allow GET and PUT to Origin: {}".format(
-            origin
+        fail_string = (
+            "Your object store does not have a valid CORs configuration, "
+            f"you must allow GET and PUT to Origin: {origin}"
         )
 
     print_results(fail_string, True)
