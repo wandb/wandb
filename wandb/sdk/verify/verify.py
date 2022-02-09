@@ -28,8 +28,8 @@ from ...apis.public import Artifact as ArtifactAPI
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
 MIN_RETRYS = 3
-CHECKMARK = u"\u2705"
-RED_X = u"\u274C"
+CHECKMARK = "\u2705"
+RED_X = "\u274C"
 
 
 def print_results(
