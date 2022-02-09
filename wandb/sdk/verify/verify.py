@@ -1,10 +1,6 @@
-#
-# -*- coding: utf-8 -*-
 """
 Utilities for wandb verify
 """
-from __future__ import print_function
-
 from functools import partial
 import getpass
 import os
@@ -66,10 +62,10 @@ def check_host(host: str) -> bool:
 
 def check_logged_in(api: Api, host: str) -> bool:
     print("Checking if logged in".ljust(72, "."), end="")
-    login_doc_url = "https://docs.wandb.ai/ref/login"
+    login_doc_url = "https://docs.wandb.ai/ref/cli/wandb-login"
     fail_string = None
     if api.api_key is None:
-        fail_string = "Not logged in. Please log in using wandb login. See the docs: {}".format(
+        fail_string = "Not logged in. Please log in using `wandb login`. See the docs: {}".format(
             click.style(login_doc_url, underline=True, fg="blue")
         )
     # check that api key is correct
@@ -77,8 +73,9 @@ def check_logged_in(api: Api, host: str) -> bool:
     else:
         res = api.api.viewer()
         if not res:
-            fail_string = "Could not get viewer with default API key. Please relogin using WANDB_BASE_URL={} wandb login --relogin and try again".format(
-                host
+            fail_string = (
+                "Could not get viewer with default API key. "
+                f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
             )
 
     print_results(fail_string, False)
