@@ -23,6 +23,7 @@ Please make sure to update the ToC when you update this page.
   + [Global Pytest Fixtures](#global-pytest-fixtures)
   + [Code Coverage](#code-coverage)
   + [Test parallelism](#test-parallelism)
+  + [Functional Testing](#functional-testing)
   + [Regression Testing](#regression-testing)
 * [Live development](#live-development)
 * [Code organization](#code-organization)
@@ -375,6 +376,27 @@ The circleci uses pytest-split to balance unittest load on multiple nodes. In or
 CI_PYTEST_SPLIT_ARGS="--store-durations" tox -e py37
 ```
 
+### Functional Testing
+
+TODO: overview of how to write and run functional tests with [yea](https://github.com/wandb/yea)
+and the [yea-wandb](https://github.com/wandb/yea-wandb) plugin.
+
+The `yea-wandb` plugin for `yea` uses copies of several components from `tests/utils` 
+(`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`) 
+to provide a test environment for functional tests. Currently, we maintain a copy of those components in 
+`yea-wandb/src/yea_wandb`, so they need to be in sync.
+
+If you update one of those files, you need to:
+- While working on your contribution:
+  - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
+    Make sure to update the `yea-wandb` version.
+  - Point the client branch you are working on to this `yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and change it to 
+    `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
+- Once you are happy with your changes:
+  - Merge and release `yea-wandb` (with `make release`).
+  - Point the client branch you are working on to the fresh release of `yea-wandb`.
+
 ### Regression Testing
 
 TODO(jhr): describe how regression works, how to run them, where they're located etc.
@@ -501,10 +523,12 @@ The `Settings` object:
 
 #### Adding a new setting
 
-- Add a new type-annotated `Settings` class attribute.
-- If setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
-  the template dictionary that the `Settings._default_props` method returns, using the same key name as 
-  the corresponding class variable.
+- For any setting that is only computed (from other settings) and should not be set/updated (and so does not require any validation etc.), make it a `@property`.
+- In all other cases:
+  - Add a new type-annotated `Settings` class attribute.
+  - If setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
+    the template dictionary that the `Settings._default_props` method returns, using the same key name as 
+    the corresponding class variable.
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 
 ### Data to be synced to server is fully validated
