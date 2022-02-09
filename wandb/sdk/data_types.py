@@ -1,4 +1,5 @@
 import codecs
+import cloudpickle
 import hashlib
 import io
 import json
@@ -32,7 +33,7 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
-from wandb.util import has_num
+from wandb.util import (has_num, get_module)
 
 from .interface import _dtypes
 
@@ -2589,29 +2590,31 @@ class Plotly(Media):
         return json_dict
 
 
-# Consider doing class-specific here and having the proxy on the outside.
+
 class SavedModel(Media):
-    # TODO: Make this work 
+    # TODO: Actually implement this class in a sane way
+    # Consider doing class-specific here and having the proxy on the outside.
     _log_type = "saved-model"
 
-    def __init__(self, model_obj:any):
+    def __init__(self, model_or_path:any):
         super(SavedModel, self).__init__()
-        self.model_obj = model_obj
-
-    def to_json(self, run: Union["LocalRun", "LocalArtifact"]) -> dict:
-        res = super().to_json(run)
-        res["val"] = self.model_obj
-        return res
-
+        torch = get_module("torch")
+        if (isinstance(model_or_path, str)):
+            self._model = torch.load(model_or_path)
+            self._set_file(model_or_path)
+        else:
+            tmp_path = os.path.join(_MEDIA_TMP.name, str(util.generate_id()) + ".pt")
+            torch.save(model_or_path, tmp_path, pickle_module=cloudpickle)
+            self._set_file(tmp_path, is_tmp=True)
+            self._model = model_or_path
     @classmethod
-    def from_json(
-        cls: Type["Media"], json_obj: dict, source_artifact: "PublicArtifact"
-    ) -> "Media":
-        return cls(json_obj["val"])
+    def get_media_subdir(cls):
+        return os.path.join("media", "saved_models")
 
-    # TODO: this whole game...
-    def as_pytorch(self):
-        pass
+    def raw_model(self):
+        return self._model
+
+
 
 
 def history_dict_to_json(
