@@ -217,10 +217,8 @@ def get_requirements_section(launch_project):
             pip_install_line = _parse_existing_requirements(launch_project) + "python _wandb_bootstrap.py"
 
         if docker.is_buildx_installed():
-            workdir = "/home/stephchen"     # @@@ todo tmp this doesn't make any sense, the user doesn't exist yet
-            prefix = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0".format(  # todo: don't think this is working for partial caching
-                workdir, launch_project.docker_user_id
-            )
+            prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
+
         else:
             wandb.termwarn(
                 "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
