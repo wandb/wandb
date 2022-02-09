@@ -430,7 +430,7 @@ def ensure_matplotlib_figure(obj: Any) -> Any:
     # this patches matplotlib to add a removed method that plotly assumes exists
     from matplotlib.spines import Spine  # type: ignore
 
-    def is_frame_like(self):
+    def is_frame_like(self: Any) -> bool:
         """Return True if directly on axes frame.
         This is useful for determining if a spine is the edge of an
         old style MPL plot. If so, this function will return True.
@@ -443,7 +443,7 @@ def ensure_matplotlib_figure(obj: Any) -> Any:
                 position = ("data", 0)
         if len(position) != 2:
             raise ValueError("position should be 2-tuple")
-        position_type, amount = position
+        position_type, amount = position  # type: ignore
         if position_type == "outward" and amount == 0:
             return True
         else:
