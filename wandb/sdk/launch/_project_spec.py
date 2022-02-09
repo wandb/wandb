@@ -74,6 +74,7 @@ class LaunchProject(object):
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.resource = resource
         self.resource_args = resource_args
+        self.deps_type = None   # @@@ format this whole section
         self.gpu = gpu
         self._runtime: Optional[str] = None
         self._dockerfile_contents: Optional[str] = None
@@ -398,15 +399,10 @@ def fetch_and_validate_project(
         launch_project._fetch_project_local(internal_api=api)
 
     # todo: user-specifiable deps filesname?
-    # @@@ todo: don't think this is the best way of doing this
-    deps_types = []
-    if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")):
-        deps_types += ["pip"]
-    if os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
-        deps_types += ["pip-frozen"] # @@@ todo: do conda projects also produce a requirements.frozen.txt in wandb?
-    if os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
-        deps_types += ["conda"]
-    launch_project.deps_types = deps_types
+    if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")) or os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
+        launch_project.deps_type = "pip" # @@@ todo: do conda projects also produce a requirements.frozen.txt in wandb?
+    elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
+        launch_project.deps_type = "conda" # todo: this prioritizes pip, do we want that
 
 
     first_entry_point = list(launch_project._entry_points.keys())[0]

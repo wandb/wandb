@@ -59,23 +59,17 @@ TEMPLATE = """
 ##### stage 1: build
 FROM {py_build_image} as build
 
-# install in venv to copy
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-COPY src/requirements.txt .
-# different requirements line if we have buildx or not
-{requirements_line}
+# requirements section depends on pip vs conda, and presence of buildx
+{requirements_section}
 
 ##### stage 2: base
 {base_setup}
 
-COPY --from=build /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+COPY --from=build /env /env
+ENV PATH="/env/bin:$PATH"
 
 ENV SHELL /bin/bash
 
-# todo: handle uids
 RUN useradd \
     --create-home \
     --no-log-init \
@@ -96,19 +90,17 @@ RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 # copy code/etc
 COPY --chown={user} src/ {workdir}
 
-# todo handle local installs
-
 USER {user}
-
 ENV PYTHONUNBUFFERED=1
-
 ENTRYPOINT {command_arr}
 """
 
+# this goes into base_setup in TEMPLATE
 PYTHON_SETUP_TEMPLATE = """
 FROM {py_base_image} as base
 """
 
+# this goes into base_setup in TEMPLATE
 CUDA_SETUP_TEMPLATE = """
 FROM {cuda_base_image} as base
 RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
@@ -123,6 +115,22 @@ RUN apt-get update -qq && apt-get install --no-install-recommends -y \
 # make sure `python` points at the right version
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python{py_version} 1 \
     && update-alternatives --install /usr/local/bin/python python /usr/bin/python{py_version} 1
+"""
+
+PIP_TEMPLATE = """
+COPY src/requirements.txt .
+RUN python -m venv /env
+"""
+
+# this goes into requirements_section in TEMPLATE
+CONDA_TEMPLATE = """
+COPY src/environment.yml .
+RUN conda env create -f environment.yml -n env
+RUN conda install -c conda-forge conda-pack
+RUN conda pack -n env -o /tmp/env.tar && \
+    mkdir /env && cd /env && tar xf /tmp/env.tar && \
+    rm /tmp/env.tar
+RUN /env/bin/conda-unpack
 """
 
 
@@ -193,7 +201,28 @@ def get_env_vars_section(launch_project, api, workdir):
     )
 
 
-def generate_dockerfile(api, launch_project, image_uri, entrypoint):
+def get_requirements_section(launch_project):
+    if launch_project.deps_type == "pip":
+        requirements_line = PIP_TEMPLATE
+        if docker.is_buildx_installed():
+            workdir = "/home/stephchen"     # @@@ todo tmp this doesn't make any sense, the user doesn't exist yet
+            requirements_line += "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0\n".format(  # todo: don't think this is working for partial caching
+                workdir, launch_project.docker_user_id
+            )
+        else:
+            wandb.termwarn(
+                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+            )
+            requirements_line += "RUN WANDB_DISABLE_CACHE=true\n"
+        requirements_line += "pip install -r requirements.txt"
+    elif launch_project.deps_type == "conda":
+        requirements_line = CONDA_TEMPLATE
+        # @@@ todo: buildkit?
+
+    return requirements_line
+
+
+def generate_dockerfile(api, launch_project, entrypoint):
     if launch_project.python_version:
         py_version, py_major = (
             launch_project.python_version,
@@ -203,25 +232,17 @@ def generate_dockerfile(api, launch_project, image_uri, entrypoint):
         py_version, py_major = get_current_python_version()
 
     ##### stage 1: build
-    python_build_image = "python:{}".format(py_version)     # use full python image for package installation
-
-    requirements_line = ""
-    if docker.is_buildx_installed():
-        workdir = "/home/stephchen"     # @@@ todo tmp this doesn't make any sense, the user doesn't exit yet
-        requirements_line = "RUN --mount=type=cache,mode=0777,target={}/.cache,uid={},gid=0 ".format(  # todo: don't think this is working for partial caching
-            workdir, launch_project.docker_user_id
-        )
-    else:
-        wandb.termwarn(
-            "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-        )
-        requirements_line = "RUN WANDB_DISABLE_CACHE=true "
-    requirements_line += "pip install -r requirements.txt"
+    if launch_project.deps_type == "pip":
+        python_build_image = "python:{}".format(py_version)     # use full python image for package installation
+    elif launch_project.deps_type == "conda":
+        # neither of these images are receiving regular updates, latest should be pretty stable
+        python_build_image = "continuumio/miniconda3:latest" if py_major == "3" else "continuumio/miniconda:latest"
+    requirements_section = get_requirements_section(launch_project)
 
     ##### stage 2: base
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
 
-    # setup user info
+    # set up user info
     username, userid = get_docker_user(launch_project)
     workdir = "/home/{user}".format(user=username)
 
@@ -229,12 +250,12 @@ def generate_dockerfile(api, launch_project, image_uri, entrypoint):
     env_vars_section = get_env_vars_section(launch_project, api, workdir)
 
     # put together entrypoint & args
-    # json format to ensure double quotes
+    # json format to ensure argslist is formatted with double quotes
     entry_cmd = json.dumps(get_entry_point_command(entrypoint, launch_project.override_args)[0].split())
 
     dockerfile_contents = TEMPLATE.format(
         py_build_image=python_build_image,
-        requirements_line=requirements_line,
+        requirements_section=requirements_section,
         base_setup=python_base_setup,
         user=username,
         uid=userid,
@@ -248,10 +269,9 @@ def generate_dockerfile(api, launch_project, image_uri, entrypoint):
 
 
 def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):     # @@@ todo: rename this fn
-    dockerfile_str = generate_dockerfile(api, launch_project, image_uri, entrypoint)
+    dockerfile_str = generate_dockerfile(api, launch_project, entrypoint)
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
-
     try:
         image = docker.build(
             tags=[image_uri], file=dockerfile, context_path=build_ctx_path
@@ -265,7 +285,6 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):     
         _logger.info(
             "Temporary docker context file %s was not deleted.", build_ctx_path
         )
-
     return image
 
 
