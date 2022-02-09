@@ -1,3 +1,5 @@
+# Note: this is a helper printer class, this file might go away once we switch to rich console printing
+
 from abc import abstractmethod
 import itertools
 import platform

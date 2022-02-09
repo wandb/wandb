@@ -6,6 +6,7 @@ from enum import IntEnum
 import glob
 import json
 import logging
+import numbers
 import os
 import re
 import sys
@@ -34,9 +35,11 @@ from wandb import errors
 from wandb import trigger
 from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
+from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
+    PollExitResponse,
     RunRecord,
 )
 from wandb.util import (
@@ -72,9 +75,9 @@ from .lib import (
 )
 from .lib.exit_hooks import ExitHooks
 from .lib.git import GitRepo
+from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
-from .wandb_run_printer import run_printer
 from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
@@ -87,9 +90,12 @@ if TYPE_CHECKING:
         ArtifactEntry,
         ArtifactManifest,
     )
+
+    from .lib.printer import PrinterTerm, PrinterJupyter
     from wandb.proto.wandb_internal_pb2 import (
         CheckVersionResponse,
-        PollExitResponse,
+        GetSummaryResponse,
+        SampledHistoryResponse,
     )
 
 
@@ -274,8 +280,11 @@ class Run:
     _exit_code: Optional[int]
 
     _run_status_checker: Optional[RunStatusChecker]
+
     _check_version: Optional["CheckVersionResponse"]
-    _poll_exit_response: Optional["PollExitResponse"]
+    _sampled_history: Optional["SampledHistoryResponse"]
+    _final_summary: Optional["GetSummaryResponse"]
+    _poll_exit_response: Optional[PollExitResponse]
 
     _use_redirect: bool
     _stdout_slave_fd: Optional[int]
@@ -309,6 +318,7 @@ class Run:
         _datatypes_set_callback(self._datatypes_callback)
 
         self._settings = settings
+        self._printer = get_printer(settings._jupyter)
         self._wl = None
         self._reporter: Optional[Reporter] = None
 
@@ -351,6 +361,8 @@ class Run:
         self._run_status_checker = None
 
         self._check_version = None
+        self._sampled_history = None
+        self._final_summary = None
         self._poll_exit_response = None
 
         # Initialize telemetry object
@@ -1670,15 +1682,10 @@ class Run:
                 current_version=wandb.__version__
             )
         logger.info(f"got version response {self._check_version}")
-        with run_printer(self) as printer:
-            printer._header_version_check_info(check_version=self._check_version)
 
     def _on_start(self) -> None:
 
-        with run_printer(self) as printer:
-            printer._header_wandb_version_info(self._quiet)
-            printer._header_sync_info(self._quiet)
-            printer._header_run_info()
+        self.header(self._check_version, settings=self._settings, printer=self._printer)
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -1711,25 +1718,27 @@ class Run:
             # some tests were timing out on sending exit for reasons not clear to me
             self._backend.interface.publish_exit(self._exit_code)
 
-        with run_printer(self) as printer:
-            print("")
-            printer._footer_exit_status_info(self._exit_code)
+        print("")
+        self._footer_exit_status_info(
+            self._exit_code, settings=self._settings, printer=self._printer
+        )
 
-            while not (self._poll_exit_response and self._poll_exit_response.done):
-                if self._backend and self._backend.interface:
-                    self._poll_exit_response = (
-                        self._backend.interface.communicate_poll_exit()
-                    )
-                    logger.info(f"got exit ret: {self._poll_exit_response}")
-                    printer._footer_file_pusher_status_info(self._poll_exit_response)
-                time.sleep(0.1)
-
+        while not (self._poll_exit_response and self._poll_exit_response.done):
             if self._backend and self._backend.interface:
-                sampled_history = self._backend.interface.communicate_sampled_history()
-                final_summary = self._backend.interface.communicate_get_summary()
-                printer._footer_history_summary_info(
-                    history=sampled_history, summary=final_summary, quiet=self._quiet
+                poll_exit_response = self._backend.interface.communicate_poll_exit()
+                logger.info(f"got exit ret: {poll_exit_response}")
+                if poll_exit_response and poll_exit_response.done:
+                    self._poll_exit_response = poll_exit_response
+                self._footer_file_pusher_status_info(
+                    poll_exit_response, printer=self._printer,
                 )
+            time.sleep(0.1)
+
+        if self._backend and self._backend.interface:
+            self._sampled_history = (
+                self._backend.interface.communicate_sampled_history()
+            )
+            self._final_summary = self._backend.interface.communicate_get_summary()
 
         if self._backend:
             self._backend.cleanup()
@@ -1738,20 +1747,16 @@ class Run:
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-        with run_printer(self) as printer:
-            printer._footer_sync_info(
-                pool_exit_response=self._poll_exit_response, quiet=self._quiet
-            )
-            printer._footer_log_dir_info(quiet=self._quiet)
-            printer._footer_version_check_info(
-                check_version=self._check_version, quiet=self._quiet
-            )
-            printer._footer_local_warn(
-                poll_exit_response=self._poll_exit_response, quiet=self._quiet
-            )
-            printer._footer_reporter_warn_err(
-                reporter=self._reporter, quiet=self._quiet
-            )
+        self.footer(
+            self._sampled_history,
+            self._final_summary,
+            self._poll_exit_response,
+            self._check_version,
+            self._reporter,
+            self._quiet,
+            settings=self._settings,
+            printer=self._printer,
+        )
 
     def _save_job_spec(self) -> None:
         envdict = dict(python="python3.6", requirements=[],)
@@ -2333,6 +2338,537 @@ class Run:
         """
         if self._backend and self._backend.interface:
             self._backend.interface.publish_preempting()
+
+    # ------------------------------------------------------------------------------
+    # HEADER
+    # ------------------------------------------------------------------------------
+    @staticmethod
+    def header(
+        check_version: Optional["CheckVersionResponse"] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        # printer = printer or get_printer(settings._jupyter)
+        Run._header_version_check_info(
+            check_version, settings=settings, printer=printer
+        )
+        Run._header_wandb_version_info(settings=settings, printer=printer)
+        Run._header_sync_info(settings=settings, printer=printer)
+        Run._header_run_info(settings=settings, printer=printer)
+
+    @staticmethod
+    def _header_version_check_info(
+        check_version: Optional["CheckVersionResponse"] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if not check_version or settings._offline:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        if check_version.delete_message:
+            printer.display(check_version.delete_message, status="error")
+        elif check_version.yank_message:
+            printer.display(check_version.yank_message, status="warn")
+
+        printer.display(
+            check_version.upgrade_message, off=not check_version.upgrade_message
+        )
+
+    @staticmethod
+    def _header_wandb_version_info(
+        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if settings._quiet or settings._silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+
+    @staticmethod
+    def _header_sync_info(
+        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        # printer = printer or get_printer(settings._jupyter)
+        if settings._offline:
+            printer.display(
+                [
+                    f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
+                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} to enable cloud syncing.",
+                ]
+            )
+        else:
+            info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
+            if not printer._html:
+                info.append(
+                    f"Run {printer.code('`wandb offline`')} to turn off syncing."
+                )
+            printer.display(info, off=settings._quiet or settings._silent)
+
+    @staticmethod
+    def _header_run_info(
+        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if settings._offline or settings._silent:
+            return
+
+        run_url = settings.run_url
+        project_url = settings.project_url
+        sweep_url = settings.sweep_url
+
+        run_state_str = "Resuming run" if settings.resumed else "Syncing run"
+        run_name = settings.run_name
+
+        # printer = printer or get_printer(settings._jupyter)
+        if printer._html:
+            if not wandb.jupyter.maybe_display():
+
+                run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
+                project_line, sweep_line = "", ""
+
+                # TODO(settings): make settings the source of truth
+                if not wandb.jupyter.quiet():
+
+                    doc_html = printer.link("https://wandb.me/run", "docs")
+
+                    project_html = printer.link(project_url, "Weights & Biases")
+                    project_line = f"to {project_html} ({doc_html})"
+
+                    if sweep_url:
+                        sweep_line = (
+                            f"Sweep page:  {printer.link(sweep_url, sweep_url)}"
+                        )
+
+                printer.display(
+                    [f"{run_state_str} {run_line} {project_line}", sweep_line]
+                )
+
+        else:
+            printer.display(f"{run_state_str} {printer.name(run_name)}")
+            if not settings._quiet:
+                printer.display(
+                    f'{printer.emoji("star")} View project at {printer.link(project_url)}'
+                )
+                if sweep_url:
+                    printer.display(
+                        f'{printer.emoji("broom")} View sweep at {printer.link(sweep_url)}'
+                    )
+            printer.display(
+                f'{printer.emoji("rocket")} View run at {printer.link(run_url)}'
+            )
+
+            # TODO(settings) use `wandb_settings` (if self.settings.anonymous == "true":)
+            if Api().api.settings().get("anonymous") == "true":
+                printer.display(
+                    "Do NOT share these links with anyone. They can be used to claim your runs.",
+                    status="warn",
+                )
+
+    # ------------------------------------------------------------------------------
+    # FOOTER
+    # ------------------------------------------------------------------------------
+
+    @staticmethod
+    def footer(
+        sampled_history: Optional["SampledHistoryResponse"] = None,
+        final_summary: Optional["GetSummaryResponse"] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
+        check_version: Optional["CheckVersionResponse"] = None,
+        reporter: Optional[Reporter] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        Run._footer_history_summary_info(
+            history=sampled_history,
+            summary=final_summary,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+
+        Run._footer_sync_info(
+            pool_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
+        Run._footer_version_check_info(
+            check_version=check_version, quiet=quiet, settings=settings, printer=printer
+        )
+        Run._footer_local_warn(
+            poll_exit_response=poll_exit_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_reporter_warn_err(
+            reporter=reporter, quiet=quiet, settings=settings, printer=printer
+        )
+
+    @staticmethod
+    def _footer_exit_status_info(
+        exit_code: Optional[int],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if settings._silent:
+            return
+
+        status = "(success)." if not exit_code else f"(failed {exit_code})."
+        info = [
+            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
+        ]
+
+        if not settings._offline and exit_code:
+            info.append("Press ctrl-c to abort syncing.")
+
+        printer.display(f'{" ".join(info)}')
+
+    # fixme: Temporary hack until we move to rich which allows multiple spinners
+    @staticmethod
+    def _footer_file_pusher_status_info(
+        poll_exit_responses: Optional[
+            Union[PollExitResponse, Dict[str, Optional[PollExitResponse]]]
+        ] = None,
+        *,
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        if not poll_exit_responses:
+            return
+        if isinstance(poll_exit_responses, PollExitResponse):
+            Run._footer_single_run_file_pusher_status_info(
+                poll_exit_responses, printer=printer
+            )
+        elif isinstance(poll_exit_responses, dict):
+            poll_exit_responses_list = [
+                response for response in poll_exit_responses.values()
+            ]
+            assert all(
+                isinstance(response, (PollExitResponse, None))  # type: ignore
+                for response in poll_exit_responses_list
+            )
+            if len(poll_exit_responses_list) == 0:
+                return
+            elif len(poll_exit_responses_list) == 1:
+                Run._footer_single_run_file_pusher_status_info(
+                    poll_exit_responses_list[0], printer=printer
+                )
+            else:
+                Run._footer_multiple_runs_file_pusher_status_info(
+                    poll_exit_responses_list, printer=printer
+                )
+        else:
+            raise ValueError(
+                f"got the type {type(poll_exit_responses)} for poll_exit_responses expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+            )
+
+    @staticmethod
+    def _footer_single_run_file_pusher_status_info(
+        pool_exit_response: Optional[PollExitResponse] = None,
+        *,
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        # todo: is this same as settings._offline?
+        if not pool_exit_response:
+            return
+
+        progress = pool_exit_response.pusher_stats
+        done = pool_exit_response.done
+
+        megabyte = wandb.util.POW_2_BYTES[2][1]
+        line = f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded ({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
+
+        percent_done = (
+            1.0
+            if progress.total_bytes == 0
+            else progress.uploaded_bytes / progress.total_bytes
+        )
+
+        printer.progress_update(line, percent_done)
+        if done:
+            printer.progress_close()
+
+            dedupe_fraction = (
+                progress.deduped_bytes / float(progress.total_bytes)
+                if progress.total_bytes > 0
+                else 0
+            )
+            if dedupe_fraction > 0.01:
+                printer.display(
+                    f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
+                )
+
+    @staticmethod
+    def _footer_multiple_runs_file_pusher_status_info(
+        poll_exit_responses: List[Optional[PollExitResponse]],
+        *,
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        # todo: is this same as settings._offline?
+        if not all(poll_exit_responses):
+            return
+
+        megabyte = wandb.util.POW_2_BYTES[2][1]
+        total_files = sum(
+            [
+                sum(
+                    [
+                        response.file_counts.wandb_count,
+                        response.file_counts.media_count,
+                        response.file_counts.artifact_count,
+                        response.file_counts.other_count,
+                    ]
+                )
+                for response in poll_exit_responses
+                if response and response.file_counts
+            ]
+        )
+        uploaded = sum(
+            [
+                response.pusher_stats.uploaded_bytes
+                for response in poll_exit_responses
+                if response and response.pusher_stats
+            ]
+        )
+        total = sum(
+            [
+                response.pusher_stats.total_bytes
+                for response in poll_exit_responses
+                if response and response.pusher_stats
+            ]
+        )
+
+        line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
+        printer.progress_update(line)  # type: ignore [call-arg]
+
+        done = all(
+            [
+                poll_exit_response.done
+                for poll_exit_response in poll_exit_responses
+                if poll_exit_response
+            ]
+        )
+        if done:
+            printer.progress_close()
+
+    @staticmethod
+    def _footer_sync_info(
+        pool_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if settings._silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+
+        if settings._offline:
+            printer.display(
+                [
+                    "You can sync this run to the cloud by running:",
+                    printer.code(f"wandb sync {settings.sync_dir}"),
+                ],
+                off=(quiet or settings.quiet),
+            )
+        else:
+            info = [
+                f"Synced {printer.name(settings.run_name)}: {printer.link(settings.run_url)}"
+            ]
+            if pool_exit_response and pool_exit_response.file_counts:
+
+                logger.info("logging synced files")
+                file_counts = pool_exit_response.file_counts
+                info.append(
+                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+                )
+            printer.display(info)
+
+    @staticmethod
+    def _footer_log_dir_info(
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings._silent:
+            return
+
+        log_dir = settings.log_user or settings.log_internal
+        if log_dir:
+            # printer = printer or get_printer(settings._jupyter)
+            log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
+            printer.display(f"Find logs at: {printer.files(log_dir)}",)
+
+    @staticmethod
+    def _footer_history_summary_info(
+        history: Optional["SampledHistoryResponse"] = None,
+        summary: Optional["GetSummaryResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings._quiet) or settings._silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        panel = []
+
+        # Render history if available
+        if history:
+            logger.info("rendering history")
+
+            sampled_history = {
+                item.key: wandb.util.downsample(
+                    item.values_float or item.values_int, 40
+                )
+                for item in history.item
+                if not item.key.startswith("_")
+            }
+
+            history_rows = []
+            for key, values in sorted(sampled_history.items()):
+                if any((not isinstance(value, numbers.Number) for value in values)):
+                    continue
+                sparkline = printer.sparklines(values)
+                if sparkline:
+                    history_rows.append([key, sparkline])
+            if history_rows:
+                history_grid = printer.grid(history_rows, "Run history:",)
+                panel.append(history_grid)
+
+        # Render summary if available
+        if summary:
+            final_summary = {
+                item.key: json.loads(item.value_json)
+                for item in summary.item
+                if not item.key.startswith("_")
+            }
+
+            logger.info("rendering summary")
+            summary_rows = []
+            for key, value in sorted(final_summary.items()):
+                # arrays etc. might be too large. for now we just don't print them
+                if isinstance(value, str):
+                    value = value[:20] + "..." * (len(value) >= 20)
+                    summary_rows.append([key, value])
+                elif isinstance(value, numbers.Number):
+                    value = round(value, 5) if isinstance(value, float) else value
+                    summary_rows.append([key, str(value)])
+                else:
+                    continue
+
+            if summary_rows:
+                summary_grid = printer.grid(summary_rows, "Run summary:",)
+                panel.append(summary_grid)
+
+        if panel:
+            printer.display(printer.panel(panel))
+
+    @staticmethod
+    def _footer_local_warn(
+        poll_exit_response: Optional[PollExitResponse] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings.quiet) or settings.silent:
+            return
+
+        if settings._offline:
+            return
+
+        if not poll_exit_response or not poll_exit_response.local_info:
+            return
+
+        if settings.is_local:
+            local_info = poll_exit_response.local_info
+            latest_version, out_of_date = local_info.version, local_info.out_of_date
+            if out_of_date:
+                # printer = printer or get_printer(settings._jupyter)
+                printer.display(
+                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {printer.link('http://wandb.me/local-upgrade')}",
+                    status="warn",
+                )
+
+    @staticmethod
+    def _footer_version_check_info(
+        check_version: Optional["CheckVersionResponse"] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if not check_version:
+            return
+
+        if settings._offline:
+            return
+
+        if (quiet or settings._quiet) or settings._silent:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+        if check_version.delete_message:
+            printer.display(check_version.delete_message, status="error")
+        elif check_version.yank_message:
+            printer.display(check_version.yank_message, status="warn")
+
+        # only display upgrade message if packages are bad
+        package_problem = check_version.delete_message or check_version.yank_message
+        if package_problem and check_version.upgrade_message:
+            printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_reporter_warn_err(
+        reporter: Optional[Reporter] = None,
+        quiet: Optional[bool] = None,
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+
+        if (quiet or settings._quiet) or settings.silent:
+            return
+
+        if not reporter:
+            return
+
+        # printer = printer or get_printer(settings._jupyter)
+
+        warning_lines = reporter.warning_lines
+        if warning_lines:
+            warnings = ["Warnings:"] + [f"{line}" for line in warning_lines]
+            if len(warning_lines) < reporter.warning_count:
+                warnings.append("More warnings...")
+            printer.display(warnings)
+
+        error_lines = reporter.error_lines
+        if error_lines:
+            errors = ["Errors:"] + [f"{line}" for line in error_lines]
+            if len(error_lines) < reporter.error_count:
+                errors.append("More errors...")
+            printer.display(errors)
 
 
 # We define this outside of the run context to support restoring before init
