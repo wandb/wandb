@@ -1,28 +1,25 @@
-#
 from gql import Client, gql  # type: ignore
 from gql.client import RetryError  # type: ignore
 from gql.transport.requests import RequestsHTTPTransport  # type: ignore
-import datetime
+
 import ast
+import base64
+from copy import deepcopy
+import datetime
+from io import BytesIO
+import json
 import os
 from pkg_resources import parse_version  # type: ignore
-import json
-import yaml
 import re
-import click
-import logging
 import requests
+import logging
 import socket
 import sys
 
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore
-else:
-    import subprocess  # type: ignore[no-redef]
-
-from copy import deepcopy
+import click
 import six
-from six import BytesIO
+import yaml
+
 import wandb
 from wandb import __version__
 from wandb import env
@@ -40,13 +37,13 @@ from .progress import Progress
 logger = logging.getLogger(__name__)
 
 
-class Api(object):
+class Api:
     """W&B Internal Api wrapper
 
     Note:
         Settings are automatically overridden by looking for
-        a `wandb/settings` file in the current working directory or it's parent
-        directory.  If none can be found, we look in the current users home
+        a `wandb/settings` file in the current working directory or its parent
+        directory. If none can be found, we look in the current user's home
         directory.
 
     Arguments:
@@ -97,7 +94,7 @@ class Api(object):
                 # https://bugs.python.org/issue22889
                 timeout=self.HTTP_TIMEOUT,
                 auth=("api", self.api_key or ""),
-                url="%s/graphql" % self.settings("base_url"),
+                url=f"{self.settings('base_url')}/graphql",
             )
         )
         self.retry_callback = retry_callback
@@ -116,6 +113,8 @@ class Api(object):
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
         self._client_id_mapping = {}
+        # Large file uploads to azure can optionally use their SDK
+        self._azure_blob_module = util.get_module("azure.storage.blob")
 
         (
             self.query_types,
@@ -155,7 +154,7 @@ class Api(object):
         if "errors" in data and isinstance(data["errors"], list):
             for err in data["errors"]:
                 # Our tests and potentially some api endpoints return a string error?
-                if isinstance(err, six.string_types):
+                if isinstance(err, str):
                     err = {"message": err}
                 if not err.get("message"):
                     continue
@@ -448,7 +447,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Models($entity: String!) {
+        query EntityProjects($entity: String) {
             models(first: 10, entityName: $entity) {
                 edges {
                     node {
@@ -480,7 +479,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Models($entity: String, $project: String!) {
+        query ProjectDetails($entity: String, $project: String) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -510,7 +509,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Sweep($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
+        query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 sweep(sweepName: $sweep) {
                     id
@@ -579,7 +578,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Buckets($model: String!, $entity: String!) {
+        query ProjectRuns($model: String!, $entity: String) {
             model(name: $model, entityName: $entity) {
                 buckets(first: 10) {
                     edges {
@@ -670,9 +669,9 @@ class Api(object):
         """
         query = gql(
             """
-        query Model(
+        query RunConfigs(
             $name: String!,
-            $entity: String!,
+            $entity: String,
             $run: String!,
             $pattern: String!,
             $includeConfig: Boolean!,
@@ -755,7 +754,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($project: String!, $entity: String, $name: String!) {
+        query RunResumeStatus($project: String, $entity: String, $name: String!) {
             model(name: $project, entityName: $entity) {
                 id
                 name
@@ -800,7 +799,7 @@ class Api(object):
     def check_stop_requested(self, project_name, entity_name, run_id):
         query = gql(
             """
-        query Model($projectName: String, $entityName: String, $runId: String!) {
+        query RunStoppedStatus($projectName: String, $entityName: String, $runId: String!) {
             project(name:$projectName, entityName:$entityName) {
                 run(name:$runId) {
                     stopped
@@ -869,7 +868,7 @@ class Api(object):
     def get_project_run_queues(self, entity, project):
         query = gql(
             """
-        query Project($entity: String!, $projectName: String!){
+        query ProjectRunQueues($entity: String!, $projectName: String!){
             project(entityName: $entity, name: $projectName) {
                 runQueues {
                     id
@@ -912,7 +911,6 @@ class Api(object):
                 success
                 queueID
             }
-            
         }
         """
         )
@@ -1311,7 +1309,7 @@ class Api(object):
     def get_run_info(self, entity, project, name):
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!) {
+        query RunInfo($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
                     runInfo {
@@ -1372,7 +1370,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $files: [String]!, $entity: String!, $run: String!, $description: String) {
+        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run, desc: $description) {
                     id
@@ -1433,7 +1431,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrls($name: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files {
@@ -1480,7 +1478,7 @@ class Api(object):
         """
         query = gql(
             """
-        query Model($name: String!, $fileName: String!, $entity: String!, $run: String!)  {
+        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String, $run: String!)  {
             model(name: $name, entityName: $entity) {
                 bucket(name: $run) {
                     files(names: [$fileName]) {
@@ -1552,6 +1550,43 @@ class Api(object):
 
         return path, response
 
+    def upload_file_azure(self, url, file, extra_headers):
+        from azure.core.exceptions import HttpResponseError
+        from azure.core.pipeline.policies import HTTPPolicy
+
+        # Disable retries
+        class NoRetry(HTTPPolicy):
+            def send(self, request):
+                return self.next.send(request)
+
+            def increment(self, *args, **kwargs):
+                return 0
+
+        client = self._azure_blob_module.BlobClient.from_blob_url(
+            url, retry_policy=NoRetry()
+        )
+        try:
+            if extra_headers.get("Content-MD5") is not None:
+                md5 = base64.b64decode(extra_headers["Content-MD5"])
+            else:
+                md5 = None
+            content_settings = self._azure_blob_module.ContentSettings(
+                content_md5=md5, content_type=extra_headers.get("Content-Type"),
+            )
+            client.upload_blob(
+                file,
+                max_concurrency=4,
+                length=len(file),
+                overwrite=True,
+                content_settings=content_settings,
+            )
+        except HttpResponseError as e:
+            response = requests.model.Response()
+            response.status_code = e.response.status_code
+            response.headers = e.response.headers
+            response.raw = e.response.internal_response
+            raise requests.exceptions.RequestException(e.message, response=response)
+
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
 
@@ -1568,15 +1603,23 @@ class Api(object):
         response = None
         progress = Progress(file, callback=callback)
         try:
-            response = requests.put(url, data=progress, headers=extra_headers)
-            response.raise_for_status()
+            if "x-ms-blob-type" in extra_headers and self._azure_blob_module:
+                response = self.upload_file_azure(url, progress, extra_headers)
+            else:
+                if "x-ms-blob-type" in extra_headers:
+                    wandb.termwarn(
+                        "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
+                        repeat=False,
+                    )
+                response = requests.put(url, data=progress, headers=extra_headers)
+                response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error("upload_file exception {}: {}".format(url, e))
             request_headers = e.request.headers if e.request is not None else ""
             logger.error("upload_file request headers: {}".format(request_headers))
             response_content = e.response.content if e.response is not None else ""
             logger.error("upload_file response body: {}".format(response_content))
-            status_code = e.response.status_code if e.response != None else 0
+            status_code = e.response.status_code if e.response is not None else 0
             # We need to rewind the file for the next retry (the file passed in is seeked to 0)
             progress.rewind()
             # Retry errors from cloud storage or local network issues
@@ -1604,8 +1647,8 @@ class Api(object):
             """
         mutation CreateAgent(
             $host: String!
-            $projectName: String!,
-            $entityName: String!,
+            $projectName: String,
+            $entityName: String,
             $sweep: String!
         ) {
             createAgent(input: {
@@ -1976,7 +2019,7 @@ class Api(object):
                     else open(normal_name, "rb")
                 )
             except IOError:
-                print("%s does not exist" % file_name)
+                print(f"{file_name} does not exist")
                 continue
             if progress:
                 if hasattr(progress, "__call__"):
@@ -2130,14 +2173,17 @@ class Api(object):
         aliases=None,
         distributed_id=None,
         is_user_created=False,
+        enable_digest_deduplication=False,
     ):
-        # TODO: Ignore clientID and sequenceClientID if server can't handle it
         _, server_info = self.viewer_server_info()
         max_cli_version = server_info.get("cliVersionInfo", {}).get(
             "max_cli_version", None
         )
         can_handle_client_id = max_cli_version is None or parse_version(
             "0.11.0"
+        ) <= parse_version(max_cli_version)
+        can_handle_dedupe = max_cli_version is None or parse_version(
+            "0.12.10"
         ) <= parse_version(max_cli_version)
 
         mutation = gql(
@@ -2156,6 +2202,7 @@ class Api(object):
             %s
             %s
             %s
+            %s
         ) {
             createArtifact(input: {
                 artifactTypeName: $artifactTypeName,
@@ -2169,6 +2216,7 @@ class Api(object):
                 labels: $labels,
                 aliases: $aliases,
                 metadata: $metadata,
+                %s
                 %s
                 %s
                 %s
@@ -2194,14 +2242,18 @@ class Api(object):
         """
             %
             # For backwards compatibility with older backends that don't support
-            # distributed writers.
+            # distributed writers or digest deduplication.
             (
                 "$distributedID: String," if distributed_id else "",
                 "$clientID: ID!," if can_handle_client_id else "",
                 "$sequenceClientID: ID!," if can_handle_client_id else "",
+                "$enableDigestDeduplication: Boolean," if can_handle_dedupe else "",
                 "distributedID: $distributedID," if distributed_id else "",
                 "clientID: $clientID," if can_handle_client_id else "",
                 "sequenceClientID: $sequenceClientID," if can_handle_client_id else "",
+                "enableDigestDeduplication: $enableDigestDeduplication,"
+                if can_handle_dedupe
+                else "",
             )
         )
 
@@ -2232,6 +2284,7 @@ class Api(object):
                 if metadata
                 else None,
                 "distributedID": distributed_id,
+                "enableDigestDeduplication": enable_digest_deduplication,
             },
         )
         av = response["createArtifact"]["artifact"]

@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import platform
 import pytest
+from unittest import mock
 
 import wandb
 from wandb import wandb_sdk
@@ -87,13 +88,42 @@ def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util
 def test_log_code_settings(live_mock_server, test_settings):
     with open("test.py", "w") as f:
         f.write('print("test")')
-    test_settings.save_code = True
-    test_settings.code_dir = "."
+    test_settings.update(
+        save_code=True, code_dir=".", source=wandb.sdk.wandb_settings.Source.INIT
+    )
     run = wandb.init(settings=test_settings)
     run.finish()
     ctx = live_mock_server.get_ctx()
     artifact_name = list(ctx["artifacts"].keys())[0]
     assert artifact_name == "source-" + run.id
+
+
+@pytest.mark.parametrize("save_code", [True, False])
+def test_log_code_env(live_mock_server, test_settings, save_code):
+    # test for WB-7468
+    with mock.patch.dict("os.environ", WANDB_SAVE_CODE=str(save_code).lower()):
+        with open("test.py", "w") as f:
+            f.write('print("test")')
+
+        # first, ditch user preference for code saving
+        # since it has higher priority for policy settings
+        live_mock_server.set_ctx({"code_saving_enabled": None})
+        # note that save_code is a policy by definition
+        test_settings.update(
+            save_code=None,
+            code_dir=".",
+            source=wandb.sdk.wandb_settings.Source.SETTINGS,
+        )
+        run = wandb.init(settings=test_settings)
+        assert run._settings.save_code is save_code
+        run.finish()
+
+        ctx = live_mock_server.get_ctx()
+        artifact_names = list(ctx["artifacts"].keys())
+        if save_code:
+            assert artifact_names[0] == "source-" + run.id
+        else:
+            assert len(artifact_names) == 0
 
 
 def test_log_code(test_settings):
@@ -104,6 +134,7 @@ def test_log_code(test_settings):
         f.write("Not that big")
     art = run.log_code()
     assert sorted(art.manifest.entries.keys()) == ["test.py"]
+    run.finish()
 
 
 def test_log_code_include(test_settings):
@@ -114,6 +145,7 @@ def test_log_code_include(test_settings):
         f.write("Not that big")
     art = run.log_code(include_fn=lambda p: p.endswith(".py") or p.endswith(".cc"))
     assert sorted(art.manifest.entries.keys()) == ["test.cc", "test.py"]
+    run.finish()
 
 
 def test_log_code_custom_root(test_settings):
@@ -126,11 +158,13 @@ def test_log_code_custom_root(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
     art = run.log_code(root="../")
     assert sorted(art.manifest.entries.keys()) == ["custom/test.py", "test.py"]
+    run.finish()
 
 
 def test_display(test_settings):
     run = wandb.init(mode="offline", settings=test_settings)
-    assert run.display() == False
+    assert run.display() is False
+    run.finish()
 
 
 def test_mark_preempting(fake_run, record_q, records_util):
@@ -169,10 +203,14 @@ def test_except_hook(test_settings):
     assert "".join(stderr) == "Exception: After wandb.init()\n"
 
     sys.stderr.write = old_stderr_write
+    run.finish()
 
 
 def assertion(run_id, found, stderr):
-    msg = f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run_id}"
+    msg = (
+        "`resume` will be ignored since W&B syncing is set to `offline`. "
+        f"Starting a new run with run id {run_id}"
+    )
     return msg in stderr if found else msg not in stderr
 
 
@@ -185,6 +223,7 @@ def assertion(run_id, found, stderr):
         ("must", True),
         ("", False),
         (0, False),
+        (True, True),
         (None, False),
     ],
 )
@@ -192,6 +231,7 @@ def test_offline_resume(test_settings, capsys, resume, found):
     run = wandb.init(mode="offline", resume=resume, settings=test_settings)
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
+    run.finish()
 
 
 @pytest.mark.parametrize("empty_query", [True, False])
@@ -217,18 +257,28 @@ def test_local_warning(
         assert msg in captured if outdated else msg not in captured
 
 
-def test_use_artifact_offline(live_mock_server, test_settings):
-    run = wandb.init(mode="offline")
-    with pytest.raises(Exception) as e_info:
-        artifact = run.use_artifact("boom-data")
-        assert str(e_info.value) == "Cannot use artifact when in offline mode."
-
-
 @pytest.mark.parametrize("project_name", ["test:?", "test" * 33])
 def test_invalid_project_name(live_mock_server, project_name):
     with pytest.raises(UsageError) as e:
-        _ = wandb.init(project=project_name)
+        wandb.init(project=project_name)
         assert 'Invalid project name "{project_name}"' in str(e.value)
+
+
+def test_use_artifact_offline(live_mock_server, test_settings):
+    run = wandb.init(mode="offline")
+    with pytest.raises(Exception) as e_info:
+        run.use_artifact("boom-data")
+        assert str(e_info.value) == "Cannot use artifact when in offline mode."
+    run.finish()
+
+
+def test_use_artifact(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    artifact = wandb.Artifact("arti", type="dataset")
+    run.use_artifact(artifact)
+    artifact.wait()
+    assert artifact.digest == "abc123"
+    run.finish()
 
 
 def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
@@ -300,6 +350,7 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             str(e_info.value)
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
+    run.finish()
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
@@ -320,3 +371,57 @@ def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx
         and (3 in telemetry_deprecated)
         and (4 in telemetry_deprecated)
     )
+    run.finish()
+
+
+# test that information about validation errors in wandb.Settings is included in telemetry
+def test_settings_validation_telemetry(
+    live_mock_server, test_settings, parse_ctx, capsys
+):
+    test_settings.update(api_key=123)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 123"
+    assert msg in captured
+    run = wandb.init(settings=test_settings)
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    telemetry = ctx_util.telemetry
+    # TelemetryRecord field 11 is Issues,
+    # whose field 1 corresponds to validation warnings in Settings
+    telemetry_issues = telemetry.get("11", [])
+    assert 1 in telemetry_issues
+    run.finish()
+
+
+# test that information about validation errors in wandb.Settings is included in telemetry
+def test_settings_preprocessing_telemetry(
+    live_mock_server, test_settings, parse_ctx, capsys
+):
+    with mock.patch.dict("os.environ", WANDB_QUIET="cat"):
+        run = wandb.init(settings=test_settings)
+        captured = capsys.readouterr().err
+        msg = "Unable to preprocess value for property quiet: cat"
+        assert msg in captured and "This will raise an error in the future" in captured
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+        # TelemetryRecord field 11 is Issues,
+        # whose field 3 corresponds to preprocessing warnings in Settings
+        telemetry_issues = telemetry.get("11", [])
+        assert 3 in telemetry_issues
+        run.finish()
+
+
+def test_settings_unexpected_args_telemetry(
+    runner, live_mock_server, parse_ctx, capsys
+):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=wandb.Settings(blah=3))
+        captured = capsys.readouterr().err
+        msg = "Ignoring unexpected arguments: ['blah']"
+        assert msg in captured
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+        # TelemetryRecord field 11 is Issues,
+        # whose field 2 corresponds to unexpected arguments in Settings
+        telemetry_issues = telemetry.get("11", [])
+        assert 2 in telemetry_issues
+        run.finish()

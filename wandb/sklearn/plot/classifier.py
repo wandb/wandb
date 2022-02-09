@@ -307,10 +307,11 @@ def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
     is_fitted = utils.test_fitted(clf)
     if not_missing and correct_types and is_fitted:
         y = np.asarray(y)
-        if not ((y == 0) | (y == 1)).all():
-            raise ValueError(
-                "This function only supports binary classification at the moment and therefore expects labels to be binary."
+        if y.dtype.char == "U" or not ((y == 0) | (y == 1)).all():
+            wandb.termwarn(
+                "This function only supports binary classification at the moment and therefore expects labels to be binary. Skipping calibration curve."
             )
+            return
 
         calibration_curve_chart = calculate.calibration_curves(clf, X, y, clf_name)
 
