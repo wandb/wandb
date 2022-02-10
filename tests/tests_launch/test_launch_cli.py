@@ -24,7 +24,6 @@ def test_launch_add_default(runner, test_settings, live_mock_server):
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
     ctx = live_mock_server.get_ctx()
-    print("MADE IT HERE")
     assert len(ctx["run_queues"]["1"]) == 1
 
 
@@ -38,7 +37,6 @@ def test_launch_add_config_file(runner, test_settings, live_mock_server):
     result = runner.invoke(cli.launch, args)
     assert result.exit_code == 0
     ctx = live_mock_server.get_ctx()
-    print("MADE IT HERE")
     assert len(ctx["run_queues"]["1"]) == 1
 
 
