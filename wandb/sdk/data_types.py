@@ -33,7 +33,7 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
-from wandb.util import (has_num, get_module)
+from wandb.util import has_num, get_module
 
 from .interface import _dtypes
 
@@ -2590,16 +2590,15 @@ class Plotly(Media):
         return json_dict
 
 
-
 class SavedModel(Media):
     # TODO: Actually implement this class in a sane way
     # Consider doing class-specific here and having the proxy on the outside.
     _log_type = "saved-model"
 
-    def __init__(self, model_or_path:any):
+    def __init__(self, model_or_path: any):
         super(SavedModel, self).__init__()
         torch = get_module("torch")
-        if (isinstance(model_or_path, str)):
+        if isinstance(model_or_path, str):
             self._model = torch.load(model_or_path)
             self._set_file(model_or_path)
         else:
@@ -2607,14 +2606,13 @@ class SavedModel(Media):
             torch.save(model_or_path, tmp_path, pickle_module=cloudpickle)
             self._set_file(tmp_path, is_tmp=True)
             self._model = model_or_path
+
     @classmethod
     def get_media_subdir(cls):
         return os.path.join("media", "saved_models")
 
     def raw_model(self):
         return self._model
-
-
 
 
 def history_dict_to_json(
