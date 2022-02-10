@@ -137,12 +137,7 @@ def construct_launch_spec(
         override_args = util._user_args_to_dict(
             launch_spec["overrides"].get("args", [])
         )
-        if isinstance(override_args, list):
-            base_args = util._user_args_to_dict(
-                launch_spec["overrides"].get("args", [])
-            )
-        elif isinstance(override_args, dict):
-            base_args = override_args
+        base_args = override_args
         launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
     elif isinstance(launch_spec["overrides"].get("args"), list):
         launch_spec["overrides"]["args"] = util._user_args_to_dict(
