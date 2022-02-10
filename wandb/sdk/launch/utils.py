@@ -60,8 +60,8 @@ def _is_git_uri(uri: str) -> bool:
     return bool(_GIT_URI_REGEX.match(uri))
 
 
-def sanitize_wandb_api_key(str: str) -> str:
-    return re.sub(re.sub(API_KEY_REGEX, "WANDB_API_KEY", str))
+def sanitize_wandb_api_key(s: str) -> str:
+    return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
 
 
 def set_project_entity_defaults(

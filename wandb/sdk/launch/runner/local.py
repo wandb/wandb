@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import signal
 import subprocess
 from typing import Any, Dict, Optional
