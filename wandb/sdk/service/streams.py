@@ -229,16 +229,17 @@ class StreamMux:
         if not streams:
             return
 
+        # TODO(settings) remove type ignore once SettingsStatic and Settings unified
         print("")
         printer = get_printer(
-            all(stream._settings._jupyter for stream in streams.values())
+            all(stream._settings._jupyter for stream in streams.values())  # type: ignore
         )
         # fixme: for now we have a single printer for all streams,
         # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         for stream in streams.values():
             stream.interface.publish_exit(exit_code)
             Run._footer_exit_status_info(
-                exit_code, settings=stream._settings, printer=printer
+                exit_code, settings=stream._settings, printer=printer  # type: ignore
             )
 
         streams_to_join, poll_exit_responses = {}, {}
@@ -267,7 +268,7 @@ class StreamMux:
                 history,
                 summary,
                 poll_exit_responses[sid],
-                settings=stream._settings,
+                settings=stream._settings,  # type: ignore
                 printer=printer,
             )
             stream.join()
