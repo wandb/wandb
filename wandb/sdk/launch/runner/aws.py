@@ -84,12 +84,18 @@ class AWSSagemakerRunner(AbstractRunner):
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         _logger.info("using AWSSagemakerRunner")
+
         boto3 = get_module("boto3", "AWSSagemakerRunner requires boto3 to be installed")
 
         validate_docker_installation()
+        given_sagemaker_args = launch_project.resource_args.get("sagemaker")
+        if given_sagemaker_args is None:
+            raise LaunchError(
+                "No sagemaker args specified. Specify sagemaker args in resource_args"
+            )
         if (
-            launch_project.resource_args.get(
-                "EcrRepoName", launch_project.resource_args.get("ecr_repo_name")
+            given_sagemaker_args.get(
+                "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
             )
             is None
         ):
@@ -97,9 +103,9 @@ class AWSSagemakerRunner(AbstractRunner):
                 "Sagemaker jobs require an ecr repository name, set this using `resource_args ecr_repo_name=<ecr_repo_name>`"
             )
 
-        region = get_region(launch_project.resource_args)
+        region = get_region(given_sagemaker_args)
 
-        access_key, secret_key = get_aws_credentials(launch_project.resource_args)
+        access_key, secret_key = get_aws_credentials(given_sagemaker_args)
 
         client = boto3.client(
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
@@ -108,9 +114,7 @@ class AWSSagemakerRunner(AbstractRunner):
 
         # if the user provided the image they want to use, use that, but warn it won't have swappable artifacts
         if (
-            launch_project.resource_args.get("AlgorithmSpecification", {}).get(
-                "TrainingImage"
-            )
+            given_sagemaker_args.get("AlgorithmSpecification", {}).get("TrainingImage")
             is not None
         ):
             wandb.termwarn(
@@ -139,7 +143,9 @@ class AWSSagemakerRunner(AbstractRunner):
         )
         token = ecr_client.get_authorization_token()
 
-        ecr_repo_name = launch_project.resource_args.get("ecr_repo_name")
+        ecr_repo_name = given_sagemaker_args.get(
+            "EcrRepoName", given_sagemaker_args.get("ecr_repo_name")
+        )
         aws_registry = (
             token["authorizationData"][0]["proxyEndpoint"].replace("https://", "")
             + f"/{ecr_repo_name}"
@@ -289,23 +295,30 @@ def build_sagemaker_args(
     launch_project: LaunchProject, account_id: str, aws_tag: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args = {}
-    resource_args = launch_project.resource_args
+    given_sagemaker_args = launch_project.resource_args.get("sagemaker")
+    if given_sagemaker_args is None:
+        raise LaunchError(
+            "No sagemaker args specified. Specify sagemaker args in resource_args"
+        )
     sagemaker_args["TrainingJobName"] = (
-        resource_args.get("TrainingJobName") or launch_project.run_id
+        given_sagemaker_args.get("TrainingJobName") or launch_project.run_id
     )
 
     sagemaker_args[
         "AlgorithmSpecification"
     ] = merge_aws_tag_with_algorithm_specification(
-        resource_args.get(
-            "AlgorithmSpecification", resource_args.get("algorithm_specification"),
+        given_sagemaker_args.get(
+            "AlgorithmSpecification",
+            given_sagemaker_args.get("algorithm_specification"),
         ),
         aws_tag,
     )
 
-    sagemaker_args["RoleArn"] = get_role_arn(resource_args, account_id)
+    sagemaker_args["RoleArn"] = get_role_arn(given_sagemaker_args, account_id)
 
-    camel_case_args = {to_camel_case(key): item for key, item in resource_args.items()}
+    camel_case_args = {
+        to_camel_case(key): item for key, item in given_sagemaker_args.items()
+    }
     sagemaker_args = {
         **camel_case_args,
         **sagemaker_args,
@@ -338,9 +351,7 @@ def launch_sagemaker_job(
     sagemaker_args: Dict[str, Any],
     sagemaker_client: "boto3.Client",
 ) -> SagemakerSubmittedRun:
-    training_job_name = (
-        launch_project.resource_args.get("TrainingJobName") or launch_project.run_id
-    )
+    training_job_name = sagemaker_args.get("TrainingJobName") or launch_project.run_id
     resp = sagemaker_client.create_training_job(**sagemaker_args)
 
     if resp.get("TrainingJobArn") is None:

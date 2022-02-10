@@ -82,7 +82,7 @@ def test_launch_aws_sagemaker(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
     run = launch.run(**kwargs)
@@ -136,7 +136,7 @@ def test_launch_aws_sagemaker_launch_fail(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
 
@@ -162,7 +162,7 @@ def test_launch_aws_sagemaker_push_image_fail_none(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
 
@@ -189,7 +189,7 @@ def test_launch_aws_sagemaker_push_image_fail_err_msg(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
 
@@ -212,11 +212,15 @@ def test_sagemaker_specified_image(
         default_settings=test_settings, load_settings=False
     )
     uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     kwargs["uri"] = uri
     kwargs["api"] = api
-    kwargs["resource_args"]["AlgorithmSpecification"]["TrainingImage"] = "my-test_image"
-    kwargs["resource_args"]["AlgorithmSpecification"]["TrainingInputMode"] = "File"
+    kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
+        "TrainingImage"
+    ] = "my-test_image"
+    kwargs["resource_args"]["sagemaker"]["AlgorithmSpecification"][
+        "TrainingInputMode"
+    ] = "File"
     run = launch.run(**kwargs)
     stderr = capsys.readouterr().err
     assert (
@@ -323,7 +327,7 @@ def test_failed_aws_cred_login(
     monkeypatch.setattr(
         wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Failed\n"
     )
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
@@ -431,7 +435,7 @@ def test_aws_fail_build(
     )
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         api = wandb.sdk.internal.internal_api.Api(
             default_settings=test_settings, load_settings=False
@@ -457,7 +461,7 @@ def test_no_OuputDataConfig(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
@@ -465,7 +469,7 @@ def test_no_OuputDataConfig(
         )
         kwargs["uri"] = uri
         kwargs["api"] = api
-        kwargs["resource_args"].pop("OutputDataConfig", None)
+        kwargs["resource_args"]["sagemaker"].pop("OutputDataConfig", None)
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
         assert (
@@ -486,7 +490,7 @@ def test_no_StoppingCondition(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
@@ -494,7 +498,7 @@ def test_no_StoppingCondition(
         )
         kwargs["uri"] = uri
         kwargs["api"] = api
-        kwargs["resource_args"].pop("StoppingCondition", None)
+        kwargs["resource_args"]["sagemaker"].pop("StoppingCondition", None)
 
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
@@ -516,7 +520,7 @@ def test_no_ResourceConfig(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
@@ -524,7 +528,7 @@ def test_no_ResourceConfig(
         )
         kwargs["uri"] = uri
         kwargs["api"] = api
-        kwargs["resource_args"].pop("ResourceConfig", None)
+        kwargs["resource_args"]["sagemaker"].pop("ResourceConfig", None)
 
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)
@@ -546,7 +550,7 @@ def test_no_RoleARN(
     monkeypatch.setattr(
         wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
     )
-    kwargs = json.loads(fixture_open("launch_sagemaker_config.json").read())
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
     with runner.isolated_filesystem():
         uri = "https://wandb.ai/mock_server_entity/test/runs/1"
         api = wandb.sdk.internal.internal_api.Api(
@@ -554,7 +558,7 @@ def test_no_RoleARN(
         )
         kwargs["uri"] = uri
         kwargs["api"] = api
-        kwargs["resource_args"].pop("RoleArn", None)
+        kwargs["resource_args"]["sagemaker"].pop("RoleArn", None)
 
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             launch.run(**kwargs)

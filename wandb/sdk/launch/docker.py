@@ -209,8 +209,8 @@ def build_docker_image_if_needed(
         sagemaker_line = "USER root\n"
     dockerfile_contents = (
         "FROM {imagename}\n"
-        # need to chown this directory for artifacts caching
         "{sagemaker_line}"
+        # need to chown this directory for artifacts caching
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
         "{copy_code_line}"
         "{requirements_line}"
