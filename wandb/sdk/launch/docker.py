@@ -129,7 +129,7 @@ COPY {requirements_files} .
 # this goes into requirements_section in TEMPLATE
 CONDA_TEMPLATE = """
 COPY src/environment.yml .
-RUN conda env create -f environment.yml -n env
+{buildx_optional_prefix} conda env create -f environment.yml -n env
 
 # pack the environment so that we can transfer to the base image
 RUN conda install -c conda-forge conda-pack
@@ -218,7 +218,6 @@ def get_requirements_section(launch_project):
 
         if docker.is_buildx_installed():
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
-
         else:
             wandb.termwarn(
                 "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
@@ -231,8 +230,14 @@ def get_requirements_section(launch_project):
             pip_install=pip_install_line,
         )
     elif launch_project.deps_type == "conda":
-        requirements_line = CONDA_TEMPLATE
-        # @@@ todo: buildkit?
+        if docker.is_buildx_installed():
+            prefix = "RUN --mount=type=cache,mode=0777,target=/opt/conda/pkgs"
+        else:
+            wandb.termwarn(
+                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+            )
+            prefix = "RUN WANDB_DISABLE_CACHE=true"
+        requirements_line = CONDA_TEMPLATE.format(buildx_optional_prefix=prefix)
 
     return requirements_line
 
