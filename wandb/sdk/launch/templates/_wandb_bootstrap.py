@@ -52,6 +52,7 @@ def install_deps(deps, failed=None):
         else:
             return failed
 
+
 def main():
     """Install deps in requirements.frozen.txt"""
     if os.path.exists("requirements.frozen.txt"):

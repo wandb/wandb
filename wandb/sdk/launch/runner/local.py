@@ -3,10 +3,10 @@ import os
 import re
 import signal
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import wandb
-from wandb.errors import CommError, LaunchError
+from wandb.errors import CommError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
@@ -84,7 +84,12 @@ class LocalRunner(AbstractRunner):
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            generate_docker_image(self._api, launch_project, image_uri, launch_project.get_single_entry_point())
+            generate_docker_image(
+                self._api,
+                launch_project,
+                image_uri,
+                launch_project.get_single_entry_point(),
+            )
 
             command_str = " ".join(get_docker_command(image_uri, docker_args))
             sanitized_command_str = re.sub(

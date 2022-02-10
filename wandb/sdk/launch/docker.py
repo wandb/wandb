@@ -1,13 +1,10 @@
 import json
 import logging
 import os
-from platform import python_build, python_version
-import re
 import shutil
-import subprocess
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Tuple
 
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -15,14 +12,10 @@ import pkg_resources
 from six.moves import shlex_quote
 import wandb
 from wandb.apis.internal import Api
-from wandb.cli.cli import launch
 import wandb.docker as docker
 from wandb.errors import DockerError, ExecutionError, LaunchError
-from wandb.util import get_module
-from yaspin import yaspin  # type: ignore
 
 from ._project_spec import (
-    create_metadata_file,
     DEFAULT_LAUNCH_METADATA_PATH,
     EntryPoint,
     get_entry_point_command,
@@ -47,7 +40,7 @@ def validate_docker_installation() -> None:
         )
 
 
-def get_docker_user(launch_project):
+def get_docker_user(launch_project: LaunchProject) -> Tuple[str, int]:
     import getpass
 
     username = getpass.getuser()
@@ -139,14 +132,14 @@ RUN /env/bin/conda-unpack
 """
 
 
-def get_current_python_version():
+def get_current_python_version() -> Tuple[str, str]:
     full_version = sys.version.split()[0].split(".")
     major = full_version[0]
     version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
     return version, major
 
 
-def get_base_setup(launch_project, py_version, py_major):
+def get_base_setup(launch_project: LaunchProject, py_version: str, py_major: str) -> str:
     """Fill in the Dockerfile templates for stage 2 of build. CPU version is built on python:slim, GPU
     version is built on nvidia:cuda"""
 
@@ -176,13 +169,11 @@ def get_base_setup(launch_project, py_version, py_major):
             "python3-dev" if py_major == "3" else "python-dev",
             "gcc",
         ]  # gcc required for python < 3.7 for some reason
-        base_setup = PYTHON_SETUP_TEMPLATE.format(
-            py_base_image=python_base_image
-        )
+        base_setup = PYTHON_SETUP_TEMPLATE.format(py_base_image=python_base_image)
     return base_setup
 
 
-def get_env_vars_section(launch_project, api, workdir):
+def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) -> str:
     """Fill in wandb-specific environment variables"""
 
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
@@ -206,14 +197,19 @@ def get_env_vars_section(launch_project, api, workdir):
     )
 
 
-def get_requirements_section(launch_project):
+def get_requirements_section(launch_project: LaunchProject) -> str:
     if launch_project.deps_type == "pip":
         requirements_files = ["src/requirements.txt"]
         pip_install_line = "pip install -r requirements.txt"
-        if os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
+        if os.path.exists(
+            os.path.join(launch_project.project_dir, "requirements.frozen.txt")
+        ):
             # if we have frozen requirements stored, copy those over and have them take precedence
             requirements_files += ["src/requirements.frozen.txt", "_wandb_bootstrap.py"]
-            pip_install_line = _parse_existing_requirements(launch_project) + "python _wandb_bootstrap.py"
+            pip_install_line = (
+                _parse_existing_requirements(launch_project)
+                + "python _wandb_bootstrap.py"
+            )
 
         if docker.is_buildx_installed():
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
@@ -241,7 +237,7 @@ def get_requirements_section(launch_project):
     return requirements_line
 
 
-def generate_dockerfile(api, launch_project, entrypoint):
+def generate_dockerfile(api: Api, launch_project: LaunchProject, entrypoint: EntryPoint) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
         spl = launch_project.python_version.split(".")[:2]
@@ -249,15 +245,21 @@ def generate_dockerfile(api, launch_project, entrypoint):
     else:
         py_version, py_major = get_current_python_version()
 
-    ##### stage 1: build
+    # ----- stage 1: build -----
     if launch_project.deps_type == "pip":
-        python_build_image = "python:{}".format(py_version)     # use full python image for package installation
+        python_build_image = "python:{}".format(
+            py_version
+        )  # use full python image for package installation
     elif launch_project.deps_type == "conda":
         # neither of these images are receiving regular updates, latest should be pretty stable
-        python_build_image = "continuumio/miniconda3:latest" if py_major == "3" else "continuumio/miniconda:latest"
+        python_build_image = (
+            "continuumio/miniconda3:latest"
+            if py_major == "3"
+            else "continuumio/miniconda:latest"
+        )
     requirements_section = get_requirements_section(launch_project)
 
-    ##### stage 2: base
+    # ----- stage 2: base -----
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
 
     # set up user info
@@ -269,7 +271,9 @@ def generate_dockerfile(api, launch_project, entrypoint):
 
     # put together entrypoint & args
     # json format to ensure argslist is formatted with double quotes
-    entry_cmd = json.dumps(get_entry_point_command(entrypoint, launch_project.override_args)[0].split())
+    entry_cmd = json.dumps(
+        get_entry_point_command(entrypoint, launch_project.override_args)[0].split()
+    )
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -285,7 +289,7 @@ def generate_dockerfile(api, launch_project, entrypoint):
     return dockerfile_contents
 
 
-def generate_docker_image(api, launch_project, image_uri, entrypoint):
+def generate_docker_image(api: Api, launch_project: LaunchProject, image_uri: str, entrypoint: EntryPoint) -> str:
     dockerfile_str = generate_dockerfile(api, launch_project, entrypoint)
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
@@ -304,7 +308,9 @@ def generate_docker_image(api, launch_project, image_uri, entrypoint):
         )
     return image
 
+
 _inspected_images = {}
+
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,

@@ -74,7 +74,7 @@ class LaunchProject(object):
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.resource = resource
         self.resource_args = resource_args
-        self.deps_type = None
+        self.deps_type: Optional[str] = None
         self.cuda = cuda
         self._runtime: Optional[str] = None
         self._dockerfile_contents: Optional[str] = None
@@ -400,11 +400,14 @@ def fetch_and_validate_project(
 
     # this prioritizes pip and we don't support any cases where both are present
     # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
-    if os.path.exists(os.path.join(launch_project.project_dir, "requirements.txt")) or os.path.exists(os.path.join(launch_project.project_dir, "requirements.frozen.txt")):
+    if os.path.exists(
+        os.path.join(launch_project.project_dir, "requirements.txt")
+    ) or os.path.exists(
+        os.path.join(launch_project.project_dir, "requirements.frozen.txt")
+    ):
         launch_project.deps_type = "pip"
     elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
         launch_project.deps_type = "conda"
-
 
     first_entry_point = list(launch_project._entry_points.keys())[0]
     _logger.info("validating entrypoint parameters")
