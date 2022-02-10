@@ -1551,19 +1551,11 @@ class Api:
         return path, response
 
     def upload_file_azure(self, url, file, extra_headers):
-        from azure.core.exceptions import HttpResponseError
-        from azure.core.pipeline.policies import HTTPPolicy
+        from azure.core.exceptions import AzureError
 
-        # Disable retries
-        class NoRetry(HTTPPolicy):
-            def send(self, request):
-                return self.next.send(request)
-
-            def increment(self, *args, **kwargs):
-                return 0
-
+        # Configure the client without retries so our existing logic can handle them
         client = self._azure_blob_module.BlobClient.from_blob_url(
-            url, retry_policy=NoRetry()
+            url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=0)
         )
         try:
             if extra_headers.get("Content-MD5") is not None:
@@ -1580,12 +1572,15 @@ class Api:
                 overwrite=True,
                 content_settings=content_settings,
             )
-        except HttpResponseError as e:
-            response = requests.model.Response()
-            response.status_code = e.response.status_code
-            response.headers = e.response.headers
-            response.raw = e.response.internal_response
-            raise requests.exceptions.RequestException(e.message, response=response)
+        except AzureError as e:
+            if hasattr(e, "response"):
+                response = requests.model.Response()
+                response.status_code = e.response.status_code
+                response.headers = e.response.headers
+                response.raw = e.response.internal_response
+                raise requests.exceptions.RequestException(e.message, response=response)
+            else:
+                raise requests.exceptions.ConnectionError(e.message)
 
     def upload_file(self, url, file, callback=None, extra_headers={}):
         """Uploads a file to W&B with failure resumption
