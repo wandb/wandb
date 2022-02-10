@@ -28,6 +28,7 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
+API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
@@ -57,6 +58,10 @@ def _is_wandb_local_uri(uri: str) -> bool:
 
 def _is_git_uri(uri: str) -> bool:
     return bool(_GIT_URI_REGEX.match(uri))
+
+
+def sanitize_wandb_api_key(str: str) -> str:
+    return re.sub(re.sub(API_KEY_REGEX, "WANDB_API_KEY", str))
 
 
 def set_project_entity_defaults(

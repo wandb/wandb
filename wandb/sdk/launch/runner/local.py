@@ -12,14 +12,17 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
 from ..docker import (
     construct_local_image_uri,
+    docker_image_inspect,
     generate_docker_image,
     get_docker_command,
+    get_full_command,
     pull_docker_image,
     validate_docker_installation,
 )
 from ..utils import (
     PROJECT_DOCKER_ARGS,
     PROJECT_SYNCHRONOUS,
+    sanitize_wandb_api_key,
 )
 
 
@@ -76,24 +79,36 @@ class LocalRunner(AbstractRunner):
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
+        entry_point = launch_project.get_single_entry_point()
 
         if launch_project.docker_image:
             # user has provided their own docker image
             _logger.info("Pulling user provided docker image")
             pull_docker_image(launch_project.docker_image)
+
+            wandb.termwarn(
+                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
+                    launch_project.docker_image
+                )
+            )
+
+            command_args = get_full_command(
+                launch_project.docker_image,
+                launch_project,
+                self._api,
+                docker_image_inspect(launch_project.docker_image)[
+                    "ContainerConfig"
+                ].get("WorkingDir", "/"),
+                docker_args,
+                entry_point,
+            )
+            command_str = " ".join(command_args)
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            generate_docker_image(
-                self._api,
-                launch_project,
-                image_uri,
-                launch_project.get_single_entry_point(),
-            )
-
             command_str = " ".join(get_docker_command(image_uri, docker_args))
-            sanitized_command_str = re.sub(
-                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            generate_docker_image(
+                self._api, launch_project, image_uri, entry_point, command_str,
             )
 
         if self.backend_config.get("runQueueItemId"):
@@ -109,7 +124,9 @@ class LocalRunner(AbstractRunner):
                 return None
 
         wandb.termlog(
-            "Launching run in docker with command: {}".format(sanitized_command_str)
+            "Launching run in docker with command: {}".format(
+                sanitize_wandb_api_key(command_str)
+            )
         )
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
