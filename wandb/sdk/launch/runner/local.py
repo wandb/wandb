@@ -11,13 +11,8 @@ from wandb.errors import CommError, LaunchError
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
 from ..docker import (
-    build_docker_image_if_needed,
     construct_local_image_uri,
-    docker_image_exists,
-    docker_image_inspect,
-    generate_docker_base_image,
-    generate_base_image_no_r2d,
-    get_full_command,
+    generate_docker_image,
     get_docker_command,
     pull_docker_image,
     validate_docker_installation,
@@ -89,7 +84,7 @@ class LocalRunner(AbstractRunner):
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            generate_base_image_no_r2d(self._api, launch_project, image_uri, launch_project.get_single_entry_point())
+            generate_docker_image(self._api, launch_project, image_uri, launch_project.get_single_entry_point())
 
             command_str = " ".join(get_docker_command(image_uri, docker_args))
             sanitized_command_str = re.sub(

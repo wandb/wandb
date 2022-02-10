@@ -106,7 +106,6 @@ FROM {cuda_base_image} as base
 RUN apt-get update -qq && apt-get install -y software-properties-common && add-apt-repository -y ppa:deadsnakes/ppa
 
 # install python
-# todo support runtime.txt, setup.py
 RUN apt-get update -qq && apt-get install --no-install-recommends -y \
     {python_packages} \
     && apt-get -qq purge && apt-get -qq clean \
@@ -282,12 +281,11 @@ def generate_dockerfile(api, launch_project, entrypoint):
         env_vars=env_vars_section,
         command_arr=entry_cmd,
     )
-    print(dockerfile_contents)  # tmp
 
     return dockerfile_contents
 
 
-def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):     # @@@ todo: rename this fn
+def generate_docker_image(api, launch_project, image_uri, entrypoint):
     dockerfile_str = generate_dockerfile(api, launch_project, entrypoint)
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
     dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
@@ -306,58 +304,7 @@ def generate_base_image_no_r2d(api, launch_project, image_uri, entrypoint):     
         )
     return image
 
-
-def generate_docker_base_image(     # @@@ todo: delete
-    launch_project: LaunchProject, entry_cmd: str
-) -> Optional[str]:
-    """Uses project and entry point to generate the docker image."""
-    path = launch_project.project_dir
-
-    # this check will always pass since the dir attribute will always be populated
-    # by _fetch_project_local
-    _logger.info("Importing repo2docker...")
-    get_module(
-        "repo2docker",
-        required='wandb launch requires additional dependencies, install with pip install "wandb[launch]"',
-    )
-    assert isinstance(path, str)
-    _logger.info("Running repo2docker...")
-    cmd: Sequence[str] = [
-        "jupyter-repo2docker",
-        "--no-run",
-        "--image-name={}".format(launch_project.base_image),
-        "--user-id={}".format(launch_project.docker_user_id),
-        path,
-        '"{}"'.format(entry_cmd),
-    ]
-
-    _logger.info(
-        "Generating docker base image from git repo or finding image if it already exists..."
-    )
-    build_log = os.path.join(launch_project.project_dir, "build.log")
-    _logger.info(f"Build log found at: {build_log}")
-    with yaspin(
-        text="Generating docker base image {}, this may take a few minutes...".format(
-            launch_project.base_image
-        )
-    ).bouncingBar.blue as spinner:
-        with open(build_log, "w") as f:
-            process = subprocess.Popen(cmd, stdout=f, stderr=f)
-            res = process.wait()
-            if res == 0:
-                spinner.text = "Generated docker base image {}".format(
-                    launch_project.base_image
-                )
-                spinner.ok("✅ ")
-            else:
-                spinner.text = "Detailed error logs: {}".format(build_log)
-                spinner.fail("💥 ")
-                return None
-    return launch_project.base_image
-
-
 _inspected_images = {}
-
 
 def docker_image_exists(docker_image: str, should_raise: bool = False) -> bool:
     """Checks if a specific image is already available,
@@ -409,128 +356,6 @@ def construct_gcp_image_uri(
 ) -> str:
     base_uri = construct_local_image_uri(launch_project)
     return "/".join([gcp_registry, gcp_project, gcp_repo, base_uri])
-
-
-def build_docker_image_if_needed(
-    launch_project: LaunchProject,
-    api: Api,
-    copy_code: bool,
-    workdir: str,
-    container_env: List[str],
-    runner_type: str,
-    image_uri: str,
-    command_args: List[str],
-) -> str:
-    """
-    Build a docker image containing the project in `work_dir`, using the base image.
-    param launch_project: LaunchProject class instance
-    :param api: instance of wandb.apis.internal Api
-    :param copy_code: boolean indicating if code should be copied into the docker container
-    """
-
-    launch_project.docker_image = image_uri
-    if docker_image_exists(image_uri) and not launch_project.build_image:
-        wandb.termlog("Using existing image: {}".format(image_uri))
-        return image_uri
-    copy_code_line = ""
-    requirements_line = ""
-    # TODO: we currently assume the home directory holds the pip cache
-    homedir = workdir
-    # for custom base_images we attempt to introspect the homedir
-    for env in container_env:
-        if env.startswith("HOME="):
-            homedir = env.split("=", 1)[1]
-    if copy_code:
-        copy_code_line = "COPY --chown={} ./src/ {}\n".format(
-            launch_project.docker_user_id, workdir
-        )
-        if docker.is_buildx_installed():
-            requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
-                homedir, launch_project.docker_user_id
-            )
-        else:
-            wandb.termwarn(
-                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-            )
-            requirements_line = "RUN WANDB_DISABLE_CACHE=true "
-        shutil.copy(
-            os.path.join(os.path.dirname(__file__), "templates", "_wandb_bootstrap.py"),
-            os.path.join(launch_project.project_dir),
-        )
-        # TODO: make this configurable or change the default behavior...
-        requirements_line += _parse_existing_requirements(launch_project)
-        requirements_line += "python _wandb_bootstrap.py\n"
-
-    name_line = ""
-    if launch_project.name:
-        name_line = "ENV WANDB_NAME={wandb_name}\n"
-    dockerfile_contents = (
-        "FROM {imagename}\n"
-        # need to chown this directory for artifacts caching
-        "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
-        "{copy_code_line}"
-        "{requirements_line}"
-        "{name_line}"
-    ).format(
-        imagename=launch_project.base_image,
-        uid=launch_project.docker_user_id,
-        homedir=homedir,
-        copy_code_line=copy_code_line,
-        requirements_line=requirements_line,
-        name_line=name_line,
-    )
-
-    # add env vars
-    if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
-        _, _, port = _, _, port = api.settings("base_url").split(":")
-        base_url = "http://host.docker.internal:{}".format(port)
-    elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
-    else:
-        base_url = api.settings("base_url")
-    env_vars = "\n".join(
-        [
-            f"ENV WANDB_BASE_URL={base_url}",
-            f"ENV WANDB_API_KEY={api.api_key}",
-            f"ENV WANDB_PROJECT={launch_project.target_project}",
-            f"ENV WANDB_ENTITY={launch_project.target_entity}",
-            f"ENV WANDB_LAUNCH={True}",
-            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir, DEFAULT_LAUNCH_METADATA_PATH)}",
-            f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
-            f"ENV WANDB_DOCKER={launch_project.docker_image}",
-        ]
-    )
-    dockerfile_contents += env_vars + "\n"
-
-    sanitized_dockerfile_contents = re.sub(
-        API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents
-    )
-    command_string = " ".join(command_args)
-    sanitized_command_string = re.sub(API_KEY_REGEX, "WANDB_API_KEY", command_string)
-    create_metadata_file(
-        launch_project, sanitized_command_string, sanitized_dockerfile_contents
-    )
-
-    build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_contents)
-
-    _logger.info("=== Building docker image %s ===", image_uri)
-
-    dockerfile = os.path.join(build_ctx_path, _GENERATED_DOCKERFILE_NAME)
-    wandb.termlog("Generating launch image {}".format(image_uri))
-    try:
-        image = docker.build(
-            tags=[image_uri], file=dockerfile, context_path=build_ctx_path
-        )
-    except DockerError as e:
-        raise LaunchError("Error communicating with docker client: {}".format(e))
-
-    try:
-        os.remove(build_ctx_path)
-    except Exception:
-        _logger.info(
-            "Temporary docker context file %s was not deleted.", build_ctx_path
-        )
-    return image
 
 
 def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
