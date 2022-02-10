@@ -155,6 +155,7 @@ def check_run(api: Api) -> bool:
         wandb.save(filepath)
     public_api = wandb.Api()
     prev_run = public_api.run("{}/{}/{}".format(entity, PROJECT_NAME, run_id))
+    # raise Exception(prev_run.__dict__)
     if prev_run is None:
         failed_test_strings.append(
             "Failed to access run through API. Contact W&B for support."
@@ -332,15 +333,13 @@ def check_artifacts() -> bool:
     if not cont_test or download_artifact is None:
         print_results(failed_test_strings, False)
         return False
-    if set(os.listdir(multi_art_dir)) != set(
-        [
+    if set(os.listdir(multi_art_dir)) != {
             "verify_a.txt",
             "verify_2.txt",
             "verify_1.txt",
             "verify_3.txt",
             "verify_int_test.txt",
-        ]
-    ):
+    }:
         failed_test_strings.append(
             "Artifact directory is missing files. Contact W&B for support."
         )
@@ -455,7 +454,7 @@ def check_wandb_version(api: Api) -> None:
     fail_string = None
     warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
-    min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", None)
+    min_cli_version = server_info.get("cliVersionInfo", {}).get("min_cli_version", "0.0.1")
     if parse_version(wandb.__version__) < parse_version(min_cli_version):
         fail_string = "wandb version out of date, please run pip install --upgrade wandb=={}".format(
             max_cli_version
@@ -463,8 +462,8 @@ def check_wandb_version(api: Api) -> None:
     elif parse_version(wandb.__version__) > parse_version(max_cli_version):
         fail_string = (
             "wandb version is not supported by your local installation. This could "
-            "cause some issues. If you're having problems try: please run pip "
-            "install --upgrade wandb=={}".format(max_cli_version)
+            "cause some issues. If you're having problems try: please run `pip "
+            f"install --upgrade wandb=={max_cli_version}`"
         )
         warning = True
 

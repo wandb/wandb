@@ -1,3 +1,4 @@
+import time
 from unittest import mock
 
 import wandb
@@ -44,3 +45,46 @@ def test_check_secure_requests(capsys):
     captured = capsys.readouterr().out
     assert u"\u2705" in captured
     assert u"\u274C" in captured
+
+
+def test_check_cors_configuration(live_mock_server, test_settings, capsys):
+    wandb_verify.check_cors_configuration(
+        test_settings.base_url,
+        "localhost",
+    )
+    captured = capsys.readouterr().out
+    assert u"\u274C" in captured
+
+
+def test_check_wandb_version(live_mock_server, capsys):
+    wandb_verify.check_wandb_version(InternalApi())
+    captured = capsys.readouterr().out
+    assert u"\u274C" not in captured
+
+
+def test_retry_fn():
+    i = 0
+
+    def fn():
+        nonlocal i
+        if i < 1:
+            i += 1
+            raise Exception("test")
+        return "test"
+
+    result = wandb_verify.retry_fn(fn)
+    assert result == "test"
+
+    j = 0
+
+    def fn2():
+        nonlocal j
+        if j == 0:
+            time.sleep(10)
+        if j < 4:  # retry 4 times
+            j += 1
+            raise Exception("test")
+        return "test"
+
+    result = wandb_verify.retry_fn(fn2)
+    assert result is None
