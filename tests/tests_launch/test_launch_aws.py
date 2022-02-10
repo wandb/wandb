@@ -449,6 +449,35 @@ def test_aws_fail_build(
         assert str(e_info.value) == "Unable to build base image"
 
 
+def test_no_sagemaker_resource_args(
+    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    monkeypatch.setattr(boto3, "client", mock_boto3_client)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.aws, "aws_ecr_login", lambda x, y: "Login Succeeded\n"
+    )
+    monkeypatch.setattr(
+        wandb.docker, "push", lambda x, y: f"The push refers to repository [{x}]"
+    )
+    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
+    with runner.isolated_filesystem():
+        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+        api = wandb.sdk.internal.internal_api.Api(
+            default_settings=test_settings, load_settings=False
+        )
+        kwargs["uri"] = uri
+        kwargs["api"] = api
+        kwargs["resource_args"].pop("sagemaker", None)
+        with pytest.raises(wandb.errors.LaunchError) as e_info:
+            launch.run(**kwargs)
+        assert (
+            str(e_info.value)
+            == "No sagemaker args specified. Specify sagemaker args in resource_args"
+        )
+
+
 def test_no_OuputDataConfig(
     runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
