@@ -224,7 +224,7 @@ def test_sagemaker_specified_image(
     run = launch.run(**kwargs)
     stderr = capsys.readouterr().err
     assert (
-        "Using user provided ECR image, this image will not be able to swap artifacts"
+        "Launching sagemaker job with user provided ECR image, this image will not be able to swap artifacts"
         in stderr
     )
     assert run.training_job_name == "test-job-1"
@@ -503,7 +503,7 @@ def test_no_OuputDataConfig(
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "Sagemaker launcher requires an OutputDataConfig resource argument"
+            == "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
         )
 
 
@@ -533,7 +533,7 @@ def test_no_StoppingCondition(
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "Sagemaker launcher requires a StoppingCondition resource argument"
+            == "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
 
 
@@ -563,7 +563,7 @@ def test_no_ResourceConfig(
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "Sagemaker launcher requires a ResourceConfig resource argument"
+            == "Sagemaker launcher requires a ResourceConfig Sagemaker resource argument"
         )
 
 
@@ -593,5 +593,6 @@ def test_no_RoleARN(
             launch.run(**kwargs)
         assert (
             str(e_info.value)
-            == "AWS sagemaker require a string RoleArn set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+            == "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
+            "field of resource_args"
         )
