@@ -50,6 +50,7 @@ API_KEY = "WANDB_API_KEY"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
 DISABLE_GIT = "WANDB_DISABLE_GIT"
+GIT_ROOT = "WANDB_GIT_ROOT"
 SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
@@ -321,6 +322,13 @@ def get_agent_max_initial_failures(default=None, env=None):
         val = int(val)
     except ValueError:
         val = default
+    return val
+
+
+def get_git_root(default=None, env=None):
+    if env is None:
+        env = os.environ
+    val = env.get(GIT_ROOT, default)
     return val
 
 

@@ -40,6 +40,7 @@ class Meta(object):
         self.fname = os.path.join(self._settings.files_dir, METADATA_FNAME)
         self._interface = interface
         self._git = GitRepo(
+            root=self._settings["git_root"],
             remote=self._settings["git_remote"]
             if "git_remote" in self._settings.keys()
             else "origin"
