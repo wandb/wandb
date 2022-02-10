@@ -407,7 +407,7 @@ class Settings:
     program: str
     program_relpath: str
     project: str
-    # project_url: str
+    project_url: str
     quiet: bool
     reinit: bool
     relogin: bool
@@ -421,7 +421,7 @@ class Settings:
     run_name: str
     run_notes: str
     run_tags: Tuple[str]
-    # run_url: str
+    run_url: str
     sagemaker_disable: bool
     save_code: bool
     settings_system: str
@@ -438,7 +438,7 @@ class Settings:
     summary_warnings: int
     sweep_id: str
     sweep_param_path: str
-    # sweep_url: str
+    sweep_url: str
     symlink: bool
     sync_dir: str
     sync_file: str
@@ -513,7 +513,10 @@ class Settings:
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
             project={"validator": self._validate_project},
-            # project_url={"hook": lambda x: self._project_url()},
+            project_url={
+                "value": "<project-url>",
+                "hook": lambda x: self._project_url(),
+            },
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
@@ -525,7 +528,7 @@ class Settings:
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            # run_url={"hook": lambda x: self._run_url()},
+            run_url={"value": "<run-url>", "hook": lambda x: self._run_url()},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool, "is_policy": True},
             settings_system={
@@ -571,7 +574,7 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
-            # sweep_url={"hook": lambda x: self._sweep_url()},
+            sweep_url={"value": "<sweep-url>", "hook": lambda x: self._sweep_url()},
             tmp_dir={
                 "value": "tmp",
                 "hook": lambda x: (
@@ -702,8 +705,7 @@ class Settings:
         app_url = wandb.util.app_url(self.base_url)
         return f"{app_url}/{quote(self.entity)}/{quote(self.project)}"
 
-    @property
-    def project_url(self) -> str:
+    def _project_url(self) -> str:
         project_url = self._project_url_base()
         if not project_url:
             return ""
@@ -712,8 +714,7 @@ class Settings:
 
         return f"{project_url}{query}"
 
-    @property
-    def run_url(self) -> str:
+    def _run_url(self) -> str:
         project_url = self._project_url_base()
         if not all([project_url, self.run_id]):
             return ""
@@ -721,20 +722,19 @@ class Settings:
         query = self._get_url_query_string()
         return f"{project_url}/runs/{quote(self.run_id)}{query}"
 
-    @property
-    def sweep_url(self) -> str:
+    def _start_run(self) -> None:
+        time_stamp: float = time.time()
+        datetime_now: datetime = datetime.fromtimestamp(time_stamp)
+        object.__setattr__(self, "_Settings_start_datetime", datetime_now)
+        object.__setattr__(self, "_Settings_start_time", time_stamp)
+
+    def _sweep_url(self) -> str:
         project_url = self._project_url_base()
         if not all([project_url, self.sweep_id]):
             return ""
 
         query = self._get_url_query_string()
         return f"{project_url}/sweeps/{quote(self.sweep_id)}{query}"
-
-    def _start_run(self) -> None:
-        time_stamp: float = time.time()
-        datetime_now: datetime = datetime.fromtimestamp(time_stamp)
-        object.__setattr__(self, "_Settings_start_datetime", datetime_now)
-        object.__setattr__(self, "_Settings_start_time", time_stamp)
 
     def __init__(self, **kwargs: Any) -> None:
         self.__frozen: bool = False
@@ -755,7 +755,7 @@ class Settings:
         # Init instance attributes as Property objects.
         # Type hints of class attributes are used to generate a type validator function
         # for runtime checks for each attribute.
-        # These are defaults, using Source.BASE for non-policy attributes and Source.ARGS for policies.
+        # These are defaults, using Source.BASE for non-policy attributes and Source.RUN for policies.
         for prop, type_hint in get_type_hints(Settings).items():
             validators = [self._validator_factory(type_hint)]
 
@@ -774,7 +774,7 @@ class Settings:
                         **default_props[prop],
                         validator=validators,
                         # todo: double-check this logic:
-                        source=Source.ARGS
+                        source=Source.RUN
                         if default_props[prop].get("is_policy", False)
                         else Source.BASE,
                     ),
@@ -810,7 +810,7 @@ class Settings:
 
         for k, v in kwargs.items():
             # todo: double-check this logic:
-            source = Source.ARGS if self.__dict__[k].is_policy else Source.BASE
+            source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
             self.update({k: v}, source=source)
 
         # setup private attributes

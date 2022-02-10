@@ -41,7 +41,7 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_start(self, settings: "Settings", run_id: str) -> None:
         inform_start = spb.ServerInformStartRequest()
-        settings_dict = settings.make_static(include_properties=False)
+        settings_dict = settings.make_static(include_properties=True)
         _pbmap_apply_dict(inform_start._settings_map, settings_dict)
 
         inform_start._info.stream_id = run_id

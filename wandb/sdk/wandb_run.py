@@ -2344,6 +2344,8 @@ class Run:
     # ------------------------------------------------------------------------------
     # HEADER
     # ------------------------------------------------------------------------------
+    # Note: All the header methods are static methods since we want to share the printing logic
+    # with the service execution path that doesn't have acess to the run instance
     @staticmethod
     def _header(
         check_version: Optional["CheckVersionResponse"] = None,
@@ -2474,7 +2476,8 @@ class Run:
     # ------------------------------------------------------------------------------
     # FOOTER
     # ------------------------------------------------------------------------------
-
+    # Note: All the footer methods are static methods since we want to share the printing logic
+    # with the service execution path that doesn't have acess to the run instance
     @staticmethod
     def _footer(
         sampled_history: Optional["SampledHistoryResponse"] = None,
@@ -2532,7 +2535,7 @@ class Run:
         ]
 
         if not settings._offline and exit_code:
-            info.append("Press ctrl-c to abort syncing.")
+            info.append(f"Press {printer.abort} to abort syncing.")
 
         printer.display(f'{" ".join(info)}')
 

@@ -130,11 +130,12 @@ message ServerRequest {
     Record record_publish = 1;
     Record record_communicate = 2;
     ServerInformInitRequest inform_init = 3;
-    ServerInformStartRequest inform_start = 4;
-    ServerInformFinishRequest inform_finish = 5;
-    ServerInformAttachRequest inform_attach = 6;
-    ServerInformDetachRequest inform_detach = 7;
-    ServerInformTeardownRequest inform_teardown = 8;
+    ServerInformFinishRequest inform_finish = 4;
+    ServerInformAttachRequest inform_attach = 5;
+    ServerInformDetachRequest inform_detach = 6;
+    ServerInformTeardownRequest inform_teardown = 7;
+    ServerInformStartRequest inform_start = 8;
+
   }
 }
 
@@ -142,10 +143,11 @@ message ServerResponse {
   oneof server_response_type {
     Result result_communicate = 2;
     ServerInformInitResponse inform_init_response = 3;
-    ServerInformStartResponse inform_start_response = 4;
-    ServerInformFinishResponse inform_finish_response = 5;
-    ServerInformAttachResponse inform_attach_response = 6;
-    ServerInformDetachResponse inform_detach_response = 7;
-    ServerInformTeardownResponse inform_teardown_response = 8;
+    ServerInformFinishResponse inform_finish_response = 4;
+    ServerInformAttachResponse inform_attach_response = 5;
+    ServerInformDetachResponse inform_detach_response = 6;
+    ServerInformTeardownResponse inform_teardown_response = 7;
+    ServerInformStartResponse inform_start_response = 8;
+
   }
 }

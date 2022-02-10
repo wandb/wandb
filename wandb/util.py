@@ -1033,10 +1033,7 @@ def class_colors(class_count: int) -> List[List[int]]:
     ]
 
 
-def _prompt_choice(
-    input_timeout: int = None,
-    jupyter: bool = False,
-) -> str:
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
     input_fn: Callable = input
     prompt = term.LOG_STRING
     if input_timeout is not None:
@@ -1057,9 +1054,7 @@ def _prompt_choice(
 
 
 def prompt_choices(
-    choices: Sequence[str],
-    input_timeout: int = None,
-    jupyter: bool = False,
+    choices: Sequence[str], input_timeout: int = None, jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):

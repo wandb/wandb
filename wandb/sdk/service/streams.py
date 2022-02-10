@@ -16,9 +16,11 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.printer import get_printer
 from wandb.sdk.wandb_run import Run
-from wandb.sdk.wandb_settings import Settings
+
+# from wandb.sdk.wandb_settings import Settings
 
 from ..interface.interface_relay import InterfaceRelay
 
@@ -44,9 +46,9 @@ class StreamRecord:
     _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    _settings: Settings
+    _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Dict[str, Any]) -> None:
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         self._relay_q = multiprocessing.Queue()
@@ -58,6 +60,7 @@ class StreamRecord:
             process=process,
             process_check=False,
         )
+        self._settings = SettingsStatic(settings)
 
     def start_thread(self, thread: StreamThread) -> None:
         self._thread = thread
@@ -85,8 +88,9 @@ class StreamRecord:
         return self._iface
 
     def update(self, settings: Dict[str, Any]) -> None:
-        self._settings = Settings()
-        self._settings.update(settings)
+        # Note: Currently just overriding the _settings attribute
+        # once we use Settings Class we might want to properly update it
+        self._settings = SettingsStatic(settings)
 
 
 class StreamAction:
@@ -183,10 +187,14 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord()
+        stream = StreamRecord(action._data)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings_dict = action._data
-        settings_dict["_log_level"] = logging.DEBUG
+        settings_dict[
+            "_log_level"
+        ] = (
+            logging.DEBUG
+        )  # Note: not including this in the stream's settings to try and keep only Settings arguments
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
