@@ -328,17 +328,17 @@ def build_sagemaker_args(
     sagemaker_args.pop("EcrRepoName", None)
     if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
-            "Sagemaker launcher requires an OutputDataConfig resource argument"
+            "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
         )
 
     if sagemaker_args.get("ResourceConfig") is None:
         raise LaunchError(
-            "Sagemaker launcher requires a ResourceConfig resource argument"
+            "Sagemaker launcher requires a ResourceConfig Sagemaker resource argument"
         )
 
     if sagemaker_args.get("StoppingCondition") is None:
         raise LaunchError(
-            "Sagemaker launcher requires a StoppingCondition resource argument"
+            "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
 
     # clear the args that are None so they are not passed
