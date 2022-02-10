@@ -70,7 +70,7 @@ def _run(
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
     runner_config[PROJECT_DOCKER_ARGS] = docker_args
-
+    print(resource)
     backend = loader.load_backend(resource, api, runner_config)
     if backend:
         submitted_run = backend.run(launch_project)

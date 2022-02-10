@@ -168,7 +168,6 @@ class AWSSagemakerRunner(AbstractRunner):
             if not docker_image_exists(launch_project.base_image):
                 if generate_docker_base_image(launch_project, entry_cmd) is None:
                     raise LaunchError("Unable to build base image")
-                copy_code = False
             else:
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
