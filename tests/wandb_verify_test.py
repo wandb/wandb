@@ -49,8 +49,7 @@ def test_check_secure_requests(capsys):
 
 def test_check_cors_configuration(live_mock_server, test_settings, capsys):
     wandb_verify.check_cors_configuration(
-        test_settings.base_url,
-        "localhost",
+        test_settings.base_url, "localhost",
     )
     captured = capsys.readouterr().out
     assert u"\u274C" in captured
