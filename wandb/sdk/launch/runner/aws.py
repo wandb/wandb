@@ -100,7 +100,9 @@ class AWSSagemakerRunner(AbstractRunner):
             is None
         ):
             raise LaunchError(
-                "Sagemaker jobs require an ecr repository name, set this using `resource_args ecr_repo_name=<ecr_repo_name>`"
+                "AWS sagemaker requires an ECR Repo to push the container to "
+                "set this by adding a `EcrRepoName` key to the sagemaker"
+                "field of resource_args"
             )
 
         region = get_region(given_sagemaker_args)
@@ -118,7 +120,7 @@ class AWSSagemakerRunner(AbstractRunner):
             is not None
         ):
             wandb.termwarn(
-                "Using user provided ECR image, this image will not be able to swap artifacts"
+                "Launching sagemaker job with user provided ECR image, this image will not be able to swap artifacts"
             )
             sagemaker_client = boto3.client(
                 "sagemaker",
@@ -365,14 +367,14 @@ def launch_sagemaker_job(
     return run
 
 
-def get_region(resource_args: Dict[str, Any]) -> str:
-    region = resource_args.get("region")
+def get_region(sagemaker_args: Dict[str, Any]) -> str:
+    region = sagemaker_args.get("region")
     if region is None:
         region = os.environ.get("AWS_DEFAULT_REGION")
     if region is None and os.path.exists(os.path.expanduser("~/.aws/config")):
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/config"))
-        section = resource_args.get("profile") or "default"
+        section = sagemaker_args.get("profile") or "default"
         try:
             region = config.get(section, "region")
         except (configparser.NoOptionError, configparser.NoSectionError):
@@ -390,7 +392,7 @@ def get_region(resource_args: Dict[str, Any]) -> str:
     return region
 
 
-def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
+def get_aws_credentials(sagemaker_args: Dict[str, Any]) -> Tuple[str, str]:
     access_key = os.environ.get("AWS_ACCESS_KEY_ID")
     secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
     if (
@@ -398,7 +400,7 @@ def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
         or secret_key is None
         and os.path.exists(os.path.expanduser("~/.aws/credentials"))
     ):
-        profile = resource_args.get("profile") or "default"
+        profile = sagemaker_args.get("profile") or "default"
         config = configparser.ConfigParser()
         config.read(os.path.expanduser("~/.aws/credentials"))
         try:
@@ -417,11 +419,12 @@ def get_aws_credentials(resource_args: Dict[str, Any]) -> Tuple[str, str]:
     return access_key, secret_key
 
 
-def get_role_arn(resource_args: Dict[str, Any], account_id: str) -> str:
-    role_arn = resource_args.get("RoleArn") or resource_args.get("role_arn")
+def get_role_arn(sagemaker_args: Dict[str, Any], account_id: str) -> str:
+    role_arn = sagemaker_args.get("RoleArn") or sagemaker_args.get("role_arn")
     if role_arn is None or not isinstance(role_arn, str):
         raise LaunchError(
-            "AWS sagemaker require a string RoleArn set this using `resource_args RoleArn=<role_arn>` or `resource_args role_arn=<role_arn>`"
+            "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
+            "field of resource_args"
         )
     if role_arn.startswith("arn:aws:iam::"):
         return role_arn
