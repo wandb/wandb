@@ -255,7 +255,7 @@ class StreamMux:
             summary = (
                 stream.interface.communicate_get_summary() if stream.interface else None
             )
-            Run.footer(
+            Run._footer(
                 history,
                 summary,
                 poll_exit_responses[sid],

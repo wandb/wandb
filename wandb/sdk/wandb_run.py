@@ -1685,7 +1685,9 @@ class Run:
 
     def _on_start(self) -> None:
 
-        self.header(self._check_version, settings=self._settings, printer=self._printer)
+        self._header(
+            self._check_version, settings=self._settings, printer=self._printer
+        )
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -1725,12 +1727,12 @@ class Run:
 
         while not (self._poll_exit_response and self._poll_exit_response.done):
             if self._backend and self._backend.interface:
-                poll_exit_response = self._backend.interface.communicate_poll_exit()
-                logger.info(f"got exit ret: {poll_exit_response}")
-                if poll_exit_response and poll_exit_response.done:
-                    self._poll_exit_response = poll_exit_response
+                self._poll_exit_response = (
+                    self._backend.interface.communicate_poll_exit()
+                )
+                logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    poll_exit_response, printer=self._printer,
+                    self._poll_exit_response, printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -1747,7 +1749,7 @@ class Run:
             self._run_status_checker.join()
 
     def _on_final(self) -> None:
-        self.footer(
+        self._footer(
             self._sampled_history,
             self._final_summary,
             self._poll_exit_response,
@@ -2343,7 +2345,7 @@ class Run:
     # HEADER
     # ------------------------------------------------------------------------------
     @staticmethod
-    def header(
+    def _header(
         check_version: Optional["CheckVersionResponse"] = None,
         *,
         settings: "Settings",
@@ -2474,7 +2476,7 @@ class Run:
     # ------------------------------------------------------------------------------
 
     @staticmethod
-    def footer(
+    def _footer(
         sampled_history: Optional["SampledHistoryResponse"] = None,
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
