@@ -39,7 +39,7 @@ def __name__ == "__main__":
     # <rest-of-your-script-goes-here>
 ```
 
-### Advance example:
+### Advanced usage
 
 If you are calling `wandb.init` in a spawned process you should add `wandb.setup()` in the main process:
 
