@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
 ## Reporting issues
 
-We appricate you giving this feature a try. If you are experiencing an issue which is not listed in the the FAQs, please file a ticket on [github issue](https://github.com/wandb/client/issues).
+We would appreciate it if you gave this feature a try. If you are experiencing an issue that is not listed in the FAQs, please file a [GitHub Issue](https://github.com/wandb/client/issues).
 To help us reproduce your issue, please provide the following:
 
 - Minimal script to reproduce
