@@ -13,7 +13,7 @@ import uuid
 
 
 from .message_future import MessageFuture
-from ..lib import debug_log
+from ..lib import tracelog
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -105,7 +105,7 @@ class MessageRouter(object):
             # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
             # could point to other issues.
             if msg.uuid != "":
-                debug_log.log_message_assert(msg)
+                tracelog.log_message_assert(msg)
                 logger.warning(
                     "No listener found for msg with uuid %s (%s)", msg.uuid, msg
                 )

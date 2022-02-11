@@ -40,4 +40,4 @@ def deprecate(
     _run = run or wandb.run
     with wandb.wandb_lib.telemetry.context(run=_run) as tel:  # type: ignore[attr-defined]
         setattr(tel.deprecated, field_name, True)
-    wandb.termwarn(warning_message, repeat=False)  # type: ignore[no-untyped-call]
+    wandb.termwarn(warning_message, repeat=False)

@@ -2,6 +2,7 @@ import configparser
 from datetime import datetime
 from distutils.util import strtobool
 import enum
+from functools import reduce
 import getpass
 import json
 import multiprocessing
@@ -27,17 +28,19 @@ from typing import (
     TYPE_CHECKING,
     Union,
 )
+from urllib.parse import quote, urlencode
 
 import wandb
 from wandb import util
+from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
+from .lib import apikey
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
-
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
@@ -77,7 +80,7 @@ def _get_wandb_dir(root_dir: str) -> str:
 
 
 # fixme: should either return bool or error out. fix once confident.
-def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
+def _str_as_bool(val: Union[str, bool]) -> bool:
     """
     Parse a string as a bool.
     """
@@ -89,13 +92,11 @@ def _str_as_bool(val: Union[str, bool, None]) -> Optional[bool]:
     except (AttributeError, ValueError):
         pass
 
-    # fixme: remove this and raise error instead once we are confident.
+    # fixme: remove this and only raise error once we are confident.
     wandb.termwarn(
-        f"Could not parse value {val} as a bool. Defaulting to None."
-        "This will raise an error in the future."
+        f"Could not parse value {val} as a bool. ", repeat=False,
     )
-    return None
-    # raise UsageError(f"Could not parse value {val} as a bool.")
+    raise UsageError(f"Could not parse value {val} as a bool.")
 
 
 def _redact_dict(
@@ -162,6 +163,7 @@ class Source(enum.IntEnum):
     INIT: int = 11
     SETTINGS: int = 12
     ARGS: int = 13
+    RUN: int = 14
 
 
 @enum.unique
@@ -223,7 +225,8 @@ class Property:
         self._is_policy = is_policy
         self._source = source
 
-        # fixme: this is a temporary measure to collect stats on failed validation
+        # fixme: this is a temporary measure to collect stats on failed preprocessing and validation
+        self.__failed_preprocessing: bool = False
         self.__failed_validation: bool = False
 
         # preprocess and validate value
@@ -257,7 +260,16 @@ class Property:
                 else self._preprocessor
             )
             for p in _preprocessor:
-                value = p(value)
+                try:
+                    value = p(value)
+                except (UsageError, ValueError):
+                    wandb.termwarn(
+                        f"Unable to preprocess value for property {self.name}: {value}. "
+                        "This will raise an error in the future.",
+                        repeat=False,
+                    )
+                    self.__failed_preprocessing = True
+                    break
         return value
 
     def _validate(self, value: Any) -> Any:
@@ -277,7 +289,8 @@ class Property:
                     else:
                         wandb.termwarn(
                             f"Invalid value for property {self.name}: {value}. "
-                            "This will raise an error in the future."
+                            "This will raise an error in the future.",
+                            repeat=False,
                         )
                         self.__failed_validation = True
                         break
@@ -338,7 +351,6 @@ class Settings:
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
     _cuda: str
-    _debug_log: str
     _disable_meta: bool
     _disable_stats: bool
     _disable_viewer: bool  # Prevent early viewer query
@@ -358,6 +370,7 @@ class Settings:
     _start_datetime: datetime
     _start_time: float
     _tmp_code_dir: str
+    _tracelog: str
     _unsaved_keys: Sequence[str]
     allow_val_change: bool
     anonymous: str
@@ -394,11 +407,13 @@ class Settings:
     program: str
     program_relpath: str
     project: str
+    project_url: str
     quiet: bool
     reinit: bool
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
+    resumed: bool  # indication from the server about the state of the run (differnt from resume - user provided flag)
     root_dir: str
     run_group: str
     run_id: str
@@ -406,6 +421,7 @@ class Settings:
     run_name: str
     run_notes: str
     run_tags: Tuple[str]
+    run_url: str
     sagemaker_disable: bool
     save_code: bool
     settings_system: str
@@ -422,6 +438,7 @@ class Settings:
     summary_warnings: int
     sweep_id: str
     sweep_param_path: str
+    sweep_url: str
     symlink: bool
     sync_dir: str
     sync_file: str
@@ -496,6 +513,10 @@ class Settings:
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
             project={"validator": self._validate_project},
+            project_url={
+                "value": "<project-url>",
+                "hook": lambda x: self._project_url(),
+            },
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
@@ -503,9 +524,11 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
+            resumed={"value": "False", "preprocessor": _str_as_bool},
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            run_url={"value": "<run-url>", "hook": lambda x: self._run_url()},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool, "is_policy": True},
             settings_system={
@@ -551,6 +574,7 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            sweep_url={"value": "<sweep-url>", "hook": lambda x: self._sweep_url()},
             tmp_dir={
                 "value": "tmp",
                 "hook": lambda x: (
@@ -665,11 +689,52 @@ class Settings:
         """
         return os.path.expanduser(os.path.join(*args))
 
+    def _get_url_query_string(self) -> str:
+        # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
+        if Api().settings().get("anonymous") != "true":
+            return ""
+
+        api_key = apikey.api_key(settings=self)
+
+        return f"?{urlencode({'apiKey': api_key})}"
+
+    def _project_url_base(self) -> str:
+        if not all([self.entity, self.project]):
+            return ""
+
+        app_url = wandb.util.app_url(self.base_url)
+        return f"{app_url}/{quote(self.entity)}/{quote(self.project)}"
+
+    def _project_url(self) -> str:
+        project_url = self._project_url_base()
+        if not project_url:
+            return ""
+
+        query = self._get_url_query_string()
+
+        return f"{project_url}{query}"
+
+    def _run_url(self) -> str:
+        project_url = self._project_url_base()
+        if not all([project_url, self.run_id]):
+            return ""
+
+        query = self._get_url_query_string()
+        return f"{project_url}/runs/{quote(self.run_id)}{query}"
+
     def _start_run(self) -> None:
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
         object.__setattr__(self, "_Settings_start_datetime", datetime_now)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
+
+    def _sweep_url(self) -> str:
+        project_url = self._project_url_base()
+        if not all([project_url, self.sweep_id]):
+            return ""
+
+        query = self._get_url_query_string()
+        return f"{project_url}/sweeps/{quote(self.sweep_id)}{query}"
 
     def __init__(self, **kwargs: Any) -> None:
         self.__frozen: bool = False
@@ -677,6 +742,7 @@ class Settings:
 
         # fixme: this is collect telemetry on validation errors and unexpected args
         # values are stored as strings to avoid potential json serialization errors down the line
+        self.__preprocessing_warnings: Dict[str, str] = dict()
         self.__validation_warnings: Dict[str, str] = dict()
         self.__unexpected_args: Set[str] = set()
 
@@ -689,7 +755,7 @@ class Settings:
         # Init instance attributes as Property objects.
         # Type hints of class attributes are used to generate a type validator function
         # for runtime checks for each attribute.
-        # These are defaults, using Source.BASE for non-policy attributes and Source.ARGS for policies.
+        # These are defaults, using Source.BASE for non-policy attributes and Source.RUN for policies.
         for prop, type_hint in get_type_hints(Settings).items():
             validators = [self._validator_factory(type_hint)]
 
@@ -708,7 +774,7 @@ class Settings:
                         **default_props[prop],
                         validator=validators,
                         # todo: double-check this logic:
-                        source=Source.ARGS
+                        source=Source.RUN
                         if default_props[prop].get("is_policy", False)
                         else Source.BASE,
                     ),
@@ -720,7 +786,9 @@ class Settings:
                     Property(name=prop, validator=validators, source=Source.BASE,),
                 )
 
-            # fixme: this is to collect stats on validation errors
+            # fixme: this is to collect stats on preprocessing and validation errors
+            if self.__dict__[prop].__dict__["_Property__failed_preprocessing"]:
+                self.__preprocessing_warnings[prop] = str(self.__dict__[prop]._value)
             if self.__dict__[prop].__dict__["_Property__failed_validation"]:
                 self.__validation_warnings[prop] = str(self.__dict__[prop]._value)
 
@@ -742,7 +810,7 @@ class Settings:
 
         for k, v in kwargs.items():
             # todo: double-check this logic:
-            source = Source.ARGS if self.__dict__[k].is_policy else Source.BASE
+            source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
             self.update({k: v}, source=source)
 
         # setup private attributes
@@ -867,7 +935,12 @@ class Settings:
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
 
-            # fixme: this is to collect stats on validation errors
+            # fixme: this is to collect stats on preprocessing and validation errors
+            if self.__dict__[key].__dict__["_Property__failed_preprocessing"]:
+                self.__preprocessing_warnings[key] = str(self.__dict__[key]._value)
+            else:
+                self.__preprocessing_warnings.pop(key, None)
+
             if self.__dict__[key].__dict__["_Property__failed_validation"]:
                 self.__validation_warnings[key] = str(self.__dict__[key]._value)
             else:
@@ -953,7 +1026,7 @@ class Settings:
     ) -> None:
         env_prefix: str = "WANDB_"
         special_env_var_names = {
-            "WANDB_DEBUG_LOG": "_debug_log",
+            "WANDB_TRACELOG": "_tracelog",
             "WANDB_REQUIRE_SERVICE": "_require_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
             "WANDB_DIR": "root_dir",
@@ -1028,7 +1101,7 @@ class Settings:
         elif self._jupyter:
             wandb.termwarn(
                 "WANDB_NOTEBOOK_NAME should be a path to a notebook file, "
-                f"couldn't find {self.notebook_name}."
+                f"couldn't find {self.notebook_name}.",
             )
 
         # host and username are populated by apply_env_vars if corresponding env
@@ -1120,7 +1193,7 @@ class Settings:
                 if val:
                     wandb.termwarn(
                         "Project, entity and id are ignored when running from wandb launch context. "
-                        f"Ignored wandb.init() arg {key} when running running from launch."
+                        f"Ignored wandb.init() arg {key} when running running from launch.",
                     )
 
         # strip out items where value is None
@@ -1160,7 +1233,7 @@ class Settings:
                 elif self.run_id != resume_run_id:
                     wandb.termwarn(
                         "Tried to auto resume run with "
-                        f"id {resume_run_id} but id {self.run_id} is set."
+                        f"id {resume_run_id} but id {self.run_id} is set.",
                     )
         self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
         # persist our run id in case of failure
@@ -1181,6 +1254,32 @@ class Settings:
             if _logger:
                 _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
+
+    def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
+
+        # This dictionary maps from the "run message dict" to relevant fields in settings
+        # Note: that config is missing
+        param_map = {
+            "run_id": "run_id",
+            "entity": "entity",
+            "project": "project",
+            "run_group": "run_group",
+            "job_type": "run_job_type",
+            "display_name": "run_name",
+            "notes": "run_notes",
+            "tags": "run_tags",
+            "sweep_id": "sweep_id",
+            "host": "host",
+            "resumed": "resumed",
+            "git.remote_url": "git_remote",
+        }
+        run_settings = {
+            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
+            for attr, name in param_map.items()
+        }
+        run_settings = {key: value for key, value in run_settings.items() if value}
+        if run_settings:
+            self.update(run_settings, source=Source.RUN)
 
     # computed properties
     @property
