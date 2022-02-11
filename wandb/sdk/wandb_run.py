@@ -353,7 +353,7 @@ class Run(object):
         self._final_summary = None
         self._sampled_history = None
         self._jupyter_progress = None
-        self._quiet = self._settings._quiet
+        self._quiet = self._settings.quiet
         if self._settings._jupyter and ipython.in_jupyter():
             self._jupyter_progress = ipython.jupyter_progress_bar()
 
@@ -1306,7 +1306,7 @@ class Run(object):
                 message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
                     current_pid, self._init_pid
                 )
-                if self._settings._strict:
+                if self._settings.strict:
                     wandb.termerror(message, repeat=False)
                     raise errors.LogMultiprocessError(
                         "log() does not support multiprocessing"
@@ -1819,7 +1819,7 @@ class Run(object):
                 os._exit(-1)
         else:
             # if silent, skip this as it is used to output stuff
-            if self._settings._silent:
+            if self._settings.silent:
                 return
             self._on_final()
 
@@ -1865,7 +1865,7 @@ class Run(object):
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
-        if self._run_obj and not self._settings._silent:
+        if self._run_obj and not self._settings.silent:
             self._display_run()
 
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
@@ -1951,7 +1951,7 @@ class Run(object):
         self.history._flush()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
-        if not self._settings._silent:
+        if not self._settings.silent:
             as_html = self._settings._jupyter and ipython.in_jupyter()
             if self._backend:
                 pid = self._backend._internal_pid
@@ -2193,7 +2193,7 @@ class Run(object):
 
         logger.info("logging synced files")
 
-        if self._settings._silent:
+        if self._settings.silent:
             return logs
 
         file_str = "Synced {} W&B file(s), {} media file(s), {} artifact file(s) and {} other file(s){}".format(  # noqa:E501

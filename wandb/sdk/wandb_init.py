@@ -190,7 +190,7 @@ class _WandbInit(object):
                 anonymous=kwargs.pop("anonymous", None),
                 force=kwargs.pop("force", None),
                 _disable_warning=True,
-                _silent=settings._quiet or settings._silent,
+                _silent=settings.quiet or settings.silent,
             )
 
         # apply updated global state after login was handled
@@ -441,7 +441,7 @@ class _WandbInit(object):
                 logger.info(
                     f"re-initializing run, found existing run on stack: {last_id}"
                 )
-                jupyter = s._jupyter and not s._silent and ipython.in_jupyter()
+                jupyter = s._jupyter and not s.silent and ipython.in_jupyter()
                 if jupyter:
                     ipython.display_html(
                         f"Finishing last run (ID:{last_id}) before initializing another..."
