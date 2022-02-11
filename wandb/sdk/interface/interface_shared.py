@@ -73,7 +73,7 @@ class InterfaceShared(InterfaceBase):
         for k, v in six.iteritems(stats_dict):
             item = stats.item.add()
             item.key = k
-            item.value_json = json_dumps_safer(json_friendly(v)[0])  # type: ignore
+            item.value_json = json_dumps_safer(json_friendly(v)[0])
         return stats
 
     def _make_login(self, api_key: str = None) -> pb.LoginRequest:
