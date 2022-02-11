@@ -313,6 +313,19 @@ def test_upload_file_retry(runner, mock_server, api):
         assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
 
 
+def test_upload_file_inject_retry(runner, mock_server, api, inject_requests):
+    match = inject_requests.Match(path_suffix="/storage", count=2)
+    inject_requests.add(
+        match=match, requests_error=requests.exceptions.ConnectionError()
+    )
+    with runner.isolated_filesystem():
+        run = api.run("test/test/test")
+        with open("new_file.pb", "w") as f:
+            f.write("TEST")
+        file = run.upload_file("new_file.pb")
+        assert file.url == "https://api.wandb.ai/storage?file=new_file.pb"
+
+
 def test_runs_from_path(mock_server, api):
     runs = api.runs("test/test")
     assert len(runs) == 4

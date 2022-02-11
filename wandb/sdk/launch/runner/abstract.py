@@ -20,7 +20,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-State = Literal["unknown", "starting", "running", "failed", "finished"]
+State = Literal["unknown", "starting", "running", "failed", "finished", "stopping"]
 
 
 class Status(object):
@@ -96,7 +96,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> int:
+    def id(self) -> str:
         pass
 
 

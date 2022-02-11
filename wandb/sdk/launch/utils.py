@@ -5,7 +5,7 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb import util
@@ -136,12 +136,7 @@ def construct_launch_spec(
         override_args = util._user_args_to_dict(
             launch_spec["overrides"].get("args", [])
         )
-        if isinstance(override_args, list):
-            base_args = util._user_args_to_dict(
-                launch_spec["overrides"].get("args", [])
-            )
-        elif isinstance(override_args, dict):
-            base_args = override_args
+        base_args = override_args
         launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
     elif isinstance(launch_spec["overrides"].get("args"), list):
         launch_spec["overrides"]["args"] = util._user_args_to_dict(
@@ -356,3 +351,14 @@ def check_and_download_code_artifacts(
             return True
 
     return False
+
+
+def to_camel_case(maybe_snake_str: str) -> str:
+    if "_" not in maybe_snake_str:
+        return maybe_snake_str
+    components = maybe_snake_str.split("_")
+    return "".join(x.title() if x else "_" for x in components)
+
+
+def run_shell(args: List[str]) -> str:
+    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
