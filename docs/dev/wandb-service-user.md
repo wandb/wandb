@@ -14,21 +14,6 @@ If you are using `wandb` in a distributed training setup and experiencing hangs,
 
 ## Usage
 
-### PyTorch Lightning
-
-If you are using `PyTorch Lightning` please:
-
-- Install the most recent version of `wandb` and update `PyTorch Lightning` from the master branch:
-
-```bash
-pip install --upgrade wandb
-pip install --upgrade git+https://github.com/PytorchLightning/pytorch-lightning.git
-```
-
-The feature support will be part of `PyTorch Lightning`'s [1.6.0 release](https://github.com/PyTorchLightning/pytorch-lightning/pull/11650), at which point you will be able to simply install/update it from PyPI.
-
-That's it... no need to change anything in else...
-
 ### General usage
 
 `service` can be enabled by adding the following to your script:
@@ -60,6 +45,21 @@ if __name__ == "__main__":
     main()
 ```
 
+### PyTorch Lightning
+
+If you are using `PyTorch Lightning` please:
+
+- Install the most recent version of `wandb` and update `PyTorch Lightning` from the master branch:
+
+```bash
+pip install --upgrade wandb
+pip install --upgrade git+https://github.com/PytorchLightning/pytorch-lightning.git
+```
+
+The feature support will be part of `PyTorch Lightning`'s [1.6.0 release](https://github.com/PyTorchLightning/pytorch-lightning/pull/11650), at which point you will be able to simply install/update it from PyPI.
+
+That's it... no need to add any further code...
+
 ## FAQs
 
 ### If your scrip is stuck in a restart loop
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
 ## Reporting issues
 
-We would appreciate it if you gave this feature a try. If you are experiencing an issue that is not listed in the FAQs, please file a [GitHub Issue](https://github.com/wandb/client/issues).
+We appreciate it that you gave this feature a try. If you are experiencing an issue that is not listed in the FAQs, please file a [GitHub Issue](https://github.com/wandb/client/issues).
 To help us reproduce your issue, please provide the following:
 
 - Minimal script to reproduce
