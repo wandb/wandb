@@ -16,8 +16,11 @@ from typing import Any, Callable, Dict, List, Optional
 import psutil
 import wandb
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk import wandb_run_printer
-from wandb.sdk.wandb_settings import Settings
+from wandb.sdk.internal.settings_static import SettingsStatic
+from wandb.sdk.lib.printer import get_printer
+from wandb.sdk.wandb_run import Run
+
+# from wandb.sdk.wandb_settings import Settings
 
 from ..interface.interface_relay import InterfaceRelay
 
@@ -43,9 +46,9 @@ class StreamRecord:
     _relay_q: "multiprocessing.Queue[pb.Result]"
     _iface: InterfaceRelay
     _thread: StreamThread
-    _settings: Settings
+    _settings: SettingsStatic  # TODO(settings) replace SettingsStatic with Setting
 
-    def __init__(self) -> None:
+    def __init__(self, settings: Dict[str, Any]) -> None:
         self._record_q = multiprocessing.Queue()
         self._result_q = multiprocessing.Queue()
         self._relay_q = multiprocessing.Queue()
@@ -57,6 +60,7 @@ class StreamRecord:
             process=process,
             process_check=False,
         )
+        self._settings = SettingsStatic(settings)
 
     def start_thread(self, thread: StreamThread) -> None:
         self._thread = thread
@@ -84,8 +88,9 @@ class StreamRecord:
         return self._iface
 
     def update(self, settings: Dict[str, Any]) -> None:
-        self._settings = Settings()
-        self._settings.update(settings)
+        # Note: Currently just overriding the _settings attribute
+        # once we use Settings Class we might want to properly update it
+        self._settings = SettingsStatic(settings)
 
 
 class StreamAction:
@@ -182,10 +187,14 @@ class StreamMux:
             return stream
 
     def _process_add(self, action: StreamAction) -> None:
-        stream = StreamRecord()
+        stream = StreamRecord(action._data)
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings_dict = action._data
-        settings_dict["_log_level"] = logging.DEBUG
+        settings_dict[
+            "_log_level"
+        ] = (
+            logging.DEBUG
+        )  # Note: not including this in the stream's settings to try and keep only Settings arguments
         thread = StreamThread(
             target=wandb.wandb_sdk.internal.internal.wandb_internal,
             kwargs=dict(
@@ -220,41 +229,48 @@ class StreamMux:
         if not streams:
             return
 
+        # TODO(settings) remove type ignore once SettingsStatic and Settings unified
+        print("")
+        printer = get_printer(
+            all(stream._settings._jupyter for stream in streams.values())  # type: ignore
+        )
+        # fixme: for now we have a single printer for all streams,
+        # and jupyter is disabled if at least single stream's setting set `_jupyter` to false
         for stream in streams.values():
             stream.interface.publish_exit(exit_code)
-        from rich.live import Live
+            Run._footer_exit_status_info(
+                exit_code, settings=stream._settings, printer=printer  # type: ignore
+            )
 
-        # with wandb_run_printer.run_printer(stream) as printer:
-        # live = Live("", refresh_per_second=4)
-        poll_exit_responses = {}
-        streams_to_join = {}
-        with wandb_run_printer.run_printer(streams) as printer:
-            while streams:
-                # Note that we materialize the generator so we can modify the underlying list
-                for sid, stream in list(streams.items()):
-                    poll_exit_response = stream.interface.communicate_poll_exit()
-                    poll_exit_responses[sid] = poll_exit_response
-                    # printer._footer_file_pusher_status_info(poll_exit_response)
-                    if poll_exit_response and poll_exit_response.done:
-                        streams.pop(sid)
-                        streams_to_join[sid] = stream
-                        if stream.interface:
-                            history = stream.interface.communicate_sampled_history()
-                            summary = stream.interface.communicate_get_summary()
+        streams_to_join, poll_exit_responses = {}, {}
+        while streams:
+            # Note that we materialize the generator so we can modify the underlying list
+            for sid, stream in list(streams.items()):
+                poll_exit_response = stream.interface.communicate_poll_exit()
+                poll_exit_responses[sid] = poll_exit_response
+                if poll_exit_response and poll_exit_response.done:
+                    streams.pop(sid)
+                    streams_to_join[sid] = stream
+            Run._footer_file_pusher_status_info(poll_exit_responses, printer=printer)
+            time.sleep(0.1)
 
-                # live.update(printer.status_update(poll_exit_responses))
-                time.sleep(0.1)
-
-        with wandb_run_printer.run_printer(streams_to_join) as printer:
-            printer.footer(exit_code, history, summary, poll_exit_response)
-
+        # TODO: this would be nice to do in parallel
         for sid, stream in streams_to_join.items():
-            # with wandb_run_printer.run_printer(stream) as printer:
-            #     history = summary = None
-            #     if stream.interface:
-            #         history = stream.interface.communicate_sampled_history()
-            #         summary = stream.interface.communicate_get_summary()
-            #     printer.footer(exit_code, history, summary, poll_exit_responses[sid])
+            history = (
+                stream.interface.communicate_sampled_history()
+                if stream.interface
+                else None
+            )
+            summary = (
+                stream.interface.communicate_get_summary() if stream.interface else None
+            )
+            Run._footer(
+                history,
+                summary,
+                poll_exit_responses[sid],
+                settings=stream._settings,  # type: ignore
+                printer=printer,
+            )
             stream.join()
 
     def _process_teardown(self, action: StreamAction) -> None:

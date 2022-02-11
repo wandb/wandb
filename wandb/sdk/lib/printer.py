@@ -1,3 +1,5 @@
+# Note: this is a helper printer class, this file might go away once we switch to rich console printing
+
 from abc import abstractmethod
 import itertools
 import platform
@@ -10,14 +12,18 @@ import wandb
 from . import ipython, sparkline
 
 
-def sparklines(series: List[Union[int, float]]) -> Optional[str]:
-    # Only print sparklines if the terminal is utf-8
-    # if wandb.util.is_unicode_safe(sys.stdout):
-    return sparkline.sparkify(series)
-    # return None
-
-
 class _Printer:
+    def sparklines(self, series: List[Union[int, float]]) -> Optional[str]:
+        # Only print sparklines if the terminal is utf-8
+        if wandb.util.is_unicode_safe(sys.stdout):
+            return sparkline.sparkify(series)
+        return None
+
+    def abort(
+        self,
+    ) -> str:
+        return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
+
     def display(
         self,
         text: Union[str, List[str], Tuple[str]],

@@ -284,11 +284,11 @@ class ServerRequest(google.protobuf.message.Message):
     RECORD_PUBLISH_FIELD_NUMBER: builtins.int
     RECORD_COMMUNICATE_FIELD_NUMBER: builtins.int
     INFORM_INIT_FIELD_NUMBER: builtins.int
-    INFORM_START_FIELD_NUMBER: builtins.int
     INFORM_FINISH_FIELD_NUMBER: builtins.int
     INFORM_ATTACH_FIELD_NUMBER: builtins.int
     INFORM_DETACH_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_FIELD_NUMBER: builtins.int
+    INFORM_START_FIELD_NUMBER: builtins.int
 
     @property
     def record_publish(self) -> wandb.proto.wandb_internal_pb2.Record: ...
@@ -298,9 +298,6 @@ class ServerRequest(google.protobuf.message.Message):
 
     @property
     def inform_init(self) -> global___ServerInformInitRequest: ...
-
-    @property
-    def inform_start(self) -> global___ServerInformStartRequest: ...
 
     @property
     def inform_finish(self) -> global___ServerInformFinishRequest: ...
@@ -314,40 +311,40 @@ class ServerRequest(google.protobuf.message.Message):
     @property
     def inform_teardown(self) -> global___ServerInformTeardownRequest: ...
 
+    @property
+    def inform_start(self) -> global___ServerInformStartRequest: ...
+
     def __init__(self,
         *,
         record_publish : typing.Optional[wandb.proto.wandb_internal_pb2.Record] = ...,
         record_communicate : typing.Optional[wandb.proto.wandb_internal_pb2.Record] = ...,
         inform_init : typing.Optional[global___ServerInformInitRequest] = ...,
-        inform_start : typing.Optional[global___ServerInformStartRequest] = ...,
         inform_finish : typing.Optional[global___ServerInformFinishRequest] = ...,
         inform_attach : typing.Optional[global___ServerInformAttachRequest] = ...,
         inform_detach : typing.Optional[global___ServerInformDetachRequest] = ...,
         inform_teardown : typing.Optional[global___ServerInformTeardownRequest] = ...,
+        inform_start : typing.Optional[global___ServerInformStartRequest] = ...,
         ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal[u"inform_attach",b"inform_attach",u"inform_detach",b"inform_detach",u"inform_finish",b"inform_finish",u"inform_init",b"inform_init",u"inform_start",b"inform_start",u"inform_teardown",b"inform_teardown",u"record_communicate",b"record_communicate",u"record_publish",b"record_publish",u"server_request_type",b"server_request_type"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal[u"inform_attach",b"inform_attach",u"inform_detach",b"inform_detach",u"inform_finish",b"inform_finish",u"inform_init",b"inform_init",u"inform_start",b"inform_start",u"inform_teardown",b"inform_teardown",u"record_communicate",b"record_communicate",u"record_publish",b"record_publish",u"server_request_type",b"server_request_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_request_type",b"server_request_type"]) -> typing_extensions.Literal["record_publish","record_communicate","inform_init","inform_start","inform_finish","inform_attach","inform_detach","inform_teardown"]: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_request_type",b"server_request_type"]) -> typing_extensions.Literal["record_publish","record_communicate","inform_init","inform_finish","inform_attach","inform_detach","inform_teardown","inform_start"]: ...
 global___ServerRequest = ServerRequest
 
 class ServerResponse(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
     RESULT_COMMUNICATE_FIELD_NUMBER: builtins.int
     INFORM_INIT_RESPONSE_FIELD_NUMBER: builtins.int
-    INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_FINISH_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_ATTACH_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_DETACH_RESPONSE_FIELD_NUMBER: builtins.int
     INFORM_TEARDOWN_RESPONSE_FIELD_NUMBER: builtins.int
+    INFORM_START_RESPONSE_FIELD_NUMBER: builtins.int
 
     @property
     def result_communicate(self) -> wandb.proto.wandb_internal_pb2.Result: ...
 
     @property
     def inform_init_response(self) -> global___ServerInformInitResponse: ...
-
-    @property
-    def inform_start_response(self) -> global___ServerInformStartResponse: ...
 
     @property
     def inform_finish_response(self) -> global___ServerInformFinishResponse: ...
@@ -361,17 +358,20 @@ class ServerResponse(google.protobuf.message.Message):
     @property
     def inform_teardown_response(self) -> global___ServerInformTeardownResponse: ...
 
+    @property
+    def inform_start_response(self) -> global___ServerInformStartResponse: ...
+
     def __init__(self,
         *,
         result_communicate : typing.Optional[wandb.proto.wandb_internal_pb2.Result] = ...,
         inform_init_response : typing.Optional[global___ServerInformInitResponse] = ...,
-        inform_start_response : typing.Optional[global___ServerInformStartResponse] = ...,
         inform_finish_response : typing.Optional[global___ServerInformFinishResponse] = ...,
         inform_attach_response : typing.Optional[global___ServerInformAttachResponse] = ...,
         inform_detach_response : typing.Optional[global___ServerInformDetachResponse] = ...,
         inform_teardown_response : typing.Optional[global___ServerInformTeardownResponse] = ...,
+        inform_start_response : typing.Optional[global___ServerInformStartResponse] = ...,
         ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal[u"inform_attach_response",b"inform_attach_response",u"inform_detach_response",b"inform_detach_response",u"inform_finish_response",b"inform_finish_response",u"inform_init_response",b"inform_init_response",u"inform_start_response",b"inform_start_response",u"inform_teardown_response",b"inform_teardown_response",u"result_communicate",b"result_communicate",u"server_response_type",b"server_response_type"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal[u"inform_attach_response",b"inform_attach_response",u"inform_detach_response",b"inform_detach_response",u"inform_finish_response",b"inform_finish_response",u"inform_init_response",b"inform_init_response",u"inform_start_response",b"inform_start_response",u"inform_teardown_response",b"inform_teardown_response",u"result_communicate",b"result_communicate",u"server_response_type",b"server_response_type"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_response_type",b"server_response_type"]) -> typing_extensions.Literal["result_communicate","inform_init_response","inform_start_response","inform_finish_response","inform_attach_response","inform_detach_response","inform_teardown_response"]: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"server_response_type",b"server_response_type"]) -> typing_extensions.Literal["result_communicate","inform_init_response","inform_finish_response","inform_attach_response","inform_detach_response","inform_teardown_response","inform_start_response"]: ...
 global___ServerResponse = ServerResponse
