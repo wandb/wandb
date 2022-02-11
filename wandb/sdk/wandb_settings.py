@@ -486,6 +486,7 @@ class Settings:
                 "auto_hook": True,
             },
             anonymous={"validator": self._validate_anonymous},
+            api_key={"validator": self._validate_api_key},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).rstrip("/"),
@@ -706,6 +707,13 @@ class Settings:
         choices: Set[str] = {"allow", "must", "never", "false", "true"}
         if value not in choices:
             raise UsageError(f"Settings field `anonymous`: '{value}' not in {choices}")
+        return True
+
+    @staticmethod
+    def _validate_api_key(value: str) -> bool:
+        if value.startswith(" ") or value.endswith(" "):
+            raise UsageError("API key cannot start or end with whitespace")
+        # todo: move here the logic from sdk/lib/apikey.py
         return True
 
     @staticmethod
