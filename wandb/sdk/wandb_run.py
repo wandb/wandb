@@ -348,7 +348,7 @@ class Run:
         self._stderr_slave_fd = None
         self._exit_code = None
         self._exit_result = None
-        self._quiet = self._settings._quiet  # TODO(settings) unify with settings
+        self._quiet = self._settings.quiet
 
         self._output_writer = None
         self._used_artifact_slots: List[str] = []
@@ -1302,7 +1302,7 @@ class Run:
                 message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
                     current_pid, self._init_pid
                 )
-                if self._settings._strict:
+                if self._settings.strict:
                     wandb.termerror(message, repeat=False)
                     raise errors.LogMultiprocessError(
                         "log() does not support multiprocessing"
@@ -2386,7 +2386,7 @@ class Run:
     def _header_wandb_version_info(
         *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        if settings._quiet or settings._silent:
+        if settings.quiet or settings.silent:
             return
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2411,14 +2411,14 @@ class Run:
                 info.append(
                     f"Run {printer.code('`wandb offline`')} to turn off syncing."
                 )
-            printer.display(info, off=settings._quiet or settings._silent)
+            printer.display(info, off=settings.quiet or settings.silent)
 
     @staticmethod
     def _header_run_info(
         *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
-        if settings._offline or settings._silent:
+        if settings._offline or settings.silent:
             return
 
         run_url = settings.run_url
@@ -2454,7 +2454,7 @@ class Run:
 
         else:
             printer.display(f"{run_state_str} {printer.name(run_name)}")
-            if not settings._quiet:
+            if not settings.quiet:
                 printer.display(
                     f'{printer.emoji("star")} View project at {printer.link(project_url)}'
                 )
@@ -2526,7 +2526,7 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
-        if settings._silent:
+        if settings.silent:
             return
 
         status = "(success)." if not exit_code else f"(failed {exit_code})."
@@ -2677,7 +2677,7 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
-        if settings._silent:
+        if settings.silent:
             return
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2711,7 +2711,7 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
-        if (quiet or settings.quiet) or settings._silent:
+        if (quiet or settings.quiet) or settings.silent:
             return
 
         log_dir = settings.log_user or settings.log_internal
@@ -2730,7 +2730,7 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
-        if (quiet or settings._quiet) or settings._silent:
+        if (quiet or settings.quiet) or settings.silent:
             return
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2830,7 +2830,7 @@ class Run:
         if settings._offline:
             return
 
-        if (quiet or settings._quiet) or settings._silent:
+        if (quiet or settings.quiet) or settings.silent:
             return
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2853,7 +2853,7 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
-        if (quiet or settings._quiet) or settings.silent:
+        if (quiet or settings.quiet) or settings.silent:
             return
 
         if not reporter:
