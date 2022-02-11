@@ -20,7 +20,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-State = Literal["unknown", "starting", "running", "failed", "finished"]
+State = Literal["unknown", "starting", "running", "failed", "finished", "stopping"]
 
 
 class Status(object):
@@ -43,8 +43,6 @@ class AbstractRun(ABC):
     from multiple threads may inadvertently kill resources (e.g. local processes) unrelated to the
     run.
     """
-
-    STATE_MAP: Dict[str, "State"] = {}
 
     def __init__(self) -> None:
         self._status = Status()
@@ -98,7 +96,7 @@ class AbstractRun(ABC):
 
     @property
     @abstractmethod
-    def id(self) -> int:
+    def id(self) -> str:
         pass
 
 

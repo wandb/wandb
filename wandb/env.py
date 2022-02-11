@@ -68,6 +68,7 @@ CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
+SENTRY_DSN = "WANDB_SENTRY_DSN"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -124,7 +125,7 @@ def is_debug(default=None, env=None):
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def error_reporting_enabled():
+def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default=True)
 
 
@@ -214,7 +215,7 @@ def get_base_url(default=None, env=None):
     if env is None:
         env = os.environ
 
-    return env.get(BASE_URL, default)
+    return env.get(BASE_URL, default).rstrip("/")
 
 
 def get_app_url(default=None, env=None):

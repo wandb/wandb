@@ -19,9 +19,11 @@ test_requirements = ["mock>=2.0.0", "tox-pyenv>=1.0.3"]
 
 gcp_requirements = ["google-cloud-storage"]
 aws_requirements = ["boto3"]
-service_requirements = ["grpcio>=1.27.2", "setproctitle"]
+azure_requirements = ["azure-storage-blob"]
+grpc_requirements = ["grpcio>=1.27.2", "setproctitle"]
+service_requirements = ["setproctitle"]
 kubeflow_requirements = ["kubernetes", "minio", "google-cloud-storage", "sh"]
-media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly"]
+media_requirements = ["numpy", "moviepy", "pillow", "bokeh", "soundfile", "plotly", "rdkit-pypi"]
 launch_requirements = [
     "jupyter-repo2docker",
     "nbconvert",
@@ -34,7 +36,7 @@ launch_requirements = [
 
 setup(
     name="wandb",
-    version="0.12.7.dev1",
+    version="0.12.11.dev1",
     description="A CLI and library for interacting with the Weights and Biases API.",
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -79,7 +81,9 @@ setup(
         "kubeflow": kubeflow_requirements,
         "gcp": gcp_requirements,
         "aws": aws_requirements,
+        "azure": azure_requirements,
         "service": service_requirements,
+        "grpc": grpc_requirements,
         "media": media_requirements,
         "sweeps": sweeps_requirements,
         "launch": launch_requirements,

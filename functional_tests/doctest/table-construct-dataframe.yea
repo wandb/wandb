@@ -1,0 +1,10 @@
+id: table-construct-dataframe
+plugin:
+    - wandb
+tag:
+  shard: docs
+depend:
+    requirements:
+        - pandas
+assert:
+    - :yea:exit: 0

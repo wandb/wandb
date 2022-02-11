@@ -136,7 +136,7 @@ class Config(object):
     def __setitem__(self, key, val):
         if self._check_locked(key):
             return
-        with wandb.wandb_lib.telemetry.context() as tel:
+        with wandb.sdk.lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
         key, val = self._sanitize(key, val)

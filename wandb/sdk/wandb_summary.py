@@ -15,8 +15,8 @@ def _get_dict(d):
 
 
 @six.add_metaclass(abc.ABCMeta)
-class SummaryDict(object):
-    """dict-like which wraps all nested dictionraries in a SummarySubDict,
+class SummaryDict:
+    """dict-like which wraps all nested dictionaries in a SummarySubDict,
      and triggers self._root._callback on property changes."""
 
     @abc.abstractmethod

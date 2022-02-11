@@ -1,11 +1,17 @@
-"""
-Wandb has special data types for logging rich visualizations.
+"""This module defines data types for logging rich, interactive visualizations to W&B.
 
-All of the special data types are subclasses of WBValue. All of the data types
+Data types include common media types, like images, audio, and videos,
+flexible containers for information, like tables and HTML, and more.
+
+For more on logging media, see [our guide](https://docs.wandb.com/guides/track/log/media)
+
+For more on logging structured data for interactive dataset and model analysis,
+see [our guide to W&B Tables](https://docs.wandb.com/guides/data-vis).
+
+All of these special data types are subclasses of WBValue. All of the data types
 serialize to JSON, since that is what wandb uses to save the objects locally
 and upload them to the W&B server.
 """
-
 from __future__ import print_function
 
 import base64
@@ -18,12 +24,11 @@ import os
 import pprint
 import re
 import sys
-import warnings
+import tempfile
 
 import six
 import wandb
 from wandb import util
-from wandb.compat import tempfile
 from wandb.sdk.data_types import (
     _numpy_arrays_to_lists,
     BatchableMedia,
@@ -60,11 +65,6 @@ __all__ = [
     "val_to_json",
 ]
 
-
-# Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings(
-    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-)
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
@@ -111,27 +111,74 @@ def _json_helper(val, artifact):
 class Table(Media):
     """The Table class is used to display and analyze tabular data.
 
+    Unlike traditional spreadsheets, Tables support numerous types of data:
+    scalar values, strings, numpy arrays, and most subclasses of `wandb.data_types.Media`.
+    This means you can embed `Images`, `Video`, `Audio`, and other sorts of rich, annotated media
+    directly in Tables, alongside other traditional scalar values.
+
     This class is the primary class used to generate the Table Visualizer
     in the UI: https://docs.wandb.ai/guides/data-vis/tables.
 
     Tables can be constructed with initial data using the `data` or
-    `dataframe` parameters. Additionally, users can add data to Tables
-    incrementally by using the `add_data`, `add_column`, and
-    `add_computed_column` functions for adding rows, columns, and computed
-    columns, respectively.
+    `dataframe` parameters:
+    <!--yeadoc-test:table-construct-dataframe-->
+    ```python
+    import pandas as pd
+    import wandb
+
+    data = {"users": ["geoff", "juergen", "ada"],
+            "feature_01": [1, 117, 42]}
+    df = pd.DataFrame(data)
+
+    tbl = wandb.Table(data=df)
+    assert all(tbl.get_column("users") == df["users"])
+    assert all(tbl.get_column("feature_01") == df["feature_01"])
+    ```
+
+    Additionally, users can add data to Tables incrementally by using the
+    `add_data`, `add_column`, and `add_computed_column` functions for
+    adding rows, columns, and columns computed from data in other columns, respectively:
+    <!--yeadoc-test:table-construct-rowwise-->
+    ```python
+    import wandb
+
+    tbl = wandb.Table(columns=["user"])
+
+    users = ["geoff", "juergen", "ada"]
+
+    [tbl.add_data(user) for user in users]
+    assert tbl.get_column("user") == users
+
+    def get_user_name_length(index, row): return {"feature_01": len(row["user"])}
+    tbl.add_computed_columns(get_user_name_length)
+    assert tbl.get_column("feature_01") == [5, 7, 3]
+    ```
 
     Tables can be logged directly to runs using `run.log({"my_table": table})`
-    or added to artifacts using `artifact.add(table, "my_table")`. Tables added
-    directly to runs will produce a corresponding Table Visualizer in the
+    or added to artifacts using `artifact.add(table, "my_table")`:
+    <!--yeadoc-test:table-logging-direct-->
+    ```python
+    import numpy as np
+    import wandb
+
+    wandb.init()
+
+    tbl = wandb.Table(columns=["image", "label"])
+
+    images = np.random.randint(0, 255, [2, 100, 100, 3], dtype=np.uint8)
+    labels = ["panda", "gibbon"]
+    [tbl.add_data(wandb.Image(image), label) for image, label in zip(images, labels)]
+
+    wandb.log({"classifier_out": tbl})
+    ```
+
+    Tables added directly to runs as above will produce a corresponding Table Visualizer in the
     Workspace which can be used for further analysis and exporting to reports.
+
     Tables added to artifacts can be viewed in the Artifact Tab and will render
     an equivalent Table Visualizer directly in the artifact browser.
 
-    Note that Tables support numerous types of data: traditional scalar values,
-    numpy arrays, and most subclasses of wandb.data_types.Media. This means you
-    can embed Images, Video, Audio, and other sorts of rich, annotated media
-    directly in Tables, alongside other traditional scalar values. Tables expect
-    each value for a column to be of the same type. By default, a column supports
+    Tables expect each value for a column to be of the same type. By default, a column supports
     optional values, but not mixed values. If you absolutely need to mix types,
     you can enable the `allow_mixed_types` flag which will disable type checking
     on the data. This will result in some table analytics features being disabled
@@ -155,6 +202,7 @@ class Table(Media):
 
     MAX_ROWS = 10000
     MAX_ARTIFACT_ROWS = 200000
+    _MAX_EMBEDDING_DIMENSIONS = 150
     _log_type = "table"
 
     def __init__(
@@ -234,7 +282,9 @@ class Table(Media):
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.data = []
-        self.columns = list(dataframe.columns)
+        columns = list(dataframe.columns)
+        self._assert_valid_columns(columns)
+        self.columns = columns
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
@@ -422,7 +472,8 @@ class Table(Media):
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(*args, **kwargs)
 
@@ -478,7 +529,14 @@ class Table(Media):
                 row_data.append(cell)
             data.append(row_data)
 
-        new_obj = cls(columns=json_obj["columns"], data=data)
+        # construct Table with dtypes for each column if type information exists
+        dtypes = None
+        if column_types is not None:
+            dtypes = [
+                column_types.params["type_map"][col] for col in json_obj["columns"]
+            ]
+
+        new_obj = cls(columns=json_obj["columns"], data=data, dtype=dtypes)
 
         if column_types is not None:
             new_obj._column_types = column_types
@@ -513,7 +571,22 @@ class Table(Media):
                     for t in col_type.params["allowed_types"]:
                         if isinstance(t, _dtypes.NDArrayType):
                             ndarray_type = t
-                if ndarray_type is not None:
+
+                # Do not serialize 1d arrays - these are likely embeddings and
+                # will not have the some cost as higher dimensional arrays
+                is_1d_array = (
+                    ndarray_type is not None
+                    and "shape" in ndarray_type._params
+                    and type(ndarray_type._params["shape"]) == list
+                    and len(ndarray_type._params["shape"]) == 1
+                    and ndarray_type._params["shape"][0]
+                    <= self._MAX_EMBEDDING_DIMENSIONS
+                )
+                if is_1d_array:
+                    self._column_types.params["type_map"][col_name] = _dtypes.ListType(
+                        _dtypes.NumberType, ndarray_type._params["shape"][0]
+                    )
+                elif ndarray_type is not None:
                     np = util.get_module(
                         "numpy",
                         required="Serializing numpy requires numpy to be installed",
@@ -524,7 +597,9 @@ class Table(Media):
                     npz_file_name = os.path.join(MEDIA_TMP.name, file_name)
                     np.savez_compressed(
                         npz_file_name,
-                        **{str(col_name): self.get_column(col_name, convert_to="numpy")}
+                        **{
+                            str(col_name): self.get_column(col_name, convert_to="numpy")
+                        },
                     )
                     entry = artifact.add_file(
                         npz_file_name, "media/serialized_data/" + file_name, is_tmp=True
@@ -763,12 +838,14 @@ class Table(Media):
         """Adds one or more computed columns based on existing data
 
         Args:
-            fn (function): A function which accepts one or two paramters: ndx (int) and row (dict)
+            fn: A function which accepts one or two parameters, ndx (int) and row (dict),
                 which is expected to return a dict representing new columns for that row, keyed
                 by the new column names.
-                    - `ndx` is an integer representing the index of the row. Only included if `include_ndx`
-                        is set to true
-                    - `row` is a dictionary keyed by existing columns
+
+                `ndx` is an integer representing the index of the row. Only included if `include_ndx`
+                      is set to `True`.
+
+                `row` is a dictionary keyed by existing columns
         """
         new_columns = {}
         for ndx, row in self.iterrows():
@@ -783,8 +860,7 @@ class Table(Media):
 
 
 class _PartitionTablePartEntry:
-    """Helper class for PartitionTable to track its parts
-    """
+    """Helper class for PartitionTable to track its parts"""
 
     def __init__(self, entry, source_artifact):
         self.entry = entry
@@ -801,7 +877,7 @@ class _PartitionTablePartEntry:
 
 
 class PartitionedTable(Media):
-    """ PartitionedTable represents a table which is composed
+    """PartitionedTable represents a table which is composed
     by the union of multiple sub-tables. Currently, PartitionedTable
     is designed to point to a directory within an artifact.
     """
@@ -1197,7 +1273,8 @@ class Bokeh(Media):
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
-            util.json_dump_safer(b_json, codecs.open(tmp_path, "w", encoding="utf-8"))
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
         elif not isinstance(data_or_path, bokeh.document.Document):
             raise TypeError(
@@ -1278,7 +1355,8 @@ class Graph(Media):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
@@ -1621,47 +1699,106 @@ class Edge(WBValue):
 
 
 # Custom dtypes for typing system
-
-
 class _ImageFileType(_dtypes.Type):
     name = "image-file"
     legacy_names = ["wandb.Image"]
     types = [Image]
 
-    def __init__(self, box_keys=None, mask_keys=None):
-        if box_keys is None:
-            box_keys = _dtypes.UnknownType()
-        elif isinstance(box_keys, _dtypes.ConstType):
-            box_keys = box_keys
-        elif not isinstance(box_keys, list):
-            raise TypeError("box_keys must be a list")
-        else:
-            box_keys = _dtypes.ConstType(set(box_keys))
+    def __init__(
+        self, box_layers=None, box_score_keys=None, mask_layers=None, class_map=None
+    ):
+        box_layers = box_layers or {}
+        box_score_keys = box_score_keys or []
+        mask_layers = mask_layers or {}
+        class_map = class_map or {}
 
-        if mask_keys is None:
-            mask_keys = _dtypes.UnknownType()
-        elif isinstance(mask_keys, _dtypes.ConstType):
-            mask_keys = mask_keys
-        elif not isinstance(mask_keys, list):
-            raise TypeError("mask_keys must be a list")
+        if isinstance(box_layers, _dtypes.ConstType):
+            box_layers = box_layers._params["val"]
+        if not isinstance(box_layers, dict):
+            raise TypeError("box_layers must be a dict")
         else:
-            mask_keys = _dtypes.ConstType(set(mask_keys))
+            box_layers = _dtypes.ConstType(
+                {layer_key: set(box_layers[layer_key]) for layer_key in box_layers}
+            )
+
+        if isinstance(mask_layers, _dtypes.ConstType):
+            mask_layers = mask_layers._params["val"]
+        if not isinstance(mask_layers, dict):
+            raise TypeError("mask_layers must be a dict")
+        else:
+            mask_layers = _dtypes.ConstType(
+                {layer_key: set(mask_layers[layer_key]) for layer_key in mask_layers}
+            )
+
+        if isinstance(box_score_keys, _dtypes.ConstType):
+            box_score_keys = box_score_keys._params["val"]
+        if not isinstance(box_score_keys, list) and not isinstance(box_score_keys, set):
+            raise TypeError("box_score_keys must be a list or a set")
+        else:
+            box_score_keys = _dtypes.ConstType(set(box_score_keys))
+
+        if isinstance(class_map, _dtypes.ConstType):
+            class_map = class_map._params["val"]
+        if not isinstance(class_map, dict):
+            raise TypeError("class_map must be a dict")
+        else:
+            class_map = _dtypes.ConstType(class_map)
 
         self.params.update(
-            {"box_keys": box_keys, "mask_keys": mask_keys,}
+            {
+                "box_layers": box_layers,
+                "box_score_keys": box_score_keys,
+                "mask_layers": mask_layers,
+                "class_map": class_map,
+            }
         )
 
     def assign_type(self, wb_type=None):
         if isinstance(wb_type, _ImageFileType):
-            box_keys = self.params["box_keys"].assign_type(wb_type.params["box_keys"])
-            mask_keys = self.params["mask_keys"].assign_type(
-                wb_type.params["mask_keys"]
-            )
-            if not (
-                isinstance(box_keys, _dtypes.InvalidType)
-                or isinstance(mask_keys, _dtypes.InvalidType)
-            ):
-                return _ImageFileType(box_keys, mask_keys)
+            box_layers_self = self.params["box_layers"].params["val"] or {}
+            box_score_keys_self = self.params["box_score_keys"].params["val"] or []
+            mask_layers_self = self.params["mask_layers"].params["val"] or {}
+            class_map_self = self.params["class_map"].params["val"] or {}
+
+            box_layers_other = wb_type.params["box_layers"].params["val"] or {}
+            box_score_keys_other = wb_type.params["box_score_keys"].params["val"] or []
+            mask_layers_other = wb_type.params["mask_layers"].params["val"] or {}
+            class_map_other = wb_type.params["class_map"].params["val"] or {}
+
+            # Merge the class_ids from each set of box_layers
+            box_layers = {
+                str(key): set(
+                    list(box_layers_self.get(key, []))
+                    + list(box_layers_other.get(key, []))
+                )
+                for key in set(
+                    list(box_layers_self.keys()) + list(box_layers_other.keys())
+                )
+            }
+
+            # Merge the class_ids from each set of mask_layers
+            mask_layers = {
+                str(key): set(
+                    list(mask_layers_self.get(key, []))
+                    + list(mask_layers_other.get(key, []))
+                )
+                for key in set(
+                    list(mask_layers_self.keys()) + list(mask_layers_other.keys())
+                )
+            }
+
+            # Merge the box score keys
+            box_score_keys = set(list(box_score_keys_self) + list(box_score_keys_other))
+
+            # Merge the class_map
+            class_map = {
+                str(key): class_map_self.get(key, class_map_other.get(key, None))
+                for key in set(
+                    list(class_map_self.keys()) + list(class_map_other.keys())
+                )
+            }
+
+            return _ImageFileType(box_layers, box_score_keys, mask_layers, class_map)
 
         return _dtypes.InvalidType()
 
@@ -1671,16 +1808,43 @@ class _ImageFileType(_dtypes.Type):
             raise TypeError("py_obj must be a wandb.Image")
         else:
             if hasattr(py_obj, "_boxes") and py_obj._boxes:
-                box_keys = list(py_obj._boxes.keys())
-            else:
-                box_keys = []
+                box_layers = {
+                    str(key): set(py_obj._boxes[key]._class_labels.keys())
+                    for key in py_obj._boxes.keys()
+                }
+                box_score_keys = set(
+                    [
+                        key
+                        for val in py_obj._boxes.values()
+                        for box in val._val
+                        for key in box.get("scores", {}).keys()
+                    ]
+                )
 
-            if hasattr(py_obj, "masks") and py_obj.masks:
-                mask_keys = list(py_obj.masks.keys())
             else:
-                mask_keys = []
+                box_layers = {}
+                box_score_keys = set([])
 
-            return cls(box_keys, mask_keys)
+            if hasattr(py_obj, "_masks") and py_obj._masks:
+                mask_layers = {
+                    str(key): set(
+                        py_obj._masks[key]._val["class_labels"].keys()
+                        if hasattr(py_obj._masks[key], "_val")
+                        else []
+                    )
+                    for key in py_obj._masks.keys()
+                }
+            else:
+                mask_layers = {}
+
+            if hasattr(py_obj, "_classes") and py_obj._classes:
+                class_set = {
+                    str(item["id"]): item["name"] for item in py_obj._classes._class_set
+                }
+            else:
+                class_set = {}
+
+            return cls(box_layers, box_score_keys, mask_layers, class_set)
 
 
 class _TableType(_dtypes.Type):

@@ -1,0 +1,12 @@
+icevision
+jax
+keras
+lightgbm
+lightning-flash
+mmcv
+mmdet
+mmf
+nemo_toolkit[all]
+nni
+onmt
+optuna

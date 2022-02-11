@@ -3,7 +3,7 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from wandb.apis.internal import Api
-from wandb.errors import ExecutionError, LaunchError
+from wandb.errors import ExecutionError
 
 from ._project_spec import create_project_from_spec, fetch_and_validate_project
 from .agent import LaunchAgent
@@ -20,11 +20,15 @@ _logger = logging.getLogger(__name__)
 
 
 def create_and_run_agent(
-    api: Api, entity: str, project: str, queues: Optional[List[str]] = None
+    api: Api,
+    entity: str,
+    project: str,
+    queues: Optional[List[str]] = None,
+    max_jobs: int = None,
 ) -> None:
     if queues is None:
         queues = []
-    agent = LaunchAgent(entity, project, queues)
+    agent = LaunchAgent(entity, project, queues, max_jobs)
     agent.loop()
 
 
@@ -39,6 +43,7 @@ def _run(
     parameters: Optional[Dict[str, Any]],
     docker_args: Optional[Dict[str, Any]],
     resource: str,
+    resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
     synchronous: Optional[bool],
     api: Api,
@@ -51,9 +56,11 @@ def _run(
         project,
         entity,
         docker_image,
+        resource,
         entry_point,
         version,
         parameters,
+        resource_args,
         launch_config,
     )
     launch_project = create_project_from_spec(launch_spec, api)
@@ -88,6 +95,7 @@ def run(
     docker_args: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     resource: str = "local",
+    resource_args: Optional[Dict[str, Any]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     docker_image: Optional[str] = None,
@@ -107,10 +115,12 @@ def run(
     docker_args: Arguments (dictionary) for the docker command.
     name: Name run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
+    resource_args: Resource related arguments for launching runs onto a remote backend.
+        Will be stored on the constructed launch config under ``resource_args``.
     project: Target project to send launched run to
     entity: Target entity to send launched run to
-    config: A dictionary which will be passed as config to the backend. The exact content
-        which should be provided is different for each execution backend
+    config: A dictionary containing the configuration for the run. May also contain
+    resource specific arguments under the key "resource_args".
     synchronous: Whether to block while waiting for a run to complete. Defaults to True.
         Note that if ``synchronous`` is False and ``backend`` is "local", this
         method will return, but the current process will block when exiting until
@@ -163,15 +173,12 @@ def run(
         parameters=parameters,
         docker_args=docker_args,
         resource=resource,
+        resource_args=resource_args,
         launch_config=config,
         synchronous=synchronous,
         api=api,
     )
 
-    if synchronous:
-        _wait_for(submitted_run_obj)
-    else:
-        raise LaunchError("Non synchronous mode not supported")
     return submitted_run_obj
 
 

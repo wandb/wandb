@@ -6,3 +6,6 @@ filename =
 
 per-file-ignores =
     ./wandb/sdk/wandb_require.py:DAR402
+
+select =
+    DAR

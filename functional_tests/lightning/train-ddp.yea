@@ -7,17 +7,17 @@ command:
   program: train-ddp.py
 depend:
   requirements:
-    - torch
     - git+https://github.com/wandb/pytorch-lightning.git@wandb-service-attach
+    - setuptools<=59.5.0
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][some_hparam]: Logged Before Trainer starts DDP
-  - :wandb:runs[0][summary][epoch]: 0
-  - :wandb:runs[0][summary][trainer/global_step]: 0
+  - :wandb:runs[0][summary][epoch]: 1
+  - :wandb:runs[0][summary][trainer/global_step]: 1563
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
-    - 6  # grpc
+    - 23  # service
   - :op:>:
     - :wandb:runs[0][summary][loss]
     - 0

@@ -32,6 +32,7 @@ from wandb import wandb_agent
 from wandb import wandb_sdk
 
 from wandb.apis import InternalApi, PublicApi
+from wandb.errors import ExecutionError, LaunchError
 from wandb.integration.magic import magic_install
 from wandb.sdk.launch.launch_add import _launch_add
 
@@ -110,7 +111,8 @@ def _get_cling_api(reset=None):
         wandb_sdk.wandb_setup._setup(_reset=True)
     if _api is None:
         # TODO(jhr): make a settings object that is better for non runs.
-        wandb.setup(settings=wandb.Settings(_cli_only_mode=True))
+        # only override the necessary setting
+        wandb.setup(settings=dict(_cli_only_mode=True))
         _api = InternalApi()
     return _api
 
@@ -218,15 +220,14 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
     if key:
         relogin = True
 
+    login_settings = dict(
+        _cli_only_mode=True, _disable_viewer=relogin, anonymous=anon_mode,
+    )
+    if host is not None:
+        login_settings["base_url"] = host
+
     try:
-        wandb.setup(
-            settings=wandb.Settings(
-                _cli_only_mode=True,
-                _disable_viewer=relogin,
-                anonymous=anon_mode,
-                base_url=host,
-            )
-        )
+        wandb.setup(settings=login_settings)
     except TypeError as e:
         wandb.termerror(str(e))
         sys.exit(1)
@@ -237,23 +238,40 @@ def login(key, host, cloud, relogin, anonymously, no_offline=False):
 @cli.command(
     context_settings=CONTEXT, help="Run a wandb service", name="service", hidden=True
 )
-@click.option("--port", default=None, type=int, help="The host port to bind service.")
+@click.option(
+    "--grpc-port", default=None, type=int, help="The host port to bind grpc service."
+)
+@click.option(
+    "--sock-port", default=None, type=int, help="The host port to bind socket service."
+)
 @click.option("--port-filename", default=None, help="Save allocated port to file.")
 @click.option("--address", default=None, help="The address to bind service.")
 @click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
-@click.option("--debug", default=None)
+@click.option("--debug", is_flag=True, help="log debug info")
+@click.option("--serve-sock", is_flag=True, help="use socket mode")
+@click.option("--serve-grpc", is_flag=True, help="use grpc mode")
 @display_error
 def service(
-    port=None, port_filename=None, address=None, pid=None, debug=None,
+    grpc_port=None,
+    sock_port=None,
+    port_filename=None,
+    address=None,
+    pid=None,
+    debug=False,
+    serve_sock=False,
+    serve_grpc=False,
 ):
-    _ = util.get_module(
-        "grpc",
-        required="wandb service requires the grpcio library, run pip install wandb[service]",
-    )
-    from wandb.sdk.service.grpc_server import GrpcServer
+    from wandb.sdk.service.server import WandbServer
 
-    server = GrpcServer(
-        port=port, port_fname=port_filename, address=address, pid=pid, debug=debug,
+    server = WandbServer(
+        grpc_port=grpc_port,
+        sock_port=sock_port,
+        port_fname=port_filename,
+        address=address,
+        pid=pid,
+        debug=debug,
+        serve_sock=serve_sock,
+        serve_grpc=serve_grpc,
     )
     server.serve()
 
@@ -335,7 +353,8 @@ def init(ctx, project, entity, reset, mode):
     if not viewer:
         click.echo(
             click.style(
-                "We're sorry, there was a problem logging you in. Please send us a note at support@wandb.com and tell us how this happened.",
+                "We're sorry, there was a problem logging you in. "
+                "Please send us a note at support@wandb.com and tell us how this happened.",
                 fg="red",
                 bold=True,
             )
@@ -365,7 +384,7 @@ def init(ctx, project, entity, reset, mode):
     try:
         project = prompt_for_project(ctx, entity)
     except ClickWandbException:
-        raise ClickException("Could not find team: %s" % entity)
+        raise ClickException(f"Could not find team: {entity}")
 
     api.set_setting("entity", entity, persist=True)
     api.set_setting("project", project, persist=True)
@@ -973,8 +992,7 @@ def _check_launch_imports():
     "-c",
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend. See documentation for layout of this file.",
+    "as a launch config. Dictation how the launched run will be configured. ",
 )
 @click.option(
     "--queue",
@@ -985,6 +1003,22 @@ def _check_launch_imports():
     help="Name of run queue to push to. If none, launches single run directly. If supplied without "
     "an argument (`--queue`), defaults to queue 'default'. Else, if name supplied, specified run queue must exist under the "
     "project and entity supplied.",
+)
+@click.option(
+    "--async",
+    "run_async",
+    is_flag=True,
+    help="Flag to run the job asynchronously. Defaults to false, i.e. unless --async is set, wandb launch will wait for "
+    "the job to finish. This option is incompatible with --queue; asynchronous options when running with an agent should be "
+    "set on wandb launch-agent.",
+)
+@click.option(
+    "--resource-args",
+    "-R",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as resource args to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @display_error
 def launch(
@@ -1000,6 +1034,8 @@ def launch(
     docker_image,
     config,
     queue,
+    run_async,
+    resource_args,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1021,19 +1057,25 @@ def launch(
     )
     api = _get_cling_api()
 
+    if run_async and queue is not None:
+        raise LaunchError(
+            "Cannot use both --async and --queue with wandb launch, see help for details."
+        )
+
     args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
+
+    if resource_args is not None:
+        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        if resource_args is None:
+            raise LaunchError("Invalid format for resource-args")
+    else:
+        resource_args = {}
+
     if config is not None:
-        if os.path.splitext(config)[-1] == ".json":
-            with open(config, "r") as f:
-                config = json.load(f)
-        else:
-            # assume a json string
-            try:
-                config = json.loads(config)
-            except ValueError as e:
-                wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
-                raise
+        config = util.load_as_json_file_or_load_dict_as_json(config)
+        if config is None:
+            raise LaunchError("Invalid format for config")
     else:
         config = {}
 
@@ -1052,14 +1094,14 @@ def launch(
                 parameters=args_dict,
                 docker_args=docker_args_dict,
                 resource=resource,
+                resource_args=resource_args,
                 config=config,
-                synchronous=resource in ("local")
-                or resource is None,  # todo currently always true
+                synchronous=(not run_async),
             )
-        except wandb_launch.LaunchError as e:
+        except LaunchError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
-        except wandb_launch.ExecutionError as e:
+        except ExecutionError as e:
             logger.error("=== %s ===", e)
             sys.exit(e)
     else:
@@ -1076,6 +1118,7 @@ def launch(
             git_version,
             docker_image,
             args_dict,
+            resource_args,
         )
 
 
@@ -1089,8 +1132,14 @@ def launch(
     help="The entity to use. Defaults to current logged-in user",
 )
 @click.option("--queues", "-q", default="default", help="The queue names to poll")
+@click.option(
+    "--max-jobs",
+    "-j",
+    default=1,
+    help="The maximum number of launch jobs this agent can run in parallel. Defaults to 1.",
+)
 @display_error
-def launch_agent(ctx, project=None, entity=None, queues=None):
+def launch_agent(ctx, project=None, entity=None, queues=None, max_jobs=None):
     logger.info(
         f"=== Launch-agent called with kwargs {locals()}  CLI Version: {wandb.__version__} ==="
     )
@@ -1113,7 +1162,7 @@ def launch_agent(ctx, project=None, entity=None, queues=None):
 
     wandb.termlog("Starting launch agent ✨")
 
-    wandb_launch.create_and_run_agent(api, entity, project, queues)
+    wandb_launch.create_and_run_agent(api, entity, project, queues, max_jobs)
 
 
 @cli.command(context_settings=CONTEXT, help="Run the W&B agent")

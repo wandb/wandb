@@ -16,7 +16,7 @@ CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.min
 
 
 class ValidationDataLogger(object):
-    """ValidationDataLogger helps to develop integrations which log  model predictions.
+    """Logs validation data as a wandb.Table.
 
     ValidationDataLogger is intended to be used inside of library integrations
     in order to facilitate the process of optionally building a validation dataset
@@ -48,45 +48,41 @@ class ValidationDataLogger(object):
         """Initializes a new ValidationDataLogger.
 
         Args:
-            inputs (Sequence | Dict[str, Sequence]): a list of input vectors or
-                dictionary of lists of input vectors (used if the model has
-                multiple named inputs)
-            targets (Sequence | Dict[str, Sequence], optional): a list of target
-                vectors or dictionary of lists of target vectors (used if the
-                model has multiple named targets/putputs). Defaults to None.
-                `targets` and `indexes` cannot both be None
-            indexes (List[wandb.data_types._TableIndex], optional): An ordered
-                list of wandb.data_types._TableIndex mapping the input items to
-                their source table. This is most commonly retrieved by using
-                indexes = my_data_table.get_index().Defaults to None. `targets`
-                and `indexes` cannot both be None.
-            validation_row_processor (Callable, optional): a function to apply to
-                the validation data, commonly used to visualize the data. The
-                function will receive an ndx (int) and a row (dict). If `inputs`
-                is a list, then row["input"] will be the input data for the row.
-                Else, it will be keyed based on the name of the input slot
+            inputs: A list of input vectors or dictionary of lists of input vectors
+                (used if the model has multiple named inputs)
+            targets: A list of target vectors or dictionary of lists of target vectors
+                (used if the model has multiple named targets/putputs). Defaults to `None`.
+                `targets` and `indexes` cannot both be `None`.
+            indexes: An ordered list of `wandb.data_types._TableIndex` mapping the
+                input items to their source table. This is most commonly retrieved by using
+                `indexes = my_data_table.get_index()`. Defaults to `None`. `targets`
+                and `indexes` cannot both be `None`.
+            validation_row_processor: A function to apply to the validation data,
+                commonly used to visualize the data. The function will receive an `ndx` (`int`)
+                and a `row` (`dict`). If `inputs` is a list, then `row["input"]` will be the input
+                data for the row. Else, it will be keyed based on the name of the input slot
                 (corresponding to `inputs`). If `targets` is a list, then
-                row["target"] will be the target data for the row. Else, it will
+                `row["target"]` will be the target data for the row. Else, it will
                 be keyed based on `targets`. For example, if your input data is a
-                single ndarray, but you wish to visualize the data as an Image,
+                single ndarray, but you wish to visualize the data as an image,
                 then you can provide `lambda ndx, row: {"img": wandb.Image(row["input"])}`
-                as the processor. If None, we will try to guess the appropriate processor.
-                Ignored if log_evaluation is False or val_keys are present. Defaults to None.
-            prediction_row_processor (Callable, optional): same as validation_row_processor,
-                but applied to the model's output. `row["output"]` will contain the
-                results of the model output. Defaults to None.
-            input_col_name (str, optional): the name to use for the input column.
-                Defaults to "input".
-            target_col_name (str, optional): the name to use for the target column.
-                Defaults to "target".
-            table_name (str, optional): the name to use for the validation table.
-                Defaults to "wb_validation_data".
-            artifact_type (str, optional): the artifact type to use for the validation data.
-                Defaults to "validation_dataset".
-            class_labels (List[str], optional): Optional list of lables to use in the inferfed
-                processesors. If the model's `target` or `output` is inferred to be a class,
-                we will attempt to map the class to these labels. Defaults to None.
-            infer_missing_processors (bool, optional): Determines if processors are inferred if
+                as the processor. If `None`, we will try to guess the appropriate processor.
+                Ignored if `log_evaluation` is `False` or `val_keys` are present. Defaults to `None`.
+            prediction_row_processor: Same as validation_row_processor, but applied to the
+                model's output. `row["output"]` will contain the results of the model output.
+                Defaults to `None`.
+            input_col_name: The name to use for the input column.
+                Defaults to `"input"`.
+            target_col_name: The name to use for the target column.
+                Defaults to `"target"`.
+            table_name: The name to use for the validation table.
+                Defaults to `"wb_validation_data"`.
+            artifact_type: The artifact type to use for the validation data.
+                Defaults to `"validation_dataset"`.
+            class_labels: Optional list of lables to use in the inferred
+                processors. If the model's `target` or `output` is inferred to be a class,
+                we will attempt to map the class to these labels. Defaults to `None`.
+            infer_missing_processors: Determines if processors are inferred if
                 they are missing. Defaults to True.
         """
         class_labels_table: Optional["wandb.Table"]

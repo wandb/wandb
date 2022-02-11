@@ -1,0 +1,11 @@
+changelog:
+  exclude:
+    labels:
+      - changelog-ignore
+  categories:
+    - title: ":nail_care: Enhancement"
+      labels:
+        - changelog-enhancement
+    - title: ":bug: Bug Fix"
+      labels:
+        - "*"

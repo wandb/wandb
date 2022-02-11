@@ -4,6 +4,7 @@ import logging
 import os
 
 import six
+import wandb
 from wandb.errors import Error
 from wandb.util import load_yaml
 import yaml
@@ -14,7 +15,7 @@ from . import filesystem
 logger = logging.getLogger("wandb")
 
 
-class ConfigError(Error):  # type: ignore
+class ConfigError(Error):
     pass
 
 
@@ -108,6 +109,11 @@ def dict_from_config_file(filename, must_exist=False):
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:
         raise ConfigError("Invalid YAML in config yaml")
+    if loaded is None:
+        wandb.termwarn(
+            "Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
+        )
+        return None
     config_version = loaded.pop("wandb_version", None)
     if config_version is not None and config_version != 1:
         raise ConfigError("Unknown config version")

@@ -24,4 +24,4 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
-    - 6  # grpc
+    - 23  # service

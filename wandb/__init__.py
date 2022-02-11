@@ -1,25 +1,23 @@
 # -*- coding: utf-8 -*-
-"""
-Wandb is a library to help track machine learning experiments.
-
-For more information on wandb see https://docs.wandb.com.
+"""Use wandb to track machine learning work.
 
 The most commonly used functions/objects are:
-- wandb.init — initialize a new run at the top of your training script
-- wandb.config — track hyperparameters
-- wandb.log — log metrics over time within your training loop
-- wandb.save — save files in association with your run, like model weights
-- wandb.restore — restore the state of your code when you ran a given run
+  - wandb.init — initialize a new run at the top of your training script
+  - wandb.config — track hyperparameters and metadata
+  - wandb.log — log metrics and media over time within your training loop
 
-For examples usage, see github.com/wandb/examples
+For guides and examples, see https://docs.wandb.com/guides.
+
+For scripts and interactive notebooks, see https://github.com/wandb/examples.
+
+For reference documentation, see https://docs.wandb.com/ref/python.
 """
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-__version__ = "0.12.7.dev1"
+__version__ = "0.12.11.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"

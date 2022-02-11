@@ -168,18 +168,17 @@ class Agent(object):
                 if status in (RunStatus.QUEUED, RunStatus.RUNNING)
             }
             commands = self._api.agent_heartbeat(self._agent_id, {}, run_status)
-            if not commands:
-                continue
-            job = Job(commands[0])
-            logger.debug("Job received: {}".format(job))
-            if job.type in ["run", "resume"]:
-                self._queue.put(job)
-                self._run_status[job.run_id] = RunStatus.QUEUED
-            elif job.type == "stop":
-                self._stop_run(job.run_id)
-            elif job.type == "exit":
-                self._exit()
-                return
+            if commands:
+                job = Job(commands[0])
+                logger.debug("Job received: {}".format(job))
+                if job.type in ["run", "resume"]:
+                    self._queue.put(job)
+                    self._run_status[job.run_id] = RunStatus.QUEUED
+                elif job.type == "stop":
+                    self._stop_run(job.run_id)
+                elif job.type == "exit":
+                    self._exit()
+                    return
             time.sleep(5)
 
     def _run_jobs_from_queue(self):  # noqa:C901

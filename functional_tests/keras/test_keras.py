@@ -24,7 +24,7 @@ model.fit(
     y,
     epochs=2,
     validation_data=(x, y),
-    callbacks=[WandbCallback(data_type="image")],
+    callbacks=[WandbCallback(input_type="image")],
 )
 
 run.finish()

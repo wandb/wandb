@@ -1,81 +1,66 @@
-"""grpc service.
+"""Reliably launch and connect to backend server process (wandb service).
 
-Reliably launch and connect to grpc process.
+Backend server process can be connected to using tcp sockets or grpc transport.
 """
 
-import datetime
-import enum
-import logging
 import os
 import subprocess
 import sys
 import tempfile
 import time
 from typing import Any, Dict, Optional
-from typing import TYPE_CHECKING
 
-import grpc
-from wandb.proto import wandb_server_pb2 as spb
-from wandb.proto import wandb_server_pb2_grpc as pbgrpc
-from wandb.sdk.wandb_settings import Settings
-
-if TYPE_CHECKING:
-    from google.protobuf.internal.containers import MessageMap
-
-
-def _pbmap_apply_dict(
-    m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
-) -> None:
-    for k, v in d.items():
-        if isinstance(v, datetime.datetime):
-            continue
-        if isinstance(v, enum.Enum):
-            continue
-        sv = spb.SettingsValue()
-        if v is None:
-            sv.null_value = True
-        elif isinstance(v, int):
-            sv.int_value = v
-        elif isinstance(v, float):
-            sv.float_value = v
-        elif isinstance(v, str):
-            sv.string_value = v
-        elif isinstance(v, bool):
-            sv.bool_value = v
-        elif isinstance(v, tuple):
-            sv.tuple_value.string_values.extend(v)
-        m[k].CopyFrom(sv)
+from . import port_file
+from .service_base import ServiceInterface
+from .service_sock import ServiceSockInterface
 
 
 class _Service:
-    _stub: Optional[pbgrpc.InternalServiceStub]
+    _grpc_port: Optional[int]
+    _sock_port: Optional[int]
+    _service_interface: ServiceInterface
+    _internal_proc: Optional[subprocess.Popen]
 
-    def __init__(self) -> None:
+    def __init__(self, _use_grpc: bool = False) -> None:
+        self._use_grpc = _use_grpc
         self._stub = None
+        self._grpc_port = None
+        self._sock_port = None
+        # current code only supports grpc or socket server implementation, in the
+        # future we might be able to support both
+        if _use_grpc:
+            from .service_grpc import ServiceGrpcInterface
 
-    def _grpc_wait_for_port(
-        self, fname: str, proc: subprocess.Popen = None
-    ) -> Optional[int]:
+            self._service_interface = ServiceGrpcInterface()
+        else:
+            self._service_interface = ServiceSockInterface()
+
+    def _wait_for_ports(self, fname: str, proc: subprocess.Popen = None) -> bool:
         time_max = time.time() + 30
-        port = None
         while time.time() < time_max:
             if proc and proc.poll():
                 # process finished
                 print("proc exited with", proc.returncode)
-                return None
+                return False
             if not os.path.isfile(fname):
                 time.sleep(0.2)
                 continue
             try:
-                f = open(fname)
-                port = int(f.read())
+                pf = port_file.PortFile()
+                pf.read(fname)
+                if not pf.is_valid:
+                    time.sleep(0.2)
+                    continue
+                self._grpc_port = pf.grpc_port
+                self._sock_port = pf.sock_port
             except Exception as e:
                 print("Error:", e)
-            return port
-        return None
+                return False
+            return True
+        return False
 
-    def _grpc_launch_server(self) -> Optional[int]:
-        """Launch grpc server and return port."""
+    def _launch_server(self) -> None:
+        """Launch server and set ports."""
 
         # References for starting processes
         # - https://github.com/wandb/client/blob/archive/old-cli/wandb/__init__.py
@@ -93,63 +78,42 @@ class _Service:
             # Add coverage collection if needed
             if os.environ.get("COVERAGE_RCFILE"):
                 exec_cmd_list += ["coverage", "run", "-m"]
+            service_args = [
+                "wandb",
+                "service",
+                "--port-filename",
+                fname,
+                "--pid",
+                pid_str,
+                "--debug",
+            ]
+            if self._use_grpc:
+                service_args.append("--serve-grpc")
+            else:
+                service_args.append("--serve-sock")
             internal_proc = subprocess.Popen(
-                exec_cmd_list
-                + [
-                    "wandb",
-                    "service",
-                    "--port-filename",
-                    fname,
-                    "--pid",
-                    pid_str,
-                    "--debug",
-                    "true",
-                ],
-                env=os.environ,
-                **kwargs,
+                exec_cmd_list + service_args, env=os.environ, **kwargs,
             )
-            port = self._grpc_wait_for_port(fname, proc=internal_proc)
+            ports_found = self._wait_for_ports(fname, proc=internal_proc)
+            assert ports_found
+            self._internal_proc = internal_proc
 
-        return port
+    def start(self) -> None:
+        self._launch_server()
 
-    def start(self) -> Optional[int]:
-        port = self._grpc_launch_server()
-        return port
+    @property
+    def grpc_port(self) -> Optional[int]:
+        return self._grpc_port
 
-    def connect(self, port: int) -> None:
-        channel = grpc.insecure_channel("localhost:{}".format(port))
-        stub = pbgrpc.InternalServiceStub(channel)
-        self._stub = stub
-        # TODO: make sure service is up
+    @property
+    def sock_port(self) -> Optional[int]:
+        return self._sock_port
 
-    def _get_stub(self) -> Optional[pbgrpc.InternalServiceStub]:
-        return self._stub
+    @property
+    def service_interface(self) -> ServiceInterface:
+        return self._service_interface
 
-    def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
-        assert self._stub
-
-        inform_init = spb.ServerInformInitRequest()
-        settings_dict = dict(settings)
-        settings_dict["_log_level"] = logging.DEBUG
-        _pbmap_apply_dict(inform_init._settings_map, settings_dict)
-        inform_init._info.stream_id = run_id
-        _ = self._stub.ServerInformInit(inform_init)
-
-    def _svc_inform_finish(self, run_id: str = None) -> None:
-        assert self._stub
-        assert run_id
-        inform_fin = spb.ServerInformFinishRequest()
-        inform_fin._info.stream_id = run_id
-        _ = self._stub.ServerInformFinish(inform_fin)
-
-    def _svc_inform_attach(self, attach_id: str) -> None:
-        assert self._stub
-
-        inform_attach = spb.ServerInformAttachRequest()
-        inform_attach._info.stream_id = attach_id
-        _ = self._stub.ServerInformAttach(inform_attach)
-
-    def _svc_inform_teardown(self, exit_code: int) -> None:
-        assert self._stub
-        inform_fin = spb.ServerInformTeardownRequest(exit_code=exit_code)
-        _ = self._stub.ServerInformTeardown(inform_fin)
+    def join(self) -> None:
+        if self._internal_proc:
+            ret = self._internal_proc.wait()
+            assert ret == 0

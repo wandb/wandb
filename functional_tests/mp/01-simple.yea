@@ -12,3 +12,6 @@ assert:
   - :wandb:runs[0][output][stdout]:
     - somedata
   - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 23  # service

@@ -17,6 +17,8 @@ message TelemetryRecord {
   // string  framework = 7;
   Env     env = 8;
   Labels  label = 9;
+  Deprecated deprecated = 10;
+  Issues issues = 11;
   _RecordInfo _info = 200;
 }
 
@@ -37,6 +39,17 @@ message Imports {
   bool transformers_huggingface = 11;
   bool jax = 12;
   bool metaflow = 13;
+  bool allennlp = 14;
+  bool autogluon = 15;
+  bool autokeras = 16;
+  // bool avalanche = 17;
+  bool catalyst = 18;
+  // bool dalle_pytorch = 19;
+  // bool datasets = 20;
+  bool deepchem = 21;
+  bool deepctr = 22;
+  // bool deeppavlov = 23;
+  // bool detectron = 24;
 }
 
 message Feature {
@@ -62,6 +75,10 @@ message Feature {
   bool launch = 20; // run is created through wandb launch
   bool torch_profiler_trace = 21; // wandb.profiler.torch_trace_handler() called
   bool sb3 = 22; // Using stable_baselines3 integration
+  bool service = 23; // Using wandb service internal process
+  bool init_return_run = 24; // wandb.init() called in the same process returning previous run
+  bool lightgbm_wandb_callback = 25; // lightgbm callback used
+  bool lightgbm_log_summary = 26; // lightgbm log summary used
 }
 
 message Env {
@@ -73,10 +90,25 @@ message Env {
   bool start_fork = 6;        // multiprocessing fork
   bool start_forkserver = 7;  // multiprocessing forkserver
   bool start_thread = 8;      // thread start method
+  bool maybe_mp = 9; // maybe user running multiprocessing
 }
 
 message Labels {
   string code_string = 1;   // code identification
   string repo_string = 2;   // repo identification
   string code_version = 3;  // code version
+}
+
+message Deprecated {
+  bool keras_callback__data_type = 1; // wandb.keras.WandbCallback(data_type=...) called
+  bool run__mode = 2; // wandb.run.mode called
+  bool run__save_no_args = 3; // wandb.run.save() called without arguments
+  bool run__join = 4; // wandb.run.join() called
+  bool plots = 5; // wandb.plots.* called
+}
+
+message Issues {
+  bool settings__validation_warnings = 1; // validation warnings for settings?
+  bool settings__unexpected_args = 2; // unexpected settings init args?
+  bool settings__preprocessing_warnings = 3; // preprocessing warnings for settings?
 }

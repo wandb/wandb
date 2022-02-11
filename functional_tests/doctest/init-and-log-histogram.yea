@@ -1,0 +1,17 @@
+id: init-and-log-histogram
+plugin:
+    - wandb
+tag:
+  shard: docs
+var:
+  - n_gradients_values:
+      :fn:sum: :wandb:runs[0][summary][gradients][values]
+depend:
+    requirements:
+        - numpy
+assert:
+    - :wandb:runs_len: 1
+    - :op:contains:
+      - :wandb:runs[0][summary]
+      - gradients
+    - :n_gradients_values: 10000

@@ -311,8 +311,21 @@ def test_image_type():
 
     assert wb_type.assign(image_simple) == wb_type_simple
     assert wb_type.assign(image_annotated) == wb_type_annotated
-    assert wb_type_annotated.assign(image_simple) == InvalidType()
-    assert wb_type_annotated.assign(image_annotated_differently) == InvalidType()
+    # OK to assign Images with disjoint class set
+    assert wb_type_annotated.assign(image_simple) == wb_type_annotated
+    # Merge when disjoint
+    assert wb_type_annotated.assign(
+        image_annotated_differently
+    ) == data_types._ImageFileType(
+        box_layers={"box_predictions": {1, 2, 3}, "box_ground_truth": {1, 2, 3}},
+        box_score_keys={"loss", "acc"},
+        mask_layers={
+            "mask_ground_truth_2": set(),
+            "mask_ground_truth": set(),
+            "mask_predictions": {1, 2, 3},
+        },
+        class_map={"1": "tree", "2": "car", "3": "road"},
+    )
 
 
 def test_classes_type():
@@ -537,8 +550,7 @@ def test_table_specials():
     # Denies conflict
     with pytest.raises(TypeError):
         table.add_data(
-            data_types.Image(np.random.rand(10, 10),),
-            data_types.Table(data=[[1, True, None]]),
+            "hello", data_types.Table(data=[[1, True, None]]),
         )
 
     # Denies conflict

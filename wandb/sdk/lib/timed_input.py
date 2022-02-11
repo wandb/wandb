@@ -107,6 +107,7 @@ def timed_input(
         prompt (str): Prompt to output to stdout.
         timeout (float): Timeout to wait for input.
         show_timeout (bool): Show timeout in prompt
+        jupyter (bool): If True, use jupyter specific code.
 
     Raises:
         TimeoutError: exception raised if timeout occurred.
