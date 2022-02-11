@@ -315,7 +315,7 @@ class Run(object):
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self.history_step = 0
-        self._torch_history: Union["wandb.wandb_torch.TorchHistory", None] = None
+        self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
         _datatypes_set_callback(self._datatypes_callback)
 
