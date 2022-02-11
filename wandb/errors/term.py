@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 import click
 import sys
 
@@ -18,14 +19,16 @@ _logger = None
 
 def termsetup(settings, logger):
     global _silent, _show_info, _show_warnings, _show_errors, _logger
-    _silent = settings._silent
-    _show_info = settings._show_info
-    _show_warnings = settings._show_warnings
-    _show_errors = settings._show_errors
+    _silent = settings.silent
+    _show_info = settings.show_info
+    _show_warnings = settings.show_warnings
+    _show_errors = settings.show_errors
     _logger = logger
 
 
-def termlog(string="", newline=True, repeat=True, prefix=True):
+def termlog(
+    string: str = "", newline: bool = True, repeat: bool = True, prefix: bool = True
+) -> None:
     """Log to standard error with formatting.
 
     Arguments:
@@ -42,7 +45,7 @@ def termlog(string="", newline=True, repeat=True, prefix=True):
     )
 
 
-def termwarn(string, **kwargs):
+def termwarn(string: str, **kwargs: Any) -> None:
     string = "\n".join(["{} {}".format(WARN_STRING, s) for s in string.split("\n")])
     _log(
         string=string,
@@ -53,7 +56,7 @@ def termwarn(string, **kwargs):
     )
 
 
-def termerror(string, **kwargs):
+def termerror(string: str, **kwargs: Any) -> None:
     string = "\n".join(["{} {}".format(ERROR_STRING, s) for s in string.split("\n")])
     _log(
         string=string,

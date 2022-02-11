@@ -24,6 +24,10 @@ _logger = logging.getLogger(__name__)
 
 DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
+# need to make user root for sagemaker, so users have access to /opt/ml directories
+# that let users create artifacts and access input data
+RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
+
 
 class LaunchSource(enum.IntEnum):
     WANDB: int = 1
@@ -46,7 +50,7 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
         resource: str,
-        resource_args: Dict[str, str],
+        resource_args: Dict[str, Any],
     ):
         if utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -61,7 +65,7 @@ class LaunchProject(object):
         self.python_version: Optional[str] = docker_config.get("python_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        uid = 1000
+        uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
             _logger.info(f"Retrieved base image uid {uid}")
@@ -73,7 +77,6 @@ class LaunchProject(object):
         self.resource = resource
         self.resource_args = resource_args
         self._runtime: Optional[str] = None
-        self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
@@ -98,6 +101,8 @@ class LaunchProject(object):
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
+        if launch_spec.get("resource_args"):
+            self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
@@ -106,8 +111,9 @@ class LaunchProject(object):
     def base_image(self) -> str:
         """Returns {PROJECT}_base:{PYTHON_VERSION}"""
         # TODO: this should likely be source_project when we have it...
+        python_version = (self.python_version or "3").replace("+", "dev")
         generated_name = "{}_base:{}".format(
-            self.target_project.replace(" ", "-"), self.python_version or "3"
+            self.target_project.replace(" ", "-"), python_version
         )
         return self._base_image or generated_name
 
@@ -151,6 +157,10 @@ class LaunchProject(object):
                 entry_point, list(self._entry_points.keys()), list(ext_to_cmd.keys())
             )
         )
+
+    def _update_uid_to_base_image_uid(self) -> None:
+        uid = docker.get_image_uid(self.base_image)
+        self.docker_user_id = uid
 
     def get_entry_point(self, entry_point: str) -> "EntryPoint":
         """Gets the entrypoint if its set, or adds it and returns the entrypoint."""

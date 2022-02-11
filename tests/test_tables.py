@@ -184,3 +184,42 @@ def test_fk_from_pk_local_draft():
             for row in table.data
         ]
     )
+
+
+def test_loading_from_json_with_mixed_types():
+    """
+    When a Table was saved with `allow_mixed_types=True`, the correct datatype
+    was saved to the serialized json object. However, loading that Table
+    caused an error; that datatype was never used in Table instantiation.
+    This unit test makes sure this path runs correctly.
+    """
+    json_obj = {
+        "_type": "table",
+        "column_types": {
+            "params": {
+                "type_map": {
+                    "Column_1": {
+                        "params": {
+                            "allowed_types": [{"wb_type": "any"}, {"wb_type": "none"},]
+                        },
+                        "wb_type": "union",
+                    },
+                    "Column_2": {
+                        "params": {
+                            "allowed_types": [{"wb_type": "any"}, {"wb_type": "none"},]
+                        },
+                        "wb_type": "union",
+                    },
+                }
+            },
+            "wb_type": "typedDict",
+        },
+        "columns": ["Column_1", "Column_2"],
+        "data": [[0.0, None], [0.0, 5], [None, "cpu"]],
+        "ncols": 2,
+        "nrows": 3,
+    }
+
+    artifact = wandb.Artifact("my_artifact", type="dataset")
+    _ = wandb.Table.from_json(json_obj, artifact)
+    assert True
