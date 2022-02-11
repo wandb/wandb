@@ -3,7 +3,6 @@
 Implement ServiceInterface for socket transport.
 """
 
-import logging
 from typing import TYPE_CHECKING
 
 from wandb.proto import wandb_server_pb2 as spb
@@ -33,13 +32,21 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
-        settings_dict = settings.make_static()
-        settings_dict["_log_level"] = logging.DEBUG
+        settings_dict = settings.make_static(include_properties=True)
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
 
         inform_init._info.stream_id = run_id
         assert self._sock_client
         self._sock_client.send(inform_init=inform_init)
+
+    def _svc_inform_start(self, settings: "Settings", run_id: str) -> None:
+        inform_start = spb.ServerInformStartRequest()
+        settings_dict = settings.make_static(include_properties=True)
+        _pbmap_apply_dict(inform_start._settings_map, settings_dict)
+
+        inform_start._info.stream_id = run_id
+        assert self._sock_client
+        self._sock_client.send(inform_start=inform_start)
 
     def _svc_inform_finish(self, run_id: str = None) -> None:
         assert run_id
