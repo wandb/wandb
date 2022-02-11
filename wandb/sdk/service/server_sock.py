@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from wandb.proto import wandb_server_pb2 as spb
 
 from .streams import StreamMux
-from ..lib import tracelog
+from ..lib import debug_log
 from ..lib.proto_util import settings_dict_from_pbmap
 from ..lib.sock_client import SockClient, SockClientClosedError
 
@@ -64,7 +64,7 @@ class SockServerInterfaceReaderThread(threading.Thread):
                 continue
             except ValueError:
                 continue
-            tracelog.log_message_dequeue(result, self._iface.relay_q)
+            debug_log.log_message_dequeue(result, self._iface.relay_q)
             sockid = result.control.relay_id
             assert sockid
             sock_client = self._clients.get_client(sockid)

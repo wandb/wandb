@@ -68,7 +68,6 @@ CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
-SENTRY_DSN = "WANDB_SENTRY_DSN"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -125,7 +124,7 @@ def is_debug(default=None, env=None):
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def error_reporting_enabled() -> bool:
+def error_reporting_enabled():
     return _env_as_bool(ERROR_REPORTING, default=True)
 
 

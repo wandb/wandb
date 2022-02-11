@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"6\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\t\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"#\n\x0b_ResultInfo\x12\x14\n\x0c_tracelog_id\x18\x64 \x01(\tb\x06proto3'
+  serialized_pb=b'\n\x1cwandb/proto/wandb_base.proto\x12\x0ewandb_internal\"7\n\x0b_RecordInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\x12\x15\n\r_debug_log_id\x18\x64 \x01(\t\"!\n\x0c_RequestInfo\x12\x11\n\tstream_id\x18\x01 \x01(\t\"$\n\x0b_ResultInfo\x12\x15\n\r_debug_log_id\x18\x64 \x01(\tb\x06proto3'
 )
 
 
@@ -41,7 +41,7 @@ __RECORDINFO = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='_tracelog_id', full_name='wandb_internal._RecordInfo._tracelog_id', index=1,
+      name='_debug_log_id', full_name='wandb_internal._RecordInfo._debug_log_id', index=1,
       number=100, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -60,7 +60,7 @@ __RECORDINFO = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=48,
-  serialized_end=102,
+  serialized_end=103,
 )
 
 
@@ -91,8 +91,8 @@ __REQUESTINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=104,
-  serialized_end=137,
+  serialized_start=105,
+  serialized_end=138,
 )
 
 
@@ -105,7 +105,7 @@ __RESULTINFO = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='_tracelog_id', full_name='wandb_internal._ResultInfo._tracelog_id', index=0,
+      name='_debug_log_id', full_name='wandb_internal._ResultInfo._debug_log_id', index=0,
       number=100, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -123,8 +123,8 @@ __RESULTINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=139,
-  serialized_end=174,
+  serialized_start=140,
+  serialized_end=176,
 )
 
 DESCRIPTOR.message_types_by_name['_RecordInfo'] = __RECORDINFO

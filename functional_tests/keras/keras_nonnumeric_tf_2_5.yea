@@ -1,4 +1,4 @@
-id: 0.keras.nonnumericlayers.tf25
+id: 0.keras.nonnumericlayers
 tag:
     shard: tf25
 plugin:

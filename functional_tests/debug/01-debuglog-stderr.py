@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Debug log to stdout.
+"""Debug log to stderr.
 
 ---
-id: 0.debug.01-tracelog-stdout
+id: 0.debug.01-debuglog-stderr
 plugin:
   - wandb
 assert:
@@ -23,7 +23,7 @@ import os
 
 import wandb
 
-os.environ["WANDB_TRACELOG"] = "stdout"
+os.environ["WANDB_DEBUG_LOG"] = "stdout"
 wandb.require("service")
 wandb.init()
 wandb.log(dict(m1=1))

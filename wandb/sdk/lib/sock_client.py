@@ -6,7 +6,7 @@ import uuid
 
 from wandb.proto import wandb_server_pb2 as spb
 
-from . import tracelog
+from . import debug_log
 
 if TYPE_CHECKING:
     from wandb.proto import wandb_internal_pb2 as pb
@@ -46,7 +46,7 @@ class SockClient:
         self._sock = sock
 
     def _send_message(self, msg: Any) -> None:
-        tracelog.log_message_send(msg, self._sockid)
+        debug_log.log_message_send(msg, self._sockid)
         raw_size = msg.ByteSize()
         data = msg.SerializeToString()
         assert len(data) == raw_size, "invalid serialization"
@@ -152,7 +152,7 @@ class SockClient:
             return None
         rec = spb.ServerRequest()
         rec.ParseFromString(data)
-        tracelog.log_message_recv(rec, self._sockid)
+        debug_log.log_message_recv(rec, self._sockid)
         return rec
 
     def read_server_response(self, timeout: int = None) -> Optional[spb.ServerResponse]:
@@ -161,5 +161,5 @@ class SockClient:
             return None
         rec = spb.ServerResponse()
         rec.ParseFromString(data)
-        tracelog.log_message_recv(rec, self._sockid)
+        debug_log.log_message_recv(rec, self._sockid)
         return rec

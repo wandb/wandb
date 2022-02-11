@@ -24,11 +24,12 @@ import os
 import pprint
 import re
 import sys
-import tempfile
+import warnings
 
 import six
 import wandb
 from wandb import util
+from wandb.compat import tempfile
 from wandb.sdk.data_types import (
     _numpy_arrays_to_lists,
     BatchableMedia,
@@ -65,6 +66,11 @@ __all__ = [
     "val_to_json",
 ]
 
+
+# Get rid of cleanup warnings in Python 2.7.
+warnings.filterwarnings(
+    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
+)
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.

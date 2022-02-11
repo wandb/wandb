@@ -69,6 +69,7 @@ SYMBOLS_ROOT_OTHER = {
     "alert",
     "api",
     "apis",
+    "compat",
     "data_types",
     "division",
     "docker",

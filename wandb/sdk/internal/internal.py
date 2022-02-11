@@ -36,7 +36,7 @@ from . import sender
 from . import settings_static
 from . import writer
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import tracelog
+from ..lib import debug_log
 
 
 if TYPE_CHECKING:
@@ -70,7 +70,7 @@ def wandb_internal(
     """
     # mark this process as internal
     wandb._set_internal_process()
-    _setup_tracelog()
+    _setup_debug_log()
     started = time.time()
 
     # register the exit handler only when wandb_internal is called, not on import
@@ -92,15 +92,15 @@ def wandb_internal(
         datetime.fromtimestamp(started),
     )
 
-    tracelog.annotate_queue(record_q, "record_q")
-    tracelog.annotate_queue(result_q, "result_q")
+    debug_log.annotate_queue(record_q, "record_q")
+    debug_log.annotate_queue(result_q, "result_q")
     publish_interface = InterfaceQueue(record_q=record_q)
 
     stopped = threading.Event()
     threads: "List[RecordLoopThread]" = []
 
     send_record_q: "Queue[Record]" = queue.Queue()
-    tracelog.annotate_queue(send_record_q, "send_q")
+    debug_log.annotate_queue(send_record_q, "send_q")
     record_sender_thread = SenderThread(
         settings=_settings,
         record_q=send_record_q,
@@ -112,7 +112,7 @@ def wandb_internal(
     threads.append(record_sender_thread)
 
     write_record_q: "Queue[Record]" = queue.Queue()
-    tracelog.annotate_queue(write_record_q, "write_q")
+    debug_log.annotate_queue(write_record_q, "write_q")
     record_writer_thread = WriterThread(
         settings=_settings,
         record_q=write_record_q,
@@ -169,12 +169,12 @@ def wandb_internal(
             sys.exit(-1)
 
 
-def _setup_tracelog() -> None:
+def _setup_debug_log() -> None:
     # TODO: remove this temporary hack, need to find a better way to pass settings
     # to the server.  for now lets just look at the environment variable we need
-    tracelog_mode = os.environ.get("WANDB_TRACELOG")
-    if tracelog_mode:
-        tracelog.enable(tracelog_mode)
+    debug_log_mode = os.environ.get("WANDB_DEBUG_LOG")
+    if debug_log_mode:
+        debug_log.enable(debug_log_mode)
 
 
 def configure_logging(log_fname: str, log_level: int, run_id: str = None) -> None:

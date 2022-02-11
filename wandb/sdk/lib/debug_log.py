@@ -1,4 +1,4 @@
-"""tracelog.
+"""debug_log.
 
 Functions:
     log_message_queue   - message put() to queue
@@ -36,10 +36,10 @@ if TYPE_CHECKING:
 
 
 # Supported modes:
-#   logger - tracelog output goes to python logging (default)
-#   stdout - tracelog output goes to stdout
-#   stderr - tracelog output goes to stderr
-tracelog_mode: Optional[str] = "logger"
+#   logger - debug_log output goes to python logging (default)
+#   stdout - debug_log output goes to stdout
+#   stderr - debug_log output goes to stderr
+debug_log_mode: Optional[str] = "logger"
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def _log(
     result: "pb.Result" = None,
     resource: str = None,
 ) -> None:
-    prefix = "TRACELOG(1)"
+    prefix = "DEBUG_LOG(1)"
     tname = threading.currentThread().getName()
     now = datetime.datetime.now()
     ts = now.strftime("%H%M%S.%f")
@@ -66,7 +66,7 @@ def _log(
     record_id = ""
     if data:
         uuid = data.uuid or uuid
-        record_id = data._info._tracelog_id
+        record_id = data._info._debug_log_id
     uuid = uuid or "-"
     record_id = record_id or "-"
     relay = ""
@@ -74,11 +74,11 @@ def _log(
         relay = data.control.relay_id
     relay = relay or "-"
     line = f"{prefix} {arrow} {ts} {record_id:16} {log_type:7} {resource:8} {tname:16} {msg_type:32} {uuid:32} {relay:32}"
-    if tracelog_mode == "stdout":
+    if debug_log_mode == "stdout":
         print(line, file=sys.__stdout__)
-    elif tracelog_mode == "stderr":
+    elif debug_log_mode == "stderr":
         print(line, file=sys.__stderr__)
-    elif tracelog_mode == "logger":
+    elif debug_log_mode == "logger":
         logger.info(line)
 
 
@@ -182,7 +182,7 @@ def _annotate_queue(q: "QueueType", name: str) -> None:
 
 def _annotate_message(msg: "MessageQueueType") -> None:
     record_id = secrets.token_hex(8)
-    msg._info._tracelog_id = record_id
+    msg._info._debug_log_id = record_id
 
 
 #
@@ -227,9 +227,9 @@ def annotate_message(msg: "MessageQueueType") -> None:
 
 
 def enable(log_mode: str = None) -> None:
-    global tracelog_mode
+    global debug_log_mode
     if log_mode:
-        tracelog_mode = log_mode
+        debug_log_mode = log_mode
 
     global log_message_queue
     global log_message_dequeue

@@ -535,9 +535,7 @@ class _WandbInit(object):
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
-            # fixme: detected issues with settings
-            if s.__dict__["_Settings__preprocessing_warnings"]:
-                tel.issues.settings__preprocessing_warnings = True
+            # detected issues with settings
             if s.__dict__["_Settings__validation_warnings"]:
                 tel.issues.settings__validation_warnings = True
             if s.__dict__["_Settings__unexpected_args"]:

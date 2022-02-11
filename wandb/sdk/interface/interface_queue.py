@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from .interface_shared import InterfaceShared
 from .router_queue import MessageQueueRouter
-from ..lib import tracelog
+from ..lib import debug_log
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -35,9 +35,9 @@ class InterfaceQueue(InterfaceShared):
         self.record_q = record_q
         self.result_q = result_q
         if self.record_q:
-            tracelog.annotate_queue(self.record_q, "record_q")
+            debug_log.annotate_queue(self.record_q, "record_q")
         if self.result_q:
-            tracelog.annotate_queue(self.result_q, "result_q")
+            debug_log.annotate_queue(self.result_q, "result_q")
         super().__init__(process=process, process_check=process_check)
 
     def _init_router(self) -> None:
@@ -50,5 +50,5 @@ class InterfaceQueue(InterfaceShared):
         if local:
             record.control.local = local
         if self.record_q:
-            tracelog.log_message_queue(record, self.record_q)
+            debug_log.log_message_queue(record, self.record_q)
             self.record_q.put(record)

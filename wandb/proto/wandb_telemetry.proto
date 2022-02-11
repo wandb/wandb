@@ -110,5 +110,4 @@ message Deprecated {
 message Issues {
   bool settings__validation_warnings = 1; // validation warnings for settings?
   bool settings__unexpected_args = 2; // unexpected settings init args?
-  bool settings__preprocessing_warnings = 3; // preprocessing warnings for settings?
 }

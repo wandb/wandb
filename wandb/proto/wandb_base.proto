@@ -7,7 +7,7 @@ package wandb_internal;
  */
 message _RecordInfo {
   string stream_id = 1;
-  string _tracelog_id = 100;
+  string _debug_log_id = 100;
 }
 
 message _RequestInfo {
@@ -18,5 +18,5 @@ message _RequestInfo {
  * _ResultInfo: extra info for all results
  */
 message _ResultInfo {
-  string _tracelog_id = 100;
+  string _debug_log_id = 100;
 }

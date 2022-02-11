@@ -10,7 +10,6 @@ import platform
 import re
 import shutil
 import sys
-import tempfile
 from typing import (
     Any,
     cast,
@@ -32,6 +31,7 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
+from wandb.compat import tempfile
 from wandb.util import has_num
 
 from .interface import _dtypes

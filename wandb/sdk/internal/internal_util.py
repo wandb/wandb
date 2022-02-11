@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from six.moves import queue
 
-from ..lib import tracelog
+from ..lib import debug_log
 
 
 if TYPE_CHECKING:
@@ -101,6 +101,6 @@ class RecordLoopThread(ExceptionThread):
                 record = self._input_record_q.get(timeout=1)
             except queue.Empty:
                 continue
-            tracelog.log_message_dequeue(record, self._input_record_q)
+            debug_log.log_message_dequeue(record, self._input_record_q)
             self._process(record)
         self._finish()

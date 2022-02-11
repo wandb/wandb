@@ -1,15 +1,34 @@
-import logging
+#
 import os
-import queue
-import tempfile
+import logging
+import tempfile as builtin_tempfile
 import time
+from six.moves import queue
+import warnings
 
 import wandb
 import wandb.util
+from wandb.compat import tempfile
 
 from wandb.filesync import stats
 from wandb.filesync import step_checksum
 from wandb.filesync import step_upload
+
+
+def resolve_path(path):
+    try:
+        from pathlib import Path
+
+        return str(Path(path).resolve())
+    except:
+        # Pathlib isn't present for python versions earlier than 3.3
+        return os.path.realpath(path)
+
+
+# Get rid of cleanup warnings in Python 2.7.
+warnings.filterwarnings(
+    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
+)
 
 
 # Temporary directory for copies we make of some file types to
@@ -21,7 +40,7 @@ TMP_DIR = tempfile.TemporaryDirectory("wandb")
 logger = logging.getLogger(__name__)
 
 
-class FilePusher:
+class FilePusher(object):
     """Parallel file upload class.
     This manages uploading multiple files in parallel. It will restart a given file's
     upload job if it receives a notification that that file has been modified.
@@ -59,6 +78,11 @@ class FilePusher:
             silent=silent,
         )
         self._step_upload.start()
+
+        # Holds refs to tempfiles if users need to make a temporary file that
+        # stays around long enough for file pusher to sync
+        # TODO(artifacts): maybe don't do this
+        self._temp_file_refs = []
 
     def get_status(self):
         running = self.is_alive()
@@ -132,6 +156,14 @@ class FilePusher:
     def store_manifest_files(self, manifest, artifact_id, save_fn):
         event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
+
+    def named_temp_file(self, mode="w+b"):
+        # get a named temp file that the file pusher with hold a reference to so it
+        # doesn't get gc'd. Obviously, we shouldn't do this very much :). It's currently
+        # used for artifact metadata.
+        f = builtin_tempfile.NamedTemporaryFile(mode=mode, delete=False)
+        self._temp_file_refs.append(f)
+        return f
 
     def commit_artifact(
         self, artifact_id, finalize=True, before_commit=None, on_commit=None
