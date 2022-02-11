@@ -553,10 +553,7 @@ class Settings:
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
             project={"validator": self._validate_project},
-            project_url={
-                "value": "<project-url>",
-                "hook": lambda x: self._project_url(),
-            },
+            project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
@@ -572,7 +569,7 @@ class Settings:
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
-            run_url={"value": "<run-url>", "hook": lambda x: self._run_url()},
+            run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool, "is_policy": True},
             settings_system={
@@ -599,18 +596,18 @@ class Settings:
             sweep_url={"hook": lambda _: self._sweep_url(), "auto_hook": True},
             symlink={"preprocessor": _str_as_bool},
             sync_dir={
-                "value": "<sync_dir>",
                 "hook": [
-                    lambda x: self._path_convert(
+                    lambda _: self._path_convert(
                         self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
                     )
                 ],
+                "auto_hook": True,
             },
             sync_file={
-                "value": "run-<run_id>.wandb",
-                "hook": lambda x: self._path_convert(
+                "hook": lambda _: self._path_convert(
                     self.sync_dir, f"run-{self.run_id}.wandb"
                 ),
+                "auto_hook": True,
             },
             sync_symlink_latest={
                 "value": "latest-run",
@@ -1315,7 +1312,7 @@ class Settings:
             if _logger:
                 _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
-    
+
     def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
         # This dictionary maps from the "run message dict" to relevant fields in settings
         # Note: that config is missing
