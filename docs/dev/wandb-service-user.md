@@ -29,7 +29,7 @@ The feature support will be part of `PyTorch Lightning`'s [1.6.0 release](https:
 
 That's it... no need to change anything in else...
 
-### Others
+### General usage
 
 `service` can be enabled by adding the following to your script:
 
