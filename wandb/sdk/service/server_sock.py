@@ -130,6 +130,12 @@ class SockServerReadThread(threading.Thread):
         )
         iface_reader_thread.start()
 
+    def server_inform_start(self, sreq: "spb.ServerRequest") -> None:
+        request = sreq.inform_start
+        stream_id = request._info.stream_id
+        settings = settings_dict_from_pbmap(request._settings_map)
+        self._mux.update_stream(stream_id, settings=settings)
+
     def server_inform_attach(self, sreq: "spb.ServerRequest") -> None:
         request = sreq.inform_attach
         stream_id = request._info.stream_id

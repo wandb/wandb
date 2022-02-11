@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 import time
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Union
 
 import wandb
 from wandb.apis.internal import Api
@@ -55,7 +55,7 @@ class LaunchAgent(object):
         self._api = Api()
         self._settings = wandb.Settings()
         self._base_url = self._api.settings().get("base_url")
-        self._jobs: Dict[int, AbstractRun] = {}
+        self._jobs: Dict[Union[int, str], AbstractRun] = {}
         self._ticks = 0
         self._running = 0
         self._cwd = os.getcwd()
@@ -75,7 +75,7 @@ class LaunchAgent(object):
         self._queues = queues if queues else ["default"]
 
     @property
-    def job_ids(self) -> List[int]:
+    def job_ids(self) -> List[Union[int, str]]:
         """Returns a list of keys running job ids for the agent."""
         return list(self._jobs.keys())
 
@@ -105,7 +105,7 @@ class LaunchAgent(object):
         if not update_ret["success"]:
             wandb.termerror("Failed to update agent status to {}".format(status))
 
-    def finish_job_id(self, job_id: int) -> None:
+    def finish_job_id(self, job_id: Union[str, int]) -> None:
         """Removes the job from our list for now."""
         # TODO:  keep logs or something for the finished jobs
         del self._jobs[job_id]
@@ -114,7 +114,7 @@ class LaunchAgent(object):
         if self._running == 0:
             self.update_status(AGENT_POLLING)
 
-    def _update_finished(self, job_id: int) -> None:
+    def _update_finished(self, job_id: Union[int, str]) -> None:
         """Check our status enum."""
         if self._jobs[job_id].get_status().state in ["failed", "finished"]:
             self.finish_job_id(job_id)

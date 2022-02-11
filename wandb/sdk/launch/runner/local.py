@@ -37,8 +37,8 @@ class LocalSubmittedRun(AbstractRun):
         self.command_proc = command_proc
 
     @property
-    def id(self) -> int:
-        return self.command_proc.pid
+    def id(self) -> str:
+        return str(self.command_proc.pid)
 
     def wait(self) -> bool:
         return self.command_proc.wait() == 0
@@ -96,6 +96,7 @@ class LocalRunner(AbstractRunner):
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
+                launch_project._update_uid_to_base_image_uid()
 
         command_separator = " "
         command_args = []
@@ -149,7 +150,6 @@ class LocalRunner(AbstractRunner):
                 entry_point,
             )
             command_str = command_separator.join(command_args)
-
             sanitized_command_str = re.sub(
                 r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
             )
