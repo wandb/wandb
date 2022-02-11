@@ -78,6 +78,14 @@ def test_property_preprocess_validate_hook():
     assert not p._is_policy
 
 
+def test_property_auto_hook():
+    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=True,)
+    assert p.value == "WANDB"
+
+    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=False,)
+    assert p.value is None
+
+
 # fixme:
 @pytest.mark.skip(
     reason="For now, we don't enforce validation on properties that are not in __strict_validate_settings"
@@ -254,12 +262,12 @@ def test_ignore_globs_env():
 
 def test_quiet():
     s = Settings()
-    assert s._quiet is None
+    assert s.quiet is None
     s = Settings(quiet=True)
-    assert s._quiet
+    assert s.quiet
     s = Settings()
     s._apply_env_vars({"WANDB_QUIET": "false"})
-    assert not s._quiet
+    assert not s.quiet
 
 
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
@@ -494,104 +502,102 @@ def test_offline(test_settings):
 
 def test_silent(test_settings):
     test_settings.update({"silent": "true"}, source=Source.BASE)
-    assert test_settings._silent is True
+    assert test_settings.silent is True
 
 
 def test_silent_run(live_mock_server, test_settings):
     test_settings.update({"silent": "true"}, source=Source.SETTINGS)
-    assert test_settings._silent is True
+    assert test_settings.silent is True
     run = wandb.init(settings=test_settings)
-    assert run._settings._silent is True
+    assert run._settings.silent is True
     run.finish()
 
 
 def test_silent_env_run(live_mock_server, test_settings):
     with mock.patch.dict("os.environ", WANDB_SILENT="true"):
         run = wandb.init(settings=test_settings)
-        assert run._settings._silent is True
+        assert run._settings.silent is True
         run.finish()
 
 
 def test_strict():
     settings = Settings(strict=True)
     assert settings.strict is True
-    assert settings._strict is True
 
     settings = Settings(strict=False)
     assert not settings.strict
-    assert settings._strict is None
 
 
 def test_strict_run(live_mock_server, test_settings):
     test_settings.update({"strict": "true"}, source=Source.SETTINGS)
-    assert test_settings._strict is True
+    assert test_settings.strict is True
     run = wandb.init(settings=test_settings)
-    assert run._settings._strict is True
+    assert run._settings.strict is True
     run.finish()
 
 
 def test_show_info(test_settings):
     test_settings.update({"show_info": True}, source=Source.BASE)
-    assert test_settings._show_info is True
+    assert test_settings.show_info is True
 
     test_settings.update({"show_info": False}, source=Source.BASE)
-    assert test_settings._show_info is None
+    assert test_settings.show_info is False
 
 
 def test_show_info_run(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_info is True
+    assert run._settings.show_info is True
     run.finish()
 
 
 def test_show_info_false_run(live_mock_server, test_settings):
     test_settings.update({"show_info": "false"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_info is None
+    assert run._settings.show_info is False
     run.finish()
 
 
 def test_show_warnings(test_settings):
     test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
-    assert test_settings._show_warnings is True
+    assert test_settings.show_warnings is True
 
     test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
-    assert test_settings._show_warnings is None
+    assert test_settings.show_warnings is False
 
 
 def test_show_warnings_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_warnings is True
+    assert run._settings.show_warnings is True
     run.finish()
 
 
 def test_show_warnings_false_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_warnings is None
+    assert run._settings.show_warnings is False
     run.finish()
 
 
 def test_show_errors(test_settings):
     test_settings.update({"show_errors": True}, source=Source.SETTINGS)
-    assert test_settings._show_errors is True
+    assert test_settings.show_errors is True
 
     test_settings.update({"show_errors": False}, source=Source.SETTINGS)
-    assert test_settings._show_errors is None
+    assert test_settings.show_errors is False
 
 
 def test_show_errors_run(test_settings):
     test_settings.update({"show_errors": True}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_errors is True
+    assert run._settings.show_errors is True
     run.finish()
 
 
 def test_show_errors_false_run(test_settings):
     test_settings.update({"show_errors": False}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_errors is None
+    assert run._settings.show_errors is False
     run.finish()
 
 
@@ -858,14 +864,6 @@ def test_mapping_interface():
         assert setting in s
 
 
-def test_make_static_include_not_properties():
-    s = Settings()
-    static_settings = s.make_static(include_properties=False)
-    assert "run_mode" not in static_settings
-    static_settings = s.make_static(include_properties=True)
-    assert "run_mode" in static_settings
-
-
 def test_is_local():
     s = Settings(base_url=None)
     assert s.is_local is False
@@ -904,7 +902,7 @@ def test_settings_strict_validation(capsys):
 
 def test_static_settings_json_dump():
     s = Settings()
-    static_settings = s.make_static(include_properties=True)
+    static_settings = s.make_static()
     assert json.dumps(static_settings)
 
 

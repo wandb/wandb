@@ -2,6 +2,7 @@ import configparser
 from datetime import datetime
 from distutils.util import strtobool
 import enum
+from functools import reduce
 import getpass
 import json
 import multiprocessing
@@ -24,20 +25,21 @@ from typing import (
     Sequence,
     Set,
     Tuple,
-    TYPE_CHECKING,
     Union,
 )
+from urllib.parse import quote, urlencode
 
 import wandb
 from wandb import util
+from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.sdk.wandb_config import Config
 from wandb.sdk.wandb_setup import _EarlyLogger
 
+from .lib import apikey
 from .lib.git import GitRepo
 from .lib.ipython import _get_python_type
 from .lib.runid import generate_id
-
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
@@ -163,6 +165,7 @@ class Source(enum.IntEnum):
     INIT: int = 11
     SETTINGS: int = 12
     ARGS: int = 13
+    RUN: int = 14
 
 
 @enum.unique
@@ -212,6 +215,8 @@ class Property:
         validator: Union[Callable, Sequence[Callable], None] = None,
         # runtime converter (hook): properties can be e.g. tied to other properties
         hook: Union[Callable, Sequence[Callable], None] = None,
+        # always apply hook even if value is None. can be used to replace @property's
+        auto_hook: bool = False,
         is_policy: bool = False,
         frozen: bool = False,
         source: int = Source.BASE,
@@ -221,6 +226,7 @@ class Property:
         self._preprocessor = preprocessor
         self._validator = validator
         self._hook = hook
+        self._auto_hook = auto_hook
         self._is_policy = is_policy
         self._source = source
 
@@ -237,7 +243,7 @@ class Property:
     def value(self) -> Any:
         """Apply the runtime modifier(s) (if any) and return the value."""
         _value = self._value
-        if _value is not None and self._hook is not None:
+        if (_value is not None or self._auto_hook) and self._hook is not None:
             _hook = [self._hook] if callable(self._hook) else self._hook
             for h in _hook:
                 _value = h(_value)
@@ -349,6 +355,7 @@ class Settings:
     _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
+    _console: SettingsConsole
     _cuda: str
     _disable_meta: bool
     _disable_stats: bool
@@ -357,9 +364,13 @@ class Settings:
     _executable: str
     _internal_check_process: Union[int, float]
     _internal_queue_timeout: Union[int, float]
+    _jupyter: bool
     _jupyter_name: str
     _jupyter_path: str
     _jupyter_root: str
+    _kaggle: bool
+    _noop: bool
+    _offline: bool
     _os: str
     _python: str
     _require_service: str
@@ -371,6 +382,7 @@ class Settings:
     _tmp_code_dir: str
     _tracelog: str
     _unsaved_keys: Sequence[str]
+    _windows: bool
     allow_val_change: bool
     anonymous: str
     api_key: str
@@ -390,6 +402,7 @@ class Settings:
     heartbeat_seconds: int
     host: str
     ignore_globs: Tuple[str]
+    is_local: bool
     label_disable: bool
     launch: bool
     launch_config_path: str
@@ -406,18 +419,22 @@ class Settings:
     program: str
     program_relpath: str
     project: str
+    project_url: str
     quiet: bool
     reinit: bool
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
+    resumed: bool  # indication from the server about the state of the run (differnt from resume - user provided flag)
     root_dir: str
     run_group: str
     run_id: str
     run_job_type: str
+    run_mode: str
     run_name: str
     run_notes: str
     run_tags: Tuple[str]
+    run_url: str
     sagemaker_disable: bool
     save_code: bool
     settings_system: str
@@ -434,14 +451,17 @@ class Settings:
     summary_warnings: int
     sweep_id: str
     sweep_param_path: str
+    sweep_url: str
     symlink: bool
     sync_dir: str
     sync_file: str
     sync_symlink_latest: str
     system_sample: int
     system_sample_seconds: int
+    timespec: str
     tmp_dir: str
     username: str
+    wandb_dir: str
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -450,14 +470,34 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
+            _jupyter={
+                "hook": lambda _: str(_get_python_type()) != "python",
+                "auto_hook": True,
+            },
+            _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
+            _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
+            _offline={
+                "hook": (
+                    lambda _: True
+                    if self.disabled or (self.mode in ("dryrun", "offline"))
+                    else False
+                ),
+                "auto_hook": True,
+            },
             _save_requirements={"value": True},
             _tmp_code_dir={
                 "value": "code",
                 "hook": lambda x: self._path_convert(self.tmp_dir, x),
             },
+            _windows={
+                "hook": lambda _: platform.system() == "Windows",
+                "auto_hook": True,
+            },
             anonymous={"validator": self._validate_anonymous},
+            api_key={"validator": self._validate_api_key},
             base_url={
                 "value": "https://api.wandb.ai",
                 "preprocessor": lambda x: str(x).rstrip("/"),
@@ -479,6 +519,14 @@ class Settings:
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
+            },
+            is_local={
+                "hook": (
+                    lambda _: self.base_url != "https://api.wandb.ai"
+                    if self.base_url is not None
+                    else False
+                ),
+                "auto_hook": True,
             },
             label_disable={"preprocessor": _str_as_bool},
             launch={"preprocessor": _str_as_bool},
@@ -508,6 +556,7 @@ class Settings:
             mode={"value": "online", "validator": self._validate_mode},
             problem={"value": "fatal", "validator": self._validate_problem},
             project={"validator": self._validate_project},
+            project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
             relogin={"preprocessor": _str_as_bool},
@@ -515,9 +564,15 @@ class Settings:
                 "value": "wandb-resume.json",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
+            resumed={"value": "False", "preprocessor": _str_as_bool},
+            run_mode={
+                "hook": lambda _: "offline-run" if self._offline else "run",
+                "auto_hook": True,
+            },
             run_tags={
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
             },
+            run_url={"hook": lambda _: self._run_url(), "auto_hook": True},
             sagemaker_disable={"preprocessor": _str_as_bool},
             save_code={"preprocessor": _str_as_bool, "is_policy": True},
             settings_system={
@@ -541,21 +596,21 @@ class Settings:
                 "preprocessor": lambda x: int(x),
                 "is_policy": True,
             },
+            sweep_url={"hook": lambda _: self._sweep_url(), "auto_hook": True},
             symlink={"preprocessor": _str_as_bool},
             sync_dir={
-                "value": "<sync_dir>",
-                "validator": lambda x: isinstance(x, str),
                 "hook": [
-                    lambda x: self._path_convert(
+                    lambda _: self._path_convert(
                         self.wandb_dir, f"{self.run_mode}-{self.timespec}-{self.run_id}"
                     )
                 ],
+                "auto_hook": True,
             },
             sync_file={
-                "value": "run-<run_id>.wandb",
-                "hook": lambda x: self._path_convert(
+                "hook": lambda _: self._path_convert(
                     self.sync_dir, f"run-{self.run_id}.wandb"
                 ),
+                "auto_hook": True,
             },
             sync_symlink_latest={
                 "value": "latest-run",
@@ -563,6 +618,14 @@ class Settings:
             },
             system_sample={"value": 15},
             system_sample_seconds={"value": 2},
+            timespec={
+                "hook": (
+                    lambda _: datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
+                    if self._start_time and self._start_datetime
+                    else None
+                ),
+                "auto_hook": True,
+            },
             tmp_dir={
                 "value": "tmp",
                 "hook": lambda x: (
@@ -573,6 +636,10 @@ class Settings:
                     )
                     or tempfile.gettempdir()
                 ),
+            },
+            wandb_dir={
+                "hook": lambda _: _get_wandb_dir(self.root_dir or ""),
+                "auto_hook": True,
             },
         )
 
@@ -658,6 +725,13 @@ class Settings:
         return True
 
     @staticmethod
+    def _validate_api_key(value: str) -> bool:
+        if len(value) > len(value.strip()):
+            raise UsageError("API key cannot start or end with whitespace")
+        # todo: move here the logic from sdk/lib/apikey.py
+        return True
+
+    @staticmethod
     def _validate_base_url(value: Optional[str]) -> bool:
         if value is not None:
             if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
@@ -677,11 +751,72 @@ class Settings:
         """
         return os.path.expanduser(os.path.join(*args))
 
+    def _convert_console(self) -> SettingsConsole:
+        convert_dict: Dict[str, SettingsConsole] = dict(
+            off=SettingsConsole.OFF,
+            wrap=SettingsConsole.WRAP,
+            redirect=SettingsConsole.REDIRECT,
+        )
+        console: str = str(self.console)
+        if console == "auto":
+            if (
+                self._jupyter
+                or (self.start_method == "thread")
+                or self._require_service
+                or self._windows
+            ):
+                console = "wrap"
+            else:
+                console = "redirect"
+        convert: SettingsConsole = convert_dict[console]
+        return convert
+
+    def _get_url_query_string(self) -> str:
+        # TODO(settings) use `wandb_setting` (if self.anonymous != "true":)
+        if Api().settings().get("anonymous") != "true":
+            return ""
+
+        api_key = apikey.api_key(settings=self)
+
+        return f"?{urlencode({'apiKey': api_key})}"
+
+    def _project_url_base(self) -> str:
+        if not all([self.entity, self.project]):
+            return ""
+
+        app_url = wandb.util.app_url(self.base_url)
+        return f"{app_url}/{quote(self.entity)}/{quote(self.project)}"
+
+    def _project_url(self) -> str:
+        project_url = self._project_url_base()
+        if not project_url:
+            return ""
+
+        query = self._get_url_query_string()
+
+        return f"{project_url}{query}"
+
+    def _run_url(self) -> str:
+        project_url = self._project_url_base()
+        if not all([project_url, self.run_id]):
+            return ""
+
+        query = self._get_url_query_string()
+        return f"{project_url}/runs/{quote(self.run_id)}{query}"
+
     def _start_run(self) -> None:
         time_stamp: float = time.time()
         datetime_now: datetime = datetime.fromtimestamp(time_stamp)
         object.__setattr__(self, "_Settings_start_datetime", datetime_now)
         object.__setattr__(self, "_Settings_start_time", time_stamp)
+
+    def _sweep_url(self) -> str:
+        project_url = self._project_url_base()
+        if not all([project_url, self.sweep_id]):
+            return ""
+
+        query = self._get_url_query_string()
+        return f"{project_url}/sweeps/{quote(self.sweep_id)}{query}"
 
     def __init__(self, **kwargs: Any) -> None:
         self.__frozen: bool = False
@@ -702,7 +837,7 @@ class Settings:
         # Init instance attributes as Property objects.
         # Type hints of class attributes are used to generate a type validator function
         # for runtime checks for each attribute.
-        # These are defaults, using Source.BASE for non-policy attributes and Source.ARGS for policies.
+        # These are defaults, using Source.BASE for non-policy attributes and Source.RUN for policies.
         for prop, type_hint in get_type_hints(Settings).items():
             validators = [self._validator_factory(type_hint)]
 
@@ -721,7 +856,7 @@ class Settings:
                         **default_props[prop],
                         validator=validators,
                         # todo: double-check this logic:
-                        source=Source.ARGS
+                        source=Source.RUN
                         if default_props[prop].get("is_policy", False)
                         else Source.BASE,
                     ),
@@ -757,7 +892,7 @@ class Settings:
 
         for k, v in kwargs.items():
             # todo: double-check this logic:
-            source = Source.ARGS if self.__dict__[k].is_policy else Source.BASE
+            source = Source.RUN if self.__dict__[k].is_policy else Source.BASE
             self.update({k: v}, source=source)
 
         # setup private attributes
@@ -776,16 +911,9 @@ class Settings:
 
     def __str__(self) -> str:
         # get attributes that are instances of the Property class:
-        attributes = {
+        representation = {
             k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
         }
-        # add @property-based settings:
-        properties = {
-            property_name: object.__getattribute__(self, property_name)
-            for property_name, obj in self.__class__.__dict__.items()
-            if isinstance(obj, property)
-        }
-        representation = {**attributes, **properties}
         return f"<Settings {_redact_dict(representation)}>"
 
     def __repr__(self) -> str:
@@ -797,13 +925,7 @@ class Settings:
             for k, v in self.__dict__.items()
             if isinstance(v, Property)
         }
-        # add @property-based settings:
-        properties = {
-            property_name: object.__getattribute__(self, property_name)
-            for property_name, obj in self.__class__.__dict__.items()
-            if isinstance(obj, property)
-        }
-        representation = {**private, **attributes, **properties}
+        representation = {**private, **attributes}
         return f"<Settings {representation}>"
 
     def __copy__(self) -> "Settings":
@@ -841,14 +963,14 @@ class Settings:
         object.__setattr__(self, key, value)
 
     def __iter__(self) -> Iterable:
-        return iter(self.make_static(include_properties=True))
+        return iter(self.make_static())
 
     def copy(self) -> "Settings":
         return self.__copy__()
 
     # implement the Mapping interface
     def keys(self) -> Iterable[str]:
-        return self.make_static(include_properties=True).keys()
+        return self.make_static().keys()
 
     @no_type_check  # this is a hack to make mypy happy
     def __getitem__(self, name: str) -> Any:
@@ -902,20 +1024,12 @@ class Settings:
     def is_frozen(self) -> bool:
         return self.__frozen
 
-    def make_static(self, include_properties: bool = True) -> Dict[str, Any]:
+    def make_static(self) -> Dict[str, Any]:
         """Generate a static, serializable version of the settings."""
         # get attributes that are instances of the Property class:
         attributes = {
             k: v.value for k, v in self.__dict__.items() if isinstance(v, Property)
         }
-        # add @property-based settings:
-        properties = {
-            property_name: object.__getattribute__(self, property_name)
-            for property_name, obj in self.__class__.__dict__.items()
-            if isinstance(obj, property)
-        }
-        if include_properties:
-            return {**attributes, **properties}
         return attributes
 
     # apply settings from different sources
@@ -1033,7 +1147,7 @@ class Settings:
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self._silent)
+            meta = wandb.jupyter.notebook_metadata(self.silent)
             settings["_jupyter_path"] = meta.get("path")
             settings["_jupyter_name"] = meta.get("name")
             settings["_jupyter_root"] = meta.get("root")
@@ -1202,105 +1316,27 @@ class Settings:
                 _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
             self.update(login_settings, source=Source.LOGIN)
 
-    # computed properties
-    @property
-    def _console(self) -> SettingsConsole:
-        convert_dict: Dict[str, SettingsConsole] = dict(
-            off=SettingsConsole.OFF,
-            wrap=SettingsConsole.WRAP,
-            redirect=SettingsConsole.REDIRECT,
-        )
-        console: str = str(self.console)
-        if console == "auto":
-            if (
-                self._jupyter
-                or (self.start_method == "thread")
-                or self._require_service
-                or self._windows
-            ):
-                console = "wrap"
-            else:
-                console = "redirect"
-        convert: SettingsConsole = convert_dict[console]
-        return convert
-
-    @property
-    def _jupyter(self) -> bool:
-        return str(_get_python_type()) != "python"
-
-    @property
-    def _kaggle(self) -> bool:
-        is_kaggle = util._is_likely_kaggle()
-        if TYPE_CHECKING:
-            assert isinstance(is_kaggle, bool)
-        return is_kaggle
-
-    @property
-    def _noop(self) -> bool:
-        return (self.mode == "disabled") is True
-
-    @property
-    def _offline(self) -> bool:
-        if self.disabled or (self.mode in ("dryrun", "offline")):
-            return True
-        return False
-
-    @property
-    def _quiet(self) -> Any:
-        return self.quiet
-
-    @property
-    def _show_info(self) -> Any:
-        if not self.show_info:
-            # fixme (dd): why?
-            return None
-        return self.show_info
-
-    @property
-    def _show_warnings(self) -> Any:
-        if not self.show_warnings:
-            # fixme (dd): why?
-            return None
-        return self.show_warnings
-
-    @property
-    def _show_errors(self) -> Any:
-        if not self.show_errors:
-            # fixme (dd): why?
-            return None
-        return self.show_errors
-
-    @property
-    def _silent(self) -> Any:
-        return self.silent
-
-    @property
-    def _strict(self) -> Any:
-        if not self.strict:
-            # fixme (dd): why?
-            return None
-        return self.strict
-
-    @property
-    def _windows(self) -> bool:
-        return platform.system() == "Windows"
-
-    @property
-    def is_local(self) -> bool:
-        if self.base_url is not None:
-            return (self.base_url == "https://api.wandb.ai") is False
-        return False  # type: ignore
-
-    @property
-    def run_mode(self) -> str:
-        return "offline-run" if self._offline else "run"
-
-    @property
-    def timespec(self) -> Optional[str]:
-        if self._start_time and self._start_datetime:
-            return datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
-        return None
-
-    @property
-    def wandb_dir(self) -> str:
-        return _get_wandb_dir(self.root_dir or "")
+    def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
+        # This dictionary maps from the "run message dict" to relevant fields in settings
+        # Note: that config is missing
+        param_map = {
+            "run_id": "run_id",
+            "entity": "entity",
+            "project": "project",
+            "run_group": "run_group",
+            "job_type": "run_job_type",
+            "display_name": "run_name",
+            "notes": "run_notes",
+            "tags": "run_tags",
+            "sweep_id": "sweep_id",
+            "host": "host",
+            "resumed": "resumed",
+            "git.remote_url": "git_remote",
+        }
+        run_settings = {
+            name: reduce(lambda d, k: d.get(k, {}), attr.split("."), run_start_settings)
+            for attr, name in param_map.items()
+        }
+        run_settings = {key: value for key, value in run_settings.items() if value}
+        if run_settings:
+            self.update(run_settings, source=Source.RUN)
