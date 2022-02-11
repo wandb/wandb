@@ -10,7 +10,6 @@ import os
 import platform
 import re
 import socket
-import string
 import sys
 import tempfile
 import time
@@ -724,8 +723,7 @@ class Settings:
 
     @staticmethod
     def _validate_api_key(value: str) -> bool:
-        whitespace = tuple(w for w in string.whitespace)
-        if value.startswith(whitespace) or value.endswith(whitespace):
+        if len(value) > len(value.strip()):
             raise UsageError("API key cannot start or end with whitespace")
         # todo: move here the logic from sdk/lib/apikey.py
         return True
