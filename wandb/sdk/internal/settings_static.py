@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable, Optional, Tuple, Union
 SettingsDict = Dict[str, Union[str, float, Tuple, None]]
 
 
-class SettingsStatic(object):
+class SettingsStatic:
     # TODO(jhr): figure out how to share type defs with sdk/wandb_settings.py
     _offline: "Optional[bool]"
     _disable_stats: "Optional[bool]"

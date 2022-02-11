@@ -93,9 +93,9 @@ def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
         with open("wandb/settings", "r") as f:
-            generatedWandb = f.read()
+            generated_wandb = f.read()
         assert DUMMY_API_KEY in generatedNetrc
-        assert "mock_server_entity" in generatedWandb
+        assert "mock_server_entity" in generated_wandb
 
 
 def test_init_add_login(runner, empty_netrc, mock_server):
@@ -105,15 +105,15 @@ def test_init_add_login(runner, empty_netrc, mock_server):
                 f.write("previous config")
             result = runner.invoke(cli.login, [DUMMY_API_KEY])
             debug_result(result, "login")
-            result = runner.invoke(cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
+            result = runner.invoke(cli.init, input=f"y\n{DUMMY_API_KEY}\nvanpelt\n")
             debug_result(result, "init")
             assert result.exit_code == 0
             with open("netrc", "r") as f:
-                generatedNetrc = f.read()
+                generated_netrc = f.read()
             with open("wandb/settings", "r") as f:
-                generatedWandb = f.read()
-            assert DUMMY_API_KEY in generatedNetrc
-            assert "base_url" in generatedWandb
+                generated_wandb = f.read()
+            assert DUMMY_API_KEY in generated_netrc
+            assert "base_url" in generated_wandb
 
 
 def test_init_existing_login(runner, mock_server):
@@ -126,8 +126,8 @@ def test_init_existing_login(runner, mock_server):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("wandb/settings", "r") as f:
-            generatedWandb = f.read()
-        assert "mock_server_entity" in generatedWandb
+            generated_wandb = f.read()
+        assert "mock_server_entity" in generated_wandb
         assert "This directory is configured" in result.output
 
 

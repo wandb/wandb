@@ -1,53 +1,39 @@
-from __future__ import print_function
-
-import pytest
-import time
-import platform
-import tempfile
-import datetime
-import requests
-import os
-import sys
-import threading
-import logging
-import shutil
+import atexit
 from contextlib import contextmanager
-from tests import utils
-from six.moves import queue
-from wandb import wandb_sdk
-
-# from multiprocessing import Process
+import datetime
+import logging
+import os
+import platform
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
+import threading
+from unittest import mock
+from unittest.mock import MagicMock
+
 import click
 from click.testing import CliRunner
-import webbrowser
 import git
+import nbformat
 import psutil
-import atexit
-import wandb
-import shutil
-from wandb.util import mkdir_exists_ok
-from six.moves import urllib
+import pytest
+import requests
+from six.moves import queue, urllib
+import webbrowser
 
-from wandb.sdk.lib.module import unset_globals
-from wandb.sdk.lib.git import GitRepo
+from tests import utils
+import wandb
+from wandb import wandb_sdk
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.handler import HandleManager
 from wandb.sdk.internal.sender import SendManager
-from wandb.sdk.interface.interface_queue import InterfaceQueue
+from wandb.sdk.lib.module import unset_globals
+from wandb.sdk.lib.git import GitRepo
+from wandb.util import mkdir_exists_ok
 
-from wandb.proto import wandb_internal_pb2
-from wandb.proto import wandb_internal_pb2 as pb
-
-
-try:
-    import nbformat
-except ImportError:  # TODO: no fancy notebook fun in python2
-    pass
-
-try:
-    from unittest.mock import MagicMock
-except ImportError:  # TODO: this is only for python2
-    from mock import MagicMock
 
 DUMMY_API_KEY = "1824812581259009ca9981580f8f8a9012409eee"
 
@@ -100,7 +86,7 @@ def start_mock_server(worker_id):
         close_fds=True,
     )
     server._port = port
-    server.base_url = "http://localhost:%i" % server._port
+    server.base_url = f"http://localhost:{server._port}"
 
     def get_ctx():
         return requests.get(server.base_url + "/ctx").json()
@@ -122,7 +108,7 @@ def start_mock_server(worker_id):
             if res.status_code == 200:
                 started = True
                 break
-            print("Attempting to connect but got: %s" % res)
+            print(f"Attempting to connect but got: {res}")
         except requests.exceptions.RequestException:
             print(
                 "Timed out waiting for server to start...", server.base_url, time.time()
@@ -173,47 +159,48 @@ def test_dir(test_name):
 
 @pytest.fixture
 def disable_git_save():
-    os.environ["WANDB_DISABLE_GIT"] = "true"
-    yield
-    os.environ["WANDB_DISABLE_GIT"] = "false"
+    with mock.patch.dict("os.environ", WANDB_DISABLE_GIT="true"):
+        yield
 
 
 @pytest.fixture
 def git_repo(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        mkdir_exists_ok("wandb")
-        # Because the forked process doesn't use my monkey patch above
-        with open("wandb/settings", "w") as f:
-            f.write("[default]\nproject: test")
-        open("README", "wb").close()
-        r.index.add(["README"])
-        r.index.commit("Initial commit")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            mkdir_exists_ok("wandb")
+            # Because the forked process doesn't use my monkey patch above
+            with open(os.path.join("wandb", "settings"), "w") as f:
+                f.write("[default]\nproject: test")
+            open("README", "wb").close()
+            repo.index.add(["README"])
+            repo.index.commit("Initial commit")
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
 def git_repo_with_remote(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        r.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            repo.create_remote("origin", "https://foo:bar@github.com/FooTest/Foo.git")
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
 def git_repo_with_remote_and_port(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        r.create_remote("origin", "https://foo:bar@github.com:8080/FooTest/Foo.git")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            repo.create_remote(
+                "origin", "https://foo:bar@github.com:8080/FooTest/Foo.git"
+            )
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
 def git_repo_with_remote_and_empty_pass(runner):
     with runner.isolated_filesystem():
-        r = git.Repo.init(".")
-        r.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
-        yield GitRepo(lazy=False)
+        with git.Repo.init(".") as repo:
+            repo.create_remote("origin", "https://foo:@github.com/FooTest/Foo.git")
+            yield GitRepo(lazy=False)
 
 
 @pytest.fixture
@@ -232,19 +219,19 @@ def test_settings(test_dir, mocker, live_mock_server):
     mkdir_exists_ok(wandb_dir)
     # root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     settings = wandb.Settings(
+        _start_datetime=datetime.datetime.now(),
         _start_time=time.time(),
+        api_key=DUMMY_API_KEY,
         base_url=live_mock_server.base_url,
-        root_dir=test_dir,
-        save_code=False,
-        project="test",
         console="off",
         host="test",
-        api_key=DUMMY_API_KEY,
+        project="test",
+        root_dir=test_dir,
         run_id=wandb.util.generate_id(),
-        _start_datetime=datetime.datetime.now(),
+        save_code=False,
     )
     yield settings
-    # Just incase someone forgets to join in tests
+    # Just in case someone forgets to join in tests. ...well, please don't!
     if wandb.run is not None:
         wandb.run.finish()
 
@@ -471,11 +458,11 @@ def wandb_init_run(request, runner, mocker, mock_server):
         wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
         mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
         run = wandb.init(
-            settings=wandb.Settings(console="off", mode="offline", _except_exit=False),
+            settings=dict(console="off", mode="offline", _except_exit=False),
             **args["wandb_init"],
         )
         yield run
-        wandb.join()
+        wandb.finish()
     finally:
         unset_globals()
         for k, v in args["env"].items():
@@ -493,9 +480,7 @@ def wandb_init(request, runner, mocker, mock_server):
             wandb.wandb_sdk.wandb_setup._WandbSetup._instance = None
             mocker.patch("wandb.wandb_sdk.wandb_init.Backend", utils.BackendMock)
             return wandb.init(
-                settings=wandb.Settings(
-                    console="off", mode="offline", _except_exit=False
-                ),
+                settings=dict(console="off", mode="offline", _except_exit=False),
                 *args,
                 **kwargs,
             )
@@ -514,13 +499,6 @@ def restore_version():
         del wandb.__hack_pypi_latest_version__
     except AttributeError:
         pass
-
-
-@pytest.fixture()
-def disable_console():
-    os.environ["WANDB_CONSOLE"] = "off"
-    yield
-    del os.environ["WANDB_CONSOLE"]
 
 
 @pytest.fixture()
@@ -651,7 +629,9 @@ def internal_sm(
     _internal_sender,
 ):
     with runner.isolated_filesystem():
-        test_settings.root_dir = os.getcwd()
+        test_settings.update(
+            root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
+        )
         sm = SendManager(
             settings=test_settings,
             record_q=internal_sender_q,
@@ -680,7 +660,9 @@ def internal_hm(
     stopped_event,
 ):
     with runner.isolated_filesystem():
-        test_settings.root_dir = os.getcwd()
+        test_settings.update(
+            root_dir=os.getcwd(), source=wandb.sdk.wandb_settings.Source.INIT
+        )
         hm = HandleManager(
             settings=test_settings,
             record_q=record_q,

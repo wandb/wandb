@@ -309,6 +309,15 @@ class WandbServicer(spb_grpc.InternalServiceServicer):
         result = spb.ServerInformInitResponse()
         return result
 
+    def ServerInformStart(  # noqa: N802
+        self, request: spb.ServerInformStartRequest, context: grpc.ServicerContext,
+    ) -> spb.ServerInformStartResponse:
+        stream_id = request._info.stream_id
+        settings = settings_dict_from_pbmap(request._settings_map)
+        self._mux.update_stream(stream_id, settings=settings)
+        result = spb.ServerInformStartResponse()
+        return result
+
     def ServerInformFinish(  # noqa: N802
         self, request: spb.ServerInformFinishRequest, context: grpc.ServicerContext,
     ) -> spb.ServerInformFinishResponse:

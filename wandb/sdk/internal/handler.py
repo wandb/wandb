@@ -34,8 +34,8 @@ from . import meta, sample, stats
 from . import tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import debug_log
 from ..lib import handler_util, proto_util
+from ..lib import tracelog
 
 SummaryDict = Dict[str, Any]
 
@@ -137,14 +137,14 @@ class HandleManager(object):
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
-            debug_log.log_message_queue(record, self._sender_q)
+            tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
         if not record.control.local and self._writer_q:
-            debug_log.log_message_queue(record, self._writer_q)
+            tracelog.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
-        debug_log.log_message_queue(result, self._result_q)
+        tracelog.log_message_queue(result, self._result_q)
         self._result_q.put(result)
 
     def debounce(self) -> None:
@@ -208,7 +208,7 @@ class HandleManager(object):
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
-            debug_log.log_message_queue(record, self._sender_q)
+            tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
     def _save_partial_history(self) -> None:

@@ -41,6 +41,7 @@ service InternalService {
   rpc ServerShutdown(ServerShutdownRequest) returns (ServerShutdownResponse) {}
   rpc ServerStatus(ServerStatusRequest) returns (ServerStatusResponse) {}
   rpc ServerInformInit(ServerInformInitRequest) returns (ServerInformInitResponse) {}
+  rpc ServerInformStart(ServerInformStartRequest) returns (ServerInformStartResponse) {}
   rpc ServerInformFinish(ServerInformFinishRequest) returns (ServerInformFinishResponse) {}
   rpc ServerInformAttach(ServerInformAttachRequest) returns (ServerInformAttachResponse) {}
   rpc ServerInformDetach(ServerInformDetachRequest) returns (ServerInformDetachResponse) {}
@@ -82,6 +83,14 @@ message ServerInformInitRequest {
 }
 
 message ServerInformInitResponse {
+}
+
+message ServerInformStartRequest {
+  map<string, SettingsValue> _settings_map = 50;
+  _RecordInfo _info = 200;
+}
+
+message ServerInformStartResponse {
 }
 
 message ServerInformFinishRequest {
@@ -126,6 +135,8 @@ message ServerRequest {
     ServerInformAttachRequest inform_attach = 5;
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
+    ServerInformStartRequest inform_start = 8;
+
   }
 }
 
@@ -137,5 +148,7 @@ message ServerResponse {
     ServerInformAttachResponse inform_attach_response = 5;
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
+    ServerInformStartResponse inform_start_response = 8;
+
   }
 }

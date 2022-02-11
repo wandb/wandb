@@ -23,6 +23,7 @@ Please make sure to update the ToC when you update this page.
   + [Global Pytest Fixtures](#global-pytest-fixtures)
   + [Code Coverage](#code-coverage)
   + [Test parallelism](#test-parallelism)
+  + [Functional Testing](#functional-testing)
   + [Regression Testing](#regression-testing)
 * [Live development](#live-development)
 * [Code organization](#code-organization)
@@ -203,6 +204,9 @@ tox -e flake8,mypy
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
 
+By default, tests are run in parallel with 4 processes. This can be changed by setting the 
+`CI_PYTEST_PARALLEL` environment variable to a different value.
+
 To run specific tests in a specific environment:
 
 ```shell
@@ -215,17 +219,29 @@ To run all tests in a specific environment:
 tox -e py38
 ```
 
-Sometimes, `pytest` will swallow important print messages or stacktraces sent to stdout and stderr (particularly when they are coming from background processes). This will manifest as a test failure with no associated output. In these cases, add the `-s` flag to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
-
-```shell
-tox -e py37 -- tests/test_public_api.py -k substring_of_test -s
-```
-
 If you make changes to `requirements_dev.txt` that are used by tests, you need to recreate the python environments with:
 
 ```shell
 tox -e py37 --recreate
 ```
+
+Sometimes, `pytest` will swallow or shorten important print messages or stack traces sent to stdout and stderr (particularly when they are coming from background processes). 
+This will manifest as a test failure with no/shortened associated output. 
+In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
+
+```shell
+tox -e py37 -- tests/test_public_api.py -k substring_of_test -vvvv --showlocals
+```
+
+If a test fails, you can use the `--pdb -n0` flags to get the 
+[pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
+
+```shell
+tox -e py37 -- tests/test_public_api.py -k failing_test -vvvv --showlocals --pdb -n0
+```
+
+You can also manually set breakpoints in the test code (`breakpoint()`) 
+to inspect the test failures.
 
 ### Overview
 
@@ -360,6 +376,27 @@ The circleci uses pytest-split to balance unittest load on multiple nodes. In or
 CI_PYTEST_SPLIT_ARGS="--store-durations" tox -e py37
 ```
 
+### Functional Testing
+
+TODO: overview of how to write and run functional tests with [yea](https://github.com/wandb/yea)
+and the [yea-wandb](https://github.com/wandb/yea-wandb) plugin.
+
+The `yea-wandb` plugin for `yea` uses copies of several components from `tests/utils` 
+(`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`) 
+to provide a test environment for functional tests. Currently, we maintain a copy of those components in 
+`yea-wandb/src/yea_wandb`, so they need to be in sync.
+
+If you update one of those files, you need to:
+- While working on your contribution:
+  - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
+    Make sure to update the `yea-wandb` version.
+  - Point the client branch you are working on to this `yea-wandb` branch.
+    In `tox.ini`, search for `yea-wandb==<version>` and change it to 
+    `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
+- Once you are happy with your changes:
+  - Merge and release `yea-wandb` (with `make release`).
+  - Point the client branch you are working on to the fresh release of `yea-wandb`.
+
 ### Regression Testing
 
 TODO(jhr): describe how regression works, how to run them, where they're located etc.
@@ -393,17 +430,106 @@ User interface should be typed using python 3.6+ type annotations. Older version
 
 ### Arguments/environment variables impacting wandb functions are merged with Settings
 
-See below for more about the Settings object. The primary objective of this design principle is that
-behavior of code can be impacted by multiple sources. These sources need to be merged consistently
-and information given to the user when settings are overwritten to inform the user. Examples of sources
-of settings:
+`wandb.Settings` is the main settings object that is passed explicitly or implicitly to all `wandb` functions.
+
+The primary objective of the design principle is that behavior of code can be impacted by multiple sources. 
+These sources need to be merged consistently and information given to the user when settings are overwritten 
+to inform the user. Examples of sources of settings:
 
 - Enforced settings from organization, team, user, project
-- settings set by environment variables: `WANDB_PROJECT=`
-- settings passed to wandb function: `wandb.init(project=)`
+- Settings set by environment variables prefixed with `WANDB_`, e.g. `WANDB_PROJECT=`
+- Settings passed to the `wandb.init` function: `wandb.init(project=)`
 - Default settings from organization, team, project
-- settings in global settings file: `~/.config/wandb/settings`
-- settings in local settings file: `./wandb/settings`
+- Settings in global settings file: `~/.config/wandb/settings`
+- Settings in local settings file: `./wandb/settings`
+
+Source priorities are defined in `wandb.sdk.wandb_settings.Source`. 
+Each individual setting of the Settings object is either a default or priority setting.
+In the latter case, reverse priority is used to determine the source of the setting.
+
+#### wandb.Settings internals
+
+Under the hood in `wandb.Settings`, individual settings are represented as `wandb.sdk.wandb_settings.Property` objects
+that:
+- Encapsulate the logic of how to preprocess and validate values of settings throughout the lifetime of a class instance.
+- Allows for runtime modification of settings with hooks, e.g. in the case when a setting depends on another setting.
+- Use the `update()` method to update the value of a setting. Source priority logic is enforced when updating values.
+- Determine the source priority using the `is_policy` attribute when updating the property value. E.g. if `is_policy` is 
+  `True`, the smallest `Source` value takes precedence.
+- Have the ability to freeze/unfreeze.
+
+Here's a basic example (for more examples, see `tests/wandb_settings_test.py`)
+
+```python
+from wandb.sdk.wandb_settings import Property, Source
+
+
+def uses_https(x):
+    if not x.startswith("https"):
+        raise ValueError("Must use https")
+    return True
+
+base_url = Property(
+    name="base_url",
+    value="https://wandb.com/",
+    preprocessor=lambda x: x.rstrip("/"),
+    validator=[lambda x: isinstance(x, str), uses_https],
+    source=Source.BASE,
+)
+
+endpoint = Property(
+    name="endpoint",
+    value="site",
+    validator=lambda x: isinstance(x, str),
+    hook=lambda x: "/".join([base_url.value, x]),
+    source=Source.BASE,
+)
+```
+
+```python
+>>> print(base_url)  # note the stripped "/"
+'https://wandb.com'
+>>> print(endpoint)  # note the runtime hook
+'https://wandb.com/site'
+>>> print(endpoint._value)  # raw value
+'site'
+>>> base_url.update(value="https://wandb.ai/", source=Source.INIT)
+>>> print(endpoint)  # valid update with a higher priority source
+'https://wandb.ai/site'
+>>> base_url.update(value="http://wandb.ai/")  # invalid value - second validator will raise exception
+ValueError: Must use https
+>>> base_url.update(value="https://wandb.dev", source=Source.USER)
+>>> print(endpoint)  # valid value from a lower priority source has no effect
+'https://wandb.ai/site'
+```
+
+The `Settings` object:
+
+- The code is supposed to be self-documented -- see `wandb/sdk/wandb_settings.py` :)
+- Uses `Property` objects to represent configurable settings.
+- Clearly and compactly defines all individual settings, their default values, preprocessors, validators, 
+  and runtime hooks as well as whether they are treated as policies.
+  - To leverage both static and runtime validation, the `validator` attribute is a list of functions 
+    (or a single function) that are applied in order. The first function is automatically generated 
+    from type annotations of class attributes.
+- Provides a mechanism to update settings specifying the source (which abides the corresponding Property source logic) 
+  via `Settings.update()`. Direct attribute assignment is not allowed.
+- Careful Settings object copying.
+- Mapping interface.
+- Exposes `attribute.value` if attribute is a `Property`.
+- Has ability to freeze/unfreeze the object.
+- `Settings.make_static()` method that we can use to replace `StaticSettings`.
+- Adapted/reworked convenience methods to apply settings originating from different source.
+
+#### Adding a new setting
+
+- For any setting that is only computed (from other settings) and should not be set/updated (and so does not require any validation etc.), make it a `@property`.
+- In all other cases:
+  - Add a new type-annotated `Settings` class attribute.
+  - If setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
+    the template dictionary that the `Settings._default_props` method returns, using the same key name as 
+    the corresponding class variable.
+- Add tests for the new setting to `tests/wandb_settings_test.py`.
 
 ### Data to be synced to server is fully validated
 
@@ -419,17 +545,6 @@ structure. There should be no need for `.save()` methods on objects.
 
 When running in disabled mode, all objects act as in memory stores of attribute information, but they do
 not perform any serialization to sync data.
-
-## Changes from production library
-
-### wandb.Settings
-
-Main settings object that is passed explicitly or implicitly to all wandb functions
-
-### wandb.setup()
-
-Similar to `wandb.init()` but it impacts the entire process or session. This allows multiple `wandb.init()` calls to share
-some common setup. It is not necessary as it will be called implicitly by the first `wandb.init()` call.
 
 ## Detailed walk through of a simple program
 
@@ -450,7 +565,9 @@ some common setup. It is not necessary as it will be called implicitly by the fi
 
 - User Process:
 
-  - Calls internal `wandb.setup()` in case the user has not yet initialized the global wandb state
+  - Calls internal `wandb.setup()` in case the user has not yet initialized the global wandb state.
+    `wandb.setup()` is similar to `wandb.init()` but it impacts the entire process or session. 
+    This allows multiple `wandb.init()` calls to share some common setup.
   - Sets up notification and request queues for communicating with internal process
   - Spawns internal process used for syncing passing queues and the settings object
   - Creates a Run object `RunManaged`

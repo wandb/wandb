@@ -43,6 +43,7 @@ def test_magic(notebook):
     with notebook("magic.ipynb") as nb:
         nb.execute_all()
         iframes = 0
+        text = ""
         for c, cell in enumerate(nb.cells):
             for i, out in enumerate(cell["outputs"]):
                 print(f"CELL {c} output {i}: ", out)
@@ -50,8 +51,9 @@ def test_magic(notebook):
                     continue
                 if c == 0 and i == 0:
                     assert "display:none" in out
-                assert notebook.base_url in out["data"]["text/html"]
+                text += out["data"]["text/html"]
             iframes += 1
+        assert notebook.base_url in text
         assert iframes == 4
 
 
@@ -94,6 +96,7 @@ def test_notebook_not_exists(mocked_ipython, live_mock_server, capsys, test_sett
     _, err = capsys.readouterr()
     assert "WANDB_NOTEBOOK_NAME should be a path" in err
     del os.environ["WANDB_NOTEBOOK_NAME"]
+    wandb.finish()
 
 
 def test_notebook_metadata_jupyter(mocker, mocked_module, live_mock_server):
@@ -173,12 +176,14 @@ def test_mocked_notebook_html_default(live_mock_server, test_settings, mocked_ip
     mocked_ipython.register_magics.assert_called_with(wandb.jupyter.WandBMagics)
     with wandb.init(settings=test_settings) as run:
         run.log({"acc": 99, "loss": 0})
+        run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    print(displayed_html)
-    assert len(displayed_html) == 3
-    assert "lovely-dawn-32" in displayed_html[0]
-    assert "(success)" in displayed_html[1]
-    assert "Run history:" in displayed_html[2]
+    for i, html in enumerate(displayed_html):
+        print(f"[{i}]: {html}")
+    assert len(displayed_html) == 7
+    assert "lovely-dawn-32" in displayed_html[2]
+    assert "(success)" in displayed_html[3]
+    assert "Run history:" in displayed_html[4]
 
 
 def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipython):
@@ -186,20 +191,23 @@ def test_mocked_notebook_html_quiet(live_mock_server, test_settings, mocked_ipyt
     run.log({"acc": 99, "loss": 0})
     run.finish(quiet=True)
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    print(displayed_html)
-    assert len(displayed_html) == 3
-    assert "lovely-dawn-32" in displayed_html[0]
-    assert "(success)" in displayed_html[1]
-    assert "Run history:" not in displayed_html[2]
+    for i, html in enumerate(displayed_html):
+        print(f"[{i}]: {html}")
+    assert len(displayed_html) == 5
+    assert "lovely-dawn-32" in displayed_html[2]
+    assert "(success)" in displayed_html[3]
+    assert "Run history:" not in displayed_html[4]
 
 
 def test_mocked_notebook_run_display(live_mock_server, test_settings, mocked_ipython):
     with wandb.init(settings=test_settings) as run:
         run.display()
+        run.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    print(displayed_html)
-    assert len(displayed_html) == 4
-    assert "<iframe" in displayed_html[1]
+    for i, html in enumerate(displayed_html):
+        print(f"[{i}]: {html}")
+    assert len(displayed_html) == 7
+    assert "<iframe" in displayed_html[3]
 
 
 def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
@@ -214,11 +222,15 @@ def test_mocked_notebook_magic(live_mock_server, test_settings, mocked_ipython):
         wandb.log({"a": 1})"""
         % basic_settings,
     )
+    wandb.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
-    print(displayed_html)
+    for i, html in enumerate(displayed_html):
+        print(f"[{i}]: {html}")
     assert wandb.jupyter.__IFrame is None
-    assert len(displayed_html) == 3
-    assert "<iframe" in displayed_html[0]
+    assert len(displayed_html) == 7
+    assert "<iframe" in displayed_html[2]
     magic.wandb("test/test/runs/test")
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
+    for i, html in enumerate(displayed_html):
+        print(f"[{i}]: {html}")
     assert "test/test/runs/test?jupyter=true" in displayed_html[-1]

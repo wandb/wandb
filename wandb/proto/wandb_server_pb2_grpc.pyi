@@ -126,6 +126,10 @@ class InternalServiceStub:
         request: global___ServerInformInitRequest,
     ) -> global___ServerInformInitResponse: ...
 
+    def ServerInformStart(self,
+        request: global___ServerInformStartRequest,
+    ) -> global___ServerInformStartResponse: ...
+
     def ServerInformFinish(self,
         request: global___ServerInformFinishRequest,
     ) -> global___ServerInformFinishResponse: ...
@@ -317,6 +321,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: global___ServerInformInitRequest,
         context: grpc.ServicerContext,
     ) -> global___ServerInformInitResponse: ...
+
+    @abc.abstractmethod
+    def ServerInformStart(self,
+        request: global___ServerInformStartRequest,
+        context: grpc.ServicerContext,
+    ) -> global___ServerInformStartResponse: ...
 
     @abc.abstractmethod
     def ServerInformFinish(self,
