@@ -9,6 +9,7 @@ import json
 import platform
 import yaml
 import six
+import gzip
 
 # HACK: restore first two entries of sys path after wandb load
 save_path = sys.path[:2]
@@ -65,11 +66,12 @@ def default_ctx():
         "run_queues": {"1": []},
         "num_popped": 0,
         "num_acked": 0,
-        "max_cli_version": "0.12.0",
+        "max_cli_version": "0.13.0",
         "runs": {},
         "run_ids": [],
         "file_names": [],
         "emulate_artifacts": None,
+        "emulate_azure": False,
         "run_state": "running",
         "run_queue_item_check_count": 0,
         "return_jupyter_in_run_info": False,
@@ -78,8 +80,13 @@ def default_ctx():
         "launch_agents": {},
         "successfully_create_default_queue": True,
         "launch_agent_update_fail": False,
+        "stop_launch_agent": False,
         "swappable_artifacts": False,
         "used_artifact_info": None,
+        "invalid_launch_spec_project": False,
+        "n_sweep_runs": 0,
+        "code_saving_enabled": True,
+        "sentry_events": [],
     }
 
 
@@ -98,6 +105,7 @@ def mock_server(mocker):
     mocker.patch("wandb.apis.public.requests", mock)
     mocker.patch("wandb.util.requests", mock)
     mocker.patch("wandb.wandb_sdk.wandb_artifacts.requests", mock)
+    mocker.patch("azure.core.pipeline.transport._requests_basic.requests", mock)
     print("Patched requests everywhere", os.getpid())
     return mock
 
@@ -217,6 +225,7 @@ def artifact(
             }
         ],
         "artifactSequence": {"name": collection_name,},
+        "artifactType": {"name": "dataset"},
         "currentManifest": {
             "file": {
                 "directUrl": request_url_root
@@ -344,6 +353,8 @@ def create_app(user_ctx=None):
     @app.errorhandler(HttpException)
     def handle_http_exception(error):
         response = jsonify(error.to_dict())
+        # For azure storage
+        response.headers["x-ms-error-code"] = 500
         response.status_code = error.status_code
         return response
 
@@ -406,9 +417,23 @@ def create_app(user_ctx=None):
         if body["variables"].get("files"):
             requested_file = body["variables"]["files"][0]
             ctx["requested_file"] = requested_file
-            url = base_url + "/storage?file={}&run={}".format(
-                urllib.parse.quote(requested_file), ctx["current_run"]
-            )
+            emulate_azure = ctx.get("emulate_azure")
+            # Azure expects the request path of signed urls to have 2 parts
+            upload_headers = []
+            if emulate_azure:
+                url = (
+                    base_url
+                    + "/storage/azure/"
+                    + ctx["current_run"]
+                    + "/"
+                    + requested_file
+                )
+                upload_headers.append("x-ms-blob-type:Block")
+                upload_headers.append("Content-MD5:{}".format("AAAA"))
+            else:
+                url = base_url + "/storage?file={}&run={}".format(
+                    urllib.parse.quote(requested_file), ctx["current_run"]
+                )
             return json.dumps(
                 {
                     "data": {
@@ -416,7 +441,7 @@ def create_app(user_ctx=None):
                             "bucket": {
                                 "id": "storageid",
                                 "files": {
-                                    "uploadHeaders": [],
+                                    "uploadHeaders": upload_headers,
                                     "edges": [
                                         {
                                             "node": {
@@ -493,30 +518,48 @@ def create_app(user_ctx=None):
                     }
                 }
             )
-        if "query Run(" in body["query"]:
-            # if querying state of run, change context from running to finished
-            if "RunFragment" not in body["query"] and "state" in body["query"]:
-                ret_val = json.dumps(
-                    {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+        for query_name in [
+            "Run",
+            "RunInfo",
+            "RunState",
+            "RunFiles",
+            "RunFullHistory",
+            "RunSampledHistory",
+        ]:
+            if f"query {query_name}(" in body["query"]:
+                # if querying state of run, change context from running to finished
+                if "RunFragment" not in body["query"] and "state" in body["query"]:
+                    ret_val = json.dumps(
+                        {"data": {"project": {"run": {"state": ctx.get("run_state")}}}}
+                    )
+                    ctx["run_state"] = "finished"
+                    return ret_val
+                return json.dumps({"data": {"project": {"run": run(ctx)}}})
+        for query_name in [
+            "Model",  # backward compatible for 0.12.10 and below
+            "RunConfigs",
+            "RunResumeStatus",
+            "RunStoppedStatus",
+            "RunUploadUrls",
+            "RunDownloadUrls",
+            "RunDownloadUrl",
+        ]:
+            if f"query {query_name}(" in body["query"]:
+                if "project(" in body["query"]:
+                    project_field_name = "project"
+                    run_field_name = "run"
+                else:
+                    project_field_name = "model"
+                    run_field_name = "bucket"
+                if "commit" in body["query"]:
+                    run_config = _bucket_config(ctx)
+                else:
+                    run_config = run(ctx)
+                return json.dumps(
+                    {"data": {project_field_name: {run_field_name: run_config}}}
                 )
-                ctx["run_state"] = "finished"
-                return ret_val
-            return json.dumps({"data": {"project": {"run": run(ctx)}}})
-        if "query Model(" in body["query"]:
-            if "project(" in body["query"]:
-                project_field_name = "project"
-                run_field_name = "run"
-            else:
-                project_field_name = "model"
-                run_field_name = "bucket"
-            if "commit" in body["query"]:
-                run_config = _bucket_config(ctx)
-            else:
-                run_config = run(ctx)
-            return json.dumps(
-                {"data": {project_field_name: {run_field_name: run_config}}}
-            )
-        if "query Models(" in body["query"]:
+        # Models() is backward compatible for 0.12.10 and below
+        if "query Models(" in body["query"] or "query EntityProjects(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
@@ -559,11 +602,15 @@ def create_app(user_ctx=None):
                         "admin": False,
                         "email": "mock@server.test",
                         "username": "mock",
-                        "flags": '{"code_saving_enabled": true}',
                         "teams": {"edges": []},  # TODO make configurable for cli_test
                     },
                 },
             }
+            code_saving_enabled = ctx.get("code_saving_enabled")
+            if code_saving_enabled is not None:
+                viewer_dict["data"]["viewer"][
+                    "flags"
+                ] = f'{{"code_saving_enabled": {str(code_saving_enabled).lower()}}}'
             server_info = {
                 "serverInfo": {
                     "cliVersionInfo": {
@@ -634,7 +681,7 @@ def create_app(user_ctx=None):
                 }
             )
 
-        if "query Sweep(" in body["query"]:
+        if "query Sweep(" in body["query"] or "query SweepWithRuns(" in body["query"]:
             return json.dumps(
                 {
                     "data": {
@@ -696,20 +743,31 @@ def create_app(user_ctx=None):
                 {"data": {"createAgent": {"agent": {"id": "mock-server-agent-93xy",}}}}
             )
         if "mutation Heartbeat(" in body["query"]:
+            new_run_needed = body["variables"]["runState"] == "{}"
+            if new_run_needed:
+                ctx["n_sweep_runs"] += 1
             return json.dumps(
                 {
                     "data": {
                         "agentHeartbeat": {
                             "agent": {"id": "mock-server-agent-93xy",},
-                            "commands": json.dumps(
-                                [
-                                    {
-                                        "type": "run",
-                                        "run_id": "mocker-sweep-run-x9",
-                                        "args": {"learning_rate": {"value": 0.99124}},
-                                    }
-                                ]
-                            ),
+                            "commands": (
+                                json.dumps(
+                                    [
+                                        {
+                                            "type": "run",
+                                            "run_id": f"mocker-sweep-run-x9{ctx['n_sweep_runs']}",
+                                            "args": {
+                                                "a": {"value": ctx["n_sweep_runs"]}
+                                            },
+                                        }
+                                    ]
+                                )
+                                if ctx["n_sweep_runs"] <= 4
+                                else json.dumps([{"type": "exit"}])
+                            )
+                            if new_run_needed
+                            else "[]",
                         }
                     }
                 }
@@ -796,7 +854,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-            if body["variables"].get("name") == "mocker-sweep-run-x9":
+            if "mocker-sweep-run-x9" in body["variables"].get("name", ""):
                 response["data"]["upsertBucket"]["bucket"][
                     "sweepName"
                 ] = "test-sweep-id"
@@ -998,6 +1056,7 @@ def create_app(user_ctx=None):
                     }
                 }
             }
+        # backward compatible for 0.12.10 and below
         if "query RunArtifacts(" in body["query"]:
             if "inputArtifacts" in body["query"]:
                 key = "inputArtifacts"
@@ -1006,6 +1065,14 @@ def create_app(user_ctx=None):
             artifacts = paginated(artifact(ctx), ctx)
             artifacts["totalCount"] = ctx["page_times"]
             return {"data": {"project": {"run": {key: artifacts}}}}
+        if "query RunInputArtifacts(" in body["query"]:
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {"data": {"project": {"run": {"inputArtifacts": artifacts}}}}
+        if "query RunOutputArtifacts(" in body["query"]:
+            artifacts = paginated(artifact(ctx), ctx)
+            artifacts["totalCount"] = ctx["page_times"]
+            return {"data": {"project": {"run": {"outputArtifacts": artifacts}}}}
         if "query Artifacts(" in body["query"]:
             version = "v%i" % ctx["page_count"]
             artifacts = paginated(artifact(ctx), ctx, {"version": version})
@@ -1022,40 +1089,47 @@ def create_app(user_ctx=None):
                     }
                 }
             }
-        if "query Artifact(" in body["query"]:
-            if ART_EMU:
-                return ART_EMU.query(
-                    variables=body.get("variables", {}), query=body.get("query")
-                )
-            art = artifact(
-                ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
-            )
-            if "id" in body.get("variables", {}):
+        for query_name in [
+            "Artifact",
+            "ArtifactType",
+            "ArtifactWithCurrentManifest",
+            "ArtifactUsedBy",
+            "ArtifactCreatedBy",
+        ]:
+            if f"query {query_name}(" in body["query"]:
+                if ART_EMU:
+                    return ART_EMU.query(
+                        variables=body.get("variables", {}), query=body.get("query")
+                    )
                 art = artifact(
-                    ctx,
-                    request_url_root=base_url,
-                    id_override=body.get("variables", {}).get("id"),
+                    ctx, request_url_root=base_url, id_override="QXJ0aWZhY3Q6NTI1MDk4"
                 )
-                art["artifactType"] = {"id": 1, "name": "dataset"}
-                return {"data": {"artifact": art}}
-            if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
-                full_name = body.get("variables", {}).get("name", None)
-                if full_name is not None:
-                    collection_name = full_name.split(":")[0]
-                art = artifact(
-                    ctx, collection_name=collection_name, request_url_root=base_url,
-                )
-            # code artifacts use source-RUNID names, we return the code type
-            art["artifactType"] = {"id": 2, "name": "code"}
-            if "source" not in body["variables"]["name"]:
-                art["artifactType"] = {"id": 1, "name": "dataset"}
-            if "logged_table" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 3, "name": "run_table"}
-            if "run-" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "run_table"}
-            if "wb_validation_data" in body["variables"]["name"]:
-                art["artifactType"] = {"id": 4, "name": "validation_dataset"}
-            return {"data": {"project": {"artifact": art}}}
+                if "id" in body.get("variables", {}):
+                    art = artifact(
+                        ctx,
+                        request_url_root=base_url,
+                        id_override=body.get("variables", {}).get("id"),
+                    )
+                    art["artifactType"] = {"id": 1, "name": "dataset"}
+                    return {"data": {"artifact": art}}
+                if ctx["swappable_artifacts"] and "name" in body.get("variables", {}):
+                    full_name = body.get("variables", {}).get("name", None)
+                    if full_name is not None:
+                        collection_name = full_name.split(":")[0]
+                    art = artifact(
+                        ctx, collection_name=collection_name, request_url_root=base_url,
+                    )
+                # code artifacts use source-RUNID names, we return the code type
+                art["artifactType"] = {"id": 2, "name": "code"}
+                if "source" not in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 1, "name": "dataset"}
+                if "logged_table" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 3, "name": "run_table"}
+                if "run-" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "run_table"}
+                if "wb_validation_data" in body["variables"]["name"]:
+                    art["artifactType"] = {"id": 4, "name": "validation_dataset"}
+                return {"data": {"project": {"artifact": art}}}
         if "query ArtifactManifest(" in body["query"]:
             art = artifact(ctx)
             art["currentManifest"] = {
@@ -1069,7 +1143,10 @@ def create_app(user_ctx=None):
                 },
             }
             return {"data": {"project": {"artifact": art}}}
-        if "query Project" in body["query"] and "runQueues" in body["query"]:
+        # Project() is backward compatible for 0.12.10 and below
+        if ("query Project(" in body["query"] and "runQueues" in body["query"]) or (
+            "query ProjectRunQueues(" in body["query"] and "runQueues" in body["query"]
+        ):
             if ctx["run_queues_return_default"]:
                 return json.dumps(
                     {
@@ -1147,6 +1224,22 @@ def create_app(user_ctx=None):
             if ctx["num_popped"] != 0:
                 return json.dumps({"data": {"popFromRunQueue": None}})
             ctx["num_popped"] += 1
+            if ctx["invalid_launch_spec_project"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "popFromRunQueue": {
+                                "runQueueItemId": 1,
+                                "runSpec": {
+                                    "uri": "https://wandb.ai/mock_server_entity/test_project/runs/1",
+                                    "project": "test_project2",
+                                    "entity": "mock_server_entity",
+                                    "resource": "local",
+                                },
+                            }
+                        }
+                    }
+                )
             return json.dumps(
                 {
                     "data": {
@@ -1297,13 +1390,51 @@ def create_app(user_ctx=None):
                 )
             else:
                 return json.dumps({"data": {}})
+        if "query LaunchAgent" in body["query"]:
+            if ctx["gorilla_supports_launch_agents"]:
+                return json.dumps(
+                    {
+                        "data": {
+                            "launchAgent": {
+                                "name": "test_agent",
+                                "stopPolling": ctx["stop_launch_agent"],
+                            }
+                        }
+                    }
+                )
+            else:
+                return json.dumps({"data": {}})
+
+        if "query GetSweeps" in body["query"]:
+            if body["variables"]["project"] == "testnosweeps":
+                return {"data": {"project": {"totalSweeps": 0, "sweeps": {}}}}
+            return {
+                "data": {
+                    "project": {
+                        "totalSweeps": 1,
+                        "sweeps": {
+                            "edges": [
+                                {
+                                    "node": {
+                                        "id": "testdatabaseid",
+                                        "name": "testid",
+                                        "bestLoss": 0.5,
+                                        "config": yaml.dump({"name": "testname"}),
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
 
         print("MISSING QUERY, add me to tests/mock_server.py", body["query"])
         error = {"message": "Not implemented in tests/mock_server.py", "body": body}
         return json.dumps({"errors": [error]})
 
     @app.route("/storage", methods=["PUT", "GET"])
-    def storage():
+    @app.route("/storage/<path:extra>", methods=["PUT", "GET"])
+    def storage(extra=None):
         ctx = get_ctx()
         if "fail_storage_times" in ctx:
             if ctx["fail_storage_count"] < ctx["fail_storage_times"]:
@@ -1312,6 +1443,9 @@ def create_app(user_ctx=None):
         file = request.args.get("file")
         _id = request.args.get("id", "")
         run = request.args.get("run", "unknown")
+        # Grab the run from the url for azure uploads
+        if extra and run == "unknown":
+            run = extra.split("/")[-2]
         ctx["storage"] = ctx.get("storage", {})
         ctx["storage"][run] = ctx["storage"].get(run, [])
         ctx["storage"][run].append(request.args.get("file"))
@@ -1320,17 +1454,25 @@ def create_app(user_ctx=None):
             return os.urandom(size), 200
         # make sure to read the data
         request.get_data(as_text=True)
-        run_ctx = ctx["runs"].setdefault(run, default_ctx())
-        for c in ctx, run_ctx:
-            c["file_names"].append(request.args.get("file"))
-
+        # We need to bomb out before storing the file as uploaded for tests
         inject = InjectRequestsParse(ctx).find(request=request)
         if inject:
             if inject.response:
                 response = inject.response
             if inject.http_status:
                 # print("INJECT", inject, inject.http_status)
-                raise HttpException("some error", status_code=inject.http_status)
+                raise HttpException(
+                    {"code": 500, "message": "some error"},
+                    status_code=inject.http_status,
+                )
+
+        run_ctx = ctx["runs"].setdefault(run, default_ctx())
+        for c in ctx, run_ctx:
+            if extra:
+                file = extra.split("/")[-1]
+            else:
+                file = request.args.get("file", "UNKNOWN_STORAGE_FILE_PUT")
+            c["file_names"].append(file)
 
         if request.method == "PUT":
             for c in ctx, run_ctx:
@@ -1401,7 +1543,7 @@ def create_app(user_ctx=None):
                         }
                     },
                 }
-            elif _id == "6ddbe1c239de9c9fc6c397fc5591555a":
+            elif _id == "27c102831476c6ff7ce53c266c937612":
                 return {
                     "version": 1,
                     "storagePolicy": "wandb-storage-policy-v1",
@@ -1544,6 +1686,9 @@ index 30d74d2..9a2c773 100644
 +testing
 \ No newline at end of file
 """
+        # emulate azure when we're receving requests from them
+        if extra is not None:
+            return "", 201
         return "", 200
 
     @app.route("/artifacts/<entity>/<digest>", methods=["GET", "POST"])
@@ -1704,6 +1849,16 @@ index 30d74d2..9a2c773 100644
             }
         )
 
+    @app.route("/api/5288891/store/", methods=["POST"])
+    def sentry_put():
+        ctx = get_ctx()
+        data = request.get_data()
+        data = gzip.decompress(data)
+        data = str(data, "utf-8")
+        data = json.loads(data)
+        ctx["sentry_events"].append(data)
+        return ""
+
     @app.errorhandler(404)
     def page_not_found(e):
         print("Got request to: %s (%s)" % (request.url, request.method))
@@ -1754,7 +1909,7 @@ class ParseCTX(object):
                 # assert offset == 0 or offset == len(l), (k, v, l, d)
                 if not offset:
                     l = []
-                if k == u"output.log":
+                if k == "output.log":
                     lines = content
                 else:
                     lines = map(json.loads, content)
@@ -1800,8 +1955,7 @@ class ParseCTX(object):
 
     @property
     def summary_wandb(self):
-        # TODO: move this to config_user eventually
-        return self.summary_raw["_wandb"]
+        return self.summary_raw.get("_wandb", {})
 
     @property
     def history(self):
@@ -1917,6 +2071,10 @@ class ParseCTX(object):
     @property
     def alerts(self):
         return self._ctx.get("alerts") or []
+
+    @property
+    def sentry_events(self):
+        return self._ctx.get("sentry_events") or []
 
     def _debug(self):
         if not self._run_id:

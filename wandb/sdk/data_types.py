@@ -1,13 +1,16 @@
 import codecs
 import hashlib
+import io
 import json
 import logging
 import numbers
 import os
+import pathlib
 import platform
 import re
 import shutil
 import sys
+import tempfile
 from typing import (
     Any,
     cast,
@@ -29,7 +32,6 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
-from wandb.compat import tempfile
 from wandb.util import has_num
 
 from .interface import _dtypes
@@ -44,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover
     import matplotlib  # type: ignore
     import plotly  # type: ignore
     import PIL  # type: ignore
+    import rdkit.Chem  # type: ignore
     import torch  # type: ignore
     from typing import TextIO
 
@@ -63,6 +66,7 @@ if TYPE_CHECKING:  # pragma: no cover
     ]
     ImageDataOrPathType = Union[str, "Image", ImageDataType]
     TorchTensorType = Union["torch.Tensor", "torch.Variable"]
+    RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
 
 _MEDIA_TMP = tempfile.TemporaryDirectory("wandb-media")
 _DATA_FRAMES_SUBDIR = os.path.join("media", "data_frames")
@@ -767,13 +771,10 @@ class Object3D(BatchableMedia):
                 )
 
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif _is_numpy_array(data_or_path):
             np_data = data_or_path
@@ -797,13 +798,10 @@ class Object3D(BatchableMedia):
 
             list_data = np_data.tolist()
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                list_data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
@@ -857,20 +855,39 @@ class Object3D(BatchableMedia):
 
 class Molecule(BatchableMedia):
     """
-    Wandb class for Molecular data
+    Wandb class for 3D Molecular data
 
     Arguments:
         data_or_path: (string, io)
             Molecule can be initialized from a file name or an io object.
+        caption: (string)
+            Caption associated with the molecule for display.
     """
 
-    SUPPORTED_TYPES = set(
-        ["pdb", "pqr", "mmcif", "mcif", "cif", "sdf", "sd", "gro", "mol2", "mmtf"]
-    )
+    SUPPORTED_TYPES = {
+        "pdb",
+        "pqr",
+        "mmcif",
+        "mcif",
+        "cif",
+        "sdf",
+        "sd",
+        "gro",
+        "mol2",
+        "mmtf",
+    }
+    SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
     _log_type = "molecule-file"
 
-    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
+    def __init__(
+        self,
+        data_or_path: Union[str, "TextIO"],
+        caption: Optional[str] = None,
+        **kwargs: str,
+    ) -> None:
         super(Molecule, self).__init__()
+
+        self._caption = caption
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -884,7 +901,7 @@ class Molecule(BatchableMedia):
             extension = kwargs.pop("file_type", None)
             if extension is None:
                 raise ValueError(
-                    "Must pass file type keyword argument when using io objects."
+                    "Must pass file_type keyword argument when using io objects."
                 )
             if extension not in Molecule.SUPPORTED_TYPES:
                 raise ValueError(
@@ -910,6 +927,112 @@ class Molecule(BatchableMedia):
             self._set_file(data_or_path, is_tmp=False)
         else:
             raise ValueError("Data must be file name or a file object")
+
+    @classmethod
+    def from_rdkit(
+        cls,
+        data_or_path: "RDKitDataType",
+        caption: Optional[str] = None,
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> "Molecule":
+        """
+        Convert RDKit-supported file/object types to wandb.Molecule
+
+        Arguments:
+            data_or_path: (string, rdkit.Chem.rdchem.Mol)
+                Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
+            caption: (string)
+                Caption associated with the molecule for display.
+            convert_to_3d_and_optimize: (bool)
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: (int)
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+        """
+        rdkit_chem = util.get_module(
+            "rdkit.Chem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        rdkit_chem_all_chem = util.get_module(
+            "rdkit.Chem.AllChem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+
+        if isinstance(data_or_path, six.string_types):
+            # path to a file?
+            path = pathlib.Path(data_or_path)
+            extension = path.suffix.split(".")[-1]
+            if extension not in Molecule.SUPPORTED_RDKIT_TYPES:
+                raise ValueError(
+                    "Molecule.from_rdkit only supports files of the type: "
+                    + ", ".join(Molecule.SUPPORTED_RDKIT_TYPES)
+                )
+            # use the appropriate method
+            if extension == "sdf":
+                with rdkit_chem.SDMolSupplier(data_or_path) as supplier:
+                    molecule = next(supplier)  # get only the first molecule
+            else:
+                molecule = getattr(rdkit_chem, f"MolFrom{extension.capitalize()}File")(
+                    data_or_path
+                )
+        elif isinstance(data_or_path, rdkit_chem.rdchem.Mol):
+            molecule = data_or_path
+        else:
+            raise ValueError(
+                "Data must be file name or an rdkit.Chem.rdchem.Mol object"
+            )
+
+        if convert_to_3d_and_optimize:
+            molecule = rdkit_chem.AddHs(molecule)
+            rdkit_chem_all_chem.EmbedMolecule(molecule)
+            rdkit_chem_all_chem.MMFFOptimizeMolecule(
+                molecule, maxIters=mmff_optimize_molecule_max_iterations,
+            )
+        # convert to the pdb format supported by Molecule
+        pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
+
+        return cls(io.StringIO(pdb_block), caption=caption, file_type="pdb")
+
+    @classmethod
+    def from_smiles(
+        cls,
+        data: str,
+        caption: Optional[str] = None,
+        sanitize: bool = True,
+        convert_to_3d_and_optimize: bool = True,
+        mmff_optimize_molecule_max_iterations: int = 200,
+    ) -> "Molecule":
+        """
+        Convert SMILES string to wandb.Molecule
+
+        Arguments:
+            data: (string)
+                SMILES string.
+            caption: (string)
+                Caption associated with the molecule for display
+            sanitize: (bool)
+                Check if the molecule is chemically reasonable by the RDKit's definition.
+            convert_to_3d_and_optimize: (bool)
+                Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
+                This is an expensive operation that may take a long time for complicated molecules.
+            mmff_optimize_molecule_max_iterations: (int)
+                Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
+        """
+        rdkit_chem = util.get_module(
+            "rdkit.Chem",
+            required='wandb.Molecule needs the rdkit-pypi package. To get it, run "pip install rdkit-pypi".',
+        )
+        molecule = rdkit_chem.MolFromSmiles(data, sanitize=sanitize)
+        if molecule is None:
+            raise ValueError("Unable to parse the SMILES string.")
+
+        return cls.from_rdkit(
+            data_or_path=molecule,
+            caption=caption,
+            convert_to_3d_and_optimize=convert_to_3d_and_optimize,
+            mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
+        )
 
     @classmethod
     def get_media_subdir(cls: Type["Molecule"]) -> str:
@@ -1045,9 +1168,7 @@ class Html(BatchableMedia):
 
 
 class Video(BatchableMedia):
-
-    """
-    Wandb representation of video.
+    """Format a video for logging to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io)
@@ -1061,6 +1182,19 @@ class Video(BatchableMedia):
         caption: (string) caption associated with the video for display
         fps: (int) frames per second for video. Default is 4.
         format: (string) format of video, necessary if initializing with path or io object.
+
+    Examples:
+        ### Log a numpy array as a video
+        <!--yeadoc-test:log-video-numpy-->
+        ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        # axes are (time, channel, height, width)
+        frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
+        wandb.log({"video": wandb.Video(frames, fps=4)})
+        ```
     """
 
     _log_type = "video-file"
@@ -1245,9 +1379,8 @@ class JSONMetadata(Media):
 
         ext = "." + self.type_name() + ".json"
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ext)
-        util.json_dump_uncompressed(
-            self._val, codecs.open(tmp_path, "w", encoding="utf-8")
-        )
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_uncompressed(self._val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     @classmethod
@@ -1270,8 +1403,7 @@ class JSONMetadata(Media):
 
 
 class ImageMask(Media):
-    """
-    Wandb class for image masks or overlays, useful for tasks like semantic segmentation.
+    """Format image masks or overlays for logging to W&B.
 
     Arguments:
         val: (dictionary)
@@ -1287,10 +1419,26 @@ class ImageMask(Media):
             The readable name or id for this mask type (e.g. predictions, ground_truth)
 
     Examples:
-        Log a mask overlay for a given image
+        ### Logging a single masked image
+        <!--yeadoc-test:log-image-mask-->
         ```python
-        predicted_mask = np.array([[1, 2, 2, ... , 3, 2, 1], ...])
-        ground_truth_mask = np.array([[1, 1, 1, ... , 2, 3, 1], ...])
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+        predicted_mask = np.empty((100, 100), dtype=np.uint8)
+        ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
+
+        predicted_mask[:50, :50] = 0
+        predicted_mask[50:, :50] = 1
+        predicted_mask[:50, 50:] = 2
+        predicted_mask[50:, 50:] = 3
+
+        ground_truth_mask[:25, :25] = 0
+        ground_truth_mask[25:, :25] = 1
+        ground_truth_mask[:25, 25:] = 2
+        ground_truth_mask[25:, 25:] = 3
 
         class_labels = {
             0: "person",
@@ -1308,22 +1456,60 @@ class ImageMask(Media):
                 "mask_data": ground_truth_mask,
                 "class_labels": class_labels
             }
-        }
+        })
         wandb.log({"img_with_masks" : masked_image})
         ```
 
-        Prepare an image mask to be added to a wandb.Table
+        ### Log a masked image inside a Table
+        <!--yeadoc-test:log-image-mask-table-->
         ```python
-        raw_image_path = "sample_image.png"
-        predicted_mask_path = "predicted_mask.png"
+
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+        predicted_mask = np.empty((100, 100), dtype=np.uint8)
+        ground_truth_mask = np.empty((100, 100), dtype=np.uint8)
+
+        predicted_mask[:50, :50] = 0
+        predicted_mask[50:, :50] = 1
+        predicted_mask[:50, 50:] = 2
+        predicted_mask[50:, 50:] = 3
+
+        ground_truth_mask[:25, :25] = 0
+        ground_truth_mask[25:, :25] = 1
+        ground_truth_mask[:25, 25:] = 2
+        ground_truth_mask[25:, 25:] = 3
+
+        class_labels = {
+            0: "person",
+            1: "tree",
+            2: "car",
+            3: "road"
+        }
+
         class_set = wandb.Classes([
             {"name" : "person", "id" : 0},
             {"name" : "tree", "id" : 1},
             {"name" : "car", "id" : 2},
             {"name" : "road", "id" : 3}
         ])
-        masked_image = wandb.Image(raw_image_path, classes=class_set,
-            masks={"prediction" : {"path" : predicted_mask_path}})
+
+        masked_image = wandb.Image(image, masks={
+            "predictions": {
+                "mask_data": predicted_mask,
+                "class_labels": class_labels
+            },
+            "ground_truth": {
+                "mask_data": ground_truth_mask,
+                "class_labels": class_labels
+            }
+        }, classes=class_set)
+
+        table = wandb.Table(columns=["image"])
+        table.add_data(masked_image)
+        wandb.log({"random_field": table})
         ```
     """
 
@@ -1448,8 +1634,7 @@ class ImageMask(Media):
 
 
 class BoundingBoxes2D(JSONMetadata):
-    """
-    Wandb class for logging 2D bounding boxes on images, useful for tasks like object detection
+    """Format images with 2D bounding box overlays for logging to W&B.
 
     Arguments:
         val: (dictionary) A dictionary of the following form:
@@ -1482,14 +1667,22 @@ class BoundingBoxes2D(JSONMetadata):
             The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
 
     Examples:
-        Log a set of predicted and ground truth bounding boxes for a given image
+        ### Log bounding boxes for a single image
+        <!--yeadoc-test:boundingbox-2d-->
         ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(200, 300, 3))
+
         class_labels = {
             0: "person",
             1: "car",
             2: "road",
             3: "building"
         }
+
         img = wandb.Image(image, boxes={
             "predictions": {
                 "box_data": [
@@ -1523,23 +1716,31 @@ class BoundingBoxes2D(JSONMetadata):
                             "loss": 0.7
                         }
                     },
-                    ...
                     # Log as many boxes an as needed
                 ],
                 "class_labels": class_labels
-            },
-            # Log each meaningful group of boxes with a unique key name
-            "ground_truth": {
-            ...
             }
         })
 
         wandb.log({"driving_scene": img})
         ```
 
-        Prepare an image with bounding boxes to be added to a wandb.Table
+        ### Log a bounding box overlay to a Table
+        <!--yeadoc-test:bb2d-image-with-labels-->
         ```python
-        raw_image_path = "sample_image.png"
+
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        image = np.random.randint(low=0, high=256, size=(200, 300, 3))
+
+        class_labels = {
+            0: "person",
+            1: "car",
+            2: "road",
+            3: "building"
+        }
 
         class_set = wandb.Classes([
             {"name" : "person", "id" : 0},
@@ -1548,8 +1749,48 @@ class BoundingBoxes2D(JSONMetadata):
             {"name" : "building", "id" : 3}
         ])
 
-        image_with_boxes = wandb.Image(raw_image_path, classes=class_set,
-            boxes=[...identical to previous example...])
+        img = wandb.Image(image, boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        # one box expressed in the default relative/fractional domain
+                        "position": {
+                            "minX": 0.1,
+                            "maxX": 0.2,
+                            "minY": 0.3,
+                            "maxY": 0.4
+                        },
+                        "class_id" : 1,
+                        "box_caption": class_labels[1],
+                        "scores" : {
+                            "acc": 0.2,
+                            "loss": 1.2
+                        }
+                    },
+                    {
+                        # another box expressed in the pixel domain
+                        "position": {
+                            "middle": [150, 20],
+                            "width": 68,
+                            "height": 112
+                        },
+                        "domain" : "pixel",
+                        "class_id" : 3,
+                        "box_caption": "a building",
+                        "scores" : {
+                            "acc": 0.5,
+                            "loss": 0.7
+                        }
+                    },
+                    # Log as many boxes an as needed
+                ],
+                "class_labels": class_labels
+            }
+        }, classes=class_set)
+
+        table = wandb.Table(columns=["image"])
+        table.add_data(img)
+        wandb.log({"driving_scene": table})
         ```
     """
 
@@ -1760,8 +2001,7 @@ class Classes(Media):
 
 
 class Image(BatchableMedia):
-    """
-    Wandb class for images.
+    """Format images for logging to W&B.
 
     Arguments:
         data_or_path: (numpy array, string, io) Accepts numpy array of
@@ -1770,6 +2010,39 @@ class Image(BatchableMedia):
         mode: (string) The PIL mode for an image. Most common are "L", "RGB",
             "RGBA". Full explanation at https://pillow.readthedocs.io/en/4.2.x/handbook/concepts.html#concept-modes.
         caption: (string) Label for display of image.
+
+    Examples:
+        ### Create a wandb.Image from a numpy array
+        <!--yeadoc-test:log-image-numpy->
+        ```python
+        import numpy as np
+        import wandb
+
+        wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3))
+            image = wandb.Image(pixels, caption=f"random field {i}")
+            examples.append(image)
+        wandb.log({"examples": examples})
+        ```
+
+        ### Create a wandb.Image from a PILImage
+        <!--yeadoc-test:log-image-pil->
+        ```python
+        import numpy as np
+        from PIL import Image as PILImage
+        import wandb
+
+        wandb.init()
+        examples = []
+        for i in range(3):
+            pixels = np.random.randint(low=0, high=256, size=(100, 100, 3), dtype=np.uint8)
+            pil_image = PILImage.fromarray(pixels, mode="RGB")
+            image = wandb.Image(pil_image, caption=f"random field {i}")
+            examples.append(image)
+        wandb.log({"examples": examples})
+        ```
     """
 
     MAX_ITEMS = 108
@@ -1837,11 +2110,7 @@ class Image(BatchableMedia):
         if caption is not None:
             self._caption = caption
 
-        if classes is not None:
-            if not isinstance(classes, Classes):
-                self._classes = Classes(classes)
-            else:
-                self._classes = classes
+        total_classes = {}
 
         if boxes:
             if not isinstance(boxes, dict):
@@ -1852,7 +2121,9 @@ class Image(BatchableMedia):
                 if isinstance(box_item, BoundingBoxes2D):
                     boxes_final[key] = box_item
                 elif isinstance(box_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     boxes_final[key] = BoundingBoxes2D(box_item, key)
+                total_classes.update(boxes_final[key]._class_labels)
             self._boxes = boxes_final
 
         if masks:
@@ -1864,9 +2135,27 @@ class Image(BatchableMedia):
                 if isinstance(mask_item, ImageMask):
                     masks_final[key] = mask_item
                 elif isinstance(mask_item, dict):
+                    # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
+                if hasattr(masks_final[key], "_val"):
+                    total_classes.update(masks_final[key]._val["class_labels"])
             self._masks = masks_final
 
+        if classes is not None:
+            if isinstance(classes, Classes):
+                total_classes.update(
+                    {val["id"]: val["name"] for val in classes._class_set}
+                )
+            else:
+                total_classes.update({val["id"]: val["name"] for val in classes})
+
+        if len(total_classes.keys()) > 0:
+            self._classes = Classes(
+                [
+                    {"id": key, "name": total_classes[key]}
+                    for key in total_classes.keys()
+                ]
+            )
         self._width, self._height = self.image.size  # type: ignore
         self._free_ram()
 
@@ -1931,7 +2220,7 @@ class Image(BatchableMedia):
                 self.to_uint8(data), mode=mode or self.guess_mode(data)
             )
 
-        tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".png")
+        tmp_path = os.path.join(_MEDIA_TMP.name, str(util.generate_id()) + ".png")
         self.format = "png"
         self._image.save(tmp_path, transparency=None)
         self._set_file(tmp_path, is_tmp=True)
@@ -2016,18 +2305,10 @@ class Image(BatchableMedia):
                 )
 
             if self._classes is not None:
-                # Here, rather than give each class definition it's own name (and entry), we
-                # purposely are giving a non-unique class name of /media/cls.classes.json.
-                # This may create user confusion if if multiple different class definitions
-                # are expected in a single artifact. However, we want to catch this user pattern
-                # if it exists and dive deeper. The alternative code is provided below.
-                #
-                class_name = os.path.join("media", "cls")
-                #
-                # class_name = os.path.join(
-                #     "media", "classes", os.path.basename(self._path) + "_cls"
-                # )
-                #
+                class_id = hashlib.md5(
+                    str(self._classes._class_set).encode("utf-8")
+                ).hexdigest()
+                class_name = os.path.join("media", "classes", class_id + "_cls",)
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
@@ -2294,7 +2575,8 @@ class Plotly(Media):
 
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
-        util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod
@@ -2437,7 +2719,10 @@ def _numpy_arrays_to_lists(
     elif util.is_numpy_array(payload):
         if TYPE_CHECKING:
             payload = cast("np.ndarray", payload)
-        return [_numpy_arrays_to_lists(v) for v in payload.tolist()]
+        return [
+            _numpy_arrays_to_lists(v)
+            for v in (payload.tolist() if payload.ndim > 0 else [payload.tolist()])
+        ]
     # Protects against logging non serializable objects
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)

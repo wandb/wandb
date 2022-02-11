@@ -17,11 +17,11 @@ torch = None
 
 def nested_shape(array_or_tuple, seen=None):
     """Figures out the shape of tensors possibly embedded in tuples
-     i.e 
-     [0,0] returns (2)
-     ([0,0], [0,0]) returns (2,2)
-     (([0,0], [0,0]),[0,0]) returns ((2,2),2)
-     """
+    i.e
+    [0,0] returns (2)
+    ([0,0], [0,0]) returns (2,2)
+    (([0,0], [0,0]),[0,0]) returns ((2,2),2)
+    """
     if seen is None:
         seen = set()
     if hasattr(array_or_tuple, "size"):
@@ -50,16 +50,14 @@ LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)
 
 
 def log_track_init(log_freq):
-    """create tracking structure used by log_track_update
-    """
+    """create tracking structure used by log_track_update"""
     l = [0] * 2
     l[LOG_TRACK_THRESHOLD] = log_freq
     return l
 
 
 def log_track_update(log_track):
-    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached
-    """
+    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached"""
     log_track[LOG_TRACK_COUNT] += 1
     if log_track[LOG_TRACK_COUNT] < log_track[LOG_TRACK_THRESHOLD]:
         return False
@@ -68,8 +66,7 @@ def log_track_update(log_track):
 
 
 class TorchHistory(object):
-    """History methods specific to PyTorch
-    """
+    """History methods specific to PyTorch"""
 
     def __init__(self, history):
         global torch
@@ -91,7 +88,7 @@ class TorchHistory(object):
         log_freq=0,
         jupyter_run=None,
     ):
-        """ This instuments hooks into the pytorch module
+        """This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
         log_gradients - log gradients after a backward pass
         log_freq - log gradients/parameters every N batches
@@ -137,8 +134,7 @@ class TorchHistory(object):
                     )
 
     def log_tensor_stats(self, tensor, name):
-        """Add distribution statistics on a tensor's elements to the current History entry
-        """
+        """Add distribution statistics on a tensor's elements to the current History entry"""
         # TODO Handle the case of duplicate names.
 
         if isinstance(tensor, tuple) or isinstance(tensor, list):
@@ -216,12 +212,13 @@ class TorchHistory(object):
         if isinstance(flat, torch.HalfTensor):
             flat = flat.clone().type(torch.FloatTensor).detach()
 
-        # Remove nans from tensor. There's no good way to represent that in histograms.
-        flat = flat[~torch.isnan(flat)]
-        flat = flat[~torch.isinf(flat)]
-        if flat.shape == torch.Size([0]):
-            # Often the whole tensor is nan or inf. Just don't log it in that case.
+        # Skip logging if all values are nan or inf or the tensor is empty.
+        if self._no_finite_values(flat):
             return
+
+        # Remove nans and infs if present. There's no good way to represent that in histograms.
+        flat = self._remove_infs_nans(flat)
+
         tmin = flat.min().item()
         tmax = flat.max().item()
         if sparse_zeros:
@@ -301,6 +298,15 @@ class TorchHistory(object):
             return False
         else:
             return handle.id in d
+
+    def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
+        return tensor.shape == torch.Size([0]) or (~torch.isfinite(tensor)).all().item()
+
+    def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
+        if not torch.isfinite(tensor).all():
+            tensor = tensor[torch.isfinite(tensor)]
+
+        return tensor
 
 
 class TorchGraph(wandb.data_types.Graph):

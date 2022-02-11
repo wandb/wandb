@@ -1,6 +1,6 @@
 #
 import os
-from typing import Callable
+from typing import Callable, Generator
 
 
 WANDB_DIRS = ("wandb", ".wandb")
@@ -17,7 +17,7 @@ JOBSPEC_FNAME = "wandb-jobspec.json"
 CONDA_ENVIRONMENTS_FNAME = "conda-environment.yaml"
 
 
-def is_wandb_file(name):
+def is_wandb_file(name: str) -> bool:
     return (
         name.startswith("wandb")
         or name == METADATA_FNAME
@@ -31,7 +31,7 @@ def is_wandb_file(name):
 
 def filtered_dir(
     root: str, include_fn: Callable[[str], bool], exclude_fn: Callable[[str], bool]
-):
+) -> Generator[str, None, None]:
     """Simple generator to walk a directory"""
     for dirpath, _, files in os.walk(root):
         for fname in files:

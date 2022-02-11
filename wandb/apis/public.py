@@ -1,3 +1,15 @@
+"""Use the Public API to export or update data that you have saved to W&B.
+
+Before using this API, you'll want to log data from your script — check the
+[Quickstart](https://docs.wandb.ai/quickstart) for more details.
+
+You might use the Public API to
+ - update metadata or metrics for an experiment after it has been completed,
+ - pull down your results as a dataframe for post-hoc analysis in a Jupyter notebook, or
+ - check your saved model artifacts for those tagged as `ready-to-deploy`.
+
+For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
+"""
 import datetime
 from functools import partial
 import json
@@ -159,6 +171,21 @@ ARTIFACT_FILES_FRAGMENT = """fragment ArtifactFilesFragment on Artifact {
     }
 }"""
 
+SWEEP_FRAGMENT = """fragment SweepFragment on Sweep {
+    id
+    name
+    method
+    state
+    description
+    displayName
+    bestLoss
+    config
+    createdAt
+    updatedAt
+    runCount
+}
+"""
+
 
 class RetryingClient(object):
     def __init__(self, client):
@@ -269,6 +296,8 @@ class Api(object):
                 'Passing "username" to Api is deprecated. please use "entity" instead.'
             )
             self.settings["entity"] = overrides["username"]
+        self.settings["base_url"] = self.settings["base_url"].rstrip("/")
+
         self._viewer = None
         self._projects = {}
         self._runs = {}
@@ -595,14 +624,26 @@ class Api(object):
 
             Find runs in my_project where config.experiment_name has been set to "foo" or "bar"
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"$or": [{"config.experiment_name": "foo"}, {"config.experiment_name": "bar"}]}
+            )
             ```
 
             Find runs in my_project where config.experiment_name matches a regex (anchors are not supported)
             ```
-            api.runs(path="my_entity/my_project",
-                filters={"config.experiment_name": {"$regex": "b.*"}})
+            api.runs(
+                path="my_entity/my_project",
+                filters={"config.experiment_name": {"$regex": "b.*"}}
+            )
+            ```
+
+            Find runs in my_project where the run name matches a regex (anchors are not supported)
+            ```
+            api.runs(
+                path="my_entity/my_project",
+                filters={"display_name": {"$regex": "^foo.*"}}
+            )
             ```
 
             Find runs in my_project sorted by ascending loss
@@ -1200,6 +1241,53 @@ class Project(Attrs):
     def artifacts_types(self, per_page=50):
         return ProjectArtifactTypes(self.client, self.entity, self.name)
 
+    @normalize_exceptions
+    def sweeps(self):
+        query = gql(
+            """
+            query GetSweeps($project: String!, $entity: String!) {
+                project(name: $project, entityName: $entity) {
+                    totalSweeps
+                    sweeps {
+                        edges {
+                            node {
+                                ...SweepFragment
+                            }
+                            cursor
+                        }
+                        pageInfo {
+                            endCursor
+                            hasNextPage
+                        }
+                    }
+                }
+            }
+            %s
+            """
+            % SWEEP_FRAGMENT
+        )
+        variable_values = {"project": self.name, "entity": self.entity}
+        ret = self.client.execute(query, variable_values)
+        if ret["project"]["totalSweeps"] < 1:
+            return []
+
+        return [
+            # match format of existing public sweep apis
+            Sweep(
+                self.client,
+                self.entity,
+                self.name,
+                e["node"]["name"],
+                attrs={
+                    "id": e["node"]["id"],
+                    "name": e["node"]["name"],
+                    "bestLoss": e["node"]["bestLoss"],
+                    "config": e["node"]["config"],
+                },
+            )
+            for e in ret["project"]["sweeps"]["edges"]
+        ]
+
 
 class Runs(Paginator):
     """An iterable collection of runs associated with a project and optional filter.
@@ -1560,7 +1648,7 @@ class Run(Attrs):
     def wait_until_finished(self):
         query = gql(
             """
-            query Run($project: String!, $entity: String!, $name: String!) {
+            query RunState($project: String!, $entity: String!, $name: String!) {
                 project(name: $project, entityName: $entity) {
                     run(name: $name) {
                         state
@@ -1665,7 +1753,7 @@ class Run(Attrs):
         spec = {"keys": [x_axis] + keys, "samples": samples}
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
+        query RunSampledHistory($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) { sampledHistory(specs: $specs) }
             }
@@ -1681,7 +1769,7 @@ class Run(Attrs):
         node = "history" if stream == "default" else "events"
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!, $samples: Int) {
+        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) { %s(samples: $samples) }
             }
@@ -1935,7 +2023,7 @@ class Run(Attrs):
     def lastHistoryStep(self):  # noqa: N802
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!) {
+        query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) { historyKeys }
             }
@@ -1990,7 +2078,7 @@ class Sweep(Attrs):
 
     QUERY = gql(
         """
-    query Sweep($project: String!, $entity: String, $name: String!) {
+    query Sweep($project: String, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
@@ -2085,6 +2173,10 @@ class Sweep(Attrs):
         path.insert(2, "sweeps")
         return self.client.app_url + "/".join(path)
 
+    @property
+    def name(self):
+        return self.config.get("name") or self.id
+
     @classmethod
     def get(
         cls,
@@ -2148,7 +2240,7 @@ class Files(Paginator):
 
     QUERY = gql(
         """
-        query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,
+        query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
@@ -2320,7 +2412,7 @@ class Reports(Paginator):
 
     QUERY = gql(
         """
-        query Run($project: String!, $entity: String!, $reportCursor: String,
+        query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
             $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
                 allViews(viewType: $viewType, viewName: $viewName, first:
@@ -2813,6 +2905,7 @@ class ProjectArtifactCollections(Paginator):
                                 description
                                 createdAt
                             }
+                            cursor
                         }
                     }
                 }
@@ -2885,7 +2978,7 @@ class ProjectArtifactCollections(Paginator):
 class RunArtifacts(Paginator):
     OUTPUT_QUERY = gql(
         """
-        query RunArtifacts(
+        query RunOutputArtifacts(
             $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
@@ -2913,7 +3006,7 @@ class RunArtifacts(Paginator):
 
     INPUT_QUERY = gql(
         """
-        query RunArtifacts(
+        query RunInputArtifacts(
             $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
@@ -3280,7 +3373,7 @@ class Artifact(artifacts.Artifact):
 
     QUERY = gql(
         """
-        query Artifact(
+        query ArtifactWithCurrentManifest(
             $id: ID!,
         ) {
             artifact(id: $id) {
@@ -3468,9 +3561,9 @@ class Artifact(artifacts.Artifact):
         """Returns the expected type for a given artifact name and project"""
         query = gql(
             """
-        query Artifact(
-            $entityName: String!,
-            $projectName: String!,
+        query ArtifactType(
+            $entityName: String,
+            $projectName: String,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
@@ -3830,8 +3923,8 @@ class Artifact(artifacts.Artifact):
         query = gql(
             """
         query Artifact(
-            $entityName: String!,
-            $projectName: String!,
+            $entityName: String,
+            $projectName: String,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
@@ -3954,7 +4047,7 @@ class Artifact(artifacts.Artifact):
         """
         query = gql(
             """
-            query Artifact(
+            query ArtifactUsedBy(
                 $id: ID!,
                 $before: String,
                 $after: String,
@@ -3998,7 +4091,7 @@ class Artifact(artifacts.Artifact):
         """
         query = gql(
             """
-            query Artifact(
+            query ArtifactCreatedBy(
                 $id: ID!
             ) {
                 artifact(id: $id) {

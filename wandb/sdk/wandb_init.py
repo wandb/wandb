@@ -1,5 +1,3 @@
-#
-# -*- coding: utf-8 -*-
 """Defines wandb.init() and associated classes and methods.
 
 `wandb.init()` indicates the beginning of a new run. In an ML training pipeline,
@@ -9,9 +7,7 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
-
-from __future__ import print_function
-
+import copy
 import datetime
 import logging
 import os
@@ -35,9 +31,10 @@ from . import wandb_login, wandb_setup
 from .backend.backend import Backend
 from .lib import filesystem, ipython, module, reporting, telemetry
 from .lib import RunDisabled, SummaryDisabled
+from .lib.proto_util import message_to_dict
 from .wandb_helper import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
-from .wandb_settings import Settings
+from .wandb_settings import Settings, Source
 
 
 logger = None  # logger configured during wandb.init()
@@ -61,6 +58,20 @@ def _huggingface_version():
     return None
 
 
+def _maybe_mp_process(backend: Backend) -> bool:
+    parent_process = getattr(
+        backend._multiprocessing, "parent_process", None
+    )  # New in version 3.8.
+    if parent_process:
+        return parent_process() is not None
+    process = backend._multiprocessing.current_process()
+    if process.name == "MainProcess":
+        return False
+    if process.name.startswith("Process-"):
+        return True
+    return False
+
+
 class _WandbInit(object):
     def __init__(self):
         self.kwargs = None
@@ -81,7 +92,7 @@ class _WandbInit(object):
         self._set_init_config = None
         self.notebook = None
 
-    def setup(self, kwargs) -> None:
+    def setup(self, kwargs) -> None:  # noqa: C901
         """Completes setup for `wandb.init()`.
 
         This includes parsing all arguments, applying them with settings and enabling logging.
@@ -93,27 +104,33 @@ class _WandbInit(object):
         _set_logger(self._wl._get_logger())
 
         # Start with settings from wandb library singleton
-        settings: Settings = self._wl._clone_settings()
+        settings: Settings = self._wl.settings.copy()
         settings_param = kwargs.pop("settings", None)
-        if settings_param:
-            settings._apply_settings(settings_param)
+        if settings_param is not None:
+            if isinstance(settings_param, Settings):
+                # todo: check the logic here. this _only_ comes up in tests?
+                # update settings with settings_param using whatever
+                # source each parameter has there
+                settings._apply_settings(settings_param, _logger=logger)
+            elif isinstance(settings_param, dict):
+                # if it is a mapping, update the settings with it
+                # explicitly using Source.INIT
+                settings.update(settings_param, source=Source.INIT)
 
-        self._reporter = reporting.setup_reporter(
-            settings=settings.duplicate().freeze()
-        )
+        self._reporter = reporting.setup_reporter(settings=settings)
 
-        sm_config: Dict = (
-            {} if settings.sagemaker_disable else sagemaker.parse_sm_config()
+        sagemaker_config: Dict = (
+            dict() if settings.sagemaker_disable else sagemaker.parse_sm_config()
         )
-        if sm_config:
-            sm_api_key = sm_config.get("wandb_api_key", None)
-            sm_run, sm_env = sagemaker.parse_sm_resources()
-            if sm_env:
-                if sm_api_key:
-                    sm_env["WANDB_API_KEY"] = sm_api_key
-                settings._apply_environ(sm_env)
+        if sagemaker_config:
+            sagemaker_api_key = sagemaker_config.get("wandb_api_key", None)
+            sagemaker_run, sagemaker_env = sagemaker.parse_sm_resources()
+            if sagemaker_env:
+                if sagemaker_api_key:
+                    sagemaker_env["WANDB_API_KEY"] = sagemaker_api_key
+                settings._apply_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
-            settings._apply_setup(sm_run)
+            settings.update(sagemaker_run, source=Source.SETUP)
             self._use_sagemaker = True
         self._set_init_telemetry_attrs(kwargs)
         # Remove parameters that are not part of settings
@@ -122,7 +139,7 @@ class _WandbInit(object):
         config_include_keys = kwargs.pop("config_include_keys", None)
         config_exclude_keys = kwargs.pop("config_exclude_keys", None)
 
-        # Add deprecation message once we can better track it and document alternatives
+        # todo: deprecate config_include_keys and config_exclude_keys
         # if config_include_keys or config_exclude_keys:
         #     wandb.termwarn(
         #       "config_include_keys and config_exclude_keys are deprecated:"
@@ -134,10 +151,10 @@ class _WandbInit(object):
             init_config, include=config_include_keys, exclude=config_exclude_keys
         )
 
-        # merge config with sweep or sm (or config file)
+        # merge config with sweep or sagemaker (or config file)
         self.sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
-        for config_data in sm_config, self._wl._config, init_config:
+        for config_data in sagemaker_config, self._wl._config, init_config:
             if not config_data:
                 continue
             for k, v in config_data.items():
@@ -157,25 +174,27 @@ class _WandbInit(object):
             magic_install(kwargs)
 
         # handle login related parameters as these are applied to global state
-        anonymous = kwargs.pop("anonymous", None)
-        force = kwargs.pop("force", None)
-
-        # TODO: move above parameters into apply_init_login
-        settings._apply_init_login(kwargs)
+        init_settings = {
+            key: kwargs[key]
+            for key in ["anonymous", "force", "mode", "resume"]
+            if kwargs.get(key, None) is not None
+        }
+        if init_settings:
+            settings.update(init_settings, source=Source.INIT)
 
         if not settings._offline and not settings._noop:
             wandb_login._login(
-                anonymous=anonymous,
-                force=force,
+                anonymous=kwargs.pop("anonymous", None),
+                force=kwargs.pop("force", None),
                 _disable_warning=True,
-                _silent=(settings._quiet or settings._silent) is True,
+                _silent=settings._quiet or settings._silent,
             )
 
         # apply updated global state after login was handled
-        settings._apply_settings(wandb.setup()._settings)
+        settings._apply_settings(wandb.setup().settings)
 
         # get status of code saving before applying user settings
-        save_code_pre_user_settings = settings["save_code"]
+        save_code_pre_user_settings = settings.save_code
 
         settings._apply_init(kwargs)
         if not settings._offline and not settings._noop:
@@ -185,11 +204,17 @@ class _WandbInit(object):
         # ensure that user settings don't set saving to true
         # if user explicitly set these to false
         if save_code_pre_user_settings is False:
-            settings.update({"save_code": False})
+            settings.update({"save_code": False}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
-        d = dict(_start_time=time.time(), _start_datetime=datetime.datetime.now(),)
-        settings.update(d)
+        time_stamp: float = time.time()
+        settings.update(
+            {
+                "_start_time": time_stamp,
+                "_start_datetime": datetime.datetime.fromtimestamp(time_stamp),
+            },
+            source=Source.INIT,
+        )
 
         if not settings._noop:
             self._log_setup(settings)
@@ -197,7 +222,8 @@ class _WandbInit(object):
             if settings._jupyter:
                 self._jupyter_setup(settings)
 
-        self.settings = settings.freeze()
+        self.settings = settings
+        # self.settings.freeze()
 
     def teardown(self):
         # TODO: currently this is only called on failed wandb.init attempts
@@ -386,59 +412,68 @@ class _WandbInit(object):
         return drun
 
     def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
-        assert logger
+        if logger is None:
+            raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
         trigger.call("on_init", **self.kwargs)
-        s = self.settings
-        sweep_config = self.sweep_config
-        config = self.config
+
         logger.info(
-            "wandb.init called with sweep_config: {}\nconfig: {}".format(
-                sweep_config, config
-            )
+            f"wandb.init called with sweep_config: {self.sweep_config}\nconfig: {self.config}"
         )
-        if s._noop:
+        if self.settings._noop:
             return self._make_run_disabled()
-        if s.reinit or (s._jupyter and s.reinit is not False):
+        if self.settings.reinit or (
+            self.settings._jupyter and self.settings.reinit is not False
+        ):
             if len(self._wl._global_run_stack) > 0:
                 if len(self._wl._global_run_stack) > 1:
                     wandb.termwarn(
-                        "If you want to track multiple runs concurrently in wandb you should use multi-processing not threads"  # noqa: E501
+                        "If you want to track multiple runs concurrently in wandb, "
+                        "you should use multi-processing not threads"  # noqa: E501
                     )
 
                 last_id = self._wl._global_run_stack[-1]._run_id
                 logger.info(
-                    "re-initializing run, found existing run on stack: {}".format(
-                        last_id
-                    )
+                    f"re-initializing run, found existing run on stack: {last_id}"
                 )
-                jupyter = s._jupyter and not s._silent and ipython.in_jupyter()
+                jupyter = (
+                    self.settings._jupyter
+                    and not self.settings._silent
+                    and ipython.in_jupyter()
+                )
                 if jupyter:
                     ipython.display_html(
-                        "Finishing last run (ID:{}) before initializing another...".format(
-                            last_id
-                        )
+                        f"Finishing last run (ID:{last_id}) before initializing another..."
                     )
 
                 self._wl._global_run_stack[-1].finish()
 
                 if jupyter:
                     ipython.display_html(
-                        "Successfully finished last run (ID:{}). Initializing new run:<br/>".format(
-                            last_id
-                        )
+                        f"Successfully finished last run (ID:{last_id}). Initializing new run:<br/>"
                     )
         elif isinstance(wandb.run, Run):
-            logger.info("wandb.init() called when a run is still active")
-            return wandb.run
+            allow_return_run = True
+            manager = self._wl._get_manager()
+            if manager:
+                current_pid = os.getpid()
+                if current_pid != wandb.run._init_pid:
+                    # We shouldn't return a stale global run if we are in a new pid
+                    allow_return_run = False
+
+            if allow_return_run:
+                logger.info("wandb.init() called when a run is still active")
+                with telemetry.context() as tel:
+                    tel.feature.init_return_run = True
+                return wandb.run
 
         logger.info("starting backend")
 
         manager = self._wl._get_manager()
         if manager:
-            manager._inform_init(settings=s, run_id=s.run_id)
+            manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
 
-        backend = Backend(settings=s, manager=manager)
+        backend = Backend(settings=self.settings, manager=manager)
         backend.ensure_launched()
         backend.server_connect()
         logger.info("backend started and connected")
@@ -447,28 +482,30 @@ class _WandbInit(object):
 
         # resuming needs access to the server, check server_status()?
 
-        run = Run(config=config, settings=s, sweep_config=sweep_config)
+        run = Run(
+            config=self.config, settings=self.settings, sweep_config=self.sweep_config
+        )
 
         # probe the active start method
         active_start_method: Optional[str] = None
-        if s.start_method == "thread":
-            active_start_method = s.start_method
+        if self.settings.start_method == "thread":
+            active_start_method = self.settings.start_method
         else:
             get_start_fn = getattr(backend._multiprocessing, "get_start_method", None)
             active_start_method = get_start_fn() if get_start_fn else None
 
-        # Populate intial telemetry
+        # Populate initial telemetry
         with telemetry.context(run=run) as tel:
             tel.cli_version = wandb.__version__
             tel.python_version = platform.python_version()
             hf_version = _huggingface_version()
             if hf_version:
                 tel.huggingface_version = hf_version
-            if s._jupyter:
+            if self.settings._jupyter:
                 tel.env.jupyter = True
-            if s._kaggle:
+            if self.settings._kaggle:
                 tel.env.kaggle = True
-            if s._windows:
+            if self.settings._windows:
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
             if self._use_sagemaker:
@@ -494,7 +531,20 @@ class _WandbInit(object):
             elif active_start_method == "thread":
                 tel.env.start_thread = True
 
-        if not s.label_disable:
+            if manager:
+                tel.feature.service = True
+
+            tel.env.maybe_mp = _maybe_mp_process(backend)
+
+            # fixme: detected issues with settings
+            if self.settings.__dict__["_Settings__preprocessing_warnings"]:
+                tel.issues.settings__preprocessing_warnings = True
+            if self.settings.__dict__["_Settings__validation_warnings"]:
+                tel.issues.settings__validation_warnings = True
+            if self.settings.__dict__["_Settings__unexpected_args"]:
+                tel.issues.settings__unexpected_args = True
+
+        if not self.settings.label_disable:
             if self.notebook:
                 run._label_probe_notebook(self.notebook)
             else:
@@ -516,66 +566,59 @@ class _WandbInit(object):
         # Using GitRepo() blocks & can be slow, depending on user's current git setup.
         # We don't want to block run initialization/start request, so populate run's git
         # info beforehand.
-        if not s.disable_git:
+        if not self.settings.disable_git:
             run._populate_git_info()
 
-        if s._offline:
+        if self.settings._offline:
             with telemetry.context(run=run) as tel:
                 tel.feature.offline = True
             run_proto = backend.interface._make_run(run)
             backend.interface._publish_run(run_proto)
             run._set_run_obj_offline(run_proto)
-            if s.resume:
+            if self.settings.resume:
                 wandb.termwarn(
-                    f"`resume` will be ignored since W&B syncing is set to `offline`. Starting a new run with run id {run.id}."
+                    "`resume` will be ignored since W&B syncing is set to `offline`. "
+                    f"Starting a new run with run id {run.id}."
                 )
         else:
-            logger.info("communicating current version")
-            check = backend.interface.communicate_check_version(
-                current_version=wandb.__version__
-            )
-            if check:
-                logger.info("got version response {}".format(check))
-                if check.upgrade_message:
-                    run._set_upgraded_version_message(check.upgrade_message)
-                if check.delete_message:
-                    run._set_deleted_version_message(check.delete_message)
-                if check.yank_message:
-                    run._set_yanked_version_message(check.yank_message)
-            run._on_init()
-
-        if not s._offline:
             logger.info("communicating run to backend with 30 second timeout")
-            ret = backend.interface.communicate_run(run, timeout=30)
+            run_result = backend.interface.communicate_run(run, timeout=30)
 
             error_message: Optional[str] = None
-            if not ret:
+            if not run_result:
                 logger.error("backend process timed out")
                 error_message = "Error communicating with wandb process"
                 if active_start_method != "fork":
                     error_message += "\ntry: wandb.init(settings=wandb.Settings(start_method='fork'))"
                     error_message += "\nor:  wandb.init(settings=wandb.Settings(start_method='thread'))"
                     error_message += "\nFor more info see: https://docs.wandb.ai/library/init#init-start-error"
-            if ret and ret.error:
-                error_message = ret.error.message
+            elif run_result.error:
+                error_message = run_result.error.message
             if error_message:
-                logger.error("encountered error: {}".format(error_message))
+                logger.error(f"encountered error: {error_message}")
 
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
                 self.teardown()
                 raise UsageError(error_message)
-            assert ret and ret.run
-            if ret.run.resumed:
+            assert run_result and run_result.run
+            if run_result.run.resumed:
                 logger.info("run resumed")
                 with telemetry.context(run=run) as tel:
                     tel.feature.resumed = True
-            run._set_run_obj(ret.run)
+            run._set_run_obj(run_result.run)
+            run._on_init()
 
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
         run_obj = run._run_obj or run._run_obj_offline
+
+        self.settings._apply_run_start(message_to_dict(run_obj))
+        run._update_settings(self.settings)
+        if manager:
+            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+
         assert backend.interface
         assert run_obj
         _ = backend.interface.communicate_run_start(run_obj)
@@ -633,20 +676,22 @@ def _attach(
         run_id: (str, optional) The id of the run to attach to.
     """
     attach_id = attach_id or run_id
-    assert attach_id
+    if attach_id is None:
+        raise UsageError("attach_id or run_id must be specified")
     wandb._assert_is_user_process()
 
     _wl = wandb_setup._setup()
 
     _set_logger(_wl._get_logger())
-    assert logger
+    if logger is None:
+        raise UsageError("logger is not initialized")
 
     manager = _wl._get_manager()
     if manager:
         manager._inform_attach(attach_id=attach_id)
 
-    settings: Settings = _wl._clone_settings()
-    settings.run_id = attach_id
+    settings: Settings = copy.copy(_wl._settings)
+    settings.update(run_id=attach_id, source=Source.INIT)
 
     # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)
@@ -703,17 +748,34 @@ def init(
 
     `wandb.init()` spawns a new background process to log data to a run, and it
     also syncs data to wandb.ai by default so you can see live visualizations.
-    Call `wandb.init()` to start a run before logging data with `wandb.log()`.
+
+    Call `wandb.init()` to start a run before logging data with `wandb.log()`:
+    <!--yeadoc-test:init-method-log-->
+    ```python
+    import wandb
+
+    wandb.init()
+    # ... calculate metrics, generate media
+    wandb.log({"accuracy": 0.9})
+    ```
 
     `wandb.init()` returns a run object, and you can also access the run object
-    with `wandb.run`.
+    via `wandb.run`:
+    <!--yeadoc-test:init-and-assert-global-->
+    ```python
+    import wandb
+
+    run = wandb.init()
+
+    assert run is wandb.run
+    ```
 
     At the end of your script, we will automatically call `wandb.finish` to
     finalize and cleanup the run. However, if you call `wandb.init` from a
     child process, you must explicitly call `wandb.finish` at the end of the
     child process.
 
-    For more on using `wandb.init()`, including code snippets, check out our
+    For more on using `wandb.init()`, including detailed examples, check out our
     [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 
     Arguments:
@@ -835,18 +897,32 @@ def init(
             See [our guide to resuming runs](https://docs.wandb.com/library/resuming).
 
     Examples:
-        Basic usage
-        ```
-        wandb.init()
-        ```
+    ### Set where the run is logged
 
-        Launch multiple runs from the same script
-        ```
-        for x in range(10):
-            with wandb.init(project="my-projo") as run:
-                for y in range(100):
-                    run.log({"metric": x+y})
-        ```
+    You can change where the run is logged, just like changing
+    the organization, repository, and branch in git:
+    ```python
+    import wandb
+
+    user = "geoff"
+    project = "capsules"
+    display_name = "experiment-2021-10-31"
+
+    wandb.init(entity=user, project=project, name=display_name)
+    ```
+
+    ### Add metadata about the run to the config
+
+    Pass a dictionary-style object as the `config` keyword argument to add
+    metadata, like hyperparameters, to your run.
+    <!--yeadoc-test:init-set-config--->
+    ```python
+    import wandb
+
+    config = {"lr": 3e-4, "batch_size": 32}
+    config.update({"architecture": "resnet", "depth": 34})
+    wandb.init(config=config)
+    ```
 
     Raises:
         Exception: if problem.

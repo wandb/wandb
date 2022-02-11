@@ -12,7 +12,7 @@ import re
 
 import wandb
 from wandb import trigger
-from wandb.util import add_import_hook
+from wandb.util import add_import_hook, get_optional_module
 
 
 _import_hook = None
@@ -336,6 +336,7 @@ def _magic_fit_generator(
 
 
 def _monkey_tfkeras():
+    from wandb.integration.keras import WandbCallback  # add keras import hooks first
     from tensorflow import keras as tfkeras
 
     models = getattr(tfkeras, "models", None)
@@ -443,7 +444,9 @@ def _magic_update_config():
     if wandb.run and wandb.run.config:
         c = wandb.run.config
         user_config = dict(c.items())
-        if user_config:
+        # ignore keys set by magic integration when checking
+        # if user added any keys
+        if set(user_config).difference({"magic"}):
             return
     if _magic_get_config("args.absl", None) is False:
         global _args_absl
@@ -487,7 +490,6 @@ def magic_install(init_args=None):
 
     global _magic_config
     global _import_hook
-    from wandb.integration.keras import WandbCallback  # add keras import hooks first
 
     # parse config early, before we have wandb.config overrides
     _magic_config, magic_set = _parse_magic(wandb.env.get_magic())
@@ -504,7 +506,7 @@ def magic_install(init_args=None):
     # process system args
     _process_system_args()
     # install argparse wrapper
-    in_jupyter_or_ipython = wandb.wandb_sdk.lib.ipython._get_python_type != "python"
+    in_jupyter_or_ipython = wandb.wandb_sdk.lib.ipython._get_python_type() != "python"
     if not in_jupyter_or_ipython:
         _monkey_argparse()
 
@@ -537,8 +539,9 @@ def magic_install(init_args=None):
         wandb.config.persist()
 
     # Monkey patch tf.keras
-    if "tensorflow.python.keras" in sys.modules or "keras" in sys.modules:
-        _monkey_tfkeras()
+    if get_optional_module("tensorflow"):
+        if "tensorflow.python.keras" in sys.modules or "keras" in sys.modules:
+            _monkey_tfkeras()
 
     # Always setup import hooks looking for keras or tf.keras
     add_import_hook(fullname="keras", on_import=_monkey_tfkeras)

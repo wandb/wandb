@@ -54,14 +54,14 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.26-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.29-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.26-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.26-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.29-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.29-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   save-test-results:
     description: "Save test results"
     steps:
@@ -84,7 +84,7 @@ workflows:
       - test:
          name: "code-check"
          image: "python:3.6"
-         toxenv: "protocheck,mypy,black,flake8,flake8-docstrings,verify-sweeps"
+         toxenv: "protocheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
 # Disable python2.7 for good?
 #      - test:
 #         name: "Python 2.7"
@@ -133,13 +133,33 @@ workflows:
          image: "python:3.7"
          toxenv: "func-s_tf25-py37,func-covercircle"
       - test:
+         name: "func-s_tf26-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_tf26-py37,func-covercircle"
+      - test:
          name: "func-s_service-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_service-py37,func-covercircle"
       - test:
+         name: "func-s_noml-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_noml-py37,func-covercircle"
+      - test:
+         name: "func-s_grpc-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_grpc-py37,func-covercircle"
+      - test:
          name: "func-s_py310-lin-py310"
          image: "python:3.10"
          toxenv: "func-s_py310-py310,func-covercircle"
+      - test:
+         name: "func-s_docs-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_docs-py37,func-covercircle"
+      - test:
+         name: "func-s_imports-lin-py37"
+         image: "python:3.7"
+         toxenv: "func-s_imports-py37"
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
@@ -149,6 +169,23 @@ workflows:
       - launch:
          name: "wandb launch tests"
          toxenv: "pylaunch,covercircle"
+      #
+      # sharded unittests
+      #
+      - test:
+         name: "unit-s_nb-lin-py36"
+         image: "python:3.6"
+         toxenv: "unit-s_nb-py36,unit-covercircle"
+      - win:
+         name: "unit-s_nb-win-py37"
+         toxenv: "unit-s_nb-py37"
+         parallelism: 1
+         xdist: 1
+      - mac:
+         name: "unit-s_nb-mac-py37"
+         toxenv: "unit-s_nb-py37"
+         parallelism: 1
+         xdist: 1
   manual_test:
     when: << pipeline.parameters.manual_test >>
     jobs:
@@ -206,7 +243,7 @@ jobs:
                   name: Run tests
                   command: |
                       tox -v -e << parameters.toxenv >>
-                  no_output_timeout: 10m
+                  no_output_timeout: 25m
             - save-tox-cache
             - save-test-results
     win:

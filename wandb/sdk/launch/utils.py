@@ -5,7 +5,7 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb import util
@@ -15,7 +15,9 @@ from wandb.errors import CommError, ExecutionError, LaunchError
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
 _GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
-_WANDB_URI_REGEX = re.compile(r"^https://(api.)?wandb")
+_VALID_IP_REGEX = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
+_VALID_WANDB_REGEX = r"^https?://(api.)?wandb"
+_WANDB_URI_REGEX = re.compile(r"|".join([_VALID_WANDB_REGEX, _VALID_IP_REGEX]))
 _WANDB_QA_URI_REGEX = re.compile(
     r"^https?://ap\w.qa.wandb"
 )  # for testing, not sure if we wanna keep this
@@ -95,9 +97,11 @@ def construct_launch_spec(
     project: Optional[str],
     entity: Optional[str],
     docker_image: Optional[str],
+    resource: Optional[str],
     entry_point: Optional[str],
     version: Optional[str],
     parameters: Optional[Dict[str, Any]],
+    resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
@@ -117,6 +121,9 @@ def construct_launch_spec(
     if docker_image:
         launch_spec["docker"]["docker_image"] = docker_image
 
+    if "resource" not in launch_spec:
+        launch_spec["resource"] = resource or "local"
+
     if "git" not in launch_spec:
         launch_spec["git"] = {}
     if version:
@@ -129,17 +136,16 @@ def construct_launch_spec(
         override_args = util._user_args_to_dict(
             launch_spec["overrides"].get("args", [])
         )
-        if isinstance(override_args, list):
-            base_args = util._user_args_to_dict(
-                launch_spec["overrides"].get("args", [])
-            )
-        elif isinstance(override_args, dict):
-            base_args = override_args
+        base_args = override_args
         launch_spec["overrides"]["args"] = merge_parameters(parameters, base_args)
     elif isinstance(launch_spec["overrides"].get("args"), list):
         launch_spec["overrides"]["args"] = util._user_args_to_dict(
             launch_spec["overrides"].get("args")
         )
+
+    if resource_args:
+        launch_spec["resource_args"] = resource_args
+
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
 
@@ -163,19 +169,36 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     return entity, project, name
 
 
-def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
-    entity, project, name = parse_wandb_uri(uri)
+def is_bare_wandb_uri(uri: str) -> bool:
+    """Checks if the uri is of the format /entity/project/runs/run_name"""
+    _logger.info(f"Checking if uri {uri} is bare...")
+    if not uri.startswith("/"):
+        return False
+    result = uri.split("/")[1:]
+    # a bare wandb uri will have 4 parts, with the last being the run name
+    # and the second last being "runs"
+    if len(result) == 4 and result[-2] == "runs" and len(result[-1]) == 8:
+        return True
+    return False
+
+
+def fetch_wandb_project_run_info(
+    entity: str, project: str, run_name: str, api: Api
+) -> Any:
+    _logger.info("Fetching run info...")
     try:
-        result = api.get_run_info(entity, project, name)
+        result = api.get_run_info(entity, project, run_name)
     except CommError:
         result = None
     if result is None:
-        raise LaunchError("Run info is invalid or doesn't exist for {}".format(uri))
+        raise LaunchError(
+            f"Run info is invalid or doesn't exist for {api.settings('base_url')}/{entity}/{project}/runs/{run_name}"
+        )
     if result.get("codePath") is None:
         # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
         # it from wandb-metadata.json if we can.
         metadata = api.download_url(
-            project, "wandb-metadata.json", run=name, entity=entity
+            project, "wandb-metadata.json", run=run_name, entity=entity
         )
         if metadata is not None:
             _, response = api.download_file(metadata["url"])
@@ -186,9 +209,12 @@ def fetch_wandb_project_run_info(uri: str, api: Api) -> Any:
     return result
 
 
-def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool:
-    entity, project, name = parse_wandb_uri(uri)
-    metadata = api.download_url(project, f"code/{entry_point}", run=name, entity=entity)
+def download_entry_point(
+    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: str
+) -> bool:
+    metadata = api.download_url(
+        project, f"code/{entry_point}", run=run_name, entity=entity
+    )
     if metadata is not None:
         _, response = api.download_file(metadata["url"])
         with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
@@ -198,10 +224,14 @@ def download_entry_point(uri: str, api: Api, entry_point: str, dir: str) -> bool
     return False
 
 
-def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
-    entity, project, name = parse_wandb_uri(uri)
-    metadata = api.download_url(project, "requirements.txt", run=name, entity=entity)
+def download_wandb_python_deps(
+    entity: str, project: str, run_name: str, api: Api, dir: str
+) -> Optional[str]:
+    metadata = api.download_url(
+        project, "requirements.txt", run=run_name, entity=entity
+    )
     if metadata is not None:
+        _logger.info("Downloading python dependencies")
         _, response = api.download_file(metadata["url"])
 
         with util.fsync_open(
@@ -213,12 +243,14 @@ def download_wandb_python_deps(uri: str, api: Api, dir: str) -> Optional[str]:
     return None
 
 
-def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
+def fetch_project_diff(
+    entity: str, project: str, run_name: str, api: Api
+) -> Optional[str]:
     """Fetches project diff from wandb servers."""
+    _logger.info("Searching for diff.patch")
     patch = None
     try:
-        entity, project, name = parse_wandb_uri(uri)
-        (_, _, patch, _) = api.run_config(project, name, entity)
+        (_, _, patch, _) = api.run_config(project, run_name, entity)
     except CommError:
         pass
     return patch
@@ -226,6 +258,7 @@ def fetch_project_diff(uri: str, api: Api) -> Optional[str]:
 
 def apply_patch(patch_string: str, dst_dir: str) -> None:
     """Applies a patch file to a directory."""
+    _logger.info("Applying diff.patch")
     with open(os.path.join(dst_dir, "diff.patch"), "w") as fp:
         fp.write(patch_string)
     try:
@@ -254,6 +287,7 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> None:
     # executable is available on the PATH, so we only want to fail if we actually need it.
     import git  # type: ignore
 
+    _logger.info("Fetching git repo")
     repo = git.Repo.init(dst_dir)
     origin = repo.create_remote("origin", uri)
     origin.fetch()
@@ -287,6 +321,7 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
         "nbconvert", "nbconvert is required to use launch with jupyter notebooks"
     )
 
+    _logger.info("Converting notebook to script")
     new_name = fname.rstrip(".ipynb") + ".py"
     with open(os.path.join(project_dir, fname), "r") as fh:
         nb = nbformat.reads(fh.read(), nbformat.NO_CONVERT)
@@ -297,3 +332,33 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     with open(os.path.join(project_dir, new_name), "w+") as fh:
         fh.writelines(source)
     return new_name
+
+
+def check_and_download_code_artifacts(
+    entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
+) -> bool:
+    _logger.info("Checking for code artifacts")
+    public_api = wandb.PublicApi(
+        overrides={"base_url": internal_api.settings("base_url")}
+    )
+
+    run = public_api.run(f"{entity}/{project}/{run_name}")
+    run_artifacts = run.logged_artifacts()
+
+    for artifact in run_artifacts:
+        if hasattr(artifact, "type") and artifact.type == "code":
+            artifact.download(project_dir)
+            return True
+
+    return False
+
+
+def to_camel_case(maybe_snake_str: str) -> str:
+    if "_" not in maybe_snake_str:
+        return maybe_snake_str
+    components = maybe_snake_str.split("_")
+    return "".join(x.title() if x else "_" for x in components)
+
+
+def run_shell(args: List[str]) -> str:
+    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()

@@ -5,7 +5,9 @@ import subprocess
 import sys
 
 CORES = multiprocessing.cpu_count()
-ONLY_INCLUDE = set(os.getenv("WANDB_ONLY_INCLUDE", "").split(","))
+ONLY_INCLUDE = set(
+    [x for x in os.getenv("WANDB_ONLY_INCLUDE", "").split(",") if x != ""]
+)
 OPTS = []
 # If the builder doesn't support buildx no need to use the cache
 if os.getenv("WANDB_DISABLE_CACHE"):
@@ -60,6 +62,9 @@ def main():
             failed = set()
             for req in f:
                 if len(ONLY_INCLUDE) == 0 or req.split("=")[0].lower() in ONLY_INCLUDE:
+                    # can't pip install wandb==0.*.*.dev1 through pip. Lets just install wandb for now
+                    if req.startswith("wandb==") and "dev1" in req:
+                        req = "wandb"
                     reqs.append(req.strip())
                 else:
                     print(f"Ignoring requirement: {req} from frozen requirements")

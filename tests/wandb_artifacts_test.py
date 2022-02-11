@@ -497,54 +497,57 @@ def test_add_reference_unknown_handler(runner):
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 10), reason="no pandas py3.10 wheel")
-def test_add_table_from_dataframe(live_mock_server, test_settings):
-    import pandas as pd
+def test_add_table_from_dataframe(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
-    df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
-    df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
+        df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float)
+        df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
+        df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool)
 
-    wb_table_float = wandb.Table(dataframe=df_float)
-    wb_table_float32 = wandb.Table(dataframe=df_float32)
-    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
-    wb_table_bool = wandb.Table(dataframe=df_bool)
+        wb_table_float = wandb.Table(dataframe=df_float)
+        wb_table_float32 = wandb.Table(dataframe=df_float32)
+        wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float))
+        wb_table_bool = wandb.Table(dataframe=df_bool)
 
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact("table-example", "dataset")
-    artifact.add(wb_table_float, "wb_table_float")
-    artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
-    artifact.add(wb_table_float32, "wb_table_float32")
-    artifact.add(wb_table_bool, "wb_table_bool")
-    run.log_artifact(artifact)
-    run.finish()
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("table-example", "dataset")
+        artifact.add(wb_table_float, "wb_table_float")
+        artifact.add(wb_table_float32_recast, "wb_table_float32_recast")
+        artifact.add(wb_table_float32, "wb_table_float32")
+        artifact.add(wb_table_bool, "wb_table_bool")
+        run.log_artifact(artifact)
+        run.finish()
 
 
 @pytest.mark.timeout(120)
-def test_artifact_log_with_network_error(live_mock_server, test_settings):
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact("table-example", "dataset")
-    live_mock_server.set_ctx({"fail_graphql_times": 15})
-    run.log_artifact(artifact)
-    live_mock_server.set_ctx({"fail_graphql_times": 0})
-    run.finish()
+def test_artifact_log_with_network_error(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("table-example", "dataset")
+        live_mock_server.set_ctx({"fail_graphql_times": 15})
+        run.log_artifact(artifact)
+        live_mock_server.set_ctx({"fail_graphql_times": 0})
+        run.finish()
 
 
-def test_artifact_error_for_invalid_aliases(live_mock_server, test_settings):
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact("test-artifact", "dataset")
-    error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
-    for aliases in error_aliases:
-        with pytest.raises(ValueError) as e_info:
+def test_artifact_error_for_invalid_aliases(runner, live_mock_server, test_settings):
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact("test-artifact", "dataset")
+        error_aliases = [["latest", "workflow:boom"], ["workflow/boom/test"]]
+        for aliases in error_aliases:
+            with pytest.raises(ValueError) as e_info:
+                run.log_artifact(artifact, aliases=aliases)
+                assert (
+                    str(e_info.value)
+                    == "Aliases must not contain any of the following characters: /, :"
+                )
+
+        for aliases in [["latest", "boom_test-q"]]:
             run.log_artifact(artifact, aliases=aliases)
-            assert (
-                str(e_info.value)
-                == "Aliases must not contain any of the following characters: /, :"
-            )
 
-    for aliases in [["latest", "boom_test-q"]]:
-        run.log_artifact(artifact, aliases=aliases)
-
-    run.finish()
+        run.finish()
 
 
 def test_add_obj_wbimage_no_classes(runner):
@@ -573,9 +576,9 @@ def test_add_obj_wbimage(runner):
         artifact.add(wb_image, "my-image")
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
+        assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -584,8 +587,8 @@ def test_add_obj_wbimage(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
-                "size": 305,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -599,9 +602,9 @@ def test_add_obj_using_brackets(runner):
         artifact["my-image"] = wb_image
 
         manifest = artifact.manifest.to_manifest_json()
-        assert artifact.digest == "a538083d89e2f5f0feafe5bb70cbb01c"
+        assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -610,8 +613,8 @@ def test_add_obj_using_brackets(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
-                "size": 305,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -707,7 +710,7 @@ def test_add_obj_wbimage_classes_obj(runner):
 
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -716,8 +719,8 @@ def test_add_obj_wbimage_classes_obj(runner):
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "Vkp5lFFm5BClkm+ljIIt+g==",
-                "size": 305,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -738,13 +741,17 @@ def test_add_obj_wbimage_classes_obj_already_added(runner):
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
             "my-image.image-file.json": {
-                "digest": "4IA8mYMQrmtyGGPj/Azdpg==",
-                "size": 306,
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
             },
         }
 
@@ -761,13 +768,13 @@ def test_add_obj_wbimage_image_already_added(runner):
         manifest = artifact.manifest.to_manifest_json()
         assert manifest["contents"] == {
             "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
             "my-image.image-file.json": {
-                "digest": "8ZJmhiCv9lrjXBCz5oVl8g==",
-                "size": 271,
+                "digest": "BPGPVjCBRxX6MNySpv2Rmg==",
+                "size": 312,
             },
         }
 
@@ -786,7 +793,7 @@ def test_add_obj_wbtable_images(runner):
         manifest = artifact.manifest.to_manifest_json()
 
         assert manifest["contents"] == {
-            "media/cls.classes.json": {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "eG00DqdCcCBqphilriLNfw==",
                 "size": 64,
             },
@@ -794,7 +801,7 @@ def test_add_obj_wbtable_images(runner):
                 "digest": u"L1pBeGPxG+6XVRQk4WuvdQ==",
                 "size": 71,
             },
-            "my-table.table.json": {"digest": "8zWFSUyPI7j8c3+Wo0/EXQ==", "size": 1035},
+            "my-table.table.json": {"digest": "apPaCuFMSlFoP7rztfZq5Q==", "size": 1290},
         }
 
 
@@ -826,100 +833,106 @@ def test_add_obj_wbtable_images_duplicate_name(runner):
                 "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
                 "size": 8837,
             },
-            "my-table.table.json": {"digest": "hT/A7Ugr75OmC+V1ru4zoA==", "size": 821},
+            "my-table.table.json": {"digest": "hjWyKjD8J/wFtikBxnFOeA==", "size": 981},
         }
 
 
 def test_artifact_upsert_no_id(runner, live_mock_server, test_settings):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = "distributed_artifact_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(round(np.random.rand()))
-    artifact_type = "dataset"
+    with runner.isolated_filesystem():
+        # NOTE: these tests are against a mock server so they are testing the internal flows, but
+        # not the actual data transfer.
+        artifact_name = "distributed_artifact_{}".format(round(time.time()))
+        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_type = "dataset"
 
-    # Upsert without a group or id should fail
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_1")
-    with pytest.raises(TypeError):
-        run.upsert_artifact(artifact)
-    run.finish()
+        # Upsert without a group or id should fail
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_1")
+        with pytest.raises(TypeError):
+            run.upsert_artifact(artifact)
+        run.finish()
 
 
 def test_artifact_upsert_group_id(runner, live_mock_server, test_settings):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = "distributed_artifact_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(round(np.random.rand()))
-    artifact_type = "dataset"
+    with runner.isolated_filesystem():
+        # NOTE: these tests are against a mock server so they are testing the internal flows, but
+        # not the actual data transfer.
+        artifact_name = "distributed_artifact_{}".format(round(time.time()))
+        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_type = "dataset"
 
-    # Upsert with a group should succeed
-    run = wandb.init(group=group_name, settings=test_settings)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_1")
-    run.upsert_artifact(artifact)
-    run.finish()
+        # Upsert with a group should succeed
+        run = wandb.init(group=group_name, settings=test_settings)
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_1")
+        run.upsert_artifact(artifact)
+        run.finish()
 
 
 def test_artifact_upsert_distributed_id(runner, live_mock_server, test_settings):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = "distributed_artifact_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(round(np.random.rand()))
-    artifact_type = "dataset"
+    with runner.isolated_filesystem():
+        # NOTE: these tests are against a mock server so they are testing the internal flows, but
+        # not the actual data transfer.
+        artifact_name = "distributed_artifact_{}".format(round(time.time()))
+        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_type = "dataset"
 
-    # Upsert with a distributed_id should succeed
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-    image = wandb.Image(np.random.randint(0, 255, (10, 10)))
-    artifact.add(image, "image_2")
-    run.upsert_artifact(artifact, distributed_id=group_name)
-    run.finish()
+        # Upsert with a distributed_id should succeed
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        image = wandb.Image(np.random.randint(0, 255, (10, 10)))
+        artifact.add(image, "image_2")
+        run.upsert_artifact(artifact, distributed_id=group_name)
+        run.finish()
 
 
 def test_artifact_finish_no_id(runner, live_mock_server, test_settings):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = "distributed_artifact_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(round(np.random.rand()))
-    artifact_type = "dataset"
+    with runner.isolated_filesystem():
+        # NOTE: these tests are against a mock server so they are testing the internal flows, but
+        # not the actual data transfer.
+        artifact_name = "distributed_artifact_{}".format(round(time.time()))
+        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_type = "dataset"
 
-    # Finish without a distributed_id should fail
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    with pytest.raises(TypeError):
-        run.finish_artifact(artifact)
-    run.finish()
+        # Finish without a distributed_id should fail
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        with pytest.raises(TypeError):
+            run.finish_artifact(artifact)
+        run.finish()
 
 
 def test_artifact_finish_group_id(runner, live_mock_server, test_settings):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = "distributed_artifact_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(round(np.random.rand()))
-    artifact_type = "dataset"
+    with runner.isolated_filesystem():
+        # NOTE: these tests are against a mock server so they are testing the internal flows, but
+        # not the actual data transfer.
+        artifact_name = "distributed_artifact_{}".format(round(time.time()))
+        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_type = "dataset"
 
-    # Finish with a distributed_id should succeed
-    run = wandb.init(group=group_name, settings=test_settings)
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    run.finish_artifact(artifact)
-    run.finish()
+        # Finish with a distributed_id should succeed
+        run = wandb.init(group=group_name, settings=test_settings)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        run.finish_artifact(artifact)
+        run.finish()
 
 
 def test_artifact_finish_distributed_id(runner, live_mock_server, test_settings):
-    # NOTE: these tests are against a mock server so they are testing the internal flows, but
-    # not the actual data transfer.
-    artifact_name = "distributed_artifact_{}".format(round(time.time()))
-    group_name = "test_group_{}".format(round(np.random.rand()))
-    artifact_type = "dataset"
+    with runner.isolated_filesystem():
+        # NOTE: these tests are against a mock server so they are testing the internal flows, but
+        # not the actual data transfer.
+        artifact_name = "distributed_artifact_{}".format(round(time.time()))
+        group_name = "test_group_{}".format(round(np.random.rand()))
+        artifact_type = "dataset"
 
-    # Finish with a distributed_id should succeed
-    run = wandb.init(settings=test_settings)
-    artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    run.finish_artifact(artifact, distributed_id=group_name)
-    run.finish()
+        # Finish with a distributed_id should succeed
+        run = wandb.init(settings=test_settings)
+        artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        run.finish_artifact(artifact, distributed_id=group_name)
+        run.finish()
 
 
 def test_add_partition_folder(runner):
@@ -963,6 +976,8 @@ def test_interface_commit_hash(runner):
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
+# todo: investigate why this test is flaking
+@pytest.mark.xfail(reason="flaky test")
 def test_artifact_incremental_internal(
     mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
@@ -984,186 +999,197 @@ def test_artifact_incremental_internal(
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
 
-        art = internal_sm.send_artifact(log_artifact)
-
+        internal_sm.send_artifact(log_artifact)
     manifests_created = parse_ctx(mock_server.ctx).manifests_created
     assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
 def test_local_references(runner, live_mock_server, test_settings):
-    run = wandb.init(settings=test_settings)
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
 
-    def make_table():
-        return wandb.Table(columns=[], data=[])
+        def make_table():
+            return wandb.Table(columns=[], data=[])
 
-    t1 = make_table()
-    artifact1 = wandb.Artifact("test_local_references", "dataset")
-    artifact1.add(t1, "t1")
-    assert artifact1.manifest.entries["t1.table.json"].ref is None
-    run.log_artifact(artifact1)
-    artifact2 = wandb.Artifact("test_local_references_2", "dataset")
-    artifact2.add(t1, "t2")
-    assert artifact2.manifest.entries["t2.table.json"].ref is not None
+        t1 = make_table()
+        artifact1 = wandb.Artifact("test_local_references", "dataset")
+        artifact1.add(t1, "t1")
+        assert artifact1.manifest.entries["t1.table.json"].ref is None
+        run.log_artifact(artifact1)
+        artifact2 = wandb.Artifact("test_local_references_2", "dataset")
+        artifact2.add(t1, "t2")
+        assert artifact2.manifest.entries["t2.table.json"].ref is not None
+        run.finish()
 
 
 def test_artifact_references_internal(
-    mocked_run, mock_server, internal_sm, backend_interface, parse_ctx, test_settings,
+    runner,
+    mocked_run,
+    mock_server,
+    internal_sm,
+    backend_interface,
+    parse_ctx,
+    test_settings,
 ):
-    mock_server.set_context("max_cli_version", "0.11.0")
-    run = wandb.init(settings=test_settings)
-    t1 = wandb.Table(columns=[], data=[])
-    art = wandb.Artifact("A", "dataset")
-    art.add(t1, "t1")
-    run.log_artifact(art)
-    run.finish()
+    with runner.isolated_filesystem():
+        mock_server.set_context("max_cli_version", "0.11.0")
+        run = wandb.init(settings=test_settings)
+        t1 = wandb.Table(columns=[], data=[])
+        art = wandb.Artifact("A", "dataset")
+        art.add(t1, "t1")
+        run.log_artifact(art)
+        run.finish()
 
-    art = wandb.Artifact("A_PENDING", "dataset")
-    art.add(t1, "t1")
+        art = wandb.Artifact("A_PENDING", "dataset")
+        art.add(t1, "t1")
 
-    with backend_interface() as interface:
-        proto_run = interface._make_run(mocked_run)
-        r = internal_sm.send_run(interface._make_record(run=proto_run))
+        with backend_interface() as interface:
+            proto_run = interface._make_run(mocked_run)
+            r = internal_sm.send_run(interface._make_record(run=proto_run))
 
-        proto_artifact = interface._make_artifact(art)
-        proto_artifact.run_id = proto_run.run_id
-        proto_artifact.project = proto_run.project
-        proto_artifact.entity = proto_run.entity
-        proto_artifact.user_created = False
-        proto_artifact.use_after_commit = False
-        proto_artifact.finalize = True
-        for alias in ["latest"]:
-            proto_artifact.aliases.append(alias)
-        log_artifact = pb.LogArtifactRequest()
-        log_artifact.artifact.CopyFrom(proto_artifact)
+            proto_artifact = interface._make_artifact(art)
+            proto_artifact.run_id = proto_run.run_id
+            proto_artifact.project = proto_run.project
+            proto_artifact.entity = proto_run.entity
+            proto_artifact.user_created = False
+            proto_artifact.use_after_commit = False
+            proto_artifact.finalize = True
+            for alias in ["latest"]:
+                proto_artifact.aliases.append(alias)
+            log_artifact = pb.LogArtifactRequest()
+            log_artifact.artifact.CopyFrom(proto_artifact)
 
-        art = internal_sm.send_artifact(log_artifact)
+            internal_sm.send_artifact(log_artifact)
 
 
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
-    run = wandb.init(settings=test_settings)
-    t1 = wandb.Table(columns=[], data=[])
-    art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
-    e = art.add(t1, "t1")
+    with runner.isolated_filesystem():
+        run = wandb.init(settings=test_settings)
+        t1 = wandb.Table(columns=[], data=[])
+        art = wandb.Artifact("test_lazy_artifact_passthrough", "dataset")
+        e = art.add(t1, "t1")
 
-    with pytest.raises(ValueError):
-        e.ref_target()
-
-    # These properties should be valid both before and after logging
-    testable_getters_valid = [
-        "id",
-        "entity",
-        "project",
-        "manifest",
-        "digest",
-        "type",
-        "name",
-        "state",
-        "size",
-        "description",
-        "metadata",
-    ]
-
-    # These are valid even before waiting!
-    testable_getters_always_valid = ["distributed_id"]
-
-    # These properties should be valid only after logging
-    testable_getters_invalid = ["version", "commit_hash", "aliases"]
-
-    # These setters should be valid both before and after logging
-    testable_setters_valid = ["description", "metadata"]
-
-    # These are valid even before waiting!
-    testable_setters_always_valid = ["distributed_id"]
-
-    # These setters should be valid only after logging
-    testable_setters_invalid = ["aliases"]
-
-    # These methods should be valid both before and after logging
-    testable_methods_valid = []
-
-    # These methods should be valid only after logging
-    testable_methods_invalid = [
-        "used_by",
-        "logged_by",
-        "get_path",
-        "get",
-        "download",
-        "checkout",
-        "verify",
-        "delete",
-    ]
-
-    setter_data = {"metadata": {}}
-    params = {"get_path": ["t1.table.json"], "get": ["t1"]}
-
-    # these are failures of mocking
-    special_errors = {
-        "save": wandb.errors.CommError,
-        "delete": wandb.errors.CommError,
-        "verify": ValueError,
-        "logged_by": KeyError,
-    }
-
-    for valid_getter in testable_getters_valid + testable_getters_always_valid:
-        _ = getattr(art, valid_getter)
-
-    for invalid_getter in testable_getters_invalid:
         with pytest.raises(ValueError):
-            _ = getattr(art, invalid_getter)
+            e.ref_target()
 
-    for valid_setter in testable_setters_valid + testable_setters_always_valid:
-        setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
+        # These properties should be valid both before and after logging
+        testable_getters_valid = [
+            "id",
+            "entity",
+            "project",
+            "manifest",
+            "digest",
+            "type",
+            "name",
+            "state",
+            "size",
+            "description",
+            "metadata",
+        ]
 
-    for invalid_setter in testable_setters_invalid:
-        with pytest.raises(ValueError):
-            setattr(
-                art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
-            )
+        # These are valid even before waiting!
+        testable_getters_always_valid = ["distributed_id"]
 
-    # Uncomment if there are ever entries in testable_methods_valid
-    # leaving commented for now since test coverage wants all lines to
-    # run
-    # for valid_method in testable_methods_valid:
-    #     attr_method = getattr(art, valid_method)
-    #     _ = attr_method(*params.get(valid_method, []))
+        # These properties should be valid only after logging
+        testable_getters_invalid = ["version", "commit_hash", "aliases"]
 
-    for invalid_method in testable_methods_invalid:
-        attr_method = getattr(art, invalid_method)
-        with pytest.raises(ValueError):
-            _ = attr_method(*params.get(invalid_method, []))
+        # These setters should be valid both before and after logging
+        testable_setters_valid = ["description", "metadata"]
 
-    # THE LOG
-    run.log_artifact(art)
+        # These are valid even before waiting!
+        testable_setters_always_valid = ["distributed_id"]
 
-    for getter in testable_getters_valid + testable_getters_invalid:
-        with pytest.raises(ValueError):
+        # These setters should be valid only after logging
+        testable_setters_invalid = ["aliases"]
+
+        # These methods should be valid both before and after logging
+        testable_methods_valid = []
+
+        # These methods should be valid only after logging
+        testable_methods_invalid = [
+            "used_by",
+            "logged_by",
+            "get_path",
+            "get",
+            "download",
+            "checkout",
+            "verify",
+            "delete",
+        ]
+
+        setter_data = {"metadata": {}}
+        params = {"get_path": ["t1.table.json"], "get": ["t1"]}
+
+        # these are failures of mocking
+        special_errors = {
+            "save": wandb.errors.CommError,
+            "delete": wandb.errors.CommError,
+            "verify": ValueError,
+            "logged_by": KeyError,
+        }
+
+        for valid_getter in testable_getters_valid + testable_getters_always_valid:
+            _ = getattr(art, valid_getter)
+
+        for invalid_getter in testable_getters_invalid:
+            with pytest.raises(ValueError):
+                _ = getattr(art, invalid_getter)
+
+        for valid_setter in testable_setters_valid + testable_setters_always_valid:
+            setattr(art, valid_setter, setter_data.get(valid_setter, valid_setter))
+
+        for invalid_setter in testable_setters_invalid:
+            with pytest.raises(ValueError):
+                setattr(
+                    art, invalid_setter, setter_data.get(invalid_setter, invalid_setter)
+                )
+
+        # Uncomment if there are ever entries in testable_methods_valid
+        # leaving commented for now since test coverage wants all lines to
+        # run
+        # for valid_method in testable_methods_valid:
+        #     attr_method = getattr(art, valid_method)
+        #     _ = attr_method(*params.get(valid_method, []))
+
+        for invalid_method in testable_methods_invalid:
+            attr_method = getattr(art, invalid_method)
+            with pytest.raises(ValueError):
+                _ = attr_method(*params.get(invalid_method, []))
+
+        # THE LOG
+        run.log_artifact(art)
+
+        for getter in testable_getters_valid + testable_getters_invalid:
+            with pytest.raises(ValueError):
+                _ = getattr(art, getter)
+
+        for setter in testable_setters_valid + testable_setters_invalid:
+            with pytest.raises(ValueError):
+                setattr(art, setter, "TEST")
+
+        for method in testable_methods_valid + testable_methods_invalid:
+            attr_method = getattr(art, method)
+            with pytest.raises(ValueError):
+                _ = attr_method(*params.get(method, []))
+
+        # THE ALL IMPORTANT WAIT
+        art.wait()
+
+        for getter in testable_getters_valid + testable_getters_invalid:
             _ = getattr(art, getter)
 
-    for setter in testable_setters_valid + testable_setters_invalid:
-        with pytest.raises(ValueError):
+        for setter in testable_setters_valid + testable_setters_invalid:
             setattr(art, setter, "TEST")
 
-    for method in testable_methods_valid + testable_methods_invalid:
-        attr_method = getattr(art, method)
-        with pytest.raises(ValueError):
-            _ = attr_method(*params.get(method, []))
-
-    # THE ALL IMPORTANT WAIT
-    art.wait()
-
-    for getter in testable_getters_valid + testable_getters_invalid:
-        _ = getattr(art, getter)
-
-    for setter in testable_setters_valid + testable_setters_invalid:
-        setattr(art, setter, "TEST")
-
-    for method in testable_methods_valid + testable_methods_invalid:
-        attr_method = getattr(art, method)
-        if method in special_errors:
-            with pytest.raises(special_errors[method]):
+        for method in testable_methods_valid + testable_methods_invalid:
+            attr_method = getattr(art, method)
+            if method in special_errors:
+                with pytest.raises(special_errors[method]):
+                    _ = attr_method(*params.get(method, []))
+            else:
                 _ = attr_method(*params.get(method, []))
-        else:
-            _ = attr_method(*params.get(method, []))
+
+        run.finish()
 
 
 def test_reference_download(runner, live_mock_server, test_settings):
@@ -1194,8 +1220,9 @@ def test_reference_download(runner, live_mock_server, test_settings):
         run.finish()
 
 
-def test_communicate_artifact(publish_util, mocked_run):
-    artifact = wandb.Artifact("comms_test_PENDING", "dataset")
-    artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
-    ctx_util = publish_util(artifacts=[artifact_publish])
-    assert len(set(ctx_util.manifests_created_ids)) == 1
+def test_communicate_artifact(runner, publish_util, mocked_run):
+    with runner.isolated_filesystem():
+        artifact = wandb.Artifact("comms_test_PENDING", "dataset")
+        artifact_publish = dict(run=mocked_run, artifact=artifact, aliases=["latest"])
+        ctx_util = publish_util(artifacts=[artifact_publish])
+        assert len(set(ctx_util.manifests_created_ids)) == 1

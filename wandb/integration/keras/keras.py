@@ -18,10 +18,28 @@ from itertools import chain
 from pkg_resources import parse_version
 
 import wandb
+from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+from wandb.sdk.lib.deprecate import deprecate, Deprecated
 from wandb.util import add_import_hook
 
+import tensorflow as tf
+import tensorflow.keras.backend as K
 
-from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+
+def _check_keras_version():
+    from keras import __version__ as keras_version
+
+    if parse_version(keras_version) < parse_version("2.4.0"):
+        wandb.termwarn(
+            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
+        )
+
+
+if "keras" in sys.modules:
+    _check_keras_version()
+else:
+    add_import_hook("keras", _check_keras_version)
+
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +58,7 @@ def is_dataset(data):
 def is_generator_like(data):
     # Checks if data is a generator, Sequence, or Iterator.
 
-    types = (keras.utils.Sequence,)
+    types = (tf.keras.utils.Sequence,)
     iterator_ops = wandb.util.get_module("tensorflow.python.data.ops.iterator_ops")
     if iterator_ops:
         types = types + (iterator_ops.Iterator,)
@@ -168,23 +186,39 @@ def patch_tf_keras():
         wandb.patched["keras"].append([f"{keras_engine}.training.Model", "fit"])
 
 
-def _check_keras_version():
-    from keras import __version__ as keras_version
-
-    if parse_version(keras_version) < parse_version("2.4.0"):
-        wandb.termwarn(
-            f"Keras version {keras_version} is not fully supported. Required keras >= 2.4.0"
-        )
+def _array_has_dtype(array):
+    return hasattr(array, "dtype")
 
 
-if "keras" in sys.modules:
-    _check_keras_version()
-else:
-    add_import_hook("keras", _check_keras_version)
+def _update_if_numeric(metrics, key, values):
+    if not _array_has_dtype(values):
+        _warn_not_logging(key)
+        return
 
-import tensorflow as tf
-import tensorflow.keras as keras
-import tensorflow.keras.backend as K
+    if not is_numeric_array(values):
+        _warn_not_logging_non_numeric(key)
+        return
+
+    metrics[key] = wandb.Histogram(values)
+
+
+def is_numeric_array(array):
+    return np.issubdtype(array.dtype, np.number)
+
+
+def _warn_not_logging_non_numeric(name):
+    wandb.termwarn(
+        "Non-numeric values found in layer: {}, not logging this layer".format(name),
+        repeat=False,
+    )
+
+
+def _warn_not_logging(name):
+    wandb.termwarn(
+        "Layer {} has undetermined datatype not logging this layer".format(name),
+        repeat=False,
+    )
+
 
 tf_logger = tf.get_logger()
 
@@ -198,9 +232,15 @@ class _CustomOptimizer(tf.keras.optimizers.Optimizer):
     def __init__(self):
         super(_CustomOptimizer, self).__init__(name="CustomOptimizer")
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
+        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
     def _resource_apply_dense(self, grad, var):
         var.assign(grad)
+
+    # this needs to be implemented to prevent a NotImplementedError when
+    # using Lookup layers.
+    def _resource_apply_sparse(self, grad, var, indices):
+        pass
 
     def get_config(self):
         return super(_CustomOptimizer, self).get_config()
@@ -229,7 +269,7 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
 ###
 
 
-class WandbCallback(keras.callbacks.Callback):
+class WandbCallback(tf.keras.callbacks.Callback):
     """`WandbCallback` automatically integrates keras with wandb.
 
     Example:
@@ -333,7 +373,6 @@ class WandbCallback(keras.callbacks.Callback):
         training_data=None,
         validation_data=None,
         labels=[],
-        data_type=None,
         predictions=36,
         generator=None,
         input_type=None,
@@ -349,6 +388,7 @@ class WandbCallback(keras.callbacks.Callback):
         prediction_row_processor=None,
         infer_missing_processors=True,
         log_evaluation_frequency=0,
+        **kwargs,
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
@@ -379,7 +419,18 @@ class WandbCallback(keras.callbacks.Callback):
         self.generator = generator
         self._graph_rendered = False
 
-        self.input_type = input_type or data_type
+        data_type = kwargs.get("data_type", None)
+        if data_type is not None:
+            deprecate(
+                field_name=Deprecated.keras_callback__data_type,
+                warning_message=(
+                    "The data_type argument of wandb.keras.WandbCallback is deprecated "
+                    "and will be removed in a future release. Please use input_type instead.\n"
+                    "Setting input_type = data_type."
+                ),
+            )
+            input_type = data_type
+        self.input_type = input_type
         self.output_type = output_type
         self.log_evaluation = log_evaluation
         self.validation_steps = validation_steps
@@ -408,9 +459,7 @@ class WandbCallback(keras.callbacks.Callback):
 
         # From Keras
         if mode not in ["auto", "min", "max"]:
-            print(
-                "WandbCallback mode %s is unknown, " "fallback to auto mode." % (mode)
-            )
+            print(f"WandbCallback mode {mode} is unknown, fallback to auto mode.")
             mode = "auto"
 
         if mode == "min":
@@ -818,15 +867,15 @@ class WandbCallback(keras.callbacks.Callback):
         for layer in self.model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
                 )
             elif len(weights) == 2:
-                metrics["parameters/" + layer.name + ".weights"] = wandb.Histogram(
-                    weights[0]
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".weights", weights[0]
                 )
-                metrics["parameters/" + layer.name + ".bias"] = wandb.Histogram(
-                    weights[1]
+                _update_if_numeric(
+                    metrics, "parameters/" + layer.name + ".bias", weights[1]
                 )
         return metrics
 

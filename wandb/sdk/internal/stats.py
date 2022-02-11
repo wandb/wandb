@@ -105,6 +105,7 @@ class SystemStats(object):
         if self._thread is None:
             self._shutdown = False
             self._thread = threading.Thread(target=self._thread_body)
+            self._thread.name = "StatsThr"
             self._thread.daemon = True
         if not self._thread.is_alive():
             self._thread.start()
@@ -270,5 +271,7 @@ class SystemStats(object):
             except psutil.NoSuchProcess:
                 pass
         if self._tpu_profiler:
-            stats["tpu"] = self._tpu_profiler.get_tpu_utilization()
+            tpu_utilization = self._tpu_profiler.get_tpu_utilization()
+            if tpu_utilization is not None:
+                stats["tpu"] = tpu_utilization
         return stats

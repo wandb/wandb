@@ -1,23 +1,22 @@
-import json
 import logging
 import os
 import re
 import signal
 import subprocess
-import sys
 from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.errors import CommError, LaunchError
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import DEFAULT_CONFIG_PATH, get_entry_point_command, LaunchProject
+from .._project_spec import LaunchProject
 from ..docker import (
     build_docker_image_if_needed,
+    construct_local_image_uri,
     docker_image_exists,
     docker_image_inspect,
     generate_docker_base_image,
-    get_docker_command,
+    get_full_command,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -38,8 +37,8 @@ class LocalSubmittedRun(AbstractRun):
         self.command_proc = command_proc
 
     @property
-    def id(self) -> int:
-        return self.command_proc.pid
+    def id(self) -> str:
+        return str(self.command_proc.pid)
 
     def wait(self) -> bool:
         return self.command_proc.wait() == 0
@@ -73,18 +72,19 @@ class LocalSubmittedRun(AbstractRun):
 
 
 class LocalRunner(AbstractRunner):
-    """Runner class, uses a project to create a LocallySubmittedRun"""
+    """Runner class, uses a project to create a LocallySubmittedRun."""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+        _logger.info("Validating docker installation")
         validate_docker_installation()
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
         docker_args: Dict[str, Any] = self.backend_config[PROJECT_DOCKER_ARGS]
-
         entry_point = launch_project.get_single_entry_point()
 
         entry_cmd = entry_point.command
         copy_code = True
         if launch_project.docker_image:
+            _logger.info("Pulling user provided docker image")
             pull_docker_image(launch_project.docker_image)
             copy_code = False
         else:
@@ -96,33 +96,67 @@ class LocalRunner(AbstractRunner):
                 wandb.termlog(
                     "Using existing base image: {}".format(launch_project.base_image)
                 )
+                launch_project._update_uid_to_base_image_uid()
 
-        command_args = []
         command_separator = " "
+        command_args = []
 
+        _logger.info("Inspecting base image for env, and working dir...")
         container_inspect = docker_image_inspect(launch_project.base_image)
         container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
         container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
-
         if launch_project.docker_image is None or launch_project.build_image:
-            image = build_docker_image_if_needed(
+            image_uri = construct_local_image_uri(launch_project)
+            command_args = get_full_command(
+                image_uri,
+                launch_project,
+                self._api,
+                container_workdir,
+                docker_args,
+                entry_point,
+            )
+            command_str = command_separator.join(command_args)
+
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
+
+            _logger.info("Building docker image...")
+            build_docker_image_if_needed(
                 launch_project=launch_project,
                 api=self._api,
                 copy_code=copy_code,
                 workdir=container_workdir,
                 container_env=container_env,
+                runner_type="local",
+                image_uri=image_uri,
+                command_args=command_args,
             )
         else:
-            image = launch_project.docker_image
-        command_args += get_docker_command(
-            image=image,
-            launch_project=launch_project,
-            api=self._api,
-            workdir=container_workdir,
-            docker_args=docker_args,
-        )
+            # TODO: rewrite env vars and copy code in supplied docker image
+            wandb.termwarn(
+                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
+                    launch_project.docker_image
+                )
+            )
+            image_uri = launch_project.docker_image
+            _logger.info("Getting docker command...")
+            command_args = get_full_command(
+                image_uri,
+                launch_project,
+                self._api,
+                container_workdir,
+                docker_args,
+                entry_point,
+            )
+            command_str = command_separator.join(command_args)
+            sanitized_command_str = re.sub(
+                r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str
+            )
+
         if self.backend_config.get("runQueueItemId"):
             try:
+                _logger.info("Acking run queue item...")
                 self._api.ack_run_queue_item(
                     self.backend_config["runQueueItemId"], launch_project.run_id
                 )
@@ -132,63 +166,21 @@ class LocalRunner(AbstractRunner):
                 )
                 return None
 
-        # In synchronous mode, run the entry point command in a blocking fashion, sending status
-        # updates to the tracking server when finished. Note that the run state may not be
-        # persisted to the tracking server if interrupted
+        wandb.termlog(
+            "Launching run in docker with command: {}".format(sanitized_command_str)
+        )
+        run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            command_args += get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
-            with open(
-                os.path.join(launch_project.aux_dir, DEFAULT_CONFIG_PATH), "w"
-            ) as fp:
-                json.dump(launch_project.launch_spec, fp)
-            command_str = command_separator.join(command_args)
-
-            wandb.termlog(
-                "Launching run in docker with command: {}".format(
-                    re.sub(r"WANDB_API_KEY=\w+", "WANDB_API_KEY", command_str)
-                )
-            )
-            run = _run_entry_point(command_str, launch_project.project_dir)
             run.wait()
-            return run
-        # Otherwise, invoke `wandb launch` in a subprocess
-        raise LaunchError("asynchronous mode not yet available")
-
-
-def _run_launch_cmd(cmd: List[str]) -> "subprocess.Popen[str]":
-    """Invoke ``wandb launch`` in a subprocess, which in turn runs the entry point in a child process.
-
-    Arguments:
-    cmd: List of strings indicating the command to run
-
-    Returns:
-        A handle to the subprocess. Popen launched to invoke ``wandb launch``.
-    """
-    final_env = os.environ.copy()
-    # Launch `wandb launch` command as the leader of its own process group so that we can do a
-    # best-effort cleanup of all its descendant processes if needed
-    if sys.platform == "win32":
-        return subprocess.Popen(
-            cmd,
-            env=final_env,
-            universal_newlines=True,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        )
-    else:
-        return subprocess.Popen(
-            cmd, env=final_env, universal_newlines=True, preexec_fn=os.setsid
-        )
+        return run
 
 
 def _run_entry_point(command: str, work_dir: str) -> AbstractRun:
     """Run an entry point command in a subprocess.
 
     Arguments:
-    command: Entry point command to run
-    work_dir: Working directory in which to run the command
-    run: SubmittedRun object associated with the entry point execution.
+        command: Entry point command to run
+        work_dir: Working directory in which to run the command
 
     Returns:
         An instance of `LocalSubmittedRun`

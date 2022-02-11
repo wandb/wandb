@@ -30,7 +30,7 @@ def watch(
         log_graph: (boolean) log graph topology
 
     Returns:
-        `wandb.Graph` The graph object that will populate after the first backward pass
+        `wandb.Graph`: The graph object that will populate after the first backward pass
 
     Raises:
         ValueError: If called before `wandb.init` or if any of models is not a torch.nn.Module.

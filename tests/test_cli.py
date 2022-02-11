@@ -93,9 +93,9 @@ def test_init_reinit(runner, empty_netrc, local_netrc, mock_server):
         with open("netrc", "r") as f:
             generatedNetrc = f.read()
         with open("wandb/settings", "r") as f:
-            generatedWandb = f.read()
+            generated_wandb = f.read()
         assert DUMMY_API_KEY in generatedNetrc
-        assert "mock_server_entity" in generatedWandb
+        assert "mock_server_entity" in generated_wandb
 
 
 def test_init_add_login(runner, empty_netrc, mock_server):
@@ -105,15 +105,15 @@ def test_init_add_login(runner, empty_netrc, mock_server):
                 f.write("previous config")
             result = runner.invoke(cli.login, [DUMMY_API_KEY])
             debug_result(result, "login")
-            result = runner.invoke(cli.init, input="y\n%s\nvanpelt\n" % DUMMY_API_KEY)
+            result = runner.invoke(cli.init, input=f"y\n{DUMMY_API_KEY}\nvanpelt\n")
             debug_result(result, "init")
             assert result.exit_code == 0
             with open("netrc", "r") as f:
-                generatedNetrc = f.read()
+                generated_netrc = f.read()
             with open("wandb/settings", "r") as f:
-                generatedWandb = f.read()
-            assert DUMMY_API_KEY in generatedNetrc
-            assert "base_url" in generatedWandb
+                generated_wandb = f.read()
+            assert DUMMY_API_KEY in generated_netrc
+            assert "base_url" in generated_wandb
 
 
 def test_init_existing_login(runner, mock_server):
@@ -126,8 +126,8 @@ def test_init_existing_login(runner, mock_server):
         print(traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
         with open("wandb/settings", "r") as f:
-            generatedWandb = f.read()
-        assert "mock_server_entity" in generatedWandb
+            generated_wandb = f.read()
+        assert "mock_server_entity" in generated_wandb
         assert "This directory is configured" in result.output
 
 
@@ -244,7 +244,9 @@ def test_login_anonymously(runner, monkeypatch, empty_netrc, local_netrc):
         api = InternalApi()
         monkeypatch.setattr(cli, "api", api)
         monkeypatch.setattr(
-            api, "create_anonymous_api_key", lambda *args, **kwargs: DUMMY_API_KEY
+            wandb.sdk.internal.internal_api.Api,
+            "create_anonymous_api_key",
+            lambda *args, **kwargs: DUMMY_API_KEY,
         )
         result = runner.invoke(cli.login, ["--anonymously"])
         print("Output: ", result.output)
@@ -981,3 +983,22 @@ def test_sync_wandb_run_and_tensorboard(runner, live_mock_server):
             "WARNING Found .wandb file, not streaming tensorboard metrics"
             in result.output
         )
+
+
+def test_cli_login_reprompts_when_no_key_specified(
+    mocker, runner, empty_netrc, local_netrc
+):
+    with runner.isolated_filesystem():
+        mocker.patch("wandb.wandb_lib.apikey.getpass.getpass", input)
+        # this first gives login an empty API key, which should cause
+        # it to reprompt.  this is what we are testing.  we then give
+        # it a valid API key (the dummy API key with a different final
+        # letter to check that our monkeypatch input is working as
+        # expected) to terminate the prompt finally we grep for the
+        # Error: No API key specified to assert that the reprompt
+        # happened
+        result = runner.invoke(cli.login, input=f"\n{DUMMY_API_KEY[:-1]}q\n")
+        debug_result(result, "login")
+        with open("netrc", "r") as f:
+            print(f.read())
+        assert "ERROR No API key specified." in result.output

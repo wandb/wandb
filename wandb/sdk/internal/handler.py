@@ -34,6 +34,7 @@ from . import tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
+from ..lib import tracelog
 
 SummaryDict = Dict[str, Any]
 
@@ -133,9 +134,15 @@ class HandleManager(object):
 
     def _dispatch_record(self, record: Record, always_send: bool = False) -> None:
         if not self._settings._offline or always_send:
+            tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
         if not record.control.local and self._writer_q:
+            tracelog.log_message_queue(record, self._writer_q)
             self._writer_q.put(record)
+
+    def _respond_result(self, result: Result) -> None:
+        tracelog.log_message_queue(result, self._result_q)
+        self._result_q.put(result)
 
     def debounce(self) -> None:
         pass
@@ -196,6 +203,7 @@ class HandleManager(object):
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
+            tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
     def _save_history(self, record: Record) -> None:
@@ -527,21 +535,21 @@ class HandleManager(object):
 
     def handle_request_artifact_send(self, record: Record) -> None:
         assert record.control.req_resp
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
 
         self._dispatch_record(record)
 
         # send response immediately, the request will be polled for result
         xid = record.uuid
         result.response.artifact_send_response.xid = xid
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_artifact_poll(self, record: Record) -> None:
         assert record.control.req_resp
         xid = record.request.artifact_poll.xid
         assert xid
 
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         done_req = self._artifact_xid_done.get(xid)
         if done_req:
             result.response.artifact_poll_response.artifact_id = done_req.artifact_id
@@ -549,7 +557,7 @@ class HandleManager(object):
                 done_req.error_message
             )
             result.response.artifact_poll_response.ready = True
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_artifact_done(self, record: Record) -> None:
         assert not record.control.req_resp
@@ -595,8 +603,8 @@ class HandleManager(object):
 
         if run_start.run.resumed:
             self._step = run_start.run.starting_step
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        self._result_q.put(result)
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
 
     def handle_request_resume(self, record: Record) -> None:
         if self._system_stats is not None:
@@ -625,16 +633,16 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def handle_request_status(self, record: Record) -> None:
-        self._dispatch_record(record)
+        self._dispatch_record(record, always_send=True)
 
     def handle_request_get_summary(self, record: Record) -> None:
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         for key, value in six.iteritems(self._consolidated_summary):
             item = wandb_internal_pb2.SummaryItem()
             item.key = key
             item.value_json = json.dumps(value)
             result.response.get_summary_response.item.append(item)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_tbrecord(self, record: Record) -> None:
         logger.info("handling tbrecord: %s", record)
@@ -709,7 +717,7 @@ class HandleManager(object):
             self._handle_glob_metric(record)
 
     def handle_request_sampled_history(self, record: Record) -> None:
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
+        result = proto_util._result_from_record(record)
         for key, sampled in six.iteritems(self._sampled_history):
             item = wandb_internal_pb2.SampledHistoryItem()
             item.key = key
@@ -719,12 +727,12 @@ class HandleManager(object):
             elif all(isinstance(i, numbers.Real) for i in values):
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def handle_request_shutdown(self, record: Record) -> None:
         # TODO(jhr): should we drain things and stop new requests from coming in?
-        result = wandb_internal_pb2.Result(uuid=record.uuid)
-        self._result_q.put(result)
+        result = proto_util._result_from_record(record)
+        self._respond_result(result)
         self._stopped.set()
 
     def finish(self) -> None:

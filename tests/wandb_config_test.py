@@ -99,10 +99,23 @@ def test_locked_no_sideeffect(consolidated, config):
     assert consolidated == dict(config)
 
 
-def test_load_config_default():
+def test_load_config_default(runner):
     test_path = "config-defaults.yaml"
     yaml_dict = {"epochs": {"value": 32}, "size_batch": {"value": 32}}
-    with open(test_path, "w") as f:
-        yaml.dump(yaml_dict, f, default_flow_style=False)
-    config = wandb_sdk.Config()
-    assert dict(config) == dict(epochs=32, size_batch=32)
+    with runner.isolated_filesystem():
+        with open(test_path, "w") as f:
+            yaml.dump(yaml_dict, f, default_flow_style=False)
+        config = wandb_sdk.Config()
+        assert dict(config) == dict(epochs=32, size_batch=32)
+
+
+def test_load_empty_config_default(runner, capsys):
+    test_path = "config-defaults.yaml"
+    with runner.isolated_filesystem():
+        with open(test_path, "w") as f:
+            pass
+        _ = wandb_sdk.Config()
+        err_log = capsys.readouterr().err
+        warn_msg = "wandb: WARNING Found an empty default config file (config-defaults.yaml). Proceeding with no defaults."
+        print(err_log)
+        assert warn_msg in err_log

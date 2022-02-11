@@ -1,0 +1,13 @@
+allennlp
+autogluon
+autokeras
+# avalanche
+catalyst
+catboost
+# dalle-pytorch
+# datasets
+# pin deepchem to erlier version to requirments conflict
+deepchem<2.6.1
+deepctr
+# deeppavlov
+# detectron

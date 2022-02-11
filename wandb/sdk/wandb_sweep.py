@@ -1,6 +1,7 @@
 from typing import Callable, Dict, Optional, Union
 
 from six.moves import urllib
+import wandb
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.util import handle_sweep_config_violations
@@ -61,15 +62,30 @@ def sweep(
 
     Examples:
         Basic usage
+        <!--yeadoc-test:one-parameter-sweep-->
         ```python
-        # this line initializes the sweep
-        sweep_id = wandb.sweep({'name': 'my-awesome-sweep',
-                                'metric': {'name': 'accuracy', 'goal': 'maximize'},
-                                'method': 'grid',
-                                'parameters': {'a': {'values': [1, 2, 3, 4]}}})
+        import wandb
+        sweep_configuration = {
+            "name": "my-awesome-sweep",
+            "metric": {"name": "accuracy", "goal": "maximize"},
+            "method": "grid",
+            "parameters": {
+                "a": {
+                    "values": [1, 2, 3, 4]
+                }
+            }
+        }
 
-        # this line actually runs it -- parameters are available to
-        # my_train_func via wandb.config
+        def my_train_func():
+            # read the current value of parameter "a" from wandb.config
+            wandb.init()
+            a = wandb.config.a
+
+            wandb.log({"a": a, "accuracy": a + 1})
+
+        sweep_id = wandb.sweep(sweep_configuration)
+
+        # run the sweep
         wandb.agent(sweep_id, function=my_train_func)
         ```
     """
@@ -83,7 +99,8 @@ def sweep(
         env.set_project(project)
 
     # Make sure we are logged in
-    wandb_login._login(_silent=True)
+    if wandb.run is None:
+        wandb_login._login(_silent=True)
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep)
     handle_sweep_config_violations(warnings)
