@@ -524,7 +524,7 @@ The `Settings` object:
 #### Adding a new setting
 
 - Add a new type-annotated `Settings` class attribute.
-- If setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
+- If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
   the template dictionary that the `Settings._default_props` method returns, using the same key name as 
   the corresponding class variable.
   - For any setting that is only computed (from other settings) and need/should not be set/updated 
