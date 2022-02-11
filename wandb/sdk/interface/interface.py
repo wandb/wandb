@@ -507,7 +507,7 @@ class InterfaceBase(object):
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
-            item.value_json = json_dumps_safer_history(v)  # type: ignore
+            item.value_json = json_dumps_safer_history(v)
         partial_history.action.flush = flush
         self._publish_partial_history(partial_history)
 
