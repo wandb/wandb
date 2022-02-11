@@ -2010,7 +2010,7 @@ class Run:
                 )
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                if self._launch_artifact_mapping is not None:
+                if self._launch_artifact_mapping:
                     wandb.termwarn(
                         f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
                     )
