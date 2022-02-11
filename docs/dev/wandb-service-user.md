@@ -25,7 +25,7 @@ pip install --upgrade wandb
 pip install --upgrade git+https://github.com/PytorchLightning/pytorch-lightning.git
 ```
 
-(The feature support will be part of `PyTorch Lightning`'s [1.6.0 release](https://github.com/PyTorchLightning/pytorch-lightning/pull/11650).)
+The feature support will be part of `PyTorch Lightning`'s [1.6.0 release](https://github.com/PyTorchLightning/pytorch-lightning/pull/11650), at which point you will be able to simply install/update it from PyPI.
 
 That's it... no need to change anything in else...
 
