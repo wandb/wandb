@@ -77,20 +77,10 @@ def test_property_preprocess_validate_hook():
 
 
 def test_property_auto_hook():
-    p = Property(
-        name="foo",
-        value=None,
-        hook=lambda x: "WANDB",
-        auto_hook=True,
-    )
+    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=True,)
     assert p.value == "WANDB"
 
-    p = Property(
-        name="foo",
-        value=None,
-        hook=lambda x: "WANDB",
-        auto_hook=False,
-    )
+    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=False,)
     assert p.value is None
 
 

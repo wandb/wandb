@@ -24,7 +24,6 @@ from typing import (
     Sequence,
     Set,
     Tuple,
-    TYPE_CHECKING,
     Union,
 )
 
@@ -460,32 +459,22 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
-            _console={
-                "hook": lambda _: self._convert_console(),
-                "auto_hook": True
-            },
+            _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
             _jupyter={
                 "hook": lambda _: str(_get_python_type()) != "python",
                 "auto_hook": True,
             },
-            _kaggle={
-                "hook": lambda _: util._is_likely_kaggle(),
-                "auto_hook": True
-            },
-            _noop={
-                "hook": lambda _: self.mode == "disabled",
-                "auto_hook": True
-            },
+            _kaggle={"hook": lambda _: util._is_likely_kaggle(), "auto_hook": True},
+            _noop={"hook": lambda _: self.mode == "disabled", "auto_hook": True},
             _offline={
                 "hook": (
-                    lambda _:
-                    True
+                    lambda _: True
                     if self.disabled or (self.mode in ("dryrun", "offline"))
                     else False
                 ),
-                "auto_hook": True
+                "auto_hook": True,
             },
             _save_requirements={"value": True},
             _tmp_code_dir={
@@ -521,8 +510,7 @@ class Settings:
             },
             is_local={
                 "hook": (
-                    lambda _:
-                    self.base_url != "https://api.wandb.ai"
+                    lambda _: self.base_url != "https://api.wandb.ai"
                     if self.base_url is not None
                     else False
                 ),
@@ -616,8 +604,7 @@ class Settings:
             system_sample_seconds={"value": 2},
             timespec={
                 "hook": (
-                    lambda _:
-                    datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
+                    lambda _: datetime.strftime(self._start_datetime, "%Y%m%d_%H%M%S")
                     if self._start_time and self._start_datetime
                     else None
                 ),
@@ -636,7 +623,7 @@ class Settings:
             },
             wandb_dir={
                 "hook": lambda _: _get_wandb_dir(self.root_dir or ""),
-                "auto_hook": True
+                "auto_hook": True,
             },
         )
 
