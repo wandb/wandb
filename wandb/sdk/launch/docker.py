@@ -179,7 +179,9 @@ def build_docker_image_if_needed(
         if env.startswith("HOME="):
             homedir = env.split("=", 1)[1]
     if copy_code:
-        copy_code_line = "COPY ./src/ {}\n".format(workdir)
+        copy_code_line = "COPY --chown={} ./src/ {}\n".format(
+            launch_project.docker_user_id, workdir
+        )
         if docker.is_buildx_installed():
             requirements_line = "RUN --mount=type=cache,target={}/.cache,uid={},gid=0 ".format(
                 homedir, launch_project.docker_user_id

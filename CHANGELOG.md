@@ -1,3 +1,64 @@
+## 0.12.10 (February 1, 2022)
+
+#### :nail_care: Enhancement
+* Improve validation when creating Tables with invalid columns from dataframes by @tssweeney in https://github.com/wandb/client/pull/3113
+* Enable digest deduplication for `use_artifact()` calls by @annirudh in https://github.com/wandb/client/pull/3109
+* Initial prototype of azure blob upload support by @vanpelt in https://github.com/wandb/client/pull/3089
+
+### :bug: Bug Fix
+* Fix wandb launch using python dev versions by @stephchen in https://github.com/wandb/client/pull/3036
+* Fix loading table saved with mixed types by @vwrj in https://github.com/wandb/client/pull/3120
+* Fix ResourceWarning when calling wandb.log by @vwrj in https://github.com/wandb/client/pull/3130
+* Fix missing cursor in ProjectArtifactCollections by @KyleGoyette in https://github.com/wandb/client/pull/3108
+* Fix windows table logging classes issue by @vwrj in https://github.com/wandb/client/pull/3145
+* Gracefully handle string labels in wandb.sklearn.plot.classifier.calibration_curve by @acrellin in https://github.com/wandb/client/pull/3159
+* Do not display login warning when calling wandb.sweep() by @acrellin in https://github.com/wandb/client/pull/3162
+
+### :broom: Cleanup
+* Drop python2 backport deps (enum34, subprocess32, configparser) by @jbylund in https://github.com/wandb/client/pull/3004
+* Settings refactor by @dmitryduev in https://github.com/wandb/client/pull/3083
+
+## New Contributors
+* @jbylund made their first contribution in https://github.com/wandb/client/pull/3004
+* @acrellin made their first contribution in https://github.com/wandb/client/pull/3159
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.9...v0.12.10
+
+## 0.12.9 (December 16, 2021)
+
+#### :bug: Bug Fix
+
+- Fix regression in `upload_file()` exception handler by @raubitsj in https://github.com/wandb/client/pull/3059
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.8...v0.12.9
+
+## 0.12.8 (December 16, 2021)
+
+#### :nail_care: Enhancement
+
+- Update contributing guide and dev env setup tool by @dmitryduev in https://github.com/wandb/client/pull/2968
+- Improve `wandb_callback` for LightGBM (#2945) by @ayulockin in https://github.com/wandb/client/pull/3024
+
+#### :bug: Bug Fix
+
+- Reduce GPU memory usage when generating histogram of model weights by @TOsborn in https://github.com/wandb/client/pull/2927
+- Support mixed classes in bounding box and image mask annotation layers by @tssweeney in https://github.com/wandb/client/pull/2914
+- Add max-jobs and launch async args by @stephchen in https://github.com/wandb/client/pull/2925
+- Support lists of Summary objects encoded as strings to wandb.tensorboard.log by @dmitryduev in https://github.com/wandb/client/pull/2934
+- Fix handling of 0 dim np arrays by @rpitonak in https://github.com/wandb/client/pull/2954
+- Fix handling of empty default config file by @vwrj in https://github.com/wandb/client/pull/2957
+- Add service backend using sockets (support fork) by @raubitsj in https://github.com/wandb/client/pull/2892
+- Send git port along with url when sending git repo by @KyleGoyette in https://github.com/wandb/client/pull/2959
+- Add support raw ip addresses for launch by @KyleGoyette in https://github.com/wandb/client/pull/2950
+- Tables no longer serialize and hide 1d NDArrays by @tssweeney in https://github.com/wandb/client/pull/2976
+- Fix artifact file uploads to S3 stores by @annirudh in https://github.com/wandb/client/pull/2999
+- Send uploaded file list on file stream heartbeats by @annirudh in https://github.com/wandb/client/pull/2978
+- Add support for keras experimental layers by @KyleGoyette in https://github.com/wandb/client/pull/2776
+- Fix `from wandb import magic` to not require tensorflow by @raubitsj in https://github.com/wandb/client/pull/3021
+- Fix launch permission error by @KyleGoyette in https://github.com/wandb/client/pull/3038
+
+**Full Changelog**: https://github.com/wandb/client/compare/v0.12.7...v0.12.8
+
 ## 0.12.7 (November 18, 2021)
 
 #### :bug: Bug Fix

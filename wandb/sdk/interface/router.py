@@ -13,7 +13,7 @@ import uuid
 
 
 from .message_future import MessageFuture
-from ..lib import debug_log
+from ..lib import tracelog
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("wandb")
+
+
+class MessageRouterClosedError(Exception):
+    """Router has been closed."""
+
+    pass
 
 
 class MessageFutureObject(MessageFuture):
@@ -59,7 +65,16 @@ class MessageRouter(object):
 
     def message_loop(self) -> None:
         while not self._join_event.is_set():
-            msg = self._read_message()
+            try:
+                msg = self._read_message()
+            except EOFError:
+                # On abnormal shutdown the queue will be destroyed underneath
+                # resulting in EOFError.  message_loop needs to exit..
+                logger.warning("EOFError seen in message_loop")
+                break
+            except MessageRouterClosedError:
+                logger.warning("message_loop has been closed")
+                break
             if not msg:
                 continue
             self._handle_msg_rcv(msg)
@@ -90,7 +105,7 @@ class MessageRouter(object):
             # TODO (cvp): saw this in tests, seemed benign enough to ignore, but
             # could point to other issues.
             if msg.uuid != "":
-                debug_log.log_message_assert(msg)
+                tracelog.log_message_assert(msg)
                 logger.warning(
                     "No listener found for msg with uuid %s (%s)", msg.uuid, msg
                 )

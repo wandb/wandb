@@ -9,10 +9,10 @@ This integration lets users apply decorators to Metaflow flows and steps to auto
 Examples can be found at wandb/client/functional_tests/metaflow
 """
 
-import inspect
-import pickle
 from functools import wraps
+import inspect
 from pathlib import Path
+import pickle
 
 import wandb
 from wandb.sdk.lib import telemetry as wb_telemetry
@@ -296,10 +296,16 @@ def wandb_log(
             if not isinstance(settings, wandb.sdk.wandb_settings.Settings):
                 settings = wandb.Settings()
 
-            settings.run_group = coalesce(
-                settings.run_group, f"{current.flow_name}/{current.run_id}"
+            settings.update(
+                run_group=coalesce(
+                    settings.run_group, f"{current.flow_name}/{current.run_id}"
+                ),
+                source=wandb.sdk.wandb_settings.Source.INIT,
             )
-            settings.run_job_type = coalesce(settings.run_job_type, current.step_name)
+            settings.update(
+                run_job_type=coalesce(settings.run_job_type, current.step_name),
+                source=wandb.sdk.wandb_settings.Source.INIT,
+            )
 
             with wandb.init(settings=settings) as run:
                 with wb_telemetry.context(run=run) as tel:
