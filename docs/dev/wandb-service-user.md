@@ -9,7 +9,7 @@ We are excited :tada: to share with you a new feature we call `service`. This fe
 
 ## Why would you use this feature?
 
-`wandb-service` improves wandb's handling of multiprocessing and thus improves reliability in a distributed training setting.
+`service` improves `wandb`'s handling of multiprocessing and thus improves reliability in a distributed training setting.
 If you are using `wandb` in a distributed training setup and experiencing hangs, please consider trying out this new feature.
 
 ## Usage
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     main()
 ```
 
-## FAQ
+## FAQs
 
 ### If your scrip is stuck in a restart loop
 
