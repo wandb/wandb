@@ -179,7 +179,7 @@ def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) 
     """Fill in wandb-specific environment variables"""
 
     if _is_wandb_local_uri(api.settings("base_url")) and sys.platform == "darwin":
-        _, _, port = _, _, port = api.settings("base_url").split(":")
+        _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
         base_url = "http://host.docker.internal:9002"
