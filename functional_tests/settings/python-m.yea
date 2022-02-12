@@ -1,13 +1,10 @@
 id: 0.settings.python-m
-tag:
-    shard: service
 plugin:
     - wandb
 command:
-    program: python -m module.lib
+    program: module/lib.py
+    mode: module
 assert:
     - :wandb:runs_len: 1
-    - :op:contains:
-        - :wandb:runs[0][settings][program]
-        - -m module.lib
+    - :wandb:runs[0][program]: -m module.lib
     - :wandb:runs[0][exitcode]: 0
