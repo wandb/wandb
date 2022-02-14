@@ -422,7 +422,7 @@ class Settings:
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
-    resumed: bool  # indication from the server about the state of the run (differnt from resume - user provided flag)
+    resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
     root_dir: str
     run_group: str
     run_id: str
