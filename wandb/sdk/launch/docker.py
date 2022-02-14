@@ -202,6 +202,13 @@ def get_env_vars_section(launch_project: LaunchProject, api: Api, workdir: str) 
 
 
 def get_requirements_section(launch_project: LaunchProject) -> str:
+    buildx_installed = docker.is_buildx_installed()
+    if not buildx_installed:
+        wandb.termwarn(
+            "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
+        )
+        prefix = "RUN WANDB_DISABLE_CACHE=true"
+
     if launch_project.deps_type == "pip":
         requirements_files = ["src/requirements.txt"]
         pip_install_line = "pip install -r requirements.txt"
@@ -215,13 +222,8 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
                 + "python _wandb_bootstrap.py"
             )
 
-        if docker.is_buildx_installed():
+        if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/root/.cache/pip"
-        else:
-            wandb.termwarn(
-                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-            )
-            prefix = "RUN WANDB_DISABLE_CACHE=true"
 
         requirements_line = PIP_TEMPLATE.format(
             buildx_optional_prefix=prefix,
@@ -229,13 +231,8 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
             pip_install=pip_install_line,
         )
     elif launch_project.deps_type == "conda":
-        if docker.is_buildx_installed():
+        if buildx_installed:
             prefix = "RUN --mount=type=cache,mode=0777,target=/opt/conda/pkgs"
-        else:
-            wandb.termwarn(
-                "Docker BuildX is not installed, for faster builds upgrade docker: https://github.com/docker/buildx#installing"
-            )
-            prefix = "RUN WANDB_DISABLE_CACHE=true"
         requirements_line = CONDA_TEMPLATE.format(buildx_optional_prefix=prefix)
     else:
         # this means no deps file was found
@@ -295,7 +292,7 @@ def generate_dockerfile(
         command_arr=entry_cmd,
     )
 
-    print(dockerfile_contents) # @@@
+    print(dockerfile_contents)  # @@@
 
     return dockerfile_contents
 
@@ -480,30 +477,3 @@ def _create_docker_build_ctx(
     with open(os.path.join(directory, _GENERATED_DOCKERFILE_NAME), "w") as handle:
         handle.write(dockerfile_contents)
     return directory
-
-
-def get_full_command(
-    image_uri: str,
-    launch_project: LaunchProject,
-    api: Api,
-    container_workdir: str,
-    docker_args: Dict[str, Any],
-    entry_point: EntryPoint,
-) -> List[str]:
-    """Returns the full shell command to execute in order to run the specified entry point.
-
-    Arguments:
-    image_uri: image uri to run
-    launch_project: LaunchProject instance used to construct the command
-    api: Instance of wandb.apis.internal Api
-    container_workdir: The working directory to use inside the container
-    docker_args: Dictionary of docker args to pass to the container
-    entry_point: Entry point to run
-
-    Returns:
-        List of strings representing the shell command to be executed
-    """
-
-    commands = []
-    commands += get_docker_command(image_uri, docker_args)
-    return commands

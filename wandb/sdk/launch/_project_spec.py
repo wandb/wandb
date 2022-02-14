@@ -176,16 +176,28 @@ class LaunchProject(object):
             )
             entry_point = run_info.get("codePath", run_info["program"])
 
-            if run_info["cudaVersion"]:
+            if run_info.get("cudaVersion"):
                 original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
 
                 if self.cuda is None:
                     # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
-                    wandb.termlog("Original wandb run {} was run with cuda version {}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False".format(source_run_name, original_cuda_version))
+                    wandb.termlog(
+                        "Original wandb run {} was run with cuda version {}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False".format(
+                            source_run_name, original_cuda_version
+                        )
+                    )
                     self.cuda_version = original_cuda_version
                     self.cuda = True
-                if self.cuda and self.cuda_version and self.cuda_version != original_cuda_version:
-                    wandb.termlog("Specified cuda version {} differs from original cuda version {}. Running with specified version {}".format(self.cuda_version, original_cuda_version, self.cuda_version))
+                if (
+                    self.cuda
+                    and self.cuda_version
+                    and self.cuda_version != original_cuda_version
+                ):
+                    wandb.termlog(
+                        "Specified cuda version {} differs from original cuda version {}. Running with specified version {}".format(
+                            self.cuda_version, original_cuda_version, self.cuda_version
+                        )
+                    )
 
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -199,7 +211,9 @@ class LaunchProject(object):
                 self.build_image = True
             elif not downloaded_code_artifact:
                 if not run_info["git"]:
-                    raise ExecutionError("Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`")
+                    raise ExecutionError(
+                        "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
+                    )
                 utils._fetch_git_repo(
                     self.project_dir,
                     run_info["git"]["remote"],

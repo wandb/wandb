@@ -1064,10 +1064,12 @@ def launch(
     # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
     if cuda:
         if cuda != "True" and cuda != "False":
-            raise LaunchError("Invalid value for '--cuda': '{}' is not a valid boolean.".format(cuda))
+            raise LaunchError(
+                "Invalid value for '--cuda': '{}' is not a valid boolean.".format(cuda)
+            )
         if cuda is not None:
             # preserve cuda=None as unspecified, otherwise convert to bool
-            cuda = True if cuda == 'True' else False
+            cuda = True if cuda == "True" else False
 
     args_dict = util._user_args_to_dict(args_list)
     resource_args_dict = util._user_args_to_dict(resource_args)

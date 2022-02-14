@@ -11,10 +11,8 @@ from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
 from ..docker import (
     construct_local_image_uri,
-    docker_image_inspect,
     generate_docker_image,
     get_docker_command,
-    get_full_command,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -91,16 +89,7 @@ class LocalRunner(AbstractRunner):
                 )
             )
 
-            command_args = get_full_command(
-                launch_project.docker_image,
-                launch_project,
-                self._api,
-                docker_image_inspect(launch_project.docker_image)[
-                    "ContainerConfig"
-                ].get("WorkingDir", "/"),
-                docker_args,
-                entry_point,
-            )
+            command_args = get_docker_command(launch_project.docker_image, docker_args)
             command_str = " ".join(command_args)
         else:
             # build our own image
