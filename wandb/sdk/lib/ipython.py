@@ -1,4 +1,3 @@
-#
 import logging
 import sys
 from typing import Optional
@@ -42,7 +41,7 @@ def in_jupyter() -> bool:
 
 def display_html(html: str):  # type: ignore
     """Displays HTML in notebooks, is a noop outside of a jupyter context"""
-    if wandb.run and wandb.run._settings._silent:
+    if wandb.run and wandb.run._settings.silent:
         return
     try:
         from IPython.core.display import display, HTML  # type: ignore
@@ -54,7 +53,7 @@ def display_html(html: str):  # type: ignore
 
 def display_widget(widget):
     """Displays ipywidgets in notebooks, is a noop outside of a jupyter context"""
-    if wandb.run and wandb.run._settings._silent:
+    if wandb.run and wandb.run._settings.silent:
         return
     try:
         from IPython.core.display import display

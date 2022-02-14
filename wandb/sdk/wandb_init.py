@@ -187,7 +187,7 @@ class _WandbInit(object):
                 anonymous=kwargs.pop("anonymous", None),
                 force=kwargs.pop("force", None),
                 _disable_warning=True,
-                _silent=settings._quiet or settings._silent,
+                _silent=settings.quiet or settings.silent,
             )
 
         # apply updated global state after login was handled
@@ -438,7 +438,7 @@ class _WandbInit(object):
                 )
                 jupyter = (
                     self.settings._jupyter
-                    and not self.settings._silent
+                    and not self.settings.silent
                     and ipython.in_jupyter()
                 )
                 if jupyter:

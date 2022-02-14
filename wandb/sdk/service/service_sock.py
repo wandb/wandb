@@ -32,7 +32,7 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
-        settings_dict = settings.make_static(include_properties=True)
+        settings_dict = settings.make_static()
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
 
         inform_init._info.stream_id = run_id
@@ -41,7 +41,7 @@ class ServiceSockInterface(ServiceInterface):
 
     def _svc_inform_start(self, settings: "Settings", run_id: str) -> None:
         inform_start = spb.ServerInformStartRequest()
-        settings_dict = settings.make_static(include_properties=True)
+        settings_dict = settings.make_static()
         _pbmap_apply_dict(inform_start._settings_map, settings_dict)
 
         inform_start._info.stream_id = run_id
