@@ -36,26 +36,6 @@ def test_get_base_setup(test_settings, live_mock_server, mocked_fetchable_git_re
     assert "python3-pip" in base_setup and "python3-setuptools" in base_setup
 
 
-def test_get_env_vars_section(test_settings, live_mock_server, mocked_fetchable_git_repo):
-    api = wandb.sdk.internal.internal_api.Api(
-        default_settings=test_settings, load_settings=False
-    )
-    test_spec = {
-        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
-        "entity": "mock_server_entity",
-        "project": "test",
-        "cuda": False,
-        "resource": "local",
-        "resource_args": {},
-        "docker": {},
-    }
-    test_project = create_project_from_spec(test_spec, api)
-    test_project._fetch_project_local(api)
-    env_vars_setup = get_env_vars_section(test_project, api, "/home/test_user")
-    # test_settings means base_url is local
-    assert "ENV WANDB_BASE_URL=http://host.docker.internal" in env_vars_setup
-
-
 def test_dockerfile_conda(test_settings, live_mock_server, mocked_fetchable_git_repo):
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False

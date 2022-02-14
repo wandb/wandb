@@ -1015,7 +1015,7 @@ def _check_launch_imports():
     "--cuda",
     is_flag=False,
     flag_value=True,
-    default=False,
+    default=None,
     help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
     "built by default and you must set --cuda=False to build a CPU-only image.",
 )
@@ -1060,6 +1060,14 @@ def launch(
         raise LaunchError(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
+
+    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
+    if cuda:
+        if cuda != "True" and cuda != "False":
+            raise LaunchError("Invalid value for '--cuda': '{}' is not a valid boolean.".format(cuda))
+        if cuda is not None:
+            # preserve cuda=None as unspecified, otherwise convert to bool
+            cuda = True if cuda == 'True' else False
 
     args_dict = util._user_args_to_dict(args_list)
     resource_args_dict = util._user_args_to_dict(resource_args)

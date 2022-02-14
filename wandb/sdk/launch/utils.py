@@ -154,7 +154,7 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
-    launch_spec["cuda"] = True if cuda else False
+    launch_spec["cuda"] = cuda
 
     return launch_spec
 
@@ -211,6 +211,8 @@ def fetch_wandb_project_run_info(
             _, response = api.download_file(metadata["url"])
             data = response.json()
             result["codePath"] = data.get("codePath")
+            result["cudaVersion"] = data.get("cuda", None)
+
     if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     return result

@@ -152,12 +152,14 @@ def get_base_setup(
         if py_major == "2":
             python_packages = [
                 "python{}".format(py_version),
+                "libpython{}".format(py_version),
                 "python-pip",
                 "python-setuptools",
             ]
         else:
             python_packages = [
                 "python{}".format(py_version),
+                "libpython{}".format(py_version),
                 "python3-pip",
                 "python3-setuptools",
             ]
@@ -235,6 +237,9 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
             )
             prefix = "RUN WANDB_DISABLE_CACHE=true"
         requirements_line = CONDA_TEMPLATE.format(buildx_optional_prefix=prefix)
+    else:
+        # this means no deps file was found
+        requirements_line = ""
 
     return requirements_line
 
@@ -289,6 +294,8 @@ def generate_dockerfile(
         env_vars=env_vars_section,
         command_arr=entry_cmd,
     )
+
+    print(dockerfile_contents) # @@@
 
     return dockerfile_contents
 

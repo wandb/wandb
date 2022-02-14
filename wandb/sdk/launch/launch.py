@@ -103,7 +103,7 @@ def run(
     docker_image: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     synchronous: Optional[bool] = True,
-    cuda: Optional[bool] = False,
+    cuda: Optional[bool] = None,
 ) -> AbstractRun:
     """Run a W&B launch experiment. The project can be wandb uri or a Git URI.
 
