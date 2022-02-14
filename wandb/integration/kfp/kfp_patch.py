@@ -89,12 +89,14 @@ def unpatch(module_name):
 
 
 def unpatch_kfp():
+    unpatch("kfp.components")
     unpatch("kfp.components._python_op")
     unpatch("wandb.integration.kfp")
 
 
 def patch_kfp():
     to_patch = [
+        ("kfp.components", create_component_from_func,),
         ("kfp.components._python_op", create_component_from_func,),
         ("kfp.components._python_op", _get_function_source_definition,),
         ("kfp.components._python_op", strip_type_hints),
