@@ -1478,7 +1478,7 @@ def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
             return None
 
 
-def _is_artifact_string_or_artifact(v):
+def _is_artifact_string_or_artifact(v: str) -> bool:
     return (
         (isinstance(v, six.string_types) and v.startswith("wandb-artifact://"))
         or isinstance(v, wandb.Artifact)
@@ -1486,7 +1486,7 @@ def _is_artifact_string_or_artifact(v):
     )
 
 
-def parse_artifact_string(v: str) -> Tuple[str, str]:
+def parse_artifact_string(v: str) -> str:
     if not v.startswith("wandb-artifact://") and not v.startswith(
         "wandb-artifact-digest://"
     ):
@@ -1509,6 +1509,7 @@ def parse_artifact_string(v: str) -> Tuple[str, str]:
         # when we allow passing typed media objects
         entity, project, name_and_alias_or_version = parts[:2]
         return f"{entity}/{project}/{name_and_alias_or_version}"
+    return parsed_v
 
 
 def parse_artifact_digest_string(v: str) -> str:
@@ -1524,6 +1525,5 @@ def parse_artifact_digest_string(v: str) -> str:
         # for now can't fetch paths but this will be supported in the future
         # when we allow passing typed media objects
         artifact_string = parts[1]
-        path = "/".join(parts[2:])
         return artifact_string
     return parsed_v
