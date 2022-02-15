@@ -1744,7 +1744,7 @@ class Run:
             self._poll_exit_response.pusher_stats.total_bytes / megabyte
         )
         wandb.termlog(
-            f"Uploaded {uploaded_size_megabytes:.5f} MB "
+            f"Uploaded {uploaded_size_megabytes:.3f} MB "
             f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
         )
 
