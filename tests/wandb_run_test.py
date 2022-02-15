@@ -477,7 +477,6 @@ def test_public_artifact_run_config_init(
     assert run.config.dataset == art
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
-    print(run.config.dataset)
     assert ctx.config_user["dataset"] == {
         "_type": "artifactVersion",
         "_version": "v0",
@@ -565,7 +564,6 @@ def test_wandb_artifact_config_set_item(
         assert run.config.test_reference_download == artifact
         run.finish()
         ctx = parse_ctx(live_mock_server.get_ctx())
-        print(ctx.config_user["test_reference_download"])
         assert ctx.config_user["test_reference_download"] == {
             "_type": "artifactVersion",
             "_version": "v0",
@@ -593,7 +591,6 @@ def test_wandb_artifact_config_update(
         run.finish()
 
         ctx = parse_ctx(live_mock_server.get_ctx())
-        print(ctx.config_user["test_reference_download"])
         assert ctx.config_user["test_reference_download"] == {
             "_type": "artifactVersion",
             "_version": "v0",

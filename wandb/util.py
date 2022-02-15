@@ -1435,7 +1435,6 @@ def artifact_to_json(
 ) -> Dict[str, Any]:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
-    print(type(artifact))
     if hasattr(artifact, "_sequence_name"):
         sequence_name = artifact._sequence_name  # type: ignore
     else:

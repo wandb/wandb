@@ -974,17 +974,17 @@ class Run:
         self, key: str, val: Union[str, Artifact]
     ) -> Union[Artifact, public.Artifact]:
         if isinstance(val, str) and val.startswith("wandb-artifact://"):
-            artifact_string, base_uri = parse_artifact_string(val)
+            artifact_string, base_url = parse_artifact_string(val)
             overrides = {}
-            if base_uri is not None:
-                overrides = {"base_url": base_uri}
+            if base_url is not None:
+                overrides = {"base_url": base_url}
                 public_api = public.Api(overrides)
             else:
                 public_api = self._public_api()
             artifact = public_api.artifact(name=artifact_string)
-            #
-            # if base_uri is not None and base_url != self._settings.base_url:
-            # convert retrieved artifact to wandb Artifact
+            # in the future we'll need to support using artifacts from
+            # different instances of wandb. simplest way to do that is
+            # likely to convert the retrieved public.Artifact to a wandb.Artifact
 
             return self.use_artifact(artifact, use_as=key)
         else:

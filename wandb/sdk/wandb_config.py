@@ -147,10 +147,6 @@ class Config(object):
         with wandb.sdk.lib.telemetry.context() as tel:
             tel.feature.set_config_item = True
         self._raise_value_error_on_nested_artifact(val, nested=True)
-        # if _is_artifact_string_or_artifact(val):
-        #     print("is artifact string or artifact!", key, val)
-        #     val = self._artifact_callback(key, val)
-        #     print(val)
         key, val = self._sanitize(key, val)
         self._items[key] = val
         logger.info("config set %s = %s - %s", key, val, self._callback)
@@ -242,7 +238,6 @@ class Config(object):
         # We always normalize keys by stripping '-'
         key = key.strip("-")
         if _is_artifact_string_or_artifact(val):
-            print("calling artifact callback", key, val)
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (
