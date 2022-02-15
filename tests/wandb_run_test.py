@@ -365,7 +365,7 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
 
 
 def test_artifact_string_run_config_init(live_mock_server, test_settings, parse_ctx):
-    config = {"dataset": "wandb-artifact://boom-data"}
+    config = {"dataset": "wandb-artifact://entity/project/boom-data"}
     run = wandb.init(settings=test_settings, config=config)
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
@@ -384,7 +384,7 @@ def test_artifact_string_run_config_set_item(
     runner, live_mock_server, test_settings, parse_ctx
 ):
     run = wandb.init(settings=test_settings)
-    run.config.dataset = "wandb-artifact://boom-data"
+    run.config.dataset = "wandb-artifact://entity/project/boom-data"
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
     assert ctx.config_user["dataset"] == {
@@ -401,7 +401,7 @@ def test_artifact_string_run_config_update(
     runner, live_mock_server, test_settings, parse_ctx
 ):
     run = wandb.init(settings=test_settings)
-    run.config.update({"dataset": "wandb-artifact://boom-data"})
+    run.config.update({"dataset": "wandb-artifact://entity/project/boom-data"})
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
     assert ctx.config_user["dataset"] == {
