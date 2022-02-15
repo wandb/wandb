@@ -1033,10 +1033,7 @@ def class_colors(class_count: int) -> List[List[int]]:
     ]
 
 
-def _prompt_choice(
-    input_timeout: int = None,
-    jupyter: bool = False,
-) -> str:
+def _prompt_choice(input_timeout: int = None, jupyter: bool = False,) -> str:
     input_fn: Callable = input
     prompt = term.LOG_STRING
     if input_timeout is not None:
@@ -1057,9 +1054,7 @@ def _prompt_choice(
 
 
 def prompt_choices(
-    choices: Sequence[str],
-    input_timeout: int = None,
-    jupyter: bool = False,
+    choices: Sequence[str], input_timeout: int = None, jupyter: bool = False,
 ) -> str:
     """Allow a user to choose from a list of options"""
     for i, choice in enumerate(choices):
@@ -1489,3 +1484,46 @@ def _is_artifact_string_or_artifact(v):
         or isinstance(v, wandb.Artifact)
         or isinstance(v, wandb.apis.public.Artifact)
     )
+
+
+def parse_artifact_string(v: str) -> Tuple[str, str]:
+    if not v.startswith("wandb-artifact://") and not v.startswith(
+        "wandb-artifact-digest://"
+    ):
+        raise ValueError(f"Invalid artifact string: {v}")
+
+    if v.startswith("wandb-artifact-digest://"):
+        return parse_artifact_digest_string(v)
+
+    parsed_v = v[len("wandb-artifact://") :]
+    # base_uri = None
+    # if is_uri(v[0]):
+    #     base_uri = v[0]
+    #     v = v[1:]
+
+    parts = parsed_v.split("/")
+    if len(parts) < 3:
+        raise ValueError(f"Invalid artifact string: {v}")
+    if len(parts) > 3:
+        # for now can't fetch paths but this will be supported in the future
+        # when we allow passing typed media objects
+        entity, project, name_and_alias_or_version = parts[:2]
+        return f"{entity}/{project}/{name_and_alias_or_version}"
+
+
+def parse_artifact_digest_string(v: str) -> str:
+    if not v.startswith("wandb-artifact-wandb-artifact-digest://"):
+        raise ValueError(f"Invalid artifact id string: {v}")
+
+    parsed_v = v[len("wandb-artifact-wandb-artifact-digest://") :]
+    parts = v.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid artifact string: {v}")
+    if len(parts) > 2:
+        wandb.termwarn("Artifact string includes paths")
+        # for now can't fetch paths but this will be supported in the future
+        # when we allow passing typed media objects
+        artifact_string = parts[1]
+        path = "/".join(parts[2:])
+        return artifact_string
+    return parsed_v

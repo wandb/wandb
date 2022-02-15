@@ -44,6 +44,7 @@ from wandb.proto.wandb_internal_pb2 import (
 )
 from wandb.util import (
     add_import_hook,
+    parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
 )
@@ -972,8 +973,8 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact]
     ) -> Union[Artifact, public.Artifact]:
-        if isinstance(val, string_types) and val.startswith("wandb-artifact://"):
-            artifact_string = val[len("wandb-artifact://") :]
+        if isinstance(val, str) and val.startswith("wandb-artifact"):
+            artifact_string = parse_artifact_string(val)
             public_api = self._public_api()
             artifact = public_api.artifact(name=artifact_string)
             return self.use_artifact(artifact, use_as=key)
@@ -2036,7 +2037,7 @@ class Run:
                     use_after_commit=True,
                 )
                 artifact.wait()
-                artifact._use_as = use_as or artifact_or_name
+                artifact._use_as = use_as or artifact.name
                 return artifact
             elif isinstance(artifact, public.Artifact):
                 if (
