@@ -824,10 +824,10 @@ class SendManager:
         history_dict = proto_util.dict_from_proto_list(history.item)
         self._save_history(history_dict)
 
-    def send_request_partial_history(self, record: "Record") -> None:
-        history = record.request.partial_history
-        history_dict = proto_util.dict_from_proto_list(history.item)
-        self._save_history(history_dict)
+    # def send_request_partial_history(self, record: "Record") -> None:
+    #     history = record.request.partial_history
+    #     history_dict = proto_util.dict_from_proto_list(history.item)
+    #     self._save_history(history_dict)
 
     def send_summary(self, record: "Record") -> None:
         summary_dict = proto_util.dict_from_proto_list(record.summary.update)

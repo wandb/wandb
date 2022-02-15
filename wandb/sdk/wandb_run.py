@@ -1131,12 +1131,73 @@ class Run:
             self.config["_wandb"][data_type][key] = value_extra
             self.config.persist()
 
+    def _log(
+        self,
+        data: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
+    ) -> None:
+        if not self._settings._require_service:
+            current_pid = os.getpid()
+            if current_pid != self._init_pid:
+                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                    current_pid, self._init_pid
+                )
+                if self._settings._strict:
+                    wandb.termerror(message, repeat=False)
+                    raise errors.LogMultiprocessError(
+                        "log() does not support multiprocessing"
+                    )
+                wandb.termwarn(message, repeat=False)
+                return
+
+        if not isinstance(data, Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if any(not isinstance(key, str) for key in data.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        if step is not None:
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+            if using_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
+            if self.history_step > step:
+                wandb.termwarn(
+                    (
+                        "Step must only increase in log calls.  "
+                        "Step {} < {}; dropping {}.".format(
+                            step, self.history_step, data
+                        )
+                    )
+                )
+                return
+            elif step > self.history_step:
+                self._partial_history_callback(
+                    {}, self.history_step, commit=True,
+                )
+                self.history_step = step
+        elif commit is None:  # step is None and commit is None
+            commit = True
+
+        if commit:
+            self._partial_history_callback(data, self.history_step, commit=True)
+            self.history_step += 1
+        else:
+            self._partial_history_callback(data, self.history_step)
+
     def log(
         self,
         data: Dict[str, Any],
-        step: int = None,
-        commit: bool = None,
-        sync: bool = None,
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> None:
         """Logs a dictonary of data to the current run's history.
 
@@ -1309,59 +1370,7 @@ class Run:
             ValueError: if invalid data is passed
 
         """
-        if not self._settings._require_service:
-            current_pid = os.getpid()
-            if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._init_pid
-                )
-                if self._settings._strict:
-                    wandb.termerror(message, repeat=False)
-                    raise errors.LogMultiprocessError(
-                        "log() does not support multiprocessing"
-                    )
-                wandb.termwarn(message, repeat=False)
-                return
-
-        if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
-
-        if any(not isinstance(key, str) for key in data.keys()):
-            raise ValueError("Key values passed to `wandb.log` must be strings.")
-
-        if step is not None:
-            # if step is passed in when tensorboard_sync is used we honor the step passed
-            # to make decisions about how to close out the history record, but will strip
-            # this history later on in publish_history()
-            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
-            if using_tensorboard:
-                wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
-                    repeat=False,
-                )
-            if self.history_step > step:
-                wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history_step, data
-                        )
-                    )
-                )
-                return
-            if step > self.history_step:
-                self._partial_history_callback(
-                    {}, self.history_step, commit=True,
-                )
-                self.history_step = step
-        elif commit is None:  # step is None and commit is None
-            commit = True
-
-        if commit:
-            self._partial_history_callback(data, self.history_step, commit=True)
-            self.history_step += 1
-        else:
-            self._partial_history_callback(data, self.history_step)
+        self._log(data=data, step=step, commit=commit, sync=sync)
 
     def save(
         self,

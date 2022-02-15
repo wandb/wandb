@@ -173,7 +173,7 @@ class TorchHistory:
         # For pytorch 0.3 we use unoptimized numpy histograms (detach is new in 0.4)
         if not hasattr(flat, "detach"):
             tensor = flat.cpu().clone().numpy()
-            wandb.log({name: wandb.Histogram(tensor)}, commit=False)
+            wandb.run._log({name: wandb.Histogram(tensor)}, commit=False)
             return
 
         if flat.is_cuda:
@@ -244,7 +244,7 @@ class TorchHistory:
             tensor = torch.Tensor(tensor_np)
             bins = torch.Tensor(bins_np)
 
-        wandb.log(
+        wandb.run._log(
             {name: wandb.Histogram(np_histogram=(tensor.tolist(), bins.tolist()))},
             commit=False,
         )

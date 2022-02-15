@@ -302,13 +302,13 @@ def log(
             or timestamp - STEPS["global"]["last_log"] >= RATE_LIMIT_SECONDS
         ):
             if history is None:
-                wandb.log({})
+                wandb.run._log({})
             else:
                 history.add({}, **kwargs)
 
         STEPS["global"]["last_log"] = timestamp
 
     if history is None:
-        wandb.log(log_dict, commit=False)
+        wandb.run._log(log_dict, commit=False)
     else:
         history._row_update(log_dict)
