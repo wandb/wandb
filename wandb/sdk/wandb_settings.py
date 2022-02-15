@@ -118,7 +118,10 @@ def _get_program() -> Optional[Any]:
     try:
         import __main__  # type: ignore
 
-        return __main__.__file__
+        if __main__.__spec__ is None:
+            return __main__.__file__
+        # likely run as `python -m ...`
+        return f"-m {__main__.__spec__.name}"
     except (ImportError, AttributeError):
         return None
 
@@ -422,7 +425,7 @@ class Settings:
     relogin: bool
     resume: Union[str, int, bool]
     resume_fname: str
-    resumed: bool  # indication from the server about the state of the run (differnt from resume - user provided flag)
+    resumed: bool  # indication from the server about the state of the run (different from resume - user provided flag)
     root_dir: str
     run_group: str
     run_id: str
@@ -1118,7 +1121,7 @@ class Settings:
 
         self.update(env, source=Source.ENV)
 
-    def infer_settings_from_environment(
+    def _infer_settings_from_environment(
         self, _logger: Optional[_EarlyLogger] = None
     ) -> None:
         """Modify settings based on environment (for runs and cli)."""
@@ -1197,7 +1200,7 @@ class Settings:
 
         self.update(settings, source=Source.ENV)
 
-    def infer_run_settings_from_environment(
+    def _infer_run_settings_from_environment(
         self, _logger: Optional[_EarlyLogger] = None,
     ) -> None:
         """Modify settings based on environment (for runs only)."""
