@@ -1299,8 +1299,9 @@ class Run:
         if not self._settings._require_service:
             current_pid = os.getpid()
             if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._init_pid
+                message = (
+                    f"`log()` ignored (called from `pid={current_pid}`, init called from `pid={self._init_pid})`. "
+                    "See: https://docs.wandb.ai/guides/track/launch#multiprocess"
                 )
                 if self._settings.strict:
                     wandb.termerror(message, repeat=False)
@@ -1323,7 +1324,8 @@ class Run:
             using_tensorboard = len(wandb.patched["tensorboard"]) > 0
             if using_tensorboard:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    "Step cannot be set when using syncing with tensorboard. "
+                    "Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             if self.history._step > step:
@@ -1725,16 +1727,26 @@ class Run:
             self._exit_code, settings=self._settings, printer=self._printer
         )
 
+        tic = time.monotonic()
         while not (self._poll_exit_response and self._poll_exit_response.done):
             if self._backend and self._backend.interface:
                 self._poll_exit_response = (
                     self._backend.interface.communicate_poll_exit()
                 )
-                logger.info(f"got exit ret: {self._poll_exit_response}")
+                logger.info(f"Got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
                     self._poll_exit_response, printer=self._printer,
                 )
             time.sleep(0.1)
+        elapsed_time = time.monotonic() - tic
+        megabyte = wandb.util.POW_2_BYTES[2][1]
+        uploaded_size_megabytes = (
+            self._poll_exit_response.pusher_stats.total_bytes / megabyte
+        )
+        wandb.termlog(
+            f"Uploaded {uploaded_size_megabytes:.5f} MB "
+            f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
+        )
 
         if self._backend and self._backend.interface:
             self._sampled_history = (
@@ -1908,7 +1920,8 @@ class Run:
             return f"{entity}/{project}/{new_name}"
         elif replacement_artifact_info is None and use_as is None:
             wandb.termwarn(
-                f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
+                f"Could not find {artifact_name} in launch artifact mapping. "
+                f"Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
             unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
@@ -1954,7 +1967,8 @@ class Run:
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
+                                       Will be shown in UI.
 
         Returns:
             An `Artifact` object.
@@ -2000,7 +2014,7 @@ class Run:
             if isinstance(artifact_or_name, wandb.Artifact):
                 if use_as is not None:
                     wandb.termwarn(
-                        "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
+                        "Indicating use_as is not supported when using an artifact with an instance of `wandb.Artifact`"
                     )
                 self._log_artifact(
                     artifact,
@@ -2012,7 +2026,8 @@ class Run:
             elif isinstance(artifact, public.Artifact):
                 if self._launch_artifact_mapping:
                     wandb.termwarn(
-                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                        "Swapping artifacts does not support swapping artifacts used "
+                        f"as an instance of `public.Artifact`. Using {artifact.name}"
                     )
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
@@ -2020,7 +2035,8 @@ class Run:
                 return artifact
             else:
                 raise ValueError(
-                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
+                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
+                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
     def log_artifact(
@@ -2402,7 +2418,8 @@ class Run:
             printer.display(
                 [
                     f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} to enable cloud syncing.",
+                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
+                    "to enable cloud syncing.",
                 ]
             )
         else:
@@ -2574,7 +2591,8 @@ class Run:
                 )
         else:
             raise ValueError(
-                f"got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                f"got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
+                "expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
             )
 
     @staticmethod
@@ -2591,7 +2609,10 @@ class Run:
         done = pool_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded ({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
+        line = (
+            f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded "
+            f"({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
+        )
 
         percent_done = (
             1.0
@@ -2654,7 +2675,10 @@ class Run:
             ]
         )
 
-        line = f"Processing {len(poll_exit_responses)} runs with {total_files} files ({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        line = (
+            f"Processing {len(poll_exit_responses)} runs with {total_files} files "
+            f"({uploaded/megabyte :.2f} MB/{total/megabyte :.2f} MB)\r"
+        )
         # line = "{}{:<{max_len}}\r".format(line, " ", max_len=(80 - len(line)))
         printer.progress_update(line)  # type: ignore [call-arg]
 
@@ -2699,7 +2723,8 @@ class Run:
                 logger.info("logging synced files")
                 file_counts = pool_exit_response.file_counts
                 info.append(
-                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
+                    f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
                 )
             printer.display(info)
 
@@ -2811,7 +2836,8 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {printer.link('http://wandb.me/local-upgrade')}",
+                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
+                    f"Learn more: {printer.link('http://wandb.me/local-upgrade')}",
                     status="warn",
                 )
 
