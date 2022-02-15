@@ -40,8 +40,13 @@ def validate_docker_installation() -> None:
         )
 
 
-def get_docker_user(launch_project: LaunchProject) -> Tuple[str, int]:
+def get_docker_user(launch_project: LaunchProject, runner_type: str) -> Tuple[str, int]:
     import getpass
+
+    if runner_type == "sagemaker":
+        # sagemaker must run as root
+        # @@@ todo fix if user provided docker image
+        return "root", 0
 
     username = getpass.getuser()
     userid = launch_project.docker_user_id or os.geteuid()
@@ -63,16 +68,11 @@ ENV PATH="/env/bin:$PATH"
 
 ENV SHELL /bin/bash
 
-RUN useradd \
-    --create-home \
-    --no-log-init \
-    --shell /bin/bash \
-    --gid 0 \
-    --uid {uid} \
-    {user}
+# some resources (eg sagemaker) must run on root
+{user_setup}
 
 WORKDIR {workdir}
-RUN chown {user} {workdir}
+RUN chown -R {uid} {workdir}
 
 # add env vars
 {env_vars}
@@ -81,11 +81,12 @@ RUN chown {user} {workdir}
 RUN mkdir -p {workdir}/.cache && chown -R {uid} {workdir}/.cache
 
 # copy code/etc
-COPY --chown={user} src/ {workdir}
+COPY --chown={uid} src/ {workdir}
 
-USER {user}
 ENV PYTHONUNBUFFERED=1
-ENTRYPOINT {command_arr}
+
+# some resources (eg sagemaker) have unique entrypoint requirements
+{entrypoint_setup}
 """
 
 # this goes into base_setup in TEMPLATE
@@ -129,6 +130,22 @@ RUN conda pack -n env -o /tmp/env.tar && \
     mkdir /env && cd /env && tar xf /tmp/env.tar && \
     rm /tmp/env.tar
 RUN /env/bin/conda-unpack
+"""
+
+USER_CREATE_TEMPLATE = """
+RUN useradd \
+    --create-home \
+    --no-log-init \
+    --shell /bin/bash \
+    --gid 0 \
+    --uid {uid} \
+    {user}
+"""
+
+SAGEMAKER_ENTRYPOINT_TEMPLATE = """
+COPY ./src/train {workdir}
+RUN chmod +x {workdir}/train
+ENTRYPOINT ["sh", "train"]
 """
 
 
@@ -241,8 +258,31 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
     return requirements_line
 
 
+def get_user_setup(username, userid, runner_type):
+    if runner_type == "sagemaker":
+        # sagemaker must run as root
+        return "USER root"
+    user_create = USER_CREATE_TEMPLATE.format(uid=userid, user=username)
+    user_create += "\nUSER {}".format(username)
+    return user_create
+
+
+def get_entrypoint_setup(launch_project, command_arr, workdir, runner_type):
+    if runner_type == "sagemaker":
+        # sagemaker automatically appends train after the entrypoint
+        # by redirecting to running a train script we can avoid issues
+        # with argparse, and hopefully if the user intends for the train
+        # argument to be present it is captured in the original jobs
+        # command arguments
+        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
+            fp.write(" ".join(command_arr))
+        return SAGEMAKER_ENTRYPOINT_TEMPLATE.format(workdir=workdir)
+
+    return "ENTRYPOINT {}".format(command_arr)
+
+
 def generate_dockerfile(
-    api: Api, launch_project: LaunchProject, entrypoint: EntryPoint
+    api: Api, launch_project: LaunchProject, entrypoint: EntryPoint, runner_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -269,7 +309,8 @@ def generate_dockerfile(
     python_base_setup = get_base_setup(launch_project, py_version, py_major)
 
     # set up user info
-    username, userid = get_docker_user(launch_project)
+    username, userid = get_docker_user(launch_project, runner_type)
+    user_setup = get_user_setup(username, userid, runner_type)
     workdir = "/home/{user}".format(user=username)
 
     # add env vars
@@ -280,16 +321,17 @@ def generate_dockerfile(
     entry_cmd = json.dumps(
         get_entry_point_command(entrypoint, launch_project.override_args)[0].split()
     )
+    entrypoint_section = get_entrypoint_setup(launch_project, entry_cmd, workdir, runner_type)
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
         requirements_section=requirements_section,
         base_setup=python_base_setup,
-        user=username,
         uid=userid,
+        user_setup=user_setup,
         workdir=workdir,
         env_vars=env_vars_section,
-        command_arr=entry_cmd,
+        entrypoint_setup=entrypoint_section,
     )
 
     print(dockerfile_contents)  # @@@
@@ -303,11 +345,12 @@ def generate_docker_image(
     image_uri: str,
     entrypoint: EntryPoint,
     command_str: str,
+    runner_type: str,
 ) -> str:
-    dockerfile_str = generate_dockerfile(api, launch_project, entrypoint)
+    dockerfile_str = generate_dockerfile(api, launch_project, entrypoint, runner_type)
     create_metadata_file(
         launch_project,
-        sanitize_wandb_api_key(command_str),
+        sanitize_wandb_api_key(command_str),    # @@@ check if this is needed or if we're rederiving command_arr
         sanitize_wandb_api_key(dockerfile_str),
     )
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)

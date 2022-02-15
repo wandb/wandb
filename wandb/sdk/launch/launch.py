@@ -118,10 +118,11 @@ def run(
     name: Name run under which to launch the run.
     resource: Execution backend for the run: W&B provides built-in support for "local" backend
     resource_args: Resource related arguments for launching runs onto a remote backend.
+        Will be stored on the constructed launch config under ``resource_args``.
     project: Target project to send launched run to
     entity: Target entity to send launched run to
-    config: A dictionary which will be passed as config to the backend. The exact content
-        which should be provided is different for each execution backend
+    config: A dictionary containing the configuration for the run. May also contain
+    resource specific arguments under the key "resource_args".
     synchronous: Whether to block while waiting for a run to complete. Defaults to True.
         Note that if ``synchronous`` is False and ``backend`` is "local", this
         method will return, but the current process will block when exiting until

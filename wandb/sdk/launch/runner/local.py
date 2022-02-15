@@ -34,8 +34,8 @@ class LocalSubmittedRun(AbstractRun):
         self.command_proc = command_proc
 
     @property
-    def id(self) -> int:
-        return self.command_proc.pid
+    def id(self) -> str:
+        return str(self.command_proc.pid)
 
     def wait(self) -> bool:
         return self.command_proc.wait() == 0
@@ -96,7 +96,7 @@ class LocalRunner(AbstractRunner):
             image_uri = construct_local_image_uri(launch_project)
             command_str = " ".join(get_docker_command(image_uri, docker_args))
             generate_docker_image(
-                self._api, launch_project, image_uri, entry_point, command_str,
+                self._api, launch_project, image_uri, entry_point, command_str, runner_type="local",
             )
 
         if self.backend_config.get("runQueueItemId"):

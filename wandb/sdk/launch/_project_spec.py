@@ -24,6 +24,10 @@ _logger = logging.getLogger(__name__)
 
 DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
+# need to make user root for sagemaker, so users have access to /opt/ml directories
+# that let users create artifacts and access input data
+RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
+
 
 class LaunchSource(enum.IntEnum):
     WANDB: int = 1
@@ -46,7 +50,7 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
         resource: str,
-        resource_args: Dict[str, str],
+        resource_args: Dict[str, Any],
         cuda: Optional[bool],
     ):
         if utils.is_bare_wandb_uri(uri):
@@ -63,7 +67,7 @@ class LaunchProject(object):
         self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        uid = 1000
+        uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
             _logger.info(f"Retrieved base image uid {uid}")
@@ -77,7 +81,6 @@ class LaunchProject(object):
         self.deps_type: Optional[str] = None
         self.cuda = cuda
         self._runtime: Optional[str] = None
-        self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
@@ -102,6 +105,8 @@ class LaunchProject(object):
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
+        if launch_spec.get("resource_args"):
+            self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()

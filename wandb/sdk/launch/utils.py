@@ -5,7 +5,7 @@ import platform
 import re
 import subprocess
 import sys
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import wandb
 from wandb import util
@@ -360,3 +360,14 @@ def check_and_download_code_artifacts(
             return True
 
     return False
+
+
+def to_camel_case(maybe_snake_str: str) -> str:
+    if "_" not in maybe_snake_str:
+        return maybe_snake_str
+    components = maybe_snake_str.split("_")
+    return "".join(x.title() if x else "_" for x in components)
+
+
+def run_shell(args: List[str]) -> str:
+    return subprocess.run(args, stdout=subprocess.PIPE).stdout.decode("utf-8").strip()
