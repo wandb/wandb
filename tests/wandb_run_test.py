@@ -384,7 +384,9 @@ def test_artifact_string_run_config_set_item(
     runner, live_mock_server, test_settings, parse_ctx
 ):
     run = wandb.init(settings=test_settings)
-    run.config.dataset = "wandb-artifact://entity/project/boom-data"
+    run.config.dataset = (
+        f"wandb-artifact://{test_settings.base_url}/entity/project/boom-data"
+    )
     run.finish()
     ctx = parse_ctx(live_mock_server.get_ctx())
     assert ctx.config_user["dataset"] == {
@@ -395,6 +397,59 @@ def test_artifact_string_run_config_set_item(
         "sequenceName": run.config.dataset._sequence_name,
         "usedAs": "dataset",
     }
+
+
+def test_artifact_string_digest_run_config_update(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
+    run.config.update({"dataset": "wandb-artifact://_id/abc123"})
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_digest_run_config_init(
+    live_mock_server, test_settings, parse_ctx
+):
+    config = {"dataset": "wandb-artifact://_id/abc123"}
+    run = wandb.init(settings=test_settings, config=config)
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_digest_run_config_set_item(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
+    run.config.dataset = f"wandb-artifact://{test_settings.base_url}/_id/abc123"
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+    assert False
 
 
 def test_artifact_string_run_config_update(
