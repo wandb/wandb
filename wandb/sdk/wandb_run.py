@@ -1728,25 +1728,32 @@ class Run:
         )
 
         tic = time.monotonic()
+        i = 0
         while not (self._poll_exit_response and self._poll_exit_response.done):
             if self._backend and self._backend.interface:
                 self._poll_exit_response = (
                     self._backend.interface.communicate_poll_exit()
                 )
-                logger.info(f"Got exit ret: {self._poll_exit_response}")
+                # capture every second
+                if i % 10 == 0:
+                    logger.info(f"Got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
                     self._poll_exit_response, printer=self._printer,
                 )
+            i += 1
             time.sleep(0.1)
         elapsed_time = time.monotonic() - tic
-        megabyte = wandb.util.POW_2_BYTES[2][1]
-        uploaded_size_megabytes = (
-            self._poll_exit_response.pusher_stats.total_bytes / megabyte
-        )
-        wandb.termlog(
-            f"Uploaded {uploaded_size_megabytes:.3f} MB "
-            f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
-        )
+        if self._poll_exit_response is not None:
+            megabyte = wandb.util.POW_2_BYTES[2][1]
+            uploaded_size_megabytes = (
+                self._poll_exit_response.pusher_stats.total_bytes / megabyte
+            )
+            message = (
+                f"Uploaded {uploaded_size_megabytes:.3f} MB "
+                f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
+            )
+            logger.info(message)
+            wandb.termlog(message)
 
         if self._backend and self._backend.interface:
             self._sampled_history = (
