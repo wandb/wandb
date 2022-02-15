@@ -992,8 +992,7 @@ def _check_launch_imports():
     "-c",
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend. See documentation for layout of this file.",
+    "as a launch config. Dictation how the launched run will be configured. ",
 )
 @click.option(
     "--queue",
@@ -1016,9 +1015,10 @@ def _check_launch_imports():
 @click.option(
     "--resource-args",
     "-R",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="A resource argument for launching runs with cloud providers, of the form -R name=value.",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as resource args to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
 )
 @display_error
 def launch(
@@ -1064,18 +1064,18 @@ def launch(
 
     args_dict = util._user_args_to_dict(args_list)
     docker_args_dict = util._user_args_to_dict(docker_args)
-    resource_args_dict = util._user_args_to_dict(resource_args)
+
+    if resource_args is not None:
+        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        if resource_args is None:
+            raise LaunchError("Invalid format for resource-args")
+    else:
+        resource_args = {}
+
     if config is not None:
-        if os.path.splitext(config)[-1] == ".json":
-            with open(config, "r") as f:
-                config = json.load(f)
-        else:
-            # assume a json string
-            try:
-                config = json.loads(config)
-            except ValueError as e:
-                wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
-                raise
+        config = util.load_as_json_file_or_load_dict_as_json(config)
+        if config is None:
+            raise LaunchError("Invalid format for config")
     else:
         config = {}
 
@@ -1094,7 +1094,7 @@ def launch(
                 parameters=args_dict,
                 docker_args=docker_args_dict,
                 resource=resource,
-                resource_args=resource_args_dict,
+                resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
             )
@@ -1118,7 +1118,7 @@ def launch(
             git_version,
             docker_image,
             args_dict,
-            resource_args_dict,
+            resource_args,
         )
 
 

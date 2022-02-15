@@ -125,7 +125,7 @@ def is_debug(default=None, env=None):
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def error_reporting_enabled():
+def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default=True)
 
 
