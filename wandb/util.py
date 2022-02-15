@@ -1486,7 +1486,7 @@ def _is_artifact_string_or_artifact(v: str) -> bool:
     )
 
 
-def parse_artifact_string(v: str) -> str:
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     if not v.startswith("wandb-artifact://") and not v.startswith(
         "wandb-artifact-digest://"
     ):
@@ -1496,20 +1496,20 @@ def parse_artifact_string(v: str) -> str:
         return parse_artifact_digest_string(v)
 
     parsed_v = v[len("wandb-artifact://") :]
-    # base_uri = None
-    # if is_uri(v[0]):
-    #     base_uri = v[0]
-    #     v = v[1:]
-
     parts = parsed_v.split("/")
+    base_uri = None
+    if is_uri(v[0]):
+        base_uri = parts[0]
+        parts = parts[1:]
+
     if len(parts) < 3:
         raise ValueError(f"Invalid artifact string: {v}")
-    if len(parts) > 3:
-        # for now can't fetch paths but this will be supported in the future
-        # when we allow passing typed media objects
-        entity, project, name_and_alias_or_version = parts[:2]
-        return f"{entity}/{project}/{name_and_alias_or_version}"
-    return parsed_v
+
+    # for now can't fetch paths but this will be supported in the future
+    # when we allow passing typed media objects, this can be extended
+    # to include paths
+    entity, project, name_and_alias_or_version = parts[:2]
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
 
 
 def parse_artifact_digest_string(v: str) -> str:
@@ -1517,13 +1517,15 @@ def parse_artifact_digest_string(v: str) -> str:
         raise ValueError(f"Invalid artifact id string: {v}")
 
     parsed_v = v[len("wandb-artifact-wandb-artifact-digest://") :]
-    parts = v.split("/")
+    parts = parsed_v.split("/")
+    base_uri = None
+    if is_uri(v[0]):
+        base_uri = parts[0]
+        parts = parts[1:]
     if len(parts) < 2:
         raise ValueError(f"Invalid artifact string: {v}")
-    if len(parts) > 2:
-        wandb.termwarn("Artifact string includes paths")
-        # for now can't fetch paths but this will be supported in the future
-        # when we allow passing typed media objects
-        artifact_string = parts[1]
-        return artifact_string
-    return parsed_v
+    # for now can't fetch paths but this will be supported in the future
+    # when we allow passing typed media objects, this can be extended
+    # to include paths
+    artifact_string = parts[0]
+    return artifact_string, base_uri

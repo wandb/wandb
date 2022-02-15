@@ -974,8 +974,11 @@ class Run:
         self, key: str, val: Union[str, Artifact]
     ) -> Union[Artifact, public.Artifact]:
         if isinstance(val, str) and val.startswith("wandb-artifact"):
-            artifact_string = parse_artifact_string(val)
-            public_api = self._public_api()
+            artifact_string, base_uri = parse_artifact_string(val)
+            overrides = {}
+            if base_uri is not None:
+                overrides = {"base_uri": base_uri}
+            public_api = self._public_api(overrides=overrides)
             artifact = public_api.artifact(name=artifact_string)
             return self.use_artifact(artifact, use_as=key)
         else:
@@ -2255,7 +2258,7 @@ class Run:
             )
         return artifact
 
-    def _public_api(self) -> PublicApi:
+    def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
         overrides = {"run": self.id}
         run_obj = self._run_obj
         if run_obj is not None:
