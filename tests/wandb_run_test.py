@@ -449,7 +449,6 @@ def test_artifact_string_digest_run_config_set_item(
         "sequenceName": run.config.dataset._sequence_name,
         "usedAs": "dataset",
     }
-    assert False
 
 
 def test_artifact_string_run_config_update(
