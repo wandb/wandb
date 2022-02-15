@@ -16,9 +16,13 @@ assert:
   - :yea:exit: 1
 """
 
+import time
 from unittest import mock
 
 import wandb
 
-with mock.patch("wandb.sdk.wandb_init._WandbInit.init", side_effect=Exception("injected")) as m:
-    run = wandb.init()
+try:
+    with mock.patch("wandb.sdk.wandb_init._WandbInit.init", side_effect=Exception("injected")) as m:
+        run = wandb.init()
+finally:
+    time.sleep(3)
