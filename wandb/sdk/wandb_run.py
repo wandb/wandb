@@ -1144,7 +1144,7 @@ class Run:
                 message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
                     current_pid, self._init_pid
                 )
-                if self._settings._strict:
+                if self._settings.strict:
                     wandb.termerror(message, repeat=False)
                     raise errors.LogMultiprocessError(
                         "log() does not support multiprocessing"

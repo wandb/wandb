@@ -367,11 +367,7 @@ class HandleManager(object):
         return updated
 
     def _history_assign_step(
-        self,
-        history: Union[
-            wandb_internal_pb2.PartialHistoryRequest, wandb_internal_pb2.HistoryRecord
-        ],
-        history_dict: Dict,
+        self, history: wandb_internal_pb2.HistoryRecord, history_dict: Dict,
     ) -> None:
         has_step = history.HasField("step")
         item = history.item.add()
