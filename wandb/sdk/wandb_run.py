@@ -1136,7 +1136,6 @@ class Run:
         data: Dict[str, Any],
         step: Optional[int] = None,
         commit: Optional[bool] = None,
-        sync: Optional[bool] = None,
     ) -> None:
         if not self._settings._require_service:
             current_pid = os.getpid()
@@ -1370,7 +1369,14 @@ class Run:
             ValueError: if invalid data is passed
 
         """
-        self._log(data=data, step=step, commit=commit, sync=sync)
+        if sync is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__log_sync,
+                warning_message=(
+                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
+                ),
+            )
+        self._log(data=data, step=step, commit=commit)
 
     def save(
         self,

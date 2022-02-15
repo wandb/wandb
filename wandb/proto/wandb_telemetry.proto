@@ -105,6 +105,7 @@ message Deprecated {
   bool run__save_no_args = 3; // wandb.run.save() called without arguments
   bool run__join = 4; // wandb.run.join() called
   bool plots = 5; // wandb.plots.* called
+  bool run__log_sync = 6; // wandb.run.log(sync=...) called
 }
 
 message Issues {
