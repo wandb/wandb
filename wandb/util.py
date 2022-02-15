@@ -1490,13 +1490,13 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     if not v.startswith("wandb-artifact://"):
         raise ValueError(f"Invalid artifact string: {v}")
     parsed_v = v[len("wandb-artifact://") :]
-    parts = parsed_v.split("/")
     base_uri = None
-
-    if is_uri(v[0]):
-        base_uri = parts[0]
-        parts = parts[1:]
-
+    url_info = urllib.parse.urlparse(parsed_v)
+    if url_info.scheme != "":
+        base_uri = f"{url_info.scheme}://{url_info.netloc}"
+        parts = url_info.path.split("/")[1:]
+    else:
+        parts = parsed_v.split("/")
     if parts[0] == "_id":
         # for now can't fetch paths but this will be supported in the future
         # when we allow passing typed media objects, this can be extended
