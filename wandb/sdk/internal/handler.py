@@ -205,7 +205,10 @@ class HandleManager(object):
             tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
-    def _save_history(self, history: wandb_internal_pb2.HistoryRecord,) -> None:
+    def _save_history(
+        self,
+        history: wandb_internal_pb2.HistoryRecord,
+    ) -> None:
         for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
@@ -361,7 +364,9 @@ class HandleManager(object):
         return updated
 
     def _history_assign_step(
-        self, history: wandb_internal_pb2.HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: wandb_internal_pb2.HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
         has_step = history.HasField("step")
         item = history.item.add()
@@ -440,7 +445,9 @@ class HandleManager(object):
         )
 
     def _history_update(
-        self, history: wandb_internal_pb2.HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: wandb_internal_pb2.HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
 
         #  if syncing an old run, we can skip this logic
@@ -475,16 +482,19 @@ class HandleManager(object):
         if updated:
             self._save_summary(self._consolidated_summary)
 
-    def _flush_partial_history(self) -> None:
+    def _flush_partial_history(
+        self,
+        partial_history: Optional["wandb_internal_pb2.PartialHistoryRequest"] = None,
+    ) -> None:
         if self._partial_history:
             history = wandb_internal_pb2.HistoryRecord()
-            record = wandb_internal_pb2.Record(history=history)
             for k, v in self._partial_history.items():
-                item = record.history.item.add()
+                item = history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
-
-            self.handle_history(record)
+            if partial_history:
+                history.step.MergeFrom(partial_history.step)
+            self.handle_history(wandb_internal_pb2.Record(history=history))
             self._partial_history = {}
 
     def handle_request_partial_history(self, record: Record) -> None:
@@ -494,7 +504,7 @@ class HandleManager(object):
         self._partial_history.update(history_dict)
 
         if record.request.partial_history.action.flush:
-            self._flush_partial_history()
+            self._flush_partial_history(record.request.partial_history)
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary
@@ -778,7 +788,9 @@ class HandleManager(object):
     next = __next__
 
     def _history_assign_runtime(
-        self, history: wandb_internal_pb2.HistoryRecord, history_dict: Dict[str, Any],
+        self,
+        history: wandb_internal_pb2.HistoryRecord,
+        history_dict: Dict[str, Any],
     ) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:
