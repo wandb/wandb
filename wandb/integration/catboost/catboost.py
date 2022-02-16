@@ -76,7 +76,6 @@ def _checkpoint_artifact(
 
     model_artifact = wandb.Artifact(name=model_name, type="model")
     model_artifact.add_file(str(model_path))
-    # todo: use wandb.run._log_artifact once available
     wandb.log_artifact(model_artifact, aliases=aliases)
 
 
