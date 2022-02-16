@@ -21,15 +21,28 @@ from typing import (
     TYPE_CHECKING,
 )
 
-from wandb.proto import wandb_internal_pb2
-from wandb.proto.wandb_internal_pb2 import Record, Result
+from wandb.proto.wandb_internal_pb2 import (
+    HistoryRecord,
+    MetricRecord,
+    Record,
+    Result,
+    SampledHistoryItem,
+    SummaryItem,
+    SummaryRecord,
+)
 
-from . import meta, sample, stats
-from . import tb_watcher
+from . import meta, sample, stats, tb_watcher
 from .settings_static import SettingsStatic
 from ..interface.interface_queue import InterfaceQueue
-from ..lib import handler_util, proto_util
-from ..lib import tracelog
+from ..lib import handler_util, proto_util, tracelog
+
+if TYPE_CHECKING:
+    from wandb.proto.wandb_internal_pb2 import (
+        ArtifactDoneRequest,
+        MetricSummary,
+        PartialHistoryRequest,
+    )
+
 
 SummaryDict = Dict[str, Any]
 
@@ -62,13 +75,13 @@ class HandleManager(object):
     _interface: InterfaceQueue
     _system_stats: Optional[stats.SystemStats]
     _tb_watcher: Optional[tb_watcher.TBWatcher]
-    _metric_defines: Dict[str, wandb_internal_pb2.MetricRecord]
-    _metric_globs: Dict[str, wandb_internal_pb2.MetricRecord]
+    _metric_defines: Dict[str, MetricRecord]
+    _metric_globs: Dict[str, MetricRecord]
     _metric_track: Dict[Tuple[str, ...], float]
     _metric_copy: Dict[Tuple[str, ...], Any]
     _track_time: Optional[float]
     _accumulate_time: float
-    _artifact_xid_done: Dict[str, wandb_internal_pb2.ArtifactDoneRequest]
+    _artifact_xid_done: Dict[str, "ArtifactDoneRequest"]
 
     def __init__(
         self,
@@ -193,22 +206,19 @@ class HandleManager(object):
         self._dispatch_record(record)
 
     def _save_summary(self, summary_dict: SummaryDict, flush: bool = False) -> None:
-        summary = wandb_internal_pb2.SummaryRecord()
+        summary = SummaryRecord()
         for k, v in summary_dict.items():
             update = summary.update.add()
             update.key = k
             update.value_json = json.dumps(v)
-        record = wandb_internal_pb2.Record(summary=summary)
+        record = Record(summary=summary)
         if flush:
             self._dispatch_record(record)
         elif not self._settings._offline:
             tracelog.log_message_queue(record, self._sender_q)
             self._sender_q.put(record)
 
-    def _save_history(
-        self,
-        history: wandb_internal_pb2.HistoryRecord,
-    ) -> None:
+    def _save_history(self, history: HistoryRecord,) -> None:
         for item in history.item:
             # TODO(jhr) save nested keys?
             k = item.key
@@ -219,7 +229,7 @@ class HandleManager(object):
 
     def _update_summary_metrics(
         self,
-        s: wandb_internal_pb2.MetricSummary,
+        s: "MetricSummary",
         kl: List[str],
         v: "numbers.Real",
         float_v: float,
@@ -281,10 +291,7 @@ class HandleManager(object):
         return updated
 
     def _update_summary_leaf(
-        self,
-        kl: List[str],
-        v: Any,
-        d: Optional[wandb_internal_pb2.MetricRecord] = None,
+        self, kl: List[str], v: Any, d: Optional[MetricRecord] = None,
     ) -> bool:
         has_summary = d and d.HasField("summary")
         if len(kl) == 1:
@@ -315,10 +322,7 @@ class HandleManager(object):
         return False
 
     def _update_summary_list(
-        self,
-        kl: List[str],
-        v: Any,
-        d: Optional[wandb_internal_pb2.MetricRecord] = None,
+        self, kl: List[str], v: Any, d: Optional[MetricRecord] = None,
     ) -> bool:
         metric_key = ".".join([k.replace(".", "\\.") for k in kl])
         d = self._metric_defines.get(metric_key, d)
@@ -364,9 +368,7 @@ class HandleManager(object):
         return updated
 
     def _history_assign_step(
-        self,
-        history: wandb_internal_pb2.HistoryRecord,
-        history_dict: Dict[str, Any],
+        self, history: HistoryRecord, history_dict: Dict[str, Any],
     ) -> None:
         has_step = history.HasField("step")
         item = history.item.add()
@@ -381,9 +383,7 @@ class HandleManager(object):
             item.value_json = json.dumps(self._step)
             self._step += 1
 
-    def _history_define_metric(
-        self, hkey: str
-    ) -> Optional[wandb_internal_pb2.MetricRecord]:
+    def _history_define_metric(self, hkey: str) -> Optional[MetricRecord]:
         """check for hkey match in glob metrics, return defined metric."""
         # Dont define metric for internal metrics
         if hkey.startswith("_"):
@@ -391,7 +391,7 @@ class HandleManager(object):
         for k, mglob in self._metric_globs.items():
             if k.endswith("*"):
                 if hkey.startswith(k[:-1]):
-                    m = wandb_internal_pb2.MetricRecord()
+                    m = MetricRecord()
                     m.CopyFrom(mglob)
                     m.ClearField("glob_name")
                     m.options.defined = False
@@ -412,7 +412,7 @@ class HandleManager(object):
             m = self._history_define_metric(hkey)
             if not m:
                 return
-            mr = wandb_internal_pb2.Record()
+            mr = Record()
             mr.metric.CopyFrom(m)
             mr.control.local = True  # Dont store this, just send it
             self._handle_defined_metric(mr)
@@ -445,9 +445,7 @@ class HandleManager(object):
         )
 
     def _history_update(
-        self,
-        history: wandb_internal_pb2.HistoryRecord,
-        history_dict: Dict[str, Any],
+        self, history: HistoryRecord, history_dict: Dict[str, Any],
     ) -> None:
 
         #  if syncing an old run, we can skip this logic
@@ -483,18 +481,17 @@ class HandleManager(object):
             self._save_summary(self._consolidated_summary)
 
     def _flush_partial_history(
-        self,
-        partial_history: Optional["wandb_internal_pb2.PartialHistoryRequest"] = None,
+        self, partial_history: Optional["PartialHistoryRequest"] = None,
     ) -> None:
         if self._partial_history:
-            history = wandb_internal_pb2.HistoryRecord()
+            history = HistoryRecord()
             for k, v in self._partial_history.items():
                 item = history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
-            if partial_history:
+            if partial_history and partial_history.HasField("step"):
                 history.step.MergeFrom(partial_history.step)
-            self.handle_history(wandb_internal_pb2.Record(history=history))
+            self.handle_history(Record(history=history))
             self._partial_history = {}
 
     def handle_request_partial_history(self, record: Record) -> None:
@@ -680,7 +677,7 @@ class HandleManager(object):
     def handle_request_get_summary(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         for key, value in self._consolidated_summary.items():
-            item = wandb_internal_pb2.SummaryItem()
+            item = SummaryItem()
             item.key = key
             item.value_json = json.dumps(value)
             result.response.get_summary_response.item.append(item)
@@ -693,40 +690,40 @@ class HandleManager(object):
             self._tb_watcher.add(tbrecord.log_dir, tbrecord.save, tbrecord.root_dir)
         self._dispatch_record(record)
 
-    def _handle_defined_metric(self, record: wandb_internal_pb2.Record) -> None:
+    def _handle_defined_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
-            self._metric_defines.setdefault(
-                metric.name, wandb_internal_pb2.MetricRecord()
-            ).CopyFrom(metric)
+            self._metric_defines.setdefault(metric.name, MetricRecord()).CopyFrom(
+                metric
+            )
         else:
-            self._metric_defines.setdefault(
-                metric.name, wandb_internal_pb2.MetricRecord()
-            ).MergeFrom(metric)
+            self._metric_defines.setdefault(metric.name, MetricRecord()).MergeFrom(
+                metric
+            )
 
         # before dispatching, make sure step_metric is defined, if not define it and
         # dispatch it locally first
         metric = self._metric_defines[metric.name]
         if metric.step_metric and metric.step_metric not in self._metric_defines:
-            m = wandb_internal_pb2.MetricRecord(name=metric.step_metric)
+            m = MetricRecord(name=metric.step_metric)
             self._metric_defines[metric.step_metric] = m
-            mr = wandb_internal_pb2.Record()
+            mr = Record()
             mr.metric.CopyFrom(m)
             mr.control.local = True  # Dont store this, just send it
             self._dispatch_record(mr)
 
         self._dispatch_record(record)
 
-    def _handle_glob_metric(self, record: wandb_internal_pb2.Record) -> None:
+    def _handle_glob_metric(self, record: Record) -> None:
         metric = record.metric
         if metric._control.overwrite:
-            self._metric_globs.setdefault(
-                metric.glob_name, wandb_internal_pb2.MetricRecord()
-            ).CopyFrom(metric)
+            self._metric_globs.setdefault(metric.glob_name, MetricRecord()).CopyFrom(
+                metric
+            )
         else:
-            self._metric_globs.setdefault(
-                metric.glob_name, wandb_internal_pb2.MetricRecord()
-            ).MergeFrom(metric)
+            self._metric_globs.setdefault(metric.glob_name, MetricRecord()).MergeFrom(
+                metric
+            )
         self._dispatch_record(record)
 
     def handle_metric(self, record: Record) -> None:
@@ -761,7 +758,7 @@ class HandleManager(object):
     def handle_request_sampled_history(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         for key, sampled in self._sampled_history.items():
-            item = wandb_internal_pb2.SampledHistoryItem()
+            item = SampledHistoryItem()
             item.key = key
             values: Iterable[Any] = sampled.get()
             if all(isinstance(i, numbers.Integral) for i in values):
@@ -788,9 +785,7 @@ class HandleManager(object):
     next = __next__
 
     def _history_assign_runtime(
-        self,
-        history: wandb_internal_pb2.HistoryRecord,
-        history_dict: Dict[str, Any],
+        self, history: HistoryRecord, history_dict: Dict[str, Any],
     ) -> None:
         # _runtime calculation is meaningless if there is no _timestamp
         if "_timestamp" not in history_dict:

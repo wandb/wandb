@@ -492,23 +492,26 @@ class InterfaceBase(object):
     def publish_partial_history(
         self,
         data: dict,
-        step: int = None,
-        run: Optional["Run"] = None,
-        flush: bool = False,
+        step: int,
+        flush: Optional[bool] = None,
         publish_step: bool = True,
+        run: Optional["Run"] = None,
     ) -> None:
         run = run or self._run
+
         data = data_types.history_dict_to_json(run, data, step=step)
-        partial_history = pb.PartialHistoryRequest()
-        if publish_step:
-            assert step is not None
-            partial_history.step.num = step
         data.pop("_step", None)
+
+        partial_history = pb.PartialHistoryRequest()
         for k, v in data.items():
             item = partial_history.item.add()
             item.key = k
             item.value_json = json_dumps_safer_history(v)
-        partial_history.action.flush = flush
+        if publish_step:
+            assert step is not None
+            partial_history.step.num = step
+        if flush is not None:
+            partial_history.action.flush = flush
         self._publish_partial_history(partial_history)
 
     @abstractmethod
