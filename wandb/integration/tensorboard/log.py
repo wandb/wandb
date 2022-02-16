@@ -1,9 +1,14 @@
 import re
 import time
+from typing import Any, Optional, TYPE_CHECKING
 
 import six
 import wandb
+from wandb.sdk.lib import telemetry
 from wandb.viz import create_custom_chart
+
+if TYPE_CHECKING:
+    from wandb.sdk.internal.tb_watcher import TBHistory
 
 # We have atleast the default namestep and a global step to track
 # TODO: reset this structure on wandb.join
@@ -20,10 +25,8 @@ tensor_util = wandb.util.get_module("tensorboard.util.tensor_util")
 pb = wandb.util.get_module(
     "tensorboard.compat.proto.summary_pb2"
 ) or wandb.util.get_module("tensorflow.core.framework.summary_pb2")
-if pb:
-    Summary = pb.Summary
-else:
-    Summary = None
+
+Summary = pb.Summary if pb else None
 
 
 def make_ndarray(tensor):
@@ -251,9 +254,13 @@ def reset_state():
     STEPS = {"": {"step": 0}, "global": {"step": 0, "last_log": None}}
 
 
-def log(
-    tf_summary_str_or_pb, history=None, step=0, namespace="", **kwargs,
-):
+def _log(
+    tf_summary_str_or_pb: Any,
+    history: Optional["TBHistory"] = None,
+    step: int = 0,
+    namespace: str = "",
+    **kwargs: Any,
+) -> None:
     """Logs a tfsummary to wandb
 
     Can accept a tf summary string or parsed event.  Will use wandb.run.history unless a
@@ -312,3 +319,15 @@ def log(
         wandb.run._log(log_dict, commit=False)
     else:
         history._row_update(log_dict)
+
+
+def log(tf_summary_str_or_pb: Any, step: int = 0, namespace: str = "") -> None:
+    if wandb.run is None:
+        raise wandb.Error(
+            "You must call `wandb.init()` before calling wandb.tensorflow.log"
+        )
+
+    with telemetry.context() as tel:
+        tel.feature.tensorboard_log = True
+
+    _log(tf_summary_str_or_pb, namespace=namespace, step=step)

@@ -411,7 +411,7 @@ class TBEventConsumer(object):
             self._save_row(item)
 
     def _handle_event(self, event: "ProtoEvent", history: "TBHistory" = None) -> None:
-        wandb.tensorboard.log(
+        wandb.tensorboard._log(
             event.event,
             step=event.event.step,
             namespace=event.namespace,
