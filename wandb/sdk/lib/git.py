@@ -7,6 +7,8 @@ import os
 from six.moves import configparser
 from six.moves.urllib.parse import urlparse, urlunparse
 
+import wandb
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +33,10 @@ class GitRepo(object):
                     )
                 except exc.InvalidGitRepositoryError:
                     logger.debug("git repository is invalid")
+                    self._repo = False
+                except exc.NoSuchPathError:
+                    wandb.termwarn(f"git root {self._root} does not exist")
+                    logger.warn(f"git root {self._root} does not exist")
                     self._repo = False
         return self._repo
 
