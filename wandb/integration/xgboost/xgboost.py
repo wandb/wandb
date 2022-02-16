@@ -1,15 +1,12 @@
-# -*- coding: utf-8 -*-
-"""
-xgboost init
-"""
+"""xgboost init!"""
 
-import os
 import json
-import wandb
-import warnings
-import xgboost as xgb
-from typing import cast
 from pathlib import Path
+from typing import cast
+import warnings
+
+import wandb
+import xgboost as xgb
 
 
 MINIMIZE_METRICS = [
@@ -28,9 +25,7 @@ MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
 
 
 def wandb_callback():
-    """
-    Old style callback that will be deprecated in favor of WandbCallback. Please try the new logger for more features. 
-    """
+    """Old style callback that will be deprecated in favor of WandbCallback. Please try the new logger for more features."""
     warnings.warn(
         "wandb_callback will be deprecated in favor of WandbCallback. Please use WandbCallback for more features.",
         UserWarning,
@@ -47,15 +42,15 @@ def wandb_callback():
 
 class WandbCallback(xgb.callback.TrainingCallback):
     """`WandbCallback` automatically integrates XGBoost with wandb.
-    
+
     Arguments:
         log_model: (boolean) if True save and upload the model to Weights & Biases Artifacts
         log_feature_importance: (boolean) if True log a feature importance bar plot
-        importance_type: (str) one of {weight, gain, cover, total_gain, total_cover} for tree model. weight for linear model. 
+        importance_type: (str) one of {weight, gain, cover, total_gain, total_cover} for tree model. weight for linear model.
         define_metric: (boolean) if True (default) capture model performance at the best step, instead of the last step, of training in your `wandb.summary`.
-        
+
     Passing `WandbCallback` to XGBoost will:
-    
+
     - log the booster model configuration to Weights & Biases
     - log evaluation metrics collected by XGBoost, such as rmse, accuracy etc to Weights & Biases
     - log training metric collected by XGBoost (if you provide training data to eval_set)
@@ -77,8 +72,8 @@ class WandbCallback(xgb.callback.TrainingCallback):
         )
 
         xg_reg = xgb.XGBRegressor(**bst_params)
-        xg_reg.fit(X_train, 
-            y_train, 
+        xg_reg.fit(X_train,
+            y_train,
             eval_set=[(X_test, y_test)],
             callbacks=[WandbCallback()])
         )
@@ -102,8 +97,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
         self.define_metric = define_metric
 
     def before_training(self, model):
-        """Run before training is finished"""
-
+        """Run before training is finished."""
         # Update W&B config
         config = model.save_config()
         wandb.config.update(json.loads(config))
@@ -112,7 +106,6 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
     def after_training(self, model):
         """Run after training is finished."""
-
         # Log the booster model as artifacts
         if self.log_model:
             self._log_model_as_artifact(model)
@@ -134,7 +127,6 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
     def after_iteration(self, model, epoch, evals_log):
         """Run after each iteration. Return True when training should stop."""
-
         # Log metrics
         for data, metric in evals_log.items():
             for metric_name, log in metric.items():
