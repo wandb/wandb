@@ -162,6 +162,9 @@ tensorflow = _lazyloader.LazyLoader(
 xgboost = _lazyloader.LazyLoader(
     "wandb.xgboost", globals(), "wandb.integration.xgboost"
 )
+catboost = _lazyloader.LazyLoader(
+    "wandb.catboost", globals(), "wandb.integration.catboost"
+)
 tensorboard = _lazyloader.LazyLoader(
     "wandb.tensorboard", globals(), "wandb.integration.tensorboard"
 )

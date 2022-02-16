@@ -69,6 +69,7 @@ SYMBOLS_ROOT_OTHER = {
     "alert",
     "api",
     "apis",
+    "catboost",
     "data_types",
     "division",
     "docker",
@@ -100,6 +101,8 @@ SYMBOLS_ROOT_OTHER = {
     "set_trace",
     "setup",
     "sklearn",
+    "sync",
+    "sweeps",
     "sys",
     "tensorboard",
     "wandb.tensorboard",  # TODO: much like wandb.docker, this mysteriously failed in CI...?
@@ -121,9 +124,9 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_sdk",
     "wandb_torch",
     "xgboost",
-    "sync",
-    "sweeps",
     "cli",
+    # typing
+    "Optional",
 }
 
 
