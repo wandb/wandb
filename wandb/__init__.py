@@ -12,17 +12,12 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 __version__ = "0.12.11.dev1"
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
 
-import sys
+from typing import Optional
 
 from wandb.errors import Error
 
@@ -127,7 +122,7 @@ def _assert_is_user_process():
 # globals
 Api = PublicApi
 api = InternalApi()
-run = None
+run: Optional["wandb.sdk.wandb_run.Run"] = None
 config = _preinit.PreInitCallable(
     _preinit.PreInitObject("wandb.config"), wandb_sdk.wandb_config.Config
 )
