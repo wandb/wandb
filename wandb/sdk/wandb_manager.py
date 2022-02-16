@@ -146,6 +146,10 @@ class _Manager:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_init(settings=settings, run_id=run_id)
 
+    def _inform_start(self, settings: "Settings", run_id: str) -> None:
+        svc_iface = self._get_service_interface()
+        svc_iface._svc_inform_start(settings=settings, run_id=run_id)
+
     def _inform_attach(self, attach_id: str) -> None:
         svc_iface = self._get_service_interface()
         svc_iface._svc_inform_attach(attach_id=attach_id)

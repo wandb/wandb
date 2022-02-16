@@ -272,6 +272,17 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     run.finish()
 
 
+def test_run_urls(test_settings):
+    base_url = "https://my.cool.site.com"
+    entity = "me"
+    project = "test"
+    test_settings.update(dict(base_url=base_url, entity=entity, project=project))
+    run = wandb.init(settings=test_settings)
+    assert run.get_project_url() == f"{base_url}/{entity}/{project}"
+    assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
+    run.finish
+
+
 def test_use_artifact(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     artifact = wandb.Artifact("arti", type="dataset")
@@ -390,6 +401,24 @@ def test_settings_validation_telemetry(
     telemetry_issues = telemetry.get("11", [])
     assert 1 in telemetry_issues
     run.finish()
+
+
+# test that information about validation errors in wandb.Settings is included in telemetry
+def test_settings_preprocessing_telemetry(
+    live_mock_server, test_settings, parse_ctx, capsys
+):
+    with mock.patch.dict("os.environ", WANDB_QUIET="cat"):
+        run = wandb.init(settings=test_settings)
+        captured = capsys.readouterr().err
+        msg = "Unable to preprocess value for property quiet: cat"
+        assert msg in captured and "This will raise an error in the future" in captured
+        ctx_util = parse_ctx(live_mock_server.get_ctx())
+        telemetry = ctx_util.telemetry
+        # TelemetryRecord field 11 is Issues,
+        # whose field 3 corresponds to preprocessing warnings in Settings
+        telemetry_issues = telemetry.get("11", [])
+        assert 3 in telemetry_issues
+        run.finish()
 
 
 def test_settings_unexpected_args_telemetry(
