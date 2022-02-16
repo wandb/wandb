@@ -43,12 +43,13 @@ def validate_docker_installation() -> None:
 def get_docker_user(launch_project: LaunchProject, runner_type: str) -> Tuple[str, int]:
     import getpass
 
-    if runner_type == "sagemaker":
-        # sagemaker must run as root
-        # @@@ todo fix if user provided docker image
-        return "root", 0
-
     username = getpass.getuser()
+
+    if runner_type == "sagemaker":
+        # sagemaker must run as root but keep the name for workdir etc
+        # @@@ todo fix if user provided docker image
+        return username, 0
+
     userid = launch_project.docker_user_id or os.geteuid()
     return username, userid
 
@@ -159,10 +160,10 @@ def get_current_python_version() -> Tuple[str, str]:
 def get_base_setup(
     launch_project: LaunchProject, py_version: str, py_major: str
 ) -> str:
-    """Fill in the Dockerfile templates for stage 2 of build. CPU version is built on python:slim, GPU
+    """Fill in the Dockerfile templates for stage 2 of build. CPU version is built on python, GPU
     version is built on nvidia:cuda"""
 
-    python_base_image = "python:{}-slim-buster".format(py_version)  # slim for running
+    python_base_image = "python:{}-buster".format(py_version)
     if launch_project.cuda:
         cuda_version = launch_project.cuda_version or "10.0"
         # cuda image doesn't come with python tooling
@@ -267,7 +268,10 @@ def get_user_setup(username, userid, runner_type):
     return user_create
 
 
-def get_entrypoint_setup(launch_project, command_arr, workdir, runner_type):
+def get_entrypoint_setup(launch_project, entrypoint, overrides, workdir, runner_type):
+    # put together entrypoint & args
+    entry_cmd = get_entry_point_command(entrypoint, overrides)[0]
+
     if runner_type == "sagemaker":
         # sagemaker automatically appends train after the entrypoint
         # by redirecting to running a train script we can avoid issues
@@ -275,9 +279,11 @@ def get_entrypoint_setup(launch_project, command_arr, workdir, runner_type):
         # argument to be present it is captured in the original jobs
         # command arguments
         with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
-            fp.write(" ".join(command_arr))
+            fp.write(entry_cmd)
         return SAGEMAKER_ENTRYPOINT_TEMPLATE.format(workdir=workdir)
 
+    # json format to ensure argslist is formatted with double quotes
+    command_arr = json.dumps(entry_cmd.split())
     return "ENTRYPOINT {}".format(command_arr)
 
 
@@ -316,12 +322,7 @@ def generate_dockerfile(
     # add env vars
     env_vars_section = get_env_vars_section(launch_project, api, workdir)
 
-    # put together entrypoint & args
-    # json format to ensure argslist is formatted with double quotes
-    entry_cmd = json.dumps(
-        get_entry_point_command(entrypoint, launch_project.override_args)[0].split()
-    )
-    entrypoint_section = get_entrypoint_setup(launch_project, entry_cmd, workdir, runner_type)
+    entrypoint_section = get_entrypoint_setup(launch_project, entrypoint, launch_project.override_args, workdir, runner_type)
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,

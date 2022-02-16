@@ -4,7 +4,9 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
+
+from wandb.integration import sagemaker
 
 if False:
     import boto3  # type: ignore
@@ -20,8 +22,6 @@ from .._project_spec import (
 )
 from ..docker import (
     construct_local_image_uri,
-    docker_image_exists,
-    docker_image_inspect,
     generate_docker_image,
     pull_docker_image,
     validate_docker_installation,
@@ -304,6 +304,10 @@ def build_sagemaker_args(
         raise LaunchError(
             "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
+
+    # remove args that were passed in for launch but not passed to sagemaker
+    sagemaker_args.pop("region", None)
+    sagemaker_args.pop("profile", None)
 
     # clear the args that are None so they are not passed
     filtered_args = {k: v for k, v in sagemaker_args.items() if v is not None}
