@@ -11,6 +11,7 @@ import re
 import shutil
 import sys
 import tempfile
+from timeit import repeat
 from typing import (
     Any,
     cast,
@@ -104,6 +105,15 @@ def _server_accepts_client_ids() -> bool:
     if max_cli_version is None:
         return False
     return parse_version("0.11.0") <= parse_version(max_cli_version)
+
+
+def _server_accepts_image_filenames() -> bool:
+    # Newer versions of wandb accept large image filenames arrays
+    # but older versions would have issues with this.
+    max_cli_version = _get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.12.10") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -2418,6 +2428,14 @@ class Image(BatchableMedia):
             "count": num_images_to_log,
             "filenames": [obj["path"] for obj in jsons],
         }
+        if _server_accepts_image_filenames():
+            meta["filenames"] = [obj["path"] for obj in jsons]
+        else:
+            wandb.termwarn(
+                "Unable to log image array filenames. In some cases, this can prevent images from being"
+                "viewed in the UI. Please upgrade your wandb server.",
+                repeat=False,
+            )
 
         captions = Image.all_captions(seq)
 
