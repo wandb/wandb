@@ -66,7 +66,7 @@ def default_ctx():
         "run_queues": {"1": []},
         "num_popped": 0,
         "num_acked": 0,
-        "max_cli_version": "0.12.0",
+        "max_cli_version": "0.13.0",
         "runs": {},
         "run_ids": [],
         "file_names": [],
