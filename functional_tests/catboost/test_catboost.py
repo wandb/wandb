@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Test new catboost integration."""
+"""Test CatBoost integration."""
 
 import catboost
 from catboost import datasets
