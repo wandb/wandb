@@ -31,9 +31,11 @@ class WandbCallback:
             eval_metric='Cox',
         )
 
-        model.fit(train_pool,
-                  eval_set=test_pool,
-                  callbacks=[WandbCallback()])
+        model.fit(
+            train_pool,
+            eval_set=test_pool,
+            callbacks=[WandbCallback()],
+        )
         ```
     """
 
