@@ -4,7 +4,7 @@ catboost init
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Union
+from typing import List, Union
 
 from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
 import wandb
@@ -58,7 +58,7 @@ class WandbCallback:
 
 
 def _checkpoint_artifact(
-    model: Union[CatBoostClassifier, CatBoostRegressor], aliases: list
+    model: Union[CatBoostClassifier, CatBoostRegressor], aliases: List[str]
 ) -> None:
     """
     Upload model checkpoint as W&B artifact
