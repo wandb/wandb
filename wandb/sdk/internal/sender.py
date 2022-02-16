@@ -728,6 +728,7 @@ class SendManager:
             program_path=self._settings.program or None,
             repo=run.git.remote_url or None,
             commit=run.git.last_commit or None,
+            branch=run.git.branch or None,
         )
         self._run = run
         if self._resume_state.resumed:
@@ -972,8 +973,10 @@ class SendManager:
             result.response.log_artifact_response.artifact_id = res["id"]
             logger.info("logged artifact {} - {}".format(artifact.name, res))
         except Exception as e:
-            result.response.log_artifact_response.error_message = 'error logging artifact "{}/{}": {}'.format(
-                artifact.type, artifact.name, e
+            result.response.log_artifact_response.error_message = (
+                'error logging artifact "{}/{}": {}'.format(
+                    artifact.type, artifact.name, e
+                )
             )
 
         self._respond_result(result)

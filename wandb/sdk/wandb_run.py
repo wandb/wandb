@@ -334,6 +334,7 @@ class Run:
         self._tags = None
         self._remote_url = None
         self._last_commit = None
+        self._branch = None
 
         self._hooks = None
         self._teardown_hooks = []
@@ -467,7 +468,8 @@ class Run:
 
     def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
+            pytorch_ignite="ignite",
+            transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -529,6 +531,8 @@ class Run:
             run.git.remote_url = self._remote_url
         if self._last_commit is not None:
             run.git.last_commit = self._last_commit
+        if self._branch is not None:
+            run.git.branch = self._branch
         # Note: run.config is set in interface/interface:_make_run()
 
     def _populate_git_info(self) -> None:
@@ -537,7 +541,11 @@ class Run:
         except Exception:
             wandb.termwarn("Cannot find valid git repo associated with this directory.")
             return
-        self._remote_url, self._last_commit = repo.remote_url, repo.last_commit
+        self._remote_url, self._last_commit, self._branch = (
+            repo.remote_url,
+            repo.last_commit,
+            repo.branch,
+        )
 
     def __getstate__(self) -> Any:
         """Custom pickler."""
@@ -1732,7 +1740,8 @@ class Run:
                 )
                 logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response, printer=self._printer,
+                    self._poll_exit_response,
+                    printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -1761,10 +1770,15 @@ class Run:
         )
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1773,8 +1787,13 @@ class Run:
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -1911,8 +1930,8 @@ class Run:
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -1988,7 +2007,8 @@ class Run:
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2384,7 +2404,9 @@ class Run:
 
     @staticmethod
     def _header_wandb_version_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if settings.quiet or settings.silent:
             return
@@ -2394,7 +2416,9 @@ class Run:
 
     @staticmethod
     def _header_sync_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         # printer = printer or get_printer(settings._jupyter)
@@ -2415,7 +2439,9 @@ class Run:
 
     @staticmethod
     def _header_run_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         if settings._offline or settings.silent:
@@ -2718,7 +2744,9 @@ class Run:
         if log_dir:
             # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
-            printer.display(f"Find logs at: {printer.files(log_dir)}",)
+            printer.display(
+                f"Find logs at: {printer.files(log_dir)}",
+            )
 
     @staticmethod
     def _footer_history_summary_info(
@@ -2756,7 +2784,10 @@ class Run:
                 if sparkline:
                     history_rows.append([key, sparkline])
             if history_rows:
-                history_grid = printer.grid(history_rows, "Run history:",)
+                history_grid = printer.grid(
+                    history_rows,
+                    "Run history:",
+                )
                 panel.append(history_grid)
 
         # Render summary if available
@@ -2781,7 +2812,10 @@ class Run:
                     continue
 
             if summary_rows:
-                summary_grid = printer.grid(summary_rows, "Run summary:",)
+                summary_grid = printer.grid(
+                    summary_rows,
+                    "Run summary:",
+                )
                 panel.append(summary_grid)
 
         if panel:

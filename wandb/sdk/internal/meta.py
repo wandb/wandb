@@ -202,6 +202,7 @@ class Meta(object):
         self.data["git"] = {
             "remote": self._git.remote_url,
             "commit": self._git.last_commit,
+            "branch": self._git.branch,
         }
         self.data["email"] = self._git.email
         self.data["root"] = self._git.root or self.data["root"] or os.getcwd()
