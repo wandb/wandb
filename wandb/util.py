@@ -1463,3 +1463,14 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
         ) and nested:
             return True
     return False
+
+
+def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
+    if os.path.splitext(config)[-1] == ".json":
+        with open(config, "r") as f:
+            return json.load(f)
+    else:
+        try:
+            return json.loads(config)
+        except ValueError:
+            return None

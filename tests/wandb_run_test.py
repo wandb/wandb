@@ -272,6 +272,17 @@ def test_use_artifact_offline(live_mock_server, test_settings):
     run.finish()
 
 
+def test_run_urls(test_settings):
+    base_url = "https://my.cool.site.com"
+    entity = "me"
+    project = "test"
+    test_settings.update(dict(base_url=base_url, entity=entity, project=project))
+    run = wandb.init(settings=test_settings)
+    assert run.get_project_url() == f"{base_url}/{entity}/{project}"
+    assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
+    run.finish
+
+
 def test_use_artifact(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     artifact = wandb.Artifact("arti", type="dataset")
