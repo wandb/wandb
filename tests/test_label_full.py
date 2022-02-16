@@ -150,7 +150,9 @@ def test_label_no_id(doc_inject):
 
 
 def test_label_disable(test_settings, doc_inject):
-    test_settings.label_disable = True
+    test_settings.update(
+        label_disable=True, source=wandb.sdk.wandb_settings.Source.INIT
+    )
     doc_str = """
               this is a test.
 
@@ -172,7 +174,9 @@ def test_label_func_good(test_settings, doc_inject):
 
 
 def test_label_func_disable(test_settings, doc_inject):
-    test_settings.label_disable = True
+    test_settings.update(
+        label_disable=True, source=wandb.sdk.wandb_settings.Source.INIT
+    )
     cu = doc_inject(labels=dict(code="mycode", repo="my_repo", code_version="33"))
     telemetry = cu.telemetry or {}
     assert telemetry.get("9", {}) == {}
