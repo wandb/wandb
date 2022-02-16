@@ -43,7 +43,7 @@ class Meta(object):
             root=self._settings["git_root"],
             remote=self._settings["git_remote"]
             if "git_remote" in self._settings.keys()
-            else "origin"
+            else "origin",
         )
         # Location under "code" directory in files where program was saved.
         self._saved_program = None
