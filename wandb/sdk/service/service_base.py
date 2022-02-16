@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 def _pbmap_apply_dict(
     m: "MessageMap[str, spb.SettingsValue]", d: Dict[str, Any]
 ) -> None:
+
     for k, v in d.items():
         if isinstance(v, datetime.datetime):
             continue
@@ -28,14 +29,16 @@ def _pbmap_apply_dict(
         sv = spb.SettingsValue()
         if v is None:
             sv.null_value = True
+        elif isinstance(
+            v, bool
+        ):  # order matters when using `isinstance` since it looks at all the subclasses and isinstance(True, int) will be true
+            sv.bool_value = v
         elif isinstance(v, int):
             sv.int_value = v
         elif isinstance(v, float):
             sv.float_value = v
         elif isinstance(v, str):
             sv.string_value = v
-        elif isinstance(v, bool):
-            sv.bool_value = v
         elif isinstance(v, tuple):
             sv.tuple_value.string_values.extend(v)
         m[k].CopyFrom(sv)
@@ -51,6 +54,10 @@ class ServiceInterface:
 
     @abstractmethod
     def _svc_inform_init(self, settings: Settings, run_id: str) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def _svc_inform_start(self, settings: Settings, run_id: str) -> None:
         raise NotImplementedError
 
     @abstractmethod

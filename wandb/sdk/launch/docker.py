@@ -202,14 +202,21 @@ def build_docker_image_if_needed(
     name_line = ""
     if launch_project.name:
         name_line = "ENV WANDB_NAME={wandb_name}\n"
+    sagemaker_line = ""
+    if runner_type == "sagemaker":
+        # need to make user root for sagemaker, so users have access to /opt/ml directories
+        # that let users create artifacts and access input data
+        sagemaker_line = "USER root\n"
     dockerfile_contents = (
         "FROM {imagename}\n"
+        "{sagemaker_line}"
         # need to chown this directory for artifacts caching
         "RUN mkdir -p {homedir}/.cache && chown -R {uid} {homedir}/.cache\n"
         "{copy_code_line}"
         "{requirements_line}"
         "{name_line}"
     ).format(
+        sagemaker_line=sagemaker_line,
         imagename=launch_project.base_image,
         uid=launch_project.docker_user_id,
         homedir=homedir,
@@ -223,7 +230,7 @@ def build_docker_image_if_needed(
         _, _, port = _, _, port = api.settings("base_url").split(":")
         base_url = "http://host.docker.internal:{}".format(port)
     elif _is_wandb_dev_uri(api.settings("base_url")):
-        base_url = "http://host.docker.internal:9002"
+        base_url = "http://host.docker.internal:9003"
     else:
         base_url = api.settings("base_url")
     env_vars = "\n".join(
@@ -233,12 +240,24 @@ def build_docker_image_if_needed(
             f"ENV WANDB_PROJECT={launch_project.target_project}",
             f"ENV WANDB_ENTITY={launch_project.target_entity}",
             f"ENV WANDB_LAUNCH={True}",
-            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir, DEFAULT_LAUNCH_METADATA_PATH)}",
+            f"ENV WANDB_LAUNCH_CONFIG_PATH={os.path.join(workdir,DEFAULT_LAUNCH_METADATA_PATH)}",
             f"ENV WANDB_RUN_ID={launch_project.run_id or None}",
             f"ENV WANDB_DOCKER={launch_project.docker_image}",
         ]
     )
     dockerfile_contents += env_vars + "\n"
+
+    if runner_type == "sagemaker":
+        with open(os.path.join(launch_project.project_dir, "train"), "w") as fp:
+            fp.write(" ".join(command_args))
+        dockerfile_contents += f"COPY ./src/train {workdir}\n"
+        dockerfile_contents += f"RUN chmod +x {workdir}/train\n"
+        # sagemaker automatically appends train after the entrypoint
+        # by redirecting to running a train script we can avoid issues
+        # with argparse, and hopefully if the user intends for the train
+        # argument to be present it is captured in the original jobs
+        # command arguments
+        dockerfile_contents += 'ENTRYPOINT ["sh", "train"] \n'
 
     sanitized_dockerfile_contents = re.sub(
         API_KEY_REGEX, "WANDB_API_KEY", dockerfile_contents
@@ -271,13 +290,7 @@ def build_docker_image_if_needed(
     return image
 
 
-def get_docker_command(
-    image: str,
-    launch_project: LaunchProject,
-    api: Api,
-    workdir: str,
-    docker_args: Dict[str, Any] = None,
-) -> List[str]:
+def get_docker_command(image: str, docker_args: Dict[str, Any] = None,) -> List[str]:
     """Constructs the docker command using the image and docker args.
 
     Arguments:
@@ -396,8 +409,6 @@ def get_full_command(
     """
 
     commands = []
-    commands += get_docker_command(
-        image_uri, launch_project, api, container_workdir, docker_args
-    )
+    commands += get_docker_command(image_uri, docker_args)
     commands += get_entry_point_command(entry_point, launch_project.override_args)
     return commands
