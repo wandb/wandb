@@ -80,9 +80,10 @@ def _get_max_cli_version() -> Union[str, None]:
 
 
 def _is_offline() -> bool:
-    return (wandb.run is not None and wandb.run._settings.mode == "offline") or str(
-        wandb.setup().settings.mode
-    ) == "offline"
+    return (
+        (wandb.run is not None and wandb.run.settings._offline)
+        or wandb.setup().settings._offline
+    )
 
 
 def _server_accepts_client_ids() -> bool:

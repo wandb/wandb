@@ -4,7 +4,7 @@ Library public tests.
 *NOTE*: If you need to add a symbol, make sure this has been discussed and the name of the object or method is agreed upon.
 
 TODO:
-    - clean up / hide symbols which shouldnt be public
+    - clean up / hide symbols, which shouldn't be public
     - deprecate ones that were public but we want to remove
 
 """
@@ -125,8 +125,21 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_torch",
     "xgboost",
     "cli",
-    # typing
+}
+
+SYMBOLS_TYPING = {
+    "Any",
+    "AnyStr",
+    "Callable",
+    "ClassVar",
+    "Dict",
+    "List",
     "Optional",
+    "Set",
+    "Tuple",
+    "Type",
+    "TypeVar",
+    "Union",
 }
 
 
@@ -139,6 +152,7 @@ def test_library_root():
         - SYMBOLS_ROOT_DATATYPES
         - SYMBOLS_ROOT_SDK
         - SYMBOLS_ROOT_OTHER
+        - SYMBOLS_TYPING
     )
     assert symbol_unknown == set()
 
@@ -208,7 +222,11 @@ def test_library_run():
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     print("symbols", symbol_public_set)
     symbol_unknown = (
-        symbol_public_set - SYMBOLS_RUN - SYMBOLS_RUN_RESUME - SYMBOLS_RUN_OTHER
+        symbol_public_set
+        - SYMBOLS_RUN
+        - SYMBOLS_RUN_RESUME
+        - SYMBOLS_RUN_OTHER
+        - SYMBOLS_TYPING
     )
     assert symbol_unknown == set()
 
@@ -234,5 +252,7 @@ def test_library_config():
     symbol_list = dir(Config)
     symbol_public_set = {s for s in symbol_list if not s.startswith("_")}
     print("symbols", symbol_public_set)
-    symbol_unknown = symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER
+    symbol_unknown = (
+        symbol_public_set - SYMBOLS_CONFIG - SYMBOLS_CONFIG_OTHER - SYMBOLS_TYPING
+    )
     assert symbol_unknown == set()

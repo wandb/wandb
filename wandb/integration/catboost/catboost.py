@@ -49,8 +49,9 @@ class WandbCallback:
         if info.iteration % self.metric_period == 0:
             for data, metric in info.metrics.items():
                 for metric_name, log in metric.items():
+                    # todo: replace with wandb.run._log once available
                     wandb.log({f"{data}-{metric_name}": log[-1]}, commit=False)
-
+            # todo: replace with wandb.run._log once available
             wandb.log({f"iteration@metric-period-{self.metric_period}": info.iteration})
 
         return True
@@ -75,6 +76,7 @@ def _checkpoint_artifact(
 
     model_artifact = wandb.Artifact(name=model_name, type="model")
     model_artifact.add_file(str(model_path))
+    # todo: use wandb.run._log_artifact once available
     wandb.log_artifact(model_artifact, aliases=aliases)
 
 
@@ -96,6 +98,7 @@ def _log_feature_importance(
         for feat, feat_imp in zip(feat_df["Feature Id"], feat_df["Importances"])
     ]
     table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
+    # todo: replace with wandb.run._log once available
     wandb.log(
         {
             "Feature Importance": wandb.plot.bar(
