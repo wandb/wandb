@@ -169,10 +169,8 @@ def log_summary(
 
     # log model
     if save_model_checkpoint:
-        if params["use_best_model"]:
-            _checkpoint_artifact(model, aliases=["best"])
-        else:
-            _checkpoint_artifact(model, aliases=["last"])
+        aliases = ["best"] if params["use_best_model"] else ["last"]
+        _checkpoint_artifact(model, aliases=aliases)
 
     # Feature importance
     if log_feature_importance:
