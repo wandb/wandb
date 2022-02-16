@@ -19,10 +19,10 @@ _logger = None
 
 def termsetup(settings, logger):
     global _silent, _show_info, _show_warnings, _show_errors, _logger
-    _silent = settings._silent
-    _show_info = settings._show_info
-    _show_warnings = settings._show_warnings
-    _show_errors = settings._show_errors
+    _silent = settings.silent
+    _show_info = settings.show_info
+    _show_warnings = settings.show_warnings
+    _show_errors = settings.show_errors
     _logger = logger
 
 
