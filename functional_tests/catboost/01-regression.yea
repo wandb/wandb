@@ -1,8 +1,8 @@
-id: 0.catboost.catboost
+id: 0.catboost.01-regression
 plugin:
   - wandb
 command:
-    program: test_catboost.py
+    program: 01-regression.py
 depend:
     requirements:
         - catboost>=0.26
@@ -22,3 +22,9 @@ assert:
     - :wandb:runs[0][summary][best_score][learn][MultiClass]
     - 0.0
   - :wandb:runs[0][exitcode]: 0
+  - :op:contains:
+  - :wandb:runs[0][telemetry][3]  # feature
+  - 27  # catboost_wandb_callback
+  - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 28  # catboost_log_summary

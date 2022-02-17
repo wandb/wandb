@@ -8,6 +8,7 @@ from typing import List, Union
 
 from catboost import CatBoostClassifier, CatBoostRegressor  # type: ignore
 import wandb
+from wandb.sdk.lib import telemetry as wb_telemetry
 
 
 class WandbCallback:
@@ -43,6 +44,9 @@ class WandbCallback:
         if wandb.run is None:
             raise wandb.Error("You must call `wandb.init()` before `WandbCallback()`")
 
+        with wb_telemetry.context() as tel:
+            tel.feature.catboost_wandb_callback = True
+
         self.metric_period: int = metric_period
 
     def after_iteration(self, info: SimpleNamespace) -> bool:
@@ -76,7 +80,7 @@ def _checkpoint_artifact(
 
     model_artifact = wandb.Artifact(name=model_name, type="model")
     model_artifact.add_file(str(model_path))
-    wandb.run._log_artifact(model_artifact, aliases=aliases)
+    wandb.log_artifact(model_artifact, aliases=aliases)
 
 
 def _log_feature_importance(
@@ -156,6 +160,9 @@ def log_summary(
         raise wandb.Error(
             "Model should be an instance of CatBoostClassifier or CatBoostRegressor"
         )
+
+    with wb_telemetry.context() as tel:
+        tel.feature.catboost_log_summary = True
 
     # log configs
     params = model.get_all_params()
