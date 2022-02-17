@@ -64,9 +64,9 @@ def main():
     wandb.setup()
     threads = []
     for i in range(2):
-        thread = Thread(target=do_run, args=(i,))
-        thread.start()
-        threads.append(thread)
+        t = Thread(target=do_run, args=(i,))
+        t.start()
+        threads.append(t)
 
     for t in threads:
         t.join()
