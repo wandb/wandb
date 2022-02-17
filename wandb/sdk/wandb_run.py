@@ -2576,8 +2576,7 @@ class Run:
                 response for response in poll_exit_responses.values()
             ]
             assert all(
-                isinstance(response, PollExitResponse)
-                or response is None
+                isinstance(response, PollExitResponse) or response is None
                 for response in poll_exit_responses_list
             )
             if len(poll_exit_responses_list) == 0:
@@ -2591,9 +2590,7 @@ class Run:
                 )
             else:
                 Run._footer_multiple_runs_file_pusher_status_info(
-                    poll_exit_responses_list,
-                    printer=printer,
-                    start_time=start_time,
+                    poll_exit_responses_list, printer=printer, start_time=start_time,
                 )
         else:
             raise ValueError(

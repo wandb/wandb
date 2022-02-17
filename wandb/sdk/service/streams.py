@@ -254,10 +254,7 @@ class StreamMux:
                     streams.pop(sid)
                     streams_to_join[sid] = stream
             Run._footer_file_pusher_status_info(
-                poll_exit_responses,
-                printer=printer,
-                counter=i,
-                start_time=tic,
+                poll_exit_responses, printer=printer, counter=i, start_time=tic,
             )
             i += 1
             time.sleep(0.1)
