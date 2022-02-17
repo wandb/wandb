@@ -4,8 +4,7 @@
 """
 
 import itertools
-import weakref
-from six.moves import reduce
+from functools import reduce
 from operator import mul
 
 from wandb import util
@@ -74,7 +73,6 @@ class TorchHistory:
         self._hook_handles = {}
         self._num_bins = 64
         self._is_cuda_histc_supported = None
-        self._jupyter_run = None
         self.hook_torch = TorchGraph.hook_torch
 
     def add_log_hooks_to_pytorch_module(
@@ -85,7 +83,6 @@ class TorchHistory:
         log_parameters=True,
         log_gradients=True,
         log_freq=0,
-        jupyter_run=None,
     ):
         """This instuments hooks into the pytorch module
         log_parameters - log parameters after a forward pass
@@ -94,10 +91,6 @@ class TorchHistory:
         """
         if name is not None:
             prefix = prefix + name
-
-        # TODO should we remove this?
-        if jupyter_run:
-            self._jupyter_run = weakref.ref(jupyter_run)
 
         if not hasattr(module, "_wandb_hook_names"):
             module._wandb_hook_names = []

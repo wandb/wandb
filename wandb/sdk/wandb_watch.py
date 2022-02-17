@@ -1,13 +1,12 @@
-#
 """watch."""
 
 import logging
 import os
+from typing import Optional
 
 import wandb
 
 from .lib import telemetry
-from .lib.ipython import _get_python_type
 
 logger = logging.getLogger("wandb")
 
@@ -15,7 +14,12 @@ _global_watch_idx = 0
 
 
 def watch(
-    models, criterion=None, log="gradients", log_freq=1000, idx=None, log_graph=False
+    models,
+    criterion=None,
+    log: Optional[str] = "gradients",
+    log_freq: int = 1000,
+    idx: Optional[int] = None,
+    log_graph: bool = False,
 ):
     """Hooks into the torch model to collect gradients and the topology.
 
@@ -47,8 +51,6 @@ def watch(
 
     if wandb.run is None:
         raise ValueError("You must call `wandb.init` before calling watch")
-
-    in_jupyter = _get_python_type() != "python"
 
     log_parameters = False
     log_gradients = True
@@ -92,7 +94,6 @@ def watch(
             log_gradients=log_gradients,
             prefix=prefix,
             log_freq=log_freq,
-            jupyter_run=wandb.run if in_jupyter else None,
         )
 
         if log_graph:
