@@ -77,10 +77,7 @@ class RunPrinter:
     _printer: Union["PrinterJupyter", "PrinterTerm"]
     _run_id: Optional[str]
 
-    def __init__(
-        self,
-        runs: Tuple[Union["Run", "StreamRecord"]],
-    ) -> None:
+    def __init__(self, runs: Tuple[Union["Run", "StreamRecord"]],) -> None:
         self._settings = {run._settings.run_id: run._settings for run in runs}
         # self._run_id = None if len(runs) > 1 else runs[0]._settings.run_id
 
@@ -210,19 +207,13 @@ class RunPrinter:
 
     @repeat_for_all
     def spinner_update(
-        self,
-        poll_exit_response: Optional["PollExitResponse"] = None,
-        *,
-        sid: str,
+        self, poll_exit_response: Optional["PollExitResponse"] = None, *, sid: str,
     ):
 
         yield from self._footer_file_pusher_status_info(poll_exit_response, sid=sid)
 
     def _footer_file_pusher_status_info(
-        self,
-        poll_exit_response: Optional["PollExitResponse"] = None,
-        *,
-        sid: str,
+        self, poll_exit_response: Optional["PollExitResponse"] = None, *, sid: str,
     ) -> None:
 
         settings = self._settings[sid]
@@ -286,12 +277,7 @@ class RunPrinter:
         yield from self._footer_check_version(check_version, quiet, sid=sid)
         yield from self._footer_check_local_warn(poll_exit_response, quiet, sid=sid)
 
-    def _footer_exit_status_info(
-        self,
-        exit_code: int,
-        *,
-        sid: str,
-    ) -> str:
+    def _footer_exit_status_info(self, exit_code: int, *, sid: str,) -> str:
         settings = self._settings[sid]
 
         if settings._silent:
@@ -502,9 +488,7 @@ class RunPrinter:
             warn.extend([f"{line}" for line in warning_lines])
             if len(warning_lines) < reporter.warning_count:
                 warn.append("More warnings...")
-            self._printer.display(
-                warn,
-            )
+            self._printer.display(warn,)
 
         error_lines = reporter.error_lines
         if error_lines:
@@ -512,9 +496,7 @@ class RunPrinter:
             error.extend([f"{line}" for line in error_lines])
             if len(error_lines) < reporter.error_count:
                 error.append("More errors...")
-            self._printer.display(
-                error,
-            )
+            self._printer.display(error,)
 
     # ------------------------------------------------------------------------------
     # STREAMS
