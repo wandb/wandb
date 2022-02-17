@@ -1,3 +1,4 @@
+import pytest
 import logging
 
 
@@ -22,15 +23,15 @@ def test_logging(wandb_init):
     wandb_child_logger.addHandler(wandb_child_handler)
 
     root_logger.info("info1")
-    root_logger.warning("warn1")
+    root_logger.warn("warn1")
 
     run = wandb_init()
 
     root_logger.info("info2")
-    root_logger.warning("warn2")
+    root_logger.warn("warn2")
 
     wandb_logger.info("info3")
-    wandb_logger.warning("warn3")
+    wandb_logger.warn("warn3")
 
     wandb_child_logger.info("info4")
     wandb_child_logger.info("warn4")
@@ -38,7 +39,7 @@ def test_logging(wandb_init):
     run.finish()
 
     root_logger.info("info5")
-    root_logger.warning("warn5")
+    root_logger.warn("warn5")
 
     # Work around unknown test flake WB-6348
     try:
