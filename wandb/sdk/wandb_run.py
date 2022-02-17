@@ -1734,26 +1734,14 @@ class Run:
                 self._poll_exit_response = (
                     self._backend.interface.communicate_poll_exit()
                 )
-                # capture every second
-                if i % 10 == 0:
-                    logger.info(f"Got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response, printer=self._printer,
+                    self._poll_exit_response,
+                    printer=self._printer,
+                    counter=i,
+                    start_time=tic,
                 )
             i += 1
             time.sleep(0.1)
-        elapsed_time = time.monotonic() - tic
-        if self._poll_exit_response is not None:
-            megabyte = wandb.util.POW_2_BYTES[2][1]
-            uploaded_size_megabytes = (
-                self._poll_exit_response.pusher_stats.total_bytes / megabyte
-            )
-            message = (
-                f"Uploaded {uploaded_size_megabytes:.3f} MB "
-                f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
-            )
-            logger.info(message)
-            wandb.termlog(message)
 
         if self._backend and self._backend.interface:
             self._sampled_history = (
@@ -2571,12 +2559,17 @@ class Run:
         ] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
+        counter: int,
+        start_time: Union[float, int],
     ) -> None:
         if not poll_exit_responses:
             return
         if isinstance(poll_exit_responses, PollExitResponse):
             Run._footer_single_run_file_pusher_status_info(
-                poll_exit_responses, printer=printer
+                poll_exit_responses,
+                printer=printer,
+                counter=counter,
+                start_time=start_time,
             )
         elif isinstance(poll_exit_responses, dict):
             poll_exit_responses_list = [
@@ -2590,7 +2583,10 @@ class Run:
                 return
             elif len(poll_exit_responses_list) == 1:
                 Run._footer_single_run_file_pusher_status_info(
-                    poll_exit_responses_list[0], printer=printer
+                    poll_exit_responses_list[0],
+                    printer=printer,
+                    counter=counter,
+                    start_time=start_time,
                 )
             else:
                 Run._footer_multiple_runs_file_pusher_status_info(
@@ -2604,16 +2600,18 @@ class Run:
 
     @staticmethod
     def _footer_single_run_file_pusher_status_info(
-        pool_exit_response: Optional[PollExitResponse] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
+        counter: int,
+        start_time: Union[float, int],
     ) -> None:
         # todo: is this same as settings._offline?
-        if not pool_exit_response:
+        if not poll_exit_response:
             return
 
-        progress = pool_exit_response.pusher_stats
-        done = pool_exit_response.done
+        progress = poll_exit_response.pusher_stats
+        done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
         line = (
@@ -2628,6 +2626,11 @@ class Run:
         )
 
         printer.progress_update(line, percent_done)
+
+        # log every tenth count
+        if counter % 10 == 0:
+            logger.info(f"Got exit response: {poll_exit_response}")
+
         if done:
             printer.progress_close()
 
@@ -2640,6 +2643,16 @@ class Run:
                 printer.display(
                     f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
                 )
+
+            elapsed_time = time.monotonic() - start_time
+            uploaded_size_megabytes = (
+                poll_exit_response.pusher_stats.total_bytes / megabyte
+            )
+            message = (
+                f"Uploaded {uploaded_size_megabytes:.3f} MB "
+                f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
+            )
+            logger.info(message)
 
     @staticmethod
     def _footer_multiple_runs_file_pusher_status_info(

@@ -243,6 +243,8 @@ class StreamMux:
             )
 
         streams_to_join, poll_exit_responses = {}, {}
+        tic = time.monotonic()
+        i = 0
         while streams:
             # Note that we materialize the generator so we can modify the underlying list
             for sid, stream in list(streams.items()):
@@ -251,7 +253,13 @@ class StreamMux:
                 if poll_exit_response and poll_exit_response.done:
                     streams.pop(sid)
                     streams_to_join[sid] = stream
-            Run._footer_file_pusher_status_info(poll_exit_responses, printer=printer)
+            Run._footer_file_pusher_status_info(
+                poll_exit_responses,
+                printer=printer,
+                counter=i,
+                start_time=tic,
+            )
+            i += 1
             time.sleep(0.1)
 
         # TODO: this would be nice to do in parallel
