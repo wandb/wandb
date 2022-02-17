@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-
-import pprint
-
 import os
 import json
 import sys
@@ -11,12 +8,10 @@ import pytest
 if sys.version_info >= (3, 9):
     pytest.importorskip("tensorflow")
 from tensorboard.plugins.pr_curve import summary as pr_curve_plugin_summary
-from tensorboard.compat.proto import summary_pb2
 import tensorboard.summary.v1 as tb_summary
 import tensorflow as tf
 import wandb
 from wandb.errors import term
-from wandb import wandb_sdk
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,8 +49,8 @@ PR_CURVE_PANEL_CONFIG = {
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows" or sys.version_info < (3, 5),
-    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_compat_tensorboard(live_mock_server, test_settings):
     # TODO(jhr): does not work with --flake-finder
@@ -98,8 +93,8 @@ def test_compat_tensorboard(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows" or sys.version_info < (3, 5),
-    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_ctx):
     wandb.init(sync_tensorboard=True, settings=test_settings)
@@ -139,8 +134,8 @@ def test_tensorboard_log_with_wandb_log(live_mock_server, test_settings, parse_c
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows" or sys.version_info < (3, 5),
-    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_add_pr_curve(live_mock_server, test_settings):
     wandb.init(sync_tensorboard=True, settings=test_settings)
@@ -170,8 +165,8 @@ def test_add_pr_curve(live_mock_server, test_settings):
 
 
 @pytest.mark.skipif(
-    platform.system() == "Windows" or sys.version_info < (3, 5),
-    reason="TF has sketchy support for py2.  TODO: Windows is legitimately busted",
+    platform.system() == "Windows",
+    reason="TODO: Windows is legitimately busted",
 )
 def test_add_pr_curve_plugin(live_mock_server, test_settings):
     tf.compat.v1.disable_v2_behavior()
@@ -202,3 +197,14 @@ def test_add_pr_curve_plugin(live_mock_server, test_settings):
         == PR_CURVE_PANEL_CONFIG
     )
     wandb.tensorboard.unpatch()
+
+
+def test_tensorflow_log_error():
+
+    with pytest.raises(wandb.Error) as excinfo:
+        wandb.tensorboard.log(SUMMARY_PB)
+
+        assert (
+            "You must call `wandb.init()` before calling wandb.tensorflow.log"
+            in str(excinfo.value)
+        )

@@ -15,6 +15,24 @@ from wandb.errors import UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
 
 
+def test_run_step_property(fake_run):
+    run = fake_run()
+    run.log(dict(this=1))
+    run.log(dict(that=2))
+
+    assert run.step == 2
+
+
+def test_deprecated_run_log_sync(fake_run, capsys):
+    run = fake_run()
+    run.log(dict(this=1), sync=True)
+    _, stderr = capsys.readouterr()
+    assert (
+        "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
+        in stderr
+    )
+
+
 def test_run_basic():
     s = wandb.Settings()
     c = dict(param1=2, param2=4)
