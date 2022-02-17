@@ -23,8 +23,8 @@ assert:
     - 0.0
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
-  - :wandb:runs[0][telemetry][3]  # feature
-  - 27  # catboost_wandb_callback
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 27  # catboost_wandb_callback
   - :op:contains:
-      - :wandb:runs[0][telemetry][3]  # feature
-      - 28  # catboost_log_summary
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 28  # catboost_log_summary
