@@ -26,4 +26,6 @@ assert:
     - :wandb:runs[0][summary][validation_1-mlogloss][min]
     - 0.0
   - :wandb:runs[0][exitcode]: 0
-  
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 27  # xgboost_wandb_callback

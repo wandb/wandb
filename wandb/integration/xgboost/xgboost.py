@@ -6,6 +6,7 @@ from typing import cast, TYPE_CHECKING
 import warnings
 
 import wandb
+from wandb.sdk.lib import telemetry as wb_telemetry
 import xgboost as xgb  # type: ignore
 from xgboost import Booster
 
@@ -39,6 +40,9 @@ def wandb_callback() -> "Callable":
         UserWarning,
         stacklevel=2,
     )
+
+    with wb_telemetry.context() as tel:
+        tel.feature.xgboost_old_wandb_callback = True
 
     def callback(env: "CallbackEnv") -> None:
         for k, v in env.evaluation_result_list:
@@ -100,6 +104,9 @@ class WandbCallback(xgb.callback.TrainingCallback):
         self.log_feature_importance: bool = log_feature_importance
         self.importance_type: str = importance_type
         self.define_metric: bool = define_metric
+
+        with wb_telemetry.context() as tel:
+            tel.feature.xgboost_wandb_callback = True
 
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")

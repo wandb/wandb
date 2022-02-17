@@ -18,4 +18,6 @@ assert:
     - :wandb:runs[0][summary][validation_1-mlogloss]
     - 0.0
   - :wandb:runs[0][exitcode]: 0
-  
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 28  # xgboost_old_wandb_callback
