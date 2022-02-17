@@ -176,7 +176,7 @@ def test_launch_base_case(
     )
 
     def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[2]
+        dockerfile_contents = args[3]
         assert "ENV WANDB_BASE_URL=https://api.wandb.ai" in dockerfile_contents
         assert f"ENV WANDB_API_KEY={api.api_key}" in dockerfile_contents
         assert "ENV WANDB_PROJECT=test" in dockerfile_contents

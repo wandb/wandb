@@ -449,7 +449,9 @@ def fetch_and_validate_project(
 
 def create_metadata_file(
     launch_project: LaunchProject,
-    sanitized_command_str: str,
+    image_uri: str,
+    sanitized_entrypoint_str: str,
+    docker_args: Dict[str, Any],
     sanitized_dockerfile_contents: str,
 ) -> None:
     with open(
@@ -458,7 +460,9 @@ def create_metadata_file(
         json.dump(
             {
                 **launch_project.launch_spec,
-                "command": sanitized_command_str,
+                "image_uri": image_uri,
+                "command": sanitized_entrypoint_str,
+                "docker_args": docker_args,
                 "dockerfile_contents": sanitized_dockerfile_contents,
             },
             f,

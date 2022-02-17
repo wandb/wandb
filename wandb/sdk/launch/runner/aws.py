@@ -6,8 +6,6 @@ import subprocess
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from wandb.integration import sagemaker
-
 if False:
     import boto3  # type: ignore
 import wandb
@@ -164,14 +162,10 @@ class AWSSagemakerRunner(AbstractRunner):
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            command_args = get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
-            command_args = list(
-                itertools.chain(*[ca.split(" ") for ca in command_args])
-            )
             _logger.info("Building docker image")
-            image = generate_docker_image(self._api, launch_project, image_uri, entry_point, " ".join(command_args), "sagemaker")
+            image = generate_docker_image(
+                self._api, launch_project, image_uri, entry_point, {}, "sagemaker"
+            )
 
         _logger.info("Logging in to AWS ECR")
         login_resp = aws_ecr_login(region, aws_registry)
@@ -206,6 +200,11 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
+
+        command_args = get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
+        command_args = list(itertools.chain(*[ca.split(" ") for ca in command_args]))
         wandb.termlog(
             "Launching run on sagemaker with entrypoint: {}".format(
                 " ".join(command_args)

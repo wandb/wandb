@@ -45,9 +45,8 @@ def get_docker_user(launch_project: LaunchProject, runner_type: str) -> Tuple[st
 
     username = getpass.getuser()
 
-    if runner_type == "sagemaker":
-        # sagemaker must run as root but keep the name for workdir etc
-        # @@@ todo fix if user provided docker image
+    if runner_type == "sagemaker" and not launch_project.docker_image:
+        # unless user has provided their own image, sagemaker must run as root but keep the name for workdir etc
         return username, 0
 
     userid = launch_project.docker_user_id or os.geteuid()
@@ -259,7 +258,7 @@ def get_requirements_section(launch_project: LaunchProject) -> str:
     return requirements_line
 
 
-def get_user_setup(username, userid, runner_type):
+def get_user_setup(username: str, userid: int, runner_type: str) -> str:
     if runner_type == "sagemaker":
         # sagemaker must run as root
         return "USER root"
@@ -268,10 +267,7 @@ def get_user_setup(username, userid, runner_type):
     return user_create
 
 
-def get_entrypoint_setup(launch_project, entrypoint, overrides, workdir, runner_type):
-    # put together entrypoint & args
-    entry_cmd = get_entry_point_command(entrypoint, overrides)[0]
-
+def get_entrypoint_setup(launch_project: LaunchProject, entry_cmd: str, workdir: str, runner_type: str) -> str:
     if runner_type == "sagemaker":
         # sagemaker automatically appends train after the entrypoint
         # by redirecting to running a train script we can avoid issues
@@ -288,7 +284,7 @@ def get_entrypoint_setup(launch_project, entrypoint, overrides, workdir, runner_
 
 
 def generate_dockerfile(
-    api: Api, launch_project: LaunchProject, entrypoint: EntryPoint, runner_type: str,
+    api: Api, launch_project: LaunchProject, entry_cmd: str, runner_type: str,
 ) -> str:
     # get python versions truncated to major.minor to ensure image availability
     if launch_project.python_version:
@@ -322,7 +318,10 @@ def generate_dockerfile(
     # add env vars
     env_vars_section = get_env_vars_section(launch_project, api, workdir)
 
-    entrypoint_section = get_entrypoint_setup(launch_project, entrypoint, launch_project.override_args, workdir, runner_type)
+    # add entrypoint (eg sagemaker requires special entrypoint)
+    entrypoint_section = get_entrypoint_setup(
+        launch_project, entry_cmd, workdir, runner_type
+    )
 
     dockerfile_contents = DOCKERFILE_TEMPLATE.format(
         py_build_image=python_build_image,
@@ -335,8 +334,6 @@ def generate_dockerfile(
         entrypoint_setup=entrypoint_section,
     )
 
-    print(dockerfile_contents)  # @@@
-
     return dockerfile_contents
 
 
@@ -345,13 +342,16 @@ def generate_docker_image(
     launch_project: LaunchProject,
     image_uri: str,
     entrypoint: EntryPoint,
-    command_str: str,
+    docker_args: Dict[str, Any],
     runner_type: str,
 ) -> str:
-    dockerfile_str = generate_dockerfile(api, launch_project, entrypoint, runner_type)
+    entry_cmd = get_entry_point_command(entrypoint, launch_project.override_args)[0]
+    dockerfile_str = generate_dockerfile(api, launch_project, entry_cmd, runner_type)
     create_metadata_file(
         launch_project,
-        sanitize_wandb_api_key(command_str),    # @@@ check if this is needed or if we're rederiving command_arr
+        image_uri,
+        sanitize_wandb_api_key(entry_cmd),
+        docker_args,
         sanitize_wandb_api_key(dockerfile_str),
     )
     build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)

@@ -89,14 +89,16 @@ class LocalRunner(AbstractRunner):
                 )
             )
 
-            command_args = get_docker_command(launch_project.docker_image, docker_args)
-            command_str = " ".join(command_args)
         else:
             # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            command_str = " ".join(get_docker_command(image_uri, docker_args))
             generate_docker_image(
-                self._api, launch_project, image_uri, entry_point, command_str, runner_type="local",
+                self._api,
+                launch_project,
+                image_uri,
+                entry_point,
+                docker_args,
+                runner_type="local",
             )
 
         if self.backend_config.get("runQueueItemId"):
@@ -111,6 +113,7 @@ class LocalRunner(AbstractRunner):
                 )
                 return None
 
+        command_str = " ".join(get_docker_command(image_uri, docker_args))
         wandb.termlog(
             "Launching run in docker with command: {}".format(
                 sanitize_wandb_api_key(command_str)
