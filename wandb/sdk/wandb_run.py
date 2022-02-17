@@ -2576,7 +2576,8 @@ class Run:
                 response for response in poll_exit_responses.values()
             ]
             assert all(
-                isinstance(response, (PollExitResponse, None))  # type: ignore
+                isinstance(response, PollExitResponse)
+                or response is None
                 for response in poll_exit_responses_list
             )
             if len(poll_exit_responses_list) == 0:
@@ -2590,7 +2591,9 @@ class Run:
                 )
             else:
                 Run._footer_multiple_runs_file_pusher_status_info(
-                    poll_exit_responses_list, printer=printer
+                    poll_exit_responses_list,
+                    printer=printer,
+                    start_time=start_time,
                 )
         else:
             raise ValueError(
@@ -2659,6 +2662,7 @@ class Run:
         poll_exit_responses: List[Optional[PollExitResponse]],
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
+        start_time: Union[float, int],
     ) -> None:
 
         # todo: is this same as settings._offline?
@@ -2711,6 +2715,14 @@ class Run:
         )
         if done:
             printer.progress_close()
+
+            elapsed_time = time.monotonic() - start_time
+            uploaded_size_megabytes = total / megabyte
+            message = (
+                f"Uploaded {uploaded_size_megabytes:.3f} MB "
+                f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
+            )
+            logger.info(message)
 
     @staticmethod
     def _footer_sync_info(
