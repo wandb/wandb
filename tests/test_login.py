@@ -58,7 +58,7 @@ def test_login_timeout_env_invalid(mock_tty, reset_login_timeout):
     mock_tty("")
     os.environ["WANDB_LOGIN_TIMEOUT"] = "junk"
 
-    with pytest.raises(UsageError):
+    with pytest.raises(ValueError):
         wandb.login()
 
 

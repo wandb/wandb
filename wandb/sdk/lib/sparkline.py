@@ -3,6 +3,7 @@
 # From pysparklines (BSD License): https://pypi.python.org/pypi/pysparklines
 
 import math
+from typing import List, Union
 
 spark_chars = u"▁▂▃▄▅▆▇█"
 
@@ -12,7 +13,7 @@ def isfinite(f):
     return not (math.isinf(f) or math.isnan(f))
 
 
-def sparkify(series):
+def sparkify(series: List[Union[float, int]]) -> str:
     u"""Converts <series> to a sparkline string.
 
     Example:

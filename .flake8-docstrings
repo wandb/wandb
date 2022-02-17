@@ -10,5 +10,6 @@ filename =
     ./wandb/sdk/launch/runner/local.py
     ./wandb/sdk/lib/timed_input.py
     ./wandb/integration/metaflow/metaflow.py
+    ./wandb/integration/lightgbm/__init__.py
     ./wandb/sdk/internal/profiler.py
     ./wandb/integration/xgboost/xgboost.py

@@ -12,6 +12,7 @@ def test_agent_basic(live_mock_server):
         run = wandb.init()
         sweep_ids.append(run.sweep_id)
         sweep_configs.append(dict(run.config))
+        run.finish()
 
     wandb.agent("test-sweep-id", function=train, count=1)
 
@@ -27,6 +28,7 @@ def test_agent_config_merge(live_mock_server):
     def train():
         run = wandb.init(config={"extra": 2})
         sweep_configs.append(dict(run.config))
+        run.finish()
 
     wandb.agent("test-sweep-id-2", function=train, count=1)
 
@@ -40,6 +42,7 @@ def test_agent_config_ignore(live_mock_server):
     def train():
         run = wandb.init(config={"a": "ignored", "extra": 2})
         sweep_configs.append(dict(run.config))
+        run.finish()
 
     wandb.agent("test-sweep-id-3", function=train, count=1)
 
@@ -55,6 +58,7 @@ def test_agent_ignore(live_mock_server):
         run = wandb.init(entity="ign", project="ignored")
         sweep_projects.append(run.project)
         sweep_entities.append(run.entity)
+        run.finish()
 
     wandb.agent("test-sweep-id-3", function=train, count=1)
 
@@ -69,24 +73,9 @@ def test_agent_ignore_runid(live_mock_server):
     def train():
         run = wandb.init(id="ignored")
         sweep_run_ids.append(run.id)
+        run.finish()
 
     wandb.agent("test-sweep-id-3", function=train, count=1)
 
     assert len(sweep_run_ids) == 1
     assert sweep_run_ids[0] == "mocker-sweep-run-x91"
-
-
-def test_agent_ack_run_id(live_mock_server, parse_ctx):
-    sweep_run_ids = []
-
-    def train():
-        run = wandb.init(id="ignored")
-        sweep_run_ids.append(run.id)
-
-    wandb.agent("test-sweep-id-3", function=train, count=1)
-
-    assert len(sweep_run_ids) == 1
-    assert sweep_run_ids[0] == "mocker-sweep-run-x91"
-
-    ctx_util = parse_ctx(live_mock_server.get_ctx())
-    assert ctx_util.item_acked

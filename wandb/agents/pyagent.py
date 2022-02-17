@@ -61,7 +61,7 @@ class Job(object):
 
     def __repr__(self):
         if self.type == "run":
-            return "Job({},{},{})".format(self.run_id, self.config, self.command)
+            return "Job({},{})".format(self.run_id, self.config)
         elif self.type == "stop":
             return "stop({})".format(self.run_id)
         else:
@@ -281,13 +281,11 @@ class Agent(object):
     def _run_job(self, job):
         try:
             run_id = job.run_id
-            runqueue_item_id = job.command.get("runqueue_item_id")
 
             config_file = os.path.join(
                 "wandb", "sweep-" + self._sweep_id, "config-" + run_id + ".yaml"
             )
             os.environ[wandb.env.RUN_ID] = run_id
-            os.environ[wandb.env.RUNQUEUE_ITEM_ID] = runqueue_item_id
             base_dir = os.environ.get(wandb.env.DIR, "")
             sweep_param_path = os.path.join(base_dir, config_file)
             os.environ[wandb.env.SWEEP_PARAM_PATH] = sweep_param_path
@@ -313,7 +311,6 @@ class Agent(object):
         finally:
             # clean up the environment changes made
             os.environ.pop(wandb.env.RUN_ID, None)
-            os.environ.pop(wandb.env.RUNQUEUE_ITEM_ID, None)
             os.environ.pop(wandb.env.SWEEP_ID, None)
             os.environ.pop(wandb.env.SWEEP_PARAM_PATH, None)
 

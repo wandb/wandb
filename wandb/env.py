@@ -41,7 +41,6 @@ MODE = "WANDB_MODE"
 START_METHOD = "WANDB_START_METHOD"
 RESUME = "WANDB_RESUME"
 RUN_ID = "WANDB_RUN_ID"
-RUNQUEUE_ITEM_ID = "WANDB_RUNQUEUE_ITEM_ID"
 RUN_STORAGE_ID = "WANDB_RUN_STORAGE_ID"
 RUN_GROUP = "WANDB_RUN_GROUP"
 RUN_DIR = "WANDB_RUN_DIR"
@@ -69,6 +68,7 @@ CONFIG_DIR = "WANDB_CONFIG_DIR"
 CACHE_DIR = "WANDB_CACHE_DIR"
 DISABLE_SSL = "WANDB_INSECURE_DISABLE_SSL"
 SERVICE = "WANDB_SERVICE"
+SENTRY_DSN = "WANDB_SENTRY_DSN"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -125,7 +125,7 @@ def is_debug(default=None, env=None):
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
-def error_reporting_enabled():
+def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default=True)
 
 

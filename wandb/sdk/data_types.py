@@ -10,6 +10,7 @@ import platform
 import re
 import shutil
 import sys
+import tempfile
 from typing import (
     Any,
     cast,
@@ -31,7 +32,6 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
-from wandb.compat import tempfile
 from wandb.util import has_num
 
 from .interface import _dtypes
@@ -771,13 +771,10 @@ class Object3D(BatchableMedia):
                 )
 
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         elif _is_numpy_array(data_or_path):
             np_data = data_or_path
@@ -801,13 +798,10 @@ class Object3D(BatchableMedia):
 
             list_data = np_data.tolist()
             tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".pts.json")
-            json.dump(
-                list_data,
-                codecs.open(tmp_path, "w", encoding="utf-8"),
-                separators=(",", ":"),
-                sort_keys=True,
-                indent=4,
-            )
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                json.dump(
+                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
+                )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
             raise ValueError("data must be a numpy array, dict or a file object")
@@ -866,6 +860,8 @@ class Molecule(BatchableMedia):
     Arguments:
         data_or_path: (string, io)
             Molecule can be initialized from a file name or an io object.
+        caption: (string)
+            Caption associated with the molecule for display.
     """
 
     SUPPORTED_TYPES = {
@@ -883,8 +879,15 @@ class Molecule(BatchableMedia):
     SUPPORTED_RDKIT_TYPES = {"mol", "sdf"}
     _log_type = "molecule-file"
 
-    def __init__(self, data_or_path: Union[str, "TextIO"], **kwargs: str) -> None:
+    def __init__(
+        self,
+        data_or_path: Union[str, "TextIO"],
+        caption: Optional[str] = None,
+        **kwargs: str,
+    ) -> None:
         super(Molecule, self).__init__()
+
+        self._caption = caption
 
         if hasattr(data_or_path, "name"):
             # if the file has a path, we just detect the type and copy it from there
@@ -929,6 +932,7 @@ class Molecule(BatchableMedia):
     def from_rdkit(
         cls,
         data_or_path: "RDKitDataType",
+        caption: Optional[str] = None,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
     ) -> "Molecule":
@@ -938,10 +942,12 @@ class Molecule(BatchableMedia):
         Arguments:
             data_or_path: (string, rdkit.Chem.rdchem.Mol)
                 Molecule can be initialized from a file name or an rdkit.Chem.rdchem.Mol object.
-            convert_to_3d_and_optimize: bool
+            caption: (string)
+                Caption associated with the molecule for display.
+            convert_to_3d_and_optimize: (bool)
                 Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
                 This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: int
+            mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
         """
         rdkit_chem = util.get_module(
@@ -986,12 +992,13 @@ class Molecule(BatchableMedia):
         # convert to the pdb format supported by Molecule
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)
 
-        return cls(io.StringIO(pdb_block), file_type="pdb")
+        return cls(io.StringIO(pdb_block), caption=caption, file_type="pdb")
 
     @classmethod
     def from_smiles(
         cls,
         data: str,
+        caption: Optional[str] = None,
         sanitize: bool = True,
         convert_to_3d_and_optimize: bool = True,
         mmff_optimize_molecule_max_iterations: int = 200,
@@ -1000,14 +1007,16 @@ class Molecule(BatchableMedia):
         Convert SMILES string to wandb.Molecule
 
         Arguments:
-            data: string
+            data: (string)
                 SMILES string.
-            sanitize: bool
+            caption: (string)
+                Caption associated with the molecule for display
+            sanitize: (bool)
                 Check if the molecule is chemically reasonable by the RDKit's definition.
-            convert_to_3d_and_optimize: bool
+            convert_to_3d_and_optimize: (bool)
                 Convert to rdkit.Chem.rdchem.Mol with 3D coordinates.
                 This is an expensive operation that may take a long time for complicated molecules.
-            mmff_optimize_molecule_max_iterations: int
+            mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
         """
         rdkit_chem = util.get_module(
@@ -1020,6 +1029,7 @@ class Molecule(BatchableMedia):
 
         return cls.from_rdkit(
             data_or_path=molecule,
+            caption=caption,
             convert_to_3d_and_optimize=convert_to_3d_and_optimize,
             mmff_optimize_molecule_max_iterations=mmff_optimize_molecule_max_iterations,
         )
@@ -1369,9 +1379,8 @@ class JSONMetadata(Media):
 
         ext = "." + self.type_name() + ".json"
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ext)
-        util.json_dump_uncompressed(
-            self._val, codecs.open(tmp_path, "w", encoding="utf-8")
-        )
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_uncompressed(self._val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=ext)
 
     @classmethod
@@ -2566,7 +2575,8 @@ class Plotly(Media):
 
         tmp_path = os.path.join(_MEDIA_TMP.name, util.generate_id() + ".plotly.json")
         val = _numpy_arrays_to_lists(val.to_plotly_json())
-        util.json_dump_safer(val, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(val, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
 
     @classmethod

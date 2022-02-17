@@ -156,6 +156,11 @@ class InternalServiceStub(object):
                 request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.SerializeToString,
                 response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.FromString,
                 )
+        self.ServerInformStart = channel.unary_unary(
+                '/wandb_internal.InternalService/ServerInformStart',
+                request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.SerializeToString,
+                response_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.FromString,
+                )
         self.ServerInformFinish = channel.unary_unary(
                 '/wandb_internal.InternalService/ServerInformFinish',
                 request_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformFinishRequest.SerializeToString,
@@ -350,6 +355,12 @@ class InternalServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ServerInformStart(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ServerInformFinish(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -516,6 +527,11 @@ def add_InternalServiceServicer_to_server(servicer, server):
                     servicer.ServerInformInit,
                     request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.FromString,
                     response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.SerializeToString,
+            ),
+            'ServerInformStart': grpc.unary_unary_rpc_method_handler(
+                    servicer.ServerInformStart,
+                    request_deserializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.FromString,
+                    response_serializer=wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.SerializeToString,
             ),
             'ServerInformFinish': grpc.unary_unary_rpc_method_handler(
                     servicer.ServerInformFinish,
@@ -1020,6 +1036,23 @@ class InternalService(object):
         return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformInit',
             wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitRequest.SerializeToString,
             wandb_dot_proto_dot_wandb__server__pb2.ServerInformInitResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ServerInformStart(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/wandb_internal.InternalService/ServerInformStart',
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartRequest.SerializeToString,
+            wandb_dot_proto_dot_wandb__server__pb2.ServerInformStartResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
