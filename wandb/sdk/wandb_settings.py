@@ -354,6 +354,7 @@ class Settings:
     # and to help with IDE autocomplete.
     _args: Sequence[str]
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _colab: bool
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
@@ -391,6 +392,7 @@ class Settings:
     code_dir: str
     config_paths: Sequence[str]
     console: str
+    deployment: str
     disable_code: bool
     disable_git: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
@@ -471,6 +473,10 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _colab={
+                "hook": lambda _: "google.colab" in sys.modules,
+                "auto_hook": True,
+            },
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
@@ -506,6 +512,10 @@ class Settings:
                 "validator": self._validate_base_url,
             },
             console={"value": "auto", "validator": self._validate_console},
+            deployment={
+                "hook": lambda _: "local" if self.is_local else "cloud",
+                "auto_hook": True,
+            },
             disable_code={"preprocessor": _str_as_bool, "is_policy": True},
             disable_git={"preprocessor": _str_as_bool, "is_policy": True},
             disabled={"value": False, "preprocessor": _str_as_bool},

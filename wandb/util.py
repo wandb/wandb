@@ -56,8 +56,6 @@ import six
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError
-from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.wandb_settings import Settings
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -72,7 +70,7 @@ if IS_GIT:
     SENTRY_ENV = "development"
 else:
     SENTRY_ENV = "production"
-    
+
 
 PLATFORM_WINDOWS = "windows"
 PLATFORM_LINUX = "linux"
@@ -93,7 +91,7 @@ def get_platform_name() -> str:
     else:
         return PLATFORM_UNKNOWN
 
-      
+
 # TODO(sentry): This code needs to be moved, sentry shouldn't be initialized as a
 # side effect of loading a module.
 if error_reporting_enabled():
@@ -170,36 +168,58 @@ def sentry_reraise(exc: Any) -> None:
 
 
 def sentry_set_scope(
-    settings_dict: Union[Settings, SettingsStatic, Dict, None] = None,
+    settings_dict: Union[
+        "wandb.Settings",
+        "wandb.sdk.internal.settings_static.SettingsStatic",
+        Dict,
+        None,
+    ] = None,
     process_context: Optional[str] = None,
-
 ) -> None:
     # Using GLOBAL_HUB means these tags will persist between threads.
     # Normally there is one hub per thread.
 
+    # Normally, we pull all tags from the passed-in settings object.
+    # However, we also allow callers of this func to pass in arbitrary key-value
+    # pairs as tags.
     args = locals()
     del args["settings_dict"]
+
+    settings_tags = [
+        "entity",
+        "project",
+        "run_id",
+        "sweep_id",
+        "deployment",
+        "_require_service",
+    ]
 
     s = settings_dict
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("platform", get_platform_name())
+        # if process_context is not None:
+        #     scope.set_tag("process_context", process_context)
 
         if s is not None:
-            if hasattr(s, "entity"):
-                scope.set_tag("entity", s.entity)
 
-            if hasattr(s, "project"):
-                scope.set_tag("project", s.project)
+            for tag in settings_tags:
+                if hasattr(s, tag) and getattr(s, tag) is not None:
+                    scope.set_tag(tag, getattr(s, tag))
 
-            if hasattr(s, "run_id"):
-                scope.set_tag("run_id", s.run_id)
+            # if hasattr(s, "entity"):
+            #     scope.set_tag("entity", s.entity)
 
-            if hasattr(s, "sweep_id"):
-                scope.set_tag("sweep_id", s.sweep_id)
+            # if hasattr(s, "project"):
+            #     scope.set_tag("project", s.project)
 
-            if hasattr(s, "is_local"):
-                deployment = ("local" if s.is_local else "cloud",)
-                scope.set_tag("deployment", deployment)
+            # if hasattr(s, "run_id"):
+            #     scope.set_tag("run_id", s.run_id)
+
+            # if hasattr(s, "sweep_id"):
+            #     scope.set_tag("sweep_id", s.sweep_id)
+
+            # if hasattr(s, "deployment"):
+            #     scope.set_tag("deployment", s.deployment)
 
             if hasattr(s, "_colab") and hasattr(s, "_jupyter"):
                 python_runtime = (
@@ -207,8 +227,8 @@ def sentry_set_scope(
                 )
                 scope.set_tag("python_runtime", python_runtime)
 
-            if hasattr(s, "_require_service"):
-                scope.set_tag("service", s._require_service)
+            # if hasattr(s, "_require_service"):
+            #     scope.set_tag("service", s._require_service)
 
             if hasattr(s, "email"):
                 scope.user = {"email": s.email}
@@ -216,38 +236,6 @@ def sentry_set_scope(
         for tag, value in args.items():
             if value is not None and value != "":
                 scope.set_tag(tag, value)
-
-
-# def sentry_set_scope(
-#     entity=None,
-#     process_context=None,
-#     email=None,
-#     project=None,
-#     url=None,
-#     run_id=None,
-#     sweep_id=None,
-#     platform=None,
-#     python_runtime=None,
-#     deployment=None,
-#     service=None,
-# ):
-#     # Using GLOBAL_HUB means these tags will persist between threads.
-#     # Normally there is one hub per thread.
-
-#     # get function arguments as dict
-#     args = locals()
-
-#     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
-#         scope.set_tag("platform", get_platform_name())
-
-#         for tag, value in args.items():
-#             if value is not None and value != "":
-#                 # legacy
-#                 if tag == "email":
-#                     scope.user = {"email": value}
-#                     continue
-
-#                 scope.set_tag(tag, value)
 
 
 def vendor_setup() -> Callable:

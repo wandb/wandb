@@ -373,19 +373,11 @@ class Run:
 
         # Pull info from settings
         self._init_from_settings(settings)
-        
+
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            settings_dict=self._settings,
-            process_context="user",
-            entity=self._entity,
-            project=self._project,
-            # email=self._settings.email,
-            # python_runtime="colab"
-            # if self._settings._colab
-            # else ("jupyter" if self._settings._jupyter else "python"),
-            # service=self._settings._require_service,
+            settings_dict=self._settings, process_context="user",
         )
 
         # Populate config
@@ -1087,11 +1079,7 @@ class Run:
         self.history._update_step()
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            process_context="user",
-            settings_dict=self.settings,
-            entity=run_obj.entity,
-            project=run_obj.project,
-            url=self._get_run_url(),
+            process_context="user", settings_dict=self.settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:

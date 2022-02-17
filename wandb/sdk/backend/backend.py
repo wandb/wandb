@@ -169,7 +169,7 @@ class Backend(object):
         """Launch backend worker if not running."""
         settings: Dict[str, Any] = dict()
         if self._settings is not None:
-            settings = self._settings.make_static(include_properties=True)
+            settings = self._settings.make_static()
 
         settings["_log_level"] = self._log_level or logging.DEBUG
 

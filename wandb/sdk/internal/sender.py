@@ -34,7 +34,7 @@ from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
-
+from ..lib.proto_util import message_to_dict
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -796,19 +796,11 @@ class SendManager:
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state.output),
         )
 
-        util.sentry_set_scope(
-            settings_dict=self._settings,
-            entity=self._run.entity,
-            project=self._run.project,
-            # email=self._settings.email,
-            run_id=self._run.run_id,
-            sweep_id=self._run.sweep_id,
-            # deployment="local" if self._settings.is_local else "cloud",
-            # python_runtime="colab"
-            # if self._settings._colab
-            # else ("jupyter" if self._settings._jupyter else "python"),
-            # service=self._settings._require_service,
-        )
+        # hack to merge run_settings and self._settings object together
+        # so that fields like entity or project are available to be attached to Sentry events.
+        run_settings = message_to_dict(self._run)
+        self._settings = SettingsStatic({**dict(self._settings), **run_settings})
+        util.sentry_set_scope(settings_dict=self._settings,)
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
         self._dir_watcher = DirWatcher(
@@ -819,6 +811,7 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
+        raise ValueError("hello boom vish check sentry settings tags")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:
