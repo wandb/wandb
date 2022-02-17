@@ -559,8 +559,8 @@ def create_app(user_ctx=None):
                     run_field_name = "bucket"
                 if (
                     "commit" in body["query"]
-                    or "files(names: [$fileName])" in body["query"]
-                ):  # @@@
+                    or body["variables"].get("fileName") == "wandb-metadata.json"
+                ):
                     run_config = _bucket_config(ctx)
                 else:
                     run_config = run(ctx)

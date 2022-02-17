@@ -778,7 +778,6 @@ def test_launch_no_server_info(
         launch.run(
             "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"new-test",
         )
-        assert False
     except wandb.errors.LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
 

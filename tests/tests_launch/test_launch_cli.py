@@ -279,4 +279,4 @@ def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
     with runner.isolated_filesystem():
         result = runner.invoke(cli.launch, args + ["--cuda", "asdf"],)
     assert result.exit_code != 0
-    assert "Invalid value for '--cuda':" in result.output
+    assert "Invalid value for --cuda:" in result.output

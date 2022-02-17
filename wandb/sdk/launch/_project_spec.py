@@ -262,6 +262,7 @@ class LaunchProject(object):
                 internal_api,
                 self.project_dir,
             )
+
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
 

@@ -1070,7 +1070,7 @@ def launch(
             cuda = False
         else:
             raise LaunchError(
-                "Invalid value for '--cuda': '{}' is not a valid boolean.".format(cuda)
+                "Invalid value for --cuda: '{}' is not a valid boolean.".format(cuda)
             )
 
     args_dict = util._user_args_to_dict(args_list)

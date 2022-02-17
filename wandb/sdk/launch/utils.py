@@ -236,12 +236,12 @@ def download_entry_point(
 def download_wandb_python_deps(
     entity: str, project: str, run_name: str, api: Api, dir: str
 ) -> Optional[str]:
-    metadata = api.download_url(
+    reqs = api.download_url(  # @@@
         project, "requirements.txt", run=run_name, entity=entity
     )
-    if metadata is not None:
+    if reqs is not None:
         _logger.info("Downloading python dependencies")
-        _, response = api.download_file(metadata["url"])
+        _, response = api.download_file(reqs["url"])
 
         with util.fsync_open(
             os.path.join(dir, "requirements.frozen.txt"), "wb"
