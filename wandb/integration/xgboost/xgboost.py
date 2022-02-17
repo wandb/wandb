@@ -2,11 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import cast
+from typing import cast, TYPE_CHECKING
 import warnings
 
 import wandb
-import xgboost as xgb
+import xgboost as xgb  # type: ignore
+from xgboost import Booster
 
 
 MINIMIZE_METRICS = [
@@ -24,7 +25,14 @@ MINIMIZE_METRICS = [
 MAXIMIZE_METRICS = ["auc", "aucpr", "ndcg", "map", "ndcg@n", "map@n"]
 
 
-def wandb_callback():
+if TYPE_CHECKING:
+    from typing import List, NamedTuple, Callable
+
+    class CallbackEnv(NamedTuple):
+        evaluation_result_list: List
+
+
+def wandb_callback() -> "Callable":
     """Old style callback that will be deprecated in favor of WandbCallback. Please try the new logger for more features."""
     warnings.warn(
         "wandb_callback will be deprecated in favor of WandbCallback. Please use WandbCallback for more features.",
@@ -32,7 +40,7 @@ def wandb_callback():
         stacklevel=2,
     )
 
-    def callback(env):
+    def callback(env: "CallbackEnv") -> None:
         for k, v in env.evaluation_result_list:
             wandb.log({k: v}, commit=False)
         wandb.log({})
@@ -88,15 +96,15 @@ class WandbCallback(xgb.callback.TrainingCallback):
         define_metric: bool = True,
     ):
 
+        self.log_model: bool = log_model
+        self.log_feature_importance: bool = log_feature_importance
+        self.importance_type: str = importance_type
+        self.define_metric: bool = define_metric
+
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
 
-        self.log_model = log_model
-        self.log_feature_importance = log_feature_importance
-        self.importance_type = importance_type
-        self.define_metric = define_metric
-
-    def before_training(self, model):
+    def before_training(self, model: Booster) -> Booster:
         """Run before training is finished."""
         # Update W&B config
         config = model.save_config()
@@ -104,7 +112,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
         return model
 
-    def after_training(self, model):
+    def after_training(self, model: Booster) -> Booster:
         """Run after training is finished."""
         # Log the booster model as artifacts
         if self.log_model:
@@ -125,7 +133,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
         return model
 
-    def after_iteration(self, model, epoch, evals_log):
+    def after_iteration(self, model: Booster, epoch: int, evals_log: dict) -> bool:
         """Run after each iteration. Return True when training should stop."""
         # Log metrics
         for data, metric in evals_log.items():
@@ -142,16 +150,16 @@ class WandbCallback(xgb.callback.TrainingCallback):
 
         return False
 
-    def _log_model_as_artifact(self, model):
-        model_name = f"{wandb.run.id}_model.json"
-        model_path = Path(wandb.run.dir) / model_name
+    def _log_model_as_artifact(self, model: Booster) -> None:
+        model_name = f"{wandb.run.id}_model.json"  # type: ignore
+        model_path = Path(wandb.run.dir) / model_name  # type: ignore
         model.save_model(str(model_path))
 
         model_artifact = wandb.Artifact(name=model_name, type="model")
         model_artifact.add_file(model_path)
         wandb.log_artifact(model_artifact)
 
-    def _log_feature_importance(self, model):
+    def _log_feature_importance(self, model: Booster) -> None:
         fi = model.get_score(importance_type=self.importance_type)
         fi_data = [[k, fi[k]] for k in fi]
         table = wandb.Table(data=fi_data, columns=["Feature", "Importance"])
@@ -163,7 +171,7 @@ class WandbCallback(xgb.callback.TrainingCallback):
             }
         )
 
-    def _define_metric(self, data, metric_name):
+    def _define_metric(self, data: str, metric_name: str) -> None:
         if "loss" in str.lower(metric_name):
             wandb.define_metric(f"{data}-{metric_name}", summary="min")
         elif str.lower(metric_name) in MINIMIZE_METRICS:

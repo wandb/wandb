@@ -1,4 +1,4 @@
-id: 0.xgboost.xgboost
+id: 0.xgboost.01-regression
 plugin:
   - wandb
 command:
