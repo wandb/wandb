@@ -60,7 +60,7 @@ def test_launch_aws_sagemaker(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch,
 ):
     def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[3]
+        dockerfile_contents = args[4]
         expected_entrypoint = 'ENTRYPOINT ["sh", "train"]'
         assert expected_entrypoint in dockerfile_contents, dockerfile_contents
         _project_spec.create_metadata_file(*args, **kwargs)
@@ -363,6 +363,7 @@ def test_aws_get_region_file_success(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
+            cuda=None,
         )
         region = get_region(launch_project.resource_args)
         assert region == "us-east-1"
@@ -388,6 +389,7 @@ def test_aws_get_region_file_fail_no_section(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
+            cuda=None,
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             get_region(launch_project.resource_args)
@@ -414,6 +416,7 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             git_info={},
             overrides={},
             resource_args={},
+            cuda=None,
         )
         with pytest.raises(wandb.errors.LaunchError) as e_info:
             get_region(launch_project.resource_args)
@@ -421,32 +424,6 @@ def test_aws_get_region_file_fail_no_file(runner, monkeypatch):
             str(e_info.value)
             == "AWS region not specified and ~/.aws/config not found. Configure AWS"
         )
-
-
-def test_aws_fail_build(
-    runner, live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
-):
-    monkeypatch.setattr(boto3, "client", mock_boto3_client)
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "docker_image_exists", lambda x: False
-    )
-    monkeypatch.setattr(
-        wandb.sdk.launch.runner.aws, "generate_docker_base_image", lambda x, y: None
-    )
-    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
-    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
-    kwargs = json.loads(fixture_open("launch/launch_sagemaker_config.json").read())
-    with runner.isolated_filesystem():
-        api = wandb.sdk.internal.internal_api.Api(
-            default_settings=test_settings, load_settings=False
-        )
-        uri = "https://wandb.ai/mock_server_entity/test/runs/1"
-        kwargs["uri"] = uri
-        kwargs["api"] = api
-
-        with pytest.raises(wandb.errors.LaunchError) as e_info:
-            launch.run(**kwargs)
-        assert str(e_info.value) == "Unable to build base image"
 
 
 def test_no_sagemaker_resource_args(

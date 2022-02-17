@@ -88,6 +88,7 @@ class LocalRunner(AbstractRunner):
                     launch_project.docker_image
                 )
             )
+            image_uri = launch_project.docker_image
 
         else:
             # build our own image

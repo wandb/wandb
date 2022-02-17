@@ -87,6 +87,7 @@ def default_ctx():
         "n_sweep_runs": 0,
         "code_saving_enabled": True,
         "sentry_events": [],
+        "run_cuda_version": None,
     }
 
 
@@ -312,7 +313,12 @@ def _bucket_config(ctx):
             "edges": [
                 {
                     "node": {
-                        "directUrl": base_url + "/storage?file=" + name,
+                        "url": base_url + "/storage?file=" + name,
+                        "directUrl": base_url
+                        + "/storage?file="
+                        + name
+                        + "&direct=true",
+                        "updatedAt": datetime.now().isoformat(),
                         "name": name,
                     }
                 }
@@ -551,7 +557,10 @@ def create_app(user_ctx=None):
                 else:
                     project_field_name = "model"
                     run_field_name = "bucket"
-                if "commit" in body["query"]:
+                if (
+                    "commit" in body["query"]
+                    or "files(names: [$fileName])" in body["query"]
+                ):  # @@@
                     run_config = _bucket_config(ctx)
                 else:
                     run_config = run(ctx)
@@ -1663,13 +1672,16 @@ def create_app(user_ctx=None):
                     },
                 }
         elif file == "wandb-metadata.json":
-            return {
+            result = {
                 "docker": "test/docker",
                 "program": "train.py",
                 "codePath": "train.py",
                 "args": ["--test", "foo"],
                 "git": ctx.get("git", {}),
             }
+            if ctx["run_cuda_version"]:
+                result["cuda"] = ctx["run_cuda_version"]
+            return result
         elif file == "requirements.txt":
             return "numpy==1.19.5\n"
         elif file == "diff.patch":
