@@ -29,6 +29,7 @@ from typing import (
 )
 from typing import TYPE_CHECKING
 
+from rich.console import group
 import requests
 import wandb
 from wandb import errors
@@ -467,7 +468,8 @@ class Run:
 
     def _telemetry_imports(self, imp: telemetry.TelemetryImports) -> None:
         telem_map = dict(
-            pytorch_ignite="ignite", transformers_huggingface="transformers",
+            pytorch_ignite="ignite",
+            transformers_huggingface="transformers",
         )
 
         # calculate mod_map, a mapping from module_name to telem_name
@@ -1732,7 +1734,8 @@ class Run:
                 )
                 logger.info(f"got exit ret: {self._poll_exit_response}")
                 self._footer_file_pusher_status_info(
-                    self._poll_exit_response, printer=self._printer,
+                    self._poll_exit_response,
+                    printer=self._printer,
                 )
             time.sleep(0.1)
 
@@ -1761,10 +1764,15 @@ class Run:
         )
 
     def _save_job_spec(self) -> None:
-        envdict = dict(python="python3.6", requirements=[],)
+        envdict = dict(
+            python="python3.6",
+            requirements=[],
+        )
         varsdict = {"WANDB_DISABLE_CODE": "True"}
         source = dict(
-            git="git@github.com:wandb/examples.git", branch="master", commit="bbd8d23",
+            git="git@github.com:wandb/examples.git",
+            branch="master",
+            commit="bbd8d23",
         )
         execdict = dict(
             program="train.py",
@@ -1773,8 +1781,13 @@ class Run:
             args=[],
         )
         configdict = (dict(self._config),)
-        artifactsdict = dict(dataset="v1",)
-        inputdict = dict(config=configdict, artifacts=artifactsdict,)
+        artifactsdict = dict(
+            dataset="v1",
+        )
+        inputdict = dict(
+            config=configdict,
+            artifacts=artifactsdict,
+        )
         job_spec = {
             "kind": "WandbJob",
             "version": "v0",
@@ -1911,8 +1924,8 @@ class Run:
                 f"Could not find {artifact_name} in launch artifact mapping. Searching for unique artifacts with sequence name: {artifact_name}"
             )
             sequence_name = artifact_name.split(":")[0].split("/")[-1]
-            unique_artifact_replacement_info = self._unique_launch_artifact_sequence_names.get(
-                sequence_name
+            unique_artifact_replacement_info = (
+                self._unique_launch_artifact_sequence_names.get(sequence_name)
             )
             if unique_artifact_replacement_info is not None:
                 new_name = unique_artifact_replacement_info.get("name")
@@ -1988,7 +2001,8 @@ class Run:
                 )
             artifact._use_as = use_as or artifact_or_name
             api.use_artifact(
-                artifact.id, use_as=use_as or artifact_or_name,
+                artifact.id,
+                use_as=use_as or artifact_or_name,
             )
             return artifact
         else:
@@ -2346,6 +2360,7 @@ class Run:
     # ------------------------------------------------------------------------------
     # Note: All the header methods are static methods since we want to share the printing logic
     # with the service execution path that doesn't have acess to the run instance
+    @group
     @staticmethod
     def _header(
         check_version: Optional["CheckVersionResponse"] = None,
@@ -2354,11 +2369,11 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         # printer = printer or get_printer(settings._jupyter)
-        Run._header_version_check_info(
+        yield from Run._header_version_check_info(
             check_version, settings=settings, printer=printer
         )
-        Run._header_wandb_version_info(settings=settings, printer=printer)
-        Run._header_sync_info(settings=settings, printer=printer)
+        yield from Run._header_wandb_version_info(settings=settings, printer=printer)
+        yield from Run._header_sync_info(settings=settings, printer=printer)
         Run._header_run_info(settings=settings, printer=printer)
 
     @staticmethod
@@ -2369,57 +2384,63 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
+        info = []
         if not check_version or settings._offline:
-            return
+            return info
 
         # printer = printer or get_printer(settings._jupyter)
         if check_version.delete_message:
-            printer.display(check_version.delete_message, status="error")
+            info.append(check_version.delete_message)
         elif check_version.yank_message:
-            printer.display(check_version.yank_message, status="warn")
+            info.append(check_version.yank_message)
 
-        printer.display(
-            check_version.upgrade_message, off=not check_version.upgrade_message
-        )
+        if check_version.upgrade_message:
+            info.append(check_version.upgrade_message)
+
+        return info
 
     @staticmethod
     def _header_wandb_version_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         if settings.quiet or settings.silent:
-            return
+            return []
 
-        # printer = printer or get_printer(settings._jupyter)
-        printer.display(f"Tracking run with wandb version {wandb.__version__}")
+        return [f"Tracking run with wandb version {wandb.__version__}"]
 
     @staticmethod
     def _header_sync_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         # printer = printer or get_printer(settings._jupyter)
         if settings._offline:
-            printer.display(
-                [
-                    f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} to enable cloud syncing.",
-                ]
-            )
+            return [
+                f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
+                f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} to enable cloud syncing.",
+            ]
         else:
             info = [f"Run data is saved locally in {printer.files(settings.sync_dir)}"]
             if not printer._html:
                 info.append(
                     f"Run {printer.code('`wandb offline`')} to turn off syncing."
                 )
-            printer.display(info, off=settings.quiet or settings.silent)
+            if not (settings.quiet or settings.silent):
+                return info
 
     @staticmethod
     def _header_run_info(
-        *, settings: "Settings", printer: Union["PrinterTerm", "PrinterJupyter"],
+        *,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
 
         if settings._offline or settings.silent:
-            return
+            return []
 
         run_url = settings.run_url
         project_url = settings.project_url
@@ -2718,7 +2739,9 @@ class Run:
         if log_dir:
             # printer = printer or get_printer(settings._jupyter)
             log_dir = os.path.dirname(log_dir.replace(os.getcwd(), "."))
-            printer.display(f"Find logs at: {printer.files(log_dir)}",)
+            printer.display(
+                f"Find logs at: {printer.files(log_dir)}",
+            )
 
     @staticmethod
     def _footer_history_summary_info(
@@ -2756,7 +2779,10 @@ class Run:
                 if sparkline:
                     history_rows.append([key, sparkline])
             if history_rows:
-                history_grid = printer.grid(history_rows, "Run history:",)
+                history_grid = printer.grid(
+                    history_rows,
+                    "Run history:",
+                )
                 panel.append(history_grid)
 
         # Render summary if available
@@ -2781,7 +2807,10 @@ class Run:
                     continue
 
             if summary_rows:
-                summary_grid = printer.grid(summary_rows, "Run summary:",)
+                summary_grid = printer.grid(
+                    summary_rows,
+                    "Run summary:",
+                )
                 panel.append(summary_grid)
 
         if panel:
