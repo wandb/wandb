@@ -30,6 +30,7 @@ If you are calling `wandb.init` in a spawned process you should add `wandb.setup
 
 ```python
 import multiprocessing as mp
+import wandb
 
 def do_work(n):
     run = wandb.init(config=dict(n=n))
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     main()
 ```
 
-If you are using threding instead of processes, you should pass the strting method to `wandb.init`:
+If you are using threding instead of multi-processing, you should pass `thread` as the strting method to `wandb.init`:
 
 ```python
 from threading import Thread
