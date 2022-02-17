@@ -811,7 +811,6 @@ class SendManager:
             self._run.run_id,
             self._run.start_time.ToSeconds(),
         )
-        raise ValueError("hello boom vish check sentry settings tags")
 
     def _save_history(self, history_dict: Dict[str, Any]) -> None:
         if self._fs:

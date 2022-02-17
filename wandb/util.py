@@ -197,29 +197,12 @@ def sentry_set_scope(
     s = settings_dict
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("platform", get_platform_name())
-        # if process_context is not None:
-        #     scope.set_tag("process_context", process_context)
 
+        # apply settings tags
         if s is not None:
-
             for tag in settings_tags:
                 if hasattr(s, tag) and getattr(s, tag) is not None:
                     scope.set_tag(tag, getattr(s, tag))
-
-            # if hasattr(s, "entity"):
-            #     scope.set_tag("entity", s.entity)
-
-            # if hasattr(s, "project"):
-            #     scope.set_tag("project", s.project)
-
-            # if hasattr(s, "run_id"):
-            #     scope.set_tag("run_id", s.run_id)
-
-            # if hasattr(s, "sweep_id"):
-            #     scope.set_tag("sweep_id", s.sweep_id)
-
-            # if hasattr(s, "deployment"):
-            #     scope.set_tag("deployment", s.deployment)
 
             if hasattr(s, "_colab") and hasattr(s, "_jupyter"):
                 python_runtime = (
@@ -227,12 +210,10 @@ def sentry_set_scope(
                 )
                 scope.set_tag("python_runtime", python_runtime)
 
-            # if hasattr(s, "_require_service"):
-            #     scope.set_tag("service", s._require_service)
-
             if hasattr(s, "email"):
                 scope.user = {"email": s.email}
 
+        # apply directly passed-in tags
         for tag, value in args.items():
             if value is not None and value != "":
                 scope.set_tag(tag, value)
