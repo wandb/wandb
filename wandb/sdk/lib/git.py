@@ -4,11 +4,9 @@ from __future__ import absolute_import
 import logging
 import os
 
+import wandb
 from six.moves import configparser
 from six.moves.urllib.parse import urlparse, urlunparse
-
-import wandb
-
 
 logger = logging.getLogger(__name__)
 
