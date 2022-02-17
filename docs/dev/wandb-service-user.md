@@ -30,6 +30,7 @@ If you are calling `wandb.init` in a spawned process you should add `wandb.setup
 
 ```python
 import multiprocessing as mp
+
 import wandb
 
 def do_work(n):
@@ -50,6 +51,7 @@ If you are using threding instead of multi-processing, you should pass `thread` 
 
 ```python
 from threading import Thread
+
 import wandb
 
 
