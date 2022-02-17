@@ -30,7 +30,7 @@ exclude =
     ./wandb/integration/magic.py
     ./wandb/integration/keras/
     ./wandb/integration/tensorboard/
-    ./wandb/integration/lightgbm/
+    ./wandb/integration/xgboost/
     ./wandb/integration/fastai/
     ./wandb/integration/metaflow/
     ./wandb/filesync/
@@ -48,4 +48,4 @@ exclude =
 per-file-ignores =
    wandb/cli/cli.py:C901,I202
    wandb/wandb_controller.py:N803,N806
-   wandb/apis/public.py:B006
+   wandb/apis/public.py:B006 
