@@ -262,6 +262,7 @@ def test_launch_supplied_docker_image(
     assert "Using supplied docker image: test:tag" in result.output
 
 
+@pytest.mark.timeout(320)
 def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
     args = [
         "https://wandb.ai/mock_server_entity/test_project/runs/run",
