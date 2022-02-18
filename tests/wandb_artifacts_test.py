@@ -976,6 +976,8 @@ def test_interface_commit_hash(runner):
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
+# todo: investigate why this test is flaking
+@pytest.mark.xfail(reason="flaky test")
 def test_artifact_incremental_internal(
     mocked_run, mock_server, internal_sm, backend_interface, parse_ctx,
 ):
@@ -1000,7 +1002,6 @@ def test_artifact_incremental_internal(
         internal_sm.send_artifact(log_artifact)
     manifests_created = parse_ctx(mock_server.ctx).manifests_created
     assert manifests_created[0]["type"] == "INCREMENTAL"
-    wandb.finish()
 
 
 def test_local_references(runner, live_mock_server, test_settings):
@@ -1059,7 +1060,6 @@ def test_artifact_references_internal(
             log_artifact.artifact.CopyFrom(proto_artifact)
 
             internal_sm.send_artifact(log_artifact)
-        wandb.finish()
 
 
 def test_lazy_artifact_passthrough(runner, live_mock_server, test_settings):
