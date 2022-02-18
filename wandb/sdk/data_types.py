@@ -11,7 +11,6 @@ import re
 import shutil
 import sys
 import tempfile
-from timeit import repeat
 from typing import (
     Any,
     cast,
@@ -2426,14 +2425,13 @@ class Image(BatchableMedia):
             "height": height,
             "format": format,
             "count": num_images_to_log,
-            "filenames": [obj["path"] for obj in jsons],
         }
         if _server_accepts_image_filenames():
             meta["filenames"] = [obj["path"] for obj in jsons]
         else:
             wandb.termwarn(
                 "Unable to log image array filenames. In some cases, this can prevent images from being"
-                "viewed in the UI. Please upgrade your wandb server.",
+                "viewed in the UI. Please upgrade your wandb server",
                 repeat=False,
             )
 

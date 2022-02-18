@@ -1116,3 +1116,21 @@ def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
     ]
     assert not any(weird_key in g for g in published_globs), published_globs
     assert any(glob.escape(weird_key) in g for g in published_globs), published_globs
+
+
+def test_image_array_old_wandb(
+    live_mock_server, test_settings, monkeypatch, capsys, parse_ctx
+):
+    monkeypatch.setattr(wandb.sdk.data_types, "_get_max_cli_version", lambda: "0.10.33")
+    run = wandb.init(settings=test_settings)
+    im_count = 5
+    wb_image = [wandb.Image(image) for i in range(im_count)]
+    run.log({"logged_images": wb_image})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    outerr = capsys.readouterr()
+    assert "Unable to log image array filenames. In some cases, this can prevent images from being"
+    "viewed in the UI. Please upgrade your wandb server." in outerr.err
+    # by default we use last value
+    summary = ctx_util.summary
+    assert "filenames" not in list(summary["logged_images"].keys())
