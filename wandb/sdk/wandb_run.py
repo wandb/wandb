@@ -1739,6 +1739,11 @@ class Run:
         if self._run_status_checker:
             self._run_status_checker.stop()
 
+        # make sure all uncommitted history is flushed
+        self._partial_history_callback(
+            {}, self.history_step, commit=True,
+        )
+
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         if self._backend and self._backend.interface:
