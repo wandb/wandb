@@ -288,7 +288,6 @@ def build_sagemaker_args(
         **sagemaker_args,
     }
 
-    sagemaker_args.pop("EcrRepoName", None)
     if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
             "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
@@ -305,6 +304,7 @@ def build_sagemaker_args(
         )
 
     # remove args that were passed in for launch but not passed to sagemaker
+    sagemaker_args.pop("EcrRepoName", None)
     sagemaker_args.pop("region", None)
     sagemaker_args.pop("profile", None)
 

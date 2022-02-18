@@ -264,7 +264,7 @@ def test_launch_supplied_docker_image(
 
 def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
     args = [
-        "https://github.com/test/repo.git",
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
         "--entry-point",
         "train.py",
     ]

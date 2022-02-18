@@ -236,9 +236,7 @@ def download_entry_point(
 def download_wandb_python_deps(
     entity: str, project: str, run_name: str, api: Api, dir: str
 ) -> Optional[str]:
-    reqs = api.download_url(  # @@@
-        project, "requirements.txt", run=run_name, entity=entity
-    )
+    reqs = api.download_url(project, "requirements.txt", run=run_name, entity=entity)
     if reqs is not None:
         _logger.info("Downloading python dependencies")
         _, response = api.download_file(reqs["url"])
