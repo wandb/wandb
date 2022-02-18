@@ -298,7 +298,7 @@ def generate_dockerfile(
         py_version, py_major = get_current_python_version()
 
     # ----- stage 1: build -----
-    if launch_project.deps_type == "pip":
+    if launch_project.deps_type == "pip" or launch_project.deps_type is None:
         python_build_image = "python:{}".format(
             py_version
         )  # use full python image for package installation

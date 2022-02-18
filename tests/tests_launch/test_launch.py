@@ -76,6 +76,22 @@ def mocked_fetchable_git_repo_ipython():
 
 
 @pytest.fixture
+def mocked_fetchable_git_repo_nodeps():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
 def mock_load_backend():
     def side_effect(*args, **kwargs):
         mock_props = mock.Mock()

@@ -6,7 +6,7 @@ import sys
 
 import pytest
 import wandb
-from wandb.docker.auth import DockerError
+from wandb.errors import DockerError
 from wandb.sdk.launch._project_spec import (
     create_project_from_spec,
     fetch_and_validate_project,
@@ -19,7 +19,11 @@ from wandb.sdk.launch.docker import (
     get_base_setup,
 )
 
-from .test_launch import mocked_fetchable_git_repo, mocked_fetchable_git_repo_conda
+from .test_launch import (
+    mocked_fetchable_git_repo,
+    mocked_fetchable_git_repo_conda,
+    mocked_fetchable_git_repo_nodeps,
+)
 
 
 def test_cuda_base_setup(test_settings, live_mock_server, mocked_fetchable_git_repo):
@@ -156,6 +160,35 @@ def test_dockerfile_conda(
     assert "RUN --mount=type=cache,mode=0777,target=/opt/conda/pkgs" in dockerfile
 
 
+def test_dockerfile_nodeps(
+    test_settings, live_mock_server, mocked_fetchable_git_repo_nodeps, monkeypatch
+):
+    monkeypatch.setattr("wandb.docker.is_buildx_installed", lambda: True)
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    test_spec = {
+        "uri": "https://wandb.ai/mock_server_entity/test/runs/1",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "cuda": False,
+        "resource": "local",
+    }
+
+    test_project = create_project_from_spec(test_spec, api)
+    test_project = fetch_and_validate_project(test_project, api)
+
+    assert test_project.deps_type is None
+
+    entry_cmd = get_entry_point_command(
+        test_project.get_single_entry_point(), test_project.override_args
+    )[0]
+    dockerfile = generate_dockerfile(api, test_project, entry_cmd, "local",)
+    assert "environment.yml" not in dockerfile
+    assert "requirements.txt" not in dockerfile
+
+
 def test_buildx_not_installed(
     test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
 ):
@@ -202,3 +235,13 @@ def test_gcp_uri(test_settings, live_mock_server, mocked_fetchable_git_repo):
         test_project, "test-repo", "test-project", "test-registry"
     )
     assert "test-registry/test-project/test-repo/test_launch" in uri
+
+
+def test_docker_image_exists(
+    test_settings, live_mock_server, mocked_fetchable_git_repo, monkeypatch
+):
+    def raise_docker_error(args):
+        raise DockerError(args, 1, b"", b"")
+
+    monkeypatch.setattr(wandb.docker, "run", lambda args: raise_docker_error(args))
+    assert docker_image_exists("test:image") == False
