@@ -615,7 +615,7 @@ class Artifact(ArtifactInterface):
                             tel.feature.artifact_incremental = True
                     run.log_artifact(self)
             else:
-                wandb.run.log_artifact(self)  # type: ignore
+                wandb.run.log_artifact(self)
 
     def delete(self) -> None:
         if self._logged_artifact:
