@@ -43,6 +43,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_string,
     add_import_hook,
     parse_artifact_string,
     sentry_set_scope,
@@ -357,7 +358,6 @@ class Run:
         self._deleted_version_message = None
         self._yanked_version_message = None
         self._used_artifact_slots: Dict[str, str] = {}
-        # self._used_artifact_slots: List[str] = []
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -973,7 +973,9 @@ class Run:
     def _config_artifact_callback(
         self, key: str, val: Union[str, Artifact]
     ) -> Union[Artifact, public.Artifact]:
-        if isinstance(val, str) and val.startswith("wandb-artifact://"):
+        if _is_artifact_string(val):
+            # this will never fail, but is required to make mypy happy
+            assert isinstance(val, str)
             artifact_string, base_url = parse_artifact_string(val)
             overrides = {}
             if base_url is not None:

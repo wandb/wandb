@@ -1459,8 +1459,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
         elif (
             isinstance(item, wandb.Artifact)
             or isinstance(item, wandb.apis.public.Artifact)
-            or isinstance(item, six.string_types)
-            and item.startswith("wandb-artifact://")
+            or _is_artifact_string(item)
         ) and nested:
             return True
     return False
@@ -1477,12 +1476,12 @@ def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
             return None
 
 
-def _is_artifact_string_or_artifact(v: str) -> bool:
-    return (
-        (isinstance(v, six.string_types) and v.startswith("wandb-artifact://"))
-        or isinstance(v, wandb.Artifact)
-        or isinstance(v, wandb.apis.public.Artifact)
-    )
+def _is_artifact(v: Any) -> bool:
+    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+
+
+def _is_artifact_string(v: Any) -> bool:
+    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
 
 
 def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:

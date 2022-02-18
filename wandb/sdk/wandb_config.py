@@ -9,7 +9,8 @@ import logging
 import six
 import wandb
 from wandb.util import (
-    _is_artifact_string_or_artifact,
+    _is_artifact,
+    _is_artifact_string,
     check_dict_contains_nested_artifact,
     json_friendly_val,
 )
@@ -237,7 +238,7 @@ class Config(object):
             allow_val_change = True
         # We always normalize keys by stripping '-'
         key = key.strip("-")
-        if _is_artifact_string_or_artifact(val):
+        if _is_artifact_string(val) or _is_artifact(val):
             val = self._artifact_callback(key, val)
         # if the user inserts an artifact into the config
         if not (
