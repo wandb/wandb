@@ -10,7 +10,7 @@ assert:
     
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
-        - 28  # wandb.tensorflow.WandbHook
+        - 30  # wandb.tensorflow.WandbHook
 
     - :wandb:runs[0][exitcode]: 0
 

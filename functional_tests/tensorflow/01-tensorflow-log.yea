@@ -39,6 +39,6 @@ assert:
 
     - :op:contains:
         - :wandb:runs[0][telemetry][3]  # feature
-        - 27  # wandb.tensorflow.log
+        - 29  # wandb.tensorflow.log
 
     - :wandb:runs[0][exitcode]: 0
