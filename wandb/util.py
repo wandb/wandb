@@ -52,7 +52,6 @@ import sentry_sdk  # type: ignore
 from sentry_sdk import capture_exception, capture_message
 import shortuuid  # type: ignore
 import six
-
 import wandb
 from wandb.env import error_reporting_enabled, get_app_url, SENTRY_DSN
 from wandb.errors import CommError, term, UsageError

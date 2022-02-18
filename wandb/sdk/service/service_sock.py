@@ -4,7 +4,6 @@ Implement ServiceInterface for socket transport.
 """
 
 from typing import TYPE_CHECKING
-from xml.etree.ElementInclude import include
 
 from wandb.proto import wandb_server_pb2 as spb
 
