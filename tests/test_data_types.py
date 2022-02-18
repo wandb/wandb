@@ -1131,6 +1131,5 @@ def test_image_array_old_wandb(
     outerr = capsys.readouterr()
     assert "Unable to log image array filenames. In some cases, this can prevent images from being"
     "viewed in the UI. Please upgrade your wandb server." in outerr.err
-    # by default we use last value
     summary = ctx_util.summary
     assert "filenames" not in list(summary["logged_images"].keys())
