@@ -33,6 +33,7 @@ from .settings_static import SettingsDict, SettingsStatic
 from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
+from ..lib import tracelog
 
 
 if TYPE_CHECKING:
@@ -98,7 +99,7 @@ class ResumeState:
         return f"ResumeState({obj})"
 
 
-class SendManager(object):
+class SendManager:
 
     _settings: SettingsStatic
     _record_q: "Queue[Record]"
@@ -249,6 +250,10 @@ class SendManager(object):
         assert send_handler, "unknown handle: {}".format(handler_str)
         send_handler(record)
 
+    def _respond_result(self, result: "Result") -> None:
+        tracelog.log_message_queue(result, self._result_q)
+        self._result_q.put(result)
+
     def _flatten(self, dictionary: Dict) -> None:
         if type(dictionary) == dict:
             for k, v in list(dictionary.items()):
@@ -275,7 +280,7 @@ class SendManager(object):
             delete_message = messages.get("delete_message")
             if delete_message:
                 result.response.check_version_response.delete_message = delete_message
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def _send_request_attach(
         self,
@@ -293,7 +298,7 @@ class SendManager(object):
         self._send_request_attach(
             record.request.attach, result.response.attach_response
         )
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def send_request_stop_status(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -308,7 +313,7 @@ class SendManager(object):
                 )
             except Exception as e:
                 logger.warning("Failed to check stop requested status: %s", e)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def debounce(self) -> None:
         if self._config_needs_debounce:
@@ -327,7 +332,7 @@ class SendManager(object):
     def send_request_status(self, record: "Record") -> None:
         assert record.control.req_resp
         result = proto_util._result_from_record(record)
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def send_request_network_status(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -341,7 +346,7 @@ class SendManager(object):
                 break
             except Exception as e:
                 logger.warning("Error emptying retry queue: {}".format(e))
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def send_request_login(self, record: "Record") -> None:
         # TODO: do something with api_key or anonymous?
@@ -358,7 +363,7 @@ class SendManager(object):
             result = proto_util._result_from_record(record)
             if self._entity:
                 result.response.login_response.active_entity = self._entity
-            self._result_q.put(result)
+            self._respond_result(result)
 
     def send_exit(self, record: "Record") -> None:
         exit = record.exit
@@ -467,7 +472,7 @@ class SendManager(object):
                 self.get_local_info()
             )
             result.response.poll_exit_response.done = True
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def _maybe_setup_resume(
         self, run: "RunRecord"
@@ -661,7 +666,7 @@ class SendManager(object):
                 result = proto_util._result_from_record(record)
                 result.run_result.run.CopyFrom(run)
                 result.run_result.error.CopyFrom(error)
-                self._result_q.put(result)
+                self._respond_result(result)
             else:
                 logger.error("Got error in async mode: %s", error.message)
             return
@@ -693,7 +698,7 @@ class SendManager(object):
             # the handler not to actually perform server updates for this uuid
             # because the user process will send a summary update when we resume
             result.run_result.run.CopyFrom(self._run)
-            self._result_q.put(result)
+            self._respond_result(result)
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
@@ -971,7 +976,7 @@ class SendManager(object):
                 artifact.type, artifact.name, e
             )
 
-        self._result_q.put(result)
+        self._respond_result(result)
 
     def send_request_artifact_send(self, record: "Record") -> None:
         # TODO: combine and eventually remove send_request_log_artifact()
