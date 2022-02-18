@@ -2558,10 +2558,13 @@ class Run:
             poll_exit_responses_list = [
                 response for response in poll_exit_responses.values()
             ]
-            assert all(
+            if not all(
                 response is None or isinstance(response, PollExitResponse)
                 for response in poll_exit_responses_list
-            )
+            ):
+                raise ValueError(
+                    "All `poll_exit_responses` expected to be either `None` or PollExitResponse"
+                )
             if len(poll_exit_responses_list) == 0:
                 return
             elif len(poll_exit_responses_list) == 1:
@@ -2574,7 +2577,7 @@ class Run:
                 )
         else:
             raise ValueError(
-                f"got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
             )
 
     @staticmethod
