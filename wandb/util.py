@@ -168,11 +168,11 @@ def sentry_reraise(exc: Any) -> None:
 
 
 def sentry_set_scope(
-    settings_dict: Union[
-        "wandb.Settings",
-        "wandb.sdk.internal.settings_static.SettingsStatic",
-        Dict,
-        None,
+    settings_dict: Optional[
+        Union[
+            "wandb.sdk.wandb_settings.Settings",
+            "wandb.sdk.internal.settings_static.SettingsStatic",
+        ]
     ] = None,
     process_context: Optional[str] = None,
 ) -> None:
