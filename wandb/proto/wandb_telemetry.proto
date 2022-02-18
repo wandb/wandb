@@ -79,6 +79,8 @@ message Feature {
   bool init_return_run = 24; // wandb.init() called in the same process returning previous run
   bool lightgbm_wandb_callback = 25; // lightgbm callback used
   bool lightgbm_log_summary = 26; // lightgbm log summary used
+  bool catboost_wandb_callback = 27; // catboost callback used
+  bool catboost_log_summary = 28; // catboost log summary used
 }
 
 message Env {

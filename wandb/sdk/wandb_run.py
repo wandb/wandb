@@ -2602,7 +2602,7 @@ class Run:
                 response for response in poll_exit_responses.values()
             ]
             assert all(
-                isinstance(response, (PollExitResponse, None))  # type: ignore
+                response is None or isinstance(response, PollExitResponse)
                 for response in poll_exit_responses_list
             )
             if len(poll_exit_responses_list) == 0:
