@@ -412,7 +412,7 @@ If you update one of those files, you need to:
 
 <!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
 
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main scrip (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), that can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), that can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
 
 #### Example usage:
 
