@@ -19,7 +19,6 @@ class _Printer:
             return sparkline.sparkify(series)
         return None
 
-    @property
     def abort(self,) -> str:
         return "Control-C" if platform.system() != "Windows" else "Ctrl-C"
 
