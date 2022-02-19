@@ -60,10 +60,10 @@ class SockServerInterfaceReaderThread(threading.Thread):
                 result = self._iface.relay_q.get(timeout=1)
             except queue.Empty:
                 continue
-            except OSError as e:
+            except OSError:
                 # handle is closed
                 break
-            except ValueError as e:
+            except ValueError:
                 # queue is closed
                 break
             tracelog.log_message_dequeue(result, self._iface.relay_q)
