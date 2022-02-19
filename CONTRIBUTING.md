@@ -412,7 +412,7 @@ If you update one of those files, you need to:
 
 <!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
 
-You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main scrip to run your regression tests is `wandb-testing/regression/regression.py`. For more details see: [README](https://github.com/wandb/wandb-testing/tree/master/regression#readme)
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main scrip (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), that can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
 
 #### Example usage:
 
@@ -422,7 +422,8 @@ git clone git@github.com:wandb/wandb-testing.git
 cd wandb-testing/regression && python regression.py tests/main/huggingface/ --dryrun
 ```
 
-The above script will print all the configuration of the huggingface-transformers test. The expected output should look something like this:
+The above script will print all of the `huggingface-transformers` test configurations.
+The expected output should look something like this:
 
 ```
 ########################################
@@ -440,6 +441,20 @@ The above script will print all the configuration of the huggingface-transformer
 Good runs:
 Failed runs:
 ```
+
+In the names of the tests you can see the configurations of the tests:
+
+- `init` is the configuration specified in the test [config file](https://github.com/wandb/wandb-testing/blob/master/regression/tests/main/huggingface/regression.yaml#L49).
+
+Some details include:
+
+- All the tests are using `py37`: [python-3.7](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L25).
+- Each test uses a different version `PyTorch`:
+  - `pt`: [Latests PyTorch release](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L54)
+  - `pt1.4`: [Version 1.4 of PyTorch](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L60)
+  - `ptn`: [Nightly version of Pytorch](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L73)
+
+For more details see this [README](https://github.com/wandb/wandb-testing/tree/master/regression#readme).
 
 ## Live development
 
