@@ -210,7 +210,7 @@ def test_max_images(caplog, mocked_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(mocked_run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
+        wandb.data_types._prune_max_seq(large_list), mocked_run, "test2", 0
     )
     expected = {
         "_type": "images/separated",

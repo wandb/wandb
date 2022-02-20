@@ -1,9 +1,21 @@
+import logging
 from typing import Sequence, Type, TYPE_CHECKING, Union
 
 from ._media import Media
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run
+
+
+def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
+    # If media type has a max respect it
+    items = seq
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # type: ignore
+        logging.warning(
+            f"Only {seq[0].MAX_ITEMS} {seq[0].__class__.__name__} will be uploaded."  # type: ignore
+        )
+        items = seq[: seq[0].MAX_ITEMS]  # type: ignore
+    return items
 
 
 class BatchableMedia(Media):

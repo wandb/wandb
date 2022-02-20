@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import re
 from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
@@ -17,6 +16,7 @@ from wandb.util import (
     mkdir_exists_ok,
 )
 
+from ._batched_media import _prune_max_seq, BatchableMedia
 from ._media import Media
 from ._wandb_value import WBValue
 
@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     import pandas as pd  # type: ignore
     import plotly  # type: ignore
 
-    from _batched_media import BatchableMedia
     from wandb.sdk.wandb_run import Run
 
     ValToJsonType = Union[
@@ -66,18 +65,6 @@ def _numpy_arrays_to_lists(
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
     return payload
-
-
-def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
-    # If media type has a max respect it
-    items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # type: ignore
-        logging.warning(
-            "Only %i %s will be uploaded."
-            % (seq[0].MAX_ITEMS, seq[0].__class__.__name__)  # type: ignore
-        )
-        items = seq[: seq[0].MAX_ITEMS]  # type: ignore
-    return items
 
 
 def _data_frame_to_json(

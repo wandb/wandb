@@ -17,6 +17,7 @@ from wandb.sdk.interface import _dtypes  # noqa: F401
 
 from ._audio import Audio
 from ._batched_media import BatchableMedia
+from ._batched_media import _prune_max_seq  # noqa: F401
 from ._bokeh import Bokeh
 from ._bounding_boxes2d import BoundingBoxes2D
 from ._classes import Classes
@@ -33,9 +34,8 @@ from ._plotly import Plotly
 from ._table import Table
 from ._video import Video
 from ._wandb_value import WBValue
-from .utils import (  # noqa: F401
-    _numpy_arrays_to_lists,
-    _prune_max_seq,
+from .utils import _numpy_arrays_to_lists  # noqa: F401
+from .utils import (
     history_dict_to_json,
     val_to_json,
 )
