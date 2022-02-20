@@ -499,7 +499,9 @@ class InterfaceBase(object):
     ) -> None:
         run = run or self._run
 
-        data = data_types.history_dict_to_json(run, data, step=step)
+        data = data_types.history_dict_to_json(
+            run, data, step=step, ignore_copy_err=True
+        )
         data.pop("_step", None)
 
         partial_history = pb.PartialHistoryRequest()
