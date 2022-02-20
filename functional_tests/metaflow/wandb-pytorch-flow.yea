@@ -1,6 +1,9 @@
 id: metaflow.pytorch.base
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 command:
     args:
         - --no-pylint

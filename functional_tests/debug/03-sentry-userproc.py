@@ -5,6 +5,10 @@
 id: 0.debug.03-sentry-userproc
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
+      reason: wrong slashes in assert
 assert:
   - :wandb:runs_len: 0
   - :wandb:sentry_events[0][level]: error
