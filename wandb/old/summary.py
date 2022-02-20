@@ -6,7 +6,7 @@ import sys
 import time
 import requests
 
-from gql import gql
+from wandb_gql import gql
 import six
 
 import wandb
