@@ -1,16 +1,18 @@
 import io
 import os
 import pathlib
-from typing import Union, Optional, Sequence, Type, TYPE_CHECKING
+from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
 
-from _batched_media import BatchableMedia
-from _media import Media
-from wandb.util import get_module, generate_id, to_forward_slash_path
+from wandb.util import generate_id, get_module, to_forward_slash_path
+
+from ._batched_media import BatchableMedia
+from ._media import Media
 
 if TYPE_CHECKING:
     import rdkit.Chem  # type: ignore
+
     from wandb.sdk.wandb_artifacts import Artifact
-    from wandb_run import Run
+    from wandb.sdk.wandb_run import Run
 
     RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
 
@@ -149,8 +151,7 @@ class Molecule(BatchableMedia):
             molecule = rdkit_chem.AddHs(molecule)
             rdkit_chem_all_chem.EmbedMolecule(molecule)
             rdkit_chem_all_chem.MMFFOptimizeMolecule(
-                molecule,
-                maxIters=mmff_optimize_molecule_max_iterations,
+                molecule, maxIters=mmff_optimize_molecule_max_iterations,
             )
         # convert to the pdb format supported by Molecule
         pdb_block = rdkit_chem.rdmolfiles.MolToPDBBlock(molecule)

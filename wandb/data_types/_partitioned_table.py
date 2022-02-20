@@ -1,6 +1,7 @@
-from _media import Media
-from wandb_run import Run
+import wandb
 from wandb.sdk.interface import _dtypes
+
+from ._media import Media
 
 
 class _PartitionTablePartEntry:
@@ -41,7 +42,7 @@ class PartitionedTable(Media):
         json_obj = {
             "_type": PartitionedTable._log_type,
         }
-        if isinstance(artifact_or_run, Run):
+        if isinstance(artifact_or_run, wandb.sdk.wandb_run.Run):
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is None:
                 raise ValueError(

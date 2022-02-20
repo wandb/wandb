@@ -2,19 +2,19 @@ import codecs
 import os
 from typing import Type, TYPE_CHECKING, Union
 
-from _image import Image
-from _media import Media
-from utils import _numpy_arrays_to_lists
-
 from wandb.util import (
-    get_full_typename,
     generate_id,
+    get_full_typename,
     is_matplotlib_typename,
     is_plotly_figure_typename,
     json_dump_safer,
     matplotlib_contains_images,
     matplotlib_to_plotly,
 )
+
+from ._image import Image
+from ._media import Media
+from .utils import _numpy_arrays_to_lists
 
 if TYPE_CHECKING:
     import matplotlib  # type: ignore

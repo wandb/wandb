@@ -1,12 +1,12 @@
-from pkg_resources import parse_version
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
+from typing import Any, ClassVar, Dict, List, Optional, Type, TYPE_CHECKING, Union
 
+from pkg_resources import parse_version
 import wandb
 
 if TYPE_CHECKING:
-    from wandb_run import Run
-    from wandb.sdk.wandb_artifacts import Artifact
     from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
     TypeMappingType = Dict[str, Type["WBValue"]]
 
@@ -18,7 +18,7 @@ def _get_max_cli_version() -> Union[str, None]:
 
 
 def _is_offline() -> bool:
-    return (wandb.run or wandb.setup()).setting._offline
+    return (wandb.run or wandb.setup()).settings._offline
 
 
 def _server_accepts_client_ids() -> bool:

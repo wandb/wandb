@@ -2,12 +2,10 @@ import json
 import logging
 import os
 import re
-from typing import cast, Union, Sequence, TYPE_CHECKING, Optional
+from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
 
-from _media import Media
-from _plotly import Plotly
-from _wandb_value import WBValue
-from wandb.sdk.wandb_artifacts import Artifact
+
+import wandb
 from wandb.util import (
     generate_id,
     get_full_typename,
@@ -16,12 +14,11 @@ from wandb.util import (
     is_numpy_array,
     is_pandas_data_frame,
     is_plotly_typename,
-    json_friendly,
     mkdir_exists_ok,
 )
 
-import wandb
-
+from ._media import Media
+from ._wandb_value import WBValue
 
 if TYPE_CHECKING:
     import matplotlib  # type: ignore
@@ -30,7 +27,7 @@ if TYPE_CHECKING:
     import plotly  # type: ignore
 
     from _batched_media import BatchableMedia
-    from wandb_run import Run
+    from wandb.sdk.wandb_run import Run
 
     ValToJsonType = Union[
         dict,
@@ -69,11 +66,6 @@ def _numpy_arrays_to_lists(
     elif isinstance(payload, Media):
         return str(payload.__class__.__name__)
     return payload
-
-
-def _is_numpy_array(data: object) -> bool:
-    np = get_module("numpy", required="Logging raw point cloud data requires numpy")
-    return isinstance(data, np.ndarray)
 
 
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
@@ -217,7 +209,7 @@ def val_to_json(
         val = wandb.Table(dataframe=val)
 
     elif is_matplotlib_typename(typename) or is_plotly_typename(typename):
-        val = Plotly.make_plot_media(val)
+        val = wandb.data_types._plotly.Plotly.make_plot_media(val)
     elif isinstance(val, Sequence) and all(isinstance(v, WBValue) for v in val):
         assert run
         # This check will break down if Image/Audio/... have child classes.
@@ -261,7 +253,9 @@ def val_to_json(
                 # we sanitize the key to meet the constraints defined in wandb_artifacts.py
                 # in this case, leaving only alpha numerics or underscores.
                 sanitized_key = re.sub(r"[^a-zA-Z0-9_]+", "", key)
-                art = Artifact("run-{}-{}".format(run.id, sanitized_key), "run_table")
+                art = wandb.sdk.wandb_artifacts.Artifact(
+                    "run-{}-{}".format(run.id, sanitized_key), "run_table"
+                )
                 art.add(val, key)
                 run.log_artifact(art)
 
@@ -275,17 +269,3 @@ def val_to_json(
         return val.to_json(run)
 
     return converted  # type: ignore
-
-
-def _json_helper(val, artifact):
-    if isinstance(val, WBValue):
-        return val.to_json(artifact)
-    elif val.__class__ == dict:
-        res = {}
-        for key in val:
-            res[key] = _json_helper(val[key], artifact)
-        return res
-    elif hasattr(val, "tolist"):
-        return json_friendly(val.tolist())[0]
-    else:
-        return json_friendly(val)[0]

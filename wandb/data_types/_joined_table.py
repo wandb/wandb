@@ -2,12 +2,12 @@ import base64
 import binascii
 import os
 
-from _media import Media
-from _partitioned_table import PartitionedTable
-from _table import Table
-
+import wandb
 from wandb.sdk.interface import _dtypes
-from wandb_run import Run
+
+from ._media import Media
+from ._partitioned_table import PartitionedTable
+from ._table import Table
 
 
 class JoinedTable(Media):
@@ -58,11 +58,7 @@ class JoinedTable(Media):
         if t2 is None:
             t2 = json_obj["table2"]
 
-        return cls(
-            t1,
-            t2,
-            json_obj["join_key"],
-        )
+        return cls(t1, t2, json_obj["join_key"],)
 
     @staticmethod
     def _validate_table_input(table):
@@ -106,7 +102,7 @@ class JoinedTable(Media):
         json_obj = {
             "_type": JoinedTable._log_type,
         }
-        if isinstance(artifact_or_run, Run):
+        if isinstance(artifact_or_run, wandb.sdk.wandb_run.Run):
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is None:
                 raise ValueError(
@@ -117,11 +113,7 @@ class JoinedTable(Media):
             table1 = self._ensure_table_in_artifact(self._table1, artifact_or_run, 1)
             table2 = self._ensure_table_in_artifact(self._table2, artifact_or_run, 2)
             json_obj.update(
-                {
-                    "table1": table1,
-                    "table2": table2,
-                    "join_key": self._join_key,
-                }
+                {"table1": table1, "table2": table2, "join_key": self._join_key,}
             )
         return json_obj
 

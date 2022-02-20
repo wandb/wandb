@@ -1,18 +1,20 @@
 import codecs
 import json
 import os
-from typing import ClassVar, Sequence, Set, Union, Type, TYPE_CHECKING
+from typing import ClassVar, Sequence, Set, Type, TYPE_CHECKING, Union
 
-from _batched_media import BatchableMedia
-from utils import _is_numpy_array
+import wandb
 from wandb.sdk.interface import _dtypes
-from wandb.util import generate_id, to_forward_slash_path
+from wandb.util import generate_id, to_forward_slash_path, is_numpy_array
+
+from ._batched_media import BatchableMedia
 
 if TYPE_CHECKING:
     import io
     import numpy as np  # type: ignore
-    from wandb_run import Run
+
     from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class Object3D(BatchableMedia):
@@ -111,14 +113,10 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    data,
-                    fp,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
+                    data, fp, separators=(",", ":"), sort_keys=True, indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
-        elif _is_numpy_array(data_or_path):
+        elif is_numpy_array(data_or_path):
             np_data = data_or_path
 
             # The following assertion is required for numpy to trust that
@@ -142,11 +140,7 @@ class Object3D(BatchableMedia):
             tmp_path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".pts.json")
             with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
                 json.dump(
-                    list_data,
-                    fp,
-                    separators=(",", ":"),
-                    sort_keys=True,
-                    indent=4,
+                    list_data, fp, separators=(",", ":"), sort_keys=True, indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
         else:
@@ -160,7 +154,7 @@ class Object3D(BatchableMedia):
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
 
-        if isinstance(run_or_artifact, Artifact):
+        if isinstance(run_or_artifact, wandb.sdk.wandb_artifacts.Artifact):
             if self._path is None or not self._path.endswith(".pts.json"):
                 raise ValueError(
                     "Non-point cloud 3D objects are not yet supported with Artifacts"

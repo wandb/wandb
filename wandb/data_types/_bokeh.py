@@ -2,9 +2,10 @@ import codecs
 import json
 import os
 
-from _media import Media
 from wandb.sdk.interface import _dtypes
 from wandb.util import generate_id, get_module, json_dump_safer
+
+from ._media import Media
 
 
 class Bokeh(Media):

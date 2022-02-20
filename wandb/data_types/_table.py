@@ -2,19 +2,34 @@ import codecs
 import logging
 import os
 
-from _media import Media
-from _wandb_value import WBValue
-from utils import _json_helper, _numpy_arrays_to_lists
+import wandb
 from wandb.sdk.interface import _dtypes
-from wandb.sdk.wandb_artifacts import Artifact
-from wandb_run import Run
 from wandb.util import (
     generate_id,
     get_module,
     is_numpy_array,
     is_pandas_data_frame,
     json_dump_safer,
+    json_friendly,
 )
+
+from ._media import Media
+from ._wandb_value import WBValue
+from .utils import _numpy_arrays_to_lists
+
+
+def _json_helper(val, artifact):
+    if isinstance(val, WBValue):
+        return val.to_json(artifact)
+    elif val.__class__ == dict:
+        res = {}
+        for key in val:
+            res[key] = _json_helper(val[key], artifact)
+        return res
+    elif hasattr(val, "tolist"):
+        return json_friendly(val.tolist())[0]
+    else:
+        return json_friendly(val)[0]
 
 
 class _TableLinkMixin(object):
@@ -496,7 +511,7 @@ class Table(Media):
     def to_json(self, run_or_artifact):
         json_dict = super(Table, self).to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, Run):
+        if isinstance(run_or_artifact, wandb.sdk.wandb_run.Run):
             json_dict.update(
                 {
                     "_type": "table-file",
@@ -505,7 +520,7 @@ class Table(Media):
                 }
             )
 
-        elif isinstance(run_or_artifact, Artifact):
+        elif isinstance(run_or_artifact, wandb.sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             mapped_data = []
             data = self._to_table_json(Table.MAX_ARTIFACT_ROWS)["data"]
@@ -846,9 +861,7 @@ class _ForeignIndexType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls,
-        json_dict,
-        artifact,
+        cls, json_dict, artifact,
     ):
         table = None
         if artifact is None:
@@ -908,9 +921,7 @@ class _ForeignKeyType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls,
-        json_dict,
-        artifact,
+        cls, json_dict, artifact,
     ):
         table = None
         col_name = None

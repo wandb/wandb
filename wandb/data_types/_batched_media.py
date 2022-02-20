@@ -1,8 +1,9 @@
 from typing import Sequence, Type, TYPE_CHECKING, Union
-from _media import Media
+
+from ._media import Media
 
 if TYPE_CHECKING:
-    from wandb_run import Run
+    from wandb.sdk.wandb_run import Run
 
 
 class BatchableMedia(Media):

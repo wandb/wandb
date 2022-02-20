@@ -2,10 +2,12 @@ import codecs
 import os
 import pprint
 
-from _media import Media
-from _wandb_value import WBValue
-from utils import _numpy_arrays_to_lists
+
 from wandb.util import generate_id, get_module, json_dump_safer
+
+from ._media import Media
+from ._wandb_value import WBValue
+from .utils import _numpy_arrays_to_lists
 
 
 def _nest(thing):

@@ -2,12 +2,13 @@ import os
 from typing import Any, Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 from wandb.sdk.interface import _dtypes
-from _media import Media
+
+from ._media import Media
 
 if TYPE_CHECKING:
-    from wandb.sdk.wandb_artifacts import Artifact
-    from wandb_run import Run
     from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class Classes(Media):
@@ -132,9 +133,7 @@ class _ClassesIdType(_dtypes.Type):
 
     @classmethod
     def from_json(
-        cls,
-        json_dict: Dict[str, Any],
-        artifact: Optional["PublicArtifact"] = None,
+        cls, json_dict: Dict[str, Any], artifact: Optional["PublicArtifact"] = None,
     ) -> "_dtypes.Type":
         classes_obj = None
         if (

@@ -1,18 +1,18 @@
 import io
 import logging
 import os
-from typing import Dict, Optional, Union, TYPE_CHECKING, Type, Sequence
+from typing import Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
-from .utils import _is_numpy_array
-from _batched_media import BatchableMedia
 from wandb.sdk.interface import _dtypes
-from wandb.util import get_module, generate_id, mkdir_exists_ok
+from wandb.util import generate_id, get_module, is_numpy_array, mkdir_exists_ok
+
+from ._batched_media import BatchableMedia
 
 if TYPE_CHECKING:
     import numpy as np  # type: ignore
 
     from wandb.sdk.wandb_artifacts import Artifact
-    from wandb_run import Run
+    from wandb.sdk.wandb_run import Run
 
 
 class Video(BatchableMedia):
@@ -87,7 +87,7 @@ class Video(BatchableMedia):
         else:
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
                 self.data = data_or_path.numpy()  # type: ignore
-            elif _is_numpy_array(data_or_path):
+            elif is_numpy_array(data_or_path):
                 self.data = data_or_path
             else:
                 raise ValueError(

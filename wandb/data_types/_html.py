@@ -1,18 +1,18 @@
 import os
-
-from typing import Sequence, Union, Type, TYPE_CHECKING
+from typing import Sequence, Type, TYPE_CHECKING, Union
 
 from wandb.sdk.interface import _dtypes
-
-from _batched_media import BatchableMedia
-from wandb.sdk.wandb_artifacts import Artifact
-from wandb_run import Run
 from wandb.util import generate_id, mkdir_exists_ok
+
+from ._batched_media import BatchableMedia
 
 
 if TYPE_CHECKING:
     import io
+
     from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class Html(BatchableMedia):

@@ -1,14 +1,16 @@
-import os
 import numbers
-from typing import Optional, Union, Type, TYPE_CHECKING
+import os
+from typing import Optional, Type, TYPE_CHECKING, Union
 
-from _media import Media
-from wandb.sdk.wandb_artifacts import Artifact
-from wandb_run import Run
-from wandb.util import get_module, generate_id
+import wandb
+from wandb.util import generate_id, get_module
+
+from ._media import Media
 
 if TYPE_CHECKING:
     from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
 
 class ImageMask(Media):
@@ -194,17 +196,16 @@ class ImageMask(Media):
         cls: Type["ImageMask"], json_obj: dict, source_artifact: "PublicArtifact"
     ) -> "ImageMask":
         return cls(
-            {"path": source_artifact.get_path(json_obj["path"]).download()},
-            key="",
+            {"path": source_artifact.get_path(json_obj["path"]).download()}, key="",
         )
 
     def to_json(self, run_or_artifact: Union["Run", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
 
-        if isinstance(run_or_artifact, Run):
+        if isinstance(run_or_artifact, wandb.sdk.wandb_run.Run):
             json_dict["_type"] = self.type_name()
             return json_dict
-        elif isinstance(run_or_artifact, Artifact):
+        elif isinstance(run_or_artifact, wandb.sdk.wandb_artifacts.Artifact):
             # Nothing special to add (used to add "digest", but no longer used.)
             return json_dict
         else:

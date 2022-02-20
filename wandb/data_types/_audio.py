@@ -1,11 +1,16 @@
 import hashlib
 import os
 import re
+from typing import Optional, TYPE_CHECKING, Union
 
 
-from _batched_media import BatchableMedia
 from wandb.sdk.interface import _dtypes
-from wandb.util import get_module, generate_id, mkdir_exists_ok
+from wandb.util import generate_id, get_module, mkdir_exists_ok
+
+from ._batched_media import BatchableMedia
+
+if TYPE_CHECKING:
+    import numpy as np  # type: ignore
 
 
 class Audio(BatchableMedia):
@@ -22,9 +27,14 @@ class Audio(BatchableMedia):
 
     _log_type = "audio-file"
 
-    def __init__(self, data_or_path, sample_rate=None, caption=None):
+    def __init__(
+        self,
+        data_or_path: Union[str, "np.ndarray"],
+        sample_rate: Optional[int] = None,
+        caption: Optional[str] = None,
+    ):
         """Accepts a path to an audio file or a numpy array of audio data."""
-        super(Audio, self).__init__()
+        super().__init__()
         self._duration = None
         self._sample_rate = sample_rate
         self._caption = caption
@@ -54,7 +64,7 @@ class Audio(BatchableMedia):
             self._set_file(tmp_path, is_tmp=True)
 
     @classmethod
-    def path_is_reference(cls, path):
+    def path_is_reference(cls, path: str) -> bool:
         return bool(re.match(r"^(gs|s3|https?)://", path))
 
     @classmethod
@@ -68,21 +78,18 @@ class Audio(BatchableMedia):
             caption=json_obj["caption"],
         )
 
-    def bind_to_run(self, run, key, step, id_=None):
+    def bind_to_run(self, run, key, step, id_: Optional[str] = None):
         if Audio.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super(Audio, self).bind_to_run(run, key, step, id_)
+        return super().bind_to_run(run, key, step, id_)
 
     def to_json(self, run):
-        json_dict = super(Audio, self).to_json(run)
+        json_dict = super().to_json(run)
         json_dict.update(
-            {
-                "_type": self._log_type,
-                "caption": self._caption,
-            }
+            {"_type": self._log_type, "caption": self._caption,}
         )
         return json_dict
 
@@ -129,7 +136,7 @@ class Audio(BatchableMedia):
         else:
             return ["" if c is None else c for c in captions]
 
-    def resolve_ref(self):
+    def resolve_ref(self) -> Optional[str]:
         if Audio.path_is_reference(self._path):
             # this object was already created using a ref:
             return self._path
@@ -143,7 +150,7 @@ class Audio(BatchableMedia):
 
         return None
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if Audio.path_is_reference(self._path) or Audio.path_is_reference(other._path):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
@@ -152,9 +159,9 @@ class Audio(BatchableMedia):
                 and self._caption == other._caption
             )
 
-        return super(Audio, self).__eq__(other) and self._caption == other._caption
+        return super().__eq__(other) and self._caption == other._caption
 
-    def __ne__(self, other):
+    def __ne__(self, other) -> bool:
         return not self.__eq__(other)
 
 

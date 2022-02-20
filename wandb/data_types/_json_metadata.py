@@ -7,12 +7,14 @@ import codecs
 import os
 from typing import Type, TYPE_CHECKING, Union
 
-from _media import Media
 from wandb.util import generate_id, json_dump_uncompressed
+
+from ._media import Media
+
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_artifacts import Artifact
-    from wandb_run import Run
+    from wandb.sdk.wandb_run import Run
 
 
 class JSONMetadata(Media):

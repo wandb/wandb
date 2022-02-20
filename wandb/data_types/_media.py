@@ -1,12 +1,11 @@
 import hashlib
-from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
 import os
 import platform
 import shutil
 import tempfile
+from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
 
-from _wandb_value import WBValue
-
+import wandb
 from wandb._globals import _datatypes_callback
 from wandb.util import (
     check_windows_valid_filename,
@@ -14,6 +13,7 @@ from wandb.util import (
     to_forward_slash_path,
 )
 
+from ._wandb_value import WBValue
 
 if TYPE_CHECKING:
     from wandb_run import Run
@@ -166,7 +166,7 @@ class Media(WBValue):
         from wandb.data_types import Audio
 
         json_obj = {}
-        if isinstance(run, Run):
+        if isinstance(run, wandb.sdk.wandb_run.Run):
             if not self.is_bound():
                 raise RuntimeError(
                     "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
@@ -199,7 +199,7 @@ class Media(WBValue):
             artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
-        elif isinstance(run, Artifact):
+        elif isinstance(run, wandb.sdk.wandb_artifacts.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for

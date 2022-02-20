@@ -4,24 +4,22 @@ import logging
 import os
 from typing import Any, cast, Dict, List, Optional, Sequence, Type, TYPE_CHECKING, Union
 
-from _batched_media import BatchableMedia
-from _bounding_boxes2d import BoundingBoxes2D
-from _classes import Classes
-from _image_mask import ImageMask
+import wandb
 from wandb.sdk.interface import _dtypes
-from wandb.sdk.wandb_artifacts import Artifact
-from wandb_run import Run
-
 from wandb.util import (
     ensure_matplotlib_figure,
+    generate_id,
     get_full_typename,
     get_module,
-    generate_id,
     is_matplotlib_typename,
     is_pytorch_tensor_typename,
     to_forward_slash_path,
 )
 
+from ._batched_media import BatchableMedia
+from ._bounding_boxes2d import BoundingBoxes2D
+from ._classes import Classes
+from ._image_mask import ImageMask
 
 if TYPE_CHECKING:
     import matplotlib  # type: ignore
@@ -31,6 +29,8 @@ if TYPE_CHECKING:
 
     from _media import Media
     from wandb.apis.public import Artifact as PublicArtifact
+    from wandb.sdk.wandb_artifacts import Artifact
+    from wandb.sdk.wandb_run import Run
 
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"
@@ -229,11 +229,7 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(
-        self,
-        data: "ImageDataType",
-        mode: str = None,
-    ) -> None:
+    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
         pil_image = get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -338,7 +334,7 @@ class Image(BatchableMedia):
         if self._caption:
             json_dict["caption"] = self._caption
 
-        if isinstance(run_or_artifact, Artifact):
+        if isinstance(run_or_artifact, wandb.sdk.wandb_artifacts.Artifact):
             artifact = run_or_artifact
             if (
                 self._masks is not None or self._boxes is not None
@@ -351,11 +347,7 @@ class Image(BatchableMedia):
                 class_id = hashlib.md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
-                class_name = os.path.join(
-                    "media",
-                    "classes",
-                    class_id + "_cls",
-                )
+                class_name = os.path.join("media", "classes", class_id + "_cls",)
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
@@ -363,7 +355,7 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, Run):
+        elif not isinstance(run_or_artifact, wandb.sdk.wandb_run.Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:
