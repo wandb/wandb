@@ -50,6 +50,16 @@ message Imports {
   bool deepctr = 22;
   // bool deeppavlov = 23;
   // bool detectron = 24;
+  // bool paddle = 25;
+  // bool parlai = 26;
+  // bool prophet = 27;
+  bool pycaret = 28;
+  // bool pytorch-ignite = 29;
+  bool pytorchvideo = 30;
+  bool ray = 31;
+  bool simpletransformers = 32;
+  bool skorch = 33;
+  bool spacy = 34;
 }
 
 message Feature {
