@@ -17,30 +17,30 @@ assert:
   - :wandb:runs[0][summary]:
       loss: 1
   - :wandb:runs[0][exitcode]: 0
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 28  # pycaret
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 10  # ignite
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 30  # pytorchvideo
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 9  # pytorch_lightning
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 28  # pycaret
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 10  # ignite
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 30  # pytorchvideo
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 9  # pytorch_lightning
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 31  # ray
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 5  # sklearn
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 32  # simpletransformers
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 33  # skorch
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 5  # sklearn
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 32  # simpletransformers
+  # - :op:contains:
+  #   - :wandb:runs[0][telemetry][1]  # imports init
+  #   - 33  # skorch
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 34  # spacy
@@ -61,13 +61,6 @@ import ray  # noqa: F401
 # import skorch  # noqa: F401
 import spacy  # noqa: F401
 import wandb
-
-try:
-    import spacy
-
-    print("spacy!")
-except ImportError:
-    print("no spacy!!!")
 
 run = wandb.init()
 wandb.log(dict(loss=1))
