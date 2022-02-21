@@ -24,17 +24,17 @@ class DebugLogParser:
 
     def _parse(self, line: str) -> None:
         line = line.strip()
-        index = line.find("DEBUG_LOG(")
+        index = line.find("TRACELOG(")
         if index < 0:
             return
         line = line[index:]
         items = line.split()
         if len(items) != 10:
             return
-        # ['DEBUG_LOG(1)', '<-', '185542.522061', 'fd1e0e9f4d3f3520', 'dequeue', 'result_q', 'MsgRouterThr', 'poll_exit_response', '69aed18a893a49d182c7a13b498f805f', '-']
+        # ['TRACELOG(1)', '<-', '185542.522061', 'fd1e0e9f4d3f3520', 'dequeue', 'result_q', 'MsgRouterThr', 'poll_exit_response', '69aed18a893a49d182c7a13b498f805f', '-']
         magic, direct, ts, msg_id, op, resource, thr, msg, uuid, stream = items
         self._uuid_messages.setdefault(uuid, msg)
-        if magic != "DEBUG_LOG(1)":
+        if magic != "TRACELOG(1)":
             return
         thr = thr.replace("-", "_")
         if op == "queue":
