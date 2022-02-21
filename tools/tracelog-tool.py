@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-"""Parse debug_log output for analysis/diagrams.
+"""Parse tracelog output for analysis/diagrams.
 
 Usage:
-    ./client/tools/debuglog-tool.py path/to/rundir/
-    ./client/tools/debuglog-tool.py output.txt
-    ./client/tools/debuglog-tool.py output1.txt output2.txt
+    ./client/tools/tracelog-tool.py path/to/rundir/
+    ./client/tools/tracelog-tool.py output.txt
+    ./client/tools/tracelog-tool.py output1.txt output2.txt
 """
 
 import argparse
@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser()
 args = parser.parse_args()
 
 
-class DebugLogParser:
+class TracelogParser:
     def __init__(self) -> None:
         self._lines = []
         self._uuid_messages = dict()
@@ -105,7 +105,7 @@ end box
 
 
 def main():
-    parser = DebugLogParser()
+    parser = TracelogParser()
     # parser.load("out.txt")
     parser.loaddir(DEFAULT_DIR + "logs/")
     parser.output()
