@@ -54,12 +54,11 @@ message Imports {
   // bool parlai = 26;
   // bool prophet = 27;
   bool pycaret = 28;
-  // bool pytorch-ignite = 29;
-  bool pytorchvideo = 30;
-  bool ray = 31;
-  bool simpletransformers = 32;
-  bool skorch = 33;
-  bool spacy = 34;
+  bool pytorchvideo = 29;
+  bool ray = 30;
+  bool simpletransformers = 31;
+  bool skorch = 32;
+  bool spacy = 33;
 }
 
 message Feature {
