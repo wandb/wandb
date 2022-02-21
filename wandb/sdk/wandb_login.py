@@ -1,14 +1,17 @@
-#
-# -*- coding: utf-8 -*-
 """
 Log in to Weights & Biases, authenticating your machine to log data to your
 account.
 """
-from __future__ import print_function
 
 import enum
 import os
-from typing import Dict, Optional, Tuple
+import sys
+from typing import Any, Dict, Optional, Tuple, Union
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 import click
 import wandb
@@ -17,7 +20,7 @@ from wandb.old.settings import Settings as OldSettings
 
 from .internal.internal_api import Api
 from .lib import apikey
-from .wandb_settings import Settings
+from .wandb_settings import Settings, Source
 from ..apis import InternalApi
 
 
@@ -37,7 +40,14 @@ def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None
         _api.set_setting("base_url", host, globally=True, persist=True)
 
 
-def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout=None):
+def login(
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
+) -> bool:
     """
     Log in to W&B.
 
@@ -49,6 +59,7 @@ def login(anonymous=None, key=None, relogin=None, host=None, force=None, timeout
         key: (string, optional) authentication key.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
+        force: (bool, optional) If true, will force a relogin.
         timeout: (int, optional) Number of seconds to wait for user input.
 
     Returns:
@@ -73,10 +84,10 @@ class ApiKeyStatus(enum.Enum):
     DISABLED = 4
 
 
-class _WandbLogin(object):
+class _WandbLogin:
     def __init__(self):
         self.kwargs: Optional[Dict] = None
-        self._settings: Optional[Settings] = None
+        self._settings: Union[Settings, Dict[str, Any], None] = None
         self._backend = None
         self._silent = None
         self._wl = None
@@ -89,8 +100,12 @@ class _WandbLogin(object):
         # built up login settings
         login_settings: Settings = wandb.Settings()
         settings_param = kwargs.pop("_settings", None)
-        if settings_param:
-            login_settings._apply_settings(settings_param)
+        # note that this case does not come up anywhere except for the tests
+        if settings_param is not None:
+            if isinstance(settings_param, Settings):
+                login_settings._apply_settings(settings_param)
+            elif isinstance(settings_param, dict):
+                login_settings.update(settings_param, source=Source.LOGIN)
         _logger = wandb.setup()._get_logger()
         # Do not save relogin into settings as we just want to relogin once
         self._relogin = kwargs.pop("relogin", None)
@@ -98,7 +113,7 @@ class _WandbLogin(object):
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
-        self._settings = self._wl._settings
+        self._settings = self._wl.settings
 
     def is_apikey_configured(self):
         return apikey.api_key(settings=self._settings) is not None
@@ -106,7 +121,7 @@ class _WandbLogin(object):
     def set_backend(self, backend):
         self._backend = backend
 
-    def set_silent(self, silent):
+    def set_silent(self, silent: bool):
         self._silent = silent
 
     def login(self):
@@ -137,16 +152,14 @@ class _WandbLogin(object):
             )
         else:
             login_state_str = "W&B API key is configured"
-            wandb.termlog(
-                "{} {}".format(login_state_str, login_info_str,), repeat=False,
-            )
+            wandb.termlog(f"{login_state_str} {login_info_str}", repeat=False)
 
     def configure_api_key(self, key):
-        if self._settings._jupyter and not self._settings._silent:
+        if self._settings._jupyter and not self._settings.silent:
             wandb.termwarn(
                 (
                     "If you're specifying your api key in code, ensure this "
-                    "code is not shared publically.\nConsider setting the "
+                    "code is not shared publicly.\nConsider setting the "
                     "WANDB_API_KEY environment variable, or running "
                     "`wandb login` from the command line."
                 )
@@ -159,7 +172,6 @@ class _WandbLogin(object):
         self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
     ) -> None:
         _logger = wandb.setup()._get_logger()
-        settings: Settings = wandb.Settings()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
             login_settings = dict(mode="offline")
@@ -167,15 +179,13 @@ class _WandbLogin(object):
             login_settings = dict(mode="disabled")
         elif key:
             login_settings = dict(api_key=key)
-        settings._apply_source_login(login_settings, _logger=_logger)
-        self._wl._update(settings=settings)
+        self._wl._settings._apply_login(login_settings, _logger=_logger)
         # Whenever the key changes, make sure to pull in user settings
         # from server.
         if not self._wl.settings._offline:
             self._wl._update_user_settings()
 
     def _prompt_api_key(self) -> Tuple[Optional[str], ApiKeyStatus]:
-
         api = Api(self._settings)
         while True:
             try:
@@ -221,15 +231,15 @@ class _WandbLogin(object):
 
 
 def _login(
-    anonymous=None,
-    key=None,
-    relogin=None,
-    host=None,
-    force=None,
-    timeout=None,
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
     _backend=None,
-    _silent=None,
-    _disable_warning=None,
+    _silent: Optional[bool] = None,
+    _disable_warning: Optional[bool] = None,
 ):
     kwargs = dict(locals())
     _disable_warning = kwargs.pop("_disable_warning", None)

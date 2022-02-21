@@ -5,11 +5,13 @@ meta.
 """
 
 from datetime import datetime
+import glob
 import json
 import logging
 import multiprocessing
 import os
 from shutil import copyfile
+import subprocess
 import sys
 from urllib.parse import unquote
 
@@ -23,11 +25,6 @@ from ..lib.filenames import (
     REQUIREMENTS_FNAME,
 )
 from ..lib.git import GitRepo
-
-if os.name == "posix" and sys.version_info[0] < 3:
-    import subprocess32 as subprocess  # type: ignore[import]
-else:
-    import subprocess  # type: ignore[no-redef]
 
 
 logger = logging.getLogger(__name__)
@@ -261,8 +258,8 @@ class Meta(object):
 
         if self._saved_program:
             saved_program = os.path.join("code", self._saved_program)
-            files["files"].append((saved_program, "now"))
+            files["files"].append((glob.escape(saved_program), "now"))
         for patch in self._saved_patches:
-            files["files"].append((patch, "now"))
+            files["files"].append((glob.escape(patch), "now"))
 
         self._interface.publish_files(files)

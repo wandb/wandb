@@ -9,7 +9,7 @@ from typing import Optional
 from typing import TYPE_CHECKING
 
 from .router import MessageRouter
-from ..lib import debug_log
+from ..lib import tracelog
 
 if TYPE_CHECKING:
     from queue import Queue
@@ -32,9 +32,9 @@ class MessageQueueRouter(MessageRouter):
             msg = self._response_queue.get(timeout=1)
         except queue.Empty:
             return None
-        debug_log.log_message_dequeue(msg, self._response_queue)
+        tracelog.log_message_dequeue(msg, self._response_queue)
         return msg
 
     def _send_message(self, record: "pb.Record") -> None:
-        debug_log.log_message_queue(record, self._request_queue)
+        tracelog.log_message_queue(record, self._request_queue)
         self._request_queue.put(record)
