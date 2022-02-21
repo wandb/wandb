@@ -1,10 +1,10 @@
 from abc import ABC
+from collections.abc import Iterable
 from datetime import datetime
 import os
 import tempfile
 import time
-from collections.abc import Iterable
-from typing import Optional, Dict, List, Any
+from typing import Any, Dict, List, Optional
 
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
@@ -151,11 +151,13 @@ class Importer(object):
                 if step == 0:
                     if run.summary() == {}:
                         summary = metrics
-                    interface.publish_history(summary, 0)
+                    if summary != {}:
+                        interface.publish_history(summary, 0)
                 # TODO: handle artifacts
                 # TODO: handle tensorboard_logdir
-                record = interface._make_record(summary=summary)
-                send_manager.send_summary(record)
+                if summary != {}:
+                    record = interface._make_record(summary=summary)
+                    send_manager.send_summary(record)
                 interface.publish_exit(0)
 
                 while len(send_manager) > 0:

@@ -102,6 +102,7 @@ SYMBOLS_ROOT_OTHER = {
     "setup",
     "sklearn",
     "sync",
+    "importers",
     "sweeps",
     "sys",
     "tensorboard",

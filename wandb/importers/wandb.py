@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from .base import AbstractRun, Importer
 import wandb
+
+from .base import AbstractRun, Importer
 
 
 class WandbRun(AbstractRun):
@@ -65,7 +66,7 @@ class WandbImporter(Importer):
     {"state": "finished", "created_at": {"$gt": "06/06/2011"}})
     """
 
-    def __init__(self, source, destination, filters={}):
+    def __init__(self, source, destination, filters=None):
         # TODO: handle full urls
         entity, project = destination.split("/")
         super(WandbImporter, self).__init__(entity, project)

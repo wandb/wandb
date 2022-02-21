@@ -51,6 +51,17 @@ class MockedRun(AbstractRun):
             yield {"metric": i}
 
 
+def test_base_importer(mock_server, parse_ctx):
+    importer = Importer("test", "test")
+    for _ in range(5):
+        importer.add(AbstractRun())
+    importer.process()
+    ctx_util = parse_ctx(mock_server.ctx)
+    assert ctx_util.summary == {}
+    assert len(ctx_util.run_ids) == 5
+    assert ctx_util.history is None
+
+
 def test_generic_importer(mock_server, parse_ctx):
     importer = Importer("test", "test")
     for _ in range(5):
