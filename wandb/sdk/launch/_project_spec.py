@@ -24,6 +24,10 @@ _logger = logging.getLogger(__name__)
 
 DEFAULT_LAUNCH_METADATA_PATH = "launch_metadata.json"
 
+# need to make user root for sagemaker, so users have access to /opt/ml directories
+# that let users create artifacts and access input data
+RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
+
 
 class LaunchSource(enum.IntEnum):
     WANDB: int = 1
@@ -46,7 +50,8 @@ class LaunchProject(object):
         git_info: Dict[str, str],
         overrides: Dict[str, Any],
         resource: str,
-        resource_args: Dict[str, str],
+        resource_args: Dict[str, Any],
+        cuda: Optional[bool],
     ):
         if utils.is_bare_wandb_uri(uri):
             uri = api.settings("base_url") + uri
@@ -59,9 +64,10 @@ class LaunchProject(object):
         self.name = name
         self.build_image: bool = docker_config.get("build_image", False)
         self.python_version: Optional[str] = docker_config.get("python_version")
+        self.cuda_version: Optional[str] = docker_config.get("cuda_version")
         self._base_image: Optional[str] = docker_config.get("base_image")
         self.docker_image: Optional[str] = docker_config.get("docker_image")
-        uid = 1000
+        uid = RESOURCE_UID_MAP.get(resource, 1000)
         if self._base_image:
             uid = docker.get_image_uid(self._base_image)
             _logger.info(f"Retrieved base image uid {uid}")
@@ -72,8 +78,9 @@ class LaunchProject(object):
         self.override_config: Dict[str, Any] = overrides.get("run_config", {})
         self.resource = resource
         self.resource_args = resource_args
+        self.deps_type: Optional[str] = None
+        self.cuda = cuda
         self._runtime: Optional[str] = None
-        self._dockerfile_contents: Optional[str] = None
         self.run_id = generate_id()
         self._entry_points: Dict[
             str, EntryPoint
@@ -98,6 +105,8 @@ class LaunchProject(object):
                 )
             self.source = LaunchSource.LOCAL
             self.project_dir = self.uri
+        if launch_spec.get("resource_args"):
+            self.resource_args = launch_spec["resource_args"]
 
         self.aux_dir = tempfile.mkdtemp()
         self.clear_parameter_run_config_collisions()
@@ -160,7 +169,7 @@ class LaunchProject(object):
         return self.add_entry_point(entry_point)
 
     def _fetch_project_local(self, internal_api: Api) -> None:
-        """Fetch a project into a local directory, returning the path to the local project directory."""
+        """Fetch a project (either wandb run or git repo) into a local directory, returning the path to the local project directory."""
         assert self.source != LaunchSource.LOCAL
         _logger.info("Fetching project locally...")
         if utils._is_wandb_uri(self.uri):
@@ -171,6 +180,29 @@ class LaunchProject(object):
                 source_entity, source_project, source_run_name, internal_api
             )
             entry_point = run_info.get("codePath", run_info["program"])
+
+            if run_info.get("cudaVersion"):
+                original_cuda_version = ".".join(run_info["cudaVersion"].split(".")[:2])
+
+                if self.cuda is None:
+                    # only set cuda on by default if cuda is None (unspecified), not False (user specifically requested cpu image)
+                    wandb.termlog(
+                        "Original wandb run {} was run with cuda version {}. Enabling cuda builds by default; to build on a CPU-only image, run again with --cuda=False".format(
+                            source_run_name, original_cuda_version
+                        )
+                    )
+                    self.cuda_version = original_cuda_version
+                    self.cuda = True
+                if (
+                    self.cuda
+                    and self.cuda_version
+                    and self.cuda_version != original_cuda_version
+                ):
+                    wandb.termlog(
+                        "Specified cuda version {} differs from original cuda version {}. Running with specified version {}".format(
+                            self.cuda_version, original_cuda_version, self.cuda_version
+                        )
+                    )
 
             downloaded_code_artifact = utils.check_and_download_code_artifacts(
                 source_entity,
@@ -184,7 +216,9 @@ class LaunchProject(object):
                 self.build_image = True
             elif not downloaded_code_artifact:
                 if not run_info["git"]:
-                    raise ExecutionError("Run must have git repo associated")
+                    raise ExecutionError(
+                        "Reproducing a run requires either an associated git repo or a code artifact logged with `run.log_code()`"
+                    )
                 utils._fetch_git_repo(
                     self.project_dir,
                     run_info["git"]["remote"],
@@ -228,6 +262,7 @@ class LaunchProject(object):
                 internal_api,
                 self.project_dir,
             )
+
             # Specify the python runtime for jupyter2docker
             self.python_version = run_info.get("python", "3")
 
@@ -370,6 +405,7 @@ def create_project_from_spec(launch_spec: Dict[str, Any], api: Api) -> LaunchPro
         launch_spec.get("overrides", {}),
         launch_spec.get("resource", "local"),
         launch_spec.get("resource_args", {}),
+        launch_spec.get("cuda", None),
     )
 
 
@@ -392,6 +428,18 @@ def fetch_and_validate_project(
             launch_project.add_entry_point("main.py")
     else:
         launch_project._fetch_project_local(internal_api=api)
+
+    # this prioritizes pip and we don't support any cases where both are present
+    # conda projects when uploaded to wandb become pip projects via requirements.frozen.txt, wandb doesn't preserve conda envs
+    if os.path.exists(
+        os.path.join(launch_project.project_dir, "requirements.txt")
+    ) or os.path.exists(
+        os.path.join(launch_project.project_dir, "requirements.frozen.txt")
+    ):
+        launch_project.deps_type = "pip"
+    elif os.path.exists(os.path.join(launch_project.project_dir, "environment.yml")):
+        launch_project.deps_type = "conda"
+
     first_entry_point = list(launch_project._entry_points.keys())[0]
     _logger.info("validating entrypoint parameters")
     launch_project.get_entry_point(first_entry_point)._validate_parameters(
@@ -402,7 +450,9 @@ def fetch_and_validate_project(
 
 def create_metadata_file(
     launch_project: LaunchProject,
-    sanitized_command_str: str,
+    image_uri: str,
+    sanitized_entrypoint_str: str,
+    docker_args: Dict[str, Any],
     sanitized_dockerfile_contents: str,
 ) -> None:
     with open(
@@ -411,7 +461,9 @@ def create_metadata_file(
         json.dump(
             {
                 **launch_project.launch_spec,
-                "command": sanitized_command_str,
+                "image_uri": image_uri,
+                "command": sanitized_entrypoint_str,
+                "docker_args": docker_args,
                 "dockerfile_contents": sanitized_dockerfile_contents,
             },
             f,

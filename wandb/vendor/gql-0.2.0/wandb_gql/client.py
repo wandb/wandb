@@ -1,7 +1,7 @@
 import logging
 
-from graphql import parse, introspection_query, build_ast_schema, build_client_schema
-from graphql.validation import validate
+from wandb_graphql import parse, introspection_query, build_ast_schema, build_client_schema
+from wandb_graphql.validation import validate
 
 from .transport.local_schema import LocalSchemaTransport
 

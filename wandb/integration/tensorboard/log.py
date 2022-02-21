@@ -148,9 +148,20 @@ def tf_summary_to_dict(tf_summary_str_or_pb, namespace=""):  # noqa: C901
                     counts = [ndarray[0][2]]
                     bins = ndarray[0][:2]
                 if len(counts) > 0:
-                    values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
-                        np_histogram=(counts, bins)
-                    )
+                    try:
+                        # TODO: we should just re-bin if there are too many buckets
+                        values[namespaced_tag(value.tag, namespace)] = wandb.Histogram(
+                            np_histogram=(counts, bins)
+                        )
+                    except ValueError:
+                        wandb.termwarn(
+                            'Not logging key "{}". '
+                            "Histograms must have fewer than {} bins".format(
+                                namespaced_tag(value.tag, namespace),
+                                wandb.Histogram.MAX_LENGTH,
+                            ),
+                            repeat=False,
+                        )
             elif plugin_name == "pr_curves":
                 pr_curve_data = make_ndarray(value.tensor)
                 precision = pr_curve_data[-2, :].tolist()

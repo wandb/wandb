@@ -3,7 +3,6 @@
 Implement ServiceInterface for grpc transport.
 """
 
-import logging
 from typing import Optional
 from typing import TYPE_CHECKING
 
@@ -39,13 +38,21 @@ class ServiceGrpcInterface(ServiceInterface):
 
     def _svc_inform_init(self, settings: "Settings", run_id: str) -> None:
         inform_init = spb.ServerInformInitRequest()
-        settings_dict = dict(settings)
-        settings_dict["_log_level"] = logging.DEBUG
+        settings_dict = settings.make_static()
         _pbmap_apply_dict(inform_init._settings_map, settings_dict)
         inform_init._info.stream_id = run_id
 
         assert self._stub
         _ = self._stub.ServerInformInit(inform_init)
+
+    def _svc_inform_start(self, settings: "Settings", run_id: str) -> None:
+        inform_start = spb.ServerInformStartRequest()
+        settings_dict = settings.make_static()
+        _pbmap_apply_dict(inform_start._settings_map, settings_dict)
+        inform_start._info.stream_id = run_id
+
+        assert self._stub
+        _ = self._stub.ServerInformStart(inform_start)
 
     def _svc_inform_finish(self, run_id: str = None) -> None:
         assert run_id

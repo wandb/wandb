@@ -114,6 +114,7 @@ class ArtifactSaver(object):
             distributed_id=distributed_id,
             client_id=client_id,
             sequence_client_id=sequence_client_id,
+            enable_digest_deduplication=use_after_commit,  # Reuse logical duplicates in the `use_artifact` flow
         )
 
         # TODO(artifacts):

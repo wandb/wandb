@@ -23,9 +23,6 @@ import time
 from typing import Optional
 
 from dateutil.relativedelta import relativedelta
-from gql import Client, gql
-from gql.client import RetryError
-from gql.transport.requests import RequestsHTTPTransport
 import requests
 import six
 from six.moves import urllib
@@ -39,6 +36,9 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
 
 
 logger = logging.getLogger(__name__)
@@ -1648,7 +1648,7 @@ class Run(Attrs):
     def wait_until_finished(self):
         query = gql(
             """
-            query Run($project: String!, $entity: String!, $name: String!) {
+            query RunState($project: String!, $entity: String!, $name: String!) {
                 project(name: $project, entityName: $entity) {
                     run(name: $name) {
                         state
@@ -1753,7 +1753,7 @@ class Run(Attrs):
         spec = {"keys": [x_axis] + keys, "samples": samples}
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
+        query RunSampledHistory($project: String!, $entity: String!, $name: String!, $specs: [JSONString!]!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) { sampledHistory(specs: $specs) }
             }
@@ -1769,7 +1769,7 @@ class Run(Attrs):
         node = "history" if stream == "default" else "events"
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!, $samples: Int) {
+        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) { %s(samples: $samples) }
             }
@@ -2023,7 +2023,7 @@ class Run(Attrs):
     def lastHistoryStep(self):  # noqa: N802
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!) {
+        query RunHistoryKeys($project: String!, $entity: String!, $name: String!) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) { historyKeys }
             }
@@ -2078,7 +2078,7 @@ class Sweep(Attrs):
 
     QUERY = gql(
         """
-    query Sweep($project: String!, $entity: String, $name: String!) {
+    query Sweep($project: String, $entity: String, $name: String!) {
         project(name: $project, entityName: $entity) {
             sweep(sweepName: $name) {
                 id
@@ -2240,7 +2240,7 @@ class Files(Paginator):
 
     QUERY = gql(
         """
-        query Run($project: String!, $entity: String!, $name: String!, $fileCursor: String,
+        query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
             $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
             project(name: $project, entityName: $entity) {
                 run(name: $name) {
@@ -2412,7 +2412,7 @@ class Reports(Paginator):
 
     QUERY = gql(
         """
-        query Run($project: String!, $entity: String!, $reportCursor: String,
+        query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
             $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
                 allViews(viewType: $viewType, viewName: $viewName, first:
@@ -2905,6 +2905,7 @@ class ProjectArtifactCollections(Paginator):
                                 description
                                 createdAt
                             }
+                            cursor
                         }
                     }
                 }
@@ -2977,7 +2978,7 @@ class ProjectArtifactCollections(Paginator):
 class RunArtifacts(Paginator):
     OUTPUT_QUERY = gql(
         """
-        query RunArtifacts(
+        query RunOutputArtifacts(
             $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
@@ -3005,7 +3006,7 @@ class RunArtifacts(Paginator):
 
     INPUT_QUERY = gql(
         """
-        query RunArtifacts(
+        query RunInputArtifacts(
             $entity: String!, $project: String!, $runName: String!, $cursor: String, $perPage: Int,
         ) {
             project(name: $project, entityName: $entity) {
@@ -3372,7 +3373,7 @@ class Artifact(artifacts.Artifact):
 
     QUERY = gql(
         """
-        query Artifact(
+        query ArtifactWithCurrentManifest(
             $id: ID!,
         ) {
             artifact(id: $id) {
@@ -3560,9 +3561,9 @@ class Artifact(artifacts.Artifact):
         """Returns the expected type for a given artifact name and project"""
         query = gql(
             """
-        query Artifact(
-            $entityName: String!,
-            $projectName: String!,
+        query ArtifactType(
+            $entityName: String,
+            $projectName: String,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
@@ -3922,8 +3923,8 @@ class Artifact(artifacts.Artifact):
         query = gql(
             """
         query Artifact(
-            $entityName: String!,
-            $projectName: String!,
+            $entityName: String,
+            $projectName: String,
             $name: String!
         ) {
             project(name: $projectName, entityName: $entityName) {
@@ -4046,7 +4047,7 @@ class Artifact(artifacts.Artifact):
         """
         query = gql(
             """
-            query Artifact(
+            query ArtifactUsedBy(
                 $id: ID!,
                 $before: String,
                 $after: String,
@@ -4090,7 +4091,7 @@ class Artifact(artifacts.Artifact):
         """
         query = gql(
             """
-            query Artifact(
+            query ArtifactCreatedBy(
                 $id: ID!
             ) {
                 artifact(id: $id) {

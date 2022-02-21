@@ -1,6 +1,7 @@
 from typing import Callable, Dict, Optional, Union
 
 from six.moves import urllib
+import wandb
 from wandb import env
 from wandb.apis import InternalApi
 from wandb.util import handle_sweep_config_violations
@@ -98,7 +99,8 @@ def sweep(
         env.set_project(project)
 
     # Make sure we are logged in
-    wandb_login._login(_silent=True)
+    if wandb.run is None:
+        wandb_login._login(_silent=True)
     api = InternalApi()
     sweep_id, warnings = api.upsert_sweep(sweep)
     handle_sweep_config_violations(warnings)
@@ -117,12 +119,14 @@ def controller(
     """Public sweep controller constructor.
 
     Usage:
+        ```python
         import wandb
         tuner = wandb.controller(...)
         print(tuner.sweep_config)
         print(tuner.sweep_id)
         tuner.configure_search(...)
         tuner.configure_stopping(...)
+        ```
 
     """
     from ..wandb_controller import _WandbController

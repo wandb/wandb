@@ -2,11 +2,13 @@ import json
 import requests
 import threading
 import urllib
+from unittest.mock import MagicMock
 
 
 class ResponseMock(object):
     def __init__(self, response):
         self.response = response
+        self.mock = MagicMock()
 
     def __enter__(self):
         return self
@@ -41,6 +43,14 @@ class ResponseMock(object):
     def headers(self):
         return self.response.headers
 
+    @property
+    def raw(self):
+        return self.mock
+
+    @property
+    def reason(self):
+        return "tests"
+
     def iter_content(self, chunk_size=1024):
         yield self.response.data
 
@@ -54,6 +64,7 @@ class RequestsMock(object):
         self.app = app
         self.client = app.test_client()
         self.ctx = ctx
+        self.mock = MagicMock()
         self._lock = threading.Lock()
 
     def set_context(self, key, value):
@@ -70,6 +81,10 @@ class RequestsMock(object):
     @property
     def HTTPError(self):
         return requests.HTTPError
+
+    @property
+    def model(self):
+        return self.mock
 
     @property
     def headers(self):
@@ -113,6 +128,17 @@ class RequestsMock(object):
             del kwargs["verify"]
         if "allow_redirects" in kwargs:
             del kwargs["allow_redirects"]
+        if "files" in kwargs:
+            del kwargs["files"]
+        if "cert" in kwargs:
+            del kwargs["cert"]
+        if "hosts" in kwargs:
+            del kwargs["hosts"]
+        if "location_mode" in kwargs:
+            del kwargs["location_mode"]
+        if "headers" in kwargs:
+            # We convert our headers to a dict to avoid requests mocking madness
+            kwargs["headers"] = dict(kwargs["headers"])
         return kwargs
 
     def _store_request(self, url, body):
@@ -122,6 +148,9 @@ class RequestsMock(object):
             # To make assertions easier, we remove the run from storage requests
             key = key + "?" + parts[1].split("&run=")[0]
         with self._lock:
+            # Azure tests use "storage" as the final path of their requests
+            if key == "storage":
+                key = "storage?file=azure"
             self.ctx[key] = self.ctx.get(key, [])
             self.ctx[key].append(body)
 
@@ -151,11 +180,11 @@ class RequestsMock(object):
 
     def request(self, method, url, **kwargs):
         if method.lower() == "get":
-            self.get(url, **kwargs)
+            return self.get(url, **kwargs)
         elif method.lower() == "post":
-            self.post(url, **kwargs)
+            return self.post(url, **kwargs)
         elif method.lower() == "put":
-            self.put(url, **kwargs)
+            return self.put(url, **kwargs)
         else:
             message = "Request method not implemented: %s" % method
             raise requests.RequestException(message)

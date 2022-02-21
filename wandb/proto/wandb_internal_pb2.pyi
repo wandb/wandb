@@ -161,6 +161,7 @@ class Result(google.protobuf.message.Message):
     RESPONSE_FIELD_NUMBER: builtins.int
     CONTROL_FIELD_NUMBER: builtins.int
     UUID_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
     uuid: typing.Text = ...
 
     @property
@@ -187,6 +188,9 @@ class Result(google.protobuf.message.Message):
     @property
     def control(self) -> global___Control: ...
 
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._ResultInfo: ...
+
     def __init__(self,
         *,
         run_result : typing.Optional[global___RunUpdateResult] = ...,
@@ -198,9 +202,10 @@ class Result(google.protobuf.message.Message):
         response : typing.Optional[global___Response] = ...,
         control : typing.Optional[global___Control] = ...,
         uuid : typing.Text = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._ResultInfo] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"config_result",b"config_result",u"control",b"control",u"exit_result",b"exit_result",u"log_result",b"log_result",u"output_result",b"output_result",u"response",b"response",u"result_type",b"result_type",u"run_result",b"run_result",u"summary_result",b"summary_result"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"config_result",b"config_result",u"control",b"control",u"exit_result",b"exit_result",u"log_result",b"log_result",u"output_result",b"output_result",u"response",b"response",u"result_type",b"result_type",u"run_result",b"run_result",u"summary_result",b"summary_result",u"uuid",b"uuid"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"config_result",b"config_result",u"control",b"control",u"exit_result",b"exit_result",u"log_result",b"log_result",u"output_result",b"output_result",u"response",b"response",u"result_type",b"result_type",u"run_result",b"run_result",u"summary_result",b"summary_result"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"config_result",b"config_result",u"control",b"control",u"exit_result",b"exit_result",u"log_result",b"log_result",u"output_result",b"output_result",u"response",b"response",u"result_type",b"result_type",u"run_result",b"run_result",u"summary_result",b"summary_result",u"uuid",b"uuid"]) -> None: ...
     def WhichOneof(self, oneof_group: typing_extensions.Literal[u"result_type",b"result_type"]) -> typing_extensions.Literal["run_result","exit_result","log_result","summary_result","output_result","config_result","response"]: ...
 global___Result = Result
 

@@ -24,12 +24,11 @@ import os
 import pprint
 import re
 import sys
-import warnings
+import tempfile
 
 import six
 import wandb
 from wandb import util
-from wandb.compat import tempfile
 from wandb.sdk.data_types import (
     _numpy_arrays_to_lists,
     BatchableMedia,
@@ -66,11 +65,6 @@ __all__ = [
     "val_to_json",
 ]
 
-
-# Get rid of cleanup warnings in Python 2.7.
-warnings.filterwarnings(
-    "ignore", "Implicitly cleaning up", RuntimeWarning, "wandb.compat.tempfile"
-)
 
 # Staging directory so we can encode raw data into files, then hash them before
 # we put them into the Run directory to be uploaded.
@@ -288,7 +282,9 @@ class Table(Media):
             dataframe
         ), "dataframe argument expects a `pandas.core.frame.DataFrame` object"
         self.data = []
-        self.columns = list(dataframe.columns)
+        columns = list(dataframe.columns)
+        self._assert_valid_columns(columns)
+        self.columns = columns
         self._make_column_types(dtype, optional)
         for row in range(len(dataframe)):
             self.add_data(*tuple(dataframe[col].values[row] for col in self.columns))
@@ -476,7 +472,8 @@ class Table(Media):
         data = self._to_table_json(warn=False)
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".table.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".table.json")
         super(Table, self).bind_to_run(*args, **kwargs)
 
@@ -1276,7 +1273,8 @@ class Bokeh(Media):
                 b_json["roots"]["references"].sort(key=lambda x: x["id"])
 
             tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".bokeh.json")
-            util.json_dump_safer(b_json, codecs.open(tmp_path, "w", encoding="utf-8"))
+            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+                util.json_dump_safer(b_json, fp)
             self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
         elif not isinstance(data_or_path, bokeh.document.Document):
             raise TypeError(
@@ -1357,7 +1355,8 @@ class Graph(Media):
         data = self._to_graph_json()
         tmp_path = os.path.join(MEDIA_TMP.name, util.generate_id() + ".graph.json")
         data = _numpy_arrays_to_lists(data)
-        util.json_dump_safer(data, codecs.open(tmp_path, "w", encoding="utf-8"))
+        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
+            util.json_dump_safer(data, fp)
         self._set_file(tmp_path, is_tmp=True, extension=".graph.json")
         if self.is_bound():
             return
