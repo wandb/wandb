@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n!wandb/proto/wandb_telemetry.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\"\xb3\x03\n\x0fTelemetryRecord\x12-\n\x0cimports_init\x18\x01 \x01(\x0b\x32\x17.wandb_internal.Imports\x12/\n\x0eimports_finish\x18\x02 \x01(\x0b\x32\x17.wandb_internal.Imports\x12(\n\x07\x66\x65\x61ture\x18\x03 \x01(\x0b\x32\x17.wandb_internal.Feature\x12\x16\n\x0epython_version\x18\x04 \x01(\t\x12\x13\n\x0b\x63li_version\x18\x05 \x01(\t\x12\x1b\n\x13huggingface_version\x18\x06 \x01(\t\x12 \n\x03\x65nv\x18\x08 \x01(\x0b\x32\x13.wandb_internal.Env\x12%\n\x05label\x18\t \x01(\x0b\x32\x16.wandb_internal.Labels\x12.\n\ndeprecated\x18\n \x01(\x0b\x32\x1a.wandb_internal.Deprecated\x12&\n\x06issues\x18\x0b \x01(\x0b\x32\x16.wandb_internal.Issues\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x11\n\x0fTelemetryResult\"\xe1\x03\n\x07Imports\x12\r\n\x05torch\x18\x01 \x01(\x08\x12\r\n\x05keras\x18\x02 \x01(\x08\x12\x12\n\ntensorflow\x18\x03 \x01(\x08\x12\x0e\n\x06\x66\x61stai\x18\x04 \x01(\x08\x12\x0f\n\x07sklearn\x18\x05 \x01(\x08\x12\x0f\n\x07xgboost\x18\x06 \x01(\x08\x12\x10\n\x08\x63\x61tboost\x18\x07 \x01(\x08\x12\x10\n\x08lightgbm\x18\x08 \x01(\x08\x12\x19\n\x11pytorch_lightning\x18\t \x01(\x08\x12\x16\n\x0epytorch_ignite\x18\n \x01(\x08\x12 \n\x18transformers_huggingface\x18\x0b \x01(\x08\x12\x0b\n\x03jax\x18\x0c \x01(\x08\x12\x10\n\x08metaflow\x18\r \x01(\x08\x12\x10\n\x08\x61llennlp\x18\x0e \x01(\x08\x12\x11\n\tautogluon\x18\x0f \x01(\x08\x12\x11\n\tautokeras\x18\x10 \x01(\x08\x12\x10\n\x08\x63\x61talyst\x18\x12 \x01(\x08\x12\x10\n\x08\x64\x65\x65pchem\x18\x15 \x01(\x08\x12\x0f\n\x07\x64\x65\x65pctr\x18\x16 \x01(\x08\x12\x0f\n\x07pycaret\x18\x1c \x01(\x08\x12\x14\n\x0cpytorchvideo\x18\x1d \x01(\x08\x12\x0b\n\x03ray\x18\x1e \x01(\x08\x12\x1a\n\x12simpletransformers\x18\x1f \x01(\x08\x12\x0e\n\x06skorch\x18  \x01(\x08\x12\r\n\x05spacy\x18! \x01(\x08\"\xdd\x04\n\x07\x46\x65\x61ture\x12\r\n\x05watch\x18\x01 \x01(\x08\x12\x0e\n\x06\x66inish\x18\x02 \x01(\x08\x12\x0c\n\x04save\x18\x03 \x01(\x08\x12\x0f\n\x07offline\x18\x04 \x01(\x08\x12\x0f\n\x07resumed\x18\x05 \x01(\x08\x12\x0c\n\x04grpc\x18\x06 \x01(\x08\x12\x0e\n\x06metric\x18\x07 \x01(\x08\x12\r\n\x05keras\x18\x08 \x01(\x08\x12\x11\n\tsagemaker\x18\t \x01(\x08\x12\x1c\n\x14\x61rtifact_incremental\x18\n \x01(\x08\x12\x10\n\x08metaflow\x18\x0b \x01(\x08\x12\x0f\n\x07prodigy\x18\x0c \x01(\x08\x12\x15\n\rset_init_name\x18\r \x01(\x08\x12\x13\n\x0bset_init_id\x18\x0e \x01(\x08\x12\x15\n\rset_init_tags\x18\x0f \x01(\x08\x12\x17\n\x0fset_init_config\x18\x10 \x01(\x08\x12\x14\n\x0cset_run_name\x18\x11 \x01(\x08\x12\x14\n\x0cset_run_tags\x18\x12 \x01(\x08\x12\x17\n\x0fset_config_item\x18\x13 \x01(\x08\x12\x0e\n\x06launch\x18\x14 \x01(\x08\x12\x1c\n\x14torch_profiler_trace\x18\x15 \x01(\x08\x12\x0b\n\x03sb3\x18\x16 \x01(\x08\x12\x0f\n\x07service\x18\x17 \x01(\x08\x12\x17\n\x0finit_return_run\x18\x18 \x01(\x08\x12\x1f\n\x17lightgbm_wandb_callback\x18\x19 \x01(\x08\x12\x1c\n\x14lightgbm_log_summary\x18\x1a \x01(\x08\x12\x1f\n\x17\x63\x61tboost_wandb_callback\x18\x1b \x01(\x08\x12\x1c\n\x14\x63\x61tboost_log_summary\x18\x1c \x01(\x08\"\xb2\x01\n\x03\x45nv\x12\x0f\n\x07jupyter\x18\x01 \x01(\x08\x12\x0e\n\x06kaggle\x18\x02 \x01(\x08\x12\x0f\n\x07windows\x18\x03 \x01(\x08\x12\x0e\n\x06m1_gpu\x18\x04 \x01(\x08\x12\x13\n\x0bstart_spawn\x18\x05 \x01(\x08\x12\x12\n\nstart_fork\x18\x06 \x01(\x08\x12\x18\n\x10start_forkserver\x18\x07 \x01(\x08\x12\x14\n\x0cstart_thread\x18\x08 \x01(\x08\x12\x10\n\x08maybe_mp\x18\t \x01(\x08\"H\n\x06Labels\x12\x13\n\x0b\x63ode_string\x18\x01 \x01(\t\x12\x13\n\x0brepo_string\x18\x02 \x01(\t\x12\x14\n\x0c\x63ode_version\x18\x03 \x01(\t\"\x7f\n\nDeprecated\x12!\n\x19keras_callback__data_type\x18\x01 \x01(\x08\x12\x11\n\trun__mode\x18\x02 \x01(\x08\x12\x19\n\x11run__save_no_args\x18\x03 \x01(\x08\x12\x11\n\trun__join\x18\x04 \x01(\x08\x12\r\n\x05plots\x18\x05 \x01(\x08\"|\n\x06Issues\x12%\n\x1dsettings__validation_warnings\x18\x01 \x01(\x08\x12!\n\x19settings__unexpected_args\x18\x02 \x01(\x08\x12(\n settings__preprocessing_warnings\x18\x03 \x01(\x08\x62\x06proto3'
+  serialized_pb=b'\n!wandb/proto/wandb_telemetry.proto\x12\x0ewandb_internal\x1a\x1cwandb/proto/wandb_base.proto\"\xb3\x03\n\x0fTelemetryRecord\x12-\n\x0cimports_init\x18\x01 \x01(\x0b\x32\x17.wandb_internal.Imports\x12/\n\x0eimports_finish\x18\x02 \x01(\x0b\x32\x17.wandb_internal.Imports\x12(\n\x07\x66\x65\x61ture\x18\x03 \x01(\x0b\x32\x17.wandb_internal.Feature\x12\x16\n\x0epython_version\x18\x04 \x01(\t\x12\x13\n\x0b\x63li_version\x18\x05 \x01(\t\x12\x1b\n\x13huggingface_version\x18\x06 \x01(\t\x12 \n\x03\x65nv\x18\x08 \x01(\x0b\x32\x13.wandb_internal.Env\x12%\n\x05label\x18\t \x01(\x0b\x32\x16.wandb_internal.Labels\x12.\n\ndeprecated\x18\n \x01(\x0b\x32\x1a.wandb_internal.Deprecated\x12&\n\x06issues\x18\x0b \x01(\x0b\x32\x16.wandb_internal.Issues\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x11\n\x0fTelemetryResult\"\xe9\x04\n\x07Imports\x12\r\n\x05torch\x18\x01 \x01(\x08\x12\r\n\x05keras\x18\x02 \x01(\x08\x12\x12\n\ntensorflow\x18\x03 \x01(\x08\x12\x0e\n\x06\x66\x61stai\x18\x04 \x01(\x08\x12\x0f\n\x07sklearn\x18\x05 \x01(\x08\x12\x0f\n\x07xgboost\x18\x06 \x01(\x08\x12\x10\n\x08\x63\x61tboost\x18\x07 \x01(\x08\x12\x10\n\x08lightgbm\x18\x08 \x01(\x08\x12\x19\n\x11pytorch_lightning\x18\t \x01(\x08\x12\x16\n\x0epytorch_ignite\x18\n \x01(\x08\x12 \n\x18transformers_huggingface\x18\x0b \x01(\x08\x12\x0b\n\x03jax\x18\x0c \x01(\x08\x12\x10\n\x08metaflow\x18\r \x01(\x08\x12\x10\n\x08\x61llennlp\x18\x0e \x01(\x08\x12\x11\n\tautogluon\x18\x0f \x01(\x08\x12\x11\n\tautokeras\x18\x10 \x01(\x08\x12\x10\n\x08\x63\x61talyst\x18\x12 \x01(\x08\x12\x10\n\x08\x64\x65\x65pchem\x18\x15 \x01(\x08\x12\x0f\n\x07\x64\x65\x65pctr\x18\x16 \x01(\x08\x12\x0f\n\x07pycaret\x18\x1c \x01(\x08\x12\x14\n\x0cpytorchvideo\x18\x1d \x01(\x08\x12\x0b\n\x03ray\x18\x1e \x01(\x08\x12\x1a\n\x12simpletransformers\x18\x1f \x01(\x08\x12\x0e\n\x06skorch\x18  \x01(\x08\x12\r\n\x05spacy\x18! \x01(\x08\x12\r\n\x05\x66lash\x18\" \x01(\x08\x12\x0e\n\x06optuna\x18# \x01(\x08\x12\x0f\n\x07recbole\x18$ \x01(\x08\x12\x0c\n\x04mmcv\x18% \x01(\x08\x12\r\n\x05mmdet\x18& \x01(\x08\x12\x11\n\ttorchdrug\x18\' \x01(\x08\x12\x11\n\ttorchtext\x18( \x01(\x08\x12\x13\n\x0btorchvision\x18) \x01(\x08\"\xdd\x04\n\x07\x46\x65\x61ture\x12\r\n\x05watch\x18\x01 \x01(\x08\x12\x0e\n\x06\x66inish\x18\x02 \x01(\x08\x12\x0c\n\x04save\x18\x03 \x01(\x08\x12\x0f\n\x07offline\x18\x04 \x01(\x08\x12\x0f\n\x07resumed\x18\x05 \x01(\x08\x12\x0c\n\x04grpc\x18\x06 \x01(\x08\x12\x0e\n\x06metric\x18\x07 \x01(\x08\x12\r\n\x05keras\x18\x08 \x01(\x08\x12\x11\n\tsagemaker\x18\t \x01(\x08\x12\x1c\n\x14\x61rtifact_incremental\x18\n \x01(\x08\x12\x10\n\x08metaflow\x18\x0b \x01(\x08\x12\x0f\n\x07prodigy\x18\x0c \x01(\x08\x12\x15\n\rset_init_name\x18\r \x01(\x08\x12\x13\n\x0bset_init_id\x18\x0e \x01(\x08\x12\x15\n\rset_init_tags\x18\x0f \x01(\x08\x12\x17\n\x0fset_init_config\x18\x10 \x01(\x08\x12\x14\n\x0cset_run_name\x18\x11 \x01(\x08\x12\x14\n\x0cset_run_tags\x18\x12 \x01(\x08\x12\x17\n\x0fset_config_item\x18\x13 \x01(\x08\x12\x0e\n\x06launch\x18\x14 \x01(\x08\x12\x1c\n\x14torch_profiler_trace\x18\x15 \x01(\x08\x12\x0b\n\x03sb3\x18\x16 \x01(\x08\x12\x0f\n\x07service\x18\x17 \x01(\x08\x12\x17\n\x0finit_return_run\x18\x18 \x01(\x08\x12\x1f\n\x17lightgbm_wandb_callback\x18\x19 \x01(\x08\x12\x1c\n\x14lightgbm_log_summary\x18\x1a \x01(\x08\x12\x1f\n\x17\x63\x61tboost_wandb_callback\x18\x1b \x01(\x08\x12\x1c\n\x14\x63\x61tboost_log_summary\x18\x1c \x01(\x08\"\xb2\x01\n\x03\x45nv\x12\x0f\n\x07jupyter\x18\x01 \x01(\x08\x12\x0e\n\x06kaggle\x18\x02 \x01(\x08\x12\x0f\n\x07windows\x18\x03 \x01(\x08\x12\x0e\n\x06m1_gpu\x18\x04 \x01(\x08\x12\x13\n\x0bstart_spawn\x18\x05 \x01(\x08\x12\x12\n\nstart_fork\x18\x06 \x01(\x08\x12\x18\n\x10start_forkserver\x18\x07 \x01(\x08\x12\x14\n\x0cstart_thread\x18\x08 \x01(\x08\x12\x10\n\x08maybe_mp\x18\t \x01(\x08\"H\n\x06Labels\x12\x13\n\x0b\x63ode_string\x18\x01 \x01(\t\x12\x13\n\x0brepo_string\x18\x02 \x01(\t\x12\x14\n\x0c\x63ode_version\x18\x03 \x01(\t\"\x7f\n\nDeprecated\x12!\n\x19keras_callback__data_type\x18\x01 \x01(\x08\x12\x11\n\trun__mode\x18\x02 \x01(\x08\x12\x19\n\x11run__save_no_args\x18\x03 \x01(\x08\x12\x11\n\trun__join\x18\x04 \x01(\x08\x12\r\n\x05plots\x18\x05 \x01(\x08\"|\n\x06Issues\x12%\n\x1dsettings__validation_warnings\x18\x01 \x01(\x08\x12!\n\x19settings__unexpected_args\x18\x02 \x01(\x08\x12(\n settings__preprocessing_warnings\x18\x03 \x01(\x08\x62\x06proto3'
   ,
   dependencies=[wandb_dot_proto_dot_wandb__base__pb2.DESCRIPTOR,])
 
@@ -337,6 +337,62 @@ _IMPORTS = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='flash', full_name='wandb_internal.Imports.flash', index=25,
+      number=34, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='optuna', full_name='wandb_internal.Imports.optuna', index=26,
+      number=35, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='recbole', full_name='wandb_internal.Imports.recbole', index=27,
+      number=36, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='mmcv', full_name='wandb_internal.Imports.mmcv', index=28,
+      number=37, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='mmdet', full_name='wandb_internal.Imports.mmdet', index=29,
+      number=38, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='torchdrug', full_name='wandb_internal.Imports.torchdrug', index=30,
+      number=39, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='torchtext', full_name='wandb_internal.Imports.torchtext', index=31,
+      number=40, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='torchvision', full_name='wandb_internal.Imports.torchvision', index=32,
+      number=41, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -350,7 +406,7 @@ _IMPORTS = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=541,
-  serialized_end=1022,
+  serialized_end=1158,
 )
 
 
@@ -570,8 +626,8 @@ _FEATURE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1025,
-  serialized_end=1630,
+  serialized_start=1161,
+  serialized_end=1766,
 )
 
 
@@ -658,8 +714,8 @@ _ENV = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1633,
-  serialized_end=1811,
+  serialized_start=1769,
+  serialized_end=1947,
 )
 
 
@@ -704,8 +760,8 @@ _LABELS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1813,
-  serialized_end=1885,
+  serialized_start=1949,
+  serialized_end=2021,
 )
 
 
@@ -764,8 +820,8 @@ _DEPRECATED = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1887,
-  serialized_end=2014,
+  serialized_start=2023,
+  serialized_end=2150,
 )
 
 
@@ -810,8 +866,8 @@ _ISSUES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2016,
-  serialized_end=2140,
+  serialized_start=2152,
+  serialized_end=2276,
 )
 
 _TELEMETRYRECORD.fields_by_name['imports_init'].message_type = _IMPORTS

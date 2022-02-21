@@ -59,6 +59,14 @@ message Imports {
   bool simpletransformers = 31;
   bool skorch = 32;
   bool spacy = 33;
+  bool flash = 34;
+  bool optuna = 35;
+  bool recbole = 36;
+  bool mmcv = 37; 
+  bool mmdet = 38;
+  bool torchdrug = 39;
+  bool torchtext = 40;
+  bool torchvision = 41;
 }
 
 message Feature {
