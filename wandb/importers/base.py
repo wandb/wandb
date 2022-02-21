@@ -17,6 +17,9 @@ from yaspin import yaspin
 class AbstractRun(ABC):
     """AbstractRun is an absctract class that custom importers must inherit from"""
 
+    def __init__(self):
+        self._id = None
+
     def to_proto(
         self, entity: str, project: str, interface: InterfaceQueue
     ) -> wandb_internal_pb2.RunRecord:
@@ -36,7 +39,9 @@ class AbstractRun(ABC):
             proto_run.tags.append(tag)
         # TODO: this isn't doing anything currently :(
         if self.start_time() is not None:
-            proto_run.start_time.FromSeconds(int(self.start_time()))
+            proto_run.start_time.FromSeconds(
+                int(self.start_time().utcnow().timestamp())
+            )
         if self.git_url() is not None:
             proto_run.git.remote_url = self.git_url()
         if self.git_commit() is not None:
@@ -121,10 +126,10 @@ class Importer(object):
         uniq_runs = set([r._run_id() for r in runs])
         assert len(runs) == len(uniq_runs), "All run objects must have a unique id"
         with yaspin(
-            text=f"Importing {len(runs)} to {self.entity}/{self.project}"
+            text=f"Importing {len(runs)} runs to {self.entity}/{self.project}"
         ) as sp:
             for run in runs:
-                run_dir = os.path.join(self._tmpdir, f"run-{run._run_id()}")
+                run_dir = os.path.join(self._tmpdir.name, f"run-{run._run_id()}")
                 files_dir = os.path.join(run_dir, "files")
                 mkdir_exists_ok(files_dir)
                 send_manager = sender.SendManager.setup(run_dir, run.program())

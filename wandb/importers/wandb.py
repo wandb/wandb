@@ -1,4 +1,6 @@
-from ..importer import AbstractRun, Importer
+from datetime import datetime
+
+from .base import AbstractRun, Importer
 import wandb
 
 
@@ -23,7 +25,7 @@ class WandbRun(AbstractRun):
         return dict(self.run.summary)
 
     def start_time(self):
-        return self.run.created_at
+        return datetime.fromisoformat(self.run.created_at)
 
     def tags(self):
         return self.run.tags
@@ -33,10 +35,11 @@ class WandbRun(AbstractRun):
         return None
 
     def git_url(self):
-        # TODO: get gir
+        # TODO: get git
         return None
 
     def git_commit(self):
+        # TODO: run_info
         return self.run.commit
 
     def tensorboard_logdir(self):

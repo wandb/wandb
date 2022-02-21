@@ -150,9 +150,15 @@ def run(ctx):
         program_name = "one_cell.ipynb"
     else:
         program_name = "train.py"
+    # The default is currently 2, when we're testing querying multiple runs we
+    # need unique ids for wandb.importers
+    if ctx["page_times"] > 2:
+        name = wandb.util.generate_id()
+    else:
+        name = "test"
     return {
         "id": "test",
-        "name": "test",
+        "name": name,
         "displayName": "beast-bug-33",
         "state": "running",
         "config": '{"epochs": {"value": 10}}',
@@ -180,6 +186,7 @@ def run(ctx):
         "tags": [],
         "notes": None,
         "sweepName": None,
+        "commit": "HEAD",
         "createdAt": created_at,
         "updatedAt": datetime.now().isoformat(),
         "runInfo": {
