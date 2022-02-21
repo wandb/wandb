@@ -12,6 +12,6 @@ assert:
   - :wandb:sentry_events[0][platform]: python
   - :wandb:sentry_events[0][exception][values][0][type]: Exception
   - :wandb:sentry_events[0][exception][values][0][value]: injected
-  - :wandb:sentry_events[0][exception][values][0][stacktrace][frames][0][filename]: wandb/sdk/wandb_init.py
+  - :wandb:sentry_events[0][exception][values][0][stacktrace][frames][0][filename]: wandb\\sdk\\wandb_init.py
   - :wandb:sentry_events[0][exception][values][0][stacktrace][frames][0][function]: init
   - :yea:exit: 1
