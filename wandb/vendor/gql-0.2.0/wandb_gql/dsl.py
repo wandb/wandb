@@ -3,9 +3,9 @@ import decimal
 from functools import partial
 
 import six
-from graphql.language import ast
-from graphql.language.printer import print_ast
-from graphql.type import (GraphQLField, GraphQLList,
+from wandb_graphql.language import ast
+from wandb_graphql.language.printer import print_ast
+from wandb_graphql.type import (GraphQLField, GraphQLList,
                           GraphQLNonNull, GraphQLEnumType)
 
 from .utils import to_camel_case

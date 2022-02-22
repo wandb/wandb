@@ -1,0 +1,13 @@
+diff --git a/wandb/vendor/graphql-core-1.1/wandb_graphql/pyutils/version.py b/wandb/vendor/graphql-core-1.1/wandb_graphql/pyutils/version.py
+index f73391199..614df9f57 100644
+--- a/wandb/vendor/graphql-core-1.1/wandb_graphql/pyutils/version.py
++++ b/wandb/vendor/graphql-core-1.1/wandb_graphql/pyutils/version.py
+@@ -42,7 +42,7 @@ def get_complete_version(version=None):
+     then checks for correctness of the tuple provided.
+     """
+     if version is None:
+-        from graphql import VERSION as version
++        from wandb_graphql import VERSION as version
+     else:
+         assert len(version) == 5
+         assert version[3] in ('alpha', 'beta', 'rc', 'final')

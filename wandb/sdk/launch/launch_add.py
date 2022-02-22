@@ -60,6 +60,7 @@ def _launch_add(
     docker_image: Optional[str],
     params: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]] = None,
+    cuda: Optional[bool] = None,
 ) -> "public.QueuedJob":
 
     resource = resource or "local"
@@ -88,6 +89,7 @@ def _launch_add(
         params,
         resource_args,
         launch_config,
+        cuda,
     )
 
     res = push_to_queue(api, queue, launch_spec)
