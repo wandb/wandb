@@ -446,6 +446,7 @@ message Request {
     ResumeRequest         resume = 7;
     PollExitRequest       poll_exit = 8;
     SampledHistoryRequest sampled_history = 9;
+    PartialHistoryRequest partial_history = 10;
     RunStartRequest       run_start = 11;
     CheckVersionRequest   check_version = 12;
     LogArtifactRequest    log_artifact = 13;
@@ -489,14 +490,15 @@ message DeferRequest {
   enum DeferState {
     BEGIN = 0;
     FLUSH_STATS = 1;
-    FLUSH_TB = 2;
-    FLUSH_SUM = 3;
-    FLUSH_DEBOUNCER = 4;
-    FLUSH_DIR = 5;
-    FLUSH_FP = 6;
-    FLUSH_FS = 7;
-    FLUSH_FINAL = 8;
-    END = 9;
+    FLUSH_PARTIAL_HISTORY = 2;
+    FLUSH_TB = 3;
+    FLUSH_SUM = 4;
+    FLUSH_DEBOUNCER = 5;
+    FLUSH_DIR = 6;
+    FLUSH_FP = 7;
+    FLUSH_FS = 8;
+    FLUSH_FINAL = 9;
+    END = 10;
   }
   DeferState state = 1;
   // Internal message, no _info field needed
@@ -655,6 +657,22 @@ message TestInjectRequest {
 }
 
 message TestInjectResponse {
+}
+
+/*
+ * PartialHistoryRequest:
+ */
+ message HistoryAction{
+    bool flush = 1;
+ }
+ message PartialHistoryRequest{
+    repeated HistoryItem item = 1;
+    HistoryStep step = 2;
+    HistoryAction action = 3;
+   _RequestInfo _info = 200;
+ }
+
+ message PartialHistoryResponse {
 }
 
 /*
