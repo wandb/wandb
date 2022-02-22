@@ -54,6 +54,12 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
+    def _publish_partial_history(
+        self, partial_history: pb.PartialHistoryRequest
+    ) -> None:
+        rec = self._make_request(partial_history=partial_history)
+        self._publish(rec)
+
     def _publish_history(self, history: pb.HistoryRecord) -> None:
         rec = self._make_record(history=history)
         self._publish(rec)
@@ -82,7 +88,7 @@ class InterfaceShared(InterfaceBase):
             login.api_key = api_key
         return login
 
-    def _make_request(
+    def _make_request(  # noqa: C901
         self,
         login: pb.LoginRequest = None,
         get_summary: pb.GetSummaryRequest = None,
@@ -92,6 +98,7 @@ class InterfaceShared(InterfaceBase):
         stop_status: pb.StopStatusRequest = None,
         network_status: pb.NetworkStatusRequest = None,
         poll_exit: pb.PollExitRequest = None,
+        partial_history: pb.PartialHistoryRequest = None,
         sampled_history: pb.SampledHistoryRequest = None,
         run_start: pb.RunStartRequest = None,
         check_version: pb.CheckVersionRequest = None,
@@ -119,6 +126,8 @@ class InterfaceShared(InterfaceBase):
             request.network_status.CopyFrom(network_status)
         elif poll_exit:
             request.poll_exit.CopyFrom(poll_exit)
+        elif partial_history:
+            request.partial_history.CopyFrom(partial_history)
         elif sampled_history:
             request.sampled_history.CopyFrom(sampled_history)
         elif run_start:
