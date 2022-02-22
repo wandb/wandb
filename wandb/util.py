@@ -856,7 +856,7 @@ def get_log_file_path() -> str:
     """
     # TODO(jhr, cvp): refactor
     if wandb.run is not None:
-        return wandb.run._settings.log_internal  # type: ignore
+        return wandb.run._settings.log_internal
     return os.path.join("wandb", "debug-internal.log")
 
 

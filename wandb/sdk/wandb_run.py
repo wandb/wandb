@@ -2535,7 +2535,7 @@ class Run:
         ]
 
         if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort} to abort syncing.")
+            info.append(f"Press {printer.abort()} to abort syncing.")
 
         printer.display(f'{" ".join(info)}')
 
@@ -2559,7 +2559,7 @@ class Run:
                 response for response in poll_exit_responses.values()
             ]
             assert all(
-                isinstance(response, (PollExitResponse, None))  # type: ignore
+                response is None or isinstance(response, PollExitResponse)
                 for response in poll_exit_responses_list
             )
             if len(poll_exit_responses_list) == 0:

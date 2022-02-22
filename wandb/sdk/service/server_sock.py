@@ -61,9 +61,11 @@ class SockServerInterfaceReaderThread(threading.Thread):
             except queue.Empty:
                 continue
             except OSError:
-                continue
+                # handle is closed
+                break
             except ValueError:
-                continue
+                # queue is closed
+                break
             tracelog.log_message_dequeue(result, self._iface.relay_q)
             sockid = result.control.relay_id
             assert sockid
