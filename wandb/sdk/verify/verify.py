@@ -16,10 +16,10 @@ from typing import (
 )
 
 import click
-from gql import gql  # type: ignore
 from pkg_resources import parse_version
 import requests
 import wandb
+from wandb_gql import gql  # type: ignore
 
 from ..wandb_artifacts import Artifact
 from ...apis.internal import Api
