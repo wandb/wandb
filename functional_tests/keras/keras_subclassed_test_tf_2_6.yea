@@ -1,0 +1,18 @@
+id: 0.keras.subclassedmodel.tf26
+tag:
+    shard: tf26
+plugin:
+    - wandb
+command:
+    program: test_keras_subclassed_model.py
+depend:
+    requirements:
+        - pillow
+        - tensorflow>=2.6.2,<2.7
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:artifacts[model-lovely-dawn-32][type]: model
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 8  # keras
+    - :wandb:runs[0][exitcode]: 0

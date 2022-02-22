@@ -983,7 +983,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             self.save_model = False
         finally:
             # Save the model in the SavedModel format
-            self.model.save(self.filepath[:-3], overwrite=True)
+            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
             self.save_model_as_artifact = True
 
     def _save_model_as_artifact(self):
