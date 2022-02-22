@@ -7,6 +7,10 @@ assert:
     - :wandb:runs[0][config]: {}
     - :wandb:runs[0][summary][c1]: 42.0
     - :wandb:runs[0][summary][c2]: 23.0
+    
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 30  # wandb.tensorflow.WandbHook
 
     - :wandb:runs[0][exitcode]: 0
 
