@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Type
 
 from wandb.apis.internal import Api
 from wandb.errors import LaunchError
@@ -14,7 +14,7 @@ __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-WANDB_RUNNERS = {
+WANDB_RUNNERS: Dict[str, Type["AbstractRunner"]] = {
     "local": LocalRunner,
     "gcp-vertex": VertexRunner,
     "sagemaker": AWSSagemakerRunner,

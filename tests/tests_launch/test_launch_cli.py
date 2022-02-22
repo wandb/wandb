@@ -242,18 +242,9 @@ def test_launch_supplied_docker_image(
     def patched_pull_docker_image(docker_image):
         return  # noop
 
-    def patched_docker_image_inspect(image):
-        return {
-            "ContainerConfig": {"WorkingDir": "/", "Env": [],},
-        }
-
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local.pull_docker_image",
         lambda docker_image: patched_pull_docker_image(docker_image),
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.local.docker_image_inspect",
-        lambda docker_image: patched_docker_image_inspect(docker_image),
     )
     with runner.isolated_filesystem():
         result = runner.invoke(

@@ -182,16 +182,9 @@ class AWSSagemakerRunner(AbstractRunner):
         if f"The push refers to repository [{aws_registry}]" not in push_resp:
             raise LaunchError(f"Unable to push image to ECR, response: {push_resp}")
 
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return None
+        if not self.ack_run_queue_item(launch_project):
+            return None
+
         _logger.info("Connecting to sagemaker client")
 
         sagemaker_client = boto3.client(

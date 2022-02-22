@@ -115,6 +115,7 @@ def test_launch_gcp_vertex(
     assert run.gcp_region == job_dict["location"]
     assert run.gcp_project == job_dict["project"]
     assert run.get_status().state == "finished"
+    assert run.cancel() is None
     assert run.wait()
 
 

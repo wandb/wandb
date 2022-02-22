@@ -5,7 +5,7 @@ import time
 from typing import Any, Dict, List, Optional
 
 if False:
-    from google.cloud import aiplatform  # type: ignore
+    from google.cloud import aiplatform  # type: ignore   # noqa: F401
 from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
@@ -27,11 +27,6 @@ from ..utils import (
 )
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
-
-
-def docker_push(image: str) -> None:
-    # tmp function until sagemaker pr merged
-    subprocess.run(["docker", "push", image])
 
 
 class VertexSubmittedRun(AbstractRun):
@@ -86,7 +81,7 @@ class VertexRunner(AbstractRunner):
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
 
-        aiplatform = get_module(
+        aiplatform = get_module(  # noqa: F811
             "google.cloud.aiplatform",
             "VertexRunner requires google.cloud.aiplatform to be installed",
         )
@@ -164,16 +159,8 @@ class VertexRunner(AbstractRunner):
         repo, tag = image_uri.split(":")
         docker.push(repo, tag)
 
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return None
+        if not self.ack_run_queue_item(launch_project):
+            return None
 
         job = aiplatform.CustomContainerTrainingJob(
             display_name=gcp_training_job_name, container_uri=image_uri,
