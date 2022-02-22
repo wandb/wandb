@@ -1,6 +1,6 @@
 import codecs
 import os
-from typing import Type, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union
 
 from wandb.util import (
     generate_id,
@@ -16,11 +16,14 @@ from ._image import Image
 from ._media import Media
 from .utils import _numpy_arrays_to_lists
 
+
 if TYPE_CHECKING:
     import matplotlib  # type: ignore
     import plotly  # type: ignore
     from wandb_run import Run
     from wandb.sdk.wandb_artifacts import Artifact
+
+    PlotlyFigureType = Union["plotly.Figure", "matplotlib.artist.Artist"]
 
 
 class Plotly(Media):
@@ -33,44 +36,44 @@ class Plotly(Media):
 
     _log_type = "plotly-file"
 
-    @classmethod
-    def make_plot_media(
-        cls: Type["Plotly"], val: Union["plotly.Figure", "matplotlib.artist.Artist"]
-    ) -> Union[Image, "Plotly"]:
-        if is_matplotlib_typename(get_full_typename(val)):
-            if matplotlib_contains_images(val):
-                return Image(val)
-            val = matplotlib_to_plotly(val)
-        return cls(val)
-
-    def __init__(self, val: Union["plotly.Figure", "matplotlib.artist.Artist"]):
+    def __init__(self, figure: "PlotlyFigureType"):
         super().__init__()
-        # First, check to see if the incoming `val` object is a plotfly figure
-        if not is_plotly_figure_typename(get_full_typename(val)):
+        # First, check to see if the incoming `figure` object is a plotfly figure
+        if not is_plotly_figure_typename(get_full_typename(figure)):
             # If it is not, but it is a matplotlib figure, then attempt to convert it to plotly
-            if is_matplotlib_typename(get_full_typename(val)):
-                if matplotlib_contains_images(val):
+            if is_matplotlib_typename(get_full_typename(figure)):
+                if matplotlib_contains_images(figure):
                     raise ValueError(
                         "Plotly does not currently support converting matplotlib figures containing images. \
                             You can convert the plot to a static image with `wandb.Image(plt)` "
                     )
-                val = matplotlib_to_plotly(val)
+                figure = matplotlib_to_plotly(figure)
             else:
                 raise ValueError(
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".plotly.json")
-        val = _numpy_arrays_to_lists(val.to_plotly_json())
-        with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-            json_dump_safer(val, fp)
-        self._set_file(tmp_path, is_tmp=True, extension=".plotly.json")
-
-    @classmethod
-    def get_media_subdir(cls: Type["Plotly"]) -> str:
-        return os.path.join("media", "plotly")
+        path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".plotly.json")
+        plotly_json = _numpy_arrays_to_lists(figure.to_plotly_json())
+        with codecs.open(path, "w", encoding="utf-8") as fp:
+            json_dump_safer(plotly_json, fp)
+        self._set_file(path, is_tmp=True, extension=".plotly.json")
 
     def to_json(self, run_or_artifact: Union["Run", "Artifact"]) -> dict:
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
+
+    @classmethod
+    def get_media_subdir(cls: "Plotly") -> str:
+        return os.path.join("media", "plotly")
+
+    @classmethod
+    def make_plot_media(
+        cls: "Plotly", figure: "PlotlyFigureType"
+    ) -> Union[Image, "Plotly"]:
+        if is_matplotlib_typename(get_full_typename(figure)):
+            if matplotlib_contains_images(figure):
+                return Image(figure)
+            figure = matplotlib_to_plotly(figure)
+        return cls(figure)

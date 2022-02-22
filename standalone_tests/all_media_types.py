@@ -11,7 +11,8 @@ import plotly.graph_objs as go
 import matplotlib.pyplot as plt
 import tensorflow
 import torch
-from torchvision import models
+
+# from torchvision import models
 import wandb
 
 
