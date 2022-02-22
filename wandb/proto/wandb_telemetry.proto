@@ -18,6 +18,7 @@ message TelemetryRecord {
   Env     env = 8;
   Labels  label = 9;
   Deprecated deprecated = 10;
+  Issues issues = 11;
   _RecordInfo _info = 200;
 }
 
@@ -78,6 +79,8 @@ message Feature {
   bool init_return_run = 24; // wandb.init() called in the same process returning previous run
   bool lightgbm_wandb_callback = 25; // lightgbm callback used
   bool lightgbm_log_summary = 26; // lightgbm log summary used
+  bool catboost_wandb_callback = 27; // catboost callback used
+  bool catboost_log_summary = 28; // catboost log summary used
 }
 
 message Env {
@@ -104,4 +107,10 @@ message Deprecated {
   bool run__save_no_args = 3; // wandb.run.save() called without arguments
   bool run__join = 4; // wandb.run.join() called
   bool plots = 5; // wandb.plots.* called
+}
+
+message Issues {
+  bool settings__validation_warnings = 1; // validation warnings for settings?
+  bool settings__unexpected_args = 2; // unexpected settings init args?
+  bool settings__preprocessing_warnings = 3; // preprocessing warnings for settings?
 }

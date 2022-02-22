@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from google.cloud import aiplatform  # type: ignore
 from six.moves import shlex_quote
 import wandb
+import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
 import yaml
 
@@ -16,11 +17,8 @@ from .._project_spec import (
     LaunchProject,
 )
 from ..docker import (
-    build_docker_image_if_needed,
     construct_gcp_image_uri,
-    docker_image_exists,
-    docker_image_inspect,
-    generate_docker_base_image,
+    generate_docker_image,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -88,7 +86,9 @@ class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun"""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
-        resource_args = launch_project.resource_args
+        resource_args = launch_project.resource_args.get("gcp_vertex")
+        if not resource_args:
+            raise LaunchError("No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex")
         gcp_config = get_gcp_config(resource_args.get("gcp_config") or "default")
         gcp_project = (
             resource_args.get("gcp_project")
@@ -137,48 +137,25 @@ class VertexRunner(AbstractRunner):
 
         entry_point = launch_project.get_single_entry_point()
 
-        entry_cmd = entry_point.command
-        copy_code = True
         if launch_project.docker_image:
             pull_docker_image(launch_project.docker_image)
-            copy_code = False
+            image_uri = launch_project.docker_image
         else:
-            # TODO: potentially pull the base_image
-            if not docker_image_exists(launch_project.base_image):
-                if generate_docker_base_image(launch_project, entry_cmd) is None:
-                    raise LaunchError("Unable to build base image")
-            else:
-                wandb.termlog(
-                    "Using existing base image: {}".format(launch_project.base_image)
-                )
-
-        command_args = []
-        command_args += get_entry_point_command(
-            entry_point, launch_project.override_args
-        )
-
-        container_inspect = docker_image_inspect(launch_project.base_image)
-        container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
-        container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
-
-        if launch_project.docker_image is None or launch_project.build_image:
             image_uri = construct_gcp_image_uri(
                 launch_project, gcp_artifact_repo, gcp_project, gcp_docker_host,
             )
-            image = build_docker_image_if_needed(
-                launch_project=launch_project,
-                api=self._api,
-                copy_code=copy_code,
-                workdir=container_workdir,
-                container_env=container_env,
-                runner_type="gcp-vertex",
-                image_uri=image_uri,
-                command_args=command_args,
-            )
-        else:
-            image = launch_project.docker_image
 
-        docker_push(image)  # todo: when aws pr is merged, use docker python tooling
+            generate_docker_image(
+                self._api,
+                launch_project,
+                image_uri,
+                entry_point,
+                docker_args,
+                runner_type="gcp-vertex",
+            )
+
+        repo, tag = image_uri.split(":")
+        docker.push(repo, tag)
 
         if self.backend_config.get("runQueueItemId"):
             try:
@@ -192,7 +169,7 @@ class VertexRunner(AbstractRunner):
                 return None
 
         job = aiplatform.CustomContainerTrainingJob(
-            display_name=gcp_training_job_name, container_uri=image,
+            display_name=gcp_training_job_name, container_uri=image_uri,
         )
         submitted_run = VertexSubmittedRun(job)
 

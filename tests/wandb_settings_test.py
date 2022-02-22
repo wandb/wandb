@@ -4,9 +4,13 @@ settings test.
 
 import copy
 import datetime
+import inspect
+import json
 import os
 import platform
+import subprocess
 import sys
+import tempfile
 from unittest import mock
 
 import pytest  # type: ignore
@@ -27,6 +31,15 @@ else:
 Property = wandb_settings.Property
 Settings = wandb_settings.Settings
 Source = wandb_settings.Source
+
+
+def test_str_as_bool():
+    for val in ("y", "yes", "t", "true", "on", "1", "True", "TRUE"):
+        assert wandb_settings._str_as_bool(val)
+    for val in ("n", "no", "f", "false", "off", "0", "False", "FALSE"):
+        assert not wandb_settings._str_as_bool(val)
+    with pytest.raises(UsageError):
+        wandb_settings._str_as_bool("rubbish")
 
 
 # test Property class
@@ -65,6 +78,18 @@ def test_property_preprocess_validate_hook():
     assert not p._is_policy
 
 
+def test_property_auto_hook():
+    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=True,)
+    assert p.value == "WANDB"
+
+    p = Property(name="foo", value=None, hook=lambda x: "WANDB", auto_hook=False,)
+    assert p.value is None
+
+
+# fixme:
+@pytest.mark.skip(
+    reason="For now, we don't enforce validation on properties that are not in __strict_validate_settings"
+)
 def test_property_multiple_validators():
     def meaning_of_life(x):
         return x == 42
@@ -75,6 +100,24 @@ def test_property_multiple_validators():
     assert p.value == 42
     with pytest.raises(ValueError):
         p.update(value=43)
+
+
+# fixme: remove this once full validation is restored
+def test_property_strict_validation(capsys):
+    attributes = inspect.getmembers(Property, lambda a: not (inspect.isroutine(a)))
+    strict_validate_settings = [
+        a for a in attributes if a[0] == "_Property__strict_validate_settings"
+    ][0][1]
+    for name in strict_validate_settings:
+        p = Property(name=name, validator=lambda x: isinstance(x, int))
+        with pytest.raises(ValueError):
+            p.update(value="rubbish")
+
+    p = Property(name="api_key", validator=lambda x: isinstance(x, str))
+    p.update(value=31415926)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 31415926"
+    assert msg in captured
 
 
 def test_property_update():
@@ -131,7 +174,7 @@ def test_property_str():
 
 def test_property_repr():
     p = Property(name="foo", value=2, hook=lambda x: x ** 2)
-    assert repr(p) == f"<Property foo: value=4 _value=2 source=1 is_policy=False>"
+    assert repr(p) == "<Property foo: value=4 _value=2 source=1 is_policy=False>"
 
 
 # test Settings class
@@ -219,12 +262,12 @@ def test_ignore_globs_env():
 
 def test_quiet():
     s = Settings()
-    assert s._quiet is None
+    assert s.quiet is None
     s = Settings(quiet=True)
-    assert s._quiet
+    assert s.quiet
     s = Settings()
     s._apply_env_vars({"WANDB_QUIET": "false"})
-    assert not s._quiet
+    assert not s.quiet
 
 
 @pytest.mark.skip(reason="I need to make my mock work properly with new settings")
@@ -459,104 +502,102 @@ def test_offline(test_settings):
 
 def test_silent(test_settings):
     test_settings.update({"silent": "true"}, source=Source.BASE)
-    assert test_settings._silent is True
+    assert test_settings.silent is True
 
 
 def test_silent_run(live_mock_server, test_settings):
     test_settings.update({"silent": "true"}, source=Source.SETTINGS)
-    assert test_settings._silent is True
+    assert test_settings.silent is True
     run = wandb.init(settings=test_settings)
-    assert run._settings._silent is True
+    assert run._settings.silent is True
     run.finish()
 
 
 def test_silent_env_run(live_mock_server, test_settings):
     with mock.patch.dict("os.environ", WANDB_SILENT="true"):
         run = wandb.init(settings=test_settings)
-        assert run._settings._silent is True
+        assert run._settings.silent is True
         run.finish()
 
 
 def test_strict():
     settings = Settings(strict=True)
     assert settings.strict is True
-    assert settings._strict is True
 
     settings = Settings(strict=False)
     assert not settings.strict
-    assert settings._strict is None
 
 
 def test_strict_run(live_mock_server, test_settings):
     test_settings.update({"strict": "true"}, source=Source.SETTINGS)
-    assert test_settings._strict is True
+    assert test_settings.strict is True
     run = wandb.init(settings=test_settings)
-    assert run._settings._strict is True
+    assert run._settings.strict is True
     run.finish()
 
 
 def test_show_info(test_settings):
     test_settings.update({"show_info": True}, source=Source.BASE)
-    assert test_settings._show_info is True
+    assert test_settings.show_info is True
 
     test_settings.update({"show_info": False}, source=Source.BASE)
-    assert test_settings._show_info is None
+    assert test_settings.show_info is False
 
 
 def test_show_info_run(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_info is True
+    assert run._settings.show_info is True
     run.finish()
 
 
 def test_show_info_false_run(live_mock_server, test_settings):
     test_settings.update({"show_info": "false"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_info is None
+    assert run._settings.show_info is False
     run.finish()
 
 
 def test_show_warnings(test_settings):
     test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
-    assert test_settings._show_warnings is True
+    assert test_settings.show_warnings is True
 
     test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
-    assert test_settings._show_warnings is None
+    assert test_settings.show_warnings is False
 
 
 def test_show_warnings_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "true"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_warnings is True
+    assert run._settings.show_warnings is True
     run.finish()
 
 
 def test_show_warnings_false_run(live_mock_server, test_settings):
     test_settings.update({"show_warnings": "false"}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_warnings is None
+    assert run._settings.show_warnings is False
     run.finish()
 
 
 def test_show_errors(test_settings):
     test_settings.update({"show_errors": True}, source=Source.SETTINGS)
-    assert test_settings._show_errors is True
+    assert test_settings.show_errors is True
 
     test_settings.update({"show_errors": False}, source=Source.SETTINGS)
-    assert test_settings._show_errors is None
+    assert test_settings.show_errors is False
 
 
 def test_show_errors_run(test_settings):
     test_settings.update({"show_errors": True}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_errors is True
+    assert run._settings.show_errors is True
     run.finish()
 
 
 def test_show_errors_false_run(test_settings):
     test_settings.update({"show_errors": False}, source=Source.SETTINGS)
     run = wandb.init(settings=test_settings)
-    assert run._settings._show_errors is None
+    assert run._settings.show_errors is False
     run.finish()
 
 
@@ -810,6 +851,8 @@ def test_start_run():
     assert s._Settings_start_datetime is not None
 
 
+# fixme:
+@pytest.mark.skip(reason="For now, we don't raise an error and simply ignore it")
 def test_unexpected_arguments():
     with pytest.raises(TypeError):
         Settings(lol=False)
@@ -819,14 +862,6 @@ def test_mapping_interface():
     s = Settings()
     for setting in s:
         assert setting in s
-
-
-def test_make_static_include_not_properties():
-    s = Settings()
-    static_settings = s.make_static(include_properties=False)
-    assert "run_mode" not in static_settings
-    static_settings = s.make_static(include_properties=True)
-    assert "run_mode" in static_settings
 
 
 def test_is_local():
@@ -848,3 +883,51 @@ def test_default_props_match_class_attributes():
     class_attributes = list(get_type_hints(Settings).keys())
     default_props = list(s._default_props().keys())
     assert set(default_props) - set(class_attributes) == set()
+
+
+# fixme: remove this once full validation is restored
+def test_settings_strict_validation(capsys):
+    s = Settings(api_key=271828, lol=True)
+    assert s.api_key == 271828
+    with pytest.raises(AttributeError):
+        s.lol
+    captured = capsys.readouterr().err
+    msgs = (
+        "Ignoring unexpected arguments: ['lol']",
+        "Invalid value for property api_key: 271828",
+    )
+    for msg in msgs:
+        assert msg in captured
+
+
+def test_static_settings_json_dump():
+    s = Settings()
+    static_settings = s.make_static()
+    assert json.dumps(static_settings)
+
+
+# fixme: remove this once full validation is restored
+def test_no_repeat_warnings(capsys):
+    s = Settings(api_key=234)
+    assert s.api_key == 234
+    s.update(api_key=234)
+    captured = capsys.readouterr().err
+    msg = "Invalid value for property api_key: 234"
+    assert captured.count(msg) == 1
+
+
+def test_program_python_m():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path_module = os.path.join(tmpdir, "module")
+        os.mkdir(path_module)
+        with open(os.path.join(path_module, "lib.py"), "w") as f:
+            f.write(
+                "import wandb\n\n\n"
+                "if __name__ == '__main__':\n"
+                "    run = wandb.init(mode='offline')\n"
+                "    print(run.settings.program)\n"
+            )
+        output = subprocess.check_output(
+            [sys.executable, "-m", "module.lib"], cwd=tmpdir
+        )
+        assert "-m module.lib" in output.decode("utf-8")

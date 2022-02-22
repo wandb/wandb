@@ -939,15 +939,6 @@ def _check_launch_imports():
     "are not in the list of arguments for an entry point will be passed to the "
     "corresponding entry point as command-line arguments in the form `--name value`",
 )
-@click.option(  # todo: maybe take these out it's confusing with the docker image stuff
-    "--docker-args",
-    "-A",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="A `docker run` argument or flag, of the form -A name=value (e.g. -A gpus=all) "
-    "or -A name (e.g. -A t). The argument will then be passed as "
-    "`docker run --name value` or `docker run --name` respectively. ",
-)
 @click.option(
     "--name",
     envvar="WANDB_NAME",
@@ -992,8 +983,7 @@ def _check_launch_imports():
     "-c",
     metavar="FILE",
     help="Path to JSON file (must end in '.json') or JSON string which will be passed "
-    "as config to the compute resource. The exact content which should be "
-    "provided is different for each execution backend. See documentation for layout of this file.",
+    "as a launch config. Dictation how the launched run will be configured. ",
 )
 @click.option(
     "--queue",
@@ -1014,11 +1004,20 @@ def _check_launch_imports():
     "set on wandb launch-agent.",
 )
 @click.option(
-    "--resource-arg",
+    "--resource-args",
     "-R",
-    metavar="NAME=VALUE",
-    multiple=True,
-    help="A resource argument for launching runs with cloud providers, of the form -R name=value.",
+    metavar="FILE",
+    help="Path to JSON file (must end in '.json') or JSON string which will be passed "
+    "as resource args to the compute resource. The exact content which should be "
+    "provided is different for each execution backend. See documentation for layout of this file.",
+)
+@click.option(
+    "--cuda",
+    is_flag=False,
+    flag_value=True,
+    default=None,
+    help="Flag to build an image with CUDA enabled. If reproducing a previous wandb run that ran on GPU, a CUDA-enabled image will be "
+    "built by default and you must set --cuda=False to build a CPU-only image.",
 )
 @display_error
 def launch(
@@ -1026,7 +1025,6 @@ def launch(
     entry_point,
     git_version,
     args_list,
-    docker_args,
     name,
     resource,
     entity,
@@ -1035,7 +1033,8 @@ def launch(
     config,
     queue,
     run_async,
-    resource_arg,
+    resource_args,
+    cuda,
 ):
     """
     Run a W&B run from the given URI, which can be a wandb URI or a github repo uri or a local path.
@@ -1062,21 +1061,31 @@ def launch(
             "Cannot use both --async and --queue with wandb launch, see help for details."
         )
 
-    args_dict = util._user_args_to_dict(args_list)
-    docker_args_dict = util._user_args_to_dict(docker_args)
-
-    resource_args_dict = util._user_args_to_dict(resource_arg)
-    if config is not None:
-        if os.path.splitext(config)[-1] == ".json":
-            with open(config, "r") as f:
-                config = json.load(f)
+    # we take a string for the `cuda` arg in order to accept None values, then convert it to a bool
+    if cuda is not None:
+        # preserve cuda=None as unspecified, otherwise convert to bool
+        if cuda == "True":
+            cuda = True
+        elif cuda == "False":
+            cuda = False
         else:
-            # assume a json string
-            try:
-                config = json.loads(config)
-            except ValueError as e:
-                wandb.termerror("Invalid backend config JSON. Parse error: %s" % e)
-                raise
+            raise LaunchError(
+                "Invalid value for --cuda: '{}' is not a valid boolean.".format(cuda)
+            )
+
+    args_dict = util._user_args_to_dict(args_list)
+
+    if resource_args is not None:
+        resource_args = util.load_as_json_file_or_load_dict_as_json(resource_args)
+        if resource_args is None:
+            raise LaunchError("Invalid format for resource-args")
+    else:
+        resource_args = {}
+
+    if config is not None:
+        config = util.load_as_json_file_or_load_dict_as_json(config)
+        if config is None:
+            raise LaunchError("Invalid format for config")
     else:
         config = {}
 
@@ -1093,11 +1102,11 @@ def launch(
                 docker_image=docker_image,
                 name=name,
                 parameters=args_dict,
-                docker_args=docker_args_dict,
                 resource=resource,
-                resource_args=resource_args_dict,
+                resource_args=resource_args,
                 config=config,
                 synchronous=(not run_async),
+                cuda=cuda,
             )
         except LaunchError as e:
             logger.error("=== %s ===", e)
@@ -1119,7 +1128,8 @@ def launch(
             git_version,
             docker_image,
             args_dict,
-            resource_args_dict,
+            resource_args,
+            cuda=cuda,
         )
 
 

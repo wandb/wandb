@@ -6,14 +6,15 @@ from wandb.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRunner
 from wandb.sdk.launch.runner.gcp_vertex import VertexRunner
 
+from .aws import AWSSagemakerRunner
 from .local import LocalRunner
+
 
 __logger__ = logging.getLogger(__name__)
 
 
 # Statically register backend defined in wandb
-WANDB_RUNNERS = {"local": LocalRunner, "gcp-vertex": VertexRunner}
-
+WANDB_RUNNERS = {"local": LocalRunner, "gcp-vertex": VertexRunner, "sagemaker": AWSSagemakerRunner}
 
 def load_backend(
     backend_name: str, api: Api, backend_config: Dict[str, Any]
