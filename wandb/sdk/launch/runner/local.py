@@ -5,7 +5,6 @@ import subprocess
 from typing import Any, Dict, Optional
 
 import wandb
-from wandb.errors import CommError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject

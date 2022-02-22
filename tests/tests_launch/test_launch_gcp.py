@@ -14,6 +14,10 @@ from tests import utils
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
 
+SUCCEEDED = "PipelineState.PIPELINE_STATE_SUCCEEDED"
+FAILED = "PipelineState.PIPELINE_STATE_FAILED"
+
+
 class MockDict(dict):
     # use a dict to mock an object
     __getattr__ = dict.get
@@ -45,7 +49,7 @@ def mock_aiplatform_CustomContainerTrainingJob(display_name, container_uri, job_
     return MockDict(job_dict)
 
 
-def setup_mock_aiplatform(monkeypatch):
+def setup_mock_aiplatform(status, monkeypatch):
     # patch out fns that require gcp cli/api functionality or state
 
     do_nothing = lambda *args, **kwargs: None
@@ -56,7 +60,7 @@ def setup_mock_aiplatform(monkeypatch):
         "project": None,
         "wait": do_nothing,
         "cancel": do_nothing,
-        "state": "PipelineState.PIPELINE_STATE_SUCCEEDED",
+        "state": status,
         "run": do_nothing,
         "_gca_resource": "placeholder-value",
     }
@@ -86,7 +90,7 @@ def setup_mock_aiplatform(monkeypatch):
 def test_launch_gcp_vertex(
     live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
 ):
-    job_dict = setup_mock_aiplatform(monkeypatch)
+    job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
     monkeypatch.setattr(
         "wandb.docker.push", lambda repo, tag: patched_docker_push(repo, tag),
@@ -119,8 +123,41 @@ def test_launch_gcp_vertex(
     assert run.wait()
 
 
+@pytest.mark.timeout(320)
+def test_launch_gcp_vertex_failed(
+    live_mock_server, test_settings, mocked_fetchable_git_repo, monkeypatch
+):
+    job_dict = setup_mock_aiplatform(FAILED, monkeypatch)
+
+    monkeypatch.setattr(
+        "wandb.docker.push", lambda repo, tag: patched_docker_push(repo, tag),
+    )
+
+    api = wandb.sdk.internal.internal_api.Api(
+        default_settings=test_settings, load_settings=False
+    )
+    uri = "https://wandb.ai/mock_server_entity/test/runs/1"
+    kwargs = {
+        "uri": uri,
+        "api": api,
+        "resource": "gcp-vertex",
+        "entity": "mock_server_entity",
+        "project": "test",
+        "resource_args": {
+            "gcp_vertex": {
+                "gcp_staging_bucket": "test-bucket",
+                "gcp_artifact_repo": "test_repo",
+            },
+        },
+    }
+    run = launch.run(**kwargs)
+    assert run.id == job_dict["name"]
+    assert run.name == job_dict["display_name"]
+    assert run.get_status().state == "failed"
+
+
 def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
-    job_dict = setup_mock_aiplatform(monkeypatch)
+    job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -139,6 +176,15 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
     except LaunchError as e:
         assert "No Vertex resource args specified" in str(e)
 
+    kwargs["resource_args"]["gcp_vertex"]["region"] = "us-east1"
+    try:
+        launch.run(**kwargs)
+    except LaunchError as e:
+        assert (
+            "Vertex requires a staging bucket for training and dependency packages"
+            in str(e)
+        )
+
     kwargs["resource_args"]["gcp_vertex"]["gcp_staging_bucket"] = "test-bucket"
     try:
         launch.run(**kwargs)
@@ -149,7 +195,7 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
 def test_vertex_supplied_docker_image(
     test_settings, monkeypatch, mocked_fetchable_git_repo
 ):
-    job_dict = setup_mock_aiplatform(monkeypatch)
+    job_dict = setup_mock_aiplatform(SUCCEEDED, monkeypatch)
 
     def patched_pull_docker_image(docker_image):
         return  # noop

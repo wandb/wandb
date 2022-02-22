@@ -10,7 +10,7 @@ if False:
     import boto3  # type: ignore
 import wandb
 import wandb.docker as docker
-from wandb.errors import CommError, LaunchError
+from wandb.errors import LaunchError
 from wandb.util import get_module
 
 from .abstract import AbstractRun, AbstractRunner, Status

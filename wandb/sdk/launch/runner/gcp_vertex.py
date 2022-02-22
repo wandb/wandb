@@ -9,7 +9,7 @@ if False:
 from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
-from wandb.errors import CommError, LaunchError
+from wandb.errors import LaunchError
 from wandb.util import get_module
 import yaml
 
