@@ -44,9 +44,6 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 33  # spacy
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 46  # prophet
 """
 
 
