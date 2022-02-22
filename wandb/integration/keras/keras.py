@@ -692,8 +692,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         if self.save_model_as_artifact:
             self._save_model_as_artifact()
             if self.only_as_artifact:
-                
-                pass
+                import shutil
+                shutil.rmtree(self.filepath[:-3])
 
     def on_test_begin(self, logs=None):
         pass
@@ -987,7 +987,6 @@ class WandbCallback(tf.keras.callbacks.Callback):
             wandb.termerror("Can't save model, h5py returned error: %s" % e)
             self.save_model = False
         finally:
-            print('INSIDE FINALLY BLOCK')
             # Save the model in the SavedModel format
             self.model.save(self.filepath[:-3], overwrite=True)
             

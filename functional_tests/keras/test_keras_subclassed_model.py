@@ -3,6 +3,9 @@ import tensorflow as tf
 import wandb
 from wandb.keras import WandbCallback
 
+import os
+os.environ["WANDB_SAVE_MODEL_AS_ARTIFACT"] = "True"
+
 run = wandb.init(project="keras")
 
 
