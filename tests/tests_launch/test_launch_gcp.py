@@ -153,11 +153,6 @@ def test_vertex_supplied_docker_image(
     def patched_pull_docker_image(docker_image):
         return  # noop
 
-    def patched_docker_image_inspect(image):
-        return {
-            "ContainerConfig": {"WorkingDir": "/", "Env": [],},
-        }
-
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.gcp_vertex.pull_docker_image",
         lambda docker_image: patched_pull_docker_image(docker_image),
