@@ -1,24 +1,33 @@
 #!/usr/bin/env python
 """Parse tracelog output for analysis/diagrams.
 
+NOTE: tracelog is still in development.
+
 Usage:
-    ./client/tools/tracelog-tool.py path/to/rundir/
-    ./client/tools/tracelog-tool.py output.txt
-    ./client/tools/tracelog-tool.py output1.txt output2.txt
+    ./client/tools/tracelog-tool.py
+    ./client/tools/tracelog-tool.py --logdir logdir/
+    ./client/tools/tracelog-tool.py --format plantuml
 """
 
 import argparse
+from dataclasses import dataclass
 import pathlib
+import sys
+from typing import List
 
-DEFAULT_DIR: str = "wandb/latest-run/"
 
-parser = argparse.ArgumentParser()
-args = parser.parse_args()
+@dataclass
+class SequenceItem:
+    ts: float
+    src: str
+    request: bool
+    dst: str
+    info: str
 
 
 class TracelogParser:
     def __init__(self) -> None:
-        self._lines = []
+        self._items: List[SequenceItem] = []
         self._uuid_messages = dict()
 
     def _parse(self, line: str) -> None:
@@ -45,20 +54,24 @@ class TracelogParser:
         else:
             # TODO: handle this
             return
+        request = True
         if direct == "<-":
-            direct = "-->"
+            request = False
         ts = float(ts)
         if msg == "None":
             msg = "return_" + self._uuid_messages.get(uuid)
-        self.add(ts, src, direct, dst, msg)
+        item = SequenceItem(ts=ts, src=src, request=request, dst=dst, info=msg)
+        self.add(item)
 
-    def add(self, ts, src, arrow, dst, info):
-        line = f"{src} {arrow} {dst}: {info}"
-        self._lines.append((ts, line))
+    def add(self, item: SequenceItem):
+        self._items.append(item)
 
-    def output(self) -> None:
-        lines = sorted(self._lines)
-        lines = [l for (ts, l) in lines]
+    def output_plantuml(self) -> None:
+        lines = []
+        for item in self._items:
+            line = f"{item.src} --> {item.dst}: {item.info}"
+            lines.append((item.ts, line))
+        lines = [l for (ts, l) in sorted(lines)]
         print("@startuml")
         header = """
 !theme crt-amber
@@ -87,6 +100,34 @@ end box
             print(line)
         print("@enduml")
 
+    def output_mermaid(self) -> None:
+        lines = []
+        for item in self._items:
+            line = f"{item.src} ->> {item.dst}: {item.info}"
+            lines.append((item.ts, line))
+        lines = [l for (ts, l) in sorted(lines)]
+
+        header = """
+sequenceDiagram
+participant MainThread as User
+participant MsgRouterThr as router
+participant ChkStopThr as check_stop
+participant NetStatThr as net_stat
+
+participant record_q as record_q
+participant result_q as result_q
+
+participant HandlerThread as handler
+participant StatsThr as stats
+participant send_q as send_q
+participant write_q as write_q
+participant WriterThread as writer
+participant SenderThread as sender
+        """
+        print(header)
+        for line in lines:
+            print(line)
+
     def load(self, fname: str) -> None:
         with open(fname) as f:
             for line in f.readlines():
@@ -104,10 +145,20 @@ end box
 
 
 def main():
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("--logdir", default="wandb/latest-run/logs/")
+    argparser.add_argument("--format", default="mermaid")
+    args = argparser.parse_args()
+
     parser = TracelogParser()
-    # parser.load("out.txt")
-    parser.loaddir(DEFAULT_DIR + "logs/")
-    parser.output()
+    parser.loaddir(args.logdir)
+    if args.format == "plantuml":
+        parser.output_plantuml()
+    elif args.format == "mermaid":
+        parser.output_mermaid()
+    else:
+        print(f"Unknown format: {args.format}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
