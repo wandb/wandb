@@ -54,6 +54,10 @@ class InternalServiceStub:
         request: wandb.proto.wandb_internal_pb2.MetricRecord,
     ) -> wandb.proto.wandb_internal_pb2.MetricResult: ...
 
+    def PartialLog(self,
+        request: wandb.proto.wandb_internal_pb2.PartialHistoryRequest,
+    ) -> wandb.proto.wandb_internal_pb2.PartialHistoryResponse: ...
+
     def Log(self,
         request: wandb.proto.wandb_internal_pb2.HistoryRecord,
     ) -> wandb.proto.wandb_internal_pb2.HistoryResult: ...
@@ -209,6 +213,12 @@ class InternalServiceServicer(metaclass=abc.ABCMeta):
         request: wandb.proto.wandb_internal_pb2.MetricRecord,
         context: grpc.ServicerContext,
     ) -> wandb.proto.wandb_internal_pb2.MetricResult: ...
+
+    @abc.abstractmethod
+    def PartialLog(self,
+        request: wandb.proto.wandb_internal_pb2.PartialHistoryRequest,
+        context: grpc.ServicerContext,
+    ) -> wandb.proto.wandb_internal_pb2.PartialHistoryResponse: ...
 
     @abc.abstractmethod
     def Log(self,

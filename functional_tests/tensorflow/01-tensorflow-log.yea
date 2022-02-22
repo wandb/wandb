@@ -37,4 +37,8 @@ assert:
     - :wandb:runs[0][summary][input_reshape_input_image][count]: 10
     - :wandb:runs[0][summary][input_reshape_input_image][_type]: images/separated
 
+    - :op:contains:
+        - :wandb:runs[0][telemetry][3]  # feature
+        - 29  # wandb.tensorflow.log
+
     - :wandb:runs[0][exitcode]: 0
