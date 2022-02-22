@@ -20,59 +20,59 @@ class Html(BatchableMedia):
     Wandb class for arbitrary html
 
     Arguments:
-        data: (string or io object) HTML to display in wandb
+        data_or_path: (string or io object) HTML to display in wandb
         inject: (boolean) Add a stylesheet to the HTML object.  If set
             to False the HTML will pass through unchanged.
     """
 
     _log_type = "html-file"
+    _STYLESHEET = '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />'
 
-    def __init__(self, data: Union[str, "io.TextIO"], inject: bool = True) -> None:
+    def __init__(
+        self, data_or_path: Union[str, "io.TextIO"], inject: bool = True
+    ) -> None:
         super().__init__()
-        data_is_path = isinstance(data, str) and os.path.exists(data)
-        data_path = ""
-        if data_is_path:
-            assert isinstance(data, str)
-            data_path = data
-            with open(data_path, "r") as file:
-                self.html = file.read()
-        elif isinstance(data, str):
-            self.html = data
-        elif hasattr(data, "read"):
-            if hasattr(data, "seek"):
-                data.seek(0)
-            self.html = data.read()
+
+        path = None
+        if isinstance(data_or_path, str):
+            if os.path.exists(data_or_path):
+                path = data_or_path
+                with open(path, "r") as file_handler:
+                    html = file_handler.read()
+            else:
+                html = data_or_path
+        elif hasattr(data_or_path, "read"):
+            if hasattr(data_or_path, "seek"):
+                data_or_path.seek(0)
+            html = data_or_path.read()
         else:
-            raise ValueError("data must be a string or an io object")
+            raise ValueError("`data_or_path` must be a string or an io object")
+
+        self.html = html
 
         if inject:
-            self.inject_head()
+            self._inject_stylesheet()
 
-        if inject or not data_is_path:
-            tmp_path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".html")
-            with open(tmp_path, "w") as out:
-                out.write(self.html)
-
-            self._set_file(tmp_path, is_tmp=True)
+        if inject or path is None:
+            path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".html")
+            with open(path, "w") as file_handler:
+                file_handler.write(self.html)
+            self._set_file(path, is_tmp=True)
         else:
-            self._set_file(data_path, is_tmp=False)
+            self._set_file(path)
 
-    def inject_head(self) -> None:
-        join = ""
+    def _inject_stylesheet(self) -> None:
+
         if "<head>" in self.html:
-            parts = self.html.split("<head>", 1)
-            parts[0] = parts[0] + "<head>"
+            parts = list(self.html.partition("<head>"))
+            parts.insert(2, self._STYLESHEET)
         elif "<html>" in self.html:
-            parts = self.html.split("<html>", 1)
-            parts[0] = parts[0] + "<html><head>"
-            parts[1] = "</head>" + parts[1]
+            parts = list(self.html.partition("<html>"))
+            parts.insert(2, f"<head>{self._STYLESHEET}</head>")
         else:
-            parts = ["", self.html]
-        parts.insert(
-            1,
-            '<base target="_blank"><link rel="stylesheet" type="text/css" href="https://app.wandb.ai/normalize.css" />',
-        )
-        self.html = join.join(parts).strip()
+            parts = [self._STYLESHEET, self.html]
+
+        self.html = "".join(parts).strip()
 
     @classmethod
     def get_media_subdir(cls: Type["Html"]) -> str:
