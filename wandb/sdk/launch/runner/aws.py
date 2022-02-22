@@ -4,7 +4,7 @@ import logging
 import os
 import subprocess
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 if False:
     import boto3  # type: ignore
@@ -19,11 +19,8 @@ from .._project_spec import (
     LaunchProject,
 )
 from ..docker import (
-    build_docker_image_if_needed,
     construct_local_image_uri,
-    docker_image_exists,
-    docker_image_inspect,
-    generate_docker_base_image,
+    generate_docker_image,
     pull_docker_image,
     validate_docker_installation,
 )
@@ -106,9 +103,7 @@ class AWSSagemakerRunner(AbstractRunner):
             )
 
         region = get_region(given_sagemaker_args)
-
         access_key, secret_key = get_aws_credentials(given_sagemaker_args)
-
         client = boto3.client(
             "sts", aws_access_key_id=access_key, aws_secret_access_key=secret_key
         )
@@ -136,6 +131,7 @@ class AWSSagemakerRunner(AbstractRunner):
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 run.wait()
             return run
+
         _logger.info("Connecting to AWS ECR Client")
         ecr_client = boto3.client(
             "ecr",
@@ -160,55 +156,17 @@ class AWSSagemakerRunner(AbstractRunner):
 
         entry_point = launch_project.get_single_entry_point()
 
-        entry_cmd = entry_point.command
-        copy_code = True
         if launch_project.docker_image:
+            _logger.info("Pulling user provided docker image")
             pull_docker_image(launch_project.docker_image)
-            copy_code = False
         else:
-            # TODO: potentially pull the base_image
-            if not docker_image_exists(launch_project.base_image):
-                if generate_docker_base_image(launch_project, entry_cmd) is None:
-                    raise LaunchError("Unable to build base image")
-            else:
-                wandb.termlog(
-                    "Using existing base image: {}".format(launch_project.base_image)
-                )
-
-        command_args = []
-
-        container_inspect = docker_image_inspect(launch_project.base_image)
-        container_workdir = container_inspect["ContainerConfig"].get("WorkingDir", "/")
-        container_env: List[str] = container_inspect["ContainerConfig"]["Env"]
-
-        if launch_project.docker_image is None or launch_project.build_image:
+            # build our own image
             image_uri = construct_local_image_uri(launch_project)
-            command_args += get_entry_point_command(
-                entry_point, launch_project.override_args
-            )
-            # create a flattened list of all the command inputs for the dockerfile
-            command_args = list(
-                itertools.chain(*[ca.split(" ") for ca in command_args])
-            )
             _logger.info("Building docker image")
-            image = build_docker_image_if_needed(
-                launch_project=launch_project,
-                api=self._api,
-                copy_code=copy_code,
-                workdir=container_workdir,
-                container_env=container_env,
-                runner_type="sagemaker",
-                image_uri=image_uri,
-                command_args=command_args,
+            image = generate_docker_image(
+                self._api, launch_project, image_uri, entry_point, {}, "sagemaker"
             )
-        else:
-            # TODO: rewrite env vars and copy code in supplied docker image
-            wandb.termwarn(
-                "Using supplied docker image: {}. Artifact swapping and launch metadata disabled".format(
-                    launch_project.docker_image
-                )
-            )
-            image_uri = launch_project.docker_image
+
         _logger.info("Logging in to AWS ECR")
         login_resp = aws_ecr_login(region, aws_registry)
         if login_resp is None or "Login Succeeded" not in login_resp:
@@ -242,6 +200,11 @@ class AWSSagemakerRunner(AbstractRunner):
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
         )
+
+        command_args = get_entry_point_command(
+            entry_point, launch_project.override_args
+        )
+        command_args = list(itertools.chain(*[ca.split(" ") for ca in command_args]))
         wandb.termlog(
             "Launching run on sagemaker with entrypoint: {}".format(
                 " ".join(command_args)
@@ -325,7 +288,6 @@ def build_sagemaker_args(
         **sagemaker_args,
     }
 
-    sagemaker_args.pop("EcrRepoName", None)
     if sagemaker_args.get("OutputDataConfig") is None:
         raise LaunchError(
             "Sagemaker launcher requires an OutputDataConfig Sagemaker resource argument"
@@ -340,6 +302,11 @@ def build_sagemaker_args(
         raise LaunchError(
             "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
         )
+
+    # remove args that were passed in for launch but not passed to sagemaker
+    sagemaker_args.pop("EcrRepoName", None)
+    sagemaker_args.pop("region", None)
+    sagemaker_args.pop("profile", None)
 
     # clear the args that are None so they are not passed
     filtered_args = {k: v for k, v in sagemaker_args.items() if v is not None}

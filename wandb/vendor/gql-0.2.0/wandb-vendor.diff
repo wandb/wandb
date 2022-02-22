@@ -1,0 +1,69 @@
+diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/client.py b/wandb/vendor/gql-0.2.0/wandb_gql/client.py
+index 95c565c4e..ab3ed7f0e 100644
+--- a/wandb/vendor/gql-0.2.0/wandb_gql/client.py
++++ b/wandb/vendor/gql-0.2.0/wandb_gql/client.py
+@@ -1,7 +1,7 @@
+ import logging
+ 
+-from graphql import parse, introspection_query, build_ast_schema, build_client_schema
+-from graphql.validation import validate
++from wandb_graphql import parse, introspection_query, build_ast_schema, build_client_schema
++from wandb_graphql.validation import validate
+ 
+ from .transport.local_schema import LocalSchemaTransport
+ 
+diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py b/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py
+index 39ff3c2ed..060543645 100644
+--- a/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py
++++ b/wandb/vendor/gql-0.2.0/wandb_gql/dsl.py
+@@ -3,9 +3,9 @@ import decimal
+ from functools import partial
+ 
+ import six
+-from graphql.language import ast
+-from graphql.language.printer import print_ast
+-from graphql.type import (GraphQLField, GraphQLList,
++from wandb_graphql.language import ast
++from wandb_graphql.language.printer import print_ast
++from wandb_graphql.type import (GraphQLField, GraphQLList,
+                           GraphQLNonNull, GraphQLEnumType)
+ 
+ from .utils import to_camel_case
+diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/gql.py b/wandb/vendor/gql-0.2.0/wandb_gql/gql.py
+index 782943f0e..39a8a5859 100644
+--- a/wandb/vendor/gql-0.2.0/wandb_gql/gql.py
++++ b/wandb/vendor/gql-0.2.0/wandb_gql/gql.py
+@@ -1,6 +1,6 @@
+ import six
+-from graphql.language.parser import parse
+-from graphql.language.source import Source
++from wandb_graphql.language.parser import parse
++from wandb_graphql.language.source import Source
+ 
+ 
+ def gql(request_string):
+diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py b/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py
+index 30d577ec0..5bc7d33dc 100644
+--- a/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py
++++ b/wandb/vendor/gql-0.2.0/wandb_gql/transport/local_schema.py
+@@ -1,4 +1,4 @@
+-from graphql.execution import execute
++from wandb_graphql.execution import execute
+ 
+ 
+ class LocalSchemaTransport(object):
+diff --git a/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py b/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
+index 71399a55d..305ca8af9 100644
+--- a/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
++++ b/wandb/vendor/gql-0.2.0/wandb_gql/transport/requests.py
+@@ -1,8 +1,8 @@
+ from __future__ import absolute_import
+ 
+ import requests
+-from graphql.execution import ExecutionResult
+-from graphql.language.printer import print_ast
++from wandb_graphql.execution import ExecutionResult
++from wandb_graphql.language.printer import print_ast
+ 
+ from .http import HTTPTransport
+ 
