@@ -1,5 +1,5 @@
 import sys
-from typing import Optional, Sequence, Tuple, TYPE_CHECKING, Union
+from typing import Iterable, Optional, Sequence, Tuple, TYPE_CHECKING, Union
 
 from wandb.util import get_module
 
@@ -43,52 +43,63 @@ class Histogram(WBValue):
         histogram: ([int]) number of elements falling in each bin
     """
 
-    MAX_LENGTH: int = 512
+    _MAX_LENGTH: int = 512
     _log_type = "histogram"
 
     def __init__(
         self,
-        sequence: Optional[Sequence] = None,
+        data: Optional[Sequence] = None,
         np_histogram: Optional["NumpyHistogram"] = None,
-        num_bins: int = 64,
+        **kwargs,
     ) -> None:
 
-        if np_histogram:
-            if len(np_histogram) == 2:
-                self.histogram = (
-                    np_histogram[0].tolist()
-                    if hasattr(np_histogram[0], "tolist")
-                    else np_histogram[0]
-                )
-                self.bins = (
-                    np_histogram[1].tolist()
-                    if hasattr(np_histogram[1], "tolist")
-                    else np_histogram[1]
-                )
-            else:
+        if data is not None:
+            np = get_module(
+                "numpy",
+                required="wandb.Histogram requires numpy for auto generation. To install run: `pip install numpy`",
+            )
+
+            kwargs["bins"] = kwargs.pop("num_bins", 64)
+            histogram, bins = np.histogram(data, **kwargs)
+            histogram, bins = histogram.tolist(), bins.tolist()
+
+        elif np_histogram is not None:
+            if len(np_histogram) != 2:
                 raise ValueError(
                     "Expected np_histogram to be a tuple of (values, bin_edges) or sequence to be specified"
                 )
+            if not isinstance(np_histogram[0], Iterable):
+                raise TypeError(
+                    f"`np_histogram[0]` is expected to be Iteralbe got {type(np_histogram[0])}"
+                )
+            if not isinstance(np_histogram[1], Iterable):
+                raise TypeError(
+                    f"`np_histogram[1]` is expected to be Iteralbe got {type(np_histogram[1])}"
+                )
+            histogram, bins = np_histogram
+
         else:
-            np = get_module(
-                "numpy", required="Auto creation of histograms requires numpy"
+            raise RuntimeError(
+                "Expected either `sequence` or `histogram`, but both are None"
             )
 
-            self.histogram, self.bins = np.histogram(sequence, bins=num_bins)
-            self.histogram = self.histogram.tolist()
-            self.bins = self.bins.tolist()
-        if len(self.histogram) > self.MAX_LENGTH:
-            raise ValueError(
-                "The maximum length of a histogram is %i" % self.MAX_LENGTH
-            )
-        if len(self.histogram) + 1 != len(self.bins):
+        if len(histogram) > self._MAX_LENGTH:
+            raise ValueError(f"The maximum length of a histogram is {self._MAX_LENGTH}")
+
+        if len(histogram) + 1 != len(bins):
             raise ValueError("len(bins) must be len(histogram) + 1")
 
+        self._hist, self._bins = histogram, bins
+
     def to_json(self, run: Union["Run", "Artifact"] = None) -> dict:
-        return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
+        return {
+            "_type": self._log_type,
+            "values": self._hist,
+            "bins": self._bins,
+        }
 
     def __sizeof__(self) -> int:
         """This returns an estimated size in bytes, currently the factor of 1.7
         is used to account for the JSON encoding.  We use this in tb_watcher.TBHistory
         """
-        return int((sys.getsizeof(self.histogram) + sys.getsizeof(self.bins)) * 1.7)
+        return int((sys.getsizeof(self._hist) + sys.getsizeof(self._bins)) * 1.7)
