@@ -2591,8 +2591,8 @@ class Run:
         ] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
-        counter: int,
-        start_time: Union[float, int],
+        counter: Optional[int] = None,
+        start_time: Union[float, int, None] = None,
     ) -> None:
         if not poll_exit_responses:
             return
@@ -2635,8 +2635,8 @@ class Run:
         poll_exit_response: Optional[PollExitResponse] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
-        counter: int,
-        start_time: Union[float, int],
+        counter: Optional[int] = None,
+        start_time: Union[float, int, None] = None,
     ) -> None:
         # todo: is this same as settings._offline?
         if not poll_exit_response:
@@ -2660,7 +2660,7 @@ class Run:
         printer.progress_update(line, percent_done)
 
         # log every tenth count
-        if counter % 10 == 0:
+        if counter is not None and counter % 10 == 0:
             logger.info(f"Got exit response: {poll_exit_response}")
 
         if done:
@@ -2676,22 +2676,23 @@ class Run:
                     f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
                 )
 
-            elapsed_time = time.monotonic() - start_time
-            uploaded_size_megabytes = (
-                poll_exit_response.pusher_stats.total_bytes / megabyte
-            )
-            message = (
-                f"Uploaded {uploaded_size_megabytes:.3f} MB "
-                f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
-            )
-            logger.info(message)
+            if start_time is not None:
+                elapsed_time = time.monotonic() - start_time
+                uploaded_size_megabytes = (
+                    poll_exit_response.pusher_stats.total_bytes / megabyte
+                )
+                message = (
+                    f"Uploaded {uploaded_size_megabytes:.3f} MB "
+                    f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
+                )
+                logger.info(message)
 
     @staticmethod
     def _footer_multiple_runs_file_pusher_status_info(
         poll_exit_responses: List[Optional[PollExitResponse]],
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
-        start_time: Union[float, int],
+        start_time: Union[float, int, None] = None,
     ) -> None:
 
         # todo: is this same as settings._offline?
@@ -2745,13 +2746,14 @@ class Run:
         if done:
             printer.progress_close()
 
-            elapsed_time = time.monotonic() - start_time
-            uploaded_size_megabytes = total / megabyte
-            message = (
-                f"Uploaded {uploaded_size_megabytes:.3f} MB "
-                f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
-            )
-            logger.info(message)
+            if start_time is not None:
+                elapsed_time = time.monotonic() - start_time
+                uploaded_size_megabytes = total / megabyte
+                message = (
+                    f"Uploaded {uploaded_size_megabytes:.3f} MB "
+                    f"in {elapsed_time:.2f} seconds ({uploaded_size_megabytes / elapsed_time:.2f} MB/s)"
+                )
+                logger.info(message)
 
     @staticmethod
     def _footer_sync_info(
