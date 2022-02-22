@@ -3,9 +3,6 @@ import tensorflow as tf
 import wandb
 from wandb.keras import WandbCallback
 
-import os
-os.environ["WANDB_SAVE_MODEL_AS_ARTIFACT"] = "True"
-
 run = wandb.init(project="keras")
 
 
@@ -14,17 +11,19 @@ y = np.random.randint(10, size=(100,)).astype(np.float32)
 
 dataset = (x, y)
 
+
 class DummyModel(tf.keras.Model):
     def __init__(self, num_classes=10):
         super(DummyModel, self).__init__()
         self.conv = tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1))
         self.flatten = tf.keras.layers.Flatten()
         self.classifier = tf.keras.layers.Dense(10, activation="softmax")
-        
+
     def call(self, inputs):
         x = self.conv(inputs)
         x = self.flatten(x)
         return self.classifier(x)
+
 
 model = DummyModel()
 

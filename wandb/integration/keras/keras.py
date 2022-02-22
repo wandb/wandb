@@ -416,15 +416,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.save_model = save_model
         if save_model:
             wandb.termwarn(
-                "The save_model argument by default saves the model in the HDF5 format that cannot save " 
+                "The save_model argument by default saves the model in the HDF5 format that cannot save "
                 "custom objects like subclassed models and custom layers. This behavior will be deprecated "
                 "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
-                "as W&B files and the SavedModel as W&B Artifacts. Set WANDB_SAVE_MODEL_AS_ARTIFACT "
-                "environment variable to True to log the model only as W&B Artifacts."
-             )
-            self.save_model_as_artifact = True
-            self.only_as_artifact = os.getenv("WANDB_SAVE_MODEL_AS_ARTIFACT", 'False').lower() \
-                                                    in ('true', '1', 't')
+                "as W&B files and the SavedModel as W&B Artifacts."
+            )
 
         self.log_weights = log_weights
         self.log_gradients = log_gradients
@@ -688,12 +684,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def on_train_end(self, logs=None):
         if self._model_trained_since_last_eval:
             self._attempt_evaluation_log()
-            
+
         if self.save_model_as_artifact:
             self._save_model_as_artifact()
-            if self.only_as_artifact:
-                import shutil
-                shutil.rmtree(self.filepath[:-3])
 
     def on_test_begin(self, logs=None):
         pass
@@ -984,19 +977,26 @@ class WandbCallback(tf.keras.callbacks.Callback):
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
         except (ImportError, RuntimeError, TypeError) as e:
-            wandb.termerror("Can't save model, h5py returned error: %s" % e)
+            wandb.termwarn(
+                "Can't save model in HDF5 format. You can find the SavedModel as W&B Artifact."
+            )
             self.save_model = False
         finally:
             # Save the model in the SavedModel format
             self.model.save(self.filepath[:-3], overwrite=True)
-            
+            self.save_model_as_artifact = True
+
     def _save_model_as_artifact(self):
         if wandb.run.disabled:
             return
         try:
-            model_artifact = wandb.Artifact(f'model-{wandb.run.name}', type='model')
+            model_artifact = wandb.Artifact(f"model-{wandb.run.name}", type="model")
             model_artifact.add_dir(self.filepath[:-3])
-            wandb.run.log_artifact(model_artifact)            
+            wandb.run.log_artifact(model_artifact)
+            # Remove the SavedModel from wandb dir as it cannot be restored using wandb.restore.
+            import shutil
+
+            shutil.rmtree(self.filepath[:-3])
         except (ImportError, RuntimeError) as e:
             wandb.termerror(f"Can't save model as artifact % {e}")
             self.save_model_as_artifact = False
