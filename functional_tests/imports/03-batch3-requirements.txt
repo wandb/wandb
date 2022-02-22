@@ -6,6 +6,7 @@ openmim # handles dependencies for mmlab projects
 mmcv
 mmdet
 # mmf
+monai
 # nemo_toolkit[all]
 nltk>=3.6.6 # not directly required, pinned by Snyk to avoid a vulnerability
 # nni

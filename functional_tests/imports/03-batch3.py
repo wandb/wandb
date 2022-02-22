@@ -34,6 +34,9 @@ assert:
     - 38  # mmdet
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
+    - 48  # monai
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
     - 39  # torchdrug
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
@@ -43,10 +46,12 @@ assert:
     - 41  # torchvision
 """
 
+
 import flash # noqa: F401
 import mmcv # noqa: F401
 import mmdet # noqa: F401
-import recbole
+import monai # noqa: F401
+import recbole # noqa: F401
 import optuna # noqa: F401
 import torchdrug # noqa: F401
 import torchtext # noqa: F401

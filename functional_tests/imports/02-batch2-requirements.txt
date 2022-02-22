@@ -1,12 +1,15 @@
-git+https://github.com/facebookresearch/detectron2.git@egg=detectron2
-detr
-easyocr
+git+https://github.com/facebookresearch/detectron2.git
+# detr
+# easyocr
+elegy
 # espnet
-fairseq
-fastai>=2.5
+# fairseq
+# fastai>=2.5
 flair
 flax
-greykite
-hivemind
-horovod
+# greykite
+# hivemind
+# horovod
 huggingface_hub
+hydra-core
+# icevision

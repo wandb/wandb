@@ -44,13 +44,14 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
     - 33  # spacy
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 46  # prophet
 """
 
-# # import paddle
-# # import parlai
-# # import prophet
-import pycaret  # noqa: F401
-import ignite
+
+import pycaret # noqa: F401
+import ignite # noqa: F401
 import pytorchvideo  # noqa: F401
 import pytorch_lightning  # noqa: F401
 import ray  # noqa: F401

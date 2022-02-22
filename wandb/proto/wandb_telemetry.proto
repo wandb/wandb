@@ -67,6 +67,15 @@ message Imports {
   bool torchdrug = 39;
   bool torchtext = 40;
   bool torchvision = 41;
+  bool elegy = 42;
+  bool detectron2 = 43;
+  bool flair = 44;
+  bool flax = 45;
+  bool syft = 46;
+  bool TTS = 47;
+  bool monai = 48;
+  bool huggingface_hub = 49;
+  bool hydra = 50;
 }
 
 message Feature {
