@@ -4,11 +4,13 @@ import subprocess
 import time
 from typing import Any, Dict, List, Optional
 
-from google.cloud import aiplatform  # type: ignore
+if False:
+    from google.cloud import aiplatform  # type: ignore
 from six.moves import shlex_quote
 import wandb
 import wandb.docker as docker
 from wandb.errors import CommError, LaunchError
+from wandb.util import get_module
 import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
@@ -83,6 +85,12 @@ class VertexRunner(AbstractRunner):
     """Runner class, uses a project to create a VertexSubmittedRun"""
 
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
+
+        aiplatform = get_module(
+            "google.cloud.aiplatform",
+            "VertexRunner requires google.cloud.aiplatform to be installed",
+        )
+
         resource_args = launch_project.resource_args.get("gcp_vertex")
         if not resource_args:
             raise LaunchError(

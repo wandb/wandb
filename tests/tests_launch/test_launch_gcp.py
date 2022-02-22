@@ -14,7 +14,7 @@ from tests import utils
 from .test_launch import mocked_fetchable_git_repo, mock_load_backend  # noqa: F401
 
 
-class mockdict(dict):
+class MockDict(dict):
     # use a dict to mock an object
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
@@ -42,7 +42,7 @@ def mock_aiplatform_init(project, location, staging_bucket, job_dict):
 
 def mock_aiplatform_CustomContainerTrainingJob(display_name, container_uri, job_dict):
     job_dict["display_name"] = display_name
-    return mockdict(job_dict)
+    return MockDict(job_dict)
 
 
 def setup_mock_aiplatform(monkeypatch):
@@ -195,10 +195,7 @@ def test_run_shell():
 
 def test_get_gcp_config(monkeypatch):
     def mock_gcp_config(args, stdout):
-        return mockdict(
-            {
-                "stdout": bytes(
-                    """
+        config_str = """
 is_active: true
 name: default
 properties:
@@ -207,11 +204,8 @@ properties:
   core:
     account: test-account
     project: test-project
-        """,
-                    "utf-8",
-                )
-            }
-        )
+"""
+        return MockDict({"stdout": bytes(config_str, "utf-8")})
 
     monkeypatch.setattr(
         subprocess, "run", lambda args, stdout: mock_gcp_config(args, stdout)
