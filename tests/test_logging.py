@@ -1,10 +1,9 @@
-import pytest
 import logging
 
 
 def test_logging(wandb_init):
     root_logger = logging.getLogger()
-    root_logger.setLevel("DEBUG")
+    root_logger.setLevel("INFO")
     root_logs = []
     root_handler = logging.Handler()
     root_handler.emit = lambda x: root_logs.append(x.msg)
