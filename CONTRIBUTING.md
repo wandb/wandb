@@ -9,104 +9,113 @@ We at Weights & Biases ❤️ open source and welcome contributions from the com
 This guide discusses the development workflow and the internals of the `wandb` client library.
 
 ### Table of Contents
-<!-- 
+
+<!--
 ToC was generated with https://ecotrust-canada.github.io/markdown-toc/
 Please make sure to update the ToC when you update this page.
 -->
-* [Development workflow](#development-workflow)
-* [Setting up your development environment](#setting-up-your-development-environment)
-* [Building protocol buffers](#building-protocol-buffers)
-* [Linting the code](#linting-the-code)
-* [Testing](#testing)
-  + [Overview](#overview)
-  + [Finding good test points](#finding-good-test-points)
-  + [Global Pytest Fixtures](#global-pytest-fixtures)
-  + [Code Coverage](#code-coverage)
-  + [Test parallelism](#test-parallelism)
-  + [Functional Testing](#functional-testing)
-  + [Regression Testing](#regression-testing)
-* [Live development](#live-development)
-* [Code organization](#code-organization)
-* [Library Objectives](#library-objectives)
-* [Changes from production library](#changes-from-production-library)
-* [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
-* [Documentation Generation](#documentation-generation)
-* [Deprecating Features](#deprecating-features)
+
+- [Development workflow](#development-workflow)
+- [Setting up your development environment](#setting-up-your-development-environment)
+- [Building protocol buffers](#building-protocol-buffers)
+- [Linting the code](#linting-the-code)
+- [Testing](#testing)
+  - [Overview](#overview)
+  - [Finding good test points](#finding-good-test-points)
+  - [Global Pytest Fixtures](#global-pytest-fixtures)
+  - [Code Coverage](#code-coverage)
+  - [Test parallelism](#test-parallelism)
+  - [Functional Testing](#functional-testing)
+  - [Regression Testing](#regression-testing)
+- [Live development](#live-development)
+- [Code organization](#code-organization)
+- [Library Objectives](#library-objectives)
+- [Changes from production library](#changes-from-production-library)
+- [Detailed walk through of a simple program](#detailed-walk-through-of-a-simple-program)
+- [Documentation Generation](#documentation-generation)
+- [Deprecating Features](#deprecating-features)
 
 ## Development workflow
 
-1. Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
-   if the feature/bug you are willing to add/fix has already been requested/reported.
-   - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
-     This will help the project keep track of feature requests and bug reports and make sure
-     effort is not duplicated.
+1.  Browse the existing [Issues](https://github.com/wandb/client/issues) on GitHub to see
+    if the feature/bug you are willing to add/fix has already been requested/reported.
 
-2. If you are a first-time contributor, please go to 
-[`https://github.com/wandb/client`](https://github.com/wandb/client) 
-and click the "Fork" button in the top-right corner of the page. 
-This will create your personal copy of the repository that you will use for development. 
-   - Set up [SSH authentication with GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
-   - Clone the forked project to your machine and add the upstream repository 
-     that will point to the main `wandb` project:
-    ```shell
-    git clone https://github.com/<your-username>/client.git
-    cd client
-    git remote add upstream https://github.com/wandb/client.git
-    ```
+    - If not, please create a [new issue](https://github.com/wandb/client/issues/new/choose).
+      This will help the project keep track of feature requests and bug reports and make sure
+      effort is not duplicated.
 
-4. Develop you contribution.
-   - Make sure your fork is in sync with the main repository:
+2.  If you are a first-time contributor, please go to
+    [`https://github.com/wandb/client`](https://github.com/wandb/client)
+    and click the "Fork" button in the top-right corner of the page.
+    This will create your personal copy of the repository that you will use for development.
+
+    - Set up [SSH authentication with GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh).
+    - Clone the forked project to your machine and add the upstream repository
+      that will point to the main `wandb` project:
+
+      ```shell
+      git clone https://github.com/<your-username>/client.git
+      cd client
+      git remote add upstream https://github.com/wandb/client.git
+      ```
+
+3.  Develop you contribution.
+    - Make sure your fork is in sync with the main repository:
     ```shell
     git checkout master
     git pull upstream master
     ```
-   - Create a `git` branch where you will develop your contribution. 
-     Use a sensible name for the branch, for example:
+    - Create a `git` branch where you will develop your contribution.
+      Use a sensible name for the branch, for example:
     ```shell
     git checkout -b new-awesome-feature
     ```
-   - Hack! As you make progress, commit your changes locally, e.g.:
+    - Hack! As you make progress, commit your changes locally, e.g.:
     ```shell
     git add changed-file.py tests/test-changed-file.py
     git commit -m "Added integration with a new library"
     ```
-   - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
-   
-5. Proposed changes are contributed through  
-[GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
-   - When your contribution is ready and the tests all pass, push your branch to GitHub:
-    ```shell
-    git push origin new-awesome-feature
-    ```
-   - Once the branch is uploaded, `GitHub` will print a URL for submitting your contribution as a pull request. 
-     Open that URL in your browser, write an informative title and a detailed description for your pull request, 
-     and submit it.
-   - Please link the relevant issue (either the existing one or the one you created) to your PR.
-     See the right column on the PR page. 
-     Alternatively, in the PR description, mention that it "Fixes _link-to-the-issue_" - 
-     GitHub will do the linking automatically.
-   - The team will review your contribution and provide feedback. 
-     To incorporate changes recommended by the reviewers, commit edits to your branch, 
-     and push to the branch again (there is no need to re-create the pull request, 
-     it will automatically track modifications to your branch), e.g.:
-    ```shell
-    git add tests/test-changed-file.py
-    git commit -m "Added another test case to address reviewer feedback"
-    git push origin new-awesome-feature
-    ```
-   - Once your pull request is approved by the reviewers, it will be merged into the main codebase.
+    - [Test](#testing) and [lint](#linting-the-code) your code! Please see below for a detailed discussion.
+4.  Proposed changes are contributed through  
+    [GitHub Pull Requests](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests).
+
+    - When your contribution is ready and the tests all pass, push your branch to GitHub:
+
+      ```shell
+      git push origin new-awesome-feature
+      ```
+
+    - Once the branch is uploaded, `GitHub` will print a URL for submitting your contribution as a pull request.
+      Open that URL in your browser, write an informative title and a detailed description for your pull request,
+      and submit it.
+    - Please link the relevant issue (either the existing one or the one you created) to your PR.
+      See the right column on the PR page.
+      Alternatively, in the PR description, mention that it "Fixes _link-to-the-issue_" -
+      GitHub will do the linking automatically.
+    - The team will review your contribution and provide feedback.
+      To incorporate changes recommended by the reviewers, commit edits to your branch,
+      and push to the branch again (there is no need to re-create the pull request,
+      it will automatically track modifications to your branch), e.g.:
+
+      ```shell
+      git add tests/test-changed-file.py
+      git commit -m "Added another test case to address reviewer feedback"
+      git push origin new-awesome-feature
+      ```
+
+    - Once your pull request is approved by the reviewers, it will be merged into the main codebase.
 
 ## Setting up your development environment
 
-We test the library code against multiple `python` versions 
+We test the library code against multiple `python` versions
 and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those. Install `pyenv` by running
 
 ```shell
 curl https://pyenv.run | bash
 ```
 
-To load `pyenv` automatically, add the following lines to your shell's startup script, 
-such as `~/.bashrc` or `~/.zshrc` 
+To load `pyenv` automatically, add the following lines to your shell's startup script,
+such as `~/.bashrc` or `~/.zshrc`
 (and then either restart the shell, run `exec $SHELL`, or `source` the changed script):
 
 ```shell
@@ -129,7 +138,7 @@ You can set up a subset of the target environments to test against, for example:
 ./tools/setup_dev_environment.py --python-versions 3.7 3.8
 ```
 
-The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use 
+The tool will also set up [`tox`](https://github.com/tox-dev/tox), which we use
 for automating development tasks such as code linting and testing.
 
 ## Code organization
@@ -175,7 +184,7 @@ wandb/
 
 ## Building protocol buffers
 
-We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate 
+We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
 
 If you update any of the `.proto` files in `wandb/proto`, you'll need to run:
@@ -186,15 +195,16 @@ make proto
 
 ## Linting the code
 
-We use [`black`](https://black.readthedocs.io/), [`flake8`](https://flake8.pycqa.org/), 
-and [`mypy`](http://mypy-lang.org/) for code formatting and checks (including static type checks). 
+We use [`black`](https://black.readthedocs.io/), [`flake8`](https://flake8.pycqa.org/),
+and [`mypy`](http://mypy-lang.org/) for code formatting and checks (including static type checks).
 
-To reformat the code, run: 
+To reformat the code, run:
+
 ```shell
 tox -e format
 ```
 
-To run checks, execute: 
+To run checks, execute:
 
 ```shell
 tox -e flake8,mypy
@@ -204,7 +214,7 @@ tox -e flake8,mypy
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
 
-By default, tests are run in parallel with 4 processes. This can be changed by setting the 
+By default, tests are run in parallel with 4 processes. This can be changed by setting the
 `CI_PYTEST_PARALLEL` environment variable to a different value.
 
 To run specific tests in a specific environment:
@@ -225,22 +235,22 @@ If you make changes to `requirements_dev.txt` that are used by tests, you need t
 tox -e py37 --recreate
 ```
 
-Sometimes, `pytest` will swallow or shorten important print messages or stack traces sent to stdout and stderr (particularly when they are coming from background processes). 
-This will manifest as a test failure with no/shortened associated output. 
+Sometimes, `pytest` will swallow or shorten important print messages or stack traces sent to stdout and stderr (particularly when they are coming from background processes).
+This will manifest as a test failure with no/shortened associated output.
 In these cases, add the `-vvvv --showlocals` flags to stop pytest from capturing the messages and allow them to be printed to the console. Eg:
 
 ```shell
 tox -e py37 -- tests/test_public_api.py -k substring_of_test -vvvv --showlocals
 ```
 
-If a test fails, you can use the `--pdb -n0` flags to get the 
+If a test fails, you can use the `--pdb -n0` flags to get the
 [pdb](https://docs.python.org/3/library/pdb.html) debugger attached to the test:
 
 ```shell
 tox -e py37 -- tests/test_public_api.py -k failing_test -vvvv --showlocals --pdb -n0
 ```
 
-You can also manually set breakpoints in the test code (`breakpoint()`) 
+You can also manually set breakpoints in the test code (`breakpoint()`)
 to inspect the test failures.
 
 ### Overview
@@ -381,17 +391,18 @@ CI_PYTEST_SPLIT_ARGS="--store-durations" tox -e py37
 TODO: overview of how to write and run functional tests with [yea](https://github.com/wandb/yea)
 and the [yea-wandb](https://github.com/wandb/yea-wandb) plugin.
 
-The `yea-wandb` plugin for `yea` uses copies of several components from `tests/utils` 
-(`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`) 
-to provide a test environment for functional tests. Currently, we maintain a copy of those components in 
+The `yea-wandb` plugin for `yea` uses copies of several components from `tests/utils`
+(`artifact_emu.py`, `mock_requests.py`, and `mock_server.py`)
+to provide a test environment for functional tests. Currently, we maintain a copy of those components in
 `yea-wandb/src/yea_wandb`, so they need to be in sync.
 
 If you update one of those files, you need to:
+
 - While working on your contribution:
   - Make a new branch (say, `shiny-new-branch`) in `yea-wandb` and pull in the new versions of the files.
     Make sure to update the `yea-wandb` version.
   - Point the client branch you are working on to this `yea-wandb` branch.
-    In `tox.ini`, search for `yea-wandb==<version>` and change it to 
+    In `tox.ini`, search for `yea-wandb==<version>` and change it to
     `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
   - Merge and release `yea-wandb` (with `make release`).
@@ -399,7 +410,51 @@ If you update one of those files, you need to:
 
 ### Regression Testing
 
-TODO(jhr): describe how regression works, how to run them, where they're located etc.
+<!-- TODO(jhr): describe how regression works, how to run them, where they're located etc. -->
+
+You can find all the logic in the `wandb-testing` [repo](https://github.com/wandb/wandb-testing). The main script (`wandb-testing/regression/regression.py`) to run your regression tests can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression.py). Also, the main configuration file (`wandb-testing/regression/regression-config.yaml`), can be found [here](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml).
+
+#### Example usage:
+
+```bash
+git clone git@github.com:wandb/wandb-testing.git
+
+cd wandb-testing/regression && python regression.py tests/main/huggingface/ --dryrun
+```
+
+The above script will print all of the `huggingface-transformers` test configurations.
+The expected output should look something like this:
+
+```
+########################################
+# huggingface-transformers init py37-pt
+########################################
+########################################
+# huggingface-transformers init py37-pt1.4
+########################################
+########################################
+# huggingface-transformers init py37-ptn
+########################################
+
+------------------
+
+Good runs:
+Failed runs:
+```
+
+In the names of the tests you can see the configurations of the tests:
+
+- `init` is the configuration specified in the test [config file](https://github.com/wandb/wandb-testing/blob/master/regression/tests/main/huggingface/regression.yaml#L49).
+
+Some details include:
+
+- All the tests are using `py37`: [python-3.7](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L25).
+- Each test uses a different version `PyTorch`:
+  - `pt`: [Latests PyTorch release](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L54)
+  - `pt1.4`: [Version 1.4 of PyTorch](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L60)
+  - `ptn`: [Nightly version of Pytorch](https://github.com/wandb/wandb-testing/blob/master/regression/regression-config.yaml#L73)
+
+For more details about general usage and how to add new tests see this [README](https://github.com/wandb/wandb-testing/tree/master/regression#readme).
 
 ## Live development
 
@@ -432,8 +487,8 @@ User interface should be typed using python 3.6+ type annotations. Older version
 
 `wandb.Settings` is the main settings object that is passed explicitly or implicitly to all `wandb` functions.
 
-The primary objective of the design principle is that behavior of code can be impacted by multiple sources. 
-These sources need to be merged consistently and information given to the user when settings are overwritten 
+The primary objective of the design principle is that behavior of code can be impacted by multiple sources.
+These sources need to be merged consistently and information given to the user when settings are overwritten
 to inform the user. Examples of sources of settings:
 
 - Enforced settings from organization, team, user, project
@@ -443,7 +498,7 @@ to inform the user. Examples of sources of settings:
 - Settings in global settings file: `~/.config/wandb/settings`
 - Settings in local settings file: `./wandb/settings`
 
-Source priorities are defined in `wandb.sdk.wandb_settings.Source`. 
+Source priorities are defined in `wandb.sdk.wandb_settings.Source`.
 Each individual setting of the Settings object is either a default or priority setting.
 In the latter case, reverse priority is used to determine the source of the setting.
 
@@ -451,10 +506,11 @@ In the latter case, reverse priority is used to determine the source of the sett
 
 Under the hood in `wandb.Settings`, individual settings are represented as `wandb.sdk.wandb_settings.Property` objects
 that:
+
 - Encapsulate the logic of how to preprocess and validate values of settings throughout the lifetime of a class instance.
 - Allows for runtime modification of settings with hooks, e.g. in the case when a setting depends on another setting.
 - Use the `update()` method to update the value of a setting. Source priority logic is enforced when updating values.
-- Determine the source priority using the `is_policy` attribute when updating the property value. E.g. if `is_policy` is 
+- Determine the source priority using the `is_policy` attribute when updating the property value. E.g. if `is_policy` is
   `True`, the smallest `Source` value takes precedence.
 - Have the ability to freeze/unfreeze.
 
@@ -507,12 +563,12 @@ The `Settings` object:
 
 - The code is supposed to be self-documented -- see `wandb/sdk/wandb_settings.py` :)
 - Uses `Property` objects to represent configurable settings.
-- Clearly and compactly defines all individual settings, their default values, preprocessors, validators, 
+- Clearly and compactly defines all individual settings, their default values, preprocessors, validators,
   and runtime hooks as well as whether they are treated as policies.
-  - To leverage both static and runtime validation, the `validator` attribute is a list of functions 
-    (or a single function) that are applied in order. The first function is automatically generated 
+  - To leverage both static and runtime validation, the `validator` attribute is a list of functions
+    (or a single function) that are applied in order. The first function is automatically generated
     from type annotations of class attributes.
-- Provides a mechanism to update settings specifying the source (which abides the corresponding Property source logic) 
+- Provides a mechanism to update settings specifying the source (which abides the corresponding Property source logic)
   via `Settings.update()`. Direct attribute assignment is not allowed.
 - Careful Settings object copying.
 - Mapping interface.
@@ -525,9 +581,9 @@ The `Settings` object:
 
 - Add a new type-annotated `Settings` class attribute.
 - If the setting comes with a default value/preprocessor/additional validators/runtime hooks, add them to
-  the template dictionary that the `Settings._default_props` method returns, using the same key name as 
+  the template dictionary that the `Settings._default_props` method returns, using the same key name as
   the corresponding class variable.
-  - For any setting that is only computed (from other settings) and need/should not be set/updated 
+  - For any setting that is only computed (from other settings) and need/should not be set/updated
     (and so does not require any validation etc.), define a hook (which does not have to depend on the setting's value)
     and use `"auto_hook": True` in the template dictionary (see e.g. the `wandb_dir` setting).
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
@@ -567,7 +623,7 @@ not perform any serialization to sync data.
 - User Process:
 
   - Calls internal `wandb.setup()` in case the user has not yet initialized the global wandb state.
-    `wandb.setup()` is similar to `wandb.init()` but it impacts the entire process or session. 
+    `wandb.setup()` is similar to `wandb.init()` but it impacts the entire process or session.
     This allows multiple `wandb.init()` calls to share some common setup.
   - Sets up notification and request queues for communicating with internal process
   - Spawns internal process used for syncing passing queues and the settings object
@@ -657,14 +713,14 @@ A file named `cli.md` in the same folder as the code. The file is the generated 
 
 ## Deprecating features
 
-Starting with version 1.0.0, `wandb` will be using [Semantic Versioning](https://semver.org/). 
-The major version of the library will be incremented for all backwards-incompatible changes, 
+Starting with version 1.0.0, `wandb` will be using [Semantic Versioning](https://semver.org/).
+The major version of the library will be incremented for all backwards-incompatible changes,
 including dropping support for older Python versions.
 
 Features currently marked as deprecated will be removed in the next major version (1.0.0).
 
 <!--
-It is safe to depend on `wandb` like this: `wandb >=x.y, <(x+1)`, 
+It is safe to depend on `wandb` like this: `wandb >=x.y, <(x+1)`,
 where `x.y` is the first version that includes all features you need.
 -->
 
@@ -672,15 +728,16 @@ where `x.y` is the first version that includes all features you need.
 
 To mark a feature as deprecated (and to be removed in the next major release), please follow these steps:
 
-- Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`, 
+- Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`,
   which will be used to track the to-be-deprecated feature usage.
 - Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `make proto`.
 - Finally, to mark a feature as deprecated, call `wand.sdk.lib.deprecate` in your code:
+
 ```python
 from wandb.sdk.lib import deprecate
 
 deprecate.deprecate(
-    field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1 
+    field_name=deprecate.Deprecated.<new_field_name>,  # new_field_name from step 1
     warning_message="This feature is deprecated and will be removed in a future release.",
 )
 ```
