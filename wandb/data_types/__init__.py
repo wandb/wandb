@@ -18,8 +18,8 @@ from wandb.sdk.interface import _dtypes  # noqa: F401
 from ._audio import Audio
 from ._batched_media import BatchableMedia
 from ._batched_media import _prune_max_seq  # noqa: F401
+from ._bbox import BoundingBoxes2D
 from ._bokeh import Bokeh
-from ._bounding_boxes2d import BoundingBoxes2D
 from ._classes import Classes
 from ._graph import Graph, Node
 from ._histogram import Histogram

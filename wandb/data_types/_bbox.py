@@ -1,8 +1,7 @@
 import numbers
-from typing import Optional, Type, TYPE_CHECKING, Union
+from typing import Any, Dict, Optional, Tuple, Type, TYPE_CHECKING, Union
 
 import wandb
-from wandb.util import get_module, has_num
 
 from ._json_metadata import JSONMetadata
 
@@ -12,7 +11,116 @@ if TYPE_CHECKING:
     from wandb.apis.public import Artifact as PublicArtifact
 
 
-class BoundingBoxes2D(JSONMetadata):
+class BBox2D:
+    def __init__(
+        self,
+        point: Tuple[float, float],
+        width: float,
+        height: float,
+        domain: Optional[str] = None,
+        box_caption: Optional[str] = None,
+        scores: Optional[Dict[str, float]] = None,
+        class_id: Optional[int] = None,
+    ) -> None:
+
+        if not (len(point) == 2 and all(isinstance(p, numbers.Number) for p in point)):
+            raise TypeError("`point` must be a tuple of lenght 2 with numerical values")
+        if not isinstance(width, numbers.Number):
+            raise TypeError(
+                f"`width` must have a numerical value instead got {type(width)}"
+            )
+        if not isinstance(height, numbers.Number):
+            raise TypeError(
+                f"`height` must have a numerical value instead got {type(height)}"
+            )
+
+        if domain is None:
+            minX, minY = point
+            self._box = dict(
+                position={"minX": minX, "maxX": width, "minY": minY, "maxY": height,}
+            )
+        elif domain == "pixel":
+            self._box = dict(
+                position={"middle": point, "width": width, "height": height,},
+                domain=domain,
+            )
+
+        if box_caption is not None:
+            if not isinstance(box_caption, str):
+                raise TypeError(
+                    f"`box_caption` must be a string instead got {type(box_caption)}"
+                )
+            else:
+                self._box["box_caption"] = box_caption
+
+        if class_id is not None:
+            if not isinstance(class_id, int):
+                raise TypeError(
+                    f"`class_id` must be a integer instead got {type(class_id)}"
+                )
+            else:
+                self._box["class_id"] = class_id
+
+        if scores is not None:
+            if not isinstance(scores, dict):
+                raise TypeError(
+                    f"`scores` must be a dictionary, instead got {type(scores)}"
+                )
+            else:
+                self._box["scores"] = scores
+
+    @property
+    def class_id(self) -> Optional[int]:
+        return self._box.get("class_id", None)
+
+    def to_json(self) -> Dict[str, Any]:
+        return self._box
+
+    @classmethod
+    def from_json(cls: Type["BBox2D"], box_dict: Dict[str, Any]) -> Type["BBox2D"]:
+        kwargs = dict()
+
+        bbox_expected_keys = {"domain", "box_caption", "class_id", "scores", "position"}
+
+        for key in bbox_expected_keys:
+            kwargs[key] = box_dict.get(key, None)
+
+        if set(box_dict.keys()) - bbox_expected_keys:
+            raise KeyError(f"Got unexpect argument(s): {set(box_dict.keys())}")
+
+        position = kwargs.pop("position", None)
+        if position is None:
+            raise KeyError("Missing required argument: `position`")
+
+        if not isinstance(position, dict):
+            raise TypeError(
+                f"`position` must be a dictionary instead got {type(position)}"
+            )
+
+        position_expected_keys = {
+            "height",
+            "width",
+            "middle",
+            "minX",
+            "minY",
+            "maxX",
+            "maxY",
+        }
+        unexpected_keys = set(position.keys()) - position_expected_keys
+        if unexpected_keys:
+            raise KeyError(
+                f"Got unexpected argument(s) for `position`:  {unexpected_keys}"
+            )
+
+        kwargs["height"] = position.get("height", None) or position.get("maxY", None)
+        kwargs["width"] = position.get("width", None) or position.get("maxX", None)
+        point = (position.get("minX", None), position.get("minY", None))
+        kwargs["point"] = position.get("middle", None) or point
+
+        return cls(**kwargs)
+
+
+class BBoxes2D(JSONMetadata):
     """Format images with 2D bounding box overlays for logging to W&B.
 
     Arguments:
@@ -210,20 +318,22 @@ class BoundingBoxes2D(JSONMetadata):
                 The readable name or id for this set of bounding boxes (e.g. predictions, ground_truth)
         """
         super().__init__(val)
-        self._val = val["box_data"]
+
         self._key = key
-        # Add default class mapping
-        if "class_labels" not in val:
-            np = get_module("numpy", required="Bounding box support requires numpy")
-            classes = (
-                np.unique(list([box["class_id"] for box in val["box_data"]]))
-                .astype(np.int32)
-                .tolist()
-            )
-            class_labels = dict((c, "class_" + str(c)) for c in classes)
-            self._class_labels = class_labels
-        else:
-            self._class_labels = val["class_labels"]
+
+        boxes = val["box_data"]
+        if not isinstance(boxes, list):
+            raise TypeError(f"`box_data` must be a list, instead got {type(boxes)}")
+
+        _boxes = [BBox2D.from_json(box_dict) for box_dict in boxes]
+
+        class_labels = val.get("class_labels", None)
+        if class_labels is None:
+            classes = set([box.class_id for box in _boxes]) - {None}
+            class_labels = {c: f"class_{c}" for c in classes}
+        self._class_labels = class_labels
+
+        self._val = [box.to_json() for box in _boxes]
 
     def bind_to_run(
         self,
@@ -246,60 +356,18 @@ class BoundingBoxes2D(JSONMetadata):
         return "boxes2D"
 
     def validate(self, val: dict) -> bool:
-        # Optional argument
-        if "class_labels" in val:
-            for k, v in list(val["class_labels"].items()):
-                if (not isinstance(k, numbers.Number)) or (not isinstance(v, str)):
-                    raise TypeError(
-                        "Class labels must be a dictionary of numbers to string"
-                    )
 
-        boxes = val["box_data"]
-        if not isinstance(boxes, list):
-            raise TypeError("Boxes must be a list")
+        class_labels = val.get("class_labels", {})
+        if not isinstance(class_labels, dict):
+            raise TypeError(
+                f"`class_label` must be a dictionary, got {type(class_labels)} instead"
+            )
+        for k, v in class_labels.items():
+            if not (isinstance(k, numbers.Number) and isinstance(v, str)):
+                raise TypeError(
+                    f"`class_labels` must be a dictionary from number to strings, got {type(k)} to {type(v)} instead"
+                )
 
-        for box in boxes:
-            # Required arguments
-            error_str = "Each box must contain a position with: middle, width, and height or \
-                    \nminX, maxX, minY, maxY."
-            if "position" not in box:
-                raise TypeError(error_str)
-            else:
-                valid = False
-                if (
-                    "middle" in box["position"]
-                    and len(box["position"]["middle"]) == 2
-                    and has_num(box["position"], "width")
-                    and has_num(box["position"], "height")
-                ):
-                    valid = True
-                elif (
-                    has_num(box["position"], "minX")
-                    and has_num(box["position"], "maxX")
-                    and has_num(box["position"], "minY")
-                    and has_num(box["position"], "maxY")
-                ):
-                    valid = True
-
-                if not valid:
-                    raise TypeError(error_str)
-
-            # Optional arguments
-            if ("scores" in box) and not isinstance(box["scores"], dict):
-                raise TypeError("Box scores must be a dictionary")
-            elif "scores" in box:
-                for k, v in list(box["scores"].items()):
-                    if not isinstance(k, str):
-                        raise TypeError("A score key must be a string")
-                    if not isinstance(v, numbers.Number):
-                        raise TypeError("A score value must be a number")
-
-            if ("class_id" in box) and not isinstance(box["class_id"], int):
-                raise TypeError("A box's class_id must be an integer")
-
-            # Optional
-            if ("box_caption" in box) and not isinstance(box["box_caption"], str):
-                raise TypeError("A box's caption must be a string")
         return True
 
     def to_json(self, run_or_artifact: Union["Run", "Artifact"]) -> dict:
@@ -316,6 +384,9 @@ class BoundingBoxes2D(JSONMetadata):
 
     @classmethod
     def from_json(
-        cls: Type["BoundingBoxes2D"], json_obj: dict, source_artifact: "PublicArtifact"
-    ) -> "BoundingBoxes2D":
+        cls: Type["BBoxes2D"], json_obj: dict, source_artifact: "PublicArtifact"
+    ) -> "BBoxes2D":
         return cls({"box_data": json_obj}, "")
+
+
+BoundingBoxes2D = BBoxes2D

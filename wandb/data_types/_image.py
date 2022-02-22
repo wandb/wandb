@@ -17,7 +17,7 @@ from wandb.util import (
 )
 
 from ._batched_media import BatchableMedia
-from ._bounding_boxes2d import BoundingBoxes2D
+from ._bbox import BoundingBoxes2D
 from ._classes import Classes
 from ._image_mask import ImageMask
 
@@ -229,7 +229,11 @@ class Image(BatchableMedia):
         ext = os.path.splitext(path)[1][1:]
         self.format = ext
 
-    def _initialize_from_data(self, data: "ImageDataType", mode: str = None,) -> None:
+    def _initialize_from_data(
+        self,
+        data: "ImageDataType",
+        mode: str = None,
+    ) -> None:
         pil_image = get_module(
             "PIL.Image",
             required='wandb.Image needs the PIL package. To get it, run "pip install pillow".',
@@ -347,7 +351,11 @@ class Image(BatchableMedia):
                 class_id = hashlib.md5(
                     str(self._classes._class_set).encode("utf-8")
                 ).hexdigest()
-                class_name = os.path.join("media", "classes", class_id + "_cls",)
+                class_name = os.path.join(
+                    "media",
+                    "classes",
+                    class_id + "_cls",
+                )
                 classes_entry = artifact.add(self._classes, class_name)
                 json_dict["classes"] = {
                     "type": "classes-file",
