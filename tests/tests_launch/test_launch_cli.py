@@ -155,7 +155,6 @@ def test_launch_cli_with_config_file_and_params(
         )
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
-        assert "python train.py --epochs 1" in result.output
 
 
 @pytest.mark.timeout(320)
@@ -182,7 +181,6 @@ def test_launch_cli_with_config_and_params(
         )
         assert result.exit_code == 0
         assert "Launching run in docker with command: docker run" in result.output
-        assert "python train.py --epochs 1" in result.output
 
 
 def test_launch_no_docker_exec(
@@ -205,7 +203,6 @@ def test_launch_github_url(runner, mocked_fetchable_git_repo, live_mock_server):
         )
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
-    assert "python train.py" in result.output
 
 
 @pytest.mark.timeout(320)
@@ -214,11 +211,12 @@ def test_launch_local_dir(runner):
         os.mkdir("repo")
         with open("repo/main.py", "w+") as f:
             f.write('print("ok")\n')
+        with open("repo/requirements.txt", "w+") as f:
+            f.write("wandb\n")
         result = runner.invoke(cli.launch, ["repo"],)
 
     assert result.exit_code == 0
     assert "Launching run in docker with command: docker run" in result.output
-    assert "main.py" in result.output
 
 
 def test_launch_queue_error(runner):
@@ -262,4 +260,24 @@ def test_launch_supplied_docker_image(
 
     assert result.exit_code == 0
     assert "Using supplied docker image: test:tag" in result.output
-    assert "test:tag python train.py" in result.output
+
+
+@pytest.mark.timeout(320)
+def test_launch_cuda_flag(runner, live_mock_server, mocked_fetchable_git_repo):
+    args = [
+        "https://wandb.ai/mock_server_entity/test_project/runs/run",
+        "--entry-point",
+        "train.py",
+    ]
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args + ["--cuda"],)
+    assert result.exit_code == 0
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args + ["--cuda", "False"],)
+    assert result.exit_code == 0
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.launch, args + ["--cuda", "asdf"],)
+    assert result.exit_code != 0
+    assert "Invalid value for --cuda:" in result.output

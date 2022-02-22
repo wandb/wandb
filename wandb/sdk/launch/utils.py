@@ -28,6 +28,7 @@ _WANDB_LOCAL_DEV_URI_REGEX = re.compile(
     r"^https?://localhost"
 )  # for testing, not sure if we wanna keep this
 
+API_KEY_REGEX = r"WANDB_API_KEY=\w+"
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 PROJECT_DOCKER_ARGS = "DOCKER_ARGS"
@@ -57,6 +58,10 @@ def _is_wandb_local_uri(uri: str) -> bool:
 
 def _is_git_uri(uri: str) -> bool:
     return bool(_GIT_URI_REGEX.match(uri))
+
+
+def sanitize_wandb_api_key(s: str) -> str:
+    return str(re.sub(API_KEY_REGEX, "WANDB_API_KEY", s))
 
 
 def set_project_entity_defaults(
@@ -103,6 +108,7 @@ def construct_launch_spec(
     parameters: Optional[Dict[str, Any]],
     resource_args: Optional[Dict[str, Any]],
     launch_config: Optional[Dict[str, Any]],
+    cuda: Optional[bool],
 ) -> Dict[str, Any]:
     """Constructs the launch specification from CLI arguments."""
     # override base config (if supplied) with supplied args
@@ -148,6 +154,7 @@ def construct_launch_spec(
 
     if entry_point:
         launch_spec["overrides"]["entry_point"] = entry_point
+    launch_spec["cuda"] = cuda
 
     return launch_spec
 
@@ -204,6 +211,8 @@ def fetch_wandb_project_run_info(
             _, response = api.download_file(metadata["url"])
             data = response.json()
             result["codePath"] = data.get("codePath")
+            result["cudaVersion"] = data.get("cuda", None)
+
     if result.get("args") is not None:
         result["args"] = util._user_args_to_dict(result["args"])
     return result
@@ -227,12 +236,10 @@ def download_entry_point(
 def download_wandb_python_deps(
     entity: str, project: str, run_name: str, api: Api, dir: str
 ) -> Optional[str]:
-    metadata = api.download_url(
-        project, "requirements.txt", run=run_name, entity=entity
-    )
-    if metadata is not None:
+    reqs = api.download_url(project, "requirements.txt", run=run_name, entity=entity)
+    if reqs is not None:
         _logger.info("Downloading python dependencies")
-        _, response = api.download_file(metadata["url"])
+        _, response = api.download_file(reqs["url"])
 
         with util.fsync_open(
             os.path.join(dir, "requirements.frozen.txt"), "wb"
