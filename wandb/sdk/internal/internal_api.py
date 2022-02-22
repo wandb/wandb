@@ -1,6 +1,6 @@
-from gql import Client, gql  # type: ignore
-from gql.client import RetryError  # type: ignore
-from gql.transport.requests import RequestsHTTPTransport  # type: ignore
+from wandb_gql import Client, gql  # type: ignore
+from wandb_gql.client import RetryError  # type: ignore
+from wandb_gql.transport.requests import RequestsHTTPTransport  # type: ignore
 
 import ast
 import base64

@@ -2531,7 +2531,7 @@ class Run:
         ]
 
         if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort} to abort syncing.")
+            info.append(f"Press {printer.abort()} to abort syncing.")
 
         printer.display(f'{" ".join(info)}')
 
