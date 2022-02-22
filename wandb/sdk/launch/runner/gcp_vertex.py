@@ -12,10 +12,7 @@ from wandb.errors import CommError, LaunchError
 import yaml
 
 from .abstract import AbstractRun, AbstractRunner, Status
-from .._project_spec import (
-    get_entry_point_command,
-    LaunchProject,
-)
+from .._project_spec import LaunchProject
 from ..docker import (
     construct_gcp_image_uri,
     generate_docker_image,
@@ -88,7 +85,9 @@ class VertexRunner(AbstractRunner):
     def run(self, launch_project: LaunchProject) -> Optional[AbstractRun]:
         resource_args = launch_project.resource_args.get("gcp_vertex")
         if not resource_args:
-            raise LaunchError("No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex")
+            raise LaunchError(
+                "No Vertex resource args specified. Specify args via --resource-args with a JSON file or string under top-level key gcp_vertex"
+            )
         gcp_config = get_gcp_config(resource_args.get("gcp_config") or "default")
         gcp_project = (
             resource_args.get("gcp_project")

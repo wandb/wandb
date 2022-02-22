@@ -31,7 +31,7 @@ def patched_get_gcp_config(config="default"):
         }
 
 
-def patched_docker_push(image):
+def patched_docker_push(repo, tag):
     return  # noop
 
 
@@ -89,8 +89,7 @@ def test_launch_gcp_vertex(
     job_dict = setup_mock_aiplatform(monkeypatch)
 
     monkeypatch.setattr(
-        "wandb.sdk.launch.runner.gcp_vertex.docker_push",
-        lambda image: patched_docker_push(image),
+        "wandb.docker.push", lambda repo, tag: patched_docker_push(repo, tag),
     )
 
     api = wandb.sdk.internal.internal_api.Api(
@@ -104,8 +103,10 @@ def test_launch_gcp_vertex(
         "entity": "mock_server_entity",
         "project": "test",
         "resource_args": {
-            "gcp_staging_bucket": "test-bucket",
-            "gcp_artifact_repo": "test_repo",
+            "gcp_vertex": {
+                "gcp_staging_bucket": "test-bucket",
+                "gcp_artifact_repo": "test_repo",
+            },
         },
     }
     run = launch.run(**kwargs)
@@ -130,14 +131,14 @@ def test_vertex_options(test_settings, monkeypatch, mocked_fetchable_git_repo):
         "resource": "gcp-vertex",
         "entity": "mock_server_entity",
         "project": "test",
-        "resource_args": {},
+        "resource_args": {"gcp_vertex": {}},
     }
     try:
         launch.run(**kwargs)
     except LaunchError as e:
-        assert "Vertex requires a staging bucket" in str(e)
+        assert "No Vertex resource args specified" in str(e)
 
-    kwargs["resource_args"]["gcp_staging_bucket"] = "test-bucket"
+    kwargs["resource_args"]["gcp_vertex"]["gcp_staging_bucket"] = "test-bucket"
     try:
         launch.run(**kwargs)
     except LaunchError as e:
@@ -161,10 +162,6 @@ def test_vertex_supplied_docker_image(
         "wandb.sdk.launch.runner.gcp_vertex.pull_docker_image",
         lambda docker_image: patched_pull_docker_image(docker_image),
     )
-    monkeypatch.setattr(
-        "wandb.sdk.launch.runner.gcp_vertex.docker_image_inspect",
-        lambda docker_image: patched_docker_image_inspect(docker_image),
-    )
 
     api = wandb.sdk.internal.internal_api.Api(
         default_settings=test_settings, load_settings=False
@@ -178,8 +175,10 @@ def test_vertex_supplied_docker_image(
         "project": "test",
         "docker_image": "test:tag",
         "resource_args": {
-            "gcp_staging_bucket": "test-bucket",
-            "gcp_artifact_repo": "test_repo",
+            "gcp_vertex": {
+                "gcp_staging_bucket": "test-bucket",
+                "gcp_artifact_repo": "test_repo",
+            },
         },
     }
     run = launch.run(**kwargs)
