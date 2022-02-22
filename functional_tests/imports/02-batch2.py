@@ -38,12 +38,12 @@ assert:
 """
 
 
-import detectron2 # noqa: F401
-import elegy # noqa: F401
-import flair # noqa: F401
-import flax # noqa: F401
-import huggingface_hub # noqa: F401
-import hydra # noqa: F401
+import detectron2  # noqa: F401
+import elegy  # noqa: F401
+import flair  # noqa: F401
+import flax  # noqa: F401
+import huggingface_hub  # noqa: F401
+import hydra  # noqa: F401
 import wandb
 
 run = wandb.init()

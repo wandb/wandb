@@ -47,15 +47,15 @@ assert:
 """
 
 
-import flash # noqa: F401
-import mmcv # noqa: F401
-import mmdet # noqa: F401
-import monai # noqa: F401
-import recbole # noqa: F401
-import optuna # noqa: F401
-import torchdrug # noqa: F401
-import torchtext # noqa: F401
-import torchvision # noqa: F401
+import flash  # noqa: F401
+import mmcv  # noqa: F401
+import mmdet  # noqa: F401
+import monai  # noqa: F401
+import optuna  # noqa: F401
+import recbole  # noqa: F401
+import torchdrug  # noqa: F401
+import torchtext  # noqa: F401
+import torchvision  # noqa: F401
 import wandb
 
 run = wandb.init()

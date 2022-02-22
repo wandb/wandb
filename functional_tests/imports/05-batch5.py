@@ -23,7 +23,7 @@ assert:
 """
 
 
-import syft # noqa: F401
+import syft  # noqa: F401
 import wandb
 
 run = wandb.init()

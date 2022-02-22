@@ -76,6 +76,7 @@ message Imports {
   bool monai = 48;
   bool huggingface_hub = 49;
   bool hydra = 50;
+  bool datasets = 51;
 }
 
 message Feature {
