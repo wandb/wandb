@@ -1,5 +1,4 @@
 from abc import ABC
-from collections.abc import Iterable
 from datetime import datetime
 import os
 import tempfile
@@ -12,6 +11,13 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal import sender
 from wandb.util import mkdir_exists_ok
 from yaspin import yaspin
+
+import sys
+
+if sys.version_info < (3, 9):
+    from typing import Iterable
+else:
+    from collections.abc import Iterable
 
 
 class AbstractRun(ABC):
