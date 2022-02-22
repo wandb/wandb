@@ -1,11 +1,15 @@
 import codecs
 import json
 import os
+from typing import Union, TYPE_CHECKING
 
 from wandb.sdk.interface import _dtypes
 from wandb.util import generate_id, get_module, json_dump_safer
 
 from ._media import Media
+
+if TYPE_CHECKING:
+    import bokeh  # type: ignore
 
 
 class Bokeh(Media):
@@ -18,28 +22,37 @@ class Bokeh(Media):
 
     _log_type = "bokeh-file"
 
-    def __init__(self, data_or_path):
-        super(Bokeh, self).__init__()
+    def __init__(
+        self, data_or_path: Union[str, "bokeh.document.Document", "bokeh.model.Model"]
+    ) -> None:
+        super().__init__()
+
         bokeh = get_module("bokeh", required=True)
+
         if isinstance(data_or_path, str) and os.path.exists(data_or_path):
-            with open(data_or_path, "r") as file:
-                b_json = json.load(file)
-            self.b_obj = bokeh.document.Document.from_json(b_json)
+
+            with open(data_or_path, "r") as fh:
+                bokeh_json = json.load(fh)
+
+            self.b_obj = bokeh.document.Document.from_json(bokeh_json)
             self._set_file(data_or_path, is_tmp=False, extension=".bokeh.json")
+
         elif isinstance(data_or_path, bokeh.model.Model):
-            _data = bokeh.document.Document()
-            _data.add_root(data_or_path)
+            bokeh_doc = bokeh.document.Document()
+            bokeh_doc.add_root(data_or_path)
+
             # serialize/deserialize pairing followed by sorting attributes ensures
             # that the file's shas are equivalent in subsequent calls
-            self.b_obj = bokeh.document.Document.from_json(_data.to_json())
-            b_json = self.b_obj.to_json()
-            if "references" in b_json["roots"]:
-                b_json["roots"]["references"].sort(key=lambda x: x["id"])
+            self.b_obj = bokeh.document.Document.from_json(bokeh_doc.to_json())
 
-            tmp_path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".bokeh.json")
-            with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
-                json_dump_safer(b_json, fp)
-            self._set_file(tmp_path, is_tmp=True, extension=".bokeh.json")
+            bokeh_json = self.b_obj.to_json()
+            if "references" in bokeh_json["roots"]:
+                bokeh_json["roots"]["references"].sort(key=lambda x: x["id"])
+            path = os.path.join(self._MEDIA_TMP.name, generate_id() + ".bokeh.json")
+            with codecs.open(path, "w", encoding="utf-8") as fp:
+                json_dump_safer(bokeh_json, fp)
+
+            self._set_file(path, is_tmp=True, extension=".bokeh.json")
         elif not isinstance(data_or_path, bokeh.document.Document):
             raise TypeError(
                 "Bokeh constructor accepts Bokeh document/model or path to Bokeh json file"
