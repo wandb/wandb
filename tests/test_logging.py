@@ -40,12 +40,6 @@ def test_logging(wandb_init):
     root_logger.info("info5")
     root_logger.warning("warn5")
 
-    # Work around unknown test flake WB-6348
-    try:
-        root_logs.remove("git repository is invalid")
-    except ValueError:
-        pass
-
     assert root_logs == ["info1", "warn1", "info2", "warn2", "info5", "warn5"]
     assert not any([msg in wandb_logs for msg in root_logs])
     assert all([msg in wandb_logs for msg in ["info3", "warn3", "info4", "warn4"]])
