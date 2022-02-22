@@ -9,7 +9,6 @@ Usage:
 
 import argparse
 import pathlib
-from typing import Any, List
 
 DEFAULT_DIR: str = "wandb/latest-run/"
 
@@ -44,7 +43,7 @@ class TracelogParser:
             dst = thr
             src = resource
         else:
-            #FIXME: handle this
+            # TODO: handle this
             return
         if direct == "<-":
             direct = "-->"
@@ -84,14 +83,14 @@ control sender as SenderThread
 end box
         """
         print(header)
-        for l in lines:
-            print(l)
+        for line in lines:
+            print(line)
         print("@enduml")
 
     def load(self, fname: str) -> None:
         with open(fname) as f:
-            for l in f.readlines():
-                self._parse(l)
+            for line in f.readlines():
+                self._parse(line)
 
     def loaddir(self, dname: str) -> None:
         flist = []
