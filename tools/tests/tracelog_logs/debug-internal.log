@@ -1,0 +1,310 @@
+2022-02-22 07:12:49,654 INFO    MainThread:33943 [internal.py:wandb_internal():89] W&B internal server running at pid: 33943, started at: 2022-02-22 07:12:49.653831
+2022-02-22 07:12:49,655 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.655219 fbfd8c644c0ba319 dequeue record_q HandlerThread    header                           -                                -                               
+2022-02-22 07:12:49,655 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.655348 ccdcdd5d2572f5e6 queue   send_q   HandlerThread    header                           -                                -                               
+2022-02-22 07:12:49,655 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.655433 685f71afc42e6f3d queue   write_q  HandlerThread    header                           -                                -                               
+2022-02-22 07:12:49,655 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.655582 685f71afc42e6f3d dequeue write_q  WriterThread     header                           -                                -                               
+2022-02-22 07:12:49,655 INFO    WriterThread:33943 [datastore.py:open_for_write():77] open: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/run-1qeoh7iu.wandb
+2022-02-22 07:12:49,656 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.656210 5cd3c2f3c9c239ea dequeue record_q HandlerThread    run                              382fd1c2a1294ac7984b028430985358 -                               
+2022-02-22 07:12:49,656 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.656306 58016e907b1166a5 queue   send_q   HandlerThread    run                              382fd1c2a1294ac7984b028430985358 -                               
+2022-02-22 07:12:49,656 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.656384 6077579894dd1e1b queue   write_q  HandlerThread    run                              382fd1c2a1294ac7984b028430985358 -                               
+2022-02-22 07:12:49,656 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.656812 6077579894dd1e1b dequeue write_q  WriterThread     run                              382fd1c2a1294ac7984b028430985358 -                               
+2022-02-22 07:12:49,657 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.657722 685f71afc42e6f3d dequeue send_q   SenderThread     header                           -                                -                               
+2022-02-22 07:12:49,657 DEBUG   SenderThread:33943 [sender.py:send():235] send: header
+2022-02-22 07:12:49,657 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.657865 6077579894dd1e1b dequeue send_q   SenderThread     run                              382fd1c2a1294ac7984b028430985358 -                               
+2022-02-22 07:12:49,657 DEBUG   SenderThread:33943 [sender.py:send():235] send: run
+2022-02-22 07:12:49,892 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071249.892750 6952d30f4f3338dc queue   result_q SenderThread     run_result                       382fd1c2a1294ac7984b028430985358 -                               
+2022-02-22 07:12:49,895 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.895740 b5cb281fa8093583 dequeue record_q HandlerThread    summary                          -                                -                               
+2022-02-22 07:12:49,895 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.895949 3e7fc5be16adfa10 queue   send_q   HandlerThread    summary                          -                                -                               
+2022-02-22 07:12:49,896 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.896188 6668cd5baa4ac8a5 dequeue record_q HandlerThread    check_version                    d2e167489b164fe6b2eaf59fd4650972 -                               
+2022-02-22 07:12:49,896 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: check_version
+2022-02-22 07:12:49,896 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.896538 ac4ff8d6528d1642 queue   send_q   HandlerThread    check_version                    d2e167489b164fe6b2eaf59fd4650972 -                               
+2022-02-22 07:12:49,896 INFO    SenderThread:33943 [dir_watcher.py:__init__():169] watching files in: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files
+2022-02-22 07:12:49,896 INFO    SenderThread:33943 [sender.py:_start_run_threads():809] run started: 1qeoh7iu with start time 1645542769
+2022-02-22 07:12:49,897 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.897063 3e7fc5be16adfa10 dequeue send_q   SenderThread     summary                          -                                -                               
+2022-02-22 07:12:49,897 DEBUG   SenderThread:33943 [sender.py:send():235] send: summary
+2022-02-22 07:12:49,897 INFO    SenderThread:33943 [sender.py:_save_file():944] saving file wandb-summary.json with policy end
+2022-02-22 07:12:49,897 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071249.897762 ac4ff8d6528d1642 dequeue send_q   SenderThread     check_version                    d2e167489b164fe6b2eaf59fd4650972 -                               
+2022-02-22 07:12:49,897 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: check_version
+2022-02-22 07:12:50,031 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071250.031616 9600f88c8874ac54 queue   result_q SenderThread     None                             d2e167489b164fe6b2eaf59fd4650972 -                               
+2022-02-22 07:12:50,037 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.037375 62d5b190a0f2041a dequeue record_q HandlerThread    run_start                        9d24d03494694d809f846584c67fe3c7 -                               
+2022-02-22 07:12:50,037 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: run_start
+2022-02-22 07:12:50,039 DEBUG   HandlerThread:33943 [meta.py:__init__():37] meta init
+2022-02-22 07:12:50,039 DEBUG   HandlerThread:33943 [meta.py:__init__():51] meta init done
+2022-02-22 07:12:50,039 DEBUG   HandlerThread:33943 [meta.py:probe():211] probe
+2022-02-22 07:12:50,040 DEBUG   HandlerThread:33943 [meta.py:_setup_git():201] setup git
+2022-02-22 07:12:50,078 DEBUG   HandlerThread:33943 [meta.py:_setup_git():208] setup git done
+2022-02-22 07:12:50,079 DEBUG   HandlerThread:33943 [meta.py:_save_code():89] save code
+2022-02-22 07:12:50,094 DEBUG   HandlerThread:33943 [meta.py:_save_code():110] save code done
+2022-02-22 07:12:50,094 DEBUG   HandlerThread:33943 [meta.py:_save_patches():127] save patches
+2022-02-22 07:12:50,176 DEBUG   HandlerThread:33943 [meta.py:_save_patches():169] save patches done
+2022-02-22 07:12:50,176 DEBUG   HandlerThread:33943 [meta.py:_save_pip():55] save pip
+2022-02-22 07:12:50,177 DEBUG   HandlerThread:33943 [meta.py:_save_pip():69] save pip done
+2022-02-22 07:12:50,177 DEBUG   HandlerThread:33943 [meta.py:probe():249] probe done
+2022-02-22 07:12:50,178 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.178394 a00dd0e5454306a5 queue   record_q HandlerThread    files                            -                                -                               
+2022-02-22 07:12:50,181 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071250.181748 c91c1eb1cdf0719c queue   result_q HandlerThread    None                             9d24d03494694d809f846584c67fe3c7 -                               
+2022-02-22 07:12:50,182 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.182088 a00dd0e5454306a5 dequeue record_q HandlerThread    files                            -                                -                               
+2022-02-22 07:12:50,182 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.182336 44617165d8557a3e queue   send_q   HandlerThread    files                            -                                -                               
+2022-02-22 07:12:50,182 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.182504 5421f4c8dfd12e15 queue   write_q  HandlerThread    files                            -                                -                               
+2022-02-22 07:12:50,182 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.182719 5421f4c8dfd12e15 dequeue send_q   SenderThread     files                            -                                -                               
+2022-02-22 07:12:50,182 DEBUG   SenderThread:33943 [sender.py:send():235] send: files
+2022-02-22 07:12:50,182 INFO    SenderThread:33943 [sender.py:_save_file():944] saving file wandb-metadata.json with policy now
+2022-02-22 07:12:50,183 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.183296 5421f4c8dfd12e15 dequeue write_q  WriterThread     files                            -                                -                               
+2022-02-22 07:12:50,183 INFO    SenderThread:33943 [sender.py:_save_file():944] saving file code/tools/tests/tracelog.py with policy now
+2022-02-22 07:12:50,188 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.187964 912d68a05bd1aa5c dequeue record_q HandlerThread    stop_status                      deb6eddc759040f486d5dd7d1ee1b401 -                               
+2022-02-22 07:12:50,188 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: stop_status
+2022-02-22 07:12:50,188 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.188216 cf47e00e2622aae1 queue   send_q   HandlerThread    stop_status                      deb6eddc759040f486d5dd7d1ee1b401 -                               
+2022-02-22 07:12:50,188 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.188667 6a2c0bd3984b46cd dequeue record_q HandlerThread    network_status                   049c30eddb614c4f8d8a4ed193ccdfdc -                               
+2022-02-22 07:12:50,188 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.188787 96fc12467ed05040 queue   send_q   HandlerThread    network_status                   049c30eddb614c4f8d8a4ed193ccdfdc -                               
+2022-02-22 07:12:50,189 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.189160 cf47e00e2622aae1 dequeue send_q   SenderThread     stop_status                      deb6eddc759040f486d5dd7d1ee1b401 -                               
+2022-02-22 07:12:50,189 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: stop_status
+2022-02-22 07:12:50,191 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.191370 395d15e12fdc6e43 dequeue record_q HandlerThread    history                          -                                -                               
+2022-02-22 07:12:50,191 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.191582 58b1bb593bbfbde9 queue   send_q   HandlerThread    history                          -                                -                               
+2022-02-22 07:12:50,191 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.191689 b045b57da2e6c2ea queue   write_q  HandlerThread    history                          -                                -                               
+2022-02-22 07:12:50,192 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.192194 136450851d7c8198 queue   send_q   HandlerThread    summary                          -                                -                               
+2022-02-22 07:12:50,192 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.192386 b045b57da2e6c2ea dequeue write_q  WriterThread     history                          -                                -                               
+2022-02-22 07:12:50,359 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071250.359105 ef1228baab53eccf queue   result_q SenderThread     stop_status_response             deb6eddc759040f486d5dd7d1ee1b401 -                               
+2022-02-22 07:12:50,359 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.359371 96fc12467ed05040 dequeue send_q   SenderThread     network_status                   049c30eddb614c4f8d8a4ed193ccdfdc -                               
+2022-02-22 07:12:50,359 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071250.359558 7fecb3ac51db1f4d queue   result_q SenderThread     None                             049c30eddb614c4f8d8a4ed193ccdfdc -                               
+2022-02-22 07:12:50,359 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.359698 b045b57da2e6c2ea dequeue send_q   SenderThread     history                          -                                -                               
+2022-02-22 07:12:50,359 DEBUG   SenderThread:33943 [sender.py:send():235] send: history
+2022-02-22 07:12:50,360 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071250.359982 136450851d7c8198 dequeue send_q   SenderThread     summary                          -                                -                               
+2022-02-22 07:12:50,360 DEBUG   SenderThread:33943 [sender.py:send():235] send: summary
+2022-02-22 07:12:50,360 INFO    SenderThread:33943 [sender.py:_save_file():944] saving file wandb-summary.json with policy end
+2022-02-22 07:12:50,693 INFO    Thread-12 :33943 [upload_job.py:push():137] Uploaded file /var/folders/xx/3vxkd1d90hvcyj3g136sm_900000gn/T/tmp8_anmro0wandb/20j1dj8g-code/tools/tests/tracelog.py
+2022-02-22 07:12:50,719 INFO    Thread-11 :33943 [upload_job.py:push():137] Uploaded file /var/folders/xx/3vxkd1d90hvcyj3g136sm_900000gn/T/tmp8_anmro0wandb/1amkog52-wandb-metadata.json
+2022-02-22 07:12:50,910 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/output.log
+2022-02-22 07:12:50,910 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/code/tools/tests/tracelog.py
+2022-02-22 07:12:50,910 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/wandb-metadata.json
+2022-02-22 07:12:50,911 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/wandb-summary.json
+2022-02-22 07:12:50,911 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/requirements.txt
+2022-02-22 07:12:50,911 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/code
+2022-02-22 07:12:50,911 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/code/tools
+2022-02-22 07:12:50,911 INFO    Thread-7  :33943 [dir_watcher.py:_on_file_created():217] file/dir created: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/code/tools/tests
+2022-02-22 07:12:52,218 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.218084 51778fb4a328361b dequeue record_q HandlerThread    telemetry                        -                                -                               
+2022-02-22 07:12:52,218 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.218338 6b2834d3b31012f8 queue   send_q   HandlerThread    telemetry                        -                                -                               
+2022-02-22 07:12:52,218 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.218539 6b2834d3b31012f8 dequeue send_q   SenderThread     telemetry                        -                                -                               
+2022-02-22 07:12:52,218 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.218725 999a8af1b213df24 queue   write_q  HandlerThread    telemetry                        -                                -                               
+2022-02-22 07:12:52,218 DEBUG   SenderThread:33943 [sender.py:send():235] send: telemetry
+2022-02-22 07:12:52,219 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.219075 37b7407eada1993d dequeue record_q HandlerThread    exit                             -                                -                               
+2022-02-22 07:12:52,219 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.219284 999a8af1b213df24 dequeue write_q  WriterThread     telemetry                        -                                -                               
+2022-02-22 07:12:52,219 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.219435 5dddaf6b19012140 queue   send_q   HandlerThread    exit                             -                                -                               
+2022-02-22 07:12:52,219 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.219685 23859c4ec8c8d4e0 queue   write_q  HandlerThread    exit                             -                                -                               
+2022-02-22 07:12:52,219 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.219804 23859c4ec8c8d4e0 dequeue send_q   SenderThread     exit                             -                                -                               
+2022-02-22 07:12:52,220 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.220034 1e036a805ff02229 dequeue record_q HandlerThread    poll_exit                        a79590516fde45a88d0ec37b38ba6987 -                               
+2022-02-22 07:12:52,220 DEBUG   SenderThread:33943 [sender.py:send():235] send: exit
+2022-02-22 07:12:52,220 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.220234 23859c4ec8c8d4e0 dequeue write_q  WriterThread     exit                             -                                -                               
+2022-02-22 07:12:52,220 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:52,220 INFO    SenderThread:33943 [sender.py:send_exit():371] handling exit code: 0
+2022-02-22 07:12:52,220 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.220743 61240017e89bd804 queue   send_q   HandlerThread    poll_exit                        a79590516fde45a88d0ec37b38ba6987 -                               
+2022-02-22 07:12:52,220 INFO    SenderThread:33943 [sender.py:send_exit():373] handling runtime: 2
+2022-02-22 07:12:52,222 INFO    SenderThread:33943 [sender.py:_save_file():944] saving file wandb-summary.json with policy end
+2022-02-22 07:12:52,222 INFO    SenderThread:33943 [sender.py:send_exit():379] send defer
+2022-02-22 07:12:52,222 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.222572 6d6c7bd0a46ff86c queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,222 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.222723 61240017e89bd804 dequeue send_q   SenderThread     poll_exit                        a79590516fde45a88d0ec37b38ba6987 -                               
+2022-02-22 07:12:52,222 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:52,223 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071252.222985 824f87dbc2e5f7c5 queue   result_q SenderThread     poll_exit_response               a79590516fde45a88d0ec37b38ba6987 -                               
+2022-02-22 07:12:52,223 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.223513 6d6c7bd0a46ff86c dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,223 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,223 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 0
+2022-02-22 07:12:52,223 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.223803 ad35d2c75ee1ae92 queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,224 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.224169 ad35d2c75ee1ae92 dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,224 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,224 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 0
+2022-02-22 07:12:52,224 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 1
+2022-02-22 07:12:52,224 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.224588 03696f38a181eb5c queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,225 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.225048 03696f38a181eb5c dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,225 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,225 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 1
+2022-02-22 07:12:52,268 INFO    StatsThr  :33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.268856 d02bcee16577f1b3 queue   record_q StatsThr         stats                            -                                -                               
+2022-02-22 07:12:52,269 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.269322 4de98fdd8e5a36ff queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,269 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.269605 4de98fdd8e5a36ff dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,269 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.269840 d02bcee16577f1b3 dequeue record_q HandlerThread    stats                            -                                -                               
+2022-02-22 07:12:52,269 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,270 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 1
+2022-02-22 07:12:52,270 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 2
+2022-02-22 07:12:52,270 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.270435 95d49cbb41006780 queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,270 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.270090 bd3846a4ba47a309 queue   send_q   HandlerThread    stats                            -                                -                               
+2022-02-22 07:12:52,270 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.270805 01fe3b8dfed252c7 queue   write_q  HandlerThread    stats                            -                                -                               
+2022-02-22 07:12:52,271 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.271059 95d49cbb41006780 dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,271 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.271214 01fe3b8dfed252c7 dequeue send_q   SenderThread     stats                            -                                -                               
+2022-02-22 07:12:52,271 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.271321 01fe3b8dfed252c7 dequeue write_q  WriterThread     stats                            -                                -                               
+2022-02-22 07:12:52,271 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,271 DEBUG   SenderThread:33943 [sender.py:send():235] send: stats
+2022-02-22 07:12:52,271 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 2
+2022-02-22 07:12:52,272 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.272104 fc6e952574f0d336 queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,272 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.272268 fc6e952574f0d336 dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,272 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,272 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 2
+2022-02-22 07:12:52,272 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 3
+2022-02-22 07:12:52,272 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.272569 de7ef47bb4e70330 queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,272 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.272816 de7ef47bb4e70330 dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,272 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,272 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 3
+2022-02-22 07:12:52,273 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.273100 d95300a0cc29acf5 queue   send_q   HandlerThread    summary                          -                                -                               
+2022-02-22 07:12:52,273 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.273211 ee6606d6bb054fbd queue   write_q  HandlerThread    summary                          -                                -                               
+2022-02-22 07:12:52,273 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.273309 ee6606d6bb054fbd dequeue send_q   SenderThread     summary                          -                                -                               
+2022-02-22 07:12:52,273 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.273429 6e74aa2c92034e0f queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,273 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.273502 ee6606d6bb054fbd dequeue write_q  WriterThread     summary                          -                                -                               
+2022-02-22 07:12:52,273 DEBUG   SenderThread:33943 [sender.py:send():235] send: summary
+2022-02-22 07:12:52,274 INFO    SenderThread:33943 [sender.py:_save_file():944] saving file wandb-summary.json with policy end
+2022-02-22 07:12:52,274 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.274439 6e74aa2c92034e0f dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,274 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,274 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 3
+2022-02-22 07:12:52,274 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 4
+2022-02-22 07:12:52,274 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.274770 60e89f27ca7ee1fc queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,275 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.275013 60e89f27ca7ee1fc dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,275 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,275 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 4
+2022-02-22 07:12:52,275 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.275235 da5ea759372e380c queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,275 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.275378 da5ea759372e380c dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,275 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,275 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 4
+2022-02-22 07:12:52,333 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.333906 8cc600b9bc5fa01e dequeue record_q HandlerThread    poll_exit                        e3d6b1f1376944eb9ceed2957c4ce2a3 -                               
+2022-02-22 07:12:52,334 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:52,334 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.334260 daf670c60546c5c8 queue   send_q   HandlerThread    poll_exit                        e3d6b1f1376944eb9ceed2957c4ce2a3 -                               
+2022-02-22 07:12:52,479 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 5
+2022-02-22 07:12:52,479 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.479445 d9edbe5aebf68dbf queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,479 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.479627 daf670c60546c5c8 dequeue send_q   SenderThread     poll_exit                        e3d6b1f1376944eb9ceed2957c4ce2a3 -                               
+2022-02-22 07:12:52,479 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:52,479 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071252.479884 9b65f6544ca1d08c queue   result_q SenderThread     poll_exit_response               e3d6b1f1376944eb9ceed2957c4ce2a3 -                               
+2022-02-22 07:12:52,480 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.480256 d9edbe5aebf68dbf dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,480 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,480 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 5
+2022-02-22 07:12:52,480 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.480526 ed16c5297bcb55bb queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,480 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.480720 ed16c5297bcb55bb dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,480 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,480 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 5
+2022-02-22 07:12:52,480 INFO    SenderThread:33943 [dir_watcher.py:finish():283] shutting down directory watcher
+2022-02-22 07:12:52,587 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.587732 ec0ad6f2863c8935 dequeue record_q HandlerThread    poll_exit                        59e4a1c993ae4acfa44173e5b2a53926 -                               
+2022-02-22 07:12:52,587 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:52,588 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.588080 1433a4e97ef8920d queue   send_q   HandlerThread    poll_exit                        59e4a1c993ae4acfa44173e5b2a53926 -                               
+2022-02-22 07:12:52,922 INFO    SenderThread:33943 [dir_watcher.py:_on_file_modified():230] file/dir modified: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/wandb-summary.json
+2022-02-22 07:12:52,923 INFO    SenderThread:33943 [dir_watcher.py:_on_file_modified():230] file/dir modified: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/config.yaml
+2022-02-22 07:12:52,924 INFO    SenderThread:33943 [dir_watcher.py:finish():313] scan: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files
+2022-02-22 07:12:52,924 INFO    SenderThread:33943 [dir_watcher.py:finish():327] scan save: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/requirements.txt requirements.txt
+2022-02-22 07:12:52,924 INFO    SenderThread:33943 [dir_watcher.py:finish():327] scan save: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/output.log output.log
+2022-02-22 07:12:52,927 INFO    SenderThread:33943 [dir_watcher.py:finish():327] scan save: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/config.yaml config.yaml
+2022-02-22 07:12:52,928 INFO    SenderThread:33943 [dir_watcher.py:finish():327] scan save: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/wandb-summary.json wandb-summary.json
+2022-02-22 07:12:52,931 INFO    SenderThread:33943 [dir_watcher.py:finish():327] scan save: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/wandb-metadata.json wandb-metadata.json
+2022-02-22 07:12:52,935 INFO    SenderThread:33943 [dir_watcher.py:finish():327] scan save: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/code/tools/tests/tracelog.py code/tools/tests/tracelog.py
+2022-02-22 07:12:52,936 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 6
+2022-02-22 07:12:52,936 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.936311 d8f58c989cca495d queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,936 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.936853 1433a4e97ef8920d dequeue send_q   SenderThread     poll_exit                        59e4a1c993ae4acfa44173e5b2a53926 -                               
+2022-02-22 07:12:52,936 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:52,937 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071252.937099 525ee308ff542779 queue   result_q SenderThread     poll_exit_response               59e4a1c993ae4acfa44173e5b2a53926 -                               
+2022-02-22 07:12:52,938 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.938157 d8f58c989cca495d dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,938 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:52,938 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 6
+2022-02-22 07:12:52,938 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.938440 6de5fe54c9467006 queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:52,939 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071252.939533 6de5fe54c9467006 dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:52,939 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:52,939 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 6
+2022-02-22 07:12:52,939 INFO    SenderThread:33943 [file_pusher.py:finish():145] shutting down file pusher
+2022-02-22 07:12:53,050 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.050334 f823de4f5f444ea3 dequeue record_q HandlerThread    poll_exit                        3cdae272b205410c987475fbace8632b -                               
+2022-02-22 07:12:53,050 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,050 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.050690 3a87e95b6e35fc2f queue   send_q   HandlerThread    poll_exit                        3cdae272b205410c987475fbace8632b -                               
+2022-02-22 07:12:53,050 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.050945 3a87e95b6e35fc2f dequeue send_q   SenderThread     poll_exit                        3cdae272b205410c987475fbace8632b -                               
+2022-02-22 07:12:53,051 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:53,051 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071253.051298 e9fa4161fa15fd08 queue   result_q SenderThread     poll_exit_response               3cdae272b205410c987475fbace8632b -                               
+2022-02-22 07:12:53,161 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.161403 037b3d93b74a0559 dequeue record_q HandlerThread    poll_exit                        798c4ab6cf5640fab064eed2062de4a2 -                               
+2022-02-22 07:12:53,161 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,161 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.161675 8cebe5ea10d34d9d queue   send_q   HandlerThread    poll_exit                        798c4ab6cf5640fab064eed2062de4a2 -                               
+2022-02-22 07:12:53,161 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.161886 8cebe5ea10d34d9d dequeue send_q   SenderThread     poll_exit                        798c4ab6cf5640fab064eed2062de4a2 -                               
+2022-02-22 07:12:53,162 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:53,162 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071253.162154 2726f5ec7d04bd7d queue   result_q SenderThread     poll_exit_response               798c4ab6cf5640fab064eed2062de4a2 -                               
+2022-02-22 07:12:53,268 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.268811 a8ae3510563dff65 dequeue record_q HandlerThread    poll_exit                        f800f79acb894838a6077ecd4de57b5c -                               
+2022-02-22 07:12:53,269 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,269 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.269209 7314e3d0e35f266a queue   send_q   HandlerThread    poll_exit                        f800f79acb894838a6077ecd4de57b5c -                               
+2022-02-22 07:12:53,269 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.269484 7314e3d0e35f266a dequeue send_q   SenderThread     poll_exit                        f800f79acb894838a6077ecd4de57b5c -                               
+2022-02-22 07:12:53,269 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:53,269 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071253.269830 1573339e4fe2b5c6 queue   result_q SenderThread     poll_exit_response               f800f79acb894838a6077ecd4de57b5c -                               
+2022-02-22 07:12:53,377 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.377463 bb5fa3ffd7039f0b dequeue record_q HandlerThread    poll_exit                        9b74d8857dd5433e9ce117d8eb170b8f -                               
+2022-02-22 07:12:53,377 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,377 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.377821 06def16c5a61e2a0 queue   send_q   HandlerThread    poll_exit                        9b74d8857dd5433e9ce117d8eb170b8f -                               
+2022-02-22 07:12:53,380 INFO    Thread-13 :33943 [upload_job.py:push():137] Uploaded file /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/requirements.txt
+2022-02-22 07:12:53,380 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.380428 06def16c5a61e2a0 dequeue send_q   SenderThread     poll_exit                        9b74d8857dd5433e9ce117d8eb170b8f -                               
+2022-02-22 07:12:53,380 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:53,380 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071253.380948 f54b14e258f9b445 queue   result_q SenderThread     poll_exit_response               9b74d8857dd5433e9ce117d8eb170b8f -                               
+2022-02-22 07:12:53,426 INFO    Thread-15 :33943 [upload_job.py:push():137] Uploaded file /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/wandb-summary.json
+2022-02-22 07:12:53,452 INFO    Thread-14 :33943 [upload_job.py:push():137] Uploaded file /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/files/config.yaml
+2022-02-22 07:12:53,491 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.491471 13cc76f08d0f8f59 dequeue record_q HandlerThread    poll_exit                        60f8427600674d0998af6f56a6155a37 -                               
+2022-02-22 07:12:53,491 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,491 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.491824 dc24eddeb5ddfd17 queue   send_q   HandlerThread    poll_exit                        60f8427600674d0998af6f56a6155a37 -                               
+2022-02-22 07:12:53,492 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.492086 dc24eddeb5ddfd17 dequeue send_q   SenderThread     poll_exit                        60f8427600674d0998af6f56a6155a37 -                               
+2022-02-22 07:12:53,492 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:53,492 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071253.492428 62f92efc23e7dd48 queue   result_q SenderThread     poll_exit_response               60f8427600674d0998af6f56a6155a37 -                               
+2022-02-22 07:12:53,599 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.599877 91d495caae581f1f dequeue record_q HandlerThread    poll_exit                        50e4d31103ec41a5bf8b3972eaeb95fa -                               
+2022-02-22 07:12:53,600 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,600 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.600266 1849400a5432aca6 queue   send_q   HandlerThread    poll_exit                        50e4d31103ec41a5bf8b3972eaeb95fa -                               
+2022-02-22 07:12:53,600 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.600532 1849400a5432aca6 dequeue send_q   SenderThread     poll_exit                        50e4d31103ec41a5bf8b3972eaeb95fa -                               
+2022-02-22 07:12:53,600 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:53,600 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071253.600874 c6fb3d4b1d5156c6 queue   result_q SenderThread     poll_exit_response               50e4d31103ec41a5bf8b3972eaeb95fa -                               
+2022-02-22 07:12:53,655 INFO    Thread-6  :33943 [sender.py:transition_state():392] send defer: 7
+2022-02-22 07:12:53,655 INFO    Thread-6  :33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.655666 a21a9a0adc586ef3 queue   record_q Thread-6         defer                            -                                -                               
+2022-02-22 07:12:53,656 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.656445 a21a9a0adc586ef3 dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:53,656 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:53,656 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 7
+2022-02-22 07:12:53,657 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.657039 4ef51f97e945ee4d queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:53,657 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.657305 4ef51f97e945ee4d dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:53,657 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:53,657 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 7
+2022-02-22 07:12:53,713 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.713031 6b671f6b680beaa8 dequeue record_q HandlerThread    poll_exit                        157b50d006164bea9205e09603550ee3 -                               
+2022-02-22 07:12:53,713 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:53,713 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071253.713380 b593e83f7675a61b queue   send_q   HandlerThread    poll_exit                        157b50d006164bea9205e09603550ee3 -                               
+2022-02-22 07:12:54,017 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 8
+2022-02-22 07:12:54,017 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.017630 a6b93229e469ff79 queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:54,017 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.017854 b593e83f7675a61b dequeue send_q   SenderThread     poll_exit                        157b50d006164bea9205e09603550ee3 -                               
+2022-02-22 07:12:54,018 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:54,018 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071254.018211 0940a31037c582c2 queue   result_q SenderThread     poll_exit_response               157b50d006164bea9205e09603550ee3 -                               
+2022-02-22 07:12:54,018 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.018726 a6b93229e469ff79 dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:54,018 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:54,018 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 8
+2022-02-22 07:12:54,019 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.019049 d330c189ef72d7bd queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:54,019 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.019330 d330c189ef72d7bd dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:54,019 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:54,019 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 8
+2022-02-22 07:12:54,019 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.019628 7a66345a15e55e49 queue   record_q SenderThread     final                            -                                -                               
+2022-02-22 07:12:54,019 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.019798 3af0dd3f2204a509 queue   record_q SenderThread     footer                           -                                -                               
+2022-02-22 07:12:54,019 INFO    SenderThread:33943 [sender.py:transition_state():392] send defer: 9
+2022-02-22 07:12:54,020 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.020025 1eb3a624fe52d7fc queue   record_q SenderThread     defer                            -                                -                               
+2022-02-22 07:12:54,020 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.020382 7a66345a15e55e49 dequeue record_q HandlerThread    final                            -                                -                               
+2022-02-22 07:12:54,020 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.020719 c3a40358162a3f82 queue   send_q   HandlerThread    final                            -                                -                               
+2022-02-22 07:12:54,020 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.020881 02df29baf5110fd0 queue   write_q  HandlerThread    final                            -                                -                               
+2022-02-22 07:12:54,021 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.021111 3af0dd3f2204a509 dequeue record_q HandlerThread    footer                           -                                -                               
+2022-02-22 07:12:54,021 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.021247 8ff336cc611ed562 queue   send_q   HandlerThread    footer                           -                                -                               
+2022-02-22 07:12:54,021 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.021372 38bfca5bc2b5689b queue   write_q  HandlerThread    footer                           -                                -                               
+2022-02-22 07:12:54,021 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.021575 1eb3a624fe52d7fc dequeue record_q HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:54,021 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: defer
+2022-02-22 07:12:54,021 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.021812 02df29baf5110fd0 dequeue send_q   SenderThread     final                            -                                -                               
+2022-02-22 07:12:54,021 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.021937 02df29baf5110fd0 dequeue write_q  WriterThread     final                            -                                -                               
+2022-02-22 07:12:54,022 INFO    HandlerThread:33943 [handler.py:handle_request_defer():154] handle defer: 9
+2022-02-22 07:12:54,022 DEBUG   SenderThread:33943 [sender.py:send():235] send: final
+2022-02-22 07:12:54,022 INFO    WriterThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.022275 38bfca5bc2b5689b dequeue write_q  WriterThread     footer                           -                                -                               
+2022-02-22 07:12:54,022 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.022438 dca43c42ccf1a97d queue   send_q   HandlerThread    defer                            -                                -                               
+2022-02-22 07:12:54,022 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.022590 38bfca5bc2b5689b dequeue send_q   SenderThread     footer                           -                                -                               
+2022-02-22 07:12:54,022 DEBUG   SenderThread:33943 [sender.py:send():235] send: footer
+2022-02-22 07:12:54,022 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.022951 dca43c42ccf1a97d dequeue send_q   SenderThread     defer                            -                                -                               
+2022-02-22 07:12:54,023 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: defer
+2022-02-22 07:12:54,023 INFO    SenderThread:33943 [sender.py:send_request_defer():388] handle sender defer: 9
+2022-02-22 07:12:54,123 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.123330 6f7b04aad389f5d8 dequeue record_q HandlerThread    poll_exit                        1ecd323c4c444b19ad8751a9b0effbf2 -                               
+2022-02-22 07:12:54,123 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: poll_exit
+2022-02-22 07:12:54,123 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.123677 ec58177f69ad0016 queue   send_q   HandlerThread    poll_exit                        1ecd323c4c444b19ad8751a9b0effbf2 -                               
+2022-02-22 07:12:54,123 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.123934 ec58177f69ad0016 dequeue send_q   SenderThread     poll_exit                        1ecd323c4c444b19ad8751a9b0effbf2 -                               
+2022-02-22 07:12:54,124 DEBUG   SenderThread:33943 [sender.py:send_request():249] send_request: poll_exit
+2022-02-22 07:12:54,124 INFO    SenderThread:33943 [file_pusher.py:join():150] waiting for file pusher
+2022-02-22 07:12:54,510 INFO    SenderThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071254.510578 5ea14bb97f32d05d queue   result_q SenderThread     poll_exit_response               1ecd323c4c444b19ad8751a9b0effbf2 -                               
+2022-02-22 07:12:54,619 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.618974 d93bd2422012a702 dequeue record_q HandlerThread    sampled_history                  c0e79f8052fc4d62b8cf5e39c740981d -                               
+2022-02-22 07:12:54,619 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: sampled_history
+2022-02-22 07:12:54,619 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071254.619532 fb88dddf179ad48c queue   result_q HandlerThread    sampled_history_response         c0e79f8052fc4d62b8cf5e39c740981d -                               
+2022-02-22 07:12:54,621 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.620996 762124afce0a9ed0 dequeue record_q HandlerThread    get_summary                      8617a428d25149cb92daa136471dae4c -                               
+2022-02-22 07:12:54,621 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: get_summary
+2022-02-22 07:12:54,621 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071254.621462 fe17676745de1918 queue   result_q HandlerThread    get_summary_response             8617a428d25149cb92daa136471dae4c -                               
+2022-02-22 07:12:54,622 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) -> 071254.622574 79b3e671026d40d9 dequeue record_q HandlerThread    shutdown                         9e59c95ae9e64e78a5b6eecbbfda0369 -                               
+2022-02-22 07:12:54,622 DEBUG   HandlerThread:33943 [handler.py:handle_request():131] handle_request: shutdown
+2022-02-22 07:12:54,622 INFO    HandlerThread:33943 [tracelog.py:_log():82] TRACELOG(1) <- 071254.622862 5e8125d97c0416dc queue   result_q HandlerThread    None                             9e59c95ae9e64e78a5b6eecbbfda0369 -                               
+2022-02-22 07:12:54,623 INFO    HandlerThread:33943 [handler.py:finish():739] shutting down handler
+2022-02-22 07:12:55,023 INFO    WriterThread:33943 [datastore.py:close():281] close: /Users/jeff/work/wb/client/tools/tests/wandb/run-20220222_071249-1qeoh7iu/run-1qeoh7iu.wandb
+2022-02-22 07:12:55,520 INFO    SenderThread:33943 [sender.py:finish():1075] shutting down sender
+2022-02-22 07:12:55,521 INFO    SenderThread:33943 [file_pusher.py:finish():145] shutting down file pusher
+2022-02-22 07:12:55,521 INFO    SenderThread:33943 [file_pusher.py:join():150] waiting for file pusher
+2022-02-22 07:12:55,525 INFO    MainThread:33943 [internal.py:handle_exit():79] Internal process exited
