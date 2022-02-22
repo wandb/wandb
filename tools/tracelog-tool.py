@@ -71,7 +71,6 @@ class TracelogParser:
         for item in self._items:
             line = f"{item.src} --> {item.dst}: {item.info}"
             lines.append((item.ts, line))
-        lines = [l for (ts, l) in sorted(lines)]
         print("@startuml")
         header = """
 !theme crt-amber
@@ -96,7 +95,8 @@ control sender as SenderThread
 end box
         """
         print(header)
-        for line in lines:
+        # TODO: move to common place (sorted sequence items)
+        for line in [l for (ts, l) in sorted(lines)]:
             print(line)
         print("@enduml")
 
@@ -105,7 +105,6 @@ end box
         for item in self._items:
             line = f"{item.src} ->> {item.dst}: {item.info}"
             lines.append((item.ts, line))
-        lines = [l for (ts, l) in sorted(lines)]
 
         header = """
 sequenceDiagram
@@ -125,7 +124,8 @@ participant WriterThread as writer
 participant SenderThread as sender
         """
         print(header)
-        for line in lines:
+        # TODO: move to common place (sorted sequence items)
+        for line in [l for (ts, l) in sorted(lines)]:
             print(line)
 
     def load(self, fname: str) -> None:
