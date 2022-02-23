@@ -111,9 +111,25 @@ def _json_helper(val, artifact):
         return _json_helper(val.item(), artifact)
 
     if isinstance(val, datetime.datetime):
+        if val.tzinfo is None:
+            val = datetime.datetime(
+                val.year,
+                val.month,
+                val.day,
+                val.hour,
+                val.minute,
+                val.second,
+                val.microsecond,
+                tzinfo=datetime.timezone.utc,
+            )
         return int(val.timestamp() * 1000)
     elif isinstance(val, datetime.date):
-        return int(datetime.datetime(val.year, val.month, val.day).timestamp() * 1000)
+        return int(
+            datetime.datetime(
+                val.year, val.month, val.day, tzinfo=datetime.timezone.utc
+            ).timestamp()
+            * 1000
+        )
     elif isinstance(val, (list, tuple)):
         return [_json_helper(i, artifact) for i in val]
     else:
