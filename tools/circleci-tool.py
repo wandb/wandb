@@ -152,12 +152,10 @@ def get_ci_builds(args, completed=True):
     r = requests.get(url, auth=(args.api_token, ""))
     assert r.status_code == 200, "Error making api request: {}".format(r)
     lst = r.json()
-    # print("GOT", lst)
     cfirst = None
     ret = []
     done = False
     for d in lst:
-        print("DDD2", d.get("branch"))
         b = d.get("branch")
         if b != bname:
             continue
@@ -165,7 +163,7 @@ def get_ci_builds(args, completed=True):
         n = d.get("build_num")
         j = d.get("workflows", {}).get("job_name")
         w = d.get("workflows", {}).get("workflow_id")
-        print("DDD1", d)
+        # print("DDD", d)
         cfirst = cfirst or v
         if cfirst != v:
             done = True
@@ -197,25 +195,17 @@ def grab(args, vhash, bnum):
     for item in lst:
         p = item.get("path")
         u = item.get("url")
-        print("got", p)
-        if p != "cover-results/coverage.xml" and not p.startswith("mypy-results"):
+        # print("got", p)
+        if p != "cover-results/coverage.xml":
             continue
-        print("GRAB", p, u)
+        # print("GRAB", p, u)
         # TODO: use tempfile
         print("Downloading circle artifacts...")
         s, o = subprocess.getstatusoutput(
             'curl -L  -o out.dat -H "Circle-Token: {}" "{}"'.format(args.api_token, u)
         )
         assert s == 0
-        if p == "cover-results/coverage.xml":
-            os.rename("out.dat", cfname)
-        else:
-            resdir = "{}-{}".format(vhash, bnum)
-            pfname = os.path.join(cachedir, resdir, p)
-            pfdir = os.path.dirname(pfname)
-            if not os.path.exists(pfdir):
-                os.makedirs(pfdir)
-            os.rename("out.dat", pfname)
+        os.rename("out.dat", cfname)
 
 
 def status(args):
