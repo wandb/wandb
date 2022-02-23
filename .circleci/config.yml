@@ -116,6 +116,9 @@ workflows:
 #         name: "lin-py310"
 #         image: "python:3.10"
 #         toxenv: "py310"
+      #
+      # functional linux tests
+      #
       - test:
          name: "func-s_base-lin-py37"
          image: "python:3.7"
@@ -160,12 +163,26 @@ workflows:
          name: "func-s_imports-lin-py37"
          image: "python:3.7"
          toxenv: "func-s_imports-py37"
+      #
+      # functional win tests
+      #
+      - win:
+         name: "func-s_base-win-py37"
+         toxenv: "func-s_base-py37"
+         parallelism: 1
+         xdist: 1
+      #
+      # unit win/mac tests
+      #
       - win:
          name: "win-py37"
          toxenv: "py37,wincovercircle"
       - mac:
          name: "mac-py37"
          toxenv: "py37"
+      #
+      # launch tests
+      #
       - launch:
          name: "wandb launch tests"
          toxenv: "pylaunch,covercircle"
