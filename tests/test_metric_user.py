@@ -15,7 +15,8 @@ def test_metric_run_none(user_test):
 
     r = user_test.get_records()
     assert len(r.records) == 2
-    assert len(r.history) == 2
+    history = r.history or r.partial_history
+    assert len(history) == 2
 
 
 def test_metric_run_metric_obj(user_test):

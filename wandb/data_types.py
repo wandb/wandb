@@ -25,6 +25,7 @@ import pprint
 import re
 import sys
 import tempfile
+from typing import Optional
 
 import six
 import wandb
@@ -1020,13 +1021,15 @@ class Audio(BatchableMedia):
             caption=json_obj["caption"],
         )
 
-    def bind_to_run(self, run, key, step, id_=None):
+    def bind_to_run(
+        self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
+    ):
         if Audio.path_is_reference(self._path):
             raise ValueError(
                 "Audio media created by a reference to external storage cannot currently be added to a run"
             )
 
-        return super(Audio, self).bind_to_run(run, key, step, id_)
+        return super().bind_to_run(run, key, step, id_, ignore_copy_err)
 
     def to_json(self, run):
         json_dict = super(Audio, self).to_json(run)

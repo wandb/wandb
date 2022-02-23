@@ -11,8 +11,47 @@ from unittest import mock
 
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import UsageError
+from wandb.errors import LogMultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
+
+
+def test_run_step_property(fake_run):
+    run = fake_run()
+    run.log(dict(this=1))
+    run.log(dict(that=2))
+
+    assert run.step == 2
+
+
+def test_deprecated_run_log_sync(fake_run, capsys):
+    run = fake_run()
+    run.log(dict(this=1), sync=True)
+    _, stderr = capsys.readouterr()
+    assert (
+        "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
+        in stderr
+    )
+
+
+def test_run_log_mp_warn(fake_run, capsys):
+    run = fake_run()
+    run._init_pid += 1
+    run.log(dict(this=1))
+    _, stderr = capsys.readouterr()
+    assert (
+        f"log() ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
+        in stderr
+    )
+
+
+def test_run_log_mp_error(test_settings):
+    test_settings.update({"strict": True})
+    run = wandb.init(settings=test_settings)
+    run._init_pid += 1
+    with pytest.raises(LogMultiprocessError) as excinfo:
+        run.log(dict(this=1))
+        assert "log() does not support multiprocessing" in str(excinfo.value)
+    run.finish()
 
 
 def test_run_basic():
@@ -59,7 +98,7 @@ def test_run_pub_history(fake_run, record_q, records_util):
     r = records_util(record_q)
     assert len(r.records) == 2
     assert len(r.summary) == 0
-    history = r.history
+    history = r.history or r.partial_history
     assert len(history) == 2
     # TODO(jhr): check history vals
 
@@ -74,7 +113,7 @@ def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util
     r = records_util(record_q)
     assert len(r.records) == 1
     assert len(r.summary) == 0
-    history = r.history
+    history = r.history or r.partial_history
     assert len(history) == 1
 
     found = False
