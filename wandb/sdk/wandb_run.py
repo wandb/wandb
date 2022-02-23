@@ -297,6 +297,7 @@ class Run:
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _settings: Settings
 
     def __init__(
         self,
@@ -1691,24 +1692,28 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
         self._exit_code = exit_code
+        report_failure = False
         try:
             self._on_finish()
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if ipython._get_python_type() == "python":
+            if not self._settings._jupyter:
                 os._exit(-1)
         except Exception as e:
+            if not self._settings._jupyter:
+                report_failure = True
             self._console_stop()
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
             traceback.print_exception(*sys.exc_info())
-            if ipython._get_python_type() == "python":
-                os._exit(-1)
         else:
             self._on_final()
+        finally:
+            if report_failure:
+                os._exit(-1)
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
