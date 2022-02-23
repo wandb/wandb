@@ -1,6 +1,10 @@
 id: 0.core.06-log-images-unix
 plugin:
   - wandb
+tag:
+  platforms:
+    - linux
+    - mac
 command:
   program: 06-log-images.py
 assert:

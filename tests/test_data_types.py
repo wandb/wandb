@@ -1104,7 +1104,7 @@ def test_log_with_back_slash_windows(live_mock_server, test_settings):
     wb_image = wandb.Image(image)
 
     # windows doesnt allow a backslash in media keys right now
-    if sys.platform == "Windows":
+    if platform.system() == "Windows":
         with pytest.raises(ValueError):
             run.log({"train\image": wb_image})
     else:
