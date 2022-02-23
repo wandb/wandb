@@ -894,6 +894,7 @@ __all__ = [
     "NoneType",
     "StringType",
     "NumberType",
+    "TimestampType",
     "BooleanType",
     "ListType",
     "TypedDictType",

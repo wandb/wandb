@@ -104,12 +104,18 @@ def _json_helper(val, artifact):
         for key in val:
             res[key] = _json_helper(val[key], artifact)
         return res
-    elif hasattr(val, "tolist"):
-        return util.json_friendly(val.tolist())[0]
-    elif isinstance(val, datetime.datetime):
+
+    if hasattr(val, "tolist"):
+        return _json_helper(val.tolist(), artifact)
+    elif hasattr(val, "item"):
+        return _json_helper(val.item(), artifact)
+
+    if isinstance(val, datetime.datetime):
         return int(val.timestamp() * 1000)
     elif isinstance(val, datetime.date):
         return int(datetime.datetime(val.year, val.month, val.day).timestamp() * 1000)
+    elif isinstance(val, (list, tuple)):
+        return [_json_helper(i, artifact) for i in val]
     else:
         return util.json_friendly(val)[0]
 
