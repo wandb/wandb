@@ -1099,14 +1099,16 @@ def test_log_with_dir_sep_windows(live_mock_server, test_settings):
     assert True
 
 
-def test_log_with_back_slash(live_mock_server, test_settings):
+def test_log_with_back_slash_windows(live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     wb_image = wandb.Image(image)
-    try:
+
+    # windows doesnt allow a backslash in media keys right now
+    if sys.platform == "Windows":
+        with pytest.raises(ValueError):
+            run.log({"train\image": wb_image})
+    else:
         run.log({"train\image": wb_image})
-    except ValueError:
-        if platform.system() != "Windows":
-            assert False, "Should not have thrown error '' in media path on non-windows"
 
     run.finish()
     assert True
