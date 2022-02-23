@@ -4,4 +4,4 @@ tag:
 plugin:
   - wandb
 assert:
-  - :yea:exit: 1
+  - :yea:exit: 255

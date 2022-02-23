@@ -295,6 +295,7 @@ class Run:
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _settings: Settings
 
     def __init__(
         self,
@@ -1670,10 +1671,10 @@ class Run:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if ipython._get_python_type() == "python":
+            if not self._settings._jupyter:
                 os._exit(-1)
         except Exception as e:
-            if ipython._get_python_type() == "python":
+            if not self._settings._jupyter:
                 report_failure = True
             self._console_stop()
             self._backend.cleanup()
