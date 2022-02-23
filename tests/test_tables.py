@@ -1,6 +1,9 @@
 import wandb
 import pytest
 
+import numpy as np
+import datetime
+
 
 def test_basic_ndx():
     # Base Case
@@ -223,3 +226,24 @@ def test_loading_from_json_with_mixed_types():
     artifact = wandb.Artifact("my_artifact", type="dataset")
     _ = wandb.Table.from_json(json_obj, artifact)
     assert True
+
+
+def test_datetime_conversion():
+    art = wandb.Artifact("A", "B")
+    t = wandb.Table(
+        columns=["dt", "t", "np", "d"],
+        data=[
+            [
+                datetime.datetime(2000, 12, d),
+                datetime.date(2000, 12, d),
+                np.datetime64("2000-12-" + ("0" if d < 10 else "") + str(d)),
+                d,
+            ]
+            for d in range(1, 3)
+        ],
+    )
+    json = t.to_json(art)
+    assert json["data"] == [
+        [975628800000, 975628800000, 975628800000, 1],
+        [975715200000, 975715200000, 975715200000, 2],
+    ]
