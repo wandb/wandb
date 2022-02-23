@@ -18,6 +18,7 @@ service InternalService {
   rpc RunExit(RunExitRecord) returns (RunExitResult) {}
   rpc RunPreempting(RunPreemptingRecord) returns (RunPreemptingResult) {}
   rpc Metric(MetricRecord) returns (MetricResult) {}
+  rpc PartialLog(PartialHistoryRequest) returns (PartialHistoryResponse) {}
   rpc Log(HistoryRecord) returns (HistoryResult) {}
   rpc Summary(SummaryRecord) returns (SummaryResult) {}
   rpc Config(ConfigRecord) returns (ConfigResult) {}

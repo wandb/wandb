@@ -7,11 +7,11 @@ import ast
 from functools import wraps
 import sys
 
-from gql.client import RetryError
 import requests
 import six
 from wandb import env
 from wandb.errors import CommError
+from wandb_gql.client import RetryError
 
 
 def normalize_exceptions(func):

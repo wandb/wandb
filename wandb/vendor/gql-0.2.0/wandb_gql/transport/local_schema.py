@@ -1,4 +1,4 @@
-from graphql.execution import execute
+from wandb_graphql.execution import execute
 
 
 class LocalSchemaTransport(object):

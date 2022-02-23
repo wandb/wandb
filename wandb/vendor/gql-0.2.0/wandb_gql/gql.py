@@ -1,6 +1,6 @@
 import six
-from graphql.language.parser import parse
-from graphql.language.source import Source
+from wandb_graphql.language.parser import parse
+from wandb_graphql.language.source import Source
 
 
 def gql(request_string):
