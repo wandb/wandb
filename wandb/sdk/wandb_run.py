@@ -312,7 +312,7 @@ class Run:
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history_step = 0
+        self._step = 0
         self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
         _datatypes_set_callback(self._datatypes_callback)
@@ -703,7 +703,7 @@ class Run:
 
         This counter is incremented by `wandb.log`.
         """
-        return self.history_step
+        return self._step
 
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
@@ -1024,8 +1024,16 @@ class Run:
 
         return row
 
+    def _ignore_step(self) -> bool:
+        if self._settings._require_service:
+            return os.getpid() != self._init_pid or self._settings._attached_run
+        return False
+
     def _partial_history_callback(
-        self, row: Dict[str, Any], step: int, commit: bool = False
+        self,
+        row: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
     ) -> None:
         if row:
             row = self._visualization_hack(row)
@@ -1034,8 +1042,13 @@ class Run:
 
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
+
             self._backend.interface.publish_partial_history(
-                row, step, flush=commit, publish_step=not_using_tensorboard,
+                row,
+                user_step=self._step,
+                step=step,
+                flush=commit,
+                publish_step=not_using_tensorboard and not self._ignore_step(),
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1090,7 +1103,7 @@ class Run:
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self.history_step = self.starting_step
+        self._step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             "user",
@@ -1159,6 +1172,11 @@ class Run:
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
         if step is not None:
+            if self._ignore_step():
+                wandb.termwarn(
+                    "Step cannot be set when using run in multiple processes. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
             # if step is passed in when tensorboard_sync is used we honor the step passed
             # to make decisions about how to close out the history record, but will strip
             # this history later on in publish_history()
@@ -1168,29 +1186,20 @@ class Run:
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
-            if self.history_step > step:
+            # TODO add similar flag for attach (like using_tensorboard)
+            if self._step > step:
                 wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history_step, data
-                        )
-                    )
+                    "Step must only increase in log calls.  Step {step} < {self._step}; dropping {data}."
                 )
                 return
-            elif step > self.history_step:
-                self._partial_history_callback(
-                    {}, self.history_step, commit=True,
-                )
-                self.history_step = step
+            elif step > self._step:
+                self._step = step
         elif commit is None:  # step is None and commit is None
-            commit = True
+            self._step += 1
+        elif commit:
+            self._step += 1
 
-        if commit:
-            self._partial_history_callback(data, self.history_step, commit=True)
-            self.history_step += 1
-        else:
-            self._partial_history_callback(data, self.history_step)
+        self._partial_history_callback(data, step, commit)
 
     def log(
         self,
@@ -1746,7 +1755,7 @@ class Run:
 
         # make sure all uncommitted history is flushed
         self._partial_history_callback(
-            {}, self.history_step, commit=True,
+            {}, self._step, commit=True,
         )
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging

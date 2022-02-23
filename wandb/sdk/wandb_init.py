@@ -691,7 +691,7 @@ def _attach(
         manager._inform_attach(attach_id=attach_id)
 
     settings: Settings = copy.copy(_wl._settings)
-    settings.update(run_id=attach_id, source=Source.INIT)
+    settings.update(dict(run_id=attach_id, _attached_run=True), source=Source.INIT)
 
     # TODO: consolidate this codepath with wandb.init()
     backend = Backend(settings=settings, manager=manager)

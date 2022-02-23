@@ -353,6 +353,7 @@ class Settings:
     # settings are declared as class attributes for static type checking purposes
     # and to help with IDE autocomplete.
     _args: Sequence[str]
+    _attached_run: bool
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _config_dict: Config
     _console: SettingsConsole
@@ -470,6 +471,7 @@ class Settings:
         Note that key names must be the same as the class attribute names.
         """
         return dict(
+            _attached_run={"value": False},
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},

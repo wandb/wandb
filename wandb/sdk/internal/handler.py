@@ -495,12 +495,30 @@ class HandleManager(object):
             self._partial_history = {}
 
     def handle_request_partial_history(self, record: Record) -> None:
-        history_dict = proto_util.dict_from_proto_list(
-            record.request.partial_history.item
-        )
+        partial_history = record.request.partial_history
+
+        flush = None
+        if partial_history.HasField("action"):
+            flush = partial_history.action.flush
+
+        step = None
+        if partial_history.HasField("step"):
+            step = partial_history.step.num
+
+        history_dict = proto_util.dict_from_proto_list(partial_history.item)
+
+        if step is not None:
+            if step < self._step:
+                logger.warning(f"Step {step} < {self._step}; dropping {history_dict}.")
+                return
+            elif step > self._step:
+                self._flush_partial_history()
+        elif flush is None:
+            flush = True
+
         self._partial_history.update(history_dict)
 
-        if record.request.partial_history.action.flush:
+        if flush:
             self._flush_partial_history(record.request.partial_history)
 
     def handle_summary(self, record: Record) -> None:
