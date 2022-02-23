@@ -11,13 +11,12 @@ The result is:
 - 4 runs created
 - indeterminate history logged for all 4 runs
 - indeterminate exit status for 3 non faulted run
-- no exit status for the faulted run 
+- no exit status for the faulted run
 - program exit code of non-zero
 """
 
 import multiprocessing as mp
 import shutil
-import time
 from typing import List
 
 import wandb
@@ -67,7 +66,7 @@ def main():
         proc_q = mp.Queue()
         p = mp.Process(target=process_child, kwargs=dict(n=n, main_q=main_q, proc_q=proc_q))
         workers.append((p, main_q, proc_q))
-       
+
     for p, _, _ in workers:
         p.start()
 
@@ -81,7 +80,7 @@ def main():
     main_sync(workers)
 
     for p, _, _ in workers:
-       p.join()
+        p.join()
 
     print("done")
 
