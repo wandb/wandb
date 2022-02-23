@@ -3,6 +3,12 @@
 
 ---
 id: 0.core.01-without-finish
+tag:
+  platforms:
+    - win
+    - linux
+  skips:
+    - platform: mac
 plugin:
   - wandb
 assert:

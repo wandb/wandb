@@ -1165,6 +1165,7 @@ class Request(google.protobuf.message.Message):
     RESUME_FIELD_NUMBER: builtins.int
     POLL_EXIT_FIELD_NUMBER: builtins.int
     SAMPLED_HISTORY_FIELD_NUMBER: builtins.int
+    PARTIAL_HISTORY_FIELD_NUMBER: builtins.int
     RUN_START_FIELD_NUMBER: builtins.int
     CHECK_VERSION_FIELD_NUMBER: builtins.int
     LOG_ARTIFACT_FIELD_NUMBER: builtins.int
@@ -1202,6 +1203,9 @@ class Request(google.protobuf.message.Message):
 
     @property
     def sampled_history(self) -> global___SampledHistoryRequest: ...
+
+    @property
+    def partial_history(self) -> global___PartialHistoryRequest: ...
 
     @property
     def run_start(self) -> global___RunStartRequest: ...
@@ -1244,6 +1248,7 @@ class Request(google.protobuf.message.Message):
         resume : typing.Optional[global___ResumeRequest] = ...,
         poll_exit : typing.Optional[global___PollExitRequest] = ...,
         sampled_history : typing.Optional[global___SampledHistoryRequest] = ...,
+        partial_history : typing.Optional[global___PartialHistoryRequest] = ...,
         run_start : typing.Optional[global___RunStartRequest] = ...,
         check_version : typing.Optional[global___CheckVersionRequest] = ...,
         log_artifact : typing.Optional[global___LogArtifactRequest] = ...,
@@ -1255,9 +1260,9 @@ class Request(google.protobuf.message.Message):
         status : typing.Optional[global___StatusRequest] = ...,
         test_inject : typing.Optional[global___TestInjectRequest] = ...,
         ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"request_type",b"request_type"]) -> typing_extensions.Literal["stop_status","network_status","defer","get_summary","login","pause","resume","poll_exit","sampled_history","run_start","check_version","log_artifact","artifact_send","artifact_poll","artifact_done","shutdown","attach","status","test_inject"]: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"artifact_done",b"artifact_done",u"artifact_poll",b"artifact_poll",u"artifact_send",b"artifact_send",u"attach",b"attach",u"check_version",b"check_version",u"defer",b"defer",u"get_summary",b"get_summary",u"log_artifact",b"log_artifact",u"login",b"login",u"network_status",b"network_status",u"partial_history",b"partial_history",u"pause",b"pause",u"poll_exit",b"poll_exit",u"request_type",b"request_type",u"resume",b"resume",u"run_start",b"run_start",u"sampled_history",b"sampled_history",u"shutdown",b"shutdown",u"status",b"status",u"stop_status",b"stop_status",u"test_inject",b"test_inject"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal[u"request_type",b"request_type"]) -> typing_extensions.Literal["stop_status","network_status","defer","get_summary","login","pause","resume","poll_exit","sampled_history","partial_history","run_start","check_version","log_artifact","artifact_send","artifact_poll","artifact_done","shutdown","attach","status","test_inject"]: ...
 global___Request = Request
 
 class Response(google.protobuf.message.Message):
@@ -1352,26 +1357,28 @@ class DeferRequest(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor = ...
         BEGIN = DeferRequest.DeferState.V(0)
         FLUSH_STATS = DeferRequest.DeferState.V(1)
-        FLUSH_TB = DeferRequest.DeferState.V(2)
-        FLUSH_SUM = DeferRequest.DeferState.V(3)
-        FLUSH_DEBOUNCER = DeferRequest.DeferState.V(4)
-        FLUSH_DIR = DeferRequest.DeferState.V(5)
-        FLUSH_FP = DeferRequest.DeferState.V(6)
-        FLUSH_FS = DeferRequest.DeferState.V(7)
-        FLUSH_FINAL = DeferRequest.DeferState.V(8)
-        END = DeferRequest.DeferState.V(9)
+        FLUSH_PARTIAL_HISTORY = DeferRequest.DeferState.V(2)
+        FLUSH_TB = DeferRequest.DeferState.V(3)
+        FLUSH_SUM = DeferRequest.DeferState.V(4)
+        FLUSH_DEBOUNCER = DeferRequest.DeferState.V(5)
+        FLUSH_DIR = DeferRequest.DeferState.V(6)
+        FLUSH_FP = DeferRequest.DeferState.V(7)
+        FLUSH_FS = DeferRequest.DeferState.V(8)
+        FLUSH_FINAL = DeferRequest.DeferState.V(9)
+        END = DeferRequest.DeferState.V(10)
     class DeferState(metaclass=_DeferState):
         V = typing.NewType('V', builtins.int)
     BEGIN = DeferRequest.DeferState.V(0)
     FLUSH_STATS = DeferRequest.DeferState.V(1)
-    FLUSH_TB = DeferRequest.DeferState.V(2)
-    FLUSH_SUM = DeferRequest.DeferState.V(3)
-    FLUSH_DEBOUNCER = DeferRequest.DeferState.V(4)
-    FLUSH_DIR = DeferRequest.DeferState.V(5)
-    FLUSH_FP = DeferRequest.DeferState.V(6)
-    FLUSH_FS = DeferRequest.DeferState.V(7)
-    FLUSH_FINAL = DeferRequest.DeferState.V(8)
-    END = DeferRequest.DeferState.V(9)
+    FLUSH_PARTIAL_HISTORY = DeferRequest.DeferState.V(2)
+    FLUSH_TB = DeferRequest.DeferState.V(3)
+    FLUSH_SUM = DeferRequest.DeferState.V(4)
+    FLUSH_DEBOUNCER = DeferRequest.DeferState.V(5)
+    FLUSH_DIR = DeferRequest.DeferState.V(6)
+    FLUSH_FP = DeferRequest.DeferState.V(7)
+    FLUSH_FS = DeferRequest.DeferState.V(8)
+    FLUSH_FINAL = DeferRequest.DeferState.V(9)
+    END = DeferRequest.DeferState.V(10)
 
     STATE_FIELD_NUMBER: builtins.int
     state: global___DeferRequest.DeferState.V = ...
@@ -1809,6 +1816,55 @@ class TestInjectResponse(google.protobuf.message.Message):
     def __init__(self,
         ) -> None: ...
 global___TestInjectResponse = TestInjectResponse
+
+class HistoryAction(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    FLUSH_FIELD_NUMBER: builtins.int
+    flush: builtins.bool = ...
+
+    def __init__(self,
+        *,
+        flush : builtins.bool = ...,
+        ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"flush",b"flush"]) -> None: ...
+global___HistoryAction = HistoryAction
+
+class PartialHistoryRequest(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+    ITEM_FIELD_NUMBER: builtins.int
+    STEP_FIELD_NUMBER: builtins.int
+    ACTION_FIELD_NUMBER: builtins.int
+    _INFO_FIELD_NUMBER: builtins.int
+
+    @property
+    def item(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___HistoryItem]: ...
+
+    @property
+    def step(self) -> global___HistoryStep: ...
+
+    @property
+    def action(self) -> global___HistoryAction: ...
+
+    @property
+    def _info(self) -> wandb.proto.wandb_base_pb2._RequestInfo: ...
+
+    def __init__(self,
+        *,
+        item : typing.Optional[typing.Iterable[global___HistoryItem]] = ...,
+        step : typing.Optional[global___HistoryStep] = ...,
+        action : typing.Optional[global___HistoryAction] = ...,
+        _info : typing.Optional[wandb.proto.wandb_base_pb2._RequestInfo] = ...,
+        ) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"action",b"action",u"step",b"step"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal[u"_info",b"_info",u"action",b"action",u"item",b"item",u"step",b"step"]) -> None: ...
+global___PartialHistoryRequest = PartialHistoryRequest
+
+class PartialHistoryResponse(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
+
+    def __init__(self,
+        ) -> None: ...
+global___PartialHistoryResponse = PartialHistoryResponse
 
 class SampledHistoryRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor = ...
