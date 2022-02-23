@@ -421,6 +421,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
                 "in a future release in favor of the SavedModel format. Meanwhile, the HDF5 model is saved "
                 "as W&B files and the SavedModel as W&B Artifacts."
             )
+            self.save_model_as_artifact = True
+        else:
+            self.save_model_as_artifact = False
 
         self.log_weights = log_weights
         self.log_gradients = log_gradients
@@ -983,8 +986,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
             self.save_model = False
         finally:
             # Save the model in the SavedModel format
-            self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
-            self.save_model_as_artifact = True
+            self.model.save(self.filepath[:-3], overwrite=True, save_format='tf')
 
     def _save_model_as_artifact(self):
         if wandb.run.disabled:
