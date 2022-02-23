@@ -1,8 +1,8 @@
 from __future__ import absolute_import
 
 import requests
-from graphql.execution import ExecutionResult
-from graphql.language.printer import print_ast
+from wandb_graphql.execution import ExecutionResult
+from wandb_graphql.language.printer import print_ast
 
 from .http import HTTPTransport
 

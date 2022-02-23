@@ -23,9 +23,6 @@ import time
 from typing import Optional
 
 from dateutil.relativedelta import relativedelta
-from gql import Client, gql
-from gql.client import RetryError
-from gql.transport.requests import RequestsHTTPTransport
 import requests
 import six
 from six.moves import urllib
@@ -39,6 +36,9 @@ from wandb.errors.term import termlog
 from wandb.old.summary import HTTPSummary
 from wandb.sdk.interface import artifacts
 from wandb.sdk.lib import ipython, retry
+from wandb_gql import Client, gql
+from wandb_gql.client import RetryError
+from wandb_gql.transport.requests import RequestsHTTPTransport
 
 
 logger = logging.getLogger(__name__)

@@ -398,6 +398,9 @@ class SendManager:
         elif state == defer.FLUSH_STATS:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
+        elif state == defer.FLUSH_PARTIAL_HISTORY:
+            # NOTE: this is handled in handler.py:handle_request_defer()
+            transition_state()
         elif state == defer.FLUSH_TB:
             # NOTE: this is handled in handler.py:handle_request_defer()
             transition_state()
