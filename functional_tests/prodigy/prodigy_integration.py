@@ -8,6 +8,9 @@ command:
   timeout: 300
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 depend:
   requirements:
     - spacy>=3.0.0,<4.0.0

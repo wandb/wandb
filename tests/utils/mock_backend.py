@@ -49,6 +49,7 @@ class BackendMock(object):
         self.interface = None
         self.last_queued = None
         self.history = []
+        self.partial_history = {}
         self.summary = {}
         self.config = {}
         self.files = {}
@@ -79,6 +80,14 @@ class BackendMock(object):
         return d
 
     def _publish(self, rec):
+        if rec.request.WhichOneof("request_type") == "partial_history":
+            if len(rec.request.partial_history.item) > 0:
+                hist = self._proto_to_dict(rec.request.partial_history.item)
+                hist["_step"] = rec.request.partial_history.step.num
+                self.partial_history.update(hist)
+            if self.partial_history and rec.request.partial_history.action.flush:
+                self.history.append(self.partial_history)
+                self.partial_history = {}
         if len(rec.history.item) > 0:
             hist = self._proto_to_dict(rec.history.item)
             # handle case where step is not passed in items

@@ -62,7 +62,7 @@ _not_importable = set()
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
 IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
-RE_WINFNAMES = re.compile('[<>:"/?*]')
+RE_WINFNAMES = re.compile(r'[<>:"\\?*]')
 
 # these match the environments for gorilla
 if IS_GIT:
@@ -1435,7 +1435,6 @@ def artifact_to_json(
 ) -> Dict[str, Any]:
     # public.Artifact has the _sequence name, instances of wandb.Artifact
     # just have the name
-
     if hasattr(artifact, "_sequence_name"):
         sequence_name = artifact._sequence_name  # type: ignore
     else:
@@ -1460,6 +1459,7 @@ def check_dict_contains_nested_artifact(d: dict, nested: bool = False) -> bool:
         elif (
             isinstance(item, wandb.Artifact)
             or isinstance(item, wandb.apis.public.Artifact)
+            or _is_artifact_string(item)
         ) and nested:
             return True
     return False
@@ -1474,3 +1474,38 @@ def load_as_json_file_or_load_dict_as_json(config: str) -> Any:
             return json.loads(config)
         except ValueError:
             return None
+
+
+def _is_artifact(v: Any) -> bool:
+    return isinstance(v, wandb.Artifact) or isinstance(v, wandb.apis.public.Artifact)
+
+
+def _is_artifact_string(v: Any) -> bool:
+    return isinstance(v, six.string_types) and v.startswith("wandb-artifact://")
+
+
+def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
+    if not v.startswith("wandb-artifact://"):
+        raise ValueError(f"Invalid artifact string: {v}")
+    parsed_v = v[len("wandb-artifact://") :]
+    base_uri = None
+    url_info = urllib.parse.urlparse(parsed_v)
+    if url_info.scheme != "":
+        base_uri = f"{url_info.scheme}://{url_info.netloc}"
+        parts = url_info.path.split("/")[1:]
+    else:
+        parts = parsed_v.split("/")
+    if parts[0] == "_id":
+        # for now can't fetch paths but this will be supported in the future
+        # when we allow passing typed media objects, this can be extended
+        # to include paths
+        return parts[1], base_uri
+
+    if len(parts) < 3:
+        raise ValueError(f"Invalid artifact string: {v}")
+
+    # for now can't fetch paths but this will be supported in the future
+    # when we allow passing typed media objects, this can be extended
+    # to include paths
+    entity, project, name_and_alias_or_version = parts[:3]
+    return f"{entity}/{project}/{name_and_alias_or_version}", base_uri

@@ -5,7 +5,6 @@ import subprocess
 from typing import Any, Dict, Optional
 
 import wandb
-from wandb.errors import CommError
 
 from .abstract import AbstractRun, AbstractRunner, Status
 from .._project_spec import LaunchProject
@@ -102,17 +101,8 @@ class LocalRunner(AbstractRunner):
                 runner_type="local",
             )
 
-        if self.backend_config.get("runQueueItemId"):
-            try:
-                _logger.info("Acking run queue item...")
-                self._api.ack_run_queue_item(
-                    self.backend_config["runQueueItemId"], launch_project.run_id
-                )
-            except CommError:
-                wandb.termerror(
-                    "Error acking run queue item. Item lease may have ended or another process may have acked it."
-                )
-                return None
+        if not self.ack_run_queue_item(launch_project):
+            return None
 
         command_str = " ".join(get_docker_command(image_uri, docker_args))
         wandb.termlog(

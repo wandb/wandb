@@ -1,6 +1,9 @@
 id: 0.catboost.01-regression
 plugin:
   - wandb
+tag:
+  skips:
+    - platform: win
 command:
     program: 01-regression.py
 depend:
