@@ -1,5 +1,4 @@
-torch  # required by one of the following packages
-git+https://github.com/facebookresearch/detectron2.git
+git+https://github.com/facebookresearch/detectron2.git#egg=detectron2
 # detr
 # easyocr
 elegy

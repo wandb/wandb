@@ -9,8 +9,13 @@ plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
+  pip_install_options:
+    - -f
+    - https://download.pytorch.org/whl/cpu/torch_stable.html
+    - -qq
   requirements:
-    - "-r 02-batch2-requirements.txt"
+    - torch
+    - -r 02-batch2-requirements.txt
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
