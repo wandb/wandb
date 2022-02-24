@@ -1,13 +1,12 @@
 import os
 import random
 
-import wandb
-from kubernetes.client.models import V1EnvVar
-from wandb.integration.kfp import wandb_log
-
 import kfp
-import kfp.dsl as dsl
 from kfp import components
+import kfp.dsl as dsl
+from kubernetes.client.models import V1EnvVar
+import wandb
+from wandb.integration.kfp import wandb_log
 
 
 def add_wandb_env_variables(op):
@@ -24,8 +23,8 @@ def add_wandb_env_variables(op):
 
 @wandb_log
 def setup_data(
-    train_dataset_path: components.OutputPath("tensor"),
-    test_dataset_path: components.OutputPath("tensor"),
+    train_dataset_path: components.OutputPath("tensor"),  # noqa: F821
+    test_dataset_path: components.OutputPath("tensor"),  # noqa: F821
 ):
     import torch
     from torchvision import datasets, transforms
@@ -46,10 +45,10 @@ def setup_data(
 
 @wandb_log
 def setup_dataloaders(
-    train_dataset_path: components.InputPath("tensor"),
-    test_dataset_path: components.InputPath("tensor"),
-    train_dataloader_path: components.OutputPath("dataloader"),
-    test_dataloader_path: components.OutputPath("dataloader"),
+    train_dataset_path: components.InputPath("tensor"),  # noqa: F821
+    test_dataset_path: components.InputPath("tensor"),  # noqa: F821
+    train_dataloader_path: components.OutputPath("dataloader"),  # noqa: F821
+    test_dataloader_path: components.OutputPath("dataloader"),  # noqa: F821
     batch_size: int = 32,
 ):
     import torch
@@ -72,9 +71,9 @@ def setup_dataloaders(
 
 @wandb_log
 def train_model(
-    train_dataloader_path: components.InputPath("dataloader"),
-    test_dataloader_path: components.InputPath("dataloader"),
-    model_path: components.OutputPath("pytorch_model"),
+    train_dataloader_path: components.InputPath("dataloader"),  # noqa: F821
+    test_dataloader_path: components.InputPath("dataloader"),  # noqa: F821
+    model_path: components.OutputPath("pytorch_model"),  # noqa: F821
     seed: int = 1337,
     use_cuda: bool = False,
     lr: float = 1.0,
@@ -86,7 +85,7 @@ def train_model(
 ):
     import torch
     import torch.nn as nn
-    import torch.nn.functional as F
+    import torch.nn.functional as F  # noqa: N812
     import torch.optim as optim
     from torch.optim.lr_scheduler import StepLR
 
@@ -203,7 +202,7 @@ def testing_pipeline(seed, save_model):
         setup_data_task.outputs["test_dataset"],
         batch_size=32,
     )
-    train_model_task = train_model(
+    train_model_task = train_model(  # noqa: F841
         setup_dataloaders_task.outputs["train_dataloader"],
         setup_dataloaders_task.outputs["test_dataloader"],
         save_model=save_model,

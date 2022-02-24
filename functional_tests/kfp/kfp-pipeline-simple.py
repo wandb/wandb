@@ -1,13 +1,11 @@
 import os
 import random
 
-import wandb
+import kfp
+from kfp import components
+import kfp.dsl as dsl
 from kubernetes.client.models import V1EnvVar
 from wandb.integration.kfp import wandb_log
-
-import kfp
-import kfp.dsl as dsl
-from kfp import components
 
 
 def add_wandb_env_variables(op):
@@ -35,7 +33,7 @@ def testing_pipeline(seed: int, a: float, b: float):
     conf = dsl.get_pipeline_conf()
     conf.add_op_transformer(add_wandb_env_variables)
     add_task = add(a, b)
-    add_task2 = add(add_task.output, add_task.output)
+    add_task2 = add(add_task.output, add_task.output)  # noqa: F841
 
 
 client = kfp.Client()

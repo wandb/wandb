@@ -2,13 +2,11 @@ import os
 import random
 from typing import NamedTuple
 
-import wandb
+import kfp
+from kfp import components
+import kfp.dsl as dsl
 from kubernetes.client.models import V1EnvVar
 from wandb.integration.kfp import wandb_log
-
-import kfp
-import kfp.dsl as dsl
-from kfp import components
 
 
 def add_wandb_env_variables(op):
@@ -25,18 +23,18 @@ def add_wandb_env_variables(op):
 
 @wandb_log
 def preprocess_data(
-    X_train_path: components.OutputPath("np_array"),
-    X_test_path: components.OutputPath("np_array"),
-    y_train_path: components.OutputPath("np_array"),
-    y_test_path: components.OutputPath("np_array"),
+    X_train_path: components.OutputPath("np_array"),  # noqa: F821,N803
+    X_test_path: components.OutputPath("np_array"),  # noqa: F821,N803
+    y_train_path: components.OutputPath("np_array"),  # noqa: F821
+    y_test_path: components.OutputPath("np_array"),  # noqa: F821
     seed: int = 1337,
 ):
     import numpy as np
     from sklearn import datasets
     from sklearn.model_selection import train_test_split
 
-    X, y = datasets.load_iris(return_X_y=True)
-    X_train, X_test, y_train, y_test = train_test_split(
+    X, y = datasets.load_iris(return_X_y=True)  # noqa: N806
+    X_train, X_test, y_train, y_test = train_test_split(  # noqa: N806
         X, y, test_size=0.2, random_state=seed
     )
 
@@ -55,16 +53,16 @@ def preprocess_data(
 
 @wandb_log
 def train_model(
-    X_train_path: components.InputPath("np_array"),
-    y_train_path: components.InputPath("np_array"),
-    model_path: components.OutputPath("sklearn_model"),
+    X_train_path: components.InputPath("np_array"),  # noqa: F821,N803
+    y_train_path: components.InputPath("np_array"),  # noqa: F821,N803
+    model_path: components.OutputPath("sklearn_model"),  # noqa: F821
 ):
     import joblib
     import numpy as np
     from sklearn.ensemble import RandomForestClassifier
 
     with open(X_train_path, "rb") as f:
-        X_train = np.load(f)
+        X_train = np.load(f)  # noqa: N806
 
     with open(y_train_path, "rb") as f:
         y_train = np.load(f)
@@ -77,9 +75,9 @@ def train_model(
 
 @wandb_log
 def test_model(
-    X_test_path: components.InputPath("np_array"),
-    y_test_path: components.InputPath("np_array"),
-    model_path: components.InputPath("sklearn_model"),
+    X_test_path: components.InputPath("np_array"),  # noqa: F821,N803
+    y_test_path: components.InputPath("np_array"),  # noqa: F821
+    model_path: components.InputPath("sklearn_model"),  # noqa: F821
 ) -> NamedTuple(
     "Output", [("accuracy", float), ("precision", float), ("recall", float)]
 ):
@@ -87,11 +85,11 @@ def test_model(
 
     import joblib
     import numpy as np
-    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.ensemble import RandomForestClassifier  # noqa: F401
     from sklearn.metrics import accuracy_score, precision_score, recall_score
 
     with open(X_test_path, "rb") as f:
-        X_test = np.load(f)
+        X_test = np.load(f)  # noqa: N806
 
     with open(y_test_path, "rb") as f:
         y_test = np.load(f)
@@ -130,7 +128,7 @@ def testing_pipeline(seed: int):
     train_model_task = train_model(
         preprocess_data_task.outputs["X_train"], preprocess_data_task.outputs["y_train"]
     )
-    test_model_task = test_model(
+    test_model_task = test_model(  # noqa: F841
         preprocess_data_task.outputs["X_test"],
         preprocess_data_task.outputs["y_test"],
         train_model_task.output,
