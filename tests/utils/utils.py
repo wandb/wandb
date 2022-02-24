@@ -1,6 +1,6 @@
+import io
 import os
 import shutil
-import six
 import socket
 from typing import Union
 
@@ -130,17 +130,20 @@ def mock_sagemaker(mocker):
 
     mocker.patch("wandb.util.os.path.exists", exists)
 
-    def magic(path, *args, **kwargs):
-        if path == config_path:
-            return six.StringIO('{"fuckin": "A"}')
-        elif path == resource_path:
-            return six.StringIO('{"hosts":["a", "b"]}')
-        elif path == secrets_path:
-            return six.StringIO("WANDB_TEST_SECRET=TRUE")
-        else:
-            return six.StringIO()
+    def magic_factory(original):
+        def magic(path, *args, **kwargs):
+            if path == config_path:
+                return io.StringIO('{"fuckin": "A"}')
+            elif path == resource_path:
+                return io.StringIO('{"hosts":["a", "b"]}')
+            elif path == secrets_path:
+                return io.StringIO("WANDB_TEST_SECRET=TRUE")
+            else:
+                return original(path, *args, **kwargs)
 
-    mocker.patch("builtins.open", magic, create=True)
+        return magic
+
+    mocker.patch("builtins.open", magic_factory(open), create=True)
     return env
 
 
@@ -155,7 +158,7 @@ def mock_k8s(mocker):
 
     def magic(path, *args, **kwargs):
         if path == token_path:
-            return six.StringIO("token")
+            return io.StringIO("token")
 
     mocker.patch("wandb.util.open", magic, create=True)
     mocker.patch("wandb.util.os.path.exists", exists)
