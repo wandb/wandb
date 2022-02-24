@@ -1,4 +1,3 @@
-torch  # required by one of the following packages
 # jax
 # keras
 # lightgbm
