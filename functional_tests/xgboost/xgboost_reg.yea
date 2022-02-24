@@ -14,7 +14,9 @@ assert:
   - :wandb:runs[0][summary][Feature Importance_table][_type]: table-file
   - :wandb:runs[0][summary][Feature Importance_table][ncols]: 2
   - :wandb:runs[0][summary][Feature Importance_table][nrows]: 7
-  - :wandb:runs[0][summary][best_score]: 0.573646
+  - :op:>:
+    - :wandb:runs[0][summary][best_score]
+    - 0.5
   - :wandb:runs[0][summary][best_iteration]: 99
   - :wandb:runs[0][summary][epoch]: 99
   - :op:>:
