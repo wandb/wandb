@@ -116,8 +116,6 @@ def test_k8s_failure(wandb_init_run):
 
 @pytest.mark.wandb_args(sagemaker=True)
 def test_sagemaker(wandb_init_run, git_repo):
-    # import pdb
-    # pdb.set_trace()
     assert wandb.config.fuckin == "A"
     assert wandb.run.id == "sage-maker"
     # TODO: add test for secret, but for now there is no env or setting for it
