@@ -79,7 +79,7 @@ from .lib.git import GitRepo
 from .lib.printer import get_printer
 from .lib.reporting import Reporter
 from .wandb_artifacts import Artifact
-from .wandb_settings import Settings, SettingsConsole, Source
+from .wandb_settings import Settings, SettingsConsole
 from .wandb_setup import _WandbSetup
 
 
