@@ -1,4 +1,6 @@
 id: kfp.pipeline.sklearn
+tag:
+    shard: kfp
 plugin:
   - wandb
 command:

@@ -211,7 +211,7 @@ workflows:
       #
       - kfp:
          name: "kubeflow pipelines tests"
-         toxenv: "func-s_kfp-py37,func-covercircle"
+         toxenv: "func-s_kfp-py37"
       #
       # sharded unittests
       #

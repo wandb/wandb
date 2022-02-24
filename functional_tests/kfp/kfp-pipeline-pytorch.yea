@@ -1,4 +1,6 @@
 id: kfp.pipeline.pytorch
+tag:
+    shard: kfp
 plugin:
   - wandb
 command:

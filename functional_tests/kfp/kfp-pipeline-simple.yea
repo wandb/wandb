@@ -1,4 +1,6 @@
 id: kfp.pipeline.simple
+tag:
+    shard: kfp
 plugin:
   - wandb
 command:
