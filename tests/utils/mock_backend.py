@@ -49,7 +49,7 @@ class BackendMock(object):
         self.interface = None
         self.last_queued = None
         self.history = []
-        self.partial_history = {}
+        self.partial_history = []
         self.summary = {}
         self.config = {}
         self.files = {}
@@ -110,7 +110,9 @@ class BackendMock(object):
         print("Fake Backend Launched")
         wandb_process = ProcessMock()
         self.interface = InterfaceQueue(
-            process=wandb_process, record_q=self.record_q, result_q=self.result_q,
+            process=wandb_process,
+            record_q=self.record_q,
+            result_q=self.result_q,
         )
         self.interface._communicate = self._communicate
         self.interface._orig_publish = self.interface._publish
