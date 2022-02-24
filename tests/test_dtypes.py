@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import os
 import sys
+import datetime
 
 from wandb.sdk.interface._dtypes import *
 
@@ -30,6 +31,30 @@ def test_number_type():
     assert TypeRegistry.type_of(1.2).assign(1) == NumberType()
     assert TypeRegistry.type_of(1.2).assign(None) == InvalidType()
     assert TypeRegistry.type_of(1.2).assign("hi") == InvalidType()
+
+
+def make_datetime():
+    return datetime.datetime(2000, 12, 1)
+
+
+def make_date():
+    return datetime.date(2000, 12, 1)
+
+
+def make_datetime64():
+    return np.datetime64("2000-12-01")
+
+
+def test_timestamp_type():
+    assert TypeRegistry.type_of(make_datetime()) == TimestampType()
+    assert (
+        TypeRegistry.type_of(make_datetime())
+        .assign(make_date())
+        .assign(make_datetime64())
+        == TimestampType()
+    )
+    assert TypeRegistry.type_of(make_datetime()).assign(None) == InvalidType()
+    assert TypeRegistry.type_of(make_datetime()).assign(1) == InvalidType()
 
 
 def test_boolean_type():
