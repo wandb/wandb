@@ -110,6 +110,8 @@ message Feature {
   bool catboost_log_summary = 28; // catboost log summary used
   bool tensorboard_log = 29; // wandb.tensorflow.log or wandb.tensorboard.log used
   bool estimator_hook = 30; // wandb.tensorflow.WandbHook used
+  bool xgboost_wandb_callback = 31; // xgboost callback used
+  bool xgboost_old_wandb_callback = 32; // xgboost old callback used (to be depreciated)
 }
 
 message Env {
