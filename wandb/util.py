@@ -200,7 +200,7 @@ def sentry_set_scope(
         # apply settings tags
         if s is not None:
             for tag in settings_tags:
-                if hasattr(s, tag) and getattr(s, tag) is not None:
+                if getattr(s, tag, None) is not None:
                     scope.set_tag(tag, getattr(s, tag))
 
             if hasattr(s, "_colab") and hasattr(s, "_jupyter"):
