@@ -6,7 +6,7 @@ import os
 import sys
 import datetime
 
-from wandb.sdk.interface._dtypes import *
+from wandb.sdk.data_types._dtypes import *
 
 class_labels = {1: "tree", 2: "car", 3: "road"}
 test_folder = os.path.dirname(os.path.realpath(__file__))

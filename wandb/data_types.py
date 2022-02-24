@@ -49,7 +49,7 @@ from wandb.sdk.data_types import (
     Video,
     WBValue,
 )
-from wandb.sdk.interface import _dtypes
+from wandb.sdk.data_types import _dtypes
 
 __all__ = [
     "Audio",

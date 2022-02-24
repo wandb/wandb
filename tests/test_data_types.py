@@ -1144,7 +1144,8 @@ def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
 def test_image_array_old_wandb(
     live_mock_server, test_settings, monkeypatch, capsys, parse_ctx
 ):
-    monkeypatch.setattr(wandb.sdk.data_types, "_get_max_cli_version", lambda: "0.10.33")
+    monkeypatch.setattr(wandb.sdk.data_types._common, "get_max_cli_version", lambda: "0.10.33")
+    monkeypatch.setattr(wandb.sdk.data_types, "get_max_cli_version", lambda: "0.10.33")
     run = wandb.init(settings=test_settings)
     im_count = 5
     wb_image = [wandb.Image(image) for i in range(im_count)]
