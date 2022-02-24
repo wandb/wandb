@@ -1091,6 +1091,29 @@ def test_fail_to_make_file(mocked_run):
         assert " is invalid. Please remove invalid filename characters" in str(e)
 
 
+def test_log_with_dir_sep_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+    run.log({"train/image": wb_image})
+    run.finish()
+    assert True
+
+
+def test_log_with_back_slash_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+
+    # windows doesnt allow a backslash in media keys right now
+    if platform.system() == "Windows":
+        with pytest.raises(ValueError):
+            run.log({"train\image": wb_image})
+    else:
+        run.log({"train\image": wb_image})
+
+    run.finish()
+    assert True
+
+
 runbindable_media = [
     wandb.Image(image, masks={"overlay": standard_mask}),
     wandb.data_types.ImageMask(
@@ -1116,3 +1139,20 @@ def test_media_keys_escaped_as_glob_for_publish(mocked_run, media):
     ]
     assert not any(weird_key in g for g in published_globs), published_globs
     assert any(glob.escape(weird_key) in g for g in published_globs), published_globs
+
+
+def test_image_array_old_wandb(
+    live_mock_server, test_settings, monkeypatch, capsys, parse_ctx
+):
+    monkeypatch.setattr(wandb.sdk.data_types, "_get_max_cli_version", lambda: "0.10.33")
+    run = wandb.init(settings=test_settings)
+    im_count = 5
+    wb_image = [wandb.Image(image) for i in range(im_count)]
+    run.log({"logged_images": wb_image})
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    outerr = capsys.readouterr()
+    assert "Unable to log image array filenames. In some cases, this can prevent images from being"
+    "viewed in the UI. Please upgrade your wandb server." in outerr.err
+    summary = ctx_util.summary
+    assert "filenames" not in list(summary["logged_images"].keys())

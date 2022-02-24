@@ -84,11 +84,13 @@ class _Manager:
     _token: _ManagerToken
     _atexit_lambda: Optional[Callable[[], None]]
     _hooks: Optional[ExitHooks]
+    _settings: "Settings"
 
-    def __init__(self, _use_grpc: bool = False) -> None:
+    def __init__(self, settings: "Settings", _use_grpc: bool = False) -> None:
         # TODO: warn if user doesnt have grpc installed
         from wandb.sdk.service import service
 
+        self._settings = settings
         self._atexit_lambda = None
         self._hooks = None
 
@@ -131,7 +133,9 @@ class _Manager:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
         self._inform_teardown(exit_code)
-        self._service.join()
+        result = self._service.join()
+        if result and not self._settings._jupyter:
+            os._exit(result)
 
     def _get_service(self) -> "service._Service":
         return self._service

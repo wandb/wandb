@@ -22,3 +22,7 @@ assert:
           - random field 0
           - random field 1
           - random field 2
+        filenames:
+          - media/images/examples_0_0.png
+          - media/images/examples_0_1.png
+          - media/images/examples_0_2.png

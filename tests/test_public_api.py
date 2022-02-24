@@ -16,11 +16,6 @@ from wandb import Api
 from tests import utils
 
 
-@pytest.fixture
-def api(runner):
-    return Api()
-
-
 def test_api_auto_login_no_tty(mocker):
     with pytest.raises(wandb.UsageError):
         Api()
