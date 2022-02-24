@@ -1,0 +1,7 @@
+id: kfp.pipeline.simple
+plugin:
+  - wandb
+command:
+  program: kfp-pipeline-simple.py
+assert:
+    - :wandb:runs_len: 2

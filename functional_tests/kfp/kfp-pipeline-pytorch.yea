@@ -1,0 +1,7 @@
+id: kfp.pipeline.pytorch
+plugin:
+  - wandb
+command:
+  program: kfp-pipeline-pytorch.py
+assert:
+    - :wandb:runs_len: 3

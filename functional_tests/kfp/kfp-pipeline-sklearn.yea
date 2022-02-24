@@ -1,0 +1,7 @@
+id: kfp.pipeline.sklearn
+plugin:
+  - wandb
+command:
+  program: kfp-pipeline-sklearn.py
+assert:
+    - :wandb:runs_len: 3
