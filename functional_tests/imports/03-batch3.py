@@ -2,15 +2,20 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.01-batch1
+id: 0.imports.03-batch3
 tag:
-  shard: imports1
+  shard: imports3
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
+  pip_install_options:
+    - -f
+    - https://download.pytorch.org/whl/cpu/torch_stable.html
+    - -qq
   requirements:
-    - "-r 01-batch1-requirements.txt"
+    - torch
+    - -r 03-batch3-requirements.txt
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -19,43 +24,43 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 14  # allennlp
+    - 34  # flash
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 15  # autogluon
+    - 35  # recbole
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 16  # autokeras
+    - 36  # optuna
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 18  # catalyst
+    - 37  # mmcv
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 7  # catboost
+    - 38  # mmdet
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 51  # datasets
+    - 48  # monai
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 21  # deepchem
+    - 39  # torchdrug
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 22  # deepctr
+    - 40  # torchtext
+  - :op:contains:
+    - :wandb:runs[0][telemetry][1]  # imports init
+    - 41  # torchvision
 """
 
 
-import allennlp  # noqa: F401
-import autogluon  # noqa: F401
-import autokeras  # noqa: F401
-# import avalanche
-import catalyst  # noqa: F401
-import catboost  # noqa: F401
-# import dalle_pytorch
-import datasets  # noqa: F401
-import deepchem  # noqa: F401
-import deepctr  # noqa: F401
-# import deeppavlov
-# import detectron
+import flash  # noqa: F401
+import mmcv  # noqa: F401
+import mmdet  # noqa: F401
+import monai  # noqa: F401
+import optuna  # noqa: F401
+import recbole  # noqa: F401
+import torchdrug  # noqa: F401
+import torchtext  # noqa: F401
+import torchvision  # noqa: F401
 import wandb
 
 run = wandb.init()
