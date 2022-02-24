@@ -5,6 +5,10 @@
 id: 0.debug.04-sentry-tags
 plugin:
   - wandb
+tag:
+  platforms:
+    - linux
+    - mac
 assert:
   - :wandb:runs_len: 1
   - :wandb:sentry_events[0][level]: error
