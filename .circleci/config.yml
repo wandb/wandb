@@ -395,7 +395,7 @@ jobs:
         - checkout
         - run:
               name: Install system deps
-              command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+              command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg net-tools
         - run:
               name: Use py37
               command: |
