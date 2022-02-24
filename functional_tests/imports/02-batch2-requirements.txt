@@ -1,3 +1,4 @@
+torch  # required by one of the following packages
 git+https://github.com/facebookresearch/detectron2.git
 # detr
 # easyocr
