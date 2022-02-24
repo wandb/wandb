@@ -105,11 +105,11 @@ class WandbCallback(xgb.callback.TrainingCallback):
         self.importance_type: str = importance_type
         self.define_metric: bool = define_metric
 
-        with wb_telemetry.context() as tel:
-            tel.feature.xgboost_wandb_callback = True
-
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
+
+        with wb_telemetry.context() as tel:
+            tel.feature.xgboost_wandb_callback = True
 
     def before_training(self, model: Booster) -> Booster:
         """Run before training is finished."""
