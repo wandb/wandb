@@ -27,4 +27,3 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
     - 31  # xgboost_wandb_callback
-  
