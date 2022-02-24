@@ -113,7 +113,8 @@ class _Service:
     def service_interface(self) -> ServiceInterface:
         return self._service_interface
 
-    def join(self) -> None:
+    def join(self) -> int:
+        ret = 0
         if self._internal_proc:
             ret = self._internal_proc.wait()
-            assert ret == 0
+        return ret

@@ -1091,6 +1091,29 @@ def test_fail_to_make_file(mocked_run):
         assert " is invalid. Please remove invalid filename characters" in str(e)
 
 
+def test_log_with_dir_sep_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+    run.log({"train/image": wb_image})
+    run.finish()
+    assert True
+
+
+def test_log_with_back_slash_windows(live_mock_server, test_settings):
+    run = wandb.init(settings=test_settings)
+    wb_image = wandb.Image(image)
+
+    # windows doesnt allow a backslash in media keys right now
+    if platform.system() == "Windows":
+        with pytest.raises(ValueError):
+            run.log({"train\image": wb_image})
+    else:
+        run.log({"train\image": wb_image})
+
+    run.finish()
+    assert True
+
+
 runbindable_media = [
     wandb.Image(image, masks={"overlay": standard_mask}),
     wandb.data_types.ImageMask(

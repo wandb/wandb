@@ -11,8 +11,47 @@ from unittest import mock
 
 import wandb
 from wandb import wandb_sdk
-from wandb.errors import UsageError
+from wandb.errors import LogMultiprocessError, UsageError
 from wandb.proto.wandb_internal_pb2 import RunPreemptingRecord
+
+
+def test_run_step_property(fake_run):
+    run = fake_run()
+    run.log(dict(this=1))
+    run.log(dict(that=2))
+
+    assert run.step == 2
+
+
+def test_deprecated_run_log_sync(fake_run, capsys):
+    run = fake_run()
+    run.log(dict(this=1), sync=True)
+    _, stderr = capsys.readouterr()
+    assert (
+        "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
+        in stderr
+    )
+
+
+def test_run_log_mp_warn(fake_run, capsys):
+    run = fake_run()
+    run._init_pid += 1
+    run.log(dict(this=1))
+    _, stderr = capsys.readouterr()
+    assert (
+        f"log() ignored (called from pid={os.getpid()}, init called from pid={run._init_pid})"
+        in stderr
+    )
+
+
+def test_run_log_mp_error(test_settings):
+    test_settings.update({"strict": True})
+    run = wandb.init(settings=test_settings)
+    run._init_pid += 1
+    with pytest.raises(LogMultiprocessError) as excinfo:
+        run.log(dict(this=1))
+        assert "log() does not support multiprocessing" in str(excinfo.value)
+    run.finish()
 
 
 def test_run_basic():
@@ -59,7 +98,7 @@ def test_run_pub_history(fake_run, record_q, records_util):
     r = records_util(record_q)
     assert len(r.records) == 2
     assert len(r.summary) == 0
-    history = r.history
+    history = r.history or r.partial_history
     assert len(history) == 2
     # TODO(jhr): check history vals
 
@@ -74,7 +113,7 @@ def test_numpy_high_precision_float_downcasting(fake_run, record_q, records_util
     r = records_util(record_q)
     assert len(r.records) == 1
     assert len(r.summary) == 0
-    history = r.history
+    history = r.history or r.partial_history
     assert len(history) == 1
 
     found = False
@@ -330,7 +369,7 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact._sequence_name,
-        "usedAs": "boom-data",
+        "usedAs": "dataset",
     }
 
     assert ctx.config_user["myarti"] == {
@@ -339,7 +378,7 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "id": artifact.id,
         "version": "v0",
         "sequenceName": artifact._sequence_name,
-        "usedAs": "boom-data",
+        "usedAs": "myarti",
     }
 
     assert ctx.config_user["logged_artifact"] == {
@@ -348,7 +387,7 @@ def test_artifacts_in_config(live_mock_server, test_settings, parse_ctx):
         "id": logged_artifact.id,
         "version": "v0",
         "sequenceName": logged_artifact.name.split(":")[0],
-        "usedAs": None,
+        "usedAs": "logged_artifact",
     }
 
 
@@ -362,6 +401,243 @@ def test_unlogged_artifact_in_config(live_mock_server, test_settings):
             == "Cannot json encode artifact before it has been logged or in offline mode."
         )
     run.finish()
+
+
+def test_artifact_string_run_config_init(live_mock_server, test_settings, parse_ctx):
+    config = {"dataset": "wandb-artifact://entity/project/boom-data"}
+    run = wandb.init(settings=test_settings, config=config)
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_run_config_set_item(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
+    run.config.dataset = (
+        f"wandb-artifact://{test_settings.base_url}/entity/project/boom-data"
+    )
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_digest_run_config_update(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
+    run.config.update({"dataset": "wandb-artifact://_id/abc123"})
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_digest_run_config_init(
+    live_mock_server, test_settings, parse_ctx
+):
+    config = {"dataset": "wandb-artifact://_id/abc123"}
+    run = wandb.init(settings=test_settings, config=config)
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_digest_run_config_set_item(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
+    run.config.dataset = f"wandb-artifact://{test_settings.base_url}/_id/abc123"
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_artifact_string_run_config_update(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    run = wandb.init(settings=test_settings)
+    run.config.update({"dataset": "wandb-artifact://entity/project/boom-data"})
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": run.config.dataset.id,
+        "version": "v0",
+        "sequenceName": run.config.dataset._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_public_artifact_run_config_init(
+    live_mock_server, test_settings, api, parse_ctx
+):
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    config = {"dataset": art}
+    run = wandb.init(settings=test_settings, config=config)
+    assert run.config.dataset == art
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": art.id,
+        "version": "v0",
+        "sequenceName": art._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_public_artifact_run_config_set_item(
+    live_mock_server, test_settings, api, parse_ctx
+):
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    run = wandb.init(settings=test_settings)
+    run.config.dataset = art
+    assert run.config.dataset == art
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": art.id,
+        "version": "v0",
+        "sequenceName": art._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_public_artifact_run_config_update(
+    live_mock_server, test_settings, api, parse_ctx
+):
+    art = api.artifact("entity/project/mnist:v0", type="dataset")
+    config = {"dataset": art}
+    run = wandb.init(settings=test_settings)
+    run.config.update(config)
+    assert run.config.dataset == art
+    run.finish()
+    ctx = parse_ctx(live_mock_server.get_ctx())
+    assert ctx.config_user["dataset"] == {
+        "_type": "artifactVersion",
+        "_version": "v0",
+        "id": art.id,
+        "version": "v0",
+        "sequenceName": art._sequence_name,
+        "usedAs": "dataset",
+    }
+
+
+def test_wandb_artifact_init_config(runner, live_mock_server, test_settings, parse_ctx):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        config = {"test_reference_download": artifact}
+        run = wandb.init(settings=test_settings, config=config)
+        assert run.config.test_reference_download == artifact
+        run.finish()
+        ctx = parse_ctx(live_mock_server.get_ctx())
+        assert ctx.config_user["test_reference_download"] == {
+            "_type": "artifactVersion",
+            "_version": "v0",
+            "id": artifact.id,
+            "version": "v0",
+            "sequenceName": artifact.name.split(":")[0],
+            "usedAs": "test_reference_download",
+        }
+
+
+def test_wandb_artifact_config_set_item(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run = wandb.init(settings=test_settings)
+        run.config.test_reference_download = artifact
+        assert run.config.test_reference_download == artifact
+        run.finish()
+        ctx = parse_ctx(live_mock_server.get_ctx())
+        assert ctx.config_user["test_reference_download"] == {
+            "_type": "artifactVersion",
+            "_version": "v0",
+            "id": artifact.id,
+            "version": "v0",
+            "sequenceName": artifact.name.split(":")[0],
+            "usedAs": "test_reference_download",
+        }
+
+
+def test_wandb_artifact_config_update(
+    runner, live_mock_server, test_settings, parse_ctx
+):
+    with runner.isolated_filesystem():
+        open("file1.txt", "w").write("hello")
+        artifact = wandb.Artifact("test_reference_download", "dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_reference(
+            "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav"
+        )
+        run = wandb.init(settings=test_settings)
+        run.config.update({"test_reference_download": artifact})
+
+        assert run.config.test_reference_download == artifact
+        run.finish()
+
+        ctx = parse_ctx(live_mock_server.get_ctx())
+        assert ctx.config_user["test_reference_download"] == {
+            "_type": "artifactVersion",
+            "_version": "v0",
+            "id": artifact.id,
+            "version": "v0",
+            "sequenceName": artifact.name.split(":")[0],
+            "usedAs": "test_reference_download",
+        }
 
 
 def test_deprecated_feature_telemetry(live_mock_server, test_settings, parse_ctx):
