@@ -60,6 +60,8 @@ wandb.sdk.wandb_require._import_module_hook()
 
 from wandb import wandb_torch
 
+from wandb.lab import workflows
+
 # Move this (keras.__init__ expects it at top level)
 from wandb.data_types import Graph
 from wandb.data_types import Image

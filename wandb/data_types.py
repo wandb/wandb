@@ -45,6 +45,7 @@ from wandb.sdk.data_types import (
     Molecule,
     Object3D,
     Plotly,
+    SavedModel,
     val_to_json,
     Video,
     WBValue,
@@ -63,6 +64,7 @@ __all__ = [
     "Classes",
     "Image",
     "Plotly",
+    "SavedModel",
     "history_dict_to_json",
     "val_to_json",
 ]
