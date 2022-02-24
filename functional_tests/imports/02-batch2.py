@@ -4,7 +4,7 @@
 ---
 id: 0.imports.02-batch2
 tag:
-  shard: imports
+  shard: imports2
 plugin:
   - wandb
 depend:
