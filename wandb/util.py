@@ -46,6 +46,7 @@ from typing import (
     Union,
 )
 import urllib
+from urllib.parse import quote
 
 import requests
 import sentry_sdk  # type: ignore
@@ -181,31 +182,54 @@ def sentry_set_scope(
     # Normally, we pull all tags from the passed-in settings object.
     # However, we also allow callers of this func to pass in arbitrary key-value
     # pairs as tags.
-    args = locals()
+    args = dict(locals())
     del args["settings_dict"]
 
     settings_tags = [
         "entity",
         "project",
         "run_id",
+        "run_url",
+        "sweep_url",
         "sweep_id",
         "deployment",
         "_require_service",
     ]
 
+    # convenience function for getting attr from settings obj
+    get = lambda s, key: getattr(s, key, None)
+
     s = settings_dict
+
     with sentry_sdk.hub.GLOBAL_HUB.configure_scope() as scope:
         scope.set_tag("platform", get_platform_name())
 
         # apply settings tags
         if s is not None:
             for tag in settings_tags:
-                if getattr(s, tag, None) is not None:
-                    scope.set_tag(tag, getattr(s, tag))
+                val = get(s, tag)
+                if val not in [None, ""]:
+                    scope.set_tag(tag, val)
 
-            
-            python_runtime = ("colab if getattr(s, "_colab", None) else ("jupyter" if getattr(s, "_jupyter", None) else "python"))
+            python_runtime = (
+                "colab"
+                if get(s, "_colab")
+                else ("jupyter" if get(s, "_jupyter") else "python")
+            )
             scope.set_tag("python_runtime", python_runtime)
+
+            # Hack for constructing run_url and sweep_url given run_id and sweep_id
+            required = ["entity", "project", "base_url"]
+            params = {key: get(s, key) for key in required}
+            if all(params.values()):
+                # now we're guaranteed that entity, project, base_url all have valid values
+                app_url = wandb.util.app_url(params["base_url"])
+                e, p = [quote(params[k]) for k in ["entity", "project"]]
+
+                for word in ["run", "sweep"]:
+                    _url, _id = f"{word}_url", f"{word}_id"
+                    if not get(s, _url) and get(s, _id):
+                        scope.set_tag(_url, f"{app_url}/{e}/{p}/{word}s/{get(s, _id)}")
 
             if hasattr(s, "email"):
                 scope.user = {"email": s.email}

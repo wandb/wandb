@@ -1101,9 +1101,6 @@ class Run:
         self._run_obj = run_obj
         self._entity = run_obj.entity
         self._project = run_obj.project
-        self._settings.update(
-            entity=run_obj.entity, project=run_obj.project, source=Source.INIT
-        )
         # Grab the config from resuming
         if run_obj.config:
             c_dict = config_util.dict_no_value_from_proto_list(run_obj.config.update)
