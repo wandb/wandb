@@ -26,6 +26,5 @@ var:
       - :item[config][id]: 3
 assert:
   - :wandb:runs_len: 4
+  - :run2[exitcode]: null
   - :yea:exit: 255
-# need to fix a bug in yea to allow us to find None
-# - :run2[exitcode]:
