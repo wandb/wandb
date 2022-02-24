@@ -46,8 +46,14 @@ import yaml
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
 if not os.path.exists(_wandb_dir):
     _wandb_dir = tempfile.gettempdir()
+
+# Create log file name with random element
+_, _wandb_log_path = tempfile.mkstemp(
+    dir=_wandb_dir, prefix="wandb-debug-cli-", suffix=".log"
+)
+
 logging.basicConfig(
-    filename=os.path.join(_wandb_dir, "debug-cli.log"),
+    filename=_wandb_log_path,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
