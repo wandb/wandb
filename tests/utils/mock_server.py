@@ -2110,4 +2110,11 @@ if __name__ == "__main__":
 
     app = create_app()
     app.logger.setLevel(logging.INFO)
-    app.run(debug=False, port=int(os.environ.get("PORT", 8547)))
+
+    # allow caller to bind to a specific hostaddr
+    mockserver_bind = os.environ.get("MOCKSERVER_BIND")
+    kwargs = {}
+    if mockserver_bind:
+        kwargs["host"] = mockserver_bind
+
+    app.run(debug=False, port=int(os.environ.get("PORT", 8547)), **kwargs)
