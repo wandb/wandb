@@ -67,8 +67,9 @@ def dummy_data(request):
 
 def graph_json(run_dir, summary):
     print(summary["graph"])
-    graph_path = summary["graph"]["path"]
-    return json.load(open(os.path.join(run_dir, graph_path)))
+    path = os.path.join(run_dir, summary["graph"]["path"])
+    with open(path) as fh:
+        return json.load(fh)
 
 
 def test_no_init():
