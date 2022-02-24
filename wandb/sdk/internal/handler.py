@@ -480,17 +480,15 @@ class HandleManager(object):
         if updated:
             self._save_summary(self._consolidated_summary)
 
-    def _flush_partial_history(
-        self, partial_history: Optional["PartialHistoryRequest"] = None,
-    ) -> None:
+    def _flush_partial_history(self, step: Optional[int] = None,) -> None:
         if self._partial_history:
             history = HistoryRecord()
             for k, v in self._partial_history.items():
                 item = history.item.add()
                 item.key = k
                 item.value_json = json.dumps(v)
-            if partial_history and partial_history.HasField("step"):
-                history.step.MergeFrom(partial_history.step)
+            if step is not None:
+                history.step.num = step
             self.handle_history(Record(history=history))
             self._partial_history = {}
 
@@ -506,20 +504,22 @@ class HandleManager(object):
             step = partial_history.step.num
 
         history_dict = proto_util.dict_from_proto_list(partial_history.item)
-
         if step is not None:
             if step < self._step:
-                logger.warning(f"Step {step} < {self._step}; dropping {history_dict}.")
+                logger.warning(
+                    f"Step {step} < {self._step}. Dropping entry: {history_dict}."
+                )
                 return
             elif step > self._step:
                 self._flush_partial_history()
+                self._step = step
         elif flush is None:
             flush = True
 
         self._partial_history.update(history_dict)
 
         if flush:
-            self._flush_partial_history(record.request.partial_history)
+            self._flush_partial_history(self._step)
 
     def handle_summary(self, record: Record) -> None:
         summary = record.summary

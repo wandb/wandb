@@ -1186,13 +1186,7 @@ class Run:
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
-            # TODO add similar flag for attach (like using_tensorboard)
-            if self._step > step:
-                wandb.termwarn(
-                    "Step must only increase in log calls.  Step {step} < {self._step}; dropping {data}."
-                )
-                return
-            elif step > self._step:
+            if step > self._step:
                 self._step = step
         elif commit is None:  # step is None and commit is None
             self._step += 1
@@ -1752,11 +1746,6 @@ class Run:
 
         if self._run_status_checker:
             self._run_status_checker.stop()
-
-        # make sure all uncommitted history is flushed
-        self._partial_history_callback(
-            {}, self._step, commit=True,
-        )
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
