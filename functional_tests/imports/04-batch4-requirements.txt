@@ -1,11 +1,11 @@
 # paddle
-parlai
-prophet
+# parlai
+# prophet
 pycaret
 pytorch-ignite
 pytorchvideo
-pytorch_lightning
-ray
+pytorch-lightning
+ray[tune]
 scikit-learn
 simpletransformers
 skorch

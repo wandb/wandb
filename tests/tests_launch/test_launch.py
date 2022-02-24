@@ -40,6 +40,24 @@ def mocked_fetchable_git_repo():
 
 
 @pytest.fixture
+def mocked_fetchable_git_repo_conda():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
+        with open(os.path.join(dst_dir, "environment.yml"), "w") as f:
+            f.write(fixture_open("environment.yml").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
 def mocked_fetchable_git_repo_ipython():
     m = mock.Mock()
 
@@ -48,6 +66,22 @@ def mocked_fetchable_git_repo_ipython():
             f.write(open(notebook_path("one_cell.ipynb"), "r").read())
         with open(os.path.join(dst_dir, "requirements.txt"), "w") as f:
             f.write(fixture_open("requirements.txt").read())
+        with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
+            f.write("test")
+        return mock.Mock()
+
+    m.Repo.init = mock.Mock(side_effect=populate_dst_dir)
+    with mock.patch.dict("sys.modules", git=m):
+        yield m
+
+
+@pytest.fixture
+def mocked_fetchable_git_repo_nodeps():
+    m = mock.Mock()
+
+    def populate_dst_dir(dst_dir):
+        with open(os.path.join(dst_dir, "train.py"), "w") as f:
+            f.write(fixture_open("train.py").read())
         with open(os.path.join(dst_dir, "patch.txt"), "w") as f:
             f.write("test")
         return mock.Mock()
@@ -158,7 +192,7 @@ def test_launch_base_case(
     )
 
     def mock_create_metadata_file(*args, **kwargs):
-        dockerfile_contents = args[2]
+        dockerfile_contents = args[4]
         assert "ENV WANDB_BASE_URL=https://api.wandb.ai" in dockerfile_contents
         assert f"ENV WANDB_API_KEY={api.api_key}" in dockerfile_contents
         assert "ENV WANDB_PROJECT=test" in dockerfile_contents
@@ -453,7 +487,7 @@ def test_launch_code_artifact(
     check_mock_run_info(mock_with_run_info, expected_config, kwargs)
 
 
-def test_run_in_launch_context_with_artifact_string_used_as_config(
+def test_run_in_launch_context_with_artifact_name_string_used_as_config(
     runner, live_mock_server, test_settings
 ):
     live_mock_server.set_ctx({"swappable_artifacts": True})
@@ -525,7 +559,7 @@ def test_run_in_launch_context_with_artifacts_api(
         assert arti_info["used_name"] == "old_name:v0"
         _, err = capsys.readouterr()
         assert (
-            "Swapping artifacts does not support swapping artifacts used as an instance of"
+            "Swapping artifacts is not supported when using an instance of `public.Artifact`."
             in err
         )
 
@@ -760,7 +794,6 @@ def test_launch_no_server_info(
         launch.run(
             "https://wandb.ai/mock_server_entity/test/runs/1", api, project=f"new-test",
         )
-        assert False
     except wandb.errors.LaunchError as e:
         assert "Run info is invalid or doesn't exist" in str(e)
 

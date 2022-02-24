@@ -8,6 +8,7 @@ matplotlib<3.5.2
 soundfile
 boto3
 google-cloud-storage
+google-cloud-aiplatform
 moviepy; python_version >= '3.5'
 imageio; python_version >= '3.5'
 ipython; python_version >= '3.5'

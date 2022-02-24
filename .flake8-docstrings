@@ -12,3 +12,4 @@ filename =
     ./wandb/integration/metaflow/metaflow.py
     ./wandb/integration/lightgbm/__init__.py
     ./wandb/sdk/internal/profiler.py
+    ./wandb/integration/xgboost/xgboost.py

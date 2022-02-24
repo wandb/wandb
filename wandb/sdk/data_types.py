@@ -81,8 +81,8 @@ def _get_max_cli_version() -> Union[str, None]:
 
 def _is_offline() -> bool:
     return (
-        wandb.run is not None and wandb.run._settings.mode == "offline"  # type: ignore
-    ) or str(wandb.setup().settings.mode) == "offline"
+        wandb.run is not None and wandb.run.settings._offline
+    ) or wandb.setup().settings._offline
 
 
 def _server_accepts_client_ids() -> bool:
@@ -104,6 +104,15 @@ def _server_accepts_client_ids() -> bool:
     if max_cli_version is None:
         return False
     return parse_version("0.11.0") <= parse_version(max_cli_version)
+
+
+def _server_accepts_image_filenames() -> bool:
+    # Newer versions of wandb accept large image filenames arrays
+    # but older versions would have issues with this.
+    max_cli_version = _get_max_cli_version()
+    if max_cli_version is None:
+        return False
+    return parse_version("0.12.10") <= parse_version(max_cli_version)
 
 
 class _WBValueArtifactSource(object):
@@ -484,6 +493,7 @@ class Media(WBValue):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
         """Bind this object to a particular Run.
 
@@ -531,7 +541,11 @@ class Media(WBValue):
             self._is_tmp = False
             _datatypes_callback(media_path)
         else:
-            shutil.copy(self._path, new_path)
+            try:
+                shutil.copy(self._path, new_path)
+            except shutil.SameFileError as e:
+                if not ignore_copy_err:
+                    raise e
             self._path = new_path
             _datatypes_callback(media_path)
 
@@ -1564,10 +1578,11 @@ class ImageMask(Media):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
-        super(ImageMask, self).bind_to_run(run, key, step, id_=id_)
+        super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         class_labels = self._val["class_labels"]
 
         run._add_singleton(
@@ -1854,10 +1869,11 @@ class BoundingBoxes2D(JSONMetadata):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
         # bind_to_run key argument is the Image parent key
         # the self._key value is the mask's sub key
-        super(BoundingBoxes2D, self).bind_to_run(run, key, step, id_=id_)
+        super().bind_to_run(run, key, step, id_=id_, ignore_copy_err=ignore_copy_err)
         run._add_singleton(
             "bounding_box/class_labels",
             str(key) + "_wandb_delimeter_" + self._key,
@@ -2269,17 +2285,22 @@ class Image(BatchableMedia):
         key: Union[int, str],
         step: Union[int, str],
         id_: Optional[Union[int, str]] = None,
+        ignore_copy_err: Optional[bool] = None,
     ) -> None:
-        super(Image, self).bind_to_run(run, key, step, id_)
+        super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._boxes[k].bind_to_run(run, key, step, id_)
+                self._boxes[k].bind_to_run(
+                    run, key, step, id_, ignore_copy_err=ignore_copy_err
+                )
 
         if self._masks is not None:
             for i, k in enumerate(self._masks):
                 id_ = "{}{}".format(id_, i) if id_ is not None else None
-                self._masks[k].bind_to_run(run, key, step, id_)
+                self._masks[k].bind_to_run(
+                    run, key, step, id_, ignore_copy_err=ignore_copy_err
+                )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_dict = super(Image, self).to_json(run_or_artifact)
@@ -2417,6 +2438,14 @@ class Image(BatchableMedia):
             "format": format,
             "count": num_images_to_log,
         }
+        if _server_accepts_image_filenames():
+            meta["filenames"] = [obj["path"] for obj in jsons]
+        else:
+            wandb.termwarn(
+                "Unable to log image array filenames. In some cases, this can prevent images from being"
+                "viewed in the UI. Please upgrade your wandb server",
+                repeat=False,
+            )
 
         captions = Image.all_captions(seq)
 
@@ -2590,7 +2619,10 @@ class Plotly(Media):
 
 
 def history_dict_to_json(
-    run: "Optional[LocalRun]", payload: dict, step: Optional[int] = None
+    run: "Optional[LocalRun]",
+    payload: dict,
+    step: Optional[int] = None,
+    ignore_copy_err: Optional[bool] = None,
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -2602,9 +2634,13 @@ def history_dict_to_json(
     for key in list(payload):
         val = payload[key]
         if isinstance(val, dict):
-            payload[key] = history_dict_to_json(run, val, step=step)
+            payload[key] = history_dict_to_json(
+                run, val, step=step, ignore_copy_err=ignore_copy_err
+            )
         else:
-            payload[key] = val_to_json(run, key, val, namespace=step)
+            payload[key] = val_to_json(
+                run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
+            )
 
     return payload
 
@@ -2615,6 +2651,7 @@ def val_to_json(
     key: str,
     val: "ValToJsonType",
     namespace: Optional[Union[str, int]] = None,
+    ignore_copy_err: Optional[bool] = None,
 ) -> Union[Sequence, dict]:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
@@ -2645,7 +2682,9 @@ def val_to_json(
             items = _prune_max_seq(val)
 
             for i, item in enumerate(items):
-                item.bind_to_run(run, key, namespace, id_=i)
+                item.bind_to_run(
+                    run, key, namespace, id_=i, ignore_copy_err=ignore_copy_err
+                )
 
             return items[0].seq_to_json(items, run, key, namespace)
         else:
@@ -2656,7 +2695,12 @@ def val_to_json(
             # This used to happen. The frontend doesn't handle heterogenous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
-            return [val_to_json(run, key, v, namespace=namespace) for v in val]
+            return [
+                val_to_json(
+                    run, key, v, namespace=namespace, ignore_copy_err=ignore_copy_err
+                )
+                for v in val
+            ]
 
     if isinstance(val, WBValue):
         assert run

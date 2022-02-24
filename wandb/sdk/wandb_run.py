@@ -43,7 +43,9 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_string,
     add_import_hook,
+    parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
 )
@@ -56,7 +58,6 @@ from wandb.viz import (
 
 from . import wandb_artifacts
 from . import wandb_config
-from . import wandb_history
 from . import wandb_metric
 from . import wandb_summary
 from .interface.artifacts import Artifact as ArtifactInterface
@@ -296,6 +297,7 @@ class Run:
     _iface_port: Optional[int]
 
     _attach_id: Optional[str]
+    _settings: Settings
 
     def __init__(
         self,
@@ -305,6 +307,7 @@ class Run:
     ) -> None:
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
+        self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(settings)
         self._backend = None
         self._internal_run_interface = None
@@ -312,8 +315,8 @@ class Run:
             self._summary_get_current_summary_callback,
         )
         self.summary._set_update_callback(self._summary_update_callback)
-        self.history = wandb_history.History(self)
-        self.history._set_callback(self._history_callback)
+        self.history_step = 0
+        self._torch_history: Optional["wandb.wandb_torch.TorchHistory"] = None
 
         _datatypes_set_callback(self._datatypes_callback)
 
@@ -351,7 +354,10 @@ class Run:
         self._quiet = self._settings.quiet
 
         self._output_writer = None
-        self._used_artifact_slots: List[str] = []
+        self._upgraded_version_message = None
+        self._deleted_version_message = None
+        self._yanked_version_message = None
+        self._used_artifact_slots: Dict[str, str] = {}
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -563,6 +569,12 @@ class Run:
         self._attach_id = _attach_id
 
     @property
+    def _torch(self) -> "wandb.wandb_torch.TorchHistory":
+        if self._torch_history is None:
+            self._torch_history = wandb.wandb_torch.TorchHistory()
+        return self._torch_history
+
+    @property
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
         cp = self._settings.copy()
@@ -697,7 +709,7 @@ class Run:
 
         This counter is incremented by `wandb.log`.
         """
-        return self.history._step
+        return self.history_step
 
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
@@ -964,6 +976,28 @@ class Run:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
+    def _config_artifact_callback(
+        self, key: str, val: Union[str, Artifact]
+    ) -> Union[Artifact, public.Artifact]:
+        if _is_artifact_string(val):
+            # this will never fail, but is required to make mypy happy
+            assert isinstance(val, str)
+            artifact_string, base_url = parse_artifact_string(val)
+            overrides = {}
+            if base_url is not None:
+                overrides = {"base_url": base_url}
+                public_api = public.Api(overrides)
+            else:
+                public_api = self._public_api()
+            artifact = public_api.artifact(name=artifact_string)
+            # in the future we'll need to support using artifacts from
+            # different instances of wandb. simplest way to do that is
+            # likely to convert the retrieved public.Artifact to a wandb.Artifact
+
+            return self.use_artifact(artifact, use_as=key)
+        else:
+            return self.use_artifact(val, use_as=key)
+
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
 
@@ -989,9 +1023,7 @@ class Run:
         files = dict(files=[(glob.escape(fname), "now")])
         self._backend.interface.publish_files(files)
 
-    # TODO(jhr): codemod add: PEP 3102 -- Keyword-Only Arguments
-    def _history_callback(self, row: Dict[str, Any], step: int) -> None:
-
+    def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
         # TODO(jhr): move visualize hack somewhere else
         custom_charts = {}
         for k in row:
@@ -1018,10 +1050,20 @@ class Run:
             panel_config = custom_chart_panel_config(custom_chart, k, table_key)
             self._add_panel(k, "Vega2", panel_config)
 
+        return row
+
+    def _partial_history_callback(
+        self, row: Dict[str, Any], step: int, commit: bool = False
+    ) -> None:
+        if row:
+            row = self._visualization_hack(row)
+            row["_timestamp"] = int(row.get("_timestamp", time.time()))
+            row["_runtime"] = int(row.get("_runtime", time.time() - self.start_time))
+
         if self._backend and self._backend.interface:
             not_using_tensorboard = len(wandb.patched["tensorboard"]) == 0
-            self._backend.interface.publish_history(
-                row, step, publish_step=not_using_tensorboard
+            self._backend.interface.publish_partial_history(
+                row, step, flush=commit, publish_step=not_using_tensorboard,
             )
 
     def _console_callback(self, name: str, data: str) -> None:
@@ -1076,7 +1118,7 @@ class Run:
             for orig in run_obj.summary.update:
                 summary_dict[orig.key] = json.loads(orig.value_json)
             self.summary.update(summary_dict)
-        self.history._update_step()
+        self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
             "user",
@@ -1118,12 +1160,72 @@ class Run:
             self.config["_wandb"][data_type][key] = value_extra
             self.config.persist()
 
+    def _log(
+        self,
+        data: Dict[str, Any],
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+    ) -> None:
+        if not self._settings._require_service:
+            current_pid = os.getpid()
+            if current_pid != self._init_pid:
+                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
+                    current_pid, self._init_pid
+                )
+                if self._settings.strict:
+                    wandb.termerror(message, repeat=False)
+                    raise errors.LogMultiprocessError(
+                        "log() does not support multiprocessing"
+                    )
+                wandb.termwarn(message, repeat=False)
+                return
+
+        if not isinstance(data, Mapping):
+            raise ValueError("wandb.log must be passed a dictionary")
+
+        if any(not isinstance(key, str) for key in data.keys()):
+            raise ValueError("Key values passed to `wandb.log` must be strings.")
+
+        if step is not None:
+            # if step is passed in when tensorboard_sync is used we honor the step passed
+            # to make decisions about how to close out the history record, but will strip
+            # this history later on in publish_history()
+            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
+            if using_tensorboard:
+                wandb.termwarn(
+                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
+                    repeat=False,
+                )
+            if self.history_step > step:
+                wandb.termwarn(
+                    (
+                        "Step must only increase in log calls.  "
+                        "Step {} < {}; dropping {}.".format(
+                            step, self.history_step, data
+                        )
+                    )
+                )
+                return
+            elif step > self.history_step:
+                self._partial_history_callback(
+                    {}, self.history_step, commit=True,
+                )
+                self.history_step = step
+        elif commit is None:  # step is None and commit is None
+            commit = True
+
+        if commit:
+            self._partial_history_callback(data, self.history_step, commit=True)
+            self.history_step += 1
+        else:
+            self._partial_history_callback(data, self.history_step)
+
     def log(
         self,
         data: Dict[str, Any],
-        step: int = None,
-        commit: bool = None,
-        sync: bool = None,
+        step: Optional[int] = None,
+        commit: Optional[bool] = None,
+        sync: Optional[bool] = None,
     ) -> None:
         """Logs a dictonary of data to the current run's history.
 
@@ -1296,55 +1398,14 @@ class Run:
             ValueError: if invalid data is passed
 
         """
-        if not self._settings._require_service:
-            current_pid = os.getpid()
-            if current_pid != self._init_pid:
-                message = "log() ignored (called from pid={}, init called from pid={}). See: https://docs.wandb.ai/library/init#multiprocess".format(
-                    current_pid, self._init_pid
-                )
-                if self._settings.strict:
-                    wandb.termerror(message, repeat=False)
-                    raise errors.LogMultiprocessError(
-                        "log() does not support multiprocessing"
-                    )
-                wandb.termwarn(message, repeat=False)
-                return
-
-        if not isinstance(data, Mapping):
-            raise ValueError("wandb.log must be passed a dictionary")
-
-        if any(not isinstance(key, str) for key in data.keys()):
-            raise ValueError("Key values passed to `wandb.log` must be strings.")
-
-        if step is not None:
-            # if step is passed in when tensorboard_sync is used we honor the step passed
-            # to make decisions about how to close out the history record, but will strip
-            # this history later on in publish_history()
-            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
-            if using_tensorboard:
-                wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
-                    repeat=False,
-                )
-            if self.history._step > step:
-                wandb.termwarn(
-                    (
-                        "Step must only increase in log calls.  "
-                        "Step {} < {}; dropping {}.".format(
-                            step, self.history._step, data
-                        )
-                    )
-                )
-                return
-            elif step > self.history._step:
-                self.history._flush()
-                self.history._step = step
-        elif commit is None:
-            commit = True
-        if commit:
-            self.history._row_add(data)
-        else:
-            self.history._row_update(data)
+        if sync is not None:
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__log_sync,
+                warning_message=(
+                    "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
+                ),
+            )
+        self._log(data=data, step=step, commit=commit)
 
     def save(
         self,
@@ -1631,24 +1692,28 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
         self._exit_code = exit_code
+        report_failure = False
         try:
             self._on_finish()
         except KeyboardInterrupt as ki:
             if wandb.wandb_agent._is_running():
                 raise ki
             wandb.termerror("Control-C detected -- Run data was not synced")
-            if ipython._get_python_type() == "python":
+            if not self._settings._jupyter:
                 os._exit(-1)
         except Exception as e:
+            if not self._settings._jupyter:
+                report_failure = True
             self._console_stop()
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
             traceback.print_exception(*sys.exc_info())
-            if ipython._get_python_type() == "python":
-                os._exit(-1)
         else:
             self._on_final()
+        finally:
+            if report_failure:
+                os._exit(-1)
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
@@ -1708,7 +1773,9 @@ class Run:
             self._run_status_checker.stop()
 
         # make sure all uncommitted history is flushed
-        self.history._flush()
+        self._partial_history_callback(
+            {}, self.history_step, commit=True,
+        )
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
@@ -1938,8 +2005,13 @@ class Run:
     def _detach(self) -> None:
         pass
 
-    # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
+    def use_artifact(
+        self,
+        artifact_or_name: Union[str, public.Artifact, Artifact],
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        use_as: Optional[str] = None,
+    ) -> Union[public.Artifact, Artifact]:
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -1961,15 +2033,8 @@ class Run:
         """
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-        if use_as:
-            if use_as in self._used_artifact_slots:
-                raise ValueError(
-                    "Cannot call use_artifact with the same use_as argument more than once"
-                )
-            elif ":" in use_as or "/" in use_as:
-                raise ValueError("use_as cannot contain special characters ':' or '/'")
-            self._used_artifact_slots.append(use_as)
         r = self._run_obj
+        assert r is not None
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
@@ -1987,6 +2052,19 @@ class Run:
                     )
                 )
             artifact._use_as = use_as or artifact_or_name
+            if use_as:
+                if (
+                    use_as in self._used_artifact_slots.keys()
+                    and self._used_artifact_slots[use_as] != artifact.id
+                ):
+                    raise ValueError(
+                        "Cannot call use_artifact with the same use_as argument more than once"
+                    )
+                elif ":" in use_as or "/" in use_as:
+                    raise ValueError(
+                        "use_as cannot contain special characters ':' or '/'"
+                    )
+                self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id, use_as=use_as or artifact_or_name,
             )
@@ -2008,12 +2086,18 @@ class Run:
                     is_user_created=True,
                     use_after_commit=True,
                 )
+                artifact.wait()
+                artifact._use_as = use_as or artifact.name
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                if self._launch_artifact_mapping:
+                if (
+                    self._launch_artifact_mapping
+                    and artifact.name in self._launch_artifact_mapping.keys()
+                ):
                     wandb.termwarn(
-                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                        f"Swapping artifacts is not supported when using an instance of `public.Artifact`. Using {artifact.name}"
                     )
+                artifact._use_as = use_as or artifact.name
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
@@ -2221,7 +2305,7 @@ class Run:
             )
         return artifact
 
-    def _public_api(self) -> PublicApi:
+    def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
         overrides = {"run": self.id}
         run_obj = self._run_obj
         if run_obj is not None:
@@ -2535,7 +2619,7 @@ class Run:
         ]
 
         if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort} to abort syncing.")
+            info.append(f"Press {printer.abort()} to abort syncing.")
 
         printer.display(f'{" ".join(info)}')
 
@@ -2559,7 +2643,7 @@ class Run:
                 response for response in poll_exit_responses.values()
             ]
             assert all(
-                isinstance(response, (PollExitResponse, None))  # type: ignore
+                response is None or isinstance(response, PollExitResponse)
                 for response in poll_exit_responses_list
             )
             if len(poll_exit_responses_list) == 0:
