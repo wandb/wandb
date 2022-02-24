@@ -11,10 +11,10 @@ assert:
   - :wandb:sentry_events[0][exception][values][0][type]: FileNotFoundError
   - :wandb:sentry_events[0][tags][entity]: mock_server_entity
   - :wandb:sentry_events[0][tags][deployment]: local
-  - :wandb:sentry_events[0][tags][_require_service]: True
+  - :wandb:sentry_events[0][tags][_require_service]: "True"
   - :wandb:sentry_events[0][tags][process_context]: internal
   - :wandb:sentry_events[0][tags][python_runtime]: python
-  - :yea:exit: 0
+  - :yea:exit: 255
 """
 import shutil
 
