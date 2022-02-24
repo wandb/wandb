@@ -403,7 +403,7 @@ If you update one of those files, you need to:
     Make sure to update the `yea-wandb` version.
   - Point the client branch you are working on to this `yea-wandb` branch.
     In `tox.ini`, search for `yea-wandb==<version>` and change it to
-    `https://github.com/wandb/yea-wandb/archive/refs/heads/shiny-new-branch.zip`.
+    `https://github.com/wandb/yea-wandb/archive/shiny-new-branch.zip`.
 - Once you are happy with your changes:
   - Merge and release `yea-wandb` (with `make release`).
   - Point the client branch you are working on to the fresh release of `yea-wandb`.
