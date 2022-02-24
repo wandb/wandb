@@ -119,7 +119,6 @@ def mock_sagemaker(mocker):
     secrets_path = "secrets.env"
     env["TRAINING_JOB_NAME"] = "sage"
     env["CURRENT_HOST"] = "maker"
-    env["WANDB_PROGRAM"] = "sagemaker"
 
     orig_exist = os.path.exists
 
