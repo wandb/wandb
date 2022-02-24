@@ -2,15 +2,20 @@
 """Test a batch of import telemetry
 
 ---
-id: 0.imports.01-batch1
+id: 0.imports.02-batch2
 tag:
-  shard: imports1
+  shard: imports2
 plugin:
   - wandb
 depend:
   pip_install_timeout: 1500  # 25m
+  pip_install_options:
+    - -f
+    - https://download.pytorch.org/whl/cpu/torch_stable.html
+    - -qq
   requirements:
-    - "-r 01-batch1-requirements.txt"
+    - torch
+    - -r 02-batch2-requirements.txt
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}
@@ -19,43 +24,31 @@ assert:
   - :wandb:runs[0][exitcode]: 0
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 14  # allennlp
+    - 42  # elegy
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 15  # autogluon
+    - 43  # detectron2
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 16  # autokeras
+    - 49  # huggingface_hub
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 18  # catalyst
+    - 50  # hydra
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 7  # catboost
+    - 44  # flair
   - :op:contains:
     - :wandb:runs[0][telemetry][1]  # imports init
-    - 51  # datasets
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 21  # deepchem
-  - :op:contains:
-    - :wandb:runs[0][telemetry][1]  # imports init
-    - 22  # deepctr
+    - 45  # flax
 """
 
 
-import allennlp  # noqa: F401
-import autogluon  # noqa: F401
-import autokeras  # noqa: F401
-# import avalanche
-import catalyst  # noqa: F401
-import catboost  # noqa: F401
-# import dalle_pytorch
-import datasets  # noqa: F401
-import deepchem  # noqa: F401
-import deepctr  # noqa: F401
-# import deeppavlov
-# import detectron
+import detectron2  # noqa: F401
+import elegy  # noqa: F401
+import flair  # noqa: F401
+import flax  # noqa: F401
+import huggingface_hub  # noqa: F401
+import hydra  # noqa: F401
 import wandb
 
 run = wandb.init()
