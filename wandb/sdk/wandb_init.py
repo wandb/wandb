@@ -25,7 +25,7 @@ from wandb import trigger
 from wandb.errors import UsageError
 from wandb.integration import sagemaker
 from wandb.integration.magic import magic_install
-from wandb.util import sentry_exc
+from wandb.util import _is_artifact, _is_artifact_string, sentry_exc
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
@@ -154,11 +154,18 @@ class _WandbInit(object):
         # merge config with sweep or sagemaker (or config file)
         self.sweep_config = self._wl._sweep_config or dict()
         self.config = dict()
+        self.init_artifact_config = dict()
         for config_data in sagemaker_config, self._wl._config, init_config:
             if not config_data:
                 continue
+            # split out artifacts, since when inserted into
+            # config they will trigger use_artifact
+            # but the run is not yet upserted
             for k, v in config_data.items():
-                self.config.setdefault(k, v)
+                if _is_artifact(v) or _is_artifact_string(v):
+                    self.init_artifact_config[k] = v
+                else:
+                    self.config.setdefault(k, v)
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
@@ -625,6 +632,13 @@ class _WandbInit(object):
 
         self._wl._global_run_stack.append(run)
         self.run = run
+
+        # put artifacts in run config here
+        # since doing so earlier will cause an error
+        # as the run is not upserted
+        for k, v in self.init_artifact_config.items():
+            run.config.update({k: v}, allow_val_change=True)
+
         self.backend = backend
         module.set_global(
             run=run,
