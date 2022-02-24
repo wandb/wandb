@@ -203,11 +203,9 @@ def sentry_set_scope(
                 if getattr(s, tag, None) is not None:
                     scope.set_tag(tag, getattr(s, tag))
 
-            if hasattr(s, "_colab") and hasattr(s, "_jupyter"):
-                python_runtime = (
-                    "colab" if s._colab else ("jupyter" if s._jupyter else "python")
-                )
-                scope.set_tag("python_runtime", python_runtime)
+            
+            python_runtime = ("colab if getattr(s, "_colab", None) else ("jupyter" if getattr(s, "_jupyter", None) else "python"))
+            scope.set_tag("python_runtime", python_runtime)
 
             if hasattr(s, "email"):
                 scope.user = {"email": s.email}
