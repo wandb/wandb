@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
+from typing import Any, ClassVar, Dict, List, Optional, Type, TYPE_CHECKING, Union
 
 from pkg_resources import parse_version
 from wandb import util

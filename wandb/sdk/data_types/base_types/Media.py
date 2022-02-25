@@ -2,11 +2,11 @@ import hashlib
 import os
 import platform
 import shutil
-from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
+from typing import cast, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 import six
-import wandb
 from six.moves.collections_abc import Sequence as SixSequence
+import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 

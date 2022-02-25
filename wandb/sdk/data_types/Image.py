@@ -1,11 +1,11 @@
 import hashlib
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
+from typing import Any, cast, Dict, List, Optional, Sequence, Type, TYPE_CHECKING, Union
 
+from pkg_resources import parse_version
 import six
 import wandb
-from pkg_resources import parse_version
 from wandb import util
 
 from ._private import MEDIA_TMP

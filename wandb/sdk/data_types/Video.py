@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Type, Union
+from typing import Dict, Optional, Sequence, Type, TYPE_CHECKING, Union
 
 import six
 from wandb import util

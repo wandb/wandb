@@ -1,5 +1,5 @@
 import numbers
-from typing import TYPE_CHECKING, Optional, Type, Union
+from typing import Optional, Type, TYPE_CHECKING, Union
 
 import six
 import wandb
