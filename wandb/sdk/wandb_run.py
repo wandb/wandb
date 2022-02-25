@@ -43,7 +43,9 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.util import (
+    _is_artifact_string,
     add_import_hook,
+    parse_artifact_string,
     sentry_set_scope,
     to_forward_slash_path,
 )
@@ -305,6 +307,7 @@ class Run:
     ) -> None:
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
+        self._config._set_artifact_callback(self._config_artifact_callback)
         self._config._set_settings(settings)
         self._backend = None
         self._internal_run_interface = None
@@ -351,7 +354,10 @@ class Run:
         self._quiet = self._settings.quiet
 
         self._output_writer = None
-        self._used_artifact_slots: List[str] = []
+        self._upgraded_version_message = None
+        self._deleted_version_message = None
+        self._yanked_version_message = None
+        self._used_artifact_slots: Dict[str, str] = {}
 
         # Returned from backend request_run(), set from wandb_init?
         self._run_obj = None
@@ -377,10 +383,7 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            "user",
-            entity=self._entity,
-            project=self._project,
-            email=self._settings.email,
+            settings_dict=self._settings, process_context="user",
         )
 
         # Populate config
@@ -970,6 +973,28 @@ class Run:
             return
         self._backend.interface.publish_config(key=key, val=val, data=data)
 
+    def _config_artifact_callback(
+        self, key: str, val: Union[str, Artifact]
+    ) -> Union[Artifact, public.Artifact]:
+        if _is_artifact_string(val):
+            # this will never fail, but is required to make mypy happy
+            assert isinstance(val, str)
+            artifact_string, base_url = parse_artifact_string(val)
+            overrides = {}
+            if base_url is not None:
+                overrides = {"base_url": base_url}
+                public_api = public.Api(overrides)
+            else:
+                public_api = self._public_api()
+            artifact = public_api.artifact(name=artifact_string)
+            # in the future we'll need to support using artifacts from
+            # different instances of wandb. simplest way to do that is
+            # likely to convert the retrieved public.Artifact to a wandb.Artifact
+
+            return self.use_artifact(artifact, use_as=key)
+        else:
+            return self.use_artifact(val, use_as=key)
+
     def _set_config_wandb(self, key: str, val: Any) -> None:
         self._config_callback(key=("_wandb", key), val=val)
 
@@ -1106,11 +1131,7 @@ class Run:
         self._step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            "user",
-            entity=run_obj.entity,
-            project=run_obj.project,
-            email=self._settings.email,
-            url=self._settings.run_url,
+            process_context="user", settings_dict=self.settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -1975,8 +1996,13 @@ class Run:
     def _detach(self) -> None:
         pass
 
-    # TODO(jhr): annotate this
-    def use_artifact(self, artifact_or_name, type=None, aliases=None, use_as=None):  # type: ignore
+    def use_artifact(
+        self,
+        artifact_or_name: Union[str, public.Artifact, Artifact],
+        type: Optional[str] = None,
+        aliases: Optional[List[str]] = None,
+        use_as: Optional[str] = None,
+    ) -> Union[public.Artifact, Artifact]:
         """Declare an artifact as an input to a run.
 
         Call `download` or `file` on the returned object to get the contents locally.
@@ -1991,22 +2017,16 @@ class Run:
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
+                                       Will be shown in UI.
 
         Returns:
             An `Artifact` object.
         """
         if self.offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-        if use_as:
-            if use_as in self._used_artifact_slots:
-                raise ValueError(
-                    "Cannot call use_artifact with the same use_as argument more than once"
-                )
-            elif ":" in use_as or "/" in use_as:
-                raise ValueError("use_as cannot contain special characters ':' or '/'")
-            self._used_artifact_slots.append(use_as)
         r = self._run_obj
+        assert r is not None
         api = internal.Api(default_settings={"entity": r.entity, "project": r.project})
         api.set_current_run_id(self.id)
 
@@ -2024,6 +2044,19 @@ class Run:
                     )
                 )
             artifact._use_as = use_as or artifact_or_name
+            if use_as:
+                if (
+                    use_as in self._used_artifact_slots.keys()
+                    and self._used_artifact_slots[use_as] != artifact.id
+                ):
+                    raise ValueError(
+                        "Cannot call use_artifact with the same use_as argument more than once"
+                    )
+                elif ":" in use_as or "/" in use_as:
+                    raise ValueError(
+                        "use_as cannot contain special characters ':' or '/'"
+                    )
+                self._used_artifact_slots[use_as] = artifact.id
             api.use_artifact(
                 artifact.id, use_as=use_as or artifact_or_name,
             )
@@ -2037,7 +2070,7 @@ class Run:
             if isinstance(artifact_or_name, wandb.Artifact):
                 if use_as is not None:
                     wandb.termwarn(
-                        "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
+                        "Indicating use_as is not supported when using an artifact with an instance of `wandb.Artifact`"
                     )
                 self._log_artifact(
                     artifact,
@@ -2045,19 +2078,27 @@ class Run:
                     is_user_created=True,
                     use_after_commit=True,
                 )
+                artifact.wait()
+                artifact._use_as = use_as or artifact.name
                 return artifact
             elif isinstance(artifact, public.Artifact):
-                if self._launch_artifact_mapping:
+                if (
+                    self._launch_artifact_mapping
+                    and artifact.name in self._launch_artifact_mapping.keys()
+                ):
                     wandb.termwarn(
-                        f"Swapping artifacts does not support swapping artifacts used as an instance of `public.Artifact`. Using {artifact.name}"
+                        "Swapping artifacts is not supported when using an instance of `public.Artifact`. "
+                        f"Using {artifact.name}."
                     )
+                artifact._use_as = use_as or artifact.name
                 api.use_artifact(
                     artifact.id, use_as=use_as or artifact._use_as or artifact.name
                 )
                 return artifact
             else:
                 raise ValueError(
-                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
+                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
+                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
     def log_artifact(
@@ -2258,7 +2299,7 @@ class Run:
             )
         return artifact
 
-    def _public_api(self) -> PublicApi:
+    def _public_api(self, overrides: Optional[Dict[str, str]] = None) -> PublicApi:
         overrides = {"run": self.id}
         run_obj = self._run_obj
         if run_obj is not None:
@@ -2439,7 +2480,8 @@ class Run:
             printer.display(
                 [
                     f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} to enable cloud syncing.",
+                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
+                    "to enable cloud syncing.",
                 ]
             )
         else:
@@ -2611,24 +2653,28 @@ class Run:
                 )
         else:
             raise ValueError(
-                f"got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
+                "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
             )
 
     @staticmethod
     def _footer_single_run_file_pusher_status_info(
-        pool_exit_response: Optional[PollExitResponse] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         # todo: is this same as settings._offline?
-        if not pool_exit_response:
+        if not poll_exit_response:
             return
 
-        progress = pool_exit_response.pusher_stats
-        done = pool_exit_response.done
+        progress = poll_exit_response.pusher_stats
+        done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded ({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
+        line = (
+            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
+            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        )
 
         percent_done = (
             1.0
@@ -2736,7 +2782,8 @@ class Run:
                 logger.info("logging synced files")
                 file_counts = pool_exit_response.file_counts
                 info.append(
-                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
+                    f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
                 )
             printer.display(info)
 
@@ -2848,7 +2895,8 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {printer.link('http://wandb.me/local-upgrade')}",
+                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
+                    f"Learn more: {printer.link('https://wandb.me/local-upgrade')}",
                     status="warn",
                 )
 

@@ -355,6 +355,7 @@ class Settings:
     _args: Sequence[str]
     _attached_run: bool
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _colab: bool
     _config_dict: Config
     _console: SettingsConsole
     _cuda: str
@@ -373,6 +374,7 @@ class Settings:
     _noop: bool
     _offline: bool
     _os: str
+    _platform: str
     _python: str
     _require_service: str
     _runqueue_item_id: str
@@ -391,6 +393,7 @@ class Settings:
     code_dir: str
     config_paths: Sequence[str]
     console: str
+    deployment: str
     disable_code: bool
     disable_git: bool
     disabled: bool  # Alias for mode=dryrun, not supported yet
@@ -472,6 +475,10 @@ class Settings:
         """
         return dict(
             _attached_run={"value": False},
+            _colab={
+                "hook": lambda _: "google.colab" in sys.modules,
+                "auto_hook": True,
+            },
             _console={"hook": lambda _: self._convert_console(), "auto_hook": True},
             _internal_check_process={"value": 8},
             _internal_queue_timeout={"value": 2},
@@ -489,6 +496,7 @@ class Settings:
                 ),
                 "auto_hook": True,
             },
+            _platform={"value": util.get_platform_name()},
             _save_requirements={"value": True},
             _tmp_code_dir={
                 "value": "code",
@@ -506,6 +514,10 @@ class Settings:
                 "validator": self._validate_base_url,
             },
             console={"value": "auto", "validator": self._validate_console},
+            deployment={
+                "hook": lambda _: "local" if self.is_local else "cloud",
+                "auto_hook": True,
+            },
             disable_code={"preprocessor": _str_as_bool, "is_policy": True},
             disable_git={"preprocessor": _str_as_bool, "is_policy": True},
             disabled={"value": False, "preprocessor": _str_as_bool},

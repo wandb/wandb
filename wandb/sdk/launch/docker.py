@@ -496,7 +496,9 @@ def _get_docker_image_uri(name: Optional[str], work_dir: str, image_id: str) -> 
     # Optionally include first 7 digits of git SHA in tag name, if available.
 
     git_commit = GitRepo(work_dir).last_commit
-    version_string = ":" + str(git_commit[:7]) + image_id if git_commit else image_id
+    version_string = (
+        ":" + str(git_commit[:7]) + image_id if git_commit else ":" + image_id
+    )
     return name + version_string
 
 
