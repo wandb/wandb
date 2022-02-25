@@ -2096,8 +2096,8 @@ class Run:
                     and artifact.name in self._launch_artifact_mapping.keys()
                 ):
                     wandb.termwarn(
-                        "Swapping artifacts does not support swapping artifacts used "
-                        f"as an instance of `public.Artifact`. Using {artifact.name}"
+                        "Swapping artifacts is not supported when using an instance of `public.Artifact`. "
+                        f"Using {artifact.name}."
                     )
                 artifact._use_as = use_as or artifact.name
                 api.use_artifact(
