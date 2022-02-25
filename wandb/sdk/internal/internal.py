@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING
 import psutil
 from six.moves import queue
 import wandb
-from wandb.util import sentry_exc
+from wandb.util import sentry_exc, sentry_set_scope
 
 from . import handler
 from . import internal_util
@@ -72,6 +72,9 @@ def wandb_internal(
     wandb._set_internal_process()
     _setup_tracelog()
     started = time.time()
+
+    # any sentry events in the internal process will be tagged as such
+    sentry_set_scope(process_context="internal")
 
     # register the exit handler only when wandb_internal is called, not on import
     @atexit.register
