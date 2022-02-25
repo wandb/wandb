@@ -383,10 +383,7 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            "user",
-            entity=self._entity,
-            project=self._project,
-            email=self._settings.email,
+            settings_dict=self._settings, process_context="user",
         )
 
         # Populate config
@@ -1121,11 +1118,7 @@ class Run:
         self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            "user",
-            entity=run_obj.entity,
-            project=run_obj.project,
-            email=self._settings.email,
-            url=self._settings.run_url,
+            process_context="user", settings_dict=self.settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
