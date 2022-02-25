@@ -225,6 +225,8 @@ def sentry_set_scope(
                 app_url = wandb.util.app_url(params["base_url"])
                 e, p = [quote(params[k]) for k in ["entity", "project"]]
 
+                # TODO: the settings object will be updated to contain run_url and sweep_url
+                # This is done by passing a settings_map in the run_start protocol buffer message
                 for word in ["run", "sweep"]:
                     _url, _id = f"{word}_url", f"{word}_id"
                     if not get(_url) and get(_id):
