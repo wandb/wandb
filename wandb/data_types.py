@@ -31,22 +31,28 @@ from typing import Optional
 import six
 import wandb
 from wandb import util
-from wandb.sdk.data_types import _dtypes
-from wandb.sdk.data_types import (
-    Histogram,
-    Html,
-    Image,
-    Molecule,
-    Object3D,
-    Plotly,
-    Video,
+
+from .sdk.data_types import _dtypes
+from .sdk.data_types.base_types.Media import (
+    _numpy_arrays_to_lists,
+    BatchableMedia,
+    Media,
 )
-from wandb.sdk.data_types.base_types.Media import _numpy_arrays_to_lists
-from wandb.sdk.data_types.base_types.Media import BatchableMedia, Media
-from wandb.sdk.data_types.base_types.WBValue import WBValue
-from wandb.sdk.data_types.helper_types.BoundingBoxes2D import BoundingBoxes2D
-from wandb.sdk.data_types.helper_types.Classes import Classes
-from wandb.sdk.data_types.helper_types.ImageMask import ImageMask
+from .sdk.data_types.base_types.WBValue import WBValue
+from .sdk.data_types.helper_types.BoundingBoxes2D import BoundingBoxes2D
+from .sdk.data_types.helper_types.Classes import Classes
+from .sdk.data_types.helper_types.ImageMask import ImageMask
+from .sdk.data_types.Histogram import Histogram
+from .sdk.data_types.Html import Html
+from .sdk.data_types.Image import Image
+from .sdk.data_types.Molecule import Molecule
+from .sdk.data_types.Object3D import Object3D
+from .sdk.data_types.Plotly import Plotly
+from .sdk.data_types.Video import Video
+
+# Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
+# Once we fully type this file and move it all into sdk, then we will need to cleanup the
+# other internal imports
 
 __all__ = [
     # Untyped Exports

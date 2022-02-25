@@ -6,7 +6,9 @@ from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 
-from .base_types import BatchableMedia, Media, WBValue
+
+from .base_types.Media import BatchableMedia, Media
+from .base_types.WBValue import WBValue
 from .Plotly import Plotly
 
 if TYPE_CHECKING:  # pragma: no cover
