@@ -2671,7 +2671,6 @@ class Run:
             raise ValueError(
                 f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
                 "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
-
             )
 
     @staticmethod
@@ -2693,7 +2692,6 @@ class Run:
         line = (
             f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
             f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
-
         )
 
         percent_done = (
