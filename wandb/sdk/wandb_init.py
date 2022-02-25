@@ -171,10 +171,16 @@ class _WandbInit(object):
         if monitor_gym and len(wandb.patched["gym"]) == 0:
             wandb.gym.monitor()
 
+        if wandb.patched["tensorboard"]:
+            with telemetry.context(self) as tel:
+                tel.feature.tensorboard_patch = True
+
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
         if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
             wandb.tensorboard.patch()
+            with telemetry.context(self) as tel:
+                tel.feature.tensorboard_sync = True
 
         magic = kwargs.get("magic")
         if magic not in (None, False):
