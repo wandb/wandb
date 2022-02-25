@@ -196,7 +196,7 @@ workflows:
       #
       - win:
          name: "win-py37"
-         toxenv: "py37,wincovercircle"
+         toxenv: "py37,wincovercircle -- --timeout 300"
       - mac:
          name: "mac-py37"
          toxenv: "py37"

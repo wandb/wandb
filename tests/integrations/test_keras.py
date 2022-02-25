@@ -909,6 +909,7 @@ def test_data_logger_pred_inferred_proc_no_classes(live_mock_server, test_settin
         run.finish()
 
 
+@pytest.mark.timeout(300)
 def test_keras_dsviz(dummy_model, dummy_data, runner, live_mock_server, test_settings):
     run = wandb.init(settings=test_settings)
     dummy_model.fit(
