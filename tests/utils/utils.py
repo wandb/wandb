@@ -133,7 +133,7 @@ def mock_sagemaker(mocker):
     def magic_factory(original):
         def magic(path, *args, **kwargs):
             if path == config_path:
-                return io.StringIO('{"fuckin": "A"}')
+                return io.StringIO('{"foo": "bar"}')
             elif path == resource_path:
                 return io.StringIO('{"hosts":["a", "b"]}')
             elif path == secrets_path:

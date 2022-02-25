@@ -383,10 +383,7 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            "user",
-            entity=self._entity,
-            project=self._project,
-            email=self._settings.email,
+            settings_dict=self._settings, process_context="user",
         )
 
         # Populate config
@@ -1121,11 +1118,7 @@ class Run:
         self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            "user",
-            entity=run_obj.entity,
-            project=run_obj.project,
-            email=self._settings.email,
-            url=self._settings.run_url,
+            process_context="user", settings_dict=self.settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -2026,7 +2019,8 @@ class Run:
                 You can also pass an Artifact object created by calling `wandb.Artifact`
             type: (str, optional) The type of artifact to use.
             aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with. Will be shown in UI.
+            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
+                                       Will be shown in UI.
 
         Returns:
             An `Artifact` object.
@@ -2078,7 +2072,7 @@ class Run:
             if isinstance(artifact_or_name, wandb.Artifact):
                 if use_as is not None:
                     wandb.termwarn(
-                        "Indicating use_as is not supported when using an artifact with an instance of wandb.Artifact"
+                        "Indicating use_as is not supported when using an artifact with an instance of `wandb.Artifact`"
                     )
                 self._log_artifact(
                     artifact,
@@ -2095,7 +2089,8 @@ class Run:
                     and artifact.name in self._launch_artifact_mapping.keys()
                 ):
                     wandb.termwarn(
-                        f"Swapping artifacts is not supported when using an instance of `public.Artifact`. Using {artifact.name}"
+                        "Swapping artifacts is not supported when using an instance of `public.Artifact`. "
+                        f"Using {artifact.name}."
                     )
                 artifact._use_as = use_as or artifact.name
                 api.use_artifact(
@@ -2104,7 +2099,8 @@ class Run:
                 return artifact
             else:
                 raise ValueError(
-                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), an instance of wandb.Artifact, or wandb.Api().artifact() to use_artifact'  # noqa: E501
+                    'You must pass an artifact name (e.g. "pedestrian-dataset:v1"), '
+                    "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
     def log_artifact(
@@ -2486,7 +2482,8 @@ class Run:
             printer.display(
                 [
                     f"W&B syncing is set to {printer.code('`offline`')} in this directory.  ",
-                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} to enable cloud syncing.",
+                    f"Run {printer.code('`wandb online`')} or set {printer.code('WANDB_MODE=online')} "
+                    "to enable cloud syncing.",
                 ]
             )
         else:
@@ -2658,24 +2655,28 @@ class Run:
                 )
         else:
             raise ValueError(
-                f"got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
+                "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
             )
 
     @staticmethod
     def _footer_single_run_file_pusher_status_info(
-        pool_exit_response: Optional[PollExitResponse] = None,
+        poll_exit_response: Optional[PollExitResponse] = None,
         *,
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         # todo: is this same as settings._offline?
-        if not pool_exit_response:
+        if not poll_exit_response:
             return
 
-        progress = pool_exit_response.pusher_stats
-        done = pool_exit_response.done
+        progress = poll_exit_response.pusher_stats
+        done = poll_exit_response.done
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded ({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
+        line = (
+            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
+            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+        )
 
         percent_done = (
             1.0
@@ -2783,7 +2784,8 @@ class Run:
                 logger.info("logging synced files")
                 file_counts = pool_exit_response.file_counts
                 info.append(
-                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), {file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
+                    f"Synced {file_counts.wandb_count} W&B file(s), {file_counts.media_count} media file(s), "
+                    f"{file_counts.artifact_count} artifact file(s) and {file_counts.other_count} other file(s)",
                 )
             printer.display(info)
 
@@ -2895,7 +2897,8 @@ class Run:
             if out_of_date:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. Learn more: {printer.link('http://wandb.me/local-upgrade')}",
+                    f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
+                    f"Learn more: {printer.link('https://wandb.me/local-upgrade')}",
                     status="warn",
                 )
 
