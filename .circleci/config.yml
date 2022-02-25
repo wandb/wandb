@@ -285,7 +285,7 @@ jobs:
             - run:
                   name: Run tests
                   command: |
-                      tox -v -e << parameters.toxenv >> tests/integrations/test_kfp.py
+                      tox -v -e << parameters.toxenv >>
                   no_output_timeout: 25m
             - save-tox-cache
             - save-test-results
