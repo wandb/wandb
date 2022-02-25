@@ -1192,6 +1192,8 @@ class Run:
         if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
 
+        self._partial_history_callback(data, step, commit)
+
         if step is not None:
             if self._ignore_step():
                 wandb.termwarn(
@@ -1201,20 +1203,16 @@ class Run:
             # if step is passed in when tensorboard_sync is used we honor the step passed
             # to make decisions about how to close out the history record, but will strip
             # this history later on in publish_history()
-            using_tensorboard = len(wandb.patched["tensorboard"]) > 0
-            if using_tensorboard:
+            if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
                     "Step cannot be set when using syncing with tensorboard. Please log your step values as a metric such as 'global_step'",
                     repeat=False,
                 )
             if step > self._step:
                 self._step = step
-        elif commit is None:  # step is None and commit is None
-            self._step += 1
-        elif commit:
-            self._step += 1
 
-        self._partial_history_callback(data, step, commit)
+        if (step is None and commit is None) or commit:
+            self._step += 1
 
     def log(
         self,
