@@ -311,7 +311,7 @@ jobs:
                   name: Run tests
                   shell: bash.exe
                   command: |
-                      CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e << parameters.toxenv >>
+                      CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" tox -v -e --timeout 300 << parameters.toxenv >>
                   no_output_timeout: 10m
             - save-tox-cache
             - save-test-results
