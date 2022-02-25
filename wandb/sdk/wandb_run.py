@@ -1771,14 +1771,27 @@ class Run:
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
 
-        # start reporting any telemetry changes
-        self._telemetry_obj_active = True
-        self._telemetry_flush()
-
         # TODO(wandb-service) RunStatusChecker not supported yet (WB-7352)
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
+        self._on_ready()
+
+    def _on_attach(self) -> None:
+        """Event triggered when run is attached to another run."""
+        with telemetry.context(run=self) as tel:
+            tel.feature.attach = True
+
+        self._on_ready()
+
+    def _on_ready(self) -> None:
+        """Event triggered when run is ready for the user."""
+        # start reporting any telemetry changes
+        self._telemetry_obj_active = True
+        self._telemetry_flush()
+
+        # object is about to be returned to the user, dont let them modify it
+        self._freeze()
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
