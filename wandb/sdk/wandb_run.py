@@ -249,7 +249,7 @@ class Run:
 
     _telemetry_obj: telemetry.TelemetryRecord
     _telemetry_obj_active: bool
-    _telemetry_obj_updated: bool
+    _telemetry_obj_dirty: bool
     _telemetry_obj_flushed: bytes
 
     _teardown_hooks: List[TeardownHook]
@@ -379,7 +379,7 @@ class Run:
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._telemetry_obj_active = False
         self._telemetry_obj_flushed = b""
-        self._telemetry_obj_updated = False
+        self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
         self._use_redirect = True
@@ -466,13 +466,13 @@ class Run:
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
-        self._telemetry_obj_updated = True
+        self._telemetry_obj_dirty = True
         self._telemetry_flush()
 
     def _telemetry_flush(self) -> None:
         if not self._telemetry_obj_active:
             return
-        if not self._telemetry_obj_updated:
+        if not self._telemetry_obj_dirty:
             return
         if self._backend and self._backend.interface:
             serialized = self._telemetry_obj.SerializeToString()
@@ -480,7 +480,7 @@ class Run:
                 return
             self._backend.interface._publish_telemetry(self._telemetry_obj)
             self._telemetry_obj_flushed = serialized
-            self._telemetry_obj_updated = False
+            self._telemetry_obj_dirty = False
 
     def _freeze(self) -> None:
         self._frozen = True
