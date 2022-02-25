@@ -131,7 +131,17 @@ class _WandbInit(object):
                 wandb.setup(settings=settings)
             settings.update(sagemaker_run, source=Source.SETUP)
             self._use_sagemaker = True
-        self._set_init_telemetry_attrs(kwargs)
+
+        with telemetry.context(obj=self._init_telemetry_obj) as tel:
+            if kwargs.get("config"):
+                tel.feature.set_init_config = True
+            if kwargs.get("name"):
+                tel.feature.set_init_name = True
+            if kwargs.get("id"):
+                tel.feature.set_init_id = True
+            if kwargs.get("tags"):
+                tel.feature.set_init_tags = True
+
         # Remove parameters that are not part of settings
         init_config = kwargs.pop("config", None) or dict()
 
@@ -655,17 +665,6 @@ class _WandbInit(object):
 
         logger.info("run started, returning control to user process")
         return run
-
-    def _set_init_telemetry_attrs(self, kwargs):
-        with telemetry.context(obj=self._init_telemetry_obj) as tel:
-            if kwargs.get("config"):
-                tel.feature.set_init_config = True
-            if kwargs.get("name"):
-                tel.feature.set_init_name = True
-            if kwargs.get("id"):
-                tel.feature.set_init_id = True
-            if kwargs.get("tags"):
-                tel.feature.set_init_tags = True
 
 
 def getcaller():
