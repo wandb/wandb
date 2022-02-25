@@ -89,9 +89,11 @@ def unpatch(module_name):
 
 
 def unpatch_kfp():
+    print(wandb.patched)
     unpatch("kfp.components")
     unpatch("kfp.components._python_op")
     unpatch("wandb.integration.kfp")
+    print(wandb.patched)
 
 
 def patch_kfp():
