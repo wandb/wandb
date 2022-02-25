@@ -3,7 +3,7 @@ from .base_types.Media import Media
 from .Image import Image
 
 from .base_types.Media import _numpy_arrays_to_lists
-from .private._common import MEDIA_TMP
+from ._private import MEDIA_TMP
 
 import codecs
 import os

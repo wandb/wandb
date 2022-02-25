@@ -1,6 +1,6 @@
 from .Media import Media
 
-from ..private._common import MEDIA_TMP
+from .._private import MEDIA_TMP
 
 import codecs
 import os

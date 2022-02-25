@@ -11,7 +11,7 @@ from typing import (
     Union,
 )
 
-from ..private import _dtypes
+from .. import _dtypes
 
 
 if TYPE_CHECKING:  # pragma: no cover

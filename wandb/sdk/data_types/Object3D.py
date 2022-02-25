@@ -1,6 +1,6 @@
 from .base_types.Media import BatchableMedia
 
-from .private._common import MEDIA_TMP, is_numpy_array
+from ._private import MEDIA_TMP
 
 import codecs
 import json
@@ -18,7 +18,7 @@ import six
 import wandb
 from wandb import util
 
-from .private import _dtypes
+from . import _dtypes
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact
@@ -127,7 +127,7 @@ class Object3D(BatchableMedia):
                     data, fp, separators=(",", ":"), sort_keys=True, indent=4,
                 )
             self._set_file(tmp_path, is_tmp=True, extension=".pts.json")
-        elif is_numpy_array(data_or_path):
+        elif util.is_numpy_array(data_or_path):
             np_data = data_or_path
 
             # The following assertion is required for numpy to trust that

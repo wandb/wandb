@@ -49,7 +49,7 @@ from wandb.sdk.data_types import (
     Video,
     WBValue,
 )
-from wandb.sdk.data_types.private import _dtypes
+from wandb.sdk.data_types import _dtypes
 
 __all__ = [
     "Audio",
@@ -1135,13 +1135,6 @@ class Audio(BatchableMedia):
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-
-def is_numpy_array(data):
-    np = util.get_module(
-        "numpy", required="Logging raw point cloud data requires numpy"
-    )
-    return isinstance(data, np.ndarray)
 
 
 class JoinedTable(Media):

@@ -10,8 +10,7 @@ from typing import (
 )
 
 from pkg_resources import parse_version
-import wandb
-from ..private._common import get_max_cli_version
+from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_artifacts import Artifact as LocalArtifact
@@ -19,11 +18,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
 
     TypeMappingType = Dict[str, Type["WBValue"]]
-
-def _is_offline() -> bool:
-    return (
-        wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline
 
 def _server_accepts_client_ids() -> bool:
     # First, if we are offline, assume the backend server cannot
@@ -35,12 +29,12 @@ def _server_accepts_client_ids() -> bool:
     # to use client ids in offline mode, then the manifests and artifact data
     # would never be resolvable and would lead to failed uploads. Our position
     # is to never lose data - and instead take the tradeoff in the UI.
-    if _is_offline():
+    if util._is_offline():
         return False
 
     # If the script is online, request the max_cli_version and ensure the server
     # is of a high enough version.
-    max_cli_version = get_max_cli_version()
+    max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
     return parse_version("0.11.0") <= parse_version(max_cli_version)
@@ -236,7 +230,7 @@ class WBValue(object):
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
-            and not _is_offline()
+            and not util._is_offline()
             and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()
@@ -267,7 +261,7 @@ class WBValue(object):
             self._artifact_target
             and self._artifact_target.name
             and self._artifact_target.artifact._logged_artifact is not None
-            and not _is_offline()
+            and not util._is_offline()
             and not _server_accepts_client_ids()
         ):
             self._artifact_target.artifact.wait()

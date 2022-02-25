@@ -4,7 +4,7 @@ from .helper_types.ImageMask import ImageMask
 from .helper_types.BoundingBoxes2D import BoundingBoxes2D
 from .helper_types.Classes import Classes
 
-from .private._common import MEDIA_TMP,get_max_cli_version
+from ._private import MEDIA_TMP
 
 import hashlib
 import logging
@@ -45,7 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover
 def _server_accepts_image_filenames() -> bool:
     # Newer versions of wandb accept large image filenames arrays
     # but older versions would have issues with this.
-    max_cli_version = get_max_cli_version()
+    max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
     return parse_version("0.12.10") <= parse_version(max_cli_version)

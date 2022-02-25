@@ -1,5 +1,5 @@
 from .base_types.Media import BatchableMedia
-from .private._common import MEDIA_TMP
+from ._private import MEDIA_TMP
 import os
 from typing import (
     Sequence,
@@ -11,7 +11,7 @@ from typing import (
 import six
 from wandb import util
     
-from .private import _dtypes
+from . import _dtypes
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact

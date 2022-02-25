@@ -1,6 +1,6 @@
 
 from .base_types.Media import BatchableMedia
-from .private._common import  MEDIA_TMP, is_numpy_array
+from ._private import  MEDIA_TMP
 
 import logging
 import os
@@ -15,7 +15,7 @@ from typing import (
 
 import six
 from wandb import util
-from .private import _dtypes
+from . import _dtypes
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -96,7 +96,7 @@ class Video(BatchableMedia):
         else:
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
                 self.data = data_or_path.numpy()  # type: ignore
-            elif is_numpy_array(data_or_path):
+            elif util.is_numpy_array(data_or_path):
                 self.data = data_or_path
             else:
                 raise ValueError(
