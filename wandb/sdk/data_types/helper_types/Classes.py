@@ -19,6 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_run import Run as LocalRun
     from wandb.apis.public import Artifact as PublicArtifact
 
+
 class Classes(Media):
     _log_type = "classes"
 
@@ -67,6 +68,7 @@ class Classes(Media):
             return self._class_set == other._class_set
         else:
             return False
+
 
 class _ClassesIdType(_dtypes.Type):
     name = "classesId"
@@ -161,5 +163,6 @@ class _ClassesIdType(_dtypes.Type):
             )
 
         return cls(classes_obj)
+
 
 _dtypes.TypeRegistry.add(_ClassesIdType)

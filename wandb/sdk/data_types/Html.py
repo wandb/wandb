@@ -10,7 +10,7 @@ from typing import (
 
 import six
 from wandb import util
-    
+
 from . import _dtypes
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -116,5 +116,6 @@ class Html(BatchableMedia):
 class _HtmlFileType(_dtypes.Type):
     name = "html-file"
     types = [Html]
+
 
 _dtypes.TypeRegistry.add(_HtmlFileType)

@@ -1,6 +1,5 @@
-
 from .base_types.Media import BatchableMedia
-from ._private import  MEDIA_TMP
+from ._private import MEDIA_TMP
 
 import logging
 import os
@@ -23,6 +22,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_run import Run as LocalRun
     import numpy as np  # type: ignore
     from typing import TextIO
+
 
 class Video(BatchableMedia):
     """Format a video for logging to W&B.
@@ -115,9 +115,7 @@ class Video(BatchableMedia):
         # encode sequence of images into gif string
         clip = mpy.ImageSequenceClip(list(tensor), fps=self._fps)
 
-        filename = os.path.join(
-            MEDIA_TMP.name, util.generate_id() + "." + self._format
-        )
+        filename = os.path.join(MEDIA_TMP.name, util.generate_id() + "." + self._format)
         if TYPE_CHECKING:
             kwargs: Dict[str, Optional[bool]] = {}
         try:  # older versions of moviepy do not support logger argument
@@ -219,5 +217,6 @@ class Video(BatchableMedia):
 class _VideoFileType(_dtypes.Type):
     name = "video-file"
     types = [Video]
+
 
 _dtypes.TypeRegistry.add(_VideoFileType)

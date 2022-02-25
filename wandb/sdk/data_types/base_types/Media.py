@@ -1,4 +1,3 @@
-
 import hashlib
 import os
 import platform
@@ -34,6 +33,7 @@ def _wb_filename(
     key: Union[str, int], step: Union[str, int], id: Union[str, int], extension: str
 ) -> str:
     return "{}_{}_{}{}".format(str(key), str(step), str(id), extension)
+
 
 class Media(WBValue):
     """A WBValue that we store as a file outside JSON and show in a media panel
@@ -296,6 +296,7 @@ class BatchableMedia(Media):
         step: Union[int, str],
     ) -> dict:
         raise NotImplementedError
+
 
 def _numpy_arrays_to_lists(
     payload: Union[dict, Sequence, "np.ndarray"]

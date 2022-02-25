@@ -50,6 +50,7 @@ def _server_accepts_image_filenames() -> bool:
         return False
     return parse_version("0.12.10") <= parse_version(max_cli_version)
 
+
 class Image(BatchableMedia):
     """Format images for logging to W&B.
 

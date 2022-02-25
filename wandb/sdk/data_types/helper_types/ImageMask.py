@@ -20,8 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
 
 
-
-
 class ImageMask(Media):
     """Format image masks or overlays for logging to W&B.
 
@@ -252,4 +250,3 @@ class ImageMask(Media):
                         "Class labels must be a dictionary of numbers to strings"
                     )
         return True
-

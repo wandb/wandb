@@ -19,6 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     TypeMappingType = Dict[str, Type["WBValue"]]
 
+
 def _server_accepts_client_ids() -> bool:
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
@@ -38,6 +39,7 @@ def _server_accepts_client_ids() -> bool:
     if max_cli_version is None:
         return False
     return parse_version("0.11.0") <= parse_version(max_cli_version)
+
 
 class _WBValueArtifactSource(object):
     artifact: "PublicArtifact"

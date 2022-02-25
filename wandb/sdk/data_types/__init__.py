@@ -167,7 +167,6 @@ def val_to_json(
     return converted  # type: ignore
 
 
-
 def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"]:
     # If media type has a max respect it
     items = seq
@@ -178,6 +177,7 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
         )
         items = seq[: seq[0].MAX_ITEMS]  # type: ignore
     return items
+
 
 __all__ = [
     "Histogram",

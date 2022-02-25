@@ -1510,10 +1510,12 @@ def parse_artifact_string(v: str) -> Tuple[str, Optional[str]]:
     entity, project, name_and_alias_or_version = parts[:3]
     return f"{entity}/{project}/{name_and_alias_or_version}", base_uri
 
+
 def _get_max_cli_version() -> Union[str, None]:
     _, server_info = wandb.api.viewer_server_info()
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
     return str(max_cli_version) if max_cli_version is not None else None
+
 
 def _is_offline() -> bool:
     return (

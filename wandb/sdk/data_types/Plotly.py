@@ -86,4 +86,3 @@ class Plotly(Media):
         json_dict = super(Plotly, self).to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
         return json_dict
-

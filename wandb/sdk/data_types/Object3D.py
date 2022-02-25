@@ -27,7 +27,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import TextIO
 
 
-
 class Object3D(BatchableMedia):
     """
     Wandb class for 3D point clouds.
@@ -203,8 +202,10 @@ class Object3D(BatchableMedia):
             "objects": jsons,
         }
 
+
 class _Object3DFileType(_dtypes.Type):
     name = "object3D-file"
     types = [Object3D]
-    
+
+
 _dtypes.TypeRegistry.add(_Object3DFileType)

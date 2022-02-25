@@ -17,7 +17,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...wandb_run import Run as LocalRun
 
 
-
 # Allows encoding of arbitrary JSON structures
 # as a file
 #

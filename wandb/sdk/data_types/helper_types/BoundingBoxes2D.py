@@ -20,8 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.apis.public import Artifact as PublicArtifact
 
 
-
-
 class BoundingBoxes2D(JSONMetadata):
     """Format images with 2D bounding box overlays for logging to W&B.
 
