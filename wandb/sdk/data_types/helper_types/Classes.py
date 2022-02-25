@@ -1,23 +1,14 @@
-from ..base_types.Media import Media
-
 import os
-from typing import (
-    Any,
-    Dict,
-    Optional,
-    Sequence,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Type, Union
 
 from .. import _dtypes
-
+from ..base_types.Media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
+
     from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
 
 
 class Classes(Media):

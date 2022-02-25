@@ -1,28 +1,21 @@
-from .base_types.WBValue import WBValue
-from .base_types.Media import Media, BatchableMedia
-
-from ._private import MEDIA_TMP
-
 import io
 import os
 import pathlib
-from typing import (
-    Optional,
-    Sequence,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import Optional, Sequence, Type, TYPE_CHECKING, Union
 
 import six
 from wandb import util
 
+from ._private import MEDIA_TMP
+from .base_types.Media import BatchableMedia, Media
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import TextIO
+
+    import rdkit.Chem  # type: ignore
+
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
-    import rdkit.Chem  # type: ignore
-    from typing import TextIO
 
     RDKitDataType = Union[str, "rdkit.Chem.rdchem.Mol"]
 

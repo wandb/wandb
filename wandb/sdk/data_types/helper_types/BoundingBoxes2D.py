@@ -1,23 +1,18 @@
-from ..base_types.JSONMetadata import JSONMetadata
-
 import numbers
-from typing import (
-    Optional,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Optional, Type, Union
 
 import six
 import wandb
 from wandb import util
 from wandb.util import has_num
 
+from ..base_types.JSONMetadata import JSONMetadata
 
 if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
+
     from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
 
 
 class BoundingBoxes2D(JSONMetadata):

@@ -1,39 +1,28 @@
-from .base_types.Media import Media
-from .base_types.Media import BatchableMedia
-from .helper_types.ImageMask import ImageMask
-from .helper_types.BoundingBoxes2D import BoundingBoxes2D
-from .helper_types.Classes import Classes
-
-from ._private import MEDIA_TMP
-
 import hashlib
 import logging
 import os
-from typing import (
-    Any,
-    cast,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union, cast
 
-from pkg_resources import parse_version
 import six
 import wandb
+from pkg_resources import parse_version
 from wandb import util
 
+from ._private import MEDIA_TMP
+from .base_types.Media import BatchableMedia, Media
+from .helper_types.BoundingBoxes2D import BoundingBoxes2D
+from .helper_types.Classes import Classes
+from .helper_types.ImageMask import ImageMask
+
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
-    from ..wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
-    import numpy as np  # type: ignore
     import matplotlib  # type: ignore
+    import numpy as np  # type: ignore
     import PIL  # type: ignore
     import torch  # type: ignore
+    from wandb.apis.public import Artifact as PublicArtifact
+
+    from ..wandb_artifacts import Artifact as LocalArtifact
+    from ..wandb_run import Run as LocalRun
 
     ImageDataType = Union[
         "matplotlib.artist.Artist", "PIL.Image", "TorchTensorType", "np.ndarray"

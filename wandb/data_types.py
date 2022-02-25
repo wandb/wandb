@@ -31,6 +31,7 @@ from typing import Optional
 import six
 import wandb
 from wandb import util
+from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types import (
     _numpy_arrays_to_lists,
     BatchableMedia,
@@ -49,7 +50,6 @@ from wandb.sdk.data_types import (
     Video,
     WBValue,
 )
-from wandb.sdk.data_types import _dtypes
 
 __all__ = [
     "Audio",

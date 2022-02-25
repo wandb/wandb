@@ -1,23 +1,20 @@
-from .base_types.Media import BatchableMedia
-from ._private import MEDIA_TMP
 import os
-from typing import (
-    Sequence,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import Sequence, Type, TYPE_CHECKING, Union
 
 import six
 from wandb import util
 
 from . import _dtypes
+from ._private import MEDIA_TMP
+from .base_types.Media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import TextIO
+
+    from wandb.apis.public import Artifact as PublicArtifact
+
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
-    from typing import TextIO
 
 
 class Html(BatchableMedia):

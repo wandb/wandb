@@ -8,8 +8,8 @@ from wandb.util import get_module, is_numpy_array
 np = get_module("numpy")  # intentionally not required
 
 if t.TYPE_CHECKING:
-    from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
     from wandb.apis.public import Artifact as DownloadedArtifact
+    from wandb.sdk.wandb_artifacts import Artifact as ArtifactInCreation
 
 _TYPES_STRIPPED = not (sys.version_info.major == 3 and sys.version_info.minor >= 6)
 if not _TYPES_STRIPPED:

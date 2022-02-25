@@ -1,20 +1,15 @@
 import sys
-from typing import (
-    Optional,
-    Sequence,
-    Tuple,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import Optional, Sequence, Tuple, TYPE_CHECKING, Union
 
 from wandb import util
 
 from .base_types.WBValue import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
+    import numpy as np  # type: ignore
+
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
-    import numpy as np  # type: ignore
 
     NumpyHistogram = Tuple[np.ndarray, np.ndarray]
 

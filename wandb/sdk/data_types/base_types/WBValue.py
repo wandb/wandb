@@ -1,21 +1,13 @@
-from typing import (
-    Any,
-    ClassVar,
-    Dict,
-    List,
-    Optional,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Union
 
 from pkg_resources import parse_version
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
+
     from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
 
     TypeMappingType = Dict[str, Type["WBValue"]]
 

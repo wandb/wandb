@@ -1,30 +1,23 @@
-from .base_types.Media import BatchableMedia
-
-from ._private import MEDIA_TMP
-
 import codecs
 import json
 import os
-from typing import (
-    ClassVar,
-    Sequence,
-    Set,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import ClassVar, Sequence, Set, Type, TYPE_CHECKING, Union
 
 import six
 import wandb
 from wandb import util
 
 from . import _dtypes
+from ._private import MEDIA_TMP
+from .base_types.Media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing import TextIO
+
+    import numpy as np  # type: ignore
+
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
-    import numpy as np  # type: ignore
-    from typing import TextIO
 
 
 class Object3D(BatchableMedia):

@@ -1,43 +1,30 @@
-from .base_types.WBValue import WBValue
-from .base_types.Media import Media
-from .base_types.Media import BatchableMedia
-from .base_types.JSONMetadata import JSONMetadata
-
-from .Histogram import Histogram
-from .Object3D import Object3D
-from .Molecule import Molecule
-from .Html import Html
-from .Video import Video
-from .Image import Image
-from .Plotly import Plotly
-
-from .helper_types.ImageMask import ImageMask
-from .helper_types.BoundingBoxes2D import BoundingBoxes2D
-from .helper_types.Classes import Classes
-
-# TODO: Remove this once /data_types are all moved in this dir.
-from .base_types.Media import _numpy_arrays_to_lists
-
 import logging
 import re
-from typing import (
-    cast,
-    Optional,
-    Sequence,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import cast, Optional, Sequence, TYPE_CHECKING, Union
 
 from six.moves.collections_abc import Sequence as SixSequence
 import wandb
 from wandb import util
 
+from .base_types.Media import BatchableMedia, Media
+from .base_types.WBValue import WBValue
+from .helper_types.BoundingBoxes2D import BoundingBoxes2D
+from .helper_types.Classes import Classes
+from .helper_types.ImageMask import ImageMask
+from .Histogram import Histogram
+from .Html import Html
+from .Image import Image
+from .Molecule import Molecule
+from .Object3D import Object3D
+from .Plotly import Plotly
+from .Video import Video
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_run import Run as LocalRun
-    import pandas as pd  # type: ignore
     import matplotlib  # type: ignore
+    import pandas as pd  # type: ignore
     import plotly  # type: ignore
+
+    from ..wandb_run import Run as LocalRun
 
     ValToJsonType = Union[
         dict,

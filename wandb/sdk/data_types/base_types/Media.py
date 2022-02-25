@@ -2,28 +2,22 @@ import hashlib
 import os
 import platform
 import shutil
-from typing import (
-    Optional,
-    Sequence,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Optional, Sequence, Type, Union, cast
 
 import six
-from six.moves.collections_abc import Sequence as SixSequence
 import wandb
+from six.moves.collections_abc import Sequence as SixSequence
 from wandb import util
 from wandb._globals import _datatypes_callback
 
 from .WBValue import WBValue
 
-
 if TYPE_CHECKING:  # pragma: no cover
+    import numpy as np  # type: ignore
+    from wandb.apis.public import Artifact as PublicArtifact
+
     from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
-    import numpy as np  # type: ignore
 
 
 SYS_PLATFORM = platform.system()

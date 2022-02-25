@@ -1,23 +1,19 @@
-from ..base_types.Media import Media
-from .._private import MEDIA_TMP
-
 import numbers
 import os
-from typing import (
-    Optional,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import TYPE_CHECKING, Optional, Type, Union
+
 import six
 import wandb
 from wandb import util
 
+from .._private import MEDIA_TMP
+from ..base_types.Media import Media
 
 if TYPE_CHECKING:  # pragma: no cover
+    from wandb.apis.public import Artifact as PublicArtifact
+
     from ...wandb_artifacts import Artifact as LocalArtifact
     from ...wandb_run import Run as LocalRun
-    from wandb.apis.public import Artifact as PublicArtifact
 
 
 class ImageMask(Media):
