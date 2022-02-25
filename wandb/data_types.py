@@ -33,38 +33,38 @@ import wandb
 from wandb import util
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types import (
-    _numpy_arrays_to_lists,
-    BatchableMedia,
-    BoundingBoxes2D,
-    Classes,
     Histogram,
-    history_dict_to_json,
     Html,
     Image,
-    ImageMask,
-    Media,
     Molecule,
     Object3D,
     Plotly,
-    val_to_json,
     Video,
-    WBValue,
 )
+from wandb.sdk.data_types.base_types.Media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.base_types.Media import BatchableMedia, Media
+from wandb.sdk.data_types.base_types.WBValue import WBValue
+from wandb.sdk.data_types.helper_types.BoundingBoxes2D import BoundingBoxes2D
+from wandb.sdk.data_types.helper_types.Classes import Classes
+from wandb.sdk.data_types.helper_types.ImageMask import ImageMask
 
 __all__ = [
+    # Untyped Exports
     "Audio",
+    "Table",
+    "Bokeh",
+    # Typed Exports
     "Histogram",
-    "Object3D",
-    "Molecule",
     "Html",
+    "Image",
+    "Molecule",
+    "Object3D",
+    "Plotly",
     "Video",
+    # Typed Legacy Exports (I'd like to remove these)
     "ImageMask",
     "BoundingBoxes2D",
     "Classes",
-    "Image",
-    "Plotly",
-    "history_dict_to_json",
-    "val_to_json",
 ]
 
 

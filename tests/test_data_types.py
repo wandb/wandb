@@ -1,5 +1,6 @@
 import wandb
 from wandb import data_types
+from wandb.sdk.data_types.base_types.Media import _numpy_arrays_to_lists
 import numpy as np
 import pytest
 import PIL
@@ -853,7 +854,7 @@ def test_graph():
 
 
 def test_numpy_arrays_to_list():
-    conv = data_types._numpy_arrays_to_lists
+    conv = _numpy_arrays_to_lists
     assert conv(np.array(1)) == [1]
     assert conv(np.array((1, 2,))) == [1, 2]
     assert conv([np.array((1, 2,))]) == [[1, 2]]
