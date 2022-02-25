@@ -1,4 +1,4 @@
-from .._Media import Media
+from ..base_types.Media import Media
 
 import os
 from typing import (
@@ -11,7 +11,7 @@ from typing import (
     Union,
 )
 
-from .. import _dtypes
+from ..private import _dtypes
 
 
 if TYPE_CHECKING:  # pragma: no cover

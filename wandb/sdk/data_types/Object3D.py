@@ -1,6 +1,6 @@
-from ._Media import BatchableMedia
+from .base_types.Media import BatchableMedia
 
-from ._common import MEDIA_TMP, is_numpy_array
+from .private._common import MEDIA_TMP, is_numpy_array
 
 import codecs
 import json
@@ -18,7 +18,7 @@ import six
 import wandb
 from wandb import util
 
-from . import _dtypes
+from .private import _dtypes
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact

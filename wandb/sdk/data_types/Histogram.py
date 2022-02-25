@@ -9,7 +9,7 @@ from typing import (
 
 from wandb import util
 
-from ._WBValue import WBValue
+from .base_types.WBValue import WBValue
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..wandb_artifacts import Artifact as LocalArtifact

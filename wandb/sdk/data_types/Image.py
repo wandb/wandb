@@ -1,10 +1,10 @@
-from ._Media import Media
-from ._Media import BatchableMedia
-from ._ImageMask import ImageMask
-from ._BoundingBoxes2D import BoundingBoxes2D
-from .partial_types.Classes import Classes
+from .base_types.Media import Media
+from .base_types.Media import BatchableMedia
+from .helper_types.ImageMask import ImageMask
+from .helper_types.BoundingBoxes2D import BoundingBoxes2D
+from .helper_types.Classes import Classes
 
-from ._common import MEDIA_TMP, get_max_cli_version
+from .private._common import MEDIA_TMP,get_max_cli_version
 
 import hashlib
 import logging

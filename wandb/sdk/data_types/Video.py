@@ -1,6 +1,6 @@
 
-from ._Media import BatchableMedia
-from ._common import  MEDIA_TMP, is_numpy_array
+from .base_types.Media import BatchableMedia
+from .private._common import  MEDIA_TMP, is_numpy_array
 
 import logging
 import os
@@ -15,7 +15,7 @@ from typing import (
 
 import six
 from wandb import util
-from . import _dtypes
+from .private import _dtypes
 
 
 if TYPE_CHECKING:  # pragma: no cover

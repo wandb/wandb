@@ -11,11 +11,11 @@ from typing import (
 
 from pkg_resources import parse_version
 import wandb
-from ._common import get_max_cli_version
+from ..private._common import get_max_cli_version
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
-    from ..wandb_run import Run as LocalRun
+    from ...wandb_artifacts import Artifact as LocalArtifact
+    from ...wandb_run import Run as LocalRun
     from wandb.apis.public import Artifact as PublicArtifact
 
     TypeMappingType = Dict[str, Type["WBValue"]]

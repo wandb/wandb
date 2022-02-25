@@ -1,6 +1,6 @@
-from ._Media import Media
+from .Media import Media
 
-from ._common import MEDIA_TMP
+from ..private._common import MEDIA_TMP
 
 import codecs
 import os
@@ -13,8 +13,8 @@ from typing import (
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
-    from ..wandb_run import Run as LocalRun
+    from ...wandb_artifacts import Artifact as LocalArtifact
+    from ...wandb_run import Run as LocalRun
 
 
 

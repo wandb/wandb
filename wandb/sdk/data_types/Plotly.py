@@ -1,9 +1,9 @@
-from ._WBValue import WBValue
-from ._Media import Media
+from .base_types.WBValue import WBValue
+from .base_types.Media import Media
 from .Image import Image
 
-from ._Media import _numpy_arrays_to_lists
-from ._common import MEDIA_TMP
+from .base_types.Media import _numpy_arrays_to_lists
+from .private._common import MEDIA_TMP
 
 import codecs
 import os

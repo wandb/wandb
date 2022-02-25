@@ -79,7 +79,7 @@ class TypeRegistry:
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
-    def type_from_dtype(dtype: t.Union[ConvertableToType]) -> "Type":
+    def type_from_dtype(dtype: ConvertableToType) -> "Type":
         # The dtype is already an instance of Type
         if isinstance(dtype, Type):
             wbtype: Type = dtype

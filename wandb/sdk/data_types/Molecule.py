@@ -1,7 +1,7 @@
-from ._WBValue import WBValue
-from ._Media import Media, BatchableMedia
+from .base_types.WBValue import WBValue
+from .base_types.Media import Media, BatchableMedia
 
-from ._common import MEDIA_TMP
+from .private._common import MEDIA_TMP
 
 import io
 import os

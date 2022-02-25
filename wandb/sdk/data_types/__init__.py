@@ -1,7 +1,7 @@
-from ._WBValue import WBValue
-from ._Media import Media
-from ._Media import BatchableMedia
-from ._JSONMetadata import JSONMetadata
+from .base_types.WBValue import WBValue
+from .base_types.Media import Media
+from .base_types.Media import BatchableMedia
+from .base_types.JSONMetadata import JSONMetadata
 
 from .Histogram import Histogram
 from .Object3D import Object3D
@@ -11,14 +11,14 @@ from .Video import Video
 from .Image import Image
 from .Plotly import Plotly
 
-from ._ImageMask import ImageMask
-from ._BoundingBoxes2D import BoundingBoxes2D
-from .partial_types.Classes import Classes
+from .helper_types.ImageMask import ImageMask
+from .helper_types.BoundingBoxes2D import BoundingBoxes2D
+from .helper_types.Classes import Classes
 
 # TODO: Remove this once /data_types are all moved in this dir.
-from ._Media import _numpy_arrays_to_lists
+from .base_types.Media import _numpy_arrays_to_lists
 # TODO: remove once refactored
-from ._common import MEDIA_TMP, get_max_cli_version , is_numpy_array
+from .private._common import MEDIA_TMP, get_max_cli_version , is_numpy_array
 
 import logging
 import re

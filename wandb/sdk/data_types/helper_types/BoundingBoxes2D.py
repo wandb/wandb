@@ -1,4 +1,4 @@
-from ._JSONMetadata import JSONMetadata
+from ..base_types.JSONMetadata import JSONMetadata
 
 import numbers
 from typing import (
@@ -15,8 +15,8 @@ from wandb.util import has_num
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
-    from ..wandb_run import Run as LocalRun
+    from ...wandb_artifacts import Artifact as LocalArtifact
+    from ...wandb_run import Run as LocalRun
     from wandb.apis.public import Artifact as PublicArtifact
 
 

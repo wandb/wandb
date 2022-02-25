@@ -17,12 +17,12 @@ import wandb
 from wandb import util
 from wandb._globals import _datatypes_callback
 
-from ._WBValue import WBValue
+from .WBValue import WBValue
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..wandb_artifacts import Artifact as LocalArtifact
-    from ..wandb_run import Run as LocalRun
+    from ...wandb_artifacts import Artifact as LocalArtifact
+    from ...wandb_run import Run as LocalRun
     from wandb.apis.public import Artifact as PublicArtifact
     import numpy as np  # type: ignore
 
