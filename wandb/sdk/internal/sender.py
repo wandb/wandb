@@ -34,7 +34,7 @@ from ..interface import interface
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import config_util, filenames, proto_util, telemetry
 from ..lib import tracelog
-
+from ..lib.proto_util import message_to_dict
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -798,12 +798,12 @@ class SendManager:
             "output.log",
             file_stream.CRDedupeFilePolicy(start_chunk_id=self._resume_state.output),
         )
-        util.sentry_set_scope(
-            "internal",
-            entity=self._run.entity,
-            project=self._run.project,
-            email=self._settings.email,
-        )
+
+        # hack to merge run_settings and self._settings object together
+        # so that fields like entity or project are available to be attached to Sentry events.
+        run_settings = message_to_dict(self._run)
+        self._settings = SettingsStatic({**dict(self._settings), **run_settings})
+        util.sentry_set_scope(settings_dict=self._settings,)
         self._fs.start()
         self._pusher = FilePusher(self._api, self._fs, silent=self._settings.silent)
         self._dir_watcher = DirWatcher(
