@@ -54,14 +54,14 @@ commands:
             - save_cache:
                 paths:
                   - ./.tox
-                key: v0.29-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+                key: v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   restore-tox-cache:
     description: "Restore tox environment from cache"
     steps:
       - restore_cache:
               keys:
-              - v0.29-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
-              - v0.29-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.30-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   save-test-results:
     description: "Save test results"
     steps:
@@ -206,6 +206,12 @@ workflows:
       - launch:
          name: "wandb launch tests"
          toxenv: "pylaunch,covercircle"
+      #
+      # kfp tests
+      #
+      - kfp:
+         name: "kubeflow pipelines tests"
+         toxenv: "func-s_kfp-py37"
       #
       # sharded unittests
       #
@@ -374,4 +380,60 @@ jobs:
             no_output_timeout: 10m
         - save-tox-cache
         - save-test-results
-            
+
+    kfp:
+      parameters:
+        toxenv:
+          type: string
+      machine:
+          image: ubuntu-2004:202104-01
+          docker_layer_caching: true
+      resource_class: large
+      steps:
+        - attach_workspace:
+                  at: .
+        - checkout
+        - run:
+              name: Install system deps
+              command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
+        - run:
+              name: Use py37
+              command: |
+                  pyenv install 3.7.0
+                  pyenv versions
+                  pyenv global 3.7.0
+        - run:
+              name: Install python dependencies
+              command: |
+                  pip install tox==3.24.0
+        - restore-tox-cache
+        - run:
+              name: Install kubectl
+              command: |
+                  curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                  sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        - run:
+              name: Install kind
+              command: |
+                  curl -Lo ./kind/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64 --create-dirs
+                  chmod +x ./kind/kind
+                  export PATH="./kind:$PATH"
+                  kind create cluster
+        - run:
+              name: Install KFP
+              command: |
+                  export PIPELINE_VERSION=1.7.1
+                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/cluster-scoped-resources?ref=$PIPELINE_VERSION"
+                  sleep 10s
+                  kubectl wait --for condition=established --timeout=60s crd/applications.app.k8s.io
+                  kubectl apply -k "github.com/kubeflow/pipelines/manifests/kustomize/env/platform-agnostic-pns?ref=$PIPELINE_VERSION"
+                  sleep 10s
+                  kubectl wait --for condition=ready --timeout=300s pods -n kubeflow --all
+                  kubectl port-forward -n kubeflow svc/ml-pipeline-ui 8080:80 &
+        - run:
+              name: Run tests
+              command: |
+                  tox -v -e << parameters.toxenv >>
+              no_output_timeout: 25m
+        - save-tox-cache
+        - save-test-results
