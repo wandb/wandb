@@ -383,10 +383,7 @@ class Run:
         # Initial scope setup for sentry. This might get changed when the
         # actual run comes back.
         sentry_set_scope(
-            "user",
-            entity=self._entity,
-            project=self._project,
-            email=self._settings.email,
+            settings_dict=self._settings, process_context="user",
         )
 
         # Populate config
@@ -1121,11 +1118,7 @@ class Run:
         self.history_step = self.starting_step
         # TODO: It feels weird to call this twice..
         sentry_set_scope(
-            "user",
-            entity=run_obj.entity,
-            project=run_obj.project,
-            email=self._settings.email,
-            url=self._settings.run_url,
+            process_context="user", settings_dict=self.settings,
         )
 
     def _set_run_obj_offline(self, run_obj: RunRecord) -> None:
@@ -2102,8 +2095,8 @@ class Run:
                     and artifact.name in self._launch_artifact_mapping.keys()
                 ):
                     wandb.termwarn(
-                        "Swapping artifacts does not support swapping artifacts used "
-                        f"as an instance of `public.Artifact`. Using {artifact.name}"
+                        "Swapping artifacts is not supported when using an instance of `public.Artifact`. "
+                        f"Using {artifact.name}."
                     )
                 artifact._use_as = use_as or artifact.name
                 api.use_artifact(
@@ -2676,8 +2669,9 @@ class Run:
                 )
         else:
             raise ValueError(
-                f"got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
-                "expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+                f"Got the type `{type(poll_exit_responses)}` for `poll_exit_responses`. "
+                "Expected either None, PollExitResponse or a Dict[str, Union[PollExitResponse, None]]"
+
             )
 
     @staticmethod
@@ -2697,8 +2691,9 @@ class Run:
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
         line = (
-            f"{progress.uploaded_bytes/megabyte :.2f} MB of {progress.total_bytes/megabyte:.2f} MB uploaded "
-            f"({progress.deduped_bytes/megabyte:.2f} MB deduped)\r"
+            f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded "
+            f"({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
+
         )
 
         percent_done = (
@@ -2950,7 +2945,7 @@ class Run:
                 # printer = printer or get_printer(settings._jupyter)
                 printer.display(
                     f"Upgrade to the {latest_version} version of W&B Local to get the latest features. "
-                    f"Learn more: {printer.link('http://wandb.me/local-upgrade')}",
+                    f"Learn more: {printer.link('https://wandb.me/local-upgrade')}",
                     status="warn",
                 )
 
