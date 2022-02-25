@@ -656,7 +656,6 @@ class _WandbInit(object):
         self._reporter.set_context(run=run)
         run._on_start()
 
-        run._freeze()
         logger.info("run started, returning control to user process")
         return run
 
@@ -725,6 +724,7 @@ def _attach(
     if resp and resp.error and resp.error.message:
         raise UsageError("bad: {}".format(resp.error.message))
     run._set_run_obj(resp.run)
+    run._on_attach()
     return run
 
 

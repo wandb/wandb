@@ -149,7 +149,7 @@ def test_k8s_failure(wandb_init_run):
 
 @pytest.mark.wandb_args(sagemaker=True)
 def test_sagemaker(wandb_init_run, git_repo):
-    assert wandb.config.fuckin == "A"
+    assert wandb.config.foo == "bar"
     assert wandb.run.id == "sage-maker"
     # TODO: add test for secret, but for now there is no env or setting for it
     #  so its not added. Similarly add test for group
@@ -277,21 +277,18 @@ def test_sagemaker_key(runner):
         assert wandb.api.api_key == "S" * 40
 
 
-@pytest.mark.skip(reason="We dont validate keys in wandb.login() right now")
-def test_login_invalid_key():
-    os.environ["WANDB_API_KEY"] = "B" * 40
-    wandb.ensure_configured()
-    with pytest.raises(wandb.UsageError):
-        wandb.login()
-    del os.environ["WANDB_API_KEY"]
+@pytest.mark.skip(reason="We dont validate keys in `wandb.login()` right now")
+def test_login_invalid_key(live_mock_server):
+    with mock.patch.dict("os.environ", WANDB_API_KEY="B" * 40):
+        wandb.ensure_configured()
+        with pytest.raises(wandb.UsageError):
+            wandb.login()
 
 
-@pytest.mark.skip(reason="This doesn't work for some reason")
-def test_login_anonymous(mock_server, local_netrc):
-    os.environ["WANDB_API_KEY"] = "B" * 40
-    wandb.login(anonymous="must")
-    assert wandb.api.api_key == "ANONYMOOSE" * 4
-    del os.environ["WANDB_API_KEY"]
+def test_login_anonymous(live_mock_server, local_netrc):
+    with mock.patch.dict("os.environ", WANDB_API_KEY="ANONYMOOSE" * 4):
+        wandb.login(anonymous="must")
+        assert wandb.api.api_key == "ANONYMOOSE" * 4
 
 
 def test_login_sets_api_base_url(mock_server):
