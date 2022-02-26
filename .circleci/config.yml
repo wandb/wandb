@@ -399,20 +399,21 @@ jobs:
         - attach_workspace:
                   at: .
         - checkout
+        - restore-tox-cache
         - run:
               name: Install system deps
               command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
         - run:
               name: Use py37
               command: |
-                  pyenv install 3.7.0
+                  pyenv install -s 3.7.0
                   pyenv versions
                   pyenv global 3.7.0
         - run:
               name: Install python dependencies
               command: |
+                  pip install --upgrade pip
                   pip install tox==3.24.0
-        - restore-tox-cache
         - run:
               name: Install kubectl
               command: |
