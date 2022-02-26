@@ -9,6 +9,6 @@ depend:
 assert:
     - :wandb:runs_len: 2
     - :wandb:runs[0][job_type]: add
-    - :op>: [:wandb:runs[0][summary][return], 0]
+    - :op>: [":wandb:runs[0][summary][return]", 0]
     - :wandb:runs[1][job_type]: add
-    - :op>: [:wandb:runs[1][summary][return], 0]
+    - :op>: [":wandb:runs[1][summary][return]", 0]
