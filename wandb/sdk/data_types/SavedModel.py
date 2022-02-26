@@ -1,5 +1,17 @@
 import os
-from typing import Any, ClassVar, Dict, List, Optional, Type, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    TypeVar,
+    Union,
+)
 
 from wandb import util
 
@@ -21,6 +33,14 @@ if TYPE_CHECKING:  # pragma: no cover
     ModelType = Union[ModelPathType, ModelObjType]
 
     RegisteredAdaptersMapType = Dict[str, Type["_IModelAdapter"]]
+
+    VectorElementType = Union[Type[int], Type[float]]
+    VectorShapeType = Union[Tuple[int, ...], Tuple[int]]
+    VariableType = Tuple[VectorShapeType, VectorElementType]
+    SingularIOType = VariableType
+    ListIOType = List[VariableType]
+    NamedIOType = Dict[str, VariableType]
+    ModelIOType = Union[SingularIOType, ListIOType, NamedIOType]
 
 
 class _ModelAdapterRegistry(object):
@@ -45,9 +65,7 @@ class _ModelAdapterRegistry(object):
 
     @staticmethod
     def load_adapter(adapter_id: str) -> Type["_IModelAdapter"]:
-        selected_adapter = _ModelAdapterRegistry.registered_adapters()[
-            adapter_id
-        ]
+        selected_adapter = _ModelAdapterRegistry.registered_adapters()[adapter_id]
         if selected_adapter is None:
             raise ValueError(f"adapter {adapter_id} not registered")
         return selected_adapter
@@ -83,9 +101,7 @@ class SavedModel(Media):
     _path: Optional[str]
 
     def __init__(
-        self,
-        model_or_path: ModelType,
-        adapter_id: Optional[str] = None,
+        self, model_or_path: ModelType, adapter_id: Optional[str] = None,
     ) -> None:
         super(SavedModel, self).__init__()
         if adapter_id is None:
@@ -119,6 +135,8 @@ class SavedModel(Media):
     @property
     def adapter(self) -> "_IModelAdapter":
         if self._adapter is None:
+            if self._path is None:
+                raise ValueError("Error: SavedModel path not set")
             self._adapter = self._adapter_cls.init_from_path(self._path)
         return self._adapter
 
@@ -129,7 +147,7 @@ class SavedModel(Media):
     def to_json(self, run_or_artifact: Union["LocalRun", "LocalArtifact"]) -> dict:
         json_obj = super(SavedModel, self).to_json(run_or_artifact)
         json_obj["adapter_id"] = self.adapter.adapter_id
-        json_obj["model_spec"] = self.adapter.model_spec.to_json()
+        json_obj["model_spec"] = self.adapter.model_spec().to_json()
         return json_obj
 
     @classmethod
@@ -148,37 +166,36 @@ def _is_path(model_or_path: ModelType) -> bool:
     return isinstance(model_or_path, str) and os.path.exists(model_or_path)
 
 
+# TODO: Convert this to Weave
 class _ModelSpec(object):
-    # TODO: Figure out the best way to generalize these attributes
-    _inputs: Optional[Dict[str, List[int]]]
-    _outputs: Optional[Dict[str, List[int]]]
+    _inputs: ModelIOType
+    _outputs: ModelIOType
 
-    def __init__(
-        self,
-        inputs: Optional[Dict[str, List[int]]],
-        outputs: Optional[Dict[str, List[int]]],
-    ) -> None:
+    def __init__(self, inputs: ModelIOType, outputs: ModelIOType,) -> None:
         self._inputs = inputs
         self._outputs = outputs
 
     def to_json(self) -> Dict[str, Any]:
         return {
-            "_inputs": self._inputs,
-            "_outputs": self._outputs,
+            "input_shape": self._inputs,
+            "output_shape": self._outputs,
         }
 
-from typing import TypeVar, Generic
 
-ModelObjectType = TypeVar('ModelObjectType')
+ModelObjectType = TypeVar("ModelObjectType")
+
+
 class _IModelAdapter(Generic[ModelObjectType]):
     adapter_id: str
-    _internal_model: ModelObjType
+    _internal_model: ModelObjectType
 
     def __init__(self, model: ModelObjectType) -> None:
         self._internal_model = model
 
     @classmethod
-    def init_from_path(cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType) -> "_IModelAdapter":
+    def init_from_path(
+        cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType
+    ) -> "_IModelAdapter":
         raise NotImplementedError()
 
     @staticmethod
@@ -218,7 +235,7 @@ class _SavedModelType(_dtypes.Type):
         if not isinstance(py_obj, SavedModel):
             raise TypeError("py_obj must be a SavedModel")
         else:
-            return cls(py_obj._adapter.adapter_id, py_obj._model_spec.to_json())
+            return cls(py_obj.adapter.adapter_id, py_obj.adapter.model_spec().to_json())
 
 
 _dtypes.TypeRegistry.add(_SavedModelType)
