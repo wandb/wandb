@@ -455,7 +455,7 @@ jobs:
         - run:
               name: Run tests
               command: |
-                  tox -v -e << parameters.toxenv >>
+                  tox -vv -e << parameters.toxenv >>
               no_output_timeout: 25m
         - save-kfp-cache
         - save-test-results
