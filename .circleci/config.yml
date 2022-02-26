@@ -215,6 +215,7 @@ workflows:
       #
       # sharded unittests
       #
+      # s_nb: notebook tests
       - test:
          name: "unit-s_nb-lin-py36"
          image: "python:3.6"
@@ -227,6 +228,21 @@ workflows:
       - mac:
          name: "unit-s_nb-mac-py37"
          toxenv: "unit-s_nb-py37"
+         parallelism: 1
+         xdist: 1
+      # s_kfp: kubeflow pipeline tests
+      - test:
+         name: "unit-s_kfp-lin-py36"
+         image: "python:3.6"
+         toxenv: "unit-s_kfp-py36,unit-covercircle"
+      - win:
+         name: "unit-s_kfp-win-py37"
+         toxenv: "unit-s_kfp-py37"
+         parallelism: 1
+         xdist: 1
+      - mac:
+         name: "unit-s_kfp-mac-py37"
+         toxenv: "unit-s_kfp-py37"
          parallelism: 1
          xdist: 1
   manual_test:
