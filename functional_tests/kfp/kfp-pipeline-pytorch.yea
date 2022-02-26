@@ -3,7 +3,8 @@ tag:
     shard: kfp
 plugin:
   - wandb
-command:
-  program: kfp-pipeline-pytorch.py
+depend:
+  requirements:
+    - kfp==1.8.11
 assert:
     - :wandb:runs_len: 3
