@@ -98,7 +98,11 @@ class _WandbInit(object):
         This includes parsing all arguments, applying them with settings and enabling logging.
         """
         self.kwargs = kwargs
-
+        # if the user ran, for example, `wandb.login(`) before `wandb.init()`,
+        # the singleton will already be set up and so if e.g. env vars are set
+        # in between, they will be ignored, which is not what we want.
+        if wandb.sdk.wandb_setup._WandbSetup._instance is not None:
+            wandb_setup._setup(_reset=True)
         self._wl = wandb_setup._setup()
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())

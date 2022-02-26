@@ -272,7 +272,7 @@ class _WandbSetup:
 
     _instance = None
 
-    def __init__(self, settings=None):
+    def __init__(self, settings=None) -> None:
         pid = os.getpid()
         if _WandbSetup._instance and _WandbSetup._instance._pid == pid:
             _WandbSetup._instance._update(settings=settings)
@@ -283,7 +283,7 @@ class _WandbSetup:
         return getattr(self._instance, name)
 
 
-def _setup(settings=None, _reset=None):
+def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
     """Setup library context."""
     if _reset:
         setup_instance = _WandbSetup._instance

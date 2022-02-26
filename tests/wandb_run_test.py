@@ -3,12 +3,13 @@ config tests.
 """
 
 import os
-import sys
-import numpy as np
 import platform
-import pytest
+import sys
+import tempfile
 from unittest import mock
 
+import numpy as np
+import pytest
 import wandb
 from wandb import wandb_sdk
 from wandb.errors import LogMultiprocessError, UsageError
@@ -711,4 +712,13 @@ def test_settings_unexpected_args_telemetry(
         # whose field 2 corresponds to unexpected arguments in Settings
         telemetry_issues = telemetry.get("11", [])
         assert 2 in telemetry_issues
+        run.finish()
+
+
+def test_login_change_env_var_int(live_mock_server, test_settings, parse_ctx):
+    # WB-7940
+    wandb.login()
+    with mock.patch.dict("os.environ", WANDB_DIR=tempfile.gettempdir()):
+        run = wandb.init(settings=test_settings)
+        assert run.settings.root_dir == tempfile.gettempdir()
         run.finish()
