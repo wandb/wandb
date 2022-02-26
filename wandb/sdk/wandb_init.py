@@ -104,7 +104,8 @@ class _WandbInit(object):
         if singleton is not None:
             # update the singleton._environ with the current env vars
             singleton._environ = (
-                dict(os.environ) if singleton._environ is None
+                dict(os.environ)
+                if singleton._environ is None
                 else {**singleton._environ, **dict(os.environ)}
             )
             # update the singleton with the current settings

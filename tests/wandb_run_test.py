@@ -715,10 +715,11 @@ def test_settings_unexpected_args_telemetry(
         run.finish()
 
 
-def test_login_change_env_var_int(live_mock_server, test_settings, parse_ctx):
-    # WB-7940
-    wandb.login()
-    with mock.patch.dict("os.environ", WANDB_DIR=tempfile.gettempdir()):
-        run = wandb.init(settings=test_settings)
-        assert run.settings.root_dir == tempfile.gettempdir()
-        run.finish()
+def test_login_change_env_var_int(runner, live_mock_server, parse_ctx):
+    # WB-7940: test that we can change the env var after login
+    with runner.isolated_filesystem():
+        wandb.login()
+        with mock.patch.dict("os.environ", WANDB_DIR=tempfile.gettempdir()):
+            run = wandb.init()
+            assert run.settings.root_dir == tempfile.gettempdir()
+            run.finish()
