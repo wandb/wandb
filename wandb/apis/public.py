@@ -3608,6 +3608,43 @@ class Artifact(artifacts.Artifact):
         return use_as
 
     @normalize_exceptions
+    def link(self, registry_name, aliases=None):
+
+        # this is a public artifact, so we can link using the artifactID directly
+        mutation = gql(
+            """
+        mutation LinkArtifact(
+            $artifactID: ID,
+            $artifactPortfolioName: String,
+            $entityName: String,
+            $projectName: String,
+            $aliases: [ArtifactAliasInput!]) {
+            linkArtifact(input: {
+                artifactID: $artifactID,
+                artifactPortfolioName: $artifactPortfolioName,
+                entityName: $entityName,
+                projectName: $projectName,
+                aliases: $aliases
+            }) {
+                artifactID
+                versionIndex
+            }
+        }
+        """
+        )
+        self.client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioName": registry_name,
+                "$entityName": self._entity,
+                "$projectName": self._project,
+                "$aliases": [alias for alias in aliases],
+            },
+        )
+        return True
+
+    @normalize_exceptions
     def delete(self, delete_aliases=False):
         """
         Delete an artifact and its files.
