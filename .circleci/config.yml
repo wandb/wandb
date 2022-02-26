@@ -85,35 +85,25 @@ workflows:
          name: "code-check"
          image: "python:3.6"
          toxenv: "protocheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
-# Disable python2.7 for good?
-#      - test:
-#         name: "Python 2.7"
-#         image: "python:2.7"
-#         toxenv: "py27"
-# Disable python3.5 for now
-#      - test:
-#         name: "Python 3.5"
-#         image: "python:3.5"
-#         toxenv: "py35"
       - test:
-         name: "lin-py36"
+         name: "unit-s_base-lin-py36"
          image: "python:3.6"
          toxenv: "py36,covercircle"
       - test:
-         name: "lin-py37"
+         name: "unit-s_base-lin-py37"
          image: "python:3.7"
          toxenv: "py37"
       - test:
-         name: "lin-py38"
+         name: "unit-s_base-lin-py38"
          image: "python:3.8"
          toxenv: "py38"
       - test:
-         name: "lin-py39"
+         name: "unit-s_base-lin-py39"
          image: "python:3.9"
          toxenv: "py39"
 # Enable when circle offers python 3.10 image
 #      - test:
-#         name: "lin-py310"
+#         name: "unit-s_base-lin-py310"
 #         image: "python:3.10"
 #         toxenv: "py310"
       #
@@ -195,22 +185,22 @@ workflows:
       # unit win/mac tests
       #
       - win:
-         name: "win-py37"
+         name: "unit-s_base-win-py37"
          toxenv: "py37,wincovercircle -- --timeout 300"
       - mac:
-         name: "mac-py37"
+         name: "unit-s_base-mac-py37"
          toxenv: "py37"
       #
       # launch tests
       #
       - launch:
-         name: "wandb launch tests"
+         name: "mach-launch"
          toxenv: "pylaunch,covercircle"
       #
       # kfp tests
       #
       - kfp:
-         name: "kubeflow pipelines tests"
+         name: "mach-kubeflow"
          toxenv: "func-s_kfp-py37"
       #
       # sharded unittests
