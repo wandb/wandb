@@ -71,6 +71,8 @@ class Media(WBValue):
 
     @classmethod
     def get_media_subdir(cls: Type["Media"]) -> str:
+        if cls._log_type is not None:
+            return os.path.join("media", cls._log_type)
         raise NotImplementedError
 
     @staticmethod
