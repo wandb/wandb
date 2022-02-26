@@ -21,6 +21,7 @@ def wandb_log(  # noqa: C901
         OutputTextFile,
     )
     import wandb
+    from wandb.sdk.lib import telemetry as wb_telemetry
 
     output_types = (OutputArtifact, OutputBinaryFile, OutputPath, OutputTextFile)
     input_types = (InputArtifact, InputBinaryFile, InputPath, InputTextFile)
@@ -125,7 +126,7 @@ def wandb_log(  # noqa: C901
                 job_type=func.__name__,
                 group="{{workflow.annotations.pipelines.kubeflow.org/run_name}}",
             ) as run:
-                with wandb.wandb_lib.telemetry.context(run=run) as tel:
+                with wb_telemetry.context(run=run) as tel:
                     tel.feature.kfp_wandb_log = True
                 iframe_html = get_iframe_html(run)
                 metadata = {
