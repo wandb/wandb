@@ -85,22 +85,22 @@ workflows:
          name: "code-check"
          image: "python:3.6"
          toxenv: "protocheck,mypy,mypy-report,black,flake8,docstrings,verify-sweeps"
-      - test:
-         name: "unit-s_base-lin-py36"
-         image: "python:3.6"
-         toxenv: "py36,covercircle"
-      - test:
-         name: "unit-s_base-lin-py37"
-         image: "python:3.7"
-         toxenv: "py37"
-      - test:
-         name: "unit-s_base-lin-py38"
-         image: "python:3.8"
-         toxenv: "py38"
-      - test:
-         name: "unit-s_base-lin-py39"
-         image: "python:3.9"
-         toxenv: "py39"
+#      - test:
+#         name: "unit-s_base-lin-py36"
+#         image: "python:3.6"
+#         toxenv: "py36,covercircle"
+#      - test:
+#         name: "unit-s_base-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "py37"
+#      - test:
+#         name: "unit-s_base-lin-py38"
+#         image: "python:3.8"
+#         toxenv: "py38"
+#      - test:
+#         name: "unit-s_base-lin-py39"
+#         image: "python:3.9"
+#         toxenv: "py39"
 # Enable when circle offers python 3.10 image
 #      - test:
 #         name: "unit-s_base-lin-py310"
@@ -109,96 +109,96 @@ workflows:
       #
       # functional linux tests
       #
-      - test:
-         name: "func-s_base-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_base-py37,func-covercircle"
-      - test:
-         name: "func-s_tf115-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf115-py37,func-covercircle"
-      - test:
-         name: "func-s_tf21-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf21-py37,func-covercircle"
-      - test:
-         name: "func-s_tf25-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf25-py37,func-covercircle"
-      - test:
-         name: "func-s_tf26-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_tf26-py37,func-covercircle"
-      - test:
-         name: "func-s_service-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_service-py37,func-covercircle"
-      - test:
-         name: "func-s_noml-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_noml-py37,func-covercircle"
-      - test:
-         name: "func-s_grpc-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_grpc-py37,func-covercircle"
-      - test:
-         name: "func-s_py310-lin-py310"
-         image: "python:3.10"
-         toxenv: "func-s_py310-py310,func-covercircle"
-      - test:
-         name: "func-s_docs-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_docs-py37,func-covercircle"
-      - test:
-         name: "func-s_imports1-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports1-py37"
-      - test:
-         name: "func-s_imports2-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports2-py37"
-      - test:
-         name: "func-s_imports3-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports3-py37"
-      - test:
-         name: "func-s_imports4-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports4-py37"
-      - test:
-         name: "func-s_imports5-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports5-py37"
-      - test:
-         name: "func-s_imports6-lin-py37"
-         image: "python:3.7"
-         toxenv: "func-s_imports6-py37"
+#      - test:
+#         name: "func-s_base-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_base-py37,func-covercircle"
+#      - test:
+#         name: "func-s_tf115-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_tf115-py37,func-covercircle"
+#      - test:
+#         name: "func-s_tf21-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_tf21-py37,func-covercircle"
+#      - test:
+#         name: "func-s_tf25-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_tf25-py37,func-covercircle"
+#      - test:
+#         name: "func-s_tf26-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_tf26-py37,func-covercircle"
+#      - test:
+#         name: "func-s_service-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_service-py37,func-covercircle"
+#      - test:
+#         name: "func-s_noml-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_noml-py37,func-covercircle"
+#      - test:
+#         name: "func-s_grpc-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_grpc-py37,func-covercircle"
+#      - test:
+#         name: "func-s_py310-lin-py310"
+#         image: "python:3.10"
+#         toxenv: "func-s_py310-py310,func-covercircle"
+#      - test:
+#         name: "func-s_docs-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_docs-py37,func-covercircle"
+#      - test:
+#         name: "func-s_imports1-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_imports1-py37"
+#      - test:
+#         name: "func-s_imports2-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_imports2-py37"
+#      - test:
+#         name: "func-s_imports3-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_imports3-py37"
+#      - test:
+#         name: "func-s_imports4-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_imports4-py37"
+#      - test:
+#         name: "func-s_imports5-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_imports5-py37"
+#      - test:
+#         name: "func-s_imports6-lin-py37"
+#         image: "python:3.7"
+#         toxenv: "func-s_imports6-py37"
       #
       # functional win tests
       #
-      - win:
-         name: "func-s_base-win-py37"
-         toxenv: "func-s_base-py37"
-         parallelism: 1
-         xdist: 1
-      #
-      # unit win/mac tests
-      #
-      - win:
-         name: "unit-s_base-win-py37"
-         toxenv: "py37,wincovercircle -- --timeout 300"
-      - mac:
-         name: "unit-s_base-mac-py37"
-         toxenv: "py37"
-      #
-      # launch tests
-      #
-      - launch:
-         name: "mach-launch"
-         toxenv: "pylaunch,covercircle"
-      #
-      # kfp tests
-      #
+#      - win:
+#         name: "func-s_base-win-py37"
+#         toxenv: "func-s_base-py37"
+#         parallelism: 1
+#         xdist: 1
+#      #
+#      # unit win/mac tests
+#      #
+#      - win:
+#         name: "unit-s_base-win-py37"
+#         toxenv: "py37,wincovercircle -- --timeout 300"
+#      - mac:
+#         name: "unit-s_base-mac-py37"
+#         toxenv: "py37"
+#      #
+#      # launch tests
+#      #
+#      - launch:
+#         name: "mach-launch"
+#         toxenv: "pylaunch,covercircle"
+#      #
+#      # kfp tests
+#      #
       - kfp:
          name: "mach-kubeflow"
          toxenv: "func-s_kfp-py37"
@@ -206,20 +206,20 @@ workflows:
       # sharded unittests
       #
       # s_nb: notebook tests
-      - test:
-         name: "unit-s_nb-lin-py36"
-         image: "python:3.6"
-         toxenv: "unit-s_nb-py36,unit-covercircle"
-      - win:
-         name: "unit-s_nb-win-py37"
-         toxenv: "unit-s_nb-py37"
-         parallelism: 1
-         xdist: 1
-      - mac:
-         name: "unit-s_nb-mac-py37"
-         toxenv: "unit-s_nb-py37"
-         parallelism: 1
-         xdist: 1
+#      - test:
+#         name: "unit-s_nb-lin-py36"
+#         image: "python:3.6"
+#         toxenv: "unit-s_nb-py36,unit-covercircle"
+#      - win:
+#         name: "unit-s_nb-win-py37"
+#         toxenv: "unit-s_nb-py37"
+#         parallelism: 1
+#         xdist: 1
+#      - mac:
+#         name: "unit-s_nb-mac-py37"
+#         toxenv: "unit-s_nb-py37"
+#         parallelism: 1
+#         xdist: 1
       # s_kfp: kubeflow pipeline tests
       - test:
          name: "unit-s_kfp-lin-py36"
