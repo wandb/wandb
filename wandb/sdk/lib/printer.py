@@ -1,7 +1,6 @@
 # Note: this is a helper printer class, this file might go away once we switch to rich console printing
 
 from abc import abstractmethod
-import itertools
 import platform
 import sys
 from typing import List, Optional, Tuple, Union
@@ -75,7 +74,8 @@ class PrinterTerm(_Printer):
     def __init__(self) -> None:
         super().__init__()
         self._html = False
-        self._progress = itertools.cycle(["-", "\\", "|", "/"])
+        self._progress = ["-", "\\", "|", "/"]
+        self._idx = 0
 
     def _display(
         self, text: Union[str, List[str], Tuple[str]], *, status: Optional[str] = None
@@ -91,7 +91,8 @@ class PrinterTerm(_Printer):
             raise
 
     def progress_update(self, text: str, percentage: Optional[float] = None) -> None:
-        wandb.termlog(f"{next(self._progress)} {text}", newline=False)
+        self._idx = (self._idx + 1) % len(self._progress)
+        wandb.termlog(f"{self._progress[self._idx]} {text}", newline=False)
 
     def progress_close(self) -> None:
         wandb.termlog(" " * 79)
