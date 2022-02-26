@@ -86,7 +86,6 @@ class _WandbInit(object):
         self._teardown_hooks = []
         self._wl = None
         self._reporter = None
-        self._use_sagemaker = None
         self.notebook = None
 
         self._init_telemetry_obj = telemetry.TelemetryRecord()
@@ -130,7 +129,8 @@ class _WandbInit(object):
                 settings._apply_env_vars(sagemaker_env)
                 wandb.setup(settings=settings)
             settings.update(sagemaker_run, source=Source.SETUP)
-            self._use_sagemaker = True
+            with telemetry.context(obj=self._init_telemetry_obj) as tel:
+                tel.feature.sagemaker = True
 
         with telemetry.context(obj=self._init_telemetry_obj) as tel:
             if kwargs.get("config"):
@@ -530,8 +530,6 @@ class _WandbInit(object):
             if self.settings._windows:
                 tel.env.windows = True
             run._telemetry_imports(tel.imports_init)
-            if self._use_sagemaker:
-                tel.feature.sagemaker = True
 
             if self.settings.launch:
                 tel.feature.launch = True
