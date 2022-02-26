@@ -24,3 +24,12 @@ assert:
     - :wandb:artifacts[train_model][type]: kubeflow_component_file
     - :wandb:artifacts[y_test_path][type]: np_array
     - :wandb:artifacts[y_train_path][type]: np_array
+    - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[1][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[2][telemetry][3]  # feature
+      - 36  # kfp_wandb_log

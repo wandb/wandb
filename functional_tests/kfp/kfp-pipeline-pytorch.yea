@@ -23,3 +23,12 @@ assert:
     - :wandb:artifacts[train_dataloader_path][type]: dataloader
     - :wandb:artifacts[train_dataset_path][type]: tensor
     - :wandb:artifacts[train_model][type]: kubeflow_component_file
+    - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[1][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[2][telemetry][3]  # feature
+      - 36  # kfp_wandb_log

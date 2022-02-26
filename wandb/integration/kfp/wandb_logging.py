@@ -125,6 +125,8 @@ def wandb_log(  # noqa: C901
                 job_type=func.__name__,
                 group="{{workflow.annotations.pipelines.kubeflow.org/run_name}}",
             ) as run:
+                with wandb.wandb_lib.telemetry.context(run=run) as tel:
+                    tel.feature.kfp_wandb_log = True
                 iframe_html = get_iframe_html(run)
                 metadata = {
                     "outputs": [
