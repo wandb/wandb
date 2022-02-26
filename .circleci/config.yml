@@ -302,13 +302,13 @@ jobs:
                   name: Install python dependencies
                   command: |
                       pip install tox==3.24.0
-            - restore-kfp-cache
+            - restore-tox-cache
             - run:
                   name: Run tests
                   command: |
                       tox -v -e << parameters.toxenv >>
                   no_output_timeout: 25m
-            - save-kfp-cache
+            - save-tox-cache
             - save-test-results
     win:
         parameters:
@@ -414,7 +414,7 @@ jobs:
         - attach_workspace:
                   at: .
         - checkout
-        - restore-tox-cache
+        - restore-kfp-cache
         - run:
               name: Install system deps
               command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
@@ -457,5 +457,5 @@ jobs:
               command: |
                   tox -v -e << parameters.toxenv >>
               no_output_timeout: 25m
-        - save-tox-cache
+        - save-kfp-cache
         - save-test-results
