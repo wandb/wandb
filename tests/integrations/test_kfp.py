@@ -1,6 +1,5 @@
 import inspect
 from importlib import reload
-import pytest
 from unittest.mock import patch
 
 import kfp
@@ -10,14 +9,7 @@ from kfp.components._structures import InputSpec, OutputSpec
 from wandb.integration.kfp import unpatch_kfp, wandb_log
 
 
-@pytest.fixture
-def test_reload_patch():
-    reload(wandb.integration.kfp)
-    yield
-    unpatch_kfp()
-
-
-def test_get_noop_decorator_if_patching_fails(test_reload_patch):
+def test_get_noop_decorator_if_patching_fails():
     with patch("kfp.components._python_op.create_component_from_func", None):
         reload(wandb.integration.kfp)
         from wandb.integration.kfp import wandb_log
@@ -32,7 +24,7 @@ def test_get_noop_decorator_if_patching_fails(test_reload_patch):
     assert kfp.components is not None
 
 
-def test_noop_decorator_does_not_modify_inputs(test_reload_patch):
+def test_noop_decorator_does_not_modify_inputs():
     with patch("kfp.components._python_op", None):
         reload(wandb.integration.kfp)
         from wandb.integration.kfp import wandb_log
@@ -63,7 +55,7 @@ def test_noop_decorator_does_not_modify_inputs(test_reload_patch):
         assert train_model.__annotations__["model_path"].type == "sklearn_model"
 
 
-def test_correct_annotations_and_signature(test_reload_patch):
+def test_correct_annotations_and_signature():
     @wandb_log
     def add(a: float, b: float) -> float:
         return a + b
@@ -78,7 +70,7 @@ def test_correct_annotations_and_signature(test_reload_patch):
     assert hasattr(add, "__signature__"), "Signature was not applied"
 
 
-def test_decorator_does_not_modify_inputs(test_reload_patch):
+def test_decorator_does_not_modify_inputs():
     @wandb_log
     def train_model(
         X_train_path: InputPath("np_array"),
@@ -105,7 +97,7 @@ def test_decorator_does_not_modify_inputs(test_reload_patch):
     assert train_model.__annotations__["model_path"].type == "sklearn_model"
 
 
-def test_valid_created_component(test_reload_patch):
+def test_valid_created_component():
     @wandb_log
     def add(a: float, b: float) -> float:
         return a + b
@@ -130,7 +122,7 @@ def test_valid_created_component(test_reload_patch):
     assert add2_task_spec.outputs == [OutputSpec("Output", "Float")]
 
 
-def test_unpatching(test_reload_patch):
+def test_unpatching():
     assert (
         inspect.getmodule(kfp.components._python_op.create_component_from_func)
         is wandb.integration.kfp.kfp_patch
