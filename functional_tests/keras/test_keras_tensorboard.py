@@ -1,8 +1,8 @@
 import numpy as np
 import tensorflow as tf
+from tensorflow.keras.callbacks import TensorBoard
 import wandb
 from wandb.keras import WandbCallback
-from tensorflow.keras.callbacks import TensorBoard
 
 wandb.tensorboard.patch(root_logdir="logs")
 run = wandb.init(project="keras")
@@ -26,9 +26,7 @@ model.fit(
     y,
     epochs=2,
     validation_data=(x, y),
-    callbacks=[WandbCallback(input_type="image"),
-        TensorBoard(log_dir="logs")
-        ],
+    callbacks=[WandbCallback(input_type="image"), TensorBoard(log_dir="logs")],
 )
 
 run.finish()
