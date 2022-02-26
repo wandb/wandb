@@ -95,7 +95,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._manager = None
         self._pid = pid
 
-        # keep track of multiple runs so we can unwind with join()s
+        # keep track of multiple runs, so we can unwind with join()s
         self._global_run_stack = []
 
         # TODO(jhr): defer strict checks until settings are fully initialized
@@ -295,7 +295,7 @@ def _setup(settings=None, _reset: bool = False) -> Optional["_WandbSetup"]:
     return wl
 
 
-def setup(settings=None):
+def setup(settings=None) -> Optional["_WandbSetup"]:
     ret = _setup(settings=settings)
     return ret
 
