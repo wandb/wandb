@@ -21,6 +21,7 @@ _LABEL_TOKEN: str = "@wandbcode{"
 
 class _TelemetryObject(object):
     _run: Optional["wandb_run.Run"]
+    _obj: TelemetryRecord
 
     def __init__(
         self, run: "wandb_run.Run" = None, obj: TelemetryRecord = None
