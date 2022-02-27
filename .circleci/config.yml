@@ -215,8 +215,17 @@ workflows:
       # kfp tests
       #
       - kfp:
-         name: "mach-kubeflow"
+         name: "mach-kubeflow36"
+         toxenv: "func-s_kfp-py36"
+      - kfp:
+         name: "mach-kubeflow37"
          toxenv: "func-s_kfp-py37"
+      - kfp:
+         name: "mach-kubeflow38"
+         toxenv: "func-s_kfp-py38"
+      - kfp:
+         name: "mach-kubeflow39"
+         toxenv: "func-s_kfp-py39"
       #
       # sharded unittests
       #
@@ -418,12 +427,6 @@ jobs:
         - run:
               name: Install system deps
               command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
-        - run:
-              name: Use py37
-              command: |
-                  pyenv install -s 3.7.0
-                  pyenv versions
-                  pyenv global 3.7.0
         - run:
               name: Install python dependencies
               command: |
