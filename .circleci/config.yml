@@ -434,16 +434,16 @@ jobs:
               name: Install system deps
               command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
         - run:
-              name: Install python dependencies
-              command: |
-                  pip install --upgrade pip
-                  pip install tox==3.24.0
-        - run:
               name: Use python version << parameters.python_version >>
               command: |
                   pyenv install -s << parameters.python_version >>
                   pyenv versions
                   pyenv global << parameters.python_version >>
+        - run:
+              name: Install python dependencies
+              command: |
+                  pip install --upgrade pip
+                  pip install tox==3.24.0
         - run:
               name: Install kubectl
               command: |
