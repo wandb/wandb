@@ -444,6 +444,7 @@ jobs:
               command: |
                   pip install --upgrade pip
                   pip install tox==3.24.0
+                  pip install --upgrade pyparsing
         - run:
               name: Install kubectl
               command: |
