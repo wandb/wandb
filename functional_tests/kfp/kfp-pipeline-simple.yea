@@ -12,9 +12,9 @@ assert:
     - :op:>: [":wandb:runs[0][summary][return]", 0]
     - :wandb:runs[1][job_type]: add
     - :op:>: [":wandb:runs[1][summary][return]", 0]
-#    - :op:contains:
-#      - :wandb:runs[0][telemetry][3]  # feature
-#      - 36  # kfp_wandb_log
-#    - :op:contains:
-#      - :wandb:runs[1][telemetry][3]  # feature
-#      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[1][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
