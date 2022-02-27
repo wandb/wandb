@@ -8,6 +8,8 @@ from kubernetes.client.models import V1EnvVar
 import wandb
 from wandb.integration.kfp import wandb_log
 
+from .wandb_probe import wandb_probe_package
+
 
 def add_wandb_env_variables(op):
     env = {
@@ -177,17 +179,22 @@ def train_model(
         torch.save(model.state_dict(), model_path)
 
 
+packages_to_install = ["torch", "torchvision"]
+# probe wandb dev build if needed (otherwise released wandb will be used)
+wandb_package = wandb_probe_package()
+if wandb_package:
+    packages_to_install.append(wandb_package)
 setup_data = components.create_component_from_func(
     setup_data,
-    packages_to_install=["torch", "torchvision"],
+    packages_to_install=packages_to_install,
 )
 setup_dataloaders = components.create_component_from_func(
     setup_dataloaders,
-    packages_to_install=["torch", "torchvision"],
+    packages_to_install=packages_to_install,
 )
 train_model = components.create_component_from_func(
     train_model,
-    packages_to_install=["torch", "torchvision"],
+    packages_to_install=packages_to_install,
 )
 
 

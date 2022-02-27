@@ -7,6 +7,8 @@ import kfp.dsl as dsl
 from kubernetes.client.models import V1EnvVar
 from wandb.integration.kfp import wandb_log
 
+from .wandb_probe import wandb_probe_package
+
 
 def add_wandb_env_variables(op):
     env = {
@@ -25,7 +27,15 @@ def add(a: float, b: float) -> float:
     return a + b
 
 
-add = components.create_component_from_func(add)
+packages_to_install = []
+# probe wandb dev build if needed (otherwise released wandb will be used)
+wandb_package = wandb_probe_package()
+if wandb_package:
+    packages_to_install.append(wandb_package)
+add = components.create_component_from_func(
+    add,
+    packages_to_install=packages_to_install,
+)
 
 
 @dsl.pipeline(name="adding-pipeline")
