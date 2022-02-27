@@ -7,8 +7,7 @@ import kfp.dsl as dsl
 from kubernetes.client.models import V1EnvVar
 import wandb
 from wandb.integration.kfp import wandb_log
-
-from .wandb_probe import wandb_probe_package
+from wandb_probe import wandb_probe_package
 
 
 def add_wandb_env_variables(op):
