@@ -217,15 +217,19 @@ workflows:
       - kfp:
          name: "mach-kubeflow36"
          toxenv: "func-s_kfp-py36"
+         python_version: 3.6.0
       - kfp:
          name: "mach-kubeflow37"
          toxenv: "func-s_kfp-py37"
+         python_version: 3.7.0
       - kfp:
          name: "mach-kubeflow38"
          toxenv: "func-s_kfp-py38"
+         python_version: 3.8.0
       - kfp:
          name: "mach-kubeflow39"
          toxenv: "func-s_kfp-py39"
+         python_version: 3.9.0
       #
       # sharded unittests
       #
@@ -432,6 +436,12 @@ jobs:
               command: |
                   pip install --upgrade pip
                   pip install tox==3.24.0
+        - run:
+              name: Use python version << parameters.python_version >>
+              command: |
+                  pyenv install -s << parameters.python_version >>
+                  pyenv versions
+                  pyenv global << parameters.python_version >>
         - run:
               name: Install kubectl
               command: |
