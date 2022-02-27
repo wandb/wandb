@@ -25,3 +25,6 @@ assert:
   - :op:contains:
     - :wandb:runs[0][telemetry][3]  # feature
     - 23  # service
+  - :op:contains:
+    - :wandb:runs[0][telemetry][3]  # feature
+    - 35  # tensorboard_sync

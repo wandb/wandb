@@ -3,7 +3,32 @@ tag:
     shard: kfp
 plugin:
   - wandb
-command:
-  program: kfp-pipeline-pytorch.py
+depend:
+  requirements:
+    - kfp==1.8.11
 assert:
     - :wandb:runs_len: 3
+    - :wandb:runs[0][job_type]: setup_data
+    - :wandb:runs[0][summary]: {}
+    - :wandb:runs[1][job_type]: setup_dataloaders
+    - :wandb:runs[1][summary]: {}
+    - :wandb:runs[2][job_type]: train_model
+    - :wandb:runs[2][summary][epoch]: 1
+    - :wandb:runs[2][summary][step]: 1920
+    - :wandb:artifacts[model_path][type]: pytorch_model
+    - :wandb:artifacts[setup_data][type]: kubeflow_component_file
+    - :wandb:artifacts[setup_dataloaders][type]: kubeflow_component_file
+    - :wandb:artifacts[test_dataloader_path][type]: dataloader
+    - :wandb:artifacts[test_dataset_path][type]: tensor
+    - :wandb:artifacts[train_dataloader_path][type]: dataloader
+    - :wandb:artifacts[train_dataset_path][type]: tensor
+    - :wandb:artifacts[train_model][type]: kubeflow_component_file
+    - :op:contains:
+      - :wandb:runs[0][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[1][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
+    - :op:contains:
+      - :wandb:runs[2][telemetry][3]  # feature
+      - 36  # kfp_wandb_log
