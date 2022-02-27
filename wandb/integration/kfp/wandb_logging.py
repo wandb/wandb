@@ -22,6 +22,8 @@ def wandb_log(  # noqa: C901
     )
     import wandb
 
+    from wandb.sdk.lib import telemetry as wb_telemetry
+
     output_types = (OutputArtifact, OutputBinaryFile, OutputPath, OutputTextFile)
     input_types = (InputArtifact, InputBinaryFile, InputPath, InputTextFile)
 
@@ -147,6 +149,9 @@ def wandb_log(  # noqa: C901
 
                 for name, ann in input_artifacts.items():
                     log_input_artifact(name, kwargs[name], ann.type, run)
+
+                with wb_telemetry.context(run=run) as tel:
+                    tel.feature.kfp_wandb_log = True
 
                 result = func(*bound.args, **bound.kwargs)
 

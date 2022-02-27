@@ -62,6 +62,21 @@ commands:
               keys:
               - v0.30-toxenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
               - v0.30-toxenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+  save-kfp-cache:
+    description: "Save kfp environment to cache"
+    steps:
+            - save_cache:
+                paths:
+                  - /opt/circleci/.pyenv/
+                  - ./.tox
+                key: v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+  restore-kfp-cache:
+    description: "Restore kfp environment from cache"
+    steps:
+      - restore_cache:
+              keys:
+              - v0.30-kfpenv-{{ .Environment.CIRCLE_BRANCH }}-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
+              - v0.30-kfpenv-master-{{ .Environment.CIRCLE_JOB }}-{{ checksum "tox.ini" }}-{{ checksum "setup.py" }}-{{ checksum "requirements.txt" }}-{{ checksum "requirements_dev.txt" }}
   save-test-results:
     description: "Save test results"
     steps:
@@ -399,20 +414,21 @@ jobs:
         - attach_workspace:
                   at: .
         - checkout
+        - restore-kfp-cache
         - run:
               name: Install system deps
               command: sudo apt update && sudo apt-get install -y libsndfile1 ffmpeg
         - run:
               name: Use py37
               command: |
-                  pyenv install 3.7.0
+                  pyenv install -s 3.7.0
                   pyenv versions
                   pyenv global 3.7.0
         - run:
               name: Install python dependencies
               command: |
+                  pip install --upgrade pip
                   pip install tox==3.24.0
-        - restore-tox-cache
         - run:
               name: Install kubectl
               command: |
@@ -441,5 +457,5 @@ jobs:
               command: |
                   tox -v -e << parameters.toxenv >>
               no_output_timeout: 25m
-        - save-tox-cache
+        - save-kfp-cache
         - save-test-results
