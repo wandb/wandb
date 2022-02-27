@@ -248,6 +248,10 @@ class Run:
     """
 
     _telemetry_obj: telemetry.TelemetryRecord
+    _telemetry_obj_active: bool
+    _telemetry_obj_dirty: bool
+    _telemetry_obj_flushed: bytes
+
     _teardown_hooks: List[TeardownHook]
     _tags: Optional[Tuple[Any, ...]]
 
@@ -373,6 +377,9 @@ class Run:
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
+        self._telemetry_obj_active = False
+        self._telemetry_obj_flushed = b""
+        self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
         self._use_redirect = True
@@ -459,6 +466,21 @@ class Run:
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
         self._telemetry_obj.MergeFrom(telem_obj)
+        self._telemetry_obj_dirty = True
+        self._telemetry_flush()
+
+    def _telemetry_flush(self) -> None:
+        if not self._telemetry_obj_active:
+            return
+        if not self._telemetry_obj_dirty:
+            return
+        if self._backend and self._backend.interface:
+            serialized = self._telemetry_obj.SerializeToString()
+            if serialized == self._telemetry_obj_flushed:
+                return
+            self._backend.interface._publish_telemetry(self._telemetry_obj)
+            self._telemetry_obj_flushed = serialized
+            self._telemetry_obj_dirty = False
 
     def _freeze(self) -> None:
         self._frozen = True
@@ -889,8 +911,7 @@ class Run:
         self._label_internal(code=code, repo=repo, code_version=code_version)
 
         # update telemetry in the backend immediately for _label() callers
-        if self._backend and self._backend.interface:
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
+        self._telemetry_flush()
 
     def _label_probe_lines(self, lines: List[str]) -> None:
         if not lines:
@@ -1755,6 +1776,23 @@ class Run:
         if self._backend and self._backend.interface and not self._settings._offline:
             self._run_status_checker = RunStatusChecker(self._backend.interface)
         self._console_start()
+        self._on_ready()
+
+    def _on_attach(self) -> None:
+        """Event triggered when run is attached to another run."""
+        with telemetry.context(run=self) as tel:
+            tel.feature.attach = True
+
+        self._on_ready()
+
+    def _on_ready(self) -> None:
+        """Event triggered when run is ready for the user."""
+        # start reporting any telemetry changes
+        self._telemetry_obj_active = True
+        self._telemetry_flush()
+
+        # object is about to be returned to the user, dont let them modify it
+        self._freeze()
 
     def _on_finish(self) -> None:
         trigger.call("on_finished")
@@ -1770,7 +1808,7 @@ class Run:
 
         if self._backend and self._backend.interface:
             # telemetry could have changed, publish final data
-            self._backend.interface._publish_telemetry(self._telemetry_obj)
+            self._telemetry_flush()
 
             # TODO: we need to handle catastrophic failure better
             # some tests were timing out on sending exit for reasons not clear to me

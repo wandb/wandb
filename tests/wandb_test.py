@@ -12,17 +12,23 @@ import wandb
 from wandb.viz import create_custom_chart
 
 
-def test_log_step(wandb_init_run):
-    wandb.log({"acc": 1}, step=5, commit=True)
-    assert wandb.run._backend.history[0]["_step"] == 5
+def test_log_step(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+    run.log({"acc": 1}, step=5, commit=True)
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0]["_step"] == 5
 
 
-def test_log_custom_chart(wandb_init_run):
-    custom_chart = create_custom_chart(
-        "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
-    )
-    wandb.log({"my_custom_chart": custom_chart})
-    assert wandb.run._backend.history[0].get("my_custom_chart_table")
+def test_log_custom_chart(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        custom_chart = create_custom_chart(
+            "test_spec", wandb.Table(data=[[1, 2], [3, 4]], columns=["A", "B"]), {}, {}
+        )
+        run.log({"my_custom_chart": custom_chart})
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert ctx_util.history[0].get("my_custom_chart_table")
 
 
 @pytest.mark.wandb_args({"env": {"WANDB_SILENT": "true"}})
@@ -44,41 +50,68 @@ def test_log_not_dict(wandb_init_run):
         wandb.log(10)
 
 
-def test_log_step_uncommited(wandb_init_run):
-    wandb.log(dict(cool=2), step=2)
-    wandb.log(dict(cool=2), step=4)
-    assert len(wandb.run._backend.history) == 1
+def test_log_multiple_cases_example(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(n=1))
+        run.log(dict(n=11), commit=False)
+        run.log(dict(n=2), step=100)
+        run.log(dict(n=3), step=100)
+        run.log(dict(n=8), step=101)
+        run.log(dict(n=5), step=102)
+        run.log(dict(cool=2), step=2)
+        run.log(dict(cool=2), step=4)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert [(h["n"], h["_step"]) for h in ctx_util.history] == [
+        (1, 0),
+        (11, 1),
+        (3, 100),
+        (8, 101),
+        (5, 102),
+    ]
 
 
-def test_log_step_committed(wandb_init_run):
-    wandb.log(dict(cool=2), step=2)
-    wandb.log(dict(cool=2), step=4, commit=True)
-    assert len(wandb.run._backend.history) == 2
+def test_log_step_uncommited(live_mock_server, test_settings, parse_ctx):
+    run = wandb.init(settings=test_settings)
+    run.log(dict(cool=2), step=2, commit=False)
+    run.log(dict(cool=2), step=4)
+    run.finish()
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
 
 
-def test_log_step_committed_same(wandb_init_run):
-    wandb.log(dict(cool=2), step=1)
-    wandb.log(dict(cool=2), step=4)
-    wandb.log(dict(bad=3), step=4, commit=True)
-    assert len(wandb.run._backend.history) == 2
-    assert (
-        len([x for x in wandb.run._backend.history[-1].keys() if not x.startswith("_")])
-        == 2
-    )
-    assert wandb.run._backend.history[-1]["cool"] == 2
-    assert wandb.run._backend.history[-1]["bad"] == 3
+def test_log_step_committed(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(cool=2), step=2)
+        run.log(dict(cool=2), step=4, commit=True)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
 
 
-def test_log_step_committed_same_dropped(wandb_init_run):
-    wandb.log(dict(cool=2), step=1)
-    wandb.log(dict(cool=2), step=4, commit=True)
-    wandb.log(dict(bad=3), step=4, commit=True)
-    assert len(wandb.run._backend.history) == 2
-    assert (
-        len([x for x in wandb.run._backend.history[-1].keys() if not x.startswith("_")])
-        == 1
-    )
-    assert wandb.run._backend.history[-1]["cool"] == 2
+def test_log_step_committed_same(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(cool=2), step=1)
+        run.log(dict(cool=2), step=4)
+        run.log(dict(bad=3), step=4, commit=True)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
+    assert len([x for x in ctx_util.history[-1].keys() if not x.startswith("_")]) == 2
+    assert ctx_util.history[-1]["cool"] == 2
+    assert ctx_util.history[-1]["bad"] == 3
+
+
+def test_log_step_committed_same_dropped(live_mock_server, test_settings, parse_ctx):
+    with wandb.init(settings=test_settings) as run:
+        run.log(dict(cool=2), step=1)
+        run.log(dict(cool=2), step=4, commit=True)
+        run.log(dict(bad=3), step=4, commit=True)
+
+    ctx_util = parse_ctx(live_mock_server.get_ctx())
+    assert len(ctx_util.history) == 2
+    assert len([x for x in ctx_util.history[-1].keys() if not x.startswith("_")]) == 1
+    assert ctx_util.history[-1]["cool"] == 2
 
 
 def test_nice_log_error():
