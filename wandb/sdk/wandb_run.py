@@ -585,6 +585,9 @@ class Run:
         if not _attach_id:
             return
 
+        run = wandb._attach(_attach_id)
+        for k, v in run.__dict__.items():
+            self.__dict__[k] = v
         self._attach_id = _attach_id
 
     @property
