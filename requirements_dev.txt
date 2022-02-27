@@ -36,3 +36,6 @@ rdkit-pypi; platform.machine != 'arm64'
 .[launch]
 .[sweeps]
 .[azure]
+torch
+cloudpickle
+sklearn

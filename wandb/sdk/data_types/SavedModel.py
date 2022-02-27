@@ -1,6 +1,7 @@
 import os
 from typing import (
     Any,
+    cast,
     ClassVar,
     Dict,
     Generic,
@@ -24,6 +25,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_artifacts import Artifact as LocalArtifact
     from ..wandb_run import Run as LocalRun
+
+    import torch
+    import sklearn
+    import cloudpickle
 
     # TODO: make these richer
     ModelObjType = Any
@@ -49,13 +54,12 @@ class _ModelAdapterRegistry(object):
     @staticmethod
     def register_adapter(adapter: Type["_IModelAdapter"]) -> None:
         adapters = _ModelAdapterRegistry.registered_adapters()
-        if adapter.adapter_id in adapters:
+        adapter_id = adapter.adapter_id()
+        if adapter_id in adapters:
             raise ValueError(
-                "Cannot add adapter with id {}, already exists".format(
-                    adapter.adapter_id
-                )
+                "Cannot add adapter with id {}, already exists".format(adapter_id)
             )
-        adapters[adapter.adapter_id] = adapter
+        adapters[adapter_id] = adapter
 
     @staticmethod
     def registered_adapters() -> RegisteredAdaptersMapType:
@@ -76,7 +80,11 @@ class _ModelAdapterRegistry(object):
     ) -> bool:
         possible = False
         if _is_path(model_or_path):
-            possible = adapter.can_load_path(model_or_path)
+            possible_single_file = _single_path_of_maybe_dir(model_or_path)
+            if possible_single_file is not None:
+                possible = adapter.can_load_path(possible_single_file)
+            else:
+                possible = adapter.can_load_path(model_or_path)
         else:
             possible = adapter.can_adapt_model(model_or_path)
         return possible
@@ -166,12 +174,22 @@ def _is_path(model_or_path: ModelType) -> bool:
     return isinstance(model_or_path, str) and os.path.exists(model_or_path)
 
 
+def _single_path_of_maybe_dir(maybe_dir: str) -> Optional[str]:
+    if os.path.isdir(maybe_dir):
+        paths = os.listdir(maybe_dir)
+        if len(paths) == 1:
+            return os.path.join(maybe_dir, paths[0])
+    return None
+
+
 # TODO: Convert this to Weave
 class _ModelSpec(object):
-    _inputs: ModelIOType
-    _outputs: ModelIOType
+    _inputs: Optional[ModelIOType]
+    _outputs: Optional[ModelIOType]
 
-    def __init__(self, inputs: ModelIOType, outputs: ModelIOType,) -> None:
+    def __init__(
+        self, inputs: Optional[ModelIOType], outputs: Optional[ModelIOType]
+    ) -> None:
         self._inputs = inputs
         self._outputs = outputs
 
@@ -186,7 +204,7 @@ ModelObjectType = TypeVar("ModelObjectType")
 
 
 class _IModelAdapter(Generic[ModelObjectType]):
-    adapter_id: str
+    _adapter_id: ClassVar[str]
     _internal_model: ModelObjectType
 
     def __init__(self, model: ModelObjectType) -> None:
@@ -200,6 +218,8 @@ class _IModelAdapter(Generic[ModelObjectType]):
 
     @staticmethod
     def can_load_path(dir_or_file_path: ModelPathType) -> bool:
+        """ Will only be a dir in the case that the dir contains more than 1 file.
+        """
         raise NotImplementedError()
 
     @staticmethod
@@ -212,8 +232,179 @@ class _IModelAdapter(Generic[ModelObjectType]):
     def model_spec(self) -> _ModelSpec:
         raise NotImplementedError()
 
+    @classmethod
+    def adapter_id(cls: Type["_IModelAdapter"]) -> str:
+        return cls._adapter_id
+
     def raw(self) -> ModelObjectType:
         return self._internal_model
+
+
+def _get_torch(hard: bool = False) -> "torch":
+    return cast(
+        "torch",
+        util.get_module("torch", "ModelAdapter requires `torch`" if hard else None),
+    )
+
+
+class _PytorchModelAdapter(_IModelAdapter[torch.nn.Module]):
+    _adapter_id = "pytorch"
+
+    @classmethod
+    def init_from_path(
+        cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType
+    ) -> "_IModelAdapter":
+        return cls(_get_torch(True).load(dir_or_file_path))
+
+    @staticmethod
+    def can_load_path(dir_or_file_path: ModelPathType) -> bool:
+        dynamic_torch = _get_torch()
+        if (
+            dynamic_torch is not None
+            and not os.path.isdir(dir_or_file_path)
+            and os.path.basename(dir_or_file_path).endswith(".pt")
+        ):
+            try:
+                dynamic_torch.load(dir_or_file_path)
+                return True
+            except Exception:
+                pass
+        return False
+
+    @staticmethod
+    def can_adapt_model(obj: Any) -> bool:
+        dynamic_torch = _get_torch()
+        return dynamic_torch is not None and isinstance(obj, dynamic_torch.nn.Module)
+
+    def save_model(self, dir_path: ModelDirPathType) -> None:
+        target_path = os.path.join(dir_path, "model.pt")
+        dynamic_torch = _get_torch(True)
+        dynamic_torch.save(self._internal_model, target_path)
+
+    def model_spec(self) -> _ModelSpec:
+        # TODO
+        return _ModelSpec(None, None)
+
+
+def _get_sklearn(hard: bool = False) -> "sklearn":
+    return cast(
+        "sklearn",
+        util.get_module("sklearn", "ModelAdapter requires `sklearn`" if hard else None),
+    )
+
+
+def _get_cloudpickle(hard: bool = False) -> "cloudpickle":
+    return cast(
+        "cloudpickle",
+        util.get_module(
+            "cloudpickle", "ModelAdapter requires `cloudpickle`" if hard else None
+        ),
+    )
+
+
+class _SklearnModelAdapter(_IModelAdapter[torch.nn.Module]):
+    _adapter_id = "sklearn"
+
+    @classmethod
+    def init_from_path(
+        cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType
+    ) -> "_IModelAdapter":
+        with open(dir_or_file_path, "rb") as file:
+            model = _get_cloudpickle(True).load(file)
+        return cls(model)
+
+    @staticmethod
+    def can_load_path(dir_or_file_path: ModelPathType) -> bool:
+        dynamic_sklearn = _get_sklearn()
+        dynamic_cloudpickle = _get_cloudpickle()
+        if (
+            dynamic_sklearn is not None
+            and dynamic_cloudpickle is not None
+            and not os.path.isdir(dir_or_file_path)
+            and os.path.basename(dir_or_file_path).endswith(".pkl")
+        ):
+            try:
+                valid = False
+                with open(dir_or_file_path, "rb") as file:
+                    model = dynamic_cloudpickle.load(file)
+                    valid = (
+                        dynamic_sklearn.base.is_classifier(model)
+                        or dynamic_sklearn.base.is_outlier_detector(model)
+                        or dynamic_sklearn.base.is_regressor(model)
+                    )
+                return valid
+            except Exception:
+                pass
+        return False
+
+    @staticmethod
+    def can_adapt_model(obj: Any) -> bool:
+        dynamic_sklearn = _get_sklearn()
+        return (
+            dynamic_sklearn is not None
+            and dynamic_sklearn.base.is_classifier(obj)
+            or dynamic_sklearn.base.is_outlier_detector(obj)
+            or dynamic_sklearn.base.is_regressor(obj)
+        )
+
+    def save_model(self, dir_path: ModelDirPathType) -> None:
+        dynamic_cloudpickle = _get_cloudpickle(True)
+        target_path = os.path.join(dir_path, "model.pkl")
+        with open(target_path, "wb") as file:
+            dynamic_cloudpickle.dump(self._internal_model, file)
+
+    def model_spec(self) -> _ModelSpec:
+        # TODO
+        return _ModelSpec(None, None)
+
+
+# Leaving this here for when we want to release this
+# class _PytorchTorchScriptModelAdapter(_IModelAdapter[torch.nn.Module]):
+#     _adapter_id = "pytorch-torchscript"
+
+#     @classmethod
+#     def init_from_path(
+#         cls: Type["_IModelAdapter"], dir_or_file_path: ModelPathType
+#     ) -> "_IModelAdapter":
+#         return util.get_module('torch', "_PytorchTorchScriptModelAdapter requires `torch`").jit.load(dir_or_file_path)
+
+#     @staticmethod
+#     def can_load_path(dir_or_file_path: ModelPathType) -> bool:
+#         dynamic_torch = util.get_module('torch')
+#         if dynamic_torch is not None and not os.path.isdir(dir_or_file_path) and os.path.basename(dir_or_file_path).endswith('.pt'):
+#             try:
+#                 dynamic_torch.jit.load(dir_or_file_path)
+#                 return True
+#             except Exception:
+#                 pass
+#         return False
+
+#     @staticmethod
+#     def can_adapt_model(obj: Any) -> bool:
+#         dynamic_torch = util.get_module('torch')
+#         if dynamic_torch is not None:
+#             if isinstance(obj, dynamic_torch.jit.ScriptModule):
+#                 return True
+#             elif isinstance(obj, dynamic_torch.nn.Module):
+#                 try:
+#                     dynamic_torch.jit.script(obj)
+#                     return False
+#                 except Exception:
+#                     pass
+#         return False
+
+#     def save_model(self, dir_path: ModelDirPathType) -> None:
+#         target_path = os.path.join(dir_path, 'model_scripted.pt')
+#         dynamic_torch = util.get_module('torch', "_PytorchTorchScriptModelAdapter requires `torch`")
+#         if isinstance(self._internal_model, dynamic_torch.jit.ScriptModule):
+#             self._internal_model.save(target_path)
+#         else:
+#             model_scripted = dynamic_torch.jit.script(self._internal_model)
+#             model_scripted.save(target_path)
+
+#     def model_spec(self) -> _ModelSpec:
+#         # TODO
+#         return _ModelSpec(None, None)
 
 
 # TODO: Implement the basic adapters
@@ -235,7 +426,9 @@ class _SavedModelType(_dtypes.Type):
         if not isinstance(py_obj, SavedModel):
             raise TypeError("py_obj must be a SavedModel")
         else:
-            return cls(py_obj.adapter.adapter_id, py_obj.adapter.model_spec().to_json())
+            return cls(
+                py_obj.adapter.adapter_id(), py_obj.adapter.model_spec().to_json()
+            )
 
 
 _dtypes.TypeRegistry.add(_SavedModelType)
