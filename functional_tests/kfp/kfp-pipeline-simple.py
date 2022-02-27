@@ -30,6 +30,7 @@ packages_to_install = []
 # probe wandb dev build if needed (otherwise released wandb will be used)
 wandb_package = wandb_probe_package()
 if wandb_package:
+    print("INFO: wandb_probe_package found:", wandb_package)
     packages_to_install.append(wandb_package)
 add = components.create_component_from_func(
     add,
