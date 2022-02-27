@@ -719,7 +719,8 @@ def test_login_change_env_var_int(runner, live_mock_server, parse_ctx):
     # WB-7940: test that we can change the env var after login
     with runner.isolated_filesystem():
         wandb.login()
-        with mock.patch.dict("os.environ", WANDB_DIR=tempfile.gettempdir()):
+        tempdir = tempfile.gettempdir()
+        with mock.patch.dict("os.environ", WANDB_DIR=tempdir):
             run = wandb.init()
-            assert run.settings.root_dir == tempfile.gettempdir()
+            assert run.settings.root_dir == tempdir
             run.finish()

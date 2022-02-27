@@ -113,8 +113,8 @@ class _WandbInit(object):
                 singleton.settings, singleton._early_logger
             )
             self._wl = wandb_setup.setup(settings=singleton_settings)
-
-        self._wl = wandb_setup.setup()
+        else:
+            self._wl = wandb_setup.setup()
         # Make sure we have a logger setup (might be an early logger)
         _set_logger(self._wl._get_logger())
 
