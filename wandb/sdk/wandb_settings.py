@@ -753,6 +753,8 @@ class Settings:
                 )
             elif re.match(r".*wandb\.ai[^\.]*$", value) and "http://" in value:
                 raise UsageError("http is not secure, please use https://api.wandb.ai")
+            elif not value.startswith("http"):
+                raise UsageError("host must start with `http(s)://`")
         return True
 
     # other helper methods
