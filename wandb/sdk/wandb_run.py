@@ -574,7 +574,7 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id)
+        return dict(_attach_id=_attach_id, _init_pid=self._init_pid)
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
