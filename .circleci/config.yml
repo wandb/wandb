@@ -217,7 +217,7 @@ workflows:
       - kfp:
          name: "mach-kubeflow36"
          toxenv: "func-s_kfp-py36"
-         python_version: 3.6.0
+         python_version: 3.6.1
       - kfp:
          name: "mach-kubeflow37"
          toxenv: "func-s_kfp-py37"
@@ -444,7 +444,6 @@ jobs:
               command: |
                   pip install --upgrade pip
                   pip install tox==3.24.0
-                  pip install --upgrade pyparsing
         - run:
               name: Install kubectl
               command: |
