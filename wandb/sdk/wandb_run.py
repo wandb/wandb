@@ -3,6 +3,7 @@ import atexit
 from collections.abc import Mapping
 from datetime import timedelta
 from enum import IntEnum
+import functools
 import glob
 import json
 import logging
@@ -180,6 +181,24 @@ class RunStatusChecker(object):
         self.stop()
         self._stop_thread.join()
         self._retry_thread.join()
+
+
+# TODO(kpt) should we auto decorate?
+def attach(func: Callable) -> Callable:
+    if hasattr(func, "tracing"):  # Only decorate once
+        return func
+
+    @functools.wraps(func)
+    def wrapper(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+            if getattr(self, "_init_pid", None) != os.getpid():
+                wandb._attach(run=self)
+            return func(self, *args, **kwargs)
+        except Exception as e:
+            raise e
+
+    wrapper.tracing = True
+    return wrapper
 
 
 class Run:
@@ -574,7 +593,7 @@ class Run:
         if not _attach_id:
             return
 
-        return dict(_attach_id=_attach_id, _init_pid=self._init_pid)
+        return dict(_attach_id=_attach_id)
 
     def __setstate__(self, state: Any) -> None:
         """Custom unpickler."""
@@ -585,18 +604,17 @@ class Run:
         if not _attach_id:
             return
 
-        run = wandb._attach(_attach_id)
-        for k, v in run.__dict__.items():
-            self.__dict__[k] = v
         self._attach_id = _attach_id
 
     @property
+    @attach
     def _torch(self) -> "wandb.wandb_torch.TorchHistory":
         if self._torch_history is None:
             self._torch_history = wandb.wandb_torch.TorchHistory()
         return self._torch_history
 
     @property
+    @attach
     def settings(self) -> Settings:
         """Returns a frozen copy of run's Settings object."""
         cp = self._settings.copy()
@@ -604,20 +622,24 @@ class Run:
         return cp
 
     @property
+    @attach
     def dir(self) -> str:
         """Returns the directory where files associated with the run are saved."""
         return self._settings.files_dir
 
     @property
+    @attach
     def config(self) -> wandb_config.Config:
         """Returns the config object associated with this run."""
         return self._config
 
     @property
+    @attach
     def config_static(self) -> wandb_config.ConfigStatic:
         return wandb_config.ConfigStatic(self._config)
 
     @property
+    @attach
     def name(self) -> Optional[str]:
         """Returns the display name of the run.
 
@@ -639,6 +661,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property
+    @attach
     def notes(self) -> Optional[str]:
         """Returns the notes associated with the run, if there are any.
 
@@ -658,6 +681,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property
+    @attach
     def tags(self) -> Optional[Tuple]:
         """Returns the tags associated with the run, if there are any."""
         if self._tags:
@@ -676,6 +700,7 @@ class Run:
             self._backend.interface.publish_run(self)
 
     @property
+    @attach
     def id(self) -> str:
         """Returns the identifier for this run."""
         if TYPE_CHECKING:
@@ -683,6 +708,7 @@ class Run:
         return self._run_id
 
     @property
+    @attach
     def sweep_id(self) -> Optional[str]:
         """Returns the ID of the sweep associated with the run, if there is one."""
         if not self._run_obj:
@@ -690,6 +716,7 @@ class Run:
         return self._run_obj.sweep_id or None
 
     @property
+    @attach
     def path(self) -> str:
         """Returns the path to the run.
 
@@ -703,6 +730,7 @@ class Run:
         return "/".join(parts)
 
     @property
+    @attach
     def start_time(self) -> float:
         """Returns the unix time stamp, in seconds, when the run started."""
         if not self._run_obj:
@@ -711,6 +739,7 @@ class Run:
             return self._run_obj.start_time.ToSeconds()
 
     @property
+    @attach
     def starting_step(self) -> int:
         """Returns the first step of the run."""
         if not self._run_obj:
@@ -719,6 +748,7 @@ class Run:
             return self._run_obj.starting_step
 
     @property
+    @attach
     def resumed(self) -> bool:
         """Returns True if the run was resumed, False otherwise."""
         if self._run_obj:
@@ -726,6 +756,7 @@ class Run:
         return False
 
     @property
+    @attach
     def step(self) -> int:
         """Returns the current value of the step.
 
@@ -733,11 +764,13 @@ class Run:
         """
         return self.history_step
 
+    @attach
     def project_name(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.project if run_obj else ""
 
     @property
+    @attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
         deprecate.deprecate(
@@ -750,14 +783,17 @@ class Run:
         return "dryrun" if self._settings._offline else "run"
 
     @property
+    @attach
     def offline(self) -> bool:
         return self._settings._offline
 
     @property
+    @attach
     def disabled(self) -> bool:
         return self._settings._noop
 
     @property
+    @attach
     def group(self) -> str:
         """Returns the name of the group associated with the run.
 
@@ -772,15 +808,18 @@ class Run:
         return run_obj.run_group if run_obj else ""
 
     @property
+    @attach
     def job_type(self) -> str:
         run_obj = self._run_obj or self._run_obj_offline
         return run_obj.job_type if run_obj else ""
 
     @property
+    @attach
     def project(self) -> str:
         """Returns the name of the W&B project associated with the run."""
         return self.project_name()
 
+    @attach
     def log_code(
         self,
         root: str = ".",
@@ -1237,6 +1276,7 @@ class Run:
         else:
             self._partial_history_callback(data, self.history_step)
 
+    @attach
     def log(
         self,
         data: Dict[str, Any],
@@ -1424,6 +1464,7 @@ class Run:
             )
         self._log(data=data, step=step, commit=commit)
 
+    @attach
     def save(
         self,
         glob_str: Optional[str] = None,
@@ -1516,6 +1557,7 @@ class Run:
             self._backend.interface.publish_files(files_dict)
         return files
 
+    @attach
     def restore(
         self,
         name: str,
@@ -1525,6 +1567,7 @@ class Run:
     ) -> Union[None, TextIO]:
         return restore(name, run_path or self.path, replace, root or self.dir)
 
+    @attach
     def finish(self, exit_code: int = None, quiet: Optional[bool] = None) -> None:
         """Marks a run as finished, and finishes uploading all data.
 
@@ -1560,6 +1603,7 @@ class Run:
         if manager:
             manager._inform_finish(run_id=self.id)
 
+    @attach
     def join(self, exit_code: int = None) -> None:
         """Deprecated alias for `finish()` - please use finish."""
         deprecate.deprecate(
@@ -1891,6 +1935,7 @@ class Run:
             print(s, file=f)
         self.save(spec_filename)
 
+    @attach
     def define_metric(
         self,
         name: str,
@@ -1986,10 +2031,12 @@ class Run:
         return m
 
     # TODO(jhr): annotate this
+    @attach
     def watch(self, models, criterion=None, log="gradients", log_freq=100, idx=None, log_graph=False) -> None:  # type: ignore
         wandb.watch(models, criterion, log, log_freq, idx, log_graph)
 
     # TODO(jhr): annotate this
+    @attach
     def unwatch(self, models=None) -> None:  # type: ignore
         wandb.unwatch(models=models)
 
@@ -2039,6 +2086,7 @@ class Run:
     def _detach(self) -> None:
         pass
 
+    @attach
     def use_artifact(
         self,
         artifact_or_name: Union[str, public.Artifact, Artifact],
@@ -2144,6 +2192,7 @@ class Run:
                     "an instance of `wandb.Artifact`, or `wandb.Api().artifact()` to `use_artifact`"  # noqa: E501
                 )
 
+    @attach
     def log_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2179,6 +2228,7 @@ class Run:
             artifact_or_path, name=name, type=type, aliases=aliases
         )
 
+    @attach
     def upsert_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2231,6 +2281,7 @@ class Run:
             finalize=False,
         )
 
+    @attach
     def finish_artifact(
         self,
         artifact_or_path: Union[wandb_artifacts.Artifact, str],
@@ -2408,6 +2459,7 @@ class Run:
         artifact.finalize()
         return artifact, aliases
 
+    @attach
     def alert(
         self,
         title: str,
@@ -2454,6 +2506,7 @@ class Run:
         self.finish(exit_code)
         return exc_type is None
 
+    @attach
     def mark_preempting(self) -> None:
         """Marks this run as preempting.
 
